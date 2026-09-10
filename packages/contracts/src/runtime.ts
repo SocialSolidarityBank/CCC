@@ -72,12 +72,31 @@ export type CoreSecretName = 'CODEX_API_KEY' | 'PII_ENC_KEY' | 'NOTIFY_WEBHOOK_U
 export type PlatformSecretName = 'DB_MASTER_KEY' | 'FILE_ENC_KEY' | 'OFFICE_CA_KEY' | 'SUPABASE_SERVICE_ROLE_KEY' | 'SCHEDULER_SECRET';
 export type SecretName = CoreSecretName | PlatformSecretName;
 export interface SecretStore {
-  get(name: SecretName): Promise<string | null>;
+  get(name: Exclude<SecretName, 'PII_ENC_KEY'>): Promise<string | null>;
+  getBytesWithVersion(name: 'PII_ENC_KEY'): Promise<VersionedSecretBytes | null>;
 }
 
-/** The same read port, narrowed to the capability granted to core consumers. */
+/** Core can read provider strings and owned PII bytes, never Platform keys. */
 export interface CoreSecretStore {
-  get(name: CoreSecretName): Promise<string | null>;
+  get(name: Exclude<CoreSecretName, 'PII_ENC_KEY'>): Promise<string | null>;
+  getBytesWithVersion(name: 'PII_ENC_KEY'): Promise<VersionedSecretBytes | null>;
+}
+
+/** S9 recovery boundary: mutable bytes, never string/base64 material.
+ * The caller owns returned buffers and zeroizes them in finally on success and failure.
+ * Implementations return plain Uint8Array, not a native Buffer; native copies must also be wiped.
+ */
+export type SecretBytes = Uint8Array;
+export interface VersionedSecretBytes {
+  bytes: SecretBytes;
+  /** Positive key version; PII uses the PII_KEY_VERSION meaning. */
+  version: number;
+}
+/** Separate from the string runtime read port; provider and Python credentials are excluded. */
+export interface RecoverySecretStore {
+  getBytesWithVersion(
+    name: 'DB_MASTER_KEY' | 'FILE_ENC_KEY' | 'PII_ENC_KEY' | 'OFFICE_CA_KEY',
+  ): Promise<VersionedSecretBytes | null>;
 }
 
 /**

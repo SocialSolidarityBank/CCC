@@ -27,6 +27,7 @@ import {
   registerFixtureRecording,
   seedCanonicalSttConsent,
 } from './support/agent-jobs';
+import { registrationInput } from './support/registration';
 
 const counselor: Actor = testActors.counselor;
 const admin: Actor = testActors.admin;
@@ -99,9 +100,18 @@ async function makeInPersonSession(consent: boolean) {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, { sttMode: 'local', llmMode: 'off' });
   t.env.CCC_STT_MODE = 'local';
   t.env.CCC_LLM_MODE = 'off';
-  const caseRecord = await createCase(t.env, counselor, consent
-    ? { programId: testProgramId(counselor.orgId), consentRecordingAt: '2026-01-01T00:00:00.000Z' }
-    : { programId: testProgramId(counselor.orgId) });
+  // 녹음 권한의 유일한 근거는 등록 6종 동의다 — 미동의 경로는 녹음·STT·국외·보유기간을 decline 으로 남긴다.
+  const caseRecord = await createCase(t.env, counselor, await registrationInput(
+    t.env,
+    counselor,
+    { programId: testProgramId(counselor.orgId) },
+    consent ? undefined : {
+      counseling_recording: 'decline',
+      external_stt_processing: 'decline',
+      external_llm_cross_border_processing: 'decline',
+      voice_original_retention_period: 'decline',
+    },
+  ));
   const session = await createManualSession(t.env, counselor, caseRecord.id, {
     submissionId: '03000000-0000-4000-8000-000000000001',
     heldAt: '2026-01-02T10:00:00.000Z',
@@ -120,6 +130,8 @@ async function makeInPersonSession(consent: boolean) {
     const scope = await t.db.prepare('SELECT support_case_id FROM sessions WHERE id=?')
       .bind(session.id).first<{ support_case_id: string }>();
     if (scope === null) throw new Error('expected support case scope');
+    // 동의는 등록이 이미 남겼다. 이 호출이 여기 남는 이유는 녹음 허가가 요구하는
+    // 영업일 달력(CCC_KR_BUSINESS_CALENDAR)을 env 에 세워 주기 때문이다.
     await seedCanonicalSttConsent(localEnv(), counselor, scope.support_case_id);
   }
   return { caseRecord, session };

@@ -15,6 +15,7 @@ import {
 } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId } from './support/d1';
 import { handleRequest } from '../../../packages/http-api/src/request-handler';
+import { registrationInput } from './support/registration';
 
 // 배정 상태 머신 (CCC-123 · D74 · 정책 §2.3): 요청(requested)은 아무 게이트도 열지 않고,
 // 수락(active) 시 권한이 시작되며 이전 주담당이 끝난다. 강제 이관은 사유 필수 + 안내 확인
@@ -35,10 +36,10 @@ async function seedCase(): Promise<{ beneficiaryId: string; supportCaseId: strin
     testActors.unassignedCounselor.userId,
     testActors.admin.userId,
   ).run();
-  return createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
+  return createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
     programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
-  });
+  }));
 }
 
 describe('assignment request (CCC-123 requested status)', () => {
@@ -131,10 +132,10 @@ describe('assignment request (CCC-123 requested status)', () => {
 
   it('keeps an admin self-assignment requested when the institution has multiple active people', async () => {
     await t.reset();
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, await registrationInput(t.env, testActors.unassignedCounselor, {
       programId: testProgramId(testActors.unassignedCounselor.orgId),
       intakeAt: '2026-07-02T00:00:00.000Z',
-    });
+    }));
     await t.db.prepare(
       `INSERT OR IGNORE INTO user_role_assignments (
          id, org_id, user_id, role, source, granted_by
@@ -158,10 +159,10 @@ describe('assignment request (CCC-123 requested status)', () => {
 
   it('immediately accepts a self-assignment only when one active human remains', async () => {
     await t.reset();
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, await registrationInput(t.env, testActors.unassignedCounselor, {
       programId: testProgramId(testActors.unassignedCounselor.orgId),
       intakeAt: '2026-07-02T00:00:00.000Z',
-    });
+    }));
     await t.db.prepare(
       `INSERT OR IGNORE INTO user_role_assignments (
          id, org_id, user_id, role, source, granted_by

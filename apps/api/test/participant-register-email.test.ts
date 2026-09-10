@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import { revealPii } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 // 재개편 T7(#37): POST /participants 가 선택 이메일을 받아 pii_vault enc_email 로 저장하는지,
 // 그리고 형식 오류를 400 으로 막는지 확인한다. 저장 검증은 revealPii(admin) 라운드트립으로 한다
@@ -20,11 +21,14 @@ function headersFor(actor: { userId: string; orgId: string; role: string }): Rec
   };
 }
 
-function register(body: Record<string, unknown>): Promise<Response> {
+// 6종 동의와 재시도 키는 이 파일의 관심사가 아니다(관심사는 이메일·이름 PII 다) — 등록이
+// 성립하도록 매 요청에 채워 넣고, 각 테스트는 PII 항목만 얹는다.
+async function register(body: Record<string, unknown>): Promise<Response> {
+  const base = await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) });
   return worker.fetch(new Request('http://localhost/participants', {
     method: 'POST',
     headers: headersFor(counselor),
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...base, ...body }),
   }), t.env);
 }
 
@@ -34,9 +38,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     const response = await register({
       programId: testProgramId(counselor.orgId),
       email: 'participant@example.test',
-      // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
-      consentPrivacy: true,
-      consentRecordingAi: false,
     });
     expect(response.status).toBe(201);
     const created = await response.json() as { supportCaseId: string };
@@ -56,9 +57,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
       name: '  김성규  ',
       phone: '010-2233-1234',
       email: 'named@example.test',
-      // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
-      consentPrivacy: true,
-      consentRecordingAi: false,
     });
     expect(response.status).toBe(201);
     const created = await response.json() as { supportCaseId: string };
@@ -76,9 +74,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     const response = await register({
       programId: testProgramId(counselor.orgId),
       name: '   ',
-      // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
-      consentPrivacy: true,
-      consentRecordingAi: false,
     });
     expect(response.status).toBe(400);
   });
@@ -88,9 +83,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     const response = await register({
       programId: testProgramId(counselor.orgId),
       email: '  spaced@example.test  ',
-      // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
-      consentPrivacy: true,
-      consentRecordingAi: false,
     });
     expect(response.status).toBe(201);
     const created = await response.json() as { supportCaseId: string };
@@ -103,9 +95,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     const response = await register({
       programId: testProgramId(counselor.orgId),
       email: 'not-an-email',
-      // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
-      consentPrivacy: true,
-      consentRecordingAi: false,
     });
     expect(response.status).toBe(400);
   });
@@ -115,21 +104,13 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     const response = await register({
       programId: testProgramId(counselor.orgId),
       email: '   ',
-      // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
-      consentPrivacy: true,
-      consentRecordingAi: false,
     });
     expect(response.status).toBe(400);
   });
 
   it('registers without an email and leaves enc_email NULL (email is optional)', async () => {
     await t.reset();
-    const response = await register({
-      programId: testProgramId(counselor.orgId),
-      // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
-      consentPrivacy: true,
-      consentRecordingAi: false,
-    });
+    const response = await register({ programId: testProgramId(counselor.orgId) });
     expect(response.status).toBe(201);
     const created = await response.json() as { supportCaseId: string };
     const revealed = await revealPii(t.env, admin, created.supportCaseId);

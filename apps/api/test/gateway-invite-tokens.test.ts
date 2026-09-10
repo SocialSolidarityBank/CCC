@@ -4,7 +4,6 @@ import {
   INVITE_SIGNUP_ACTOR_ID,
   ValidationError,
   consumeInviteToken,
-  createCounselorInvite,
   createParticipantInvite,
   getInviteForSignup,
 } from '@ccc/core/gateway';
@@ -64,17 +63,6 @@ describe('invite tokens (CCC-29)', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it('실무자 초대 발급은 관리자만 할 수 있다', async () => {
-    await t.reset();
-
-    await expect(createCounselorInvite(t.env, counselor)).rejects.toBeInstanceOf(ForbiddenError);
-
-    const invite = await createCounselorInvite(t.env, admin);
-    expect(invite.kind).toBe('counselor');
-    expect(invite.programType).toBeNull();
-    expect(invite.issuedBy).toBe(admin.userId);
-  });
-
   it('경계 조회는 유효한 토큰+종류 일치만 통과시키고 나머지는 같은 에러로 거부한다', async () => {
     await t.reset();
 
@@ -120,23 +108,5 @@ describe('invite tokens (CCC-29)', () => {
       "SELECT actor_id FROM audit_log WHERE action = 'invite_consume' AND target_id = ?",
     ).bind(invite.token).first<{ actor_id: string }>();
     expect(audit?.actor_id).toBe(INVITE_SIGNUP_ACTOR_ID);
-  });
-
-  it('검증 뒤 폐기된 토큰도 DB 경계에서 소비되지 않는다', async () => {
-    await t.reset();
-    const invite = await createCounselorInvite(t.env, admin);
-    await expect(getInviteForSignup(t.env, invite.token, 'counselor')).resolves.toBeTruthy();
-    await t.db.prepare(
-      'UPDATE invite_tokens SET revoked_at = datetime(\'now\') WHERE token = ?',
-    ).bind(invite.token).run();
-
-    await expect(t.db.prepare(
-      `UPDATE invite_tokens
-       SET status = 'used', used_at = datetime('now')
-       WHERE token = ?`,
-    ).bind(invite.token).run()).rejects.toThrow('invite_token_revoked');
-    await expect(t.db.prepare(
-      'SELECT status FROM invite_tokens WHERE token = ?',
-    ).bind(invite.token).first<{ status: string }>()).resolves.toEqual({ status: 'issued' });
   });
 });

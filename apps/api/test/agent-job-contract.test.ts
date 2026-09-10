@@ -39,16 +39,16 @@ import {
   listSupportCasesForBeneficiary,
   recordSttReadiness,
   registerRecording,
-  recordPilotTextAiConsentEvidence,
   reconcileAudioObjectDeletion,
   releaseAgentJob,
   verifyAgentJobAudio,
   runAudioExpiry,
-  updateParticipantConsent,
+  getSupportCaseConsent,
   type Actor,
   type AgentRuntime,
 } from '@ccc/core/gateway';
 import type { AudioDeletionEvidence, AudioStore } from '@ccc/contracts/runtime';
+import type { ConsentDomain } from '@ccc/contracts/consent';
 import type { PreparedStatement } from '@ccc/contracts/database';
 import { deliverAudioLifecycleIncidents } from '@ccc/core/scheduled-job-runner';
 import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
@@ -61,6 +61,7 @@ import {
   seedCanonicalSttConsent,
   seedNerQualification,
 } from './support/agent-jobs';
+import { registrationInput } from './support/registration';
 
 vi.setConfig({ testTimeout: 60_000 });
 
@@ -87,20 +88,45 @@ async function fixtureSupportCase(): Promise<{ caseId: string; supportCaseId: st
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, { sttMode: 'local', llmMode: 'openai' });
   t.env.CCC_STT_MODE = 'local';
   t.env.CCC_LLM_MODE = 'openai';
-  const beneficiary = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+  // 등록이 남긴 6종 동의 이벤트가 텍스트 AI 권한의 유일한 근거다(파일럿 증빙 기록기는 폐지).
+  const beneficiary = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {
+    programId: testProgramId(counselor.orgId),
+  }));
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, beneficiary.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected an initial support case');
   t.env.TEXT_AI_PILOT_ENABLED = '1';
-  await updateParticipantConsent(t.env, counselor, supportCaseId, { privacy: true, recordingAi: true });
-  await recordPilotTextAiConsentEvidence(t.env, counselor, beneficiary.id, {
-    noticeVersion: 'pilot-text-ai-v1',
-    noticeSha256: 'a'.repeat(64),
-    evidenceRef: `r2://pilot-evidence/${beneficiary.id}`,
-    evidenceSha256: 'f'.repeat(64),
-    effectiveAt: '2026-01-01T00:00:00.000Z',
-  });
   return { caseId: beneficiary.id, supportCaseId };
+}
+
+/**
+ * 취소의 유일한 근거는 append-only 철회 이벤트다(옛 불리언·증빙이 아니다). 현재 리비전과
+ * 지금 발급한 고지에 묶어 넣으므로, 계약이 어긋나면 테스트가 아니라 게이트웨이가 거부한다.
+ */
+async function withdrawConsent(supportCaseId: string, domain: ConsentDomain): Promise<void> {
+  const current = (await getSupportCaseConsent(t.env, counselor, supportCaseId))
+    .find((item) => item.domain === domain);
+  const disclosure = (await issueSupportCaseConsentDisclosures(t.env, counselor, supportCaseId))
+    .find((item) => item.domain === domain);
+  if (current?.state !== 'granted' || current.revision === null || disclosure === undefined) {
+    throw new Error(`expected a granted ${domain} consent`);
+  }
+  await appendSupportCaseConsentEvent(t.env, counselor, supportCaseId, {
+    domain,
+    decision: 'withdraw',
+    provider: current.provider,
+    providerLegalRecipient: current.providerLegalRecipient,
+    providerCountry: current.providerCountry,
+    purpose: current.purpose,
+    retentionDuration: current.retentionDuration,
+    copyVersion: disclosure.copyVersion,
+    copyHash: disclosure.copyHash,
+    disclosureSnapshotId: disclosure.snapshotId,
+    effectiveAt: new Date().toISOString(),
+    idempotencyKey: crypto.randomUUID(),
+    correctionOfEventId: null,
+    expectedRevision: current.revision,
+  });
 }
 
 let sequence = 0;
@@ -316,7 +342,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
     if (claimed === undefined) throw new Error('expected a claimed job');
 
-    await updateParticipantConsent(t.env, counselor, supportCaseId, { privacy: true, recordingAi: false });
+    await withdrawConsent(supportCaseId, 'external_llm_cross_border_processing');
 
     expect(await jobRow(sessionId)).toMatchObject({ state: 'cancelled', lease_owner: null });
     await expect(acceptAgentJobResult(t.env, service, claimed.jobId, await agentResultRequest({

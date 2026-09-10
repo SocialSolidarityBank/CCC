@@ -9,6 +9,7 @@ import {
   updateParticipantPii,
 } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 // 관리자 영역(재개편 T8, #38): 실무자별 활성 배정 당사자 조회(실명·감사)와 공동 담당 추가(D7).
 // 담당 실무자 중심 접근(ADR-0002)·역할 기준 실명 표시(D24·ADR-0005)를 게이트웨이·라우트 두 층에서 검증한다.
@@ -29,10 +30,10 @@ const pii = { name: '김한나', phone: '010-1234-5678', account: '110-123-45678
 // counselor 가 담당(초기 배정=primary)하는 케이스 하나를 심고 실명을 등록한다.
 async function seedAssignedParticipant(): Promise<{ beneficiaryId: string; supportCaseId: string }> {
   await t.reset();
-  const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
+  const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
     programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
-  });
+  }));
   await updateParticipantPii(t.env, testActors.admin, created.beneficiaryId, {
     supportCaseContextId: created.supportCaseId,
     expectedVersion: 1,

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import { createBeneficiaryWithInitialSupportCase, createCounselingSchedule } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 // 전체 일정(CCC-19). org_demo 는 setupD1 가 Asia/Seoul(UTC+9, DST 없음)로 프로비저닝한다.
 // 2026-02 는 윤년의 29일 달이라 창 길이 파생이 맞는지 함께 본다 —
@@ -32,10 +33,10 @@ interface SeededMonth {
 async function seedMonth(): Promise<SeededMonth> {
   await t.reset();
 
-  const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
+  const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
     programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-01-05T00:00:00.000Z',
-  });
+  }));
 
   // KST 02-01 00:00 정각 = 창 시작 (포함)
   const firstInstant = await createCounselingSchedule(t.env, testActors.counselor, {
@@ -68,10 +69,10 @@ async function seedMonth(): Promise<SeededMonth> {
     scheduledAt: WINDOW_END_UTC,
   });
 
-  const hidden = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
+  const hidden = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, await registrationInput(t.env, testActors.unassignedCounselor, {
     programId: testProgramId(testActors.unassignedCounselor.orgId),
     intakeAt: '2026-01-05T00:00:00.000Z',
-  });
+  }));
   const hiddenSchedule = await createCounselingSchedule(t.env, testActors.unassignedCounselor, {
     beneficiaryId: hidden.beneficiaryId,
     supportCaseId: hidden.supportCaseId,
@@ -172,10 +173,10 @@ describe('GET /schedules/month', () => {
 
   it('carries the completed session id so the screen can link to that record', async () => {
     await t.reset();
-    const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
+    const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
       programId: testProgramId(testActors.counselor.orgId),
       intakeAt: '2026-01-05T00:00:00.000Z',
-    });
+    }));
     await createCounselingSchedule(t.env, testActors.counselor, {
       beneficiaryId: owned.beneficiaryId,
       supportCaseId: owned.supportCaseId,

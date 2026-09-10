@@ -475,3 +475,217 @@ For administrator registration, consume all pages and select accounts where `act
 - Local language-server references were unavailable because no server is configured. Caller inventory used repository searches; the existing directory API was retained instead of creating a competing contract.
 
 Main owns PostgreSQL replay and the frontend handoff decision. This checkpoint is not hosted Auth, real deployment, frontend integration, product STT activation or installer completion. Installer writer work remains pending Main's resolution of its concrete trust/ownership blocker and separate authorization.
+
+## E7-1a independent file and timer adapters
+
+Main approved independently authenticated fixed-size chunks and a narrow extraction of existing R2 audio validation into `@ccc/contracts/audio`. P3 gateway/HTTP paths remain frozen. This slice does not implement the E7-1a identity/bearer remainder or E7-1b runtime assembly. Root dependency/lock files remain frozen.
+
+### Internal audio-file format version 1
+
+This is a new internal format with no existing persisted users. `createFileAudioStore(root, { bytes, version })` takes exactly 32 mutable key bytes and a positive uint32 key version supplied by composition from `FILE_ENC_KEY`. It copies them into a Node `KeyObject`, does not retain the caller's byte array and never fetches or stores secrets. DPAPI, rotation, key selection and Recovery Kit rewrap remain S9 assembly responsibilities. The configured root must be private; missing parents are not created.
+
+All integers below are unsigned big-endian. AES is AES-256-GCM with 16-byte tags.
+
+1. Prefix: magic `43 43 43 41 01` followed by uint32 header length, bounded to 1..4096 bytes.
+2. Header: exact UTF-8 `JSON.stringify` bytes with ordered keys `formatVersion`, `keyVersion`, `chunkBytes`, `keyHash`, `generationId`, `noncePrefix`, `contentLength`, `contentType`, `expiresAt`. Values include version 1, chunk size 65,536, SHA-256 of the validated object key, random canonical UUID generation, random 8-byte prefix encoded as 16 lowercase hex characters, and the original validated metadata. Re-encoding must match byte-for-byte; extra/reordered/noncanonical fields fail. Stored metadata may outlive upload authorization, as with R2.
+3. Per-object key: HKDF-SHA-256, input key `FILE_ENC_KEY`, salt `UUID bytes || nonce-prefix bytes`, info `UTF8("CCC-AUDIO-FILE\0v1\0object-key")`, output 32 bytes. Derived temporary key bytes are zeroed after constructing the object `KeyObject`. This avoids relying on uniqueness of an 8-byte nonce prefix across all objects encrypted by one master key.
+4. Every record nonce is `noncePrefix[8] || uint32(recordIndex)`. Every record AAD is `UTF8("CCC-AUDIO-FILE\0v1") || completePrefixAndHeader || uint8(recordKind) || uint32(recordIndex) || uint32(plaintextLength)`.
+5. Header authentication is an empty-plaintext record, kind 0, index 0, length 0. Its 16-byte tag immediately follows the header.
+6. Data records are kind 1, indices 1 through `ceil(contentLength / 65536)`. Each stores ciphertext followed by its tag. All plaintext records are exactly 65,536 bytes except the final remainder; lengths and record boundaries follow the authenticated header, not unauthenticated per-record lengths.
+7. Mandatory completion record: kind 2, index `chunkCount + 1`, plaintext length 40. Plaintext is `uint32(totalLength) || uint32(chunkCount) || SHA256(completePlaintext)[32]`. Its ciphertext and tag occupy exactly 56 bytes, followed by EOF. Exact file length is `9 + headerLength + 16 + contentLength + 16*chunkCount + 56`.
+
+`get` opens one nofollow file descriptor, authenticates the header and completion record and checks exact file geometry before returning a stream. Each data chunk is authenticated before any of its plaintext is enqueued. The last chunk is withheld until the completion record is authenticated again on the same descriptor, the incremental plaintext hash matches, and an actual EOF read plus file-size check succeeds. There is no whole-file verify/reread pass, plaintext temporary file or whole-audio allocation. A truncation/modification after `get` can produce a stream error, never successful completion with an incomplete object. Consumers must treat clean EOF as success; previously emitted chunks are authenticated prefixes, not proof of whole-object completion.
+
+`put` uses the existing key, canonical MIME, length, expiry and checked-stream rules. SHA-256 is incremental via Node crypto. It packs arbitrary source chunks into bounded 64 KiB records and writes encrypted-only stages inside an exclusively created key-hash directory. After completion and file fsync, exclusive hard-link promotion publishes `object` without replacement, removes the stage link and fsyncs its parent. Partial/overrun/expired/error streams do not publish. An upload key is immutable and cannot be reused after durable deletion. Both target methods return `null`.
+
+### Durable filesystem deletion
+
+The root contains key-hash directories, not raw session keys. Files are created exclusively with nofollow and mode 0600; directories use 0700. Deletion uses small authenticated metadata records per key:
+
+- `<keyHash>.delete` is the durable, permanent deletion intent and publication fence.
+- `<keyHash>.accepted` records durable cleanup acceptance and the committed object's authenticated generation, if one existed.
+- `<keyHash>.unverified` uses the same record schema and preserves an unreadable object's unknown generation across retries. It is not a terminal-success receipt.
+
+Each record is UTF-8 JSON followed by LF and lowercase HMAC-SHA-256 hex. MAC input is `UTF8("CCC-AUDIO-DELETE\0v1") || JSON bytes` under the master file key. The ordered body fields are `formatVersion`, `keyVersion`, `keyHash`, `deletionAttemptId`, `deletionRequestedAt`, `generationId`, `deletedAt`. Intent has null generation/deleted time. Acceptance has its observed generation or null for never-committed stages and a durable-cleanup acceptance timestamp. These records contain neither audio, raw keys, secret material nor Agent-verified object hashes.
+
+Each record is written to an exclusive temporary file, fsynced, published by a no-overwrite hard link and followed by directory fsync. Existing records are authenticated and reused, not overwritten. The intent is durable before the whole object/staging directory is atomically renamed to `<keyHash>.deleted-<attemptId>` on the same filesystem and the root is fsynced. An in-flight writer's original stage path then cannot be promoted. Publication checks the intent both before and after creating its directory, closing the missing-key race.
+
+Acceptance is persisted before tombstone cleanup. The encrypted tombstone contents are removed and the root fsynced before success is reported. Retry/restart uses the same attempt and accepted generation/time; it resumes an existing tombstone, rather than inferring historical unlink success from absence. A crash after rename but before an acceptance receipt is recorded is recovered as a newly durable cleanup acceptance, not a fabricated original unlink timestamp.
+
+Every delete call freshly computes directory-list absence, metadata `lstat` absence and actual `stat` `ENOENT`, with `verificationMethod: 'filesystem-stat-enoent'`. `objectSha256` stays null because this adapter does not own Agent verification. Corrupt journals, generation reappearance, permission/fsync/rename/cleanup errors or failed observations cannot produce terminal four-true evidence. Per-key journal reconciliation is adapter-owned; scanning DB intents and choosing lifecycle transitions remain the existing core runner's responsibility.
+
+Main's source review found that a corrupt header previously prevented tombstone removal. The corrected path persists `.unverified` before best-effort durable cleanup, removes the ciphertext tombstone, fsyncs the root and freshly measures absence. With unknown generation, `generationId=null`, `objectSha256=null` and `deleteSucceeded=false` remain conservative on this and subsequent attempts, even when all three observed absence booleans are true. `deletedAt` records durable cleanup acceptance, not authenticated generation recovery. This preserves S8's no-false-terminal rule without retaining unreadable audio indefinitely. Genuine journal/filesystem failures still fail closed and require operational repair; absence cannot invent the missing generation.
+
+### Node scheduler boundary
+
+`createNodeScheduler(runner, onError)` consumes the existing `ScheduledJobRunner` and implements `Scheduler`, adding `close()` for service shutdown. It supports the repository's UTC numeric/wildcard/step minute/hour expressions with wildcard day/month/weekday fields, including existing 2m, 5m, 30m and daily schedules. Unsupported syntax fails closed instead of being approximated.
+
+Registration is keyed by job kind. Replacement cancels the old timer without overlapping an in-flight invocation. Following Main's review, delayed ticks run once with the actual `Date.now()` sampled immediately before invoking the runner, not their stale planned instant. Planned time is used only for wake scheduling; busy/suspended intervals do not generate a backlog queue. Completion schedules the next future tick. `close()` stops timers and drains work. Runner failures are reported as only kind, invocation time and `scheduled_job_failed`; a broken error callback stops scheduling and makes close fail safely. No watchdog, retention, expiry, retry, consent or cron business body is duplicated. Runtime assembly still owns startup reconciliation and schedule registration.
+
+### Required platform evidence
+
+Local source/fixture verification does not establish Windows support. E7/E8 still need actual Windows Node and NTFS evidence for exclusive hard links, nofollow checks, private ACL provisioning, directory fsync, rename/unlink with open handles, crash/power-loss recovery and service-account permissions. Unsupported durability operations must fail, not silently fall back to plaintext or weaker evidence. S4's E8-8 reference gate is specifically Windows 11 Pro 24H2 x64 with Node 24.13.3 and its fixed hardware/workload; macOS Node 24.18.0 results cannot close it. DPAPI CurrentUser, alternate-SID restore/key-version handling, service-owned scheduler/watchdog and full profile wiring remain unexercised.
+
+### Source and local verification evidence
+
+- Following Main's review, the existing AudioStore registration passes **33 tests**: the original **20 R2 cases** and **13 filesystem cases**. The added regression corrupts a committed object, proves the encrypted tombstone is physically removed, and proves adapter restart/retry never fabricates a generation or terminal success. Prior boundary, tamper, race and durability coverage remains.
+- Node scheduler tests: **4 passed**, including a six-hour late wake that passes actual invocation time and emits only one job without replaying the missed backlog.
+- A standalone bundled Node program streamed **209,715,200 bytes** through put/get after reopening the adapter, compared SHA-256, then used an actual minute-boundary Node timer and a synthetic `ScheduledJobRunner` to delete the file. It verified actual `stat` `ENOENT`, generation-bound evidence and deletion replay after reopening. Node **v24.18.0**, **darwin arm64**, maximum emitted chunk **65,536 bytes**, observed process maximum RSS **109,888 KiB**. It exited 0; its source/bundle were removed. This is a real adapter/timer exercise, not execution of the core lifecycle job body or Windows qualification.
+- Scoped adapter/fixture TypeScript and existing API TypeScript checks passed, as did core-import and DB-gateway guards. No PostgreSQL or project-wide test suite ran.
+- `pnpm exec` originally attempted automatic installation after the workspace manifests appeared and was rejected by frozen-lock validation. Main subsequently transferred a slot limited to the two importers. Ordinary `pnpm install --lockfile-only` produced exactly 12 added importer lines and no external resolution change, committed as `ce76f45`. Lock SHA-256 is `5778503cb6802a05aa1c14591ff7a2a015b100e0c722aa069f3de98e2fdbfcb8`; root `package.json` remains `1afe21070a90efb75d5081e01c8bc5e93f1c7d8d142309f423ae167cc0a8530a`.
+- P3 gateway and HTTP source were not edited. Root package and parity hashes remain unchanged. No hosted account, secret, DPAPI, Windows, frontend, design, runtime assembly or installer writer mutation occurred in these adapter slices.
+
+## S9 dependency-independent byte contract checkpoint
+
+S9 §2.2 now has its prescribed `RecoverySecretStore.getBytesWithVersion` in the existing contracts runtime export. Its four literal names exclude provider/Python credentials; it is separate from `SecretStore.get`. `SecretBytes` is exactly mutable `Uint8Array`, and `VersionedSecretBytes` names the existing `{ bytes, version }` shape used by `createFileAudioStore`. Only that consumer's type annotation changes. Caller ownership and `finally` zeroization are explicit. TypeScript's structural `Uint8Array` type cannot itself exclude Node Buffer subclasses; concrete implementations must return plain arrays and wipe native copies.
+
+No speculative payload, journal, authorization, restore service or new secret backend was added. Core/string consumers, encrypted file format and key-version validation are unchanged. There is no new dependency, package export or lockfile change.
+
+Verification: a throwaway typed smoke failed first on the missing exports, then compiled with negative provider/Python/string-port checks. It exercised synthetic byte material through the real encrypted-file adapter, wiped caller material immediately after construction, reopened/decrypted the audio, and wiped material on a failing construction path. Existing AudioStore and environment-secret contracts passed **40 tests**; API TypeScript and core import guard passed. The smoke source and bundle were removed. This proves the independent type/consumer slice, not DPAPI, Windows, native heap erasure or a Recovery Kit implementation.
+
+### Main-owned native dependency fork
+
+The candidate named by the pilot plan is [`@primno/dpapi@2.0.1`](https://registry.npmjs.org/@primno%2Fdpapi/2.0.1), MIT ([license](https://github.com/primno/dpapi/blob/98ab69eb35dcdd1dcf873c528906c534e566136b/LICENSE)), pinned source commit `98ab69eb35dcdd1dcf873c528906c534e566136b`. Published integrity is `sha512-uX756jYkiyHHJU1981oRJMg3FtCGlBGpGcztTs7SFxeh0L/c0aLQcooF61HQ9V3MdaCDPIi8yreN7MlISr4mJg==`; metadata lists Node >=14, runtime dependency `node-gyp-build ^4.8.4` and x64/arm64 prebuild commands. This is source/metadata inspection, not verified binary provenance or Windows compatibility.
+
+Its [API](https://github.com/primno/dpapi/blob/98ab69eb35dcdd1dcf873c528906c534e566136b/lib/index.ts) accepts bytes and exposes CurrentUser. Its [native implementation](https://github.com/primno/dpapi/blob/98ab69eb35dcdd1dcf873c528906c534e566136b/src/dpapi_win.cpp) copies `CryptUnprotectData` plaintext into a Node Buffer and calls `LocalFree` without zeroing the native allocation; allocation/copy failure also lacks RAII cleanup. JS can wipe the returned Buffer after copying to a plain Uint8Array, but cannot repair the already-freed native allocation. Therefore the published binary is not accepted as S9-compliant.
+
+Recommendation to Main: approve this exact package only with audited exception-safe `SecureZeroMemory`/`LocalFree` cleanup, headless flags, and rebuilt verified Windows binaries. A source patch with unchanged published `.node` binaries is insufficient. Alternative: approve an owned minimal N-API CurrentUser-only binding, accepting CCC's native build/provenance maintenance. Waiting for an upstream corrected release avoids a local native patch but leaves implementation blocked. Node crypto has no DPAPI binding; existing SQLite consumes key bytes and env returns strings, neither implements account-bound Windows protection. PowerShell/.NET adds an IPC secret transport/lifetime boundary rather than providing the missing Node primitive.
+
+Main decides this dependency/native ownership fork. No package installation, native build, host secret, account, ACL or credential operation occurred. Actual Windows same-account success, wrong-account/reset refusal, crash-dump policy and cross-SID Kit restore remain unverified. DPAPI persisted record encoding/storage will be reviewed with the chosen native route before any irreversible writer is added; S9's allowed fields do not by themselves fix that encoding.
+
+## S9 approved patched-DPAPI source implementation
+
+Main relayed Q approval for the pinned MIT `@primno/dpapi@2.0.1` package with a native hardening patch and rebuilt binaries, never the unchanged published binary. This resolves the package ownership fork above. The existing backend worktree remains the only writer; no subagents or Windows/account/permission operations are used.
+
+Implementation ownership:
+- `patches/@primno__dpapi@2.0.1.patch` patches upstream `src/dpapi_win.cpp` and `src/main.cpp`, not the nonexistent `dpapi.cc`.
+- `adapters/secrets-dpapi/src/native.mjs` loads only the adapter-local verified rebuild. `src/store.ts` owns byte lifetimes; public `src/index.ts` does not accept an injected native binding.
+- `adapters/secrets-dpapi/scripts/build-native.mjs` verifies source and tool pins, copies only source/license/build inputs, and builds on Windows. `native-provenance.json` pins the source identity and hashes. `native-build/` is ignored and never supplied as a checked-in binary.
+- Workspace policy disables dependency lifecycle builds and registers the patch. The root package manifest remains unchanged. New direct pins are DPAPI 2.0.1, node-gyp 11.0.0 (upstream build-tool baseline, MIT) and the already-resolved node-addon-api 8.9.2 (MIT). The lock diff adds 492 lines with no removed/changed prior resolutions.
+
+### Native safety and loading
+
+The patch uses a noncopyable RAII owner with zero-initialized `DATA_BLOB`. Its destructor calls `SecureZeroMemory` before `LocalFree` on every allocated output, including unwinding from Node Buffer allocation/copy failure. This wipes decrypted native allocation as well as encrypted output. Only exact `CurrentUser` is accepted; `CRYPTPROTECT_UI_FORBIDDEN` applies to protect and unprotect. Native Win32 failure details are replaced with `secret_access_denied`. Uint8Array access respects byte subviews. A `cccHardeningVersion=1` native export distinguishes the patched ABI.
+
+The adapter never imports the package's default prebuild selector. `loadNative` requires win32 plus a receipt matching source-provenance hash, platform, architecture, exact Node version and actual rebuilt binary hash, then checks the native hardening marker. An ordinary installation cannot select the package's untouched prebuilds. This is a controlled-build provenance check, not protection against an attacker who can rewrite the application, receipts and binaries together.
+
+### Byte-only record boundary and remaining composition
+
+`createDpapiSecretStore(mode, records)` implements S9's separate recovery byte read port and exposes `protect` and `close`. Only DB/file/PII/Office CA names are accepted. The in-memory protected record has exactly schemaVersion, name, version and blob; no SID, account identifier, path, key text or extra metadata. Positive safe key versions are required; DB/file/PII material is exactly 32 bytes. Single rejects Office CA records. Public material must be plain fixed-buffer Uint8Array, not Buffer/shared/resizable material.
+
+Protect copies caller plaintext, invokes CurrentUser synchronously, returns a plain Uint8Array ciphertext copy and wipes owned input/native output/entropy in finally. Unprotect copies native output into caller-owned plain bytes, validates it and wipes both copies on failure, or only the native copy on success. Caller ownership requires finally-wiping successful output. Caller protected records are copied; close wipes owned copies and rejects later operations. Missing records return null; unprotect failure never generates replacement keys.
+
+Optional DPAPI entropy binds `UTF8("CCC-DPAPI\\0v1\\0" + name + "\\0" + decimalVersion)` to prevent metadata substitution. This is an explicit in-memory protected-record convention awaiting Main's persistence review before records are deployed; no disk encoding, record writer or active-generation pointer is introduced here. Recovery authorization/audit must happen upstream before calls, per S9. The adapter does not authenticate a caller from booleans or pretend a protected record activates a restored generation.
+
+The frozen legacy gateway consumes base64 PII material through `SecretStore.get`; this implementation does not convert the recovery port back into a string port. Legacy string-runtime composition, persistent record encoding and generation activation remain separate Main-owned integration decisions. E4-4b/E4-5 are not declared complete by this source checkpoint.
+
+### Rebuild recipe and exact provenance
+
+On the safely handed-off Windows reference host, use the locked workspace and `pnpm install --frozen-lockfile`, then `pnpm --filter @ccc/secrets-dpapi build:native`. The script requires Windows x64/arm64, verifies all patched source/license hashes, the patch hash and exact node-gyp/node-addon-api versions, then invokes node-gyp with the current Node executable. MSVC C++ Build Tools and compatible Python must already be provisioned by the approved machine handoff; the script does not install tools or modify accounts/ACLs.
+
+The generated receipt records source-provenance digest, OS/architecture, exact Node version, build-tool versions, configured binding.gyp digest and binary SHA-256. It then runs synthetic byte-subview round-trip and LocalMachine rejection. Any failure removes the receipt and emits only `secret_access_denied`, with no vendor output. This is a reproducible pinned-source build procedure, not a claim of bit-identical binaries across unpinned MSVC/Python versions.
+
+- Upstream source commit: `98ab69eb35dcdd1dcf873c528906c534e566136b`.
+- Tarball SHA-512 matches `native-provenance.json` and the registry integrity exactly; archive was downloaded as data, not executed.
+- Patch SHA-256: `9abd9c6f40fdba17aae8f8bbbc477cd3480256d2782a49e26456fe76539d61b8`.
+- Patched dpapi_win.cpp SHA-256: `78d13f387bc58f9e1aabed34815860fd8e0126f43fe546a4d0c8815a5aaa93c5`.
+- Patched main.cpp SHA-256: `1c5445869d68ab47518c320997ce982e94f63d3fb2bdefe184aa2c960d804cec`.
+- Lock SHA-256: `7e65df790be2394e4a0f896d160500903ad31b958d7cd9ebffe9b77859d694ba`.
+- Unchanged root package SHA-256: `1afe21070a90efb75d5081e01c8bc5e93f1c7d8d142309f423ae167cc0a8530a`.
+
+### Exercised evidence and platform blockers
+
+On darwin arm64 Node 24.18.0: 8 synthetic byte/lifetime/loader tests passed, API TypeScript and core-import/DB-gateway guards passed. The loader test simulates module loading to reject missing receipt, changed binary and unpatched marker; it is not Windows evidence. An actual invocation of build-native on this unsupported host returned exit 1, empty stdout and only `secret_access_denied`. Ordinary frozen pnpm install completed without native lifecycle execution.
+
+Still unverified: compiling the patched C++ with Windows headers/MSVC, native allocation-failure cleanup under fault injection, actual CurrentUser same-account round-trip, wrong-account/reset refusal, NTFS/ACL/durability, crash-dump policy, signed release provenance and cross-SID Kit restore. No real key, account, permission or credential changes were performed. Native hardening source is delivered; real Windows qualification must remain pending Main's safe machine handoff.
+
+## D88 schedule display source checkpoint
+
+ADR-0047 §2 is implemented in the gateway and HTTP boundary without frontend or design edits. `allDay` is an explicit boolean and does not derive from the timestamp. `displayColor` is nullable and accepts only `mint`, `lavender`, `coral`, `cyan`, or `light-magenta`.
+
+- Paired forward migrations are `sqlite/0056_schedule_display.sql` (SHA-256 `090e96934e6c44d6ba0a40212406f3eb778c1a24c399d3d14dfd35c1838bf5d1`) and `postgres/0012_schedule_display.sql` (SHA-256 `5475c889867ca8dfdd3acbacdcd664c5dbaa601ee991d11232840d59eca25cb4`). Both store `all_day` as checked 0/1 with default 0; historical midnight appointments remain timed appointments.
+- Creation supports both regular and intake schedules. Rescheduling preserves omitted display fields and permits explicit `false`/`null`; terminal transitions preserve the values. Existing permission, status, expected-version and conditional audit checks remain in place.
+- Read contracts include individual/next schedules, today/upcoming/month boards, session plans, participant program entries, goal-tree session goals, briefing upcoming schedules, completed-record schedules and self-check schedules. Display fields are also present in mutation audits.
+- Final focused create/intake/month/upcoming/session-plan/display run: 6 files, 38 tests passed. Participant goal-tree, self-check and one-page record suites passed. The larger gateway-domain run passed 41 cases and exposed its old exact completed-schedule expectation; that case was updated to exercise non-default display values across completion and passed in a targeted rerun (1 passed, 41 skipped).
+- API TypeScript, SQL-dialect, DB-gateway and core-import guards passed. The new SQLite migration was executed against a historical row and its constraints were exercised. No PostgreSQL command was run.
+- Main owns PostgreSQL application and parity regeneration on the MacBook. `migrations/parity.yaml` is intentionally unchanged (SHA-256 `66884cd3343f8f8623bbf9ad4dc0b74eea9b8e7a8512b0b039c2eba1d7af075d`); do not treat this source checkpoint as regenerated parity evidence.
+
+S9 remains a separate workstream. Its preceding checkpoint includes native hardening source, a receipt-verified loader, a source rebuild command and the byte-owned in-memory adapter, but not persistent key-record activation or a Recovery Kit writer. Main reports the Windows prerequisite ready: official VS2022 BuildTools 17.14.40 with C++ workload, Windows 11 Pro 64-bit and Node 24.19.0. Compiler/runtime qualification will use a new isolated ASCII directory and leave the STT benchmark directory/task untouched.
+
+## S9 isolated Windows source handoff
+
+The approved implementation remains commit `b743a17383d1cd60e1bc8e1e107a5c26e930f470`; D88 is checkpointed separately as `d60cc89`. No native/source changes or additional dependency decisions were needed to produce this bundle.
+
+- Artifact: `artifacts/s9-dpapi-source-b743a17.tar.gz`, 48,829 bytes, SHA-256 `5cde4e88c9ffda6eed0ca12dc1b195f32c1ebbc90a9e903952276e8f7434d60f`. This is an untracked handoff artifact, not a release binary.
+- The archive contains 34 files: the pinned adapter and contracts sources, native patch/provenance, a three-importer lock retaining the exact 87-package dependency closure, per-file hash manifest, and bundle-only Windows proof scripts. It contains no `.node`, `node_modules`, build output, credentials or key records.
+- Fresh extraction on darwin arm64 Node 24.18.0 passed frozen offline installation without lifecycle scripts, all 8 synthetic adapter/loader tests, and the public loader's unbuilt refusal check. Archive file hashes were verified before installation. These are not Windows compiler/runtime results.
+
+Main should extract into a new isolated ASCII directory, with Node 24.19.0 and pnpm 11.5.3 available, then run `powershell.exe -NoProfile -File .\run-windows-proof.ps1`. The script stops at the first failing command and does not change accounts, ACLs, execution policy or the STT directory/task:
+
+1. `pnpm install --frozen-lockfile --ignore-scripts`
+2. `node adapters/secrets-dpapi/scripts/windows-smoke.mjs --expect-unbuilt`
+3. `pnpm --filter @ccc/secrets-dpapi build:native`
+4. `pnpm --filter @ccc/secrets-dpapi test`
+5. `node adapters/secrets-dpapi/scripts/windows-smoke.mjs`
+
+Step 2 must reject the unbuilt adapter even though the upstream package has been installed. Step 3 copies only hash-verified patched source and explicitly compiles it; the loader accepts only the resulting receipt-bound binary with the hardening marker. Its receipt binds source provenance, actual Node version, OS, architecture and binary hash. Step 5 exercises the public adapter with three synthetic 32-byte values, independent caller-owned reads, metadata substitution refusal and closed-store refusal. It writes no key records and emits no material.
+
+Implemented: patched CurrentUser-only native operations with fixed errors and wiped native output; byte-owned protect/read primitive; pinned-source rebuild recipe; verified rebuilt-only loader. Not implemented: persisted record encoding/storage, generation writer/active pointer, authorization/audit composition, Recovery Kit writer/restore, or legacy string-runtime composition. The approved integration boundary still requires Main's persistence review before an irreversible writer; an independently replaced per-key file would violate S9 §2.8's single-generation activation contract. Native compilation/runtime, wrong-account/reset, allocation-failure, NTFS/ACL and cross-SID recovery proofs remain Main-owned and unverified here.
+
+## D88 authoritative parity checkpoint registration correction
+
+Main's PostgreSQL run stopped before SQL because `checkpointSources()` still ended at `0011`. Added the `schedule-display` checkpoint pairing SQLite `0056_schedule_display.sql` with PostgreSQL `0012_schedule_display.sql`; both exact migration-list equality checks remain unchanged. No manifest hashes were written or regenerated here.
+
+The live parity loop now seeds a legal historical midnight schedule before that checkpoint and runs the same semantic proof on both engines after migration. It proves preserved timestamp/defaults, non-midnight all-day data, all five allowed colors, rejected integer/null/color domains, rejection atomicity and explicit reset to timed/null. The local regression replays the complete registered SQLite chain into encrypted SQLite and executes that shared proof. All five D88 display tests, API TypeScript and DB-gateway/core-import guards passed. PostgreSQL execution and manifest generation remain Main's next action.
+
+## S9 persistent-source continuation plan
+
+Main reported real Windows qualification of the approved source bundle: Windows 11 Pro x64, Node 24.19.0, VS 17.14.40, rebuilt binary SHA-256 `b6e5d78bacbb365857c41a4a93753ad02d0cbbbc4997f163ccd84dc3e6597f25`. The final Node contracts had 7 passes, no failures and one platform-specific skip; the public adapter smoke verified three synthetic keys, version binding, owned bytes and closed-store refusal. The first PowerShell capture wrapper reported RemoteException after binary/receipt creation; Main did not reinstall/rebuild and the direct final tests passed. This is reported Windows evidence, not an additional run in BACKEND; persistence and Recovery Kit were explicitly false.
+
+Implementation order follows S9 in full, without new external dependencies:
+
+1. Canonical PII consumer: change the Core/runtime secret contract to require `getBytesWithVersion('PII_ENC_KEY')`, prohibit PII through string `get`, and import caller-owned 32-byte material directly into non-extractable WebCrypto keys with `finally` wiping. Retain `PII_KEY_VERSION` as nonsecret generation metadata and reject mismatches. Decode provider-injected base64 only in `adapters/secrets-env`; Local protected material never becomes a string. Migrate all consumers and synthetic fixtures.
+2. `adapters/secrets-dpapi` persistence: deterministic binary protected records contain only schema/name/version/blob. Generation directories hold immutable staged records; there is no independent per-key active pointer. Reuse filesystem no-follow/private-path/flush/reopen patterns and reject ambiguous state. Tests use synthetic native bindings and actual temporary files.
+3. Recovery Kit: implement the strict canonical CBOR payload and standalone CCCR envelope from S9, using existing canonical JSON and Node's built-in Argon2id/AES-GCM. Bound parsing, exact schemas, fresh CSPRNG salt/nonce, byte-only passphrase handling and all-path wiping are required. No JSON/base64 secret payload or published crypto package is introduced.
+4. Generation application service: authorization/audit must precede reads, fence acquire/drain precedes snapshots, all component evidence precedes a single pointer flip, and rollback/restart must preserve the old generation. Source must not promote supplied boolean reports into authorization or full-content evidence. The inspected code has no recovery capability issuer, online signed clean-target floor/TPM redemption client, or existing Local generation runtime. Those concrete authority and component integrations must be identified rather than fabricated before operational restore can be claimed.
+
+The E4-6 legacy-consent cutover is queued after the next S9 safe source checkpoint. Its first action is a seam/contract report, not adding a boolean consent gate or creating new schema without Main's resolution.
+
+### Canonical PII byte-consumer checkpoint
+
+The immutable PII path is removed from both `SecretStore.get` and `CoreSecretStore.get`. Core now requires `getBytesWithVersion('PII_ENC_KEY')`, validates 32-byte plain owned material and the configured generation, imports a non-extractable WebCrypto key without a JS key copy, and wipes supplied material in `finally`, including import/validation failure. `PII_KEY_VERSION` remains nonsecret metadata; mismatch fails closed.
+
+Only the environment/provider adapter decodes its existing injected base64 string, directly into mutable bytes rather than an `atob` binary string. Seed and Community Cloud composition now pass the same key-version metadata to adapter and core. The protected Local path needs no conversion into an immutable string.
+
+A real gateway regression first failed at the forbidden string read, then passed byte-only encrypt/decrypt, caller-buffer wiping and mismatched-version refusal without replacing saved PII. Final verification: 30 tests across environment contracts, PII/Worker integration and Community Cloud runtime; API TypeScript, DB-gateway and core-import guards passed. This completes the canonical consumer seam, not persistent storage, generation activation or Recovery Kit restore.
+
+### S9 staged record and CCCR source checkpoint
+
+`createProtectedRecordRepository` now persists immutable `generation-N/keys.cbor` files. Their deterministic CBOR contains only the four exact protected-record fields. Hash-bound reopen, conflicting generation writes, truncated records and invalid metadata fail closed. This does not create an active pointer or activate independently replaced keys.
+
+The private file layer writes a same-directory temporary, flushes it, reopens and compares it, publishes, then reopens and compares the destination. POSIX uses private permissions, no-follow opens, directory fsync and link/rename publication. Windows uses the new owned `native/record_files.h`: CurrentUser ownership, a DACL limited to that owner and SYSTEM, reparse-point rejection, explicit private creation, `FlushFileBuffers` and same-directory `MoveFileExW(MOVEFILE_WRITE_THROUGH)`. Existing unsafe ACLs are rejected, not rewritten.
+
+The native source provenance now binds the owned header SHA-256 `67ff688272a8185dec268e12b64fdc828d09c9d7e5fb6e7565423c4b18ac2539`. The build records its configured main.cpp digest; the loader also requires `cccRecordStorageVersion=1` and all storage methods. The previously qualified Windows binary cannot satisfy this new source provenance. Main must rebuild and qualify the new C++ path; no Windows, account, credential, hosted or secret operation was run in BACKEND.
+
+`sealRecoveryKit` and `openRecoveryKit` implement the standalone CCCR envelope with strict deterministic CBOR, exact payload/header fields, bounded framing, canonical JSON AAD, Node's actual Argon2id parameters and AES-256-GCM. Passphrases stay mutable UTF-8 bytes; the implementation counts Unicode scalars without creating a passphrase string. Payload byte strings, passphrase, derived key and decrypted temporaries are wiped on their owned paths. Returned decoded bytes belong to the caller, which must `wipeCbor` them in finally. Fresh CSPRNG salt/nonce and process-local reuse refusal are enforced. The decoder binds schema/source/Kit/S10 metadata; it does not claim to redeem a recovery capability or verify an entire restored database.
+
+A direct Node smoke outside the test harness encrypted a synthetic Kit, persisted/reopened/decrypted it, proved a conflicting immutable publication preserved the old file, atomically replaced and reopened the ciphertext, and reopened hash-bound opaque protected records. It exited zero with empty stderr on darwin. All temporary data was removed. This is file/crypto evidence, not DPAPI, generation activation or operational restore evidence.
+
+The final scoped adapter run on darwin has 16 tests: 15 pass, zero fail, one Windows-only persistence test skipped. The actual Argon2id/GCM cases ran; the Windows-specific native case did not. API TypeScript, DB-gateway and core-import guards passed. The native build script passes Node syntax checking, which is not C++ compilation evidence.
+
+Remaining integration blockers are concrete: no authenticated recovery-capability issuer/redemption, online organization-owned generation floor/TPM binding, maintenance fence/drain, unified Local generation composition or exhaustive DB/file/PII/CA/identity verification implementation was found in packages, adapters or application roots. No supplied boolean is accepted as a substitute, no generation journal is forged as verified, and no `data_restored` or `operational_restored` state is produced.
+
+For E4-6, the pre-registration seam report is delivered. Existing disclosure snapshots require a non-null support_case_id; the existing signup transaction still uses the legacy two-checkbox contract and has no six-domain pre-signup consume binding. The requested staff atomic cutover remains blocked on Main's binding/schema resolution. No fictitious case, new consent purpose or new table was introduced to bypass that decision.
+
+### Isolated continuation handoff
+
+Source commit: `bc015ac67f992d80ca46ecd05192610463e27032`.
+
+- Untracked source artifact: `artifacts/s9-persist-source-bc015ac.tar.gz`, 60,091 bytes, SHA-256 `3b63d73ef39ab8e8227c6347f791e5bbe56da1f69a70df74b6128cc7908db6f0`.
+- The archive has 41 regular files, including a manifest of 40 source/proof files. It contains no resource-fork entries, native binaries, node_modules, credentials or key records. The original three-importer, 87-package pinned dependency closure is retained.
+- Fresh isolated extraction verified all 40 hashes. Frozen offline install used all 87 cached packages with zero downloads and no lifecycle scripts. The isolated adapter run passed 15 tests with one Windows-only skip; the public unbuilt/unsupported loader refusal and the bundle smoke's Node syntax check passed. Temporary extraction was removed.
+- The staged source scan examined 53.61 KB and found no leaks; API TypeScript and both boundary guards passed.
+
+The bundle-only public smoke now writes three synthetic CurrentUser-protected records into a new private temporary directory, reopens them through the public byte adapter, and seals/persists/reopens a synthetic CCCR envelope. Its result distinguishes `stagedPersistence` and `recoveryEnvelope` from the still-false `generationActivation` and `operationalRestore`. Private ACL creation is limited to new synthetic paths; existing permissions, accounts and credentials are not changed.
+
+Main owns executing this new source in a fresh isolated ASCII Windows directory. Direct commands are available if the previously reported PowerShell native-stderr wrapper issue recurs: frozen no-script install, `windows-smoke.mjs --expect-unbuilt`, `build:native`, package tests, then `windows-smoke.mjs`. Do not repeat an already successful native build solely because its capture wrapper threw; inspect its receipt and run the direct tests. This handoff was not executed on Windows in BACKEND.

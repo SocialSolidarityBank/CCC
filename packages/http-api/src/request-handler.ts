@@ -81,18 +81,21 @@ import {
   forceTransferSupportCase,
   countUpcomingSchedulesLinkedToGoal,
   createBeneficiaryWithInitialSupportCase,
+  issueRegistrationConsentDisclosures,
   createCase,
   createCounselingRecord,
   createActionItem,
   createIntakeRecord,
   updateIntakeRecord,
   createParticipantInvite,
-  createCounselorInvite,
   completeParticipantSignup,
-  completeCounselorSignup,
-  getCounselorInviteSignupInfo,
-  getInviteForSignup,
-  getParticipantSelfCheck,
+  createStaffInvite,
+  listStaffInvites,
+  revokeStaffInvite,
+  getStaffInvitePublicInfo,
+  acceptStaffInvite,
+  getParticipantRequestLinkInfo,
+  issueParticipantRequestLinkDisclosures,
   getIntakeRecordContext,
   createCounselingSchedule,
   listScheduleCandidates,
@@ -181,7 +184,6 @@ import {
   markCounselingScheduleNoShow,
   PiiPurgeDisabledError,
   recordAiCallOutcome,
-  recordPilotTextAiConsentEvidence,
   registerAiProviderConfiguration,
   registerRecording,
   rescheduleCounselingSchedule,
@@ -191,7 +193,6 @@ import {
   searchParticipants,
   setSupportCaseOverallGoal,
   updateGoalTitle,
-  updateParticipantConsent,
   updateParticipantPii,
   upsertUser,
   SESSION_GOAL_MATERIAL_LABEL,
@@ -205,6 +206,7 @@ import {
   type ParticipantPiiRetentionReviewInput,
   type AiDraftReviewInput,
   type CounselingRecordDetails,
+  type CounselingScheduleDisplayColor,
   type AssignedParticipant,
   type ParticipantSearchResult,
   type Role,
@@ -477,21 +479,9 @@ function optionalEmergencyReason(body: JsonObject): string | undefined {
 
 function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
   requireHumanParticipantActor(actor);
-  // 항목별 동의(D15·D23)는 등록 입력과 함께 오지만 게이트웨이에는 별도 인자로 넘긴다.
-  // 등록 폼은 두 체크 상태(false 포함)를 항상 보내므로 동의 기록을 남긴다. 두 키가 모두
-  // 없는 (레거시/프로그램) 호출은 동의 기록을 만들지 않는다(하위 호환). 어느 항목이든
-  // 체크는 기본 미동의(false)이며, 미동의여도 등록은 진행된다(D15 미동의 경로).
-  // D49: 동의는 2종이다 — ① consentPrivacy · ② consentRecordingAi(구 녹음+텍스트 AI 를 합침).
-  // 등록 폼은 항상 둘을 보내고, 둘 다 없는 호출만 하위 호환이다.
-  // G1(2026-07-29 Q 결정1): ① 은 이제 등록의 하드 게이트다. 그래서 HTTP 등록은 동의 키가
-  // 없어도 **언제나** consent 객체(전부 false)를 만들어 게이트웨이 게이트를 지나게 한다 —
-  // 하위 호환으로 게이트를 건너뛰는 구멍을 두지 않는다. 통과 경로는 ① 체크 또는 긴급 등록뿐이다.
   const emergencyReason = optionalEmergencyReason(body);
-  const consent = {
-    privacy: optionalBoolean(body, 'consentPrivacy'),
-    recordingAi: optionalBoolean(body, 'consentRecordingAi'),
-    ...(emergencyReason === undefined ? {} : { emergency: { reason: emergencyReason } }),
-  };
+  const consentEvents = parseInitialConsentEvents(body.consentEvents);
+  const idempotencyKey = requiredString(body, 'idempotencyKey');
   // 이메일은 선택 항목이다. undefined 면 게이트웨이 입력에서 아예 빼야 한다 —
   // { email: undefined } 로 두면 Object.keys 에 남아 assertExactKeys 가 거부한다(#37).
   const email = optionalRegisteredEmail(body);
@@ -512,41 +502,50 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
   // intakeAt 키는 받지 않는다(CCC-56): 등록은 인테이크가 아니다. intake_at 은 NULL 로
   // 시작하고, 인테이크 기록 저장(createIntakeRecord)이 채운다. 모르는 키는 400 이므로
   // 옛 클라이언트가 보내던 intakeAt 도 여기서 걸린다.
-  const registrationKeys = ['consentPrivacy', 'consentRecordingAi', 'emergencyReason', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
+  const registrationKeys = ['idempotencyKey', 'consentEvents', 'emergencyReason', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
   if (actor.role === 'admin') {
     requireOnlyKeys(body, ['programId', 'initialAssigneeUserId', ...registrationKeys]);
     return {
       input: {
         programId: requiredString(body, 'programId'),
+        idempotencyKey,
+        consentEvents,
+        ...(emergencyReason === undefined ? {} : { emergencyReason }),
         initialAssigneeUserId: requiredUuid(body, 'initialAssigneeUserId'),
         ...optionalPii,
       },
-      consent,
     };
   }
   requireOnlyKeys(body, ['programId', ...registrationKeys]);
   return {
     input: {
       programId: requiredString(body, 'programId'),
+      idempotencyKey,
+      consentEvents,
+      ...(emergencyReason === undefined ? {} : { emergencyReason }),
       ...optionalPii,
     },
-    consent,
   };
+}
+
+function parseInitialConsentEvents(value: unknown): AppendConsentEventInput[] {
+  if (!Array.isArray(value) || value.length !== CONSENT_DOMAINS.length) {
+    throw new ValidationError('six consent events are required');
+  }
+  return value.map(event => {
+    if (event === null || typeof event !== 'object' || Array.isArray(event)) {
+      throw new ValidationError('consent event is invalid');
+    }
+    return parseConsentEventInput(event as JsonObject);
+  });
 }
 
 function parseSubsequentParticipantCreation(body: JsonObject, actor: Actor) {
   requireHumanParticipantActor(actor);
-  // G1: 추가 참여 사업도 ① 하드 게이트를 지난다 — 두 번째 사업은 동의 2종이 미체크로
-  // 시작하므로(D44) 여기서 다시 받는다. D49: ② 도 이 경로에서 받는다(전에는 사업을 만든 뒤
-  // 당사자 정보 페이지에서 따로 고쳐야 했다). ② 는 게이트가 아니라 선택이므로 키가 없으면 뺀다.
   const emergencyReason = optionalEmergencyReason(body);
-  const consentKeys = ['consentPrivacy', 'consentRecordingAi', 'emergencyReason'];
-  const consentRecordingAi = Object.hasOwn(body, 'consentRecordingAi')
-    ? optionalBoolean(body, 'consentRecordingAi')
-    : undefined;
+  const consentKeys = ['consentEvents', 'emergencyReason'];
   const consentInput = {
-    consentPrivacy: optionalBoolean(body, 'consentPrivacy'),
-    ...(consentRecordingAi === undefined ? {} : { consentRecordingAi }),
+    consentEvents: parseInitialConsentEvents(body.consentEvents),
     ...(emergencyReason === undefined ? {} : { emergencyReason }),
   };
   // intakeAt 키는 여기서도 받지 않는다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
@@ -718,7 +717,6 @@ function parseIntakeCreation(body: JsonObject) {
   const hasAdditionalItems = Object.hasOwn(body, 'additionalItems');
   const hasNextMeeting = Object.hasOwn(body, 'nextMeeting');
   // D42: 동의·원하는 도움 3문·6영역·목표·다음 행동은 정본 질문지에 대응 항목이 없어 선택이다.
-  const hasConsent = Object.hasOwn(body, 'consent');
   const hasHelpNarrative = Object.hasOwn(body, 'helpNarrative');
   const hasLifeAreas = Object.hasOwn(body, 'lifeAreas');
   const hasGoals = Object.hasOwn(body, 'goals');
@@ -726,7 +724,6 @@ function parseIntakeCreation(body: JsonObject) {
   const hasDebts = Object.hasOwn(body, 'debts');
   const hasLinkedOrgs = Object.hasOwn(body, 'linkedOrgs');
   const allowedKeys = ['submissionId', 'heldAt', 'channel'];
-  if (hasConsent) allowedKeys.push('consent');
   if (hasHelpNarrative) allowedKeys.push('helpNarrative');
   if (hasLifeAreas) allowedKeys.push('lifeAreas');
   if (hasGoals) allowedKeys.push('goals');
@@ -747,14 +744,6 @@ function parseIntakeCreation(body: JsonObject) {
   }
   const channel: 'in_person' | 'phone' | 'video' = channelValue;
 
-  const consent = !hasConsent ? undefined : (() => {
-    const consentObject = asObject(body.consent);
-    requireOnlyKeys(consentObject, ['privacy', 'recordingAi']);
-    return {
-      privacy: requiredBoolean(consentObject, 'privacy'),
-      recordingAi: requiredBoolean(consentObject, 'recordingAi'),
-    };
-  })();
 
   const helpNarrative = !hasHelpNarrative ? undefined : (() => {
     const narrativeObject = asObject(body.helpNarrative);
@@ -890,7 +879,6 @@ function parseIntakeCreation(body: JsonObject) {
     submissionId: requiredUuid(body, 'submissionId'),
     heldAt: requiredCanonicalUtc(body, 'heldAt'),
     channel,
-    ...(consent === undefined ? {} : { consent }),
     ...(helpNarrative === undefined ? {} : { helpNarrative }),
     ...(lifeAreas === undefined ? {} : { lifeAreas }),
     ...(goals === undefined ? {} : { goals }),
@@ -1048,9 +1036,20 @@ function parseScheduleCaseGoals(body: JsonObject): string[] | undefined {
   });
 }
 
+function parseScheduleDisplay(body: JsonObject): { allDay?: boolean; displayColor?: CounselingScheduleDisplayColor | null } {
+  const displayColor = body.displayColor;
+  if (displayColor !== undefined && displayColor !== null && displayColor !== 'mint'
+    && displayColor !== 'lavender' && displayColor !== 'coral' && displayColor !== 'cyan'
+    && displayColor !== 'light-magenta') throw new ValidationError('displayColor is invalid');
+  return {
+    ...(Object.hasOwn(body, 'allDay') ? { allDay: requiredBoolean(body, 'allDay') } : {}),
+    ...(displayColor === undefined ? {} : { displayColor }),
+  };
+}
+
 function parseScheduleCreation(body: JsonObject) {
   requireOnlyKeys(body, [
-    'beneficiaryId', 'supportCaseId', 'scheduledAt',
+    'beneficiaryId', 'supportCaseId', 'scheduledAt', 'allDay', 'displayColor',
     'sessionKind', 'channel', 'sessionGoals', 'caseGoals', 'customQuestions',
   ]);
   const sessionKind = parseScheduleKind(body);
@@ -1062,6 +1061,7 @@ function parseScheduleCreation(body: JsonObject) {
     beneficiaryId: requireBeneficiaryId(requiredString(body, 'beneficiaryId')),
     supportCaseId: requiredUuid(body, 'supportCaseId'),
     scheduledAt: requiredCanonicalUtc(body, 'scheduledAt'),
+    ...parseScheduleDisplay(body),
     ...(sessionKind === undefined ? {} : { sessionKind }),
     ...(channel === undefined ? {} : { channel }),
     ...(sessionGoals === undefined ? {} : { sessionGoals }),
@@ -1071,10 +1071,11 @@ function parseScheduleCreation(body: JsonObject) {
 }
 
 function parseScheduleReschedule(body: JsonObject) {
-  requireOnlyKeys(body, ['expectedVersion', 'scheduledAt']);
+  requireOnlyKeys(body, ['expectedVersion', 'scheduledAt', 'allDay', 'displayColor']);
   return {
     expectedVersion: requiredExpectedVersion(body, 'expectedVersion'),
     scheduledAt: requiredCanonicalUtc(body, 'scheduledAt'),
+    ...parseScheduleDisplay(body),
   };
 }
 
@@ -1242,13 +1243,6 @@ function participantProgramResponse(
     // 화면은 authorized 로 링크를 걸거나 잠그고, assigneeNames 로 "누구에게 물어보나"를 답한다.
     authorized: entry.authorized,
     assigneeNames: entry.assigneeNames,
-    // D44: 동의의 현재 상태. 시각 자체가 아니라 여부만 내린다 — 화면은 체크 상태를
-    // 그리고, "언제 기록했나"는 consentRecordedAt 한 줄로 충분하다.
-    // D49 표시 규칙: ② 는 두 컬럼 중 하나라도 찍혀 있으면 동의로 읽는다(구 3종 기록 호환).
-    consent: {
-      privacy: supportCase.consentPrivacyAt !== null,
-      recordingAi: supportCase.consentRecordingAt !== null || supportCase.consentTextAiAt !== null,
-    },
     // 동의 시각이 아니라 **기록 시각**이다 — 3종을 모두 철회하면 동의 시각은 전부 NULL 이라
     // 방금 남긴 철회 기록이 "기록 없음"으로 보인다. 값은 append-only 이력에서 온다.
     consentRecordedAt: entry.consentRecordedAt,
@@ -1324,6 +1318,8 @@ function scheduleResponse(schedule: Awaited<ReturnType<typeof rescheduleCounseli
     beneficiaryId: schedule.beneficiaryId,
     supportCaseId: schedule.supportCaseId,
     scheduledAt: schedule.scheduledAt,
+    allDay: schedule.allDay,
+    displayColor: schedule.displayColor,
     status: schedule.status,
     version: schedule.version,
   };
@@ -1335,6 +1331,8 @@ function scheduleSessionPlanResponse(plan: Awaited<ReturnType<typeof getSchedule
     beneficiaryId: plan.beneficiaryId,
     supportCaseId: plan.supportCaseId,
     scheduledAt: plan.scheduledAt,
+    allDay: plan.allDay,
+    displayColor: plan.displayColor,
     status: plan.status,
     version: plan.version,
     sessionKind: plan.sessionKind,
@@ -1453,6 +1451,8 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
       : {
         id: briefing.focusUpcomingSchedule.id,
         scheduledAt: briefing.focusUpcomingSchedule.scheduledAt,
+        allDay: briefing.focusUpcomingSchedule.allDay,
+        displayColor: briefing.focusUpcomingSchedule.displayColor,
         sessionKind: briefing.focusUpcomingSchedule.sessionKind,
         channel: briefing.focusUpcomingSchedule.channel,
         sessionGoals: briefing.focusUpcomingSchedule.sessionGoals.map((goal) => ({
@@ -1577,6 +1577,8 @@ function nextCounselingScheduleResponse(
     beneficiaryId: schedule.beneficiaryId,
     supportCaseId: schedule.supportCaseId,
     scheduledAt: schedule.scheduledAt,
+    allDay: schedule.allDay,
+    displayColor: schedule.displayColor,
     status: schedule.status,
     version: schedule.version,
     completedSessionId: schedule.completedSessionId,
@@ -1601,16 +1603,6 @@ function routeDraftVersion(value: string): number {
   return version;
 }
 
-function parsePilotTextAiConsent(body: JsonObject) {
-  requireOnlyKeys(body, ['noticeVersion', 'noticeHash', 'evidenceRef', 'evidenceHash', 'effectiveAt']);
-  return {
-    noticeVersion: requiredString(body, 'noticeVersion'),
-    noticeSha256: requiredString(body, 'noticeHash'),
-    evidenceRef: requiredString(body, 'evidenceRef'),
-    evidenceSha256: requiredString(body, 'evidenceHash'),
-    effectiveAt: requiredString(body, 'effectiveAt'),
-  };
-}
 function requiredInteger(body: JsonObject, key: string): number {
   const value = body[key];
   if (!Number.isInteger(value)) throw new ValidationError(key + ' must be an integer');
@@ -2599,47 +2591,45 @@ export async function handleRequest(
     const pubParts = url.pathname.split('/').filter((p) => p.length > 0);
     const publicSignupPath =
       (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant')
-      || (request.method === 'GET' && pubParts.length === 4 && pubParts[0] === 'invites' && pubParts[1] === 'participant' && pubParts[3] === 'me')
-      || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant')
-      // 실무자 초대 가입(CCC-108)도 같은 공개 가입 표면이다 — 아래 두 worker 경로가
-      // CCC-112 스위치·미리보기 코드 게이트를 자동으로 함께 받는다.
-      || (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'worker')
-      || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'invites' && pubParts[1] === 'worker');
+      || (request.method === 'GET' && pubParts.length === 5 && pubParts[0] === 'invites' && pubParts[1] === 'participant'
+        && pubParts[3] === 'consent' && pubParts[4] === 'disclosures')
+      || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant');
+    // D86 실무자 초대 공개 경로는 당사자 공개 가입 스위치와 무관하다. 토큰이 자격이고 실패는 전부 404다.
+    const staffInviteTokenPath = pubParts.length >= 3 && pubParts[0] === 'staff-invites' && pubParts[1] === 'token';
+    // D86: 익명 실무자 초대 가입 경로(worker)는 폐기됐다. 인증 전에 404로 닫아 토큰 유효성을 새지 않는다.
+    if (pubParts[0] === 'invites' && pubParts[1] === 'worker') return json({ error: 'not_found' }, 404);
     // ── 기능 스위치(CCC-112 · P0-2): 공개 가입 표면은 PUBLIC_SIGNUP_ENABLED 가 정확히
+    // D86: 자기 확인 페이지는 폐기됐다. 토큰 유효성을 새지 않게 인증 전에 404로 닫는다.
+    if (request.method === 'GET' && pubParts.length === 4 && pubParts[0] === 'invites' && pubParts[1] === 'participant' && pubParts[3] === 'me') {
+      return json({ error: 'not_found' }, 404);
+    }
     // '1' 일 때만 열린다. 없거나 다른 값이면 404 — 미지의 경로와 응답을 구분 불가하게
     // 둔다(fail closed, EXTERNAL_AI_CALLS_ENABLED 와 같은 규약). 미리보기 코드 게이트보다
     // **앞**이다: 스위치가 닫힌 배포에서는 코드가 있어도 이 표면이 존재하지 않는다.
-    // CCC-108 worker 가입 라우트도 이 게이트 안에 든다 — 새 게이트를 만들지 말고
-    // publicSignupPath 매칭에 worker 경로 패턴을 추가한다.
+    // D86 실무자 초대 공개 경로는 이 스위치 밖이지만 미리보기 코드 게이트는 같이 받는다.
     const publicSignupEnabled = env.PUBLIC_SIGNUP_ENABLED === '1';
     if (publicSignupPath && !publicSignupEnabled) return json({ error: 'not_found' }, 404);
     if (env.installationMode === undefined && env.CCC_INSTALL_MANIFEST !== undefined) {
       const installation = await verifiedInstallManifest(env);
       env = { ...env, installationMode: installation.mode };
     }
-    if (publicSignupPath && previewModeEnabled(env)) await resolveActor(request, env);
+    if ((publicSignupPath || staffInviteTokenPath) && previewModeEnabled(env)) await resolveActor(request, env);
     if (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant') {
+      // D86 요청 링크 조회. GET은 소비하지 않고, 무효·만료는 404로 뭉친다.
       requestQuery(url, []);
-      // 빈 토큰은 조회 자체를 하지 않는다 — 아래 실패들과 같은 404 로 맞춰 응답을 구분 불가하게 둔다.
-      const pathToken = pubParts[2] ?? '';
-      if (pathToken.length === 0) return json({ error: 'not_found' }, 404);
       try {
-        const invite = await getInviteForSignup(env, pathToken, 'participant');
-        if (invite.programType === null) return json({ error: 'not_found' }, 404);
-        return json({ programType: invite.programType });
+        return json(await getParticipantRequestLinkInfo(env, pubParts[2] ?? ''), 200, { 'cache-control': 'no-store' });
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
       }
     }
-    if (request.method === 'GET' && pubParts.length === 4 && pubParts[0] === 'invites' && pubParts[1] === 'participant' && pubParts[3] === 'me') {
-      // CCC-27 당사자 자기 확인 — 소비된(가입 완료) 토큰만 자기 정보를 연다. 무효·미소비·
-      // 실무자용 토큰은 위 가입 조회와 같은 404 로 뭉친다(구분 불가 — 토큰 유효성 누설 금지).
+    if (request.method === 'GET' && pubParts.length === 5 && pubParts[0] === 'invites' && pubParts[1] === 'participant'
+      && pubParts[3] === 'consent' && pubParts[4] === 'disclosures') {
       requestQuery(url, []);
-      const pathToken = pubParts[2] ?? '';
-      if (pathToken.length === 0) return json({ error: 'not_found' }, 404);
       try {
-        return json(await getParticipantSelfCheck(env, pathToken));
+        return json({ disclosures: await issueParticipantRequestLinkDisclosures(env, pubParts[2] ?? '') },
+          200, { 'cache-control': 'no-store' });
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
@@ -2648,61 +2638,40 @@ export async function handleRequest(
     if (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant') {
       requestQuery(url, []);
       const body = await requestBody(request);
-      const token = requiredString(body, 'token');
-      const name = requiredString(body, 'name');
+      requireOnlyKeys(body, ['token', 'name', 'phone', 'email', 'consentEvents']);
       const phone = optionalString(body, 'phone');
       const email = optionalString(body, 'email');
-      // 동의 2종(D49): ① 개인정보 ② AI를 활용한 녹취기록. 자기 가입이 곧 등록이므로 등록
-      // 화면과 같은 2체크를 받는다. 둘 다 독립 boolean 이고 ② 는 강제하지 않는다 — 미동의여도
-      // 가입은 진행된다(D15 미동의 경로).
-      const consentRaw = body.consent;
-      if (
-        consentRaw === null
-        || typeof consentRaw !== 'object'
-        || !('privacy' in consentRaw)
-        || !('recordingAi' in consentRaw)
-        || typeof consentRaw.privacy !== 'boolean'
-        || typeof consentRaw.recordingAi !== 'boolean'
-      ) {
-        throw new ValidationError('consent is required');
-      }
-      const consent = { privacy: consentRaw.privacy, recordingAi: consentRaw.recordingAi };
-      const signupInput: Parameters<typeof completeParticipantSignup>[1] = { token, name, consent };
-      if (phone != null) signupInput.phone = phone;
-      if (email != null) signupInput.email = email;
       try {
-        const result = await completeParticipantSignup(env, signupInput);
-        return json(result, 201);
+        return json(await completeParticipantSignup(env, {
+          token: requiredString(body, 'token'),
+          name: requiredString(body, 'name'),
+          consentEvents: parseInitialConsentEvents(body.consentEvents),
+          ...(phone === undefined ? {} : { phone }),
+          ...(email === undefined ? {} : { email }),
+        }), 201);
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
       }
     }
-    // ── 공개 경로: 실무자 초대 가입(토큰이 자격, Access 불필요, CCC-108 · CCC-33) ──
-    // participant 경로와 같은 규약: 실패는 전부 not_found(404)로 뭉쳐 열거 단서를 없앤다.
-    if (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'worker') {
+    if (staffInviteTokenPath && request.method === 'GET' && pubParts.length === 3) {
       requestQuery(url, []);
-      const pathToken = pubParts[2] ?? '';
-      if (pathToken.length === 0) return json({ error: 'not_found' }, 404);
       try {
-        return json(await getCounselorInviteSignupInfo(env, pathToken));
+        return json(await getStaffInvitePublicInfo(env, pubParts[2] ?? ''), 200, { 'cache-control': 'no-store' });
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
       }
     }
-    if (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'invites' && pubParts[1] === 'worker') {
+    if (staffInviteTokenPath && request.method === 'POST' && pubParts.length === 4 && pubParts[3] === 'accept') {
       requestQuery(url, []);
       const body = await requestBody(request);
-      const token = requiredString(body, 'token');
-      const name = requiredString(body, 'name');
-      // 이메일은 필수 — Cloudflare Access 의 신원 키다(users.email 전역 UNIQUE).
-      const email = requiredString(body, 'email');
+      requireOnlyKeys(body, ['name', 'email']);
       try {
-        return json(await completeCounselorSignup(env, { token, name, email }), 201);
+        return json(await acceptStaffInvite(env, {
+          token: pubParts[2] ?? '', name: requiredString(body, 'name'), email: requiredString(body, 'email'),
+        }), 201);
       } catch (e) {
-        // 토큰 무효·이미 소비·발급자 비활성은 404. 이메일 중복·동시 이중 제출(ConflictError)은
-        // errorResponse 가 409 로 번역한다 — 화면이 "이미 등록된 이메일"을 구분해 안내해야 한다.
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
       }
@@ -2945,13 +2914,33 @@ export async function handleRequest(
       requireOnlyKeys(body, ['programId']);
       return json(await createParticipantInvite(env, actor, { programId: requiredString(body, 'programId') }), 201);
     }
-    if (request.method === 'POST' && parts.length === 2 && parts[0] === 'invites' && parts[1] === 'counselor') {
-      // 실무자 초대 링크 발급(CCC-108 · CCC-33). 관리자 전용 — 권한·감사는
-      // createCounselorInvite(R1 관문) 내장. 소비·가입은 위 공개 worker 경로.
-      // 발급도 공개 가입 표면의 일부다(CCC-112): 같은 스위치로 404 한다.
-      if (!publicSignupEnabled) return json({ error: 'not_found' }, 404);
+    if (parts[0] === 'staff-invites') {
       requestQuery(url, []);
-      return json(await createCounselorInvite(env, actor), 201);
+      if (request.method === 'GET' && parts.length === 1) return json({ invites: await listStaffInvites(env, actor) });
+      if (request.method === 'POST' && parts.length === 1) {
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['email', 'roles']);
+        if (!Array.isArray(body.roles) || body.roles.some((role) => typeof role !== 'string')) {
+          throw new ValidationError('invite roles are invalid');
+        }
+        return json(await createStaffInvite(env, actor, {
+          email: requiredString(body, 'email'), roles: body.roles as Parameters<typeof createStaffInvite>[2]['roles'],
+        }), 201);
+      }
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'revoke') {
+        try {
+          return json({ invite: await revokeStaffInvite(env, actor, decodeURIComponent(parts[1]!)) });
+        } catch (e) {
+          if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
+          throw e;
+        }
+      }
+    }
+    if (request.method === 'GET' && parts.length === 4 && parts[0] === 'programs'
+      && parts[2] === 'consent' && parts[3] === 'disclosures') {
+      requestQuery(url, []);
+      return json({ disclosures: await issueRegistrationConsentDisclosures(env, actor, decodedProgramId(parts[1]!)) },
+        200, { 'cache-control': 'no-store' });
     }
     if (
       request.method === 'POST'
@@ -2964,8 +2953,6 @@ export async function handleRequest(
         env,
         actor,
         initialCreation.input,
-        undefined,
-        initialCreation.consent,
       ), 201);
     }
     if (
@@ -3245,18 +3232,6 @@ export async function handleRequest(
         }
         return json(event, 201);
       }
-      // 동의 2종 수정·철회 (D44 · 항목 수는 D49). 담당 실무자 또는 기관 관리자만 —
-      // 게이트웨이의 assertSupportCaseAccess 가 강제한다(R1). 두 값은 항상 함께 온다(현재 상태 전체).
-      if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'consent') {
-        requestQuery(url, []);
-        const body = await requestBody(request);
-        requireOnlyKeys(body, ['privacy', 'recordingAi']);
-        const updated = await updateParticipantConsent(env, actor, supportCaseId, {
-          privacy: requiredBoolean(body, 'privacy'),
-          recordingAi: requiredBoolean(body, 'recordingAi'),
-        });
-        return json(updated);
-      }
       // 전체 목표 그 자리 입력·수정 (D45 · CCC-41). 담당 실무자만 — 게이트웨이가 강제한다(R1).
       // null 또는 빈 문자열은 "설정 전"으로 되돌린다.
       if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'overall-goal') {
@@ -3358,17 +3333,14 @@ export async function handleRequest(
     if (request.method === 'POST' && parts.length === 1 && parts[0] === 'cases') {
       requestQuery(url, []);
       const body = await requestBody(request);
-      requireOnlyKeys(body, ['programId', 'intakeAt', 'consentRecordingAt', 'consentTextAiAt']);
-      const input: { programId: string; intakeAt?: string; consentRecordingAt?: string | null; consentTextAiAt?: string | null } = {
+      requireOnlyKeys(body, ['programId', 'idempotencyKey', 'consentEvents', 'emergencyReason']);
+      const emergencyReason = optionalEmergencyReason(body);
+      return json(await createCase(env, actor, {
         programId: requiredString(body, 'programId'),
-      };
-      const intakeAt = optionalString(body, 'intakeAt');
-      const consentRecordingAt = optionalNullableString(body, 'consentRecordingAt');
-      const consentTextAiAt = optionalNullableString(body, 'consentTextAiAt');
-      if (intakeAt !== undefined) input.intakeAt = intakeAt;
-      if (consentRecordingAt !== undefined) input.consentRecordingAt = consentRecordingAt;
-      if (consentTextAiAt !== undefined) input.consentTextAiAt = consentTextAiAt;
-      return json(await createCase(env, actor, input), 201);
+        idempotencyKey: requiredString(body, 'idempotencyKey'),
+        consentEvents: parseInitialConsentEvents(body.consentEvents),
+        ...(emergencyReason === undefined ? {} : { emergencyReason }),
+      }), 201);
     }
     if (parts[0] === 'cases' && parts[1] !== undefined) {
       const caseId = parts[1];
@@ -3376,10 +3348,6 @@ export async function handleRequest(
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'briefing') return json(await getBriefing(env, actor, caseId));
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'pilot-text-ai-consent') {
         return json(await getLatestPilotTextAiConsentStatus(env, actor, caseId));
-      }
-      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'pilot-text-ai-consent') {
-        await recordPilotTextAiConsentEvidence(env, actor, caseId, parsePilotTextAiConsent(await requestBody(request)));
-        return json(await getLatestPilotTextAiConsentStatus(env, actor, caseId), 201);
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'goals') {
         return json(await listGoals(env, actor, caseId));

@@ -110,7 +110,7 @@ describe('preview code gate (CCC-6)', () => {
       new Request('http://localhost/signup/participant', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ token: 'x'.repeat(64), name: '테스트', consent: { privacy: true, recordingAi: true } }),
+        body: JSON.stringify({ token: 'x'.repeat(64), name: '테스트', consentEvents: [] }),
       }),
       previewEnv,
     );

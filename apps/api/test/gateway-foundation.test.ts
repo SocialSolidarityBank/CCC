@@ -13,7 +13,6 @@ import {
   requestSupportCaseAssignment,
   processParticipantPiiRetention,
   purgeParticipantPii,
-  recordPilotTextAiConsentEvidence,
   registerPii,
   revealPii,
   transferCase,
@@ -21,6 +20,7 @@ import {
 } from '@ccc/core/gateway';
 import { ANIMAL_SLUG_BENEFICIARY_ID_PATTERN } from '@ccc/contracts/animal-slugs';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 import { seedCanonicalSttConsent } from './support/agent-jobs';
 
 const {
@@ -34,13 +34,12 @@ const {
 } = testActors;
 
 const t = setupD1();
-const SHA256 = 'a'.repeat(64);
 
 describe('gateway foundation', () => {
   it('creates an assigned case, blocks an unassigned counselor, and records audit events', async () => {
     await t.reset();
 
-    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
 
     expect(created.id).toMatch(ANIMAL_SLUG_BENEFICIARY_ID_PATTERN);
     await expect(getCase(t.env, unassignedCounselor, created.id)).rejects.toBeInstanceOf(ForbiddenError);
@@ -51,8 +50,8 @@ describe('gateway foundation', () => {
   });
   it('returns audit metadata in stable bounded descending pages', async () => {
     await t.reset();
-    await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
-    await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
+    await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
 
     const first = await listAuditLog(t.env, admin, { limit: 1 });
     expect(first.items).toHaveLength(1);
@@ -96,7 +95,7 @@ describe('gateway foundation', () => {
 
   it('does not expose a legacy case through a requested assignment', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     const supportCase = await t.db.prepare(
       'SELECT id FROM support_cases WHERE legacy_case_id = ? AND org_id = ?',
     ).bind(created.id, counselor.orgId).first<{ id: string }>();
@@ -118,12 +117,14 @@ describe('gateway foundation', () => {
   });
   it('fails legacy case creation, assignment, and transfer closed without organization settings', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
+    // 고지 발급은 기관 설정을 지우기 전에 끝내 둔다 — 막혀야 하는 것은 등록 자체다.
+    const blocked = await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     await t.db.prepare('DELETE FROM organization_settings WHERE org_id = ?')
       .bind(counselor.orgId)
       .run();
 
-    await expect(createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(createCase(t.env, counselor, blocked)).rejects.toBeInstanceOf(ForbiddenError);
     await expect(assignCase(t.env, admin, created.id, unassignedCounselor.userId, 'secondary'))
       .rejects.toBeInstanceOf(ForbiddenError);
     await expect(transferCase(t.env, admin, created.id, counselor.userId, unassignedCounselor.userId))
@@ -132,7 +133,7 @@ describe('gateway foundation', () => {
 
   it('rejects unknown and inactive human assignees without provisioning directory rows', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     const unknownUserId = 'unknown@example.invalid';
 
     for (const userId of [unknownUserId, inactiveCounselor.userId]) {
@@ -148,7 +149,7 @@ describe('gateway foundation', () => {
 
   it('encrypts PII, allows only an admin to reveal it, and keeps plaintext out of audit detail', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
 
     // enc_email(#32·D3)도 이름·연락처·계좌와 같은 AES-GCM 경로로 저장·복호화됨을 함께 확인한다.
     await registerPii(t.env, admin, created.id, {
@@ -220,7 +221,7 @@ describe('gateway foundation', () => {
 
   it('denies cross-org, service, and unassigned counselor PII reveals without plaintext or decrypt audits', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     const pii = {
       name: 'NAME_REVEAL_DENIED',
       phone: 'PHONE_REVEAL_DENIED',
@@ -277,7 +278,7 @@ describe('gateway foundation', () => {
 
   it('requires archive review before purge while preserving the vault row', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     await registerPii(t.env, admin, created.id, { name: 'NAME_DEMO' });
 
     await expect(processParticipantPiiRetention(t.env))
@@ -331,7 +332,7 @@ describe('gateway foundation', () => {
 
   it('preserves assignment history during transfer and protects the final active assignee', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     const secondaryUser = 'secondary.demo@example.invalid';
     const replacementUser = 'replacement.demo@example.invalid';
     await t.db.batch([
@@ -372,14 +373,14 @@ describe('gateway foundation', () => {
 
   it('rejects an org mismatch before returning a case', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
 
     await expect(getCase(t.env, otherOrgAdmin, created.id)).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('limits case lists to assigned counselors and rejects the service role', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
 
     await expect(listCases(t.env, counselor)).resolves.toEqual([
       expect.objectContaining({ id: created.id }),
@@ -387,176 +388,60 @@ describe('gateway foundation', () => {
     await expect(listCases(t.env, unassignedCounselor)).resolves.toEqual([]);
     await expect(listCases(t.env, service)).rejects.toBeInstanceOf(ForbiddenError);
   });
-  it('persists complete pilot text-AI evidence and rejects malformed or unauthorized writers without evidence writes', async () => {
+  it('opens the text-AI gate only on canonical six-domain consent and denies others content-free', async () => {
     await t.reset();
     t.env.TEXT_AI_PILOT_ENABLED = '1';
-    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
-    const input = {
-      noticeVersion: 'pilot-text-ai-v1',
-      noticeSha256: SHA256,
-      evidenceRef: 'r2://opaque-pilot-evidence',
-      evidenceSha256: 'b'.repeat(64),
-      effectiveAt: '2026-01-01T00:00:00.000Z',
-    };
+    // 국외 LLM 처리를 거절한 채로 연다 — 정본 게이트가 처음에는 닫혀 있어야 이 테스트가 성립한다.
+    const created = await createCase(t.env, counselor, await registrationInput(
+      t.env, counselor, { programId: testProgramId(counselor.orgId) },
+      { external_llm_cross_border_processing: 'decline' },
+    ));
 
     await expect(assertPilotTextAiConsent(t.env, counselor, created.id))
       .rejects.toBeInstanceOf(ConsentContractError);
 
-    const evidence = await recordPilotTextAiConsentEvidence(t.env, counselor, created.id, input);
-    expect(evidence).toMatchObject({
-      id: expect.any(String),
-      caseId: created.id,
-      ...input,
-      capturedBy: counselor.userId,
-      createdAt: expect.any(String),
-    });
-    // Historical pilot evidence is retained but never authorizes current processing.
-    await expect(assertPilotTextAiConsent(t.env, counselor, created.id))
-      .rejects.toBeInstanceOf(ConsentContractError);
     const scope = await t.db.prepare('SELECT id FROM support_cases WHERE legacy_case_id=? OR id=?')
       .bind(created.id, created.id).first<{ id: string }>();
     if (scope === null) throw new Error('expected canonical support case');
     await seedCanonicalSttConsent(t.env, counselor, scope.id);
-    const canonicalGrant = await assertPilotTextAiConsent(t.env, counselor, created.id);
-    expect(canonicalGrant.id).toEqual(expect.any(String));
-    expect(canonicalGrant.id).not.toBe(evidence.id);
 
-    const malformedEvidenceRef = 'malformed pilot evidence';
-    const malformedError = await recordPilotTextAiConsentEvidence(t.env, counselor, created.id, {
-      ...input,
-      evidenceRef: malformedEvidenceRef,
-    }).then(
-      () => undefined,
-      (error: unknown) => error,
-    );
-    expect(malformedError).toBeInstanceOf(ValidationError);
-    const malformedMessage = malformedError instanceof Error ? malformedError.message : String(malformedError);
-    expect(malformedMessage).not.toContain(malformedEvidenceRef);
+    const grant = await assertPilotTextAiConsent(t.env, counselor, created.id);
+    expect(grant.receipt.required.map((entry) => entry.domain)).toEqual([
+      'external_llm_cross_border_processing',
+      'personal_data_collection_use',
+      'sensitive_information_processing',
+    ]);
+    // 게이트를 여는 근거는 그 시점의 국외 처리 동의 이벤트 하나로 특정된다.
+    const llmEvent = await t.db.prepare(
+      `SELECT id FROM consent_events
+       WHERE support_case_id = ? AND domain = 'external_llm_cross_border_processing'
+         AND decision = 'grant' ORDER BY event_sequence DESC LIMIT 1`,
+    ).bind(scope.id).first<{ id: string }>();
+    expect(grant.id).toBe(llmEvent?.id);
 
-    await expect(recordPilotTextAiConsentEvidence(t.env, unassignedCounselor, created.id, {
-      ...input,
-      evidenceRef: 'r2://opaque-unassigned',
-      evidenceSha256: 'c'.repeat(64),
-    })).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(recordPilotTextAiConsentEvidence(t.env, otherOrgAdmin, created.id, {
-      ...input,
-      evidenceRef: 'r2://opaque-cross-org',
-      evidenceSha256: 'd'.repeat(64),
-    })).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(recordPilotTextAiConsentEvidence(t.env, service, created.id, {
-      ...input,
-      evidenceRef: 'r2://opaque-service',
-      evidenceSha256: 'e'.repeat(64),
-    })).rejects.toBeInstanceOf(ForbiddenError);
-
-    const persisted = await t.db.prepare(
-      `SELECT
-         evidence.id,
-         evidence.org_id,
-         support_case.legacy_case_id AS case_id,
-         evidence.notice_version,
-         evidence.notice_sha256,
-         evidence.evidence_ref,
-         evidence.evidence_sha256,
-         evidence.captured_by,
-         evidence.effective_at,
-         evidence.created_at
-       FROM pilot_text_ai_consent_evidence AS evidence
-       JOIN support_cases AS support_case ON support_case.id = evidence.support_case_id
-       WHERE support_case.legacy_case_id = ?
-       ORDER BY evidence.id`,
-    ).bind(created.id).all<{
-      id: string;
-      org_id: string;
-      case_id: string;
-      notice_version: string;
-      notice_sha256: string;
-      evidence_ref: string;
-      evidence_sha256: string;
-      captured_by: string;
-      effective_at: string;
-      created_at: string;
-    }>();
-    expect(persisted.results).toEqual([{
-      id: evidence.id,
-      org_id: counselor.orgId,
-      case_id: created.id,
-      notice_version: input.noticeVersion,
-      notice_sha256: input.noticeSha256,
-      evidence_ref: input.evidenceRef,
-      evidence_sha256: input.evidenceSha256,
-      captured_by: counselor.userId,
-      effective_at: input.effectiveAt,
-      created_at: evidence.createdAt,
-    }]);
+    for (const outsider of [unassignedCounselor, otherOrgAdmin, service]) {
+      await expect(assertPilotTextAiConsent(t.env, outsider, created.id))
+        .rejects.toBeInstanceOf(ForbiddenError);
+    }
 
     const audit = await t.db.prepare(
-      `SELECT actor_id, actor_role, action, target_table, detail
-       FROM audit_log
-       WHERE case_id = ? AND target_table = ?
-       ORDER BY id`,
-    ).bind(created.id, 'pilot_text_ai_consent_evidence').all<{
-      actor_id: string;
-      actor_role: string;
-      action: string;
-      target_table: string;
-      detail: string | null;
+      `SELECT actor_id, actor_role, action, target_table, detail FROM audit_log
+       WHERE case_id = ? AND target_table = 'consent_events' ORDER BY id`,
+    ).bind(created.id).all<{
+      actor_id: string; actor_role: string; action: string; target_table: string; detail: string | null;
     }>();
-    const successfulRows = audit.results.filter((entry) => entry.action === 'create');
-    const deniedRows = audit.results.filter((entry) => entry.action === 'deny');
-    expect(successfulRows).toEqual([{
+    expect(audit.results.filter((row) => row.action === 'read')).toEqual([{
       actor_id: counselor.userId,
       actor_role: counselor.role,
-      action: 'create',
-      target_table: 'pilot_text_ai_consent_evidence',
-      detail: '{"purpose":"text_ai_pilot"}',
+      action: 'read',
+      target_table: 'consent_events',
+      detail: '{"purpose":"text_ai_grant_check"}',
     }]);
-    expect(deniedRows).toEqual([
-      {
-        actor_id: counselor.userId,
-        actor_role: counselor.role,
-        action: 'deny',
-        target_table: 'pilot_text_ai_consent_evidence',
-        detail: '{"reason":"invalid_pilot_text_ai_evidence"}',
-      },
-      {
-        actor_id: unassignedCounselor.userId,
-        actor_role: unassignedCounselor.role,
-        action: 'deny',
-        target_table: 'pilot_text_ai_consent_evidence',
-        detail: '{"reason":"forbidden"}',
-      },
-      {
-        actor_id: otherOrgAdmin.userId,
-        actor_role: otherOrgAdmin.role,
-        action: 'deny',
-        target_table: 'pilot_text_ai_consent_evidence',
-        detail: '{"reason":"forbidden"}',
-      },
-      {
-        actor_id: service.userId,
-        actor_role: service.role,
-        action: 'deny',
-        target_table: 'pilot_text_ai_consent_evidence',
-        detail: '{"reason":"forbidden"}',
-      },
-    ]);
-    const serializedAudit = JSON.stringify(audit.results);
-    for (const opaqueValue of [
-      input.noticeVersion,
-      input.noticeSha256,
-      input.evidenceRef,
-      input.evidenceSha256,
-      input.effectiveAt,
-      malformedEvidenceRef,
-      'r2://opaque-unassigned',
-      'c'.repeat(64),
-      'r2://opaque-cross-org',
-      'd'.repeat(64),
-      'r2://opaque-service',
-      'e'.repeat(64),
-    ]) {
-      expect(serializedAudit).not.toContain(opaqueValue);
+    // 거부도 content-free 다 — 사유 코드 말고는 아무것도 싣지 않는다.
+    expect(audit.results.filter((row) => row.action === 'deny').map((row) => row.detail))
+      .toContain('{"reason":"consent_not_effective"}');
+    for (const detail of audit.results.map((row) => row.detail)) {
+      expect(detail).toMatch(/^\{"(purpose|reason)":"[a-z_]+"\}$/);
     }
   });
 });

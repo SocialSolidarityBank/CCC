@@ -17,8 +17,11 @@ import {
   listGoals,
   processParticipantPiiRetention,
   purgeParticipantPii,
+  getSupportCaseConsent,
 } from '@ccc/core/gateway';
+import { CONSENT_DOMAINS, type ConsentDomain } from '@ccc/contracts/consent';
 import { setupD1, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 
@@ -58,7 +61,6 @@ function intakeInput(overrides: Partial<CreateIntakeRecordInput> = {}): CreateIn
     submissionId: '01000000-0000-4000-8000-0000000000a1',
     heldAt: '2026-07-15T10:00:00.000Z',
     channel: 'in_person',
-    consent: { privacy: true, recordingAi: true },
     helpNarrative: {
       todayHelp: '생계비 지원 상담을 받고 싶어요',
       hardestPoint: '이번 달 월세가 밀렸습니다',
@@ -73,14 +75,14 @@ function intakeInput(overrides: Partial<CreateIntakeRecordInput> = {}): CreateIn
 
 async function seedCase() {
   await seedCanonicalDirectory();
-  return createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+  return createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
     programId: testProgramId(canonicalActors.counselor.orgId),
     intakeAt: '2026-07-15T09:00:00.000Z',
-  });
+  }));
 }
 
 describe('createIntakeRecord', () => {
-  it('atomically stores the intake session, goals, actions, six-area baseline, and consent', async () => {
+  it('atomically stores the intake session, goals, actions, and six-area baseline', async () => {
     await t.reset();
     const initial = await seedCase();
 
@@ -111,17 +113,12 @@ describe('createIntakeRecord', () => {
       'SELECT COUNT(*) AS count FROM action_items WHERE session_id = ? AND resolved_at IS NULL',
     ).bind(result.record.id).first<{ count: number }>()).resolves.toEqual({ count: 1 });
 
-    // Consent row: privacy + recordingAi(두 컬럼 동시, D49) all bound to recorded_at.
-    const consent = await t.db.prepare(
-      `SELECT consent_privacy_at, consent_recording_at, consent_text_ai_at, recorded_at
-       FROM participant_consent_records WHERE support_case_id = ?
-       ORDER BY recorded_at DESC LIMIT 1`,
-    ).bind(initial.supportCaseId).first<{
-      consent_privacy_at: string; consent_recording_at: string; consent_text_ai_at: string; recorded_at: string;
-    }>();
-    expect(consent?.consent_privacy_at).toBe(consent?.recorded_at);
-    expect(consent?.consent_recording_at).toBe(consent?.recorded_at);
-    expect(consent?.consent_text_ai_at).toBe(consent?.recorded_at);
+    // 동의는 등록이 쓴다 — 인테이크는 6종 상태를 건드리지 않는다(S7 · D42 ②).
+    await expect(t.db.prepare(
+      'SELECT COUNT(*) AS count FROM consent_events WHERE support_case_id = ?',
+    ).bind(initial.supportCaseId).first<{ count: number }>()).resolves.toEqual({ count: 6 });
+    const consent = await getSupportCaseConsent(t.env, canonicalActors.counselor, initial.supportCaseId);
+    expect(consent.map((state) => state.state)).toEqual(CONSENT_DOMAINS.map(() => 'granted'));
   });
 
   it('exposes kind=intake in the records list', async () => {
@@ -138,9 +135,9 @@ describe('createIntakeRecord', () => {
   it('registration leaves intake_at NULL until the intake record fills it with held_at (CCC-56)', async () => {
     await t.reset();
     await seedCanonicalDirectory();
-    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
       programId: testProgramId(canonicalActors.counselor.orgId),
-    });
+    }));
     const beforeIntake = await t.db.prepare(
       'SELECT intake_at FROM support_cases WHERE id = ?',
     ).bind(initial.supportCaseId).first<{ intake_at: string | null }>();
@@ -291,7 +288,7 @@ describe('createIntakeRecord', () => {
     expect(row?.intake_at).toBe('2026-07-15T10:00:00.000Z');
   });
 
-  it('records audit rows for the session, each goal, and the consent', async () => {
+  it('records audit rows for the session and each goal', async () => {
     await t.reset();
     const initial = await seedCase();
     await createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput({
@@ -303,7 +300,8 @@ describe('createIntakeRecord', () => {
     ).bind(initial.supportCaseId).all<{ action: string; target_table: string }>();
     const actions = audits.results.map((row) => `${row.action}:${row.target_table}`);
     expect(actions).toContain('submit_manual_record:sessions');
-    expect(actions).toContain('record_consent:participant_consent_records');
+    // 동의 감사는 audit_log 가 아니라 consent_audit_events 에 남는다(S7) — 인테이크는 아예 쓰지 않는다.
+    expect(actions.some((entry) => entry.startsWith('record_consent:'))).toBe(false);
     expect(actions.filter((entry) => entry === 'create:goals')).toHaveLength(2);
   });
 
@@ -334,15 +332,14 @@ describe('createIntakeRecord', () => {
     ).bind(initial.supportCaseId).first<{ count: number }>()).resolves.toEqual({ count: 1 });
   });
 
-  it('rejects when either consent check is unchecked', async () => {
+  it('rejects a consent payload — the intake never writes consent (S7 · D42 ②)', async () => {
     await t.reset();
     const initial = await seedCase();
-    await expect(createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput({
-      consent: { privacy: false, recordingAi: true },
-    }))).rejects.toBeInstanceOf(ValidationError);
-    await expect(createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput({
-      consent: { privacy: true, recordingAi: false },
-    }))).rejects.toBeInstanceOf(ValidationError);
+    // 동의 입력은 등록 화면 몫이다. 옛 클라이언트가 보내던 키는 조용히 무시되는 게 아니라 거부된다.
+    await expect(createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
+      ...intakeInput(),
+      consent: { privacy: true, recordingAi: true },
+    } as unknown as CreateIntakeRecordInput)).rejects.toBeInstanceOf(ValidationError);
     await expect(t.db.prepare(
       'SELECT COUNT(*) AS count FROM sessions WHERE support_case_id = ?',
     ).bind(initial.supportCaseId).first<{ count: number }>()).resolves.toEqual({ count: 0 });
@@ -737,11 +734,11 @@ describe('intake questionnaire form (D41 · D42)', () => {
     // 목표 입력이 없으므로 목표가 생기지 않는다(D42 ③ · D43 GAS 보류).
     expect(await listGoals(t.env, canonicalActors.counselor, initial.supportCaseId)).toHaveLength(0);
 
-    // 동의를 받지 않았으므로 인테이크가 동의 기록을 대신 남기지 않는다(D42 ②).
+    // 인테이크는 동의를 대신 남기지 않는다(D42 ②) — 등록이 쓴 6건 그대로다.
     const consentRows = await t.db.prepare(
-      'SELECT COUNT(*) AS n FROM participant_consent_records WHERE support_case_id = ?',
+      'SELECT COUNT(*) AS n FROM consent_events WHERE support_case_id = ?',
     ).bind(initial.supportCaseId).first<{ n: number }>();
-    expect(Number(consentRows?.n ?? 0)).toBe(0);
+    expect(Number(consentRows?.n ?? 0)).toBe(6);
 
     // 6영역 스냅샷·액션도 만들어지지 않는다.
     const snapshots = await t.db.prepare(
@@ -801,7 +798,7 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
   it('encrypts birth date, region, and gender at registration and shows them on the intake screen', async () => {
     await t.reset();
     await seedCanonicalDirectory();
-    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
     programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
       name: '홍서희',
@@ -809,7 +806,7 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
       birthDate: '1984-03-11',
       region: '서울시 은평구',
       gender: '여성',
-    });
+    }));
 
     const stored = await t.db.prepare(
       'SELECT enc_birth_date, enc_region, enc_gender FROM participant_pii_vault WHERE beneficiary_id = ?',
@@ -828,40 +825,64 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
     expect(context.participant.name).toBe('홍서희');
   });
 
-  it('reports consent status for the read-only first step', async () => {
+  it('reports the six canonical consent states for the read-only first step', async () => {
     await t.reset();
     await seedCanonicalDirectory();
+    const programId = testProgramId(canonicalActors.counselor.orgId);
+    const states = async (supportCaseId: string): Promise<Record<ConsentDomain, string>> => {
+      const context = await getIntakeRecordContext(t.env, canonicalActors.counselor, supportCaseId);
+      return Object.fromEntries(context.consent.map((state) => [state.domain, state.state])) as Record<ConsentDomain, string>;
+    };
+    const declineAll = Object.fromEntries(
+      CONSENT_DOMAINS.map((domain) => [domain, 'decline' as const]),
+    ) as Partial<Record<ConsentDomain, 'decline'>>;
+
     // ① 이 비어 있는 케이스는 이제 긴급 등록으로만 생긴다(G1) — 인테이크 1단계는 그 상태도 읽어야 한다.
     const withoutConsent = await createBeneficiaryWithInitialSupportCase(
       t.env,
       canonicalActors.counselor,
-      { programId: testProgramId(canonicalActors.counselor.orgId), intakeAt: '2026-07-15T09:00:00.000Z' },
-      undefined,
-      { privacy: false, recordingAi: false, emergency: { reason: '위기 개입' } },
+      await registrationInput(
+        t.env,
+        canonicalActors.counselor,
+        { programId, intakeAt: '2026-07-15T09:00:00.000Z', emergencyReason: '위기 개입' },
+        declineAll,
+      ),
     );
-    const before = await getIntakeRecordContext(t.env, canonicalActors.counselor, withoutConsent.supportCaseId);
-    expect(before.consent).toEqual({ privacy: false, recordingAi: false });
+    expect(await states(withoutConsent.supportCaseId))
+      .toEqual(Object.fromEntries(CONSENT_DOMAINS.map((domain) => [domain, 'not_granted'])));
 
     const withConsent = await createBeneficiaryWithInitialSupportCase(
       t.env,
       canonicalActors.counselor,
-      { programId: testProgramId(canonicalActors.counselor.orgId), intakeAt: '2026-07-15T09:00:00.000Z' },
-      undefined,
-      { privacy: true, recordingAi: true },
+      await registrationInput(t.env, canonicalActors.counselor, { programId, intakeAt: '2026-07-15T09:00:00.000Z' }),
     );
-    const after = await getIntakeRecordContext(t.env, canonicalActors.counselor, withConsent.supportCaseId);
-    expect(after.consent.recordingAi).toBe(true);
-    expect(after.consent.privacy).toBe(true);
+    expect(await states(withConsent.supportCaseId))
+      .toEqual(Object.fromEntries(CONSENT_DOMAINS.map((domain) => [domain, 'granted'])));
 
-    const withPrivacy = await createBeneficiaryWithInitialSupportCase(
+    // 도메인마다 갈린다 — 녹음·외부 처리 계열만 거절해도 개인정보·민감정보는 동의로 남는다.
+    const partial = await createBeneficiaryWithInitialSupportCase(
       t.env,
       canonicalActors.counselor,
-      { programId: testProgramId(canonicalActors.counselor.orgId), intakeAt: '2026-07-15T09:00:00.000Z' },
-      undefined,
-      { privacy: true, recordingAi: false },
+      await registrationInput(
+        t.env,
+        canonicalActors.counselor,
+        { programId, intakeAt: '2026-07-15T09:00:00.000Z' },
+        {
+          counseling_recording: 'decline',
+          external_stt_processing: 'decline',
+          external_llm_cross_border_processing: 'decline',
+          voice_original_retention_period: 'decline',
+        },
+      ),
     );
-    const privacyContext = await getIntakeRecordContext(t.env, canonicalActors.counselor, withPrivacy.supportCaseId);
-    expect(privacyContext.consent).toEqual({ privacy: true, recordingAi: false });
+    expect(await states(partial.supportCaseId)).toEqual({
+      personal_data_collection_use: 'granted',
+      sensitive_information_processing: 'granted',
+      counseling_recording: 'not_granted',
+      external_stt_processing: 'not_granted',
+      external_llm_cross_border_processing: 'not_granted',
+      voice_original_retention_period: 'not_granted',
+    });
   });
 });
 
@@ -869,10 +890,10 @@ describe('updateParticipantPii covers the 1-1 basic information (D42 ①)', () =
   it('lets an admin fix birth date, region, and gender after registration', async () => {
     await t.reset();
     await seedCanonicalDirectory();
-    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
       programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
-    });
+    }));
 
     // 인테이크 화면이 표시 전용이 된 뒤로 이미 등록된 당사자를 고칠 길은 이 함수뿐이다.
     await updateParticipantPii(t.env, canonicalActors.admin, initial.beneficiaryId, {
@@ -903,10 +924,10 @@ describe('updateParticipantPii covers the 1-1 basic information (D42 ①)', () =
   it('lets the assigned counselor edit the vault and the intake screen shows it', async () => {
     await t.reset();
     await seedCanonicalDirectory();
-    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
       programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
-    });
+    }));
 
     await updateParticipantPii(t.env, canonicalActors.counselor, initial.beneficiaryId, {
       supportCaseContextId: initial.supportCaseId,
@@ -939,10 +960,10 @@ describe('updateParticipantPii covers the 1-1 basic information (D42 ①)', () =
   it('rejects a counselor who does not hold the case', async () => {
     await t.reset();
     await seedCanonicalDirectory();
-    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
       programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
-    });
+    }));
 
     await expect(updateParticipantPii(t.env, canonicalActors.secondCounselor, initial.beneficiaryId, {
       supportCaseContextId: initial.supportCaseId,
@@ -959,10 +980,10 @@ describe('updateParticipantPii covers the 1-1 basic information (D42 ①)', () =
   it('rejects a malformed birth date', async () => {
     await t.reset();
     await seedCanonicalDirectory();
-    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
       programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
-    });
+    }));
     await expect(updateParticipantPii(t.env, canonicalActors.admin, initial.beneficiaryId, {
       supportCaseContextId: initial.supportCaseId,
       expectedVersion: 1,
@@ -975,10 +996,10 @@ describe('getParticipantBasicInfo is the edit screen read gate (CCC-37)', () => 
   it('returns the seven vault fields, the write context, and one audit row', async () => {
     await t.reset();
     await seedCanonicalDirectory();
-    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
       programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
-    });
+    }));
     await updateParticipantPii(t.env, canonicalActors.counselor, initial.beneficiaryId, {
       supportCaseContextId: initial.supportCaseId,
       expectedVersion: 1,
@@ -1022,10 +1043,10 @@ describe('getParticipantBasicInfo is the edit screen read gate (CCC-37)', () => 
   it('refuses a counselor who does not hold any case for the participant', async () => {
     await t.reset();
     await seedCanonicalDirectory();
-    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
       programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
-    });
+    }));
     await expect(
       getParticipantBasicInfo(t.env, canonicalActors.secondCounselor, initial.beneficiaryId),
     ).rejects.toBeInstanceOf(ForbiddenError);

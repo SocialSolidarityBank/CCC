@@ -10,7 +10,7 @@ declare const Deno: {
 
 const SETTING_NAMES = [
   'CCC_STT_MODE', 'CCC_LLM_MODE', 'TEXT_AI_PILOT_ENABLED',
-  'EXTERNAL_AI_CALLS_ENABLED', 'PUBLIC_SIGNUP_ENABLED', 'PII_PURGE_ENABLED',
+  'EXTERNAL_AI_CALLS_ENABLED', 'PUBLIC_SIGNUP_ENABLED', 'PII_PURGE_ENABLED', 'PII_KEY_VERSION',
 ] as const;
 
 const BUSINESS_SECRET_NAMES = ['CODEX_API_KEY', 'PII_ENC_KEY', 'NOTIFY_WEBHOOK_URL'] as const satisfies readonly CoreSecretName[];
@@ -42,7 +42,9 @@ async function initialize() {
     }));
     return await createCommunityCloudRuntime({
       database,
-      secretStore: createEnvironmentSecretStore(secretBindings),
+      secretStore: createEnvironmentSecretStore(Object.defineProperty(secretBindings, 'PII_KEY_VERSION', {
+        enumerable: true, get: () => Deno.env.get('PII_KEY_VERSION'),
+      })),
       organizationId: required('CCC_ORGANIZATION_ID'),
       installManifest: required('CCC_INSTALL_MANIFEST'),
       signingKeys: required('CCC_INSTALL_SIGNING_KEYS'),

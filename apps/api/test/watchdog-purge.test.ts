@@ -19,6 +19,7 @@ import {
   seedCanonicalSttConsent,
   TEXT_ONLY_RUNTIME,
 } from './support/agent-jobs';
+import { registrationInput } from './support/registration';
 
 const counselor: Actor = testActors.counselor;
 const admin: Actor = testActors.admin;
@@ -71,10 +72,9 @@ function isoUtc(ms: number): string {
 
 async function makePendingJob(): Promise<string> {
   await localEnv();
-  const caseRecord = await createCase(t.env, counselor, {
+  const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {
     programId: testProgramId(counselor.orgId),
-    consentRecordingAt: '2026-01-01T00:00:00.000Z',
-  });
+  }));
   const session = await createManualSession(t.env, counselor, caseRecord.id, {
     submissionId: '04000000-0000-4000-8000-000000000001',
     heldAt: '2026-01-02T10:00:00.000Z',
@@ -89,9 +89,9 @@ async function makePendingJob(): Promise<string> {
 /** 텍스트 일감 큐에 대기 1건이 있는 회차를 만들고, 대기 시작 시각을 지정 시각으로 묵힌다. */
 async function makePendingTextWork(enqueuedAtMs: number): Promise<string> {
   await localEnv();
-  const caseRecord = await createCase(t.env, counselor, {
+  const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {
     programId: testProgramId(counselor.orgId),
-  });
+  }));
   const session = await createManualSession(t.env, counselor, caseRecord.id, {
     submissionId: '04000000-0000-4000-8000-000000000002',
     heldAt: '2026-01-02T10:00:00.000Z',

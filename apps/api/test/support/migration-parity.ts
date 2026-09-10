@@ -26,6 +26,11 @@ export const checkpoints = [
   { id: 'ai-draft-canonical-consent', sqlite: '0053_ai_draft_canonical_consent.sql', postgres: '0009_ai_draft_canonical_consent.sql' },
   { id: 'program-admission', sqlite: '0054_program_admission.sql', postgres: '0010_program_admission.sql' },
   { id: 'account-settings', sqlite: '0055_account_settings.sql', postgres: '0011_account_settings.sql' },
+  { id: 'schedule-display', sqlite: '0056_schedule_display.sql', postgres: '0012_schedule_display.sql' },
+  { id: 'preregistration-consent', sqlite: '0057_preregistration_consent.sql', postgres: '0013_preregistration_consent.sql' },
+  { id: 'staff-invites', sqlite: '0058_staff_invites.sql', postgres: '0014_staff_invites.sql' },
+  { id: 'participant-request-links', sqlite: '0059_participant_request_links.sql', postgres: '0015_participant_request_links.sql' },
+  { id: 'canonical-compatibility-views', sqlite: '0060_canonical_compatibility_views.sql', postgres: '0016_canonical_compatibility_views.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;
@@ -96,6 +101,182 @@ export function checkpointSources() {
     sqlite: index === 0 ? sqlite.slice(0, boundary + 1) : [sqlite[boundary + index]!],
     postgres: [postgres[index]!],
   }));
+}
+
+/** Seed before the display migration so historical midnight data is part of the proof. */
+export async function seedScheduleDisplaySchema(db: Database): Promise<void> {
+  const org = 'parity-schedule-org', user = 'parity-schedule-user', beneficiary = 'A902';
+  const stamp = '2026-07-16T00:00:00.000Z';
+  await db.prepare('INSERT INTO organization_settings (org_id, time_zone, pii_purge_grace_days) VALUES (?, ?, ?)')
+    .bind(org, 'UTC', 180).run();
+  await db.prepare('INSERT INTO programs (id, org_id) VALUES (?, ?)').bind('parity-schedule-program', org).run();
+  await db.prepare('INSERT INTO users (id, org_id, email, role, active, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(user, org, 'schedule@example.invalid', 'counselor', 1, stamp).run();
+  await db.prepare('INSERT INTO beneficiaries (id, org_id, initialization_state, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(beneficiary, org, 'pending', stamp, stamp).run();
+  await db.prepare(`INSERT INTO support_cases
+    (id, org_id, beneficiary_id, legacy_case_id, program_id, status, creation_kind, intake_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind('parity-schedule-case', org, beneficiary, beneficiary, 'parity-schedule-program', 'active', 'initial', stamp, stamp, stamp).run();
+  await db.prepare(`INSERT INTO counseling_schedules
+    (id, org_id, beneficiary_id, support_case_id, scheduled_at, status, version, created_by_actor_id, updated_by_actor_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind('parity-schedule', org, beneficiary, 'parity-schedule-case', stamp, 'scheduled', 1, user, user, stamp, stamp).run();
+}
+
+export async function proveScheduleDisplaySchema(db: Database): Promise<void> {
+  const read = () => db.prepare('SELECT scheduled_at, all_day, display_color FROM counseling_schedules WHERE id = ?')
+    .bind('parity-schedule').first();
+  expect(await read()).toEqual({ scheduled_at: '2026-07-16T00:00:00.000Z', all_day: 0, display_color: null });
+  const at = '2026-07-16T13:30:00.000Z';
+  for (const color of ['mint', 'lavender', 'coral', 'cyan', 'light-magenta']) {
+    await db.prepare('UPDATE counseling_schedules SET scheduled_at = ?, all_day = 1, display_color = ?, version = version + 1 WHERE id = ?')
+      .bind(at, color, 'parity-schedule').run();
+    expect(await read()).toEqual({ scheduled_at: at, all_day: 1, display_color: color });
+  }
+  for (const value of [-1, 2, null]) {
+    await expect(db.prepare('UPDATE counseling_schedules SET all_day = ?, version = version + 1 WHERE id = ?')
+      .bind(value, 'parity-schedule').run()).rejects.toMatchObject({ kind: 'constraint' });
+  }
+  for (const value of ['blue', '']) {
+    await expect(db.prepare('UPDATE counseling_schedules SET display_color = ?, version = version + 1 WHERE id = ?')
+      .bind(value, 'parity-schedule').run()).rejects.toMatchObject({ kind: 'constraint' });
+  }
+  expect(await read()).toEqual({ scheduled_at: at, all_day: 1, display_color: 'light-magenta' });
+  await db.prepare('UPDATE counseling_schedules SET all_day = 0, display_color = NULL, version = version + 1 WHERE id = ?')
+    .bind('parity-schedule').run();
+  expect(await read()).toEqual({ scheduled_at: at, all_day: 0, display_color: null });
+}
+
+/** Seed a case-bound disclosure with a child event so the 0057 rebuild runs over live rows. */
+export async function seedPreregistrationConsentSchema(db: Database): Promise<void> {
+  const org = 'parity-consent-org';
+  const hash = 'a'.repeat(64);
+  await db.prepare(`INSERT INTO consent_provider_registry_snapshots (id, org_id, provider, legal_recipient, country, approved_at)
+    VALUES (?, ?, 'institution', 'Parity recipient', 'KR', '2025-01-01T00:00:00.000Z')`).bind('parity-consent-registry', org).run();
+  await db.prepare(`INSERT INTO consent_disclosure_snapshots (id, org_id, program_id, issuer_id, support_case_id, domain,
+    full_korean_copy, provider, provider_registry_snapshot_id, provider_legal_recipient, provider_country, purpose,
+    retention_profile, retention_duration, copy_version, copy_hash, issued_at, expires_at)
+    VALUES (?, ?, 'parity-consent-program', 'parity-consent-user', 'parity-consent-case', 'personal_data_collection_use',
+    'copy', 'institution', 'parity-consent-registry', 'Parity recipient', 'KR', 'case_management',
+    'default_temporary_d85', 'default_temporary_d85', 'consent-six-domains-v1', ?, '2026-01-01T00:00:00.000Z', '2026-01-01T00:30:00.000Z')`)
+    .bind('parity-consent-disclosure', org, hash).run();
+  await db.prepare(`INSERT INTO consent_events (id, org_id, beneficiary_id, support_case_id, domain, decision, provider,
+    provider_legal_recipient, provider_country, purpose, retention_duration, copy_version, copy_hash, disclosure_snapshot_id,
+    effective_at, recorded_by, recorded_at, idempotency_key, request_hash, revision, event_sequence, correction_of_event_id, provider_registry_snapshot_id)
+    VALUES (?, ?, 'A903', 'parity-consent-case', 'personal_data_collection_use', 'grant', 'institution', 'Parity recipient', 'KR',
+    'case_management', NULL, 'consent-six-domains-v1', ?, 'parity-consent-disclosure', '2026-01-01T00:00:00.000Z', 'parity-consent-user',
+    '2026-01-01T00:00:00.000Z', 'parity-consent-key', ?, 1, 1, NULL, 'parity-consent-registry')`)
+    .bind('parity-consent-event', org, hash, hash).run();
+}
+
+export async function provePreregistrationConsentSchema(db: Database): Promise<void> {
+  expect(await db.prepare('SELECT support_case_id, copy_hash FROM consent_disclosure_snapshots WHERE id = ?')
+    .bind('parity-consent-disclosure').first()).toEqual({ support_case_id: 'parity-consent-case', copy_hash: 'a'.repeat(64) });
+  expect(await db.prepare('SELECT disclosure_snapshot_id FROM consent_events WHERE id = ?').bind('parity-consent-event').first())
+    .toEqual({ disclosure_snapshot_id: 'parity-consent-disclosure' });
+  await db.prepare(`INSERT INTO consent_disclosure_snapshots (id, org_id, program_id, issuer_id, support_case_id, domain,
+    full_korean_copy, provider, provider_registry_snapshot_id, provider_legal_recipient, provider_country, purpose,
+    retention_profile, retention_duration, copy_version, copy_hash, issued_at, expires_at)
+    VALUES (?, 'parity-consent-org', 'parity-consent-program', 'parity-consent-user', NULL, 'counseling_recording',
+    'copy', NULL, NULL, NULL, NULL, NULL, 'default_temporary_d85', 'default_temporary_d85', 'consent-six-domains-v1', ?,
+    '2026-01-01T00:00:00.000Z', '2026-01-01T00:30:00.000Z')`).bind('parity-consent-preregistration', 'b'.repeat(64)).run();
+  for (const sql of [
+    "UPDATE consent_disclosure_snapshots SET expires_at = '2027-01-01T00:00:00.000Z' WHERE id = 'parity-consent-disclosure'",
+    "DELETE FROM consent_disclosure_snapshots WHERE id = 'parity-consent-disclosure'",
+  ]) {
+    expect(await rejection(db.prepare(sql).run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+  }
+  await expect(db.prepare(`INSERT INTO consent_events (id, org_id, beneficiary_id, support_case_id, domain, decision, copy_version,
+    copy_hash, disclosure_snapshot_id, effective_at, recorded_by, recorded_at, idempotency_key, request_hash, revision, event_sequence)
+    VALUES ('parity-consent-orphan', 'parity-consent-org', 'A903', 'parity-consent-case', 'counseling_recording', 'decline',
+    'consent-six-domains-v1', ?, 'missing-disclosure', '2026-01-01T00:00:00.000Z', 'parity-consent-user', '2026-01-01T00:00:00.000Z',
+    'parity-consent-orphan', ?, 1, 2)`).bind('a'.repeat(64), 'a'.repeat(64)).run()).rejects.toMatchObject({ kind: 'constraint' });
+  expect(await db.prepare(`INSERT INTO participant_registration_receipts (org_id, actor_id, idempotency_key, request_hash, beneficiary_id, support_case_id)
+    VALUES ('parity-consent-org', 'parity-consent-user', 'parity-receipt', ?, 'A903', 'parity-consent-case')`).bind('c'.repeat(64)).run())
+    .toMatchObject({ meta: { changes: 1 } });
+  expect(await rejection(db.prepare("UPDATE participant_registration_receipts SET request_hash = ? WHERE idempotency_key = 'parity-receipt'")
+    .bind('d'.repeat(64)).run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+}
+
+/** 0058/0014: canonical roles CHECK, issued default, one-way issued -> used|revoked, no delete. */
+export async function proveStaffInvitesSchema(db: Database): Promise<void> {
+  const insert = (id: string, hash: string, roles: string) => db.prepare(`INSERT INTO staff_invites
+    (id, org_id, token_hash, email_normalized, roles_json, issued_by, expires_at)
+    VALUES (?, 'parity-invite-org', ?, 'parity@example.invalid', ?, 'parity-invite-admin', '2026-01-08T00:00:00.000Z')`)
+    .bind(id, hash, roles).run();
+  expect(await insert('parity-staff-invite', 'e'.repeat(64), '["practitioner"]')).toMatchObject({ meta: { changes: 1 } });
+  const issued = await db.prepare('SELECT status, issued_at, used_at FROM staff_invites WHERE id = ?').bind('parity-staff-invite').first<Row>();
+  expect(issued).toMatchObject({ status: 'issued', used_at: null });
+  expect(typeof issued?.issued_at).toBe('string');
+  // Only the canonical sorted array is schema; any other spelling of the same set is rejected.
+  expect(await rejection(insert('parity-staff-invite-unsorted', 'f'.repeat(64), '["practitioner","institution_admin"]')))
+    .toMatchObject({ kind: 'constraint' });
+  for (const sql of [
+    `UPDATE staff_invites SET token_hash = '${'d'.repeat(64)}' WHERE id = 'parity-staff-invite'`,
+    "UPDATE staff_invites SET status = 'used' WHERE id = 'parity-staff-invite'",
+    "DELETE FROM staff_invites WHERE id = 'parity-staff-invite'",
+  ]) {
+    expect(await rejection(db.prepare(sql).run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+  }
+  expect(await db.prepare(`UPDATE staff_invites SET status = 'used', used_at = '2026-01-02T00:00:00.000Z',
+    used_by_user_id = 'parity-invite-user', consumption_id = 'parity-consumption' WHERE id = 'parity-staff-invite' AND status = 'issued'`).run())
+    .toMatchObject({ meta: { changes: 1 } });
+  expect(await rejection(db.prepare(`UPDATE staff_invites SET status = 'revoked', revoked_at = '2026-01-03T00:00:00.000Z',
+    revoked_by = 'parity-invite-admin', used_at = NULL, used_by_user_id = NULL, consumption_id = NULL WHERE id = 'parity-staff-invite'`).run()))
+    .toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+}
+
+/** 0059/0015: expires_at exists and consumption after expiry aborts while consumption before it commits. */
+export async function proveParticipantRequestLinksSchema(db: Database): Promise<void> {
+  const issue = (token: string, expiresAt: string) => db.prepare(`INSERT INTO invite_tokens
+    (token, org_id, kind, issued_by, issued_at, expires_at) VALUES (?, 'parity-link-org', 'counselor', 'parity-link-admin', '2026-01-01T00:00:00.000Z', ?)`)
+    .bind(token, expiresAt).run();
+  await issue('parity-link-expired', '2026-01-08T00:00:00.000Z');
+  await issue('parity-link-live', '2026-01-08T00:00:00.000Z');
+  expect(await db.prepare('SELECT expires_at FROM invite_tokens WHERE token = ?').bind('parity-link-live').first())
+    .toEqual({ expires_at: '2026-01-08T00:00:00.000Z' });
+  expect(await rejection(db.prepare(`UPDATE invite_tokens SET status = 'used', used_at = '2026-01-08T00:00:00.000Z',
+    used_by_user_id = 'parity-link-user' WHERE token = 'parity-link-expired'`).run()))
+    .toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+  expect(await db.prepare(`UPDATE invite_tokens SET status = 'used', used_at = '2026-01-07T23:59:59.999Z',
+    used_by_user_id = 'parity-link-user' WHERE token = 'parity-link-live'`).run()).toMatchObject({ meta: { changes: 1 } });
+}
+
+/** Canonical initial rows and historical IDs share the existing read-only views. */
+export async function proveCanonicalCompatibilityViews(db: Database): Promise<void> {
+  const org = 'parity-compat-org', user = 'parity-compat-user', program = 'parity-compat-program';
+  const at = '2026-09-01T00:00:00.000Z';
+  await db.prepare('INSERT INTO organization_settings (org_id,time_zone,pii_purge_grace_days) VALUES (?,?,?)')
+    .bind(org, 'UTC', 180).run();
+  await db.prepare('INSERT INTO programs (id,org_id) VALUES (?,?)').bind(program, org).run();
+  await db.prepare("INSERT INTO users (id,org_id,email,role,active,created_at) VALUES (?,?,?,'counselor',1,?)")
+    .bind(user, org, 'compat@example.invalid', at).run();
+  for (const [beneficiary, caseId, legacyId] of [
+    ['A904', 'parity-compat-canonical', null],
+    ['A905', 'parity-compat-legacy', 'A905'],
+  ] as const) {
+    await db.prepare("INSERT INTO beneficiaries (id,org_id,initialization_state,created_at,updated_at) VALUES (?,?,'pending',?,?)")
+      .bind(beneficiary, org, at, at).run();
+    await db.prepare(`INSERT INTO support_cases
+      (id,org_id,beneficiary_id,legacy_case_id,program_id,status,creation_kind,created_at,updated_at)
+      VALUES (?,?,?,?,?,'active','initial',?,?)`).bind(caseId, org, beneficiary, legacyId, program, at, at).run();
+    await db.prepare(`INSERT INTO support_case_assignees (id,org_id,support_case_id,user_id,role,assigned_at)
+      VALUES (?,?,?,?,'primary',?)`).bind(`${caseId}-assignment`, org, caseId, user, at).run();
+  }
+  expect((await db.prepare('SELECT id,org_id FROM cases WHERE org_id=? ORDER BY id').bind(org).all()).results)
+    .toEqual([{ id: 'A905', org_id: org }, { id: 'parity-compat-canonical', org_id: org }]);
+  expect((await db.prepare('SELECT case_id,org_id FROM case_assignees WHERE org_id=? ORDER BY case_id').bind(org).all()).results)
+    .toEqual([{ case_id: 'A905', org_id: org }, { case_id: 'parity-compat-canonical', org_id: org }]);
+  for (const view of ['cases', 'case_assignees']) {
+    for (const sql of [
+      `INSERT INTO ${view} (id,org_id) VALUES ('forbidden', '${org}')`,
+      `UPDATE ${view} SET id=id WHERE org_id='${org}'`,
+      `DELETE FROM ${view} WHERE org_id='${org}'`,
+    ]) {
+      expect(await rejection(db.prepare(sql).run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+    }
+  }
 }
 export async function openParityDatabase(profile: Profile, harness: PostgresHarness): Promise<ParityDatabase> {
   if (profile === 'postgres') {

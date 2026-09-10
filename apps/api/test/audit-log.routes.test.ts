@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import { setupD1, testActors, testProgramId } from './support/d1';
 import { createCase } from '@ccc/core/gateway';
+import { registrationInput } from './support/registration';
 
 const adminHeaders = {
   'X-CCC-User-Id': 'admin.routes@example.invalid',
@@ -18,8 +19,8 @@ const t = setupD1();
 describe('GET /audit-log', () => {
   it('returns redacted descending pages with an opaque cursor', async () => {
     await t.reset();
-    await createCase(t.env, testActors.counselor, { programId: testProgramId(testActors.counselor.orgId) });
-    await createCase(t.env, testActors.counselor, { programId: testProgramId(testActors.counselor.orgId) });
+    await createCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, { programId: testProgramId(testActors.counselor.orgId) }));
+    await createCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, { programId: testProgramId(testActors.counselor.orgId) }));
 
     const first = await worker.fetch(new Request('http://localhost/audit-log?limit=1', { headers: adminHeaders }), t.env);
     expect(first.status).toBe(200);
