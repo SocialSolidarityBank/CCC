@@ -3,7 +3,7 @@ import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react
 import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireChoice, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireFormField, WireItem,
-} from '@ccc/web/wire';
+} from '@ccc/wire';
 import { CLAIM_SECTION_LABELS, CONTRAST_AXIS_LABELS, type AiDraft } from '../business/ai-review';
 import { type BusinessError, safeError } from '../business/errors';
 import {

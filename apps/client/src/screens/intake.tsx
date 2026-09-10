@@ -3,7 +3,7 @@ import { useNavigate, useOutletContext, useParams } from 'react-router';
 import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireFormField,
-} from '@ccc/web/wire';
+} from '@ccc/wire';
 import { CONSENT_DOMAIN_LABELS, CONSENT_STATE_LABELS } from '../business/consent';
 import { type BusinessError, safeError } from '../business/errors';
 import {

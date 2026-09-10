@@ -3,7 +3,7 @@ import { useOutletContext, useParams } from 'react-router';
 import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireItem,
-} from '@ccc/web/wire';
+} from '@ccc/wire';
 import type { ReportEvidence, SupportCaseReport } from '@ccc/contracts/report';
 import {
   ACTION_RESOLUTION_LABELS, REPORT_SECTION_LABELS, REPORT_SECTION_ORDER, type ReportSectionKey,
@@ -18,7 +18,7 @@ const CHANNEL_LABELS: Record<SupportCaseReport['sessions'][number]['channel'], s
 /** 근거 인용은 그 자리에서 보이고 회차로 이어진다(D73). 근거 없는 문장은 리포트에 없다. */
 function Evidence({ item, base }: { item: ReportEvidence; base: string }) {
   return <>
-    {/* 인용 부품(WireQuote)이 아직 @ccc/web/wire 공개 진입점에 없어 기존 본문 클래스를 쓴다.
+    {/* 인용 부품(WireQuote)이 아직 @ccc/wire 공개 진입점에 없어 기존 본문 클래스를 쓴다.
         공개 exports 추가는 design 레인 몫이라 여기서 손대지 않는다. */}
     <p className="wire-section-value">{item.text}</p>
     <WireButton variant="neutral" href={`${base}/records#session-${encodeURIComponent(item.sessionId)}`}>

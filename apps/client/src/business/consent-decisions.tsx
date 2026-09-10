@@ -1,4 +1,4 @@
-import { WireCallout, WireCardSection, WireChoice, WireDataRow, WireDataRows, WireEmpty } from '@ccc/web/wire';
+import { WireCallout, WireCardSection, WireChoice, WireDataRow, WireDataRows, WireEmpty } from '@ccc/wire';
 import type { ConsentDisclosureSnapshot, ConsentDomain } from '@ccc/contracts/consent';
 import { CONSENT_DOMAIN_LABELS, consentEventFrom } from './consent';
 

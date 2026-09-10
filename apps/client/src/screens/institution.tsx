@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router';
 import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireChoice, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireFormField,
-} from '@ccc/web/wire';
+} from '@ccc/wire';
 import {
   PROGRAM_ADMISSION_COPY, type ProgramProcessingMode, type ProgramStorageMode,
 } from '@ccc/contracts/program-admission';

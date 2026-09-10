@@ -3,7 +3,7 @@ import { Link, Navigate, Outlet, useLocation, useNavigate, useOutletContext, typ
 import {
   GridContainer, PageTitle, WireButton, WireCallout, WireCard, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireLinkProvider, type WireLinkProps,
-} from '@ccc/web/wire';
+} from '@ccc/wire';
 import type { CapabilityManifest } from '@ccc/contracts/runtime';
 
 import { CloudAuth } from './business/auth';

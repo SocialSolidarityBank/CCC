@@ -2,7 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireChoice, WireDataRow, WireDataRows,
   Icon, WireEmpty, WireError, WireFormField, WireItem,
-} from '@ccc/web/wire';
+} from '@ccc/wire';
 import type { MemorySettingsView } from '@ccc/contracts/counseling-memory';
 import {
   ASSIGNMENT_ROLE_LABELS, ROLE_LABELS, type AssignmentRequest, type MyIdentity, type OrganizationProfile, type SettingsApi,

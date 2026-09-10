@@ -181,9 +181,9 @@ importers:
       '@ccc/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@ccc/web':
+      '@ccc/wire':
         specifier: workspace:*
-        version: link:../web
+        version: link:../../packages/wire
       '@supabase/supabase-js':
         specifier: 2.116.0
         version: 2.116.0

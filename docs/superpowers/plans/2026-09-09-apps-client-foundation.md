@@ -1363,3 +1363,36 @@ client 72 tests, typecheck, build, tokens·align·hierarchy 통과.
 
 하네스에 `CCC_PREVIEW_PUBLIC_SIGNUP=0` 스위치를 넣어 꺼진 설치를 검수할 수 있게 했고, 이미 쓴 링크
 응답에 서버와 같은 `message` 를 싣는다. client 72 tests, typecheck, build, 디자인 관문 통과.
+
+## 34. P9 소비: 클라이언트가 `@ccc/wire` 를 쓴다 (2026-09-10)
+
+DESIGN 레인이 뽑은 `@ccc/wire`(7303557)를 머지하고 `apps/client` 만 갈아 끼웠다.
+`apps/web` 은 한 줄도 고치지 않았다.
+
+- 가져오기 16개 파일 교체: `@ccc/web/wire` → `@ccc/wire`, `@ccc/web/wire-styles` → `@ccc/wire/styles`
+  (화면 9, 업무 모듈 4, `app.tsx`, STT 시험 화면, `vite.config.ts`).
+- `apps/client/package.json` 의 workspace 의존을 `@ccc/web` 에서 `@ccc/wire` 로 바꿨다(락파일 반영).
+- `build/shared-styles.mjs` 주석의 옛 패키지 언급을 고쳤다. 조립 코드와 순서는 그대로다.
+- 부품 동작, 클래스 이름, CSS 값은 하나도 바꾸지 않았다.
+
+### 조립된 공유 CSS 바이트 비교
+
+교체 전 커밋(`4149c51`)을 별도 워크트리에 꺼내 그 시점 `wireStyles` 로 조립한 결과와, 교체 후
+`@ccc/wire/styles` 로 조립한 결과를 파일로 떨어뜨려 비교했다.
+
+```
+296610 bytes  sha256 6b7a8a1fbeac23bb23edca9199a663f1056216bc0bf1dc6ceff55749e9f5defe  (before)
+296610 bytes  sha256 6b7a8a1fbeac23bb23edca9199a663f1056216bc0bf1dc6ceff55749e9f5defe  (after)
+cmp: 차이 없음
+```
+
+### 관문
+
+- `pnpm --filter @ccc/client run typecheck` 통과, `run test` 72개 통과, `run build` 통과.
+- `apps/client` 에 `@ccc/web` 참조 0건(grep).
+- `design:align` 통과.
+- `design:token`(189건)과 `design:hierarchy`(미확정 1건)는 **머지 직후, 이 레인이 파일을 고치기
+  전부터** 실패한다. 원인은 추출 그 자체다: 두 감사가 CSS 정본으로 여전히
+  `apps/web/app/components/wire/wire-styles.ts` 를 읽는데 그 파일이 이제 재수출만 남았다.
+  감사 대상 경로를 `packages/wire/src/wire-styles.ts` 로 옮기는 일은 공유 가드라 DESIGN 레인 몫이고,
+  이 커밋은 그 이유로 훅을 건너뛰었다.

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { WireButton, WireCard, WireChoice, WireEmpty, WireError, WireFormField } from '@ccc/web/wire';
+import { WireButton, WireCard, WireChoice, WireEmpty, WireError, WireFormField } from '@ccc/wire';
 import type { AuthSnapshot, CloudAuth, TotpEnrollment } from './auth';
 
 function EnrollmentSecret({ enrollment }: { enrollment: TotpEnrollment }) {

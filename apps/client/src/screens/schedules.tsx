@@ -4,7 +4,7 @@ import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireFormField, WireItem, WireToolbarField,
   WireMonthCalendar, buildMonthWeeks, type WireMonthCalendarEvent,
-} from '@ccc/web/wire';
+} from '@ccc/wire';
 import { type BusinessError, safeError } from '../business/errors';
 import {
   ACTION_OWNER_LABELS, DISCREPANCY_KIND_LABELS, DISCREPANCY_RESOLUTIONS, DISCREPANCY_RESOLUTION_LABELS,
