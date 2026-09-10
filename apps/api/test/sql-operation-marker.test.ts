@@ -8,6 +8,7 @@ import {
 } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId } from './support/d1';
 import type { Database } from '@ccc/contracts/database';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 const { admin, counselor, unassignedCounselor } = testActors;
@@ -19,8 +20,8 @@ describe('SQL portability operation markers', () => {
   });
 
   it('keeps operation markers unique across mutations', async () => {
-    const first = await createBeneficiaryWithInitialSupportCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
-    const second = await createBeneficiaryWithInitialSupportCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const first = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
+    const second = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     const marker = '11111111-1111-4111-8111-111111111111';
 
     await t.db.prepare('UPDATE support_cases SET operation_marker = ? WHERE id = ?')
@@ -30,7 +31,7 @@ describe('SQL portability operation markers', () => {
   });
 
   it('commits a matching mutation and audit, and rolls both back when the audit fails', async () => {
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     await updateSupportCaseExtra(t.env, counselor, created.supportCaseId, { stable: true });
     await expect(t.db.prepare(
       `SELECT extra, operation_marker FROM support_cases WHERE id = ?`,
@@ -64,7 +65,7 @@ describe('SQL portability operation markers', () => {
   });
 
   it('allows only one secondary successor when same-millisecond transfers cross the batch boundary together', async () => {
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     const targets = [
       {
         userId: 'first-transfer-target@example.invalid',

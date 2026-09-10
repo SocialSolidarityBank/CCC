@@ -81,6 +81,7 @@ import {
   forceTransferSupportCase,
   countUpcomingSchedulesLinkedToGoal,
   createBeneficiaryWithInitialSupportCase,
+  issueRegistrationConsentDisclosures,
   createCase,
   createCounselingRecord,
   createActionItem,
@@ -181,7 +182,6 @@ import {
   markCounselingScheduleNoShow,
   PiiPurgeDisabledError,
   recordAiCallOutcome,
-  recordPilotTextAiConsentEvidence,
   registerAiProviderConfiguration,
   registerRecording,
   rescheduleCounselingSchedule,
@@ -191,7 +191,6 @@ import {
   searchParticipants,
   setSupportCaseOverallGoal,
   updateGoalTitle,
-  updateParticipantConsent,
   updateParticipantPii,
   upsertUser,
   SESSION_GOAL_MATERIAL_LABEL,
@@ -478,21 +477,9 @@ function optionalEmergencyReason(body: JsonObject): string | undefined {
 
 function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
   requireHumanParticipantActor(actor);
-  // 항목별 동의(D15·D23)는 등록 입력과 함께 오지만 게이트웨이에는 별도 인자로 넘긴다.
-  // 등록 폼은 두 체크 상태(false 포함)를 항상 보내므로 동의 기록을 남긴다. 두 키가 모두
-  // 없는 (레거시/프로그램) 호출은 동의 기록을 만들지 않는다(하위 호환). 어느 항목이든
-  // 체크는 기본 미동의(false)이며, 미동의여도 등록은 진행된다(D15 미동의 경로).
-  // D49: 동의는 2종이다 — ① consentPrivacy · ② consentRecordingAi(구 녹음+텍스트 AI 를 합침).
-  // 등록 폼은 항상 둘을 보내고, 둘 다 없는 호출만 하위 호환이다.
-  // G1(2026-07-29 Q 결정1): ① 은 이제 등록의 하드 게이트다. 그래서 HTTP 등록은 동의 키가
-  // 없어도 **언제나** consent 객체(전부 false)를 만들어 게이트웨이 게이트를 지나게 한다 —
-  // 하위 호환으로 게이트를 건너뛰는 구멍을 두지 않는다. 통과 경로는 ① 체크 또는 긴급 등록뿐이다.
   const emergencyReason = optionalEmergencyReason(body);
-  const consent = {
-    privacy: optionalBoolean(body, 'consentPrivacy'),
-    recordingAi: optionalBoolean(body, 'consentRecordingAi'),
-    ...(emergencyReason === undefined ? {} : { emergency: { reason: emergencyReason } }),
-  };
+  const consentEvents = parseInitialConsentEvents(body.consentEvents);
+  const idempotencyKey = requiredString(body, 'idempotencyKey');
   // 이메일은 선택 항목이다. undefined 면 게이트웨이 입력에서 아예 빼야 한다 —
   // { email: undefined } 로 두면 Object.keys 에 남아 assertExactKeys 가 거부한다(#37).
   const email = optionalRegisteredEmail(body);
@@ -513,41 +500,50 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
   // intakeAt 키는 받지 않는다(CCC-56): 등록은 인테이크가 아니다. intake_at 은 NULL 로
   // 시작하고, 인테이크 기록 저장(createIntakeRecord)이 채운다. 모르는 키는 400 이므로
   // 옛 클라이언트가 보내던 intakeAt 도 여기서 걸린다.
-  const registrationKeys = ['consentPrivacy', 'consentRecordingAi', 'emergencyReason', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
+  const registrationKeys = ['idempotencyKey', 'consentEvents', 'emergencyReason', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
   if (actor.role === 'admin') {
     requireOnlyKeys(body, ['programId', 'initialAssigneeUserId', ...registrationKeys]);
     return {
       input: {
         programId: requiredString(body, 'programId'),
+        idempotencyKey,
+        consentEvents,
+        ...(emergencyReason === undefined ? {} : { emergencyReason }),
         initialAssigneeUserId: requiredUuid(body, 'initialAssigneeUserId'),
         ...optionalPii,
       },
-      consent,
     };
   }
   requireOnlyKeys(body, ['programId', ...registrationKeys]);
   return {
     input: {
       programId: requiredString(body, 'programId'),
+      idempotencyKey,
+      consentEvents,
+      ...(emergencyReason === undefined ? {} : { emergencyReason }),
       ...optionalPii,
     },
-    consent,
   };
+}
+
+function parseInitialConsentEvents(value: unknown): AppendConsentEventInput[] {
+  if (!Array.isArray(value) || value.length !== CONSENT_DOMAINS.length) {
+    throw new ValidationError('six consent events are required');
+  }
+  return value.map(event => {
+    if (event === null || typeof event !== 'object' || Array.isArray(event)) {
+      throw new ValidationError('consent event is invalid');
+    }
+    return parseConsentEventInput(event as JsonObject);
+  });
 }
 
 function parseSubsequentParticipantCreation(body: JsonObject, actor: Actor) {
   requireHumanParticipantActor(actor);
-  // G1: 추가 참여 사업도 ① 하드 게이트를 지난다 — 두 번째 사업은 동의 2종이 미체크로
-  // 시작하므로(D44) 여기서 다시 받는다. D49: ② 도 이 경로에서 받는다(전에는 사업을 만든 뒤
-  // 당사자 정보 페이지에서 따로 고쳐야 했다). ② 는 게이트가 아니라 선택이므로 키가 없으면 뺀다.
   const emergencyReason = optionalEmergencyReason(body);
-  const consentKeys = ['consentPrivacy', 'consentRecordingAi', 'emergencyReason'];
-  const consentRecordingAi = Object.hasOwn(body, 'consentRecordingAi')
-    ? optionalBoolean(body, 'consentRecordingAi')
-    : undefined;
+  const consentKeys = ['consentEvents', 'emergencyReason'];
   const consentInput = {
-    consentPrivacy: optionalBoolean(body, 'consentPrivacy'),
-    ...(consentRecordingAi === undefined ? {} : { consentRecordingAi }),
+    consentEvents: parseInitialConsentEvents(body.consentEvents),
     ...(emergencyReason === undefined ? {} : { emergencyReason }),
   };
   // intakeAt 키는 여기서도 받지 않는다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
@@ -719,7 +715,6 @@ function parseIntakeCreation(body: JsonObject) {
   const hasAdditionalItems = Object.hasOwn(body, 'additionalItems');
   const hasNextMeeting = Object.hasOwn(body, 'nextMeeting');
   // D42: 동의·원하는 도움 3문·6영역·목표·다음 행동은 정본 질문지에 대응 항목이 없어 선택이다.
-  const hasConsent = Object.hasOwn(body, 'consent');
   const hasHelpNarrative = Object.hasOwn(body, 'helpNarrative');
   const hasLifeAreas = Object.hasOwn(body, 'lifeAreas');
   const hasGoals = Object.hasOwn(body, 'goals');
@@ -727,7 +722,6 @@ function parseIntakeCreation(body: JsonObject) {
   const hasDebts = Object.hasOwn(body, 'debts');
   const hasLinkedOrgs = Object.hasOwn(body, 'linkedOrgs');
   const allowedKeys = ['submissionId', 'heldAt', 'channel'];
-  if (hasConsent) allowedKeys.push('consent');
   if (hasHelpNarrative) allowedKeys.push('helpNarrative');
   if (hasLifeAreas) allowedKeys.push('lifeAreas');
   if (hasGoals) allowedKeys.push('goals');
@@ -748,14 +742,6 @@ function parseIntakeCreation(body: JsonObject) {
   }
   const channel: 'in_person' | 'phone' | 'video' = channelValue;
 
-  const consent = !hasConsent ? undefined : (() => {
-    const consentObject = asObject(body.consent);
-    requireOnlyKeys(consentObject, ['privacy', 'recordingAi']);
-    return {
-      privacy: requiredBoolean(consentObject, 'privacy'),
-      recordingAi: requiredBoolean(consentObject, 'recordingAi'),
-    };
-  })();
 
   const helpNarrative = !hasHelpNarrative ? undefined : (() => {
     const narrativeObject = asObject(body.helpNarrative);
@@ -891,7 +877,6 @@ function parseIntakeCreation(body: JsonObject) {
     submissionId: requiredUuid(body, 'submissionId'),
     heldAt: requiredCanonicalUtc(body, 'heldAt'),
     channel,
-    ...(consent === undefined ? {} : { consent }),
     ...(helpNarrative === undefined ? {} : { helpNarrative }),
     ...(lifeAreas === undefined ? {} : { lifeAreas }),
     ...(goals === undefined ? {} : { goals }),
@@ -1256,13 +1241,6 @@ function participantProgramResponse(
     // 화면은 authorized 로 링크를 걸거나 잠그고, assigneeNames 로 "누구에게 물어보나"를 답한다.
     authorized: entry.authorized,
     assigneeNames: entry.assigneeNames,
-    // D44: 동의의 현재 상태. 시각 자체가 아니라 여부만 내린다 — 화면은 체크 상태를
-    // 그리고, "언제 기록했나"는 consentRecordedAt 한 줄로 충분하다.
-    // D49 표시 규칙: ② 는 두 컬럼 중 하나라도 찍혀 있으면 동의로 읽는다(구 3종 기록 호환).
-    consent: {
-      privacy: supportCase.consentPrivacyAt !== null,
-      recordingAi: supportCase.consentRecordingAt !== null || supportCase.consentTextAiAt !== null,
-    },
     // 동의 시각이 아니라 **기록 시각**이다 — 3종을 모두 철회하면 동의 시각은 전부 NULL 이라
     // 방금 남긴 철회 기록이 "기록 없음"으로 보인다. 값은 append-only 이력에서 온다.
     consentRecordedAt: entry.consentRecordedAt,
@@ -1623,16 +1601,6 @@ function routeDraftVersion(value: string): number {
   return version;
 }
 
-function parsePilotTextAiConsent(body: JsonObject) {
-  requireOnlyKeys(body, ['noticeVersion', 'noticeHash', 'evidenceRef', 'evidenceHash', 'effectiveAt']);
-  return {
-    noticeVersion: requiredString(body, 'noticeVersion'),
-    noticeSha256: requiredString(body, 'noticeHash'),
-    evidenceRef: requiredString(body, 'evidenceRef'),
-    evidenceSha256: requiredString(body, 'evidenceHash'),
-    effectiveAt: requiredString(body, 'effectiveAt'),
-  };
-}
 function requiredInteger(body: JsonObject, key: string): number {
   const value = body[key];
   if (!Number.isInteger(value)) throw new ValidationError(key + ' must be an integer');
@@ -2975,6 +2943,12 @@ export async function handleRequest(
       requestQuery(url, []);
       return json(await createCounselorInvite(env, actor), 201);
     }
+    if (request.method === 'GET' && parts.length === 4 && parts[0] === 'programs'
+      && parts[2] === 'consent' && parts[3] === 'disclosures') {
+      requestQuery(url, []);
+      return json({ disclosures: await issueRegistrationConsentDisclosures(env, actor, decodedProgramId(parts[1]!)) },
+        200, { 'cache-control': 'no-store' });
+    }
     if (
       request.method === 'POST'
       && parts.length === 1
@@ -2986,8 +2960,6 @@ export async function handleRequest(
         env,
         actor,
         initialCreation.input,
-        undefined,
-        initialCreation.consent,
       ), 201);
     }
     if (
@@ -3267,18 +3239,6 @@ export async function handleRequest(
         }
         return json(event, 201);
       }
-      // 동의 2종 수정·철회 (D44 · 항목 수는 D49). 담당 실무자 또는 기관 관리자만 —
-      // 게이트웨이의 assertSupportCaseAccess 가 강제한다(R1). 두 값은 항상 함께 온다(현재 상태 전체).
-      if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'consent') {
-        requestQuery(url, []);
-        const body = await requestBody(request);
-        requireOnlyKeys(body, ['privacy', 'recordingAi']);
-        const updated = await updateParticipantConsent(env, actor, supportCaseId, {
-          privacy: requiredBoolean(body, 'privacy'),
-          recordingAi: requiredBoolean(body, 'recordingAi'),
-        });
-        return json(updated);
-      }
       // 전체 목표 그 자리 입력·수정 (D45 · CCC-41). 담당 실무자만 — 게이트웨이가 강제한다(R1).
       // null 또는 빈 문자열은 "설정 전"으로 되돌린다.
       if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'overall-goal') {
@@ -3380,17 +3340,14 @@ export async function handleRequest(
     if (request.method === 'POST' && parts.length === 1 && parts[0] === 'cases') {
       requestQuery(url, []);
       const body = await requestBody(request);
-      requireOnlyKeys(body, ['programId', 'intakeAt', 'consentRecordingAt', 'consentTextAiAt']);
-      const input: { programId: string; intakeAt?: string; consentRecordingAt?: string | null; consentTextAiAt?: string | null } = {
+      requireOnlyKeys(body, ['programId', 'idempotencyKey', 'consentEvents', 'emergencyReason']);
+      const emergencyReason = optionalEmergencyReason(body);
+      return json(await createCase(env, actor, {
         programId: requiredString(body, 'programId'),
-      };
-      const intakeAt = optionalString(body, 'intakeAt');
-      const consentRecordingAt = optionalNullableString(body, 'consentRecordingAt');
-      const consentTextAiAt = optionalNullableString(body, 'consentTextAiAt');
-      if (intakeAt !== undefined) input.intakeAt = intakeAt;
-      if (consentRecordingAt !== undefined) input.consentRecordingAt = consentRecordingAt;
-      if (consentTextAiAt !== undefined) input.consentTextAiAt = consentTextAiAt;
-      return json(await createCase(env, actor, input), 201);
+        idempotencyKey: requiredString(body, 'idempotencyKey'),
+        consentEvents: parseInitialConsentEvents(body.consentEvents),
+        ...(emergencyReason === undefined ? {} : { emergencyReason }),
+      }), 201);
     }
     if (parts[0] === 'cases' && parts[1] !== undefined) {
       const caseId = parts[1];
@@ -3398,10 +3355,6 @@ export async function handleRequest(
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'briefing') return json(await getBriefing(env, actor, caseId));
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'pilot-text-ai-consent') {
         return json(await getLatestPilotTextAiConsentStatus(env, actor, caseId));
-      }
-      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'pilot-text-ai-consent') {
-        await recordPilotTextAiConsentEvidence(env, actor, caseId, parsePilotTextAiConsent(await requestBody(request)));
-        return json(await getLatestPilotTextAiConsentStatus(env, actor, caseId), 201);
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'goals') {
         return json(await listGoals(env, actor, caseId));

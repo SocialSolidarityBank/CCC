@@ -8,6 +8,7 @@ import type { ProgramMutationResponse, ProgramListResponse } from '@ccc/contract
 import { handleRequest } from '@ccc/http-api';
 import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import { LOCAL_SINGLE_RUNTIME, seedCanonicalSttConsent } from './support/agent-jobs';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 const admin = testActors.admin;
@@ -29,7 +30,11 @@ describe('program admission boundary', () => {
     expect(createdResponse.status).toBe(201);
     const created = await createdResponse.json() as ProgramMutationResponse;
     expect(created.program.admissionState).toBe('confirmation_required');
-    await expect(createCase(t.env, worker, { programId: created.program.id }))
+    // 동의 6종은 승인이 살아 있는 기본 사업에서 미리 받아 둔다 — 여기서 보려는 것은
+    // 등록이 **승인 관문**에서 먼저 막히는지이고, 고지 발급 단계에서 막히면 무엇이
+    // 막았는지 흐려진다(승인 판정은 동의 검증보다 앞선다).
+    const preIssued = await registrationInput(t.env, worker, { programId: testProgramId(worker.orgId) });
+    await expect(createCase(t.env, worker, { ...preIssued, programId: created.program.id }))
       .rejects.toBeInstanceOf(ProgramAdmissionRequiredError);
 
     const contextResponse = await request('/programs');
@@ -47,7 +52,9 @@ describe('program admission boundary', () => {
     expect(confirmedResponse.status).toBe(200);
     const confirmed = await confirmedResponse.json() as ProgramMutationResponse;
     expect(confirmed.program.admissionState).toBe('ready');
-    const participant = await createCase(t.env, worker, { programId: created.program.id });
+    const participant = await createCase(t.env, worker, await registrationInput(t.env, worker, {
+      programId: created.program.id,
+    }));
     expect(await t.db.prepare('SELECT program_id FROM support_cases WHERE beneficiary_id = ?')
       .bind(participant.id).first()).toEqual({ program_id: created.program.id });
   });
@@ -75,14 +82,19 @@ describe('program admission boundary', () => {
 
   it('does not revive an old confirmation after installation policy ABA', async () => {
     await t.reset();
+    // 승인이 아직 살아 있는 동안 등록 입력 한 벌을 만들어 둔다 — 정책 버전을 올린 뒤에는
+    // 고지 발급도 같은 관문에 막히므로, 그러면 등록 자체를 시험할 수 없다.
+    const input = await registrationInput(t.env, worker, { programId: testProgramId(worker.orgId) });
     await t.db.prepare('UPDATE program_admission_policies SET version = version + 2 WHERE org_id = ?')
       .bind(admin.orgId).run();
-    await expect(createCase(t.env, worker, { programId: testProgramId(worker.orgId) }))
+    await expect(createCase(t.env, worker, input))
       .rejects.toBeInstanceOf(ProgramAdmissionRequiredError);
   });
 
   it('rolls back participant and audit writes when admission changes after preflight', async () => {
     await t.reset();
+    // 고지 발급은 경쟁을 심기 전에 끝낸다 — racedEnv 는 batch 마다 버전을 올린다.
+    const input = await registrationInput(t.env, worker, { programId: testProgramId(worker.orgId) });
     const racedEnv = { ...t.env, DB: {
       prepare: t.env.DB.prepare.bind(t.env.DB),
       batch: async <T>(statements: PreparedStatement[]) => {
@@ -91,7 +103,7 @@ describe('program admission boundary', () => {
         return t.env.DB.batch<T>(statements);
       },
     } };
-    await expect(createCase(racedEnv, worker, { programId: testProgramId(worker.orgId) }))
+    await expect(createCase(racedEnv, worker, input))
       .rejects.toBeInstanceOf(ProgramAdmissionRequiredError);
     expect(await t.db.prepare('SELECT COUNT(*) AS n FROM beneficiaries WHERE org_id = ?')
       .bind(worker.orgId).first()).toEqual({ n: 0 });
@@ -101,7 +113,9 @@ describe('program admission boundary', () => {
 
   it('keeps program staff membership separate from case access', async () => {
     await t.reset();
-    const participant = await createCase(t.env, worker, { programId: testProgramId(worker.orgId) });
+    const participant = await createCase(t.env, worker, await registrationInput(t.env, worker, {
+      programId: testProgramId(worker.orgId),
+    }));
     const other = testActors.unassignedCounselor;
     const response = await request(`/programs/${encodeURIComponent(testProgramId(worker.orgId))}`, 'PATCH', {
       expectedVersion: 1, staff: [{ userId: other.userId, isResponsible: true }],
@@ -120,7 +134,18 @@ describe('program admission boundary', () => {
       deploymentMode: 'local-single', sttMode: 'local', llmMode: 'off',
     });
     t.env.installationMode = 'local-single';
-    const participant = await createCase(t.env, worker, { programId: testProgramId(worker.orgId) });
+    // 녹음 계열 4종은 등록에서 거절해 둔다 — 녹음 허가가 동의 없이는 열리지 않음을 먼저 본다.
+    const participant = await createCase(t.env, worker, await registrationInput(
+      t.env,
+      worker,
+      { programId: testProgramId(worker.orgId) },
+      {
+        counseling_recording: 'decline',
+        external_stt_processing: 'decline',
+        external_llm_cross_border_processing: 'decline',
+        voice_original_retention_period: 'decline',
+      },
+    ));
     const { programs } = await listSupportCasesForBeneficiary(t.env, worker, participant.id);
     const supportCaseId = programs[0]!.supportCase.id;
     const session = await createManualSession(t.env, worker, participant.id, {
@@ -148,14 +173,16 @@ describe('program admission boundary', () => {
   it('closes new admission without closing existing cases', async () => {
     await t.reset();
     const programId = testProgramId(worker.orgId);
-    const participant = await createCase(t.env, worker, { programId });
+    const participant = await createCase(t.env, worker, await registrationInput(t.env, worker, { programId }));
+    // 닫기 전에 두 번째 등록 입력을 받아 둔다 — 닫힌 뒤에는 고지 발급도 같은 이유로 막힌다.
+    const afterClose = await registrationInput(t.env, worker, { programId });
     const response = await request(`/programs/${encodeURIComponent(programId)}`, 'PATCH', {
       expectedVersion: 1, status: 'closed',
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ program: { status: 'closed' } });
     expect(await (await request('/program-options', 'GET', undefined, worker)).json()).toEqual({ programs: [] });
-    await expect(createCase(t.env, worker, { programId })).rejects.toMatchObject({ reason: 'program_closed' });
+    await expect(createCase(t.env, worker, afterClose)).rejects.toMatchObject({ reason: 'program_closed' });
     expect(await getCase(t.env, worker, participant.id)).toMatchObject({ id: participant.id, status: 'active' });
   });
 });

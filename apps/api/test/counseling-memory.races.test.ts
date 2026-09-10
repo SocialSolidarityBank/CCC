@@ -8,6 +8,7 @@ import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
 import { AI_PROVIDER_REGISTRY_VERSION, CODEX_PROVIDER_ID, CODEX_PROVIDER_ADAPTER_VERSION, canonicalAiProviderConfigHash, type AiProviderTestAdapter } from '@ccc/ai-runtime';
 import { activateAiProviderConfiguration, appendSupportCaseConsentEvent, beginCounselingMemoryEgress, claimCounselingMemorySources, commitCounselingMemoryWork, correctCounselingMemory, createActionItem, createCase, createManualSession, getCounselingMemory, getCounselingMemorySource, getSupportCaseConsent, issueSupportCaseConsentDisclosures, listSupportCasesForBeneficiary, loadCounselingMemoryContext, prepareCounselingMemoryWork, registerAiProviderConfiguration, resolveActionItem, acceptCounselingMemorySource, type ActionItem } from '@ccc/core/gateway';
 import { ProgramAdmissionRequiredError, releaseCounselingMemorySource } from '@ccc/core/gateway';
+import { registrationInput } from './support/registration';
 vi.setConfig({ testTimeout: 30000 });
 const t = setupD1();
 const { counselor, admin, service } = testActors;
@@ -21,7 +22,7 @@ async function fixture(claim = true, expiresAt?: string, configHash = 'b'.repeat
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
     deploymentMode: 'local-single', sttMode: 'off', llmMode: 'openai',
   });
-  const c = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+  const c = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, c.id);
   const id = programs[0]!.supportCase.id;
   await seedCanonicalSttConsent(t.env, counselor, id);
@@ -312,7 +313,7 @@ describe('durable memory races', () => {
     await maskJobs(f);
     const waitingIds: string[] = [];
     for (let index = 0; index < 2; index++) {
-      const participant = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+      const participant = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
       const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, participant.id);
       const id = programs[0]!.supportCase.id;
       waitingIds.push(id);

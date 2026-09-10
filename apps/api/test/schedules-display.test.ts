@@ -8,6 +8,7 @@ import { checkpointSources, seedScheduleDisplaySchema, proveScheduleDisplaySchem
 import worker from './support/local-worker';
 import { createBeneficiaryWithInitialSupportCase, createCounselingSchedule, getNextCounselingScheduleForSupportCase, listSupportCasesForBeneficiary, getParticipantBriefing } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 const actor = testActors.counselor;
@@ -20,7 +21,7 @@ function request(path: string, method = 'GET', body?: Record<string, unknown>, a
 }
 async function seed() {
   await t.reset();
-  const owned = await createBeneficiaryWithInitialSupportCase(t.env, actor, { programId: testProgramId(actor.orgId), intakeAt: '2026-07-01T00:00:00.000Z' });
+  const owned = await createBeneficiaryWithInitialSupportCase(t.env, actor, await registrationInput(t.env, actor, { programId: testProgramId(actor.orgId), intakeAt: '2026-07-01T00:00:00.000Z' }));
   return { beneficiaryId: owned.beneficiaryId, supportCaseId: owned.supportCaseId };
 }
 

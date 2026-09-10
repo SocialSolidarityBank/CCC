@@ -6,6 +6,7 @@ import {
   collectCatalog, dialectSemantics, fingerprint, hash, identifier, openParityDatabase,
   physicalRules, timestampInventory, type Catalog, type ParityDatabase, type TimestampColumn,
   seedScheduleDisplaySchema, proveScheduleDisplaySchema,
+  seedPreregistrationConsentSchema, provePreregistrationConsentSchema,
 } from './support/migration-parity';
 
 let harness: PostgresHarness;
@@ -447,6 +448,9 @@ describe('S1 live migration parity', () => {
         if (checkpoint.id === 'schedule-display') {
           for (const fixture of [sqlite, postgres]) await seedScheduleDisplaySchema(fixture.db);
         }
+        if (checkpoint.id === 'preregistration-consent') {
+          for (const fixture of [sqlite, postgres]) await seedPreregistrationConsentSchema(fixture.db);
+        }
         await sqlite.apply(checkpoint.sqlite);
         await postgres.apply(checkpoint.postgres);
         const left = await collectCatalog(sqlite);
@@ -460,6 +464,9 @@ describe('S1 live migration parity', () => {
         }
         if (checkpoint.id === 'schedule-display') {
           for (const fixture of [sqlite, postgres]) await proveScheduleDisplaySchema(fixture.db);
+        }
+        if (checkpoint.id === 'preregistration-consent') {
+          for (const fixture of [sqlite, postgres]) await provePreregistrationConsentSchema(fixture.db);
         }
         if (checkpoint.id === 'baseline-0045') {
           inventory = timestampInventory(left);

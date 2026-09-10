@@ -15,6 +15,7 @@ import { PURGE_CRON } from '../src/cron-schedule';
 import { createScheduledJobRunner } from '@ccc/core/scheduled-job-runner';
 import worker from './support/local-worker';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationConsentEvents, registrationInput } from './support/registration';
 const t = setupD1();
 const counselor: Actor = testActors.counselor;
 const admin: Actor = testActors.admin;
@@ -41,10 +42,10 @@ async function runRetentionCron(env = t.env): Promise<void> {
 }
 
 async function makeDueParticipant() {
-  const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
+  const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
     programId: testProgramId(counselor.orgId),
     intakeAt: '2025-01-01T09:00:00.000Z',
-  });
+  }));
   const record = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
     submissionId: '72727272-7272-4727-8727-727272727272',
     heldAt: '2025-01-01T10:00:00.000Z',
@@ -253,7 +254,7 @@ describe('participant PII retention lifecycle (CCC-121)', () => {
       submissionId: '73737373-7373-4737-8737-737373737373',
       programId: testProgramId(counselor.orgId),
       initialAssigneeUserId: counselor.userId,
-      consentPrivacy: true,
+      consentEvents: await registrationConsentEvents(t.env, admin, testProgramId(counselor.orgId)),
     });
     const vault = await t.db.prepare(
       'SELECT enc_name, purge_due FROM participant_pii_vault WHERE beneficiary_id = ?',

@@ -14,7 +14,6 @@ import {
   listCounselingRecords,
   listRecordErrorSessionIds,
   listSupportCasesForBeneficiary,
-  recordPilotTextAiConsentEvidence,
   replaceSessionDiscrepancies,
   resolveSessionDiscrepancy,
   updateParticipantPii,
@@ -43,6 +42,7 @@ import {
   seedNerQualification,
   TEXT_ONLY_RUNTIME,
 } from './support/agent-jobs';
+import { registrationInput } from './support/registration';
 
 // 이 파일의 픽스처는 케이스·회차·동의·스냅샷을 매번 새로 만든다 — 전체 스위트를 병렬로
 // 돌리면 기본 5초 안에 끝나지 않아 내용과 무관하게 시간 초과로 떨어진다(브랜치 이전부터
@@ -51,7 +51,6 @@ vi.setConfig({ testTimeout: 30_000 });
 
 const { counselor, admin, service } = testActors;
 const t = setupD1();
-const SHA256 = 'a'.repeat(64);
 
 async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -120,7 +119,14 @@ async function createCaseWithSessions(memos: string[], withSnapshots = false): P
   });
   t.env.CCC_STT_MODE = 'local';
   t.env.CCC_LLM_MODE = 'openai';
-  const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+  // 외부 LLM 도메인은 등록에서 거절한다 — 이 파일에는 "동의가 없으면 검출을 건너뛴다"는
+  // 줄이 있고, 동의가 필요한 줄은 enableTextAiConsent 가 canonical 이벤트로 부여한다.
+  const caseRecord = await createCase(t.env, counselor, await registrationInput(
+    t.env,
+    counselor,
+    { programId: testProgramId(counselor.orgId) },
+    { external_llm_cross_border_processing: 'decline' },
+  ));
   const sessionIds: string[] = [];
   for (const [index, memo] of memos.entries()) {
     const session = await createManualSession(t.env, counselor, caseRecord.id, {
@@ -790,16 +796,10 @@ async function postManualRecord(supportCaseId: string, memo: string, sequence: n
   }), t.env);
 }
 
+/** 텍스트 AI 권한의 유일한 근거는 canonical 동의 이벤트다 — 옛 파일럿 증빙 기록기는 없다. */
 async function enableTextAiConsent(supportCaseId: string): Promise<void> {
   await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
   t.env.TEXT_AI_PILOT_ENABLED = '1';
-  await recordPilotTextAiConsentEvidence(t.env, counselor, supportCaseId, {
-    noticeVersion: 'pilot-text-ai-v1',
-    noticeSha256: SHA256,
-    evidenceRef: `r2://pilot-evidence/${supportCaseId}`,
-    evidenceSha256: 'f'.repeat(64),
-    effectiveAt: '2026-01-01T00:00:00.000Z',
-  });
 }
 
 describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기준)', () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import { createBeneficiaryWithInitialSupportCase, createGoal, listGoals } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 // 인테이크 분기(티켓 #36): 상담 유형(intake)·방법(in_person) 저장, 세션 목표 거부,
 // 케이스 목표(D12) 1~3개 제한, 인테이크→일반 등록의 케이스 목표 연결 E2E 를 검증한다.
@@ -23,10 +24,10 @@ interface SeededCase {
 }
 
 async function seedOwnedCase(): Promise<SeededCase> {
-  const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
+  const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
     programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
-  });
+  }));
   return { beneficiaryId: owned.beneficiaryId, supportCaseId: owned.supportCaseId };
 }
 

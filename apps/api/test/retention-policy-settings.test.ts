@@ -8,6 +8,7 @@ import {
 } from '@ccc/core/gateway';
 import worker from './support/local-worker';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 const admin: Actor = testActors.admin;
@@ -154,10 +155,10 @@ describe('retention policy settings', () => {
   it('feeds the saved value into the native future-case closure clock', async () => {
     await t.reset();
     expect((await policyRequest('PUT', { expectedVersion: 1, piiPurgeGraceDays: 20 })).status).toBe(200);
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
       programId: testProgramId(counselor.orgId),
       intakeAt: '2026-01-01T09:00:00.000Z',
-    });
+    }));
     await closeSupportCase(t.env, counselor, created.supportCaseId, 'native retention setting scenario');
     const due = await t.db.prepare(
       `SELECT vault.purge_due AS purgeDue, cases.closed_at AS closedAt

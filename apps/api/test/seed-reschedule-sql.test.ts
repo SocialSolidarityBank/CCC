@@ -18,6 +18,7 @@ import {
 } from '@ccc/core/gateway';
 import { buildRescheduleSql } from '../../../scripts/seed/reschedule-upcoming.mjs';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 
@@ -30,10 +31,10 @@ const UPDATED_AT = '2026-09-01T00:30:00.000Z';
 async function seedPastSchedules(): Promise<{ scheduledIds: string[]; cancelled: { id: string; at: string } }> {
   await t.reset();
 
-  const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
+  const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
     programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-04-01T00:00:00.000Z',
-  });
+  }));
 
   const pastTimes = [
     '2026-05-04T01:00:00.000Z',
@@ -165,10 +166,10 @@ describe('예정 일정 재배치 SQL', () => {
 
   it('다른 기관의 일정은 건드리지 않는다', async () => {
     await seedPastSchedules();
-    const other = await createBeneficiaryWithInitialSupportCase(t.env, testActors.otherOrgCounselor, {
+    const other = await createBeneficiaryWithInitialSupportCase(t.env, testActors.otherOrgCounselor, await registrationInput(t.env, testActors.otherOrgCounselor, {
     programId: testProgramId(testActors.otherOrgCounselor.orgId),
       intakeAt: '2026-04-01T00:00:00.000Z',
-    });
+    }));
     const otherSchedule = await createCounselingSchedule(t.env, testActors.otherOrgCounselor, {
       beneficiaryId: other.beneficiaryId,
       supportCaseId: other.supportCaseId,

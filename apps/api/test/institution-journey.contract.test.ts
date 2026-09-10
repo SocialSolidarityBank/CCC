@@ -4,7 +4,8 @@ import type { MeResponse, OrganizationOnboardingResponse } from '@ccc/contracts/
 import type { ProgramListResponse, ProgramMutationResponse, ProgramOptionsResponse } from '@ccc/contracts/program-admission';
 import { handleRequest } from '@ccc/http-api';
 import { setupD1, testActors, testProgramId } from './support/d1';
-import { sha256Hex } from '@ccc/contracts/consent';
+import { CONSENT_COPY, CONSENT_COPY_VERSION, CONSENT_DOMAINS, sha256Hex } from '@ccc/contracts/consent';
+import { registrationConsentEvents } from './support/registration';
 
 const t = setupD1();
 const admin = testActors.admin;
@@ -27,6 +28,30 @@ async function seedCreatorReceipt(creator: Actor, subject: string, receiptOrgId 
   ).run();
 }
 
+/**
+ * 사업 승인 관문에 막힐 등록 요청용 6종 자리표. 승인되지 않은 사업으로는 고지를 발급받을 수
+ * 없으므로 형태만 갖춘 값을 싣는다 — 등록은 동의 검증에 닿기 전에 409 로 끝나야 한다.
+ */
+function admissionBlockedConsentEvents(): Array<Record<string, unknown>> {
+  const effectiveAt = new Date().toISOString();
+  return CONSENT_DOMAINS.map((domain) => ({
+    domain,
+    decision: 'grant',
+    provider: CONSENT_COPY[domain].provider,
+    providerLegalRecipient: 'Synthetic recipient',
+    providerCountry: 'KR',
+    purpose: CONSENT_COPY[domain].purpose,
+    retentionDuration: domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null,
+    copyVersion: CONSENT_COPY_VERSION,
+    copyHash: '0'.repeat(64),
+    disclosureSnapshotId: crypto.randomUUID(),
+    effectiveAt,
+    idempotencyKey: crypto.randomUUID(),
+    correctionOfEventId: null,
+    expectedRevision: null,
+  }));
+}
+
 // Identity resolution is injected; database, gateway, HTTP responses and audit are real.
 describe('persisted institution first journey', () => {
   it('routes through initial setup and explicit confirmation without granting participant consent or hiding later locks', async () => {
@@ -46,7 +71,9 @@ describe('persisted institution first journey', () => {
         firstProgram: { displayName: '첫 사업', version: 1, admissionState: 'undecided' } } });
     const first = onboarded.institution.firstProgram!;
     expect(first.id).not.toBe(testProgramId(admin.orgId));
-    const denied = await request('/participants', 'POST', { programId: first.id, consentPrivacy: true }, worker);
+    const denied = await request('/participants', 'POST', {
+      programId: first.id, idempotencyKey: crypto.randomUUID(), consentEvents: admissionBlockedConsentEvents(),
+    }, worker);
     expect(denied.status).toBe(409);
     expect(await denied.json()).toEqual({ error: 'program_admission_required', reason: 'undecided' });
 
@@ -73,17 +100,29 @@ describe('persisted institution first journey', () => {
     const reread = await (await request('/me', 'GET', undefined, worker)).json() as MeResponse;
     expect(reread.institution.firstProgram).toMatchObject({ id: first.id, admissionState: 'ready', version: 2 });
     expect(reread.institution).toMatchObject({ creatorLinkState: 'linked', initialSetupState: 'complete', firstProgramAdmissionState: 'admitted' });
-    const noConsent = await request('/participants', 'POST', { programId: first.id }, worker);
+    // ① 을 거절하면 긴급 사유 없이는 등록이 성립하지 않는다(G1) — 6종은 실려 있어야 한다.
+    const noConsent = await request('/participants', 'POST', {
+      programId: first.id,
+      idempotencyKey: crypto.randomUUID(),
+      consentEvents: await registrationConsentEvents(t.env, worker, first.id, { personal_data_collection_use: 'decline' }),
+    }, worker);
     expect(noConsent.status).toBe(422);
     expect(await noConsent.json()).toEqual({ error: 'privacy_consent_required' });
-    expect((await request('/participants', 'POST', { programId: first.id, consentPrivacy: true }, worker)).status).toBe(201);
-    expect(await t.db.prepare('SELECT COUNT(*) AS n FROM consent_events WHERE org_id = ?').bind(admin.orgId).first('n')).toBe(0);
+    expect((await request('/participants', 'POST', {
+      programId: first.id,
+      idempotencyKey: crypto.randomUUID(),
+      consentEvents: await registrationConsentEvents(t.env, worker, first.id),
+    }, worker)).status).toBe(201);
+    // 성립한 등록 하나가 6종 동의를 남긴다 — 거절된 시도는 아무것도 남기지 않는다.
+    expect(await t.db.prepare('SELECT COUNT(*) AS n FROM consent_events WHERE org_id = ?').bind(admin.orgId).first('n')).toBe(6);
 
     await t.db.prepare('UPDATE program_admission_policies SET version = version + 1 WHERE org_id = ?').bind(admin.orgId).run();
     const changed = await (await request('/me')).json() as MeResponse;
     expect(changed.institution.firstProgram?.admissionState).toBe('settings_changed');
     expect(changed.institution.firstProgramAdmissionState).toBe('not_admitted');
-    const locked = await request('/participants', 'POST', { programId: first.id, consentPrivacy: true }, worker);
+    const locked = await request('/participants', 'POST', {
+      programId: first.id, idempotencyKey: crypto.randomUUID(), consentEvents: admissionBlockedConsentEvents(),
+    }, worker);
     expect(locked.status).toBe(409);
     expect(await locked.json()).toEqual({ error: 'program_admission_required', reason: 'settings_changed' });
     expect(await t.db.prepare('SELECT COUNT(*) AS n FROM support_cases WHERE org_id = ? AND program_id = ?').bind(admin.orgId, first.id).first('n')).toBe(1);
@@ -116,7 +155,10 @@ describe('persisted institution first journey', () => {
       firstProgramAdmissionState: 'not_admitted', retentionPolicyStatus: 'review_required',
       firstProgram: { id: testProgramId(admin.orgId), status: 'closed', admissionState: 'ready' } });
     expect(await (await request('/program-options', 'GET', undefined, worker)).json()).toEqual({ programs: [] });
-    const denied = await request('/participants', 'POST', { programId: testProgramId(admin.orgId), consentPrivacy: true }, worker);
+    const denied = await request('/participants', 'POST', {
+      programId: testProgramId(admin.orgId), idempotencyKey: crypto.randomUUID(),
+      consentEvents: admissionBlockedConsentEvents(),
+    }, worker);
     expect(denied.status).toBe(409);
     expect(await denied.json()).toEqual({ error: 'program_admission_required', reason: 'program_closed' });
     expect(await t.db.prepare('SELECT pii_purge_grace_days FROM organization_settings WHERE org_id = ?').bind(admin.orgId).first('pii_purge_grace_days')).toBe(2000);

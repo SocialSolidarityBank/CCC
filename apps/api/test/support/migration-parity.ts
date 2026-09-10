@@ -27,6 +27,7 @@ export const checkpoints = [
   { id: 'program-admission', sqlite: '0054_program_admission.sql', postgres: '0010_program_admission.sql' },
   { id: 'account-settings', sqlite: '0055_account_settings.sql', postgres: '0011_account_settings.sql' },
   { id: 'schedule-display', sqlite: '0056_schedule_display.sql', postgres: '0012_schedule_display.sql' },
+  { id: 'preregistration-consent', sqlite: '0057_preregistration_consent.sql', postgres: '0013_preregistration_consent.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;
@@ -142,6 +143,57 @@ export async function proveScheduleDisplaySchema(db: Database): Promise<void> {
   await db.prepare('UPDATE counseling_schedules SET all_day = 0, display_color = NULL, version = version + 1 WHERE id = ?')
     .bind('parity-schedule').run();
   expect(await read()).toEqual({ scheduled_at: at, all_day: 0, display_color: null });
+}
+
+/** Seed a case-bound disclosure with a child event so the 0057 rebuild runs over live rows. */
+export async function seedPreregistrationConsentSchema(db: Database): Promise<void> {
+  const org = 'parity-consent-org';
+  const hash = 'a'.repeat(64);
+  await db.prepare(`INSERT INTO consent_provider_registry_snapshots (id, org_id, provider, legal_recipient, country, approved_at)
+    VALUES (?, ?, 'institution', 'Parity recipient', 'KR', '2025-01-01T00:00:00.000Z')`).bind('parity-consent-registry', org).run();
+  await db.prepare(`INSERT INTO consent_disclosure_snapshots (id, org_id, program_id, issuer_id, support_case_id, domain,
+    full_korean_copy, provider, provider_registry_snapshot_id, provider_legal_recipient, provider_country, purpose,
+    retention_profile, retention_duration, copy_version, copy_hash, issued_at, expires_at)
+    VALUES (?, ?, 'parity-consent-program', 'parity-consent-user', 'parity-consent-case', 'personal_data_collection_use',
+    'copy', 'institution', 'parity-consent-registry', 'Parity recipient', 'KR', 'case_management',
+    'default_temporary_d85', 'default_temporary_d85', 'consent-six-domains-v1', ?, '2026-01-01T00:00:00.000Z', '2026-01-01T00:30:00.000Z')`)
+    .bind('parity-consent-disclosure', org, hash).run();
+  await db.prepare(`INSERT INTO consent_events (id, org_id, beneficiary_id, support_case_id, domain, decision, provider,
+    provider_legal_recipient, provider_country, purpose, retention_duration, copy_version, copy_hash, disclosure_snapshot_id,
+    effective_at, recorded_by, recorded_at, idempotency_key, request_hash, revision, event_sequence, correction_of_event_id, provider_registry_snapshot_id)
+    VALUES (?, ?, 'A903', 'parity-consent-case', 'personal_data_collection_use', 'grant', 'institution', 'Parity recipient', 'KR',
+    'case_management', NULL, 'consent-six-domains-v1', ?, 'parity-consent-disclosure', '2026-01-01T00:00:00.000Z', 'parity-consent-user',
+    '2026-01-01T00:00:00.000Z', 'parity-consent-key', ?, 1, 1, NULL, 'parity-consent-registry')`)
+    .bind('parity-consent-event', org, hash, hash).run();
+}
+
+export async function provePreregistrationConsentSchema(db: Database): Promise<void> {
+  expect(await db.prepare('SELECT support_case_id, copy_hash FROM consent_disclosure_snapshots WHERE id = ?')
+    .bind('parity-consent-disclosure').first()).toEqual({ support_case_id: 'parity-consent-case', copy_hash: 'a'.repeat(64) });
+  expect(await db.prepare('SELECT disclosure_snapshot_id FROM consent_events WHERE id = ?').bind('parity-consent-event').first())
+    .toEqual({ disclosure_snapshot_id: 'parity-consent-disclosure' });
+  await db.prepare(`INSERT INTO consent_disclosure_snapshots (id, org_id, program_id, issuer_id, support_case_id, domain,
+    full_korean_copy, provider, provider_registry_snapshot_id, provider_legal_recipient, provider_country, purpose,
+    retention_profile, retention_duration, copy_version, copy_hash, issued_at, expires_at)
+    VALUES (?, 'parity-consent-org', 'parity-consent-program', 'parity-consent-user', NULL, 'counseling_recording',
+    'copy', NULL, NULL, NULL, NULL, NULL, 'default_temporary_d85', 'default_temporary_d85', 'consent-six-domains-v1', ?,
+    '2026-01-01T00:00:00.000Z', '2026-01-01T00:30:00.000Z')`).bind('parity-consent-preregistration', 'b'.repeat(64)).run();
+  for (const sql of [
+    "UPDATE consent_disclosure_snapshots SET expires_at = '2027-01-01T00:00:00.000Z' WHERE id = 'parity-consent-disclosure'",
+    "DELETE FROM consent_disclosure_snapshots WHERE id = 'parity-consent-disclosure'",
+  ]) {
+    expect(await rejection(db.prepare(sql).run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+  }
+  await expect(db.prepare(`INSERT INTO consent_events (id, org_id, beneficiary_id, support_case_id, domain, decision, copy_version,
+    copy_hash, disclosure_snapshot_id, effective_at, recorded_by, recorded_at, idempotency_key, request_hash, revision, event_sequence)
+    VALUES ('parity-consent-orphan', 'parity-consent-org', 'A903', 'parity-consent-case', 'counseling_recording', 'decline',
+    'consent-six-domains-v1', ?, 'missing-disclosure', '2026-01-01T00:00:00.000Z', 'parity-consent-user', '2026-01-01T00:00:00.000Z',
+    'parity-consent-orphan', ?, 1, 2)`).bind('a'.repeat(64), 'a'.repeat(64)).run()).rejects.toMatchObject({ kind: 'constraint' });
+  expect(await db.prepare(`INSERT INTO participant_registration_receipts (org_id, actor_id, idempotency_key, request_hash, beneficiary_id, support_case_id)
+    VALUES ('parity-consent-org', 'parity-consent-user', 'parity-receipt', ?, 'A903', 'parity-consent-case')`).bind('c'.repeat(64)).run())
+    .toMatchObject({ meta: { changes: 1 } });
+  expect(await rejection(db.prepare("UPDATE participant_registration_receipts SET request_hash = ? WHERE idempotency_key = 'parity-receipt'")
+    .bind('d'.repeat(64)).run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
 }
 export async function openParityDatabase(profile: Profile, harness: PostgresHarness): Promise<ParityDatabase> {
   if (profile === 'postgres') {

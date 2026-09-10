@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBeneficiaryWithInitialSupportCase, createSupportCase, createCounselingRecord, updateParticipantPii, type Actor, type DirectoryAccountsView } from '@ccc/core/gateway';
 import { handleRequest } from '@ccc/http-api';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationConsentEvents, registrationInput } from './support/registration';
 import type { ProgramListResponse, ProgramMutationResponse } from '@ccc/contracts/program-admission';
 
 const t = setupD1();
@@ -15,7 +16,7 @@ function http(actor: Actor, path: string, body?: object) {
 }
 async function seed() {
   await t.reset();
-  const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+  const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
   await updateParticipantPii(t.env, counselor, created.beneficiaryId, { supportCaseContextId: created.supportCaseId, expectedVersion: 1, ...pii });
   await t.db.prepare('UPDATE users SET name = ? WHERE id = ?').bind('합성 담당 실무자', counselor.userId).run();
   return created;
@@ -93,7 +94,8 @@ describe('D88 participant serialization and D86 restricted access', () => {
     const { program } = await programResponse.json() as ProgramMutationResponse;
     const other = await createSupportCase(t.env, admin, created.beneficiaryId, {
       schemaVersion: 1, submissionId: crypto.randomUUID(), programId: program.id,
-      initialAssigneeUserId: requester.userId, consentPrivacy: true,
+      initialAssigneeUserId: requester.userId,
+      consentEvents: await registrationConsentEvents(t.env, admin, program.id),
     });
     const record = { submissionId: crypto.randomUUID(), heldAt: '2026-09-02T09:00:00.000Z', channel: 'in_person' as const, memo: '합성 기록', gasScores: [], actionItems: [], flags: [] };
     await createCounselingRecord(t.env, requester, other.supportCaseId, record);
@@ -188,13 +190,14 @@ describe('existing administrator practitioner directory contract', () => {
     expect(option).toMatchObject({ id: userId, name: '합성 실무자', roles: ['worker'] });
     expect(directory.accounts.some(account => account.id === otherOrgAdmin.userId)).toBe(false);
     expect((await http(counselor, '/settings/accounts')).status).toBe(403);
-    const input = { programId: testProgramId(admin.orgId), initialAssigneeUserId: option!.id, consentPrivacy: true, consentRecordingAi: false };
+    const input = await registrationInput(t.env, admin, { programId: testProgramId(admin.orgId), initialAssigneeUserId: option!.id });
     const created = await http(admin, '/participants', input);
     expect(created.status).toBe(201);
     const participant = await created.json() as { supportCaseId: string };
     const assignments = await (await http(admin, `/support-cases/${participant.supportCaseId}/assignees`)).json();
     expect(assignments).toMatchObject({ assignees: [expect.objectContaining({ userId, status: 'active' })] });
     await t.db.prepare('UPDATE users SET active = 0 WHERE id = ?').bind(userId).run();
-    expect((await http(admin, '/participants', input)).status).toBe(403);
+    // 재시도 영수증에 걸리지 않도록 새 등록 시도로 보낸다 — 비활성 실무자 지정은 그때 막혀야 한다.
+    expect((await http(admin, '/participants', { ...input, idempotencyKey: crypto.randomUUID() })).status).toBe(403);
   });
 });

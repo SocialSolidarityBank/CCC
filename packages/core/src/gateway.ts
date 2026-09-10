@@ -81,8 +81,6 @@ import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision }
 import {
   CONSENT_PRIVACY_NOTICE_TEXT,
   CONSENT_PRIVACY_NOTICE_VERSION,
-  CONSENT_TEXT_AI_NOTICE_TEXT,
-  CONSENT_TEXT_AI_NOTICE_VERSION,
 } from '@ccc/contracts/consent-notice';
 
 // ── 환경 타입 ───────────────────────────────────────────────────────────────
@@ -2993,13 +2991,6 @@ export interface AiDraftReviewInput {
   /** 녹음 재료 있는 회차의 approved 에서 아직 미확인이면 이 확언으로 확인 시각을 함께 기록한다(D11). */
   speakerMappingConfirmed?: boolean;
 }
-export interface PilotTextAiConsentEvidenceInput {
-  noticeVersion: string;
-  noticeSha256: string;
-  evidenceRef: string;
-  evidenceSha256: string;
-  effectiveAt: string;
-}
 export interface AiProviderConfiguration {
   id: string;
   adapterId: string;
@@ -3393,80 +3384,6 @@ export async function activateAiProviderConfiguration(
   };
 }
 
-/**
- * 파일럿 텍스트 AI 동의 증적을 append-only로 기록한다. 원본 동의 본문·서명은 받거나
- * 저장하지 않으며, legacy cases.consent_text_ai_at은 이 경로의 권한 근거가 아니다.
- */
-export async function recordPilotTextAiConsentEvidence(
-  env: Env,
-  actor: Actor,
-  caseId: string,
-  input: PilotTextAiConsentEvidenceInput,
-): Promise<PilotTextAiConsentEvidence> {
-  await assertPhase1CaseAccess(env, actor, caseId, 'pilot_text_ai_consent_evidence');
-  const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
-
-  if (!isPilotTextAiEnabled(env)) {
-    await writePhase1Denial(env, actor, {
-      targetTable: 'pilot_text_ai_consent_evidence',
-      caseId,
-      reason: 'text_ai_pilot_disabled',
-    });
-    throw new TextAiPilotDisabledError();
-  }
-
-  try {
-    if (input === null || typeof input !== 'object') {
-      throw new ValidationError('pilot text AI consent evidence is invalid');
-    }
-    assertVersionIdentifier(input.noticeVersion, 'notice version');
-    assertSha256(input.noticeSha256, 'notice hash');
-    assertOpaqueReference(input.evidenceRef, 'evidence reference');
-    assertSha256(input.evidenceSha256, 'evidence hash');
-    input.effectiveAt = canonicalEffectiveTimestamp(input.effectiveAt, 'evidence effective time');
-  } catch (error) {
-    await writePhase1Denial(env, actor, {
-      targetTable: 'pilot_text_ai_consent_evidence',
-      caseId,
-      reason: 'invalid_pilot_text_ai_evidence',
-    });
-    throw error;
-  }
-
-  const evidence: PilotTextAiConsentEvidence = {
-    id: newId(),
-    caseId,
-    noticeVersion: input.noticeVersion,
-    noticeSha256: input.noticeSha256,
-    evidenceRef: input.evidenceRef,
-    evidenceSha256: input.evidenceSha256,
-    capturedBy: actor.userId,
-    effectiveAt: input.effectiveAt,
-    createdAt: now(),
-  };
-  await env.DB.prepare(
-    'INSERT INTO pilot_text_ai_consent_evidence (id, org_id, support_case_id, notice_version, notice_sha256, evidence_ref, evidence_sha256, captured_by, effective_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  ).bind(
-    evidence.id,
-    actor.orgId,
-    context.supportCaseId,
-    evidence.noticeVersion,
-    evidence.noticeSha256,
-    evidence.evidenceRef,
-    evidence.evidenceSha256,
-    evidence.capturedBy,
-    evidence.effectiveAt,
-    evidence.createdAt,
-  ).run();
-  await writeAudit(env, actor, {
-    action: 'create',
-    targetTable: 'pilot_text_ai_consent_evidence',
-    targetId: evidence.id,
-    caseId,
-    detail: { purpose: 'text_ai_pilot' },
-  });
-  return evidence;
-}
 
 /** 파일럿 증적 목록은 권한 있는 검토자에게만 metadata로 제공한다. */
 export async function listPilotTextAiConsentEvidence(
@@ -5947,21 +5864,11 @@ export async function listRecordErrorSessionIds(
 // 케이스 (cases)
 // ============================================================================
 
-/**
- * Phase-1 compatibility creation is routed through the canonical participant /
- * SupportCase transaction. The resulting initial SupportCase carries its
- * beneficiary's legacy case id solely for the read-only compatibility views;
- * direct writes to those views remain rejected by schema triggers.
- */
+/** Creates the case projection through the same six-domain registration transaction. */
 export async function createCase(
   env: Env,
   actor: Actor,
-  input: {
-    programId: string;
-    intakeAt?: string;
-    consentRecordingAt?: string | null; // D15
-    consentTextAiAt?: string | null;
-  },
+  input: Omit<CreateBeneficiaryWithInitialSupportCaseInput, 'initialAssigneeUserId'>,
 ): Promise<Case> {
   assertHuman(actor);
   if (actor.role === 'admin') {
@@ -5969,26 +5876,8 @@ export async function createCase(
   } else {
     await assertPractitioner(env, actor);
   }
-  const optionalKeys = (['intakeAt', 'consentRecordingAt', 'consentTextAiAt'] as const).filter((key) => input[key] !== undefined);
-  assertExactKeys(input, ['programId', ...optionalKeys]);
-  const intakeAt = input.intakeAt === undefined
-    ? null
-    : canonicalUtcInstant(input.intakeAt, 'intake time');
-  // intakeAt 은 legacyCompatibility 로만 전달한다(CCC-56) — canonicalInput 에 실으면
-  // "등록 시각을 인테이크로 본다"는 폐기된 패턴이 되살아난다.
-  const canonicalInput: CreateBeneficiaryWithInitialSupportCaseInput = actor.role === 'admin'
-    ? { programId: input.programId, initialAssigneeUserId: actor.userId }
-    : { programId: input.programId };
-  const creation = await createBeneficiaryWithInitialSupportCase(
-    env,
-    actor,
-    canonicalInput,
-    {
-      intakeAt,
-      consentRecordingAt: input.consentRecordingAt ?? null,
-      consentTextAiAt: input.consentTextAiAt ?? null,
-    },
-  );
+  const creation = await createBeneficiaryWithInitialSupportCase(env, actor,
+    actor.role === 'admin' ? { ...input, initialAssigneeUserId: actor.userId } : input, { legacyProjection: true });
 
   return getCaseForOrg(env, actor.orgId, creation.beneficiaryId);
 }
@@ -7755,10 +7644,11 @@ async function currentConsentEventMap(
   for (const row of rows.results) {
     const event = mapConsentEvent(row);
     if (!CONSENT_DOMAINS.includes(event.domain)) continue;
-    if (event.decision !== 'grant' || event.copyVersion !== CONSENT_COPY_VERSION || event.effectiveAt > at) {
+    if (event.decision !== 'grant') {
       events.set(event.domain, event);
       continue;
     }
+    if (event.copyVersion !== CONSENT_COPY_VERSION || event.effectiveAt > at) continue;
     const canonical = CONSENT_COPY[event.domain];
     const expectedRetention = event.domain === 'voice_original_retention_period'
       ? 'default_temporary_d85' : null;
@@ -7797,7 +7687,11 @@ export async function getSupportCaseConsent(
   supportCaseId: string,
 ): Promise<CurrentConsentState[]> {
   await assertConsentActor(env, actor, supportCaseId);
-  const events = await currentConsentEventMap(env, actor.orgId, supportCaseId, now());
+  return currentConsentStates(env, actor.orgId, supportCaseId);
+}
+
+async function currentConsentStates(env: Env, orgId: string, supportCaseId: string): Promise<CurrentConsentState[]> {
+  const events = await currentConsentEventMap(env, orgId, supportCaseId, now());
   return CONSENT_DOMAINS.map((domain) => {
     const event = events.get(domain);
     const state = event === undefined ? 'unconfirmed'
@@ -7836,6 +7730,27 @@ export async function issueSupportCaseConsentDisclosures(
   supportCaseId: string,
 ): Promise<ConsentDisclosureSnapshot[]> {
   const supportCase = await assertConsentActor(env, actor, supportCaseId);
+  return issueConsentDisclosures(env, actor, supportCase.programId, supportCaseId);
+}
+
+export async function issueRegistrationConsentDisclosures(
+  env: Env,
+  actor: Actor,
+  programId: string,
+): Promise<ConsentDisclosureSnapshot[]> {
+  await assertCurrentHumanActor(env, actor);
+  if (actor.role === 'admin') await assertInstitutionAdmin(env, actor);
+  else await assertPractitioner(env, actor);
+  await requireProgramAdmission(env, actor.orgId, programId, 'registration');
+  return issueConsentDisclosures(env, actor, programId, null);
+}
+
+async function issueConsentDisclosures(
+  env: Env,
+  actor: Actor,
+  programId: string,
+  supportCaseId: string | null,
+): Promise<ConsentDisclosureSnapshot[]> {
   const issuedAt = now();
   const expiresAt = new Date(parseUtcTimestamp(issuedAt) + 30 * 60_000).toISOString();
   const snapshots: ConsentDisclosureSnapshot[] = [];
@@ -7863,7 +7778,7 @@ export async function issueSupportCaseConsentDisclosures(
       snapshotId: newId(),
       scopeBinding: {
         orgId: actor.orgId,
-        programId: supportCase.programType,
+        programId,
         issuerId: actor.userId,
         supportCaseId,
       },
@@ -7889,7 +7804,7 @@ export async function issueSupportCaseConsentDisclosures(
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'default_temporary_d85',
                  'default_temporary_d85', ?, ?, ?, ?)`,
     ).bind(
-      snapshot.snapshotId, actor.orgId, supportCase.programType, actor.userId, supportCaseId, domain,
+      snapshot.snapshotId, actor.orgId, programId, actor.userId, supportCaseId, domain,
       canonical.copy, canonical.provider, registry.id, registry.legal_recipient, registry.country,
       canonical.purpose, CONSENT_COPY_VERSION, copyHash, issuedAt, expiresAt,
     ));
@@ -7900,6 +7815,103 @@ export async function issueSupportCaseConsentDisclosures(
 
 function consentInputHash(input: AppendConsentEventInput): Promise<string> {
   return consentSha256Hex(canonicalizeJcs(input));
+}
+
+async function registrationConsentStatements(
+  env: Env, actor: Actor, programId: string, beneficiaryId: string, supportCaseId: string,
+  events: AppendConsentEventInput[], recordedAt: string, recordedBy = actor.userId,
+): Promise<PreparedStatement[]> {
+  if (!Array.isArray(events) || events.length !== CONSENT_DOMAINS.length
+    || new Set(events.map(event => event.domain)).size !== CONSENT_DOMAINS.length) {
+    throw new ValidationError('six distinct consent domains are required');
+  }
+  const statements: PreparedStatement[] = [];
+  for (const input of events) {
+    assertExactKeys(input, [
+      'domain', 'decision', 'provider', 'providerLegalRecipient', 'providerCountry', 'purpose',
+      'retentionDuration', 'copyVersion', 'copyHash', 'disclosureSnapshotId', 'effectiveAt',
+      'idempotencyKey', 'correctionOfEventId', 'expectedRevision',
+    ]);
+    if (!CONSENT_DOMAINS.includes(input.domain) || !['grant', 'decline'].includes(input.decision)
+      || input.correctionOfEventId !== null || input.expectedRevision !== null) {
+      throw new ValidationError('initial consent event is invalid');
+    }
+    assertOpaqueIdentifier(input.idempotencyKey, 'idempotency key');
+    const snapshot = await validateConsentDisclosure(env, actor, programId, null, input, recordedAt);
+    const canonical = CONSENT_COPY[input.domain];
+    const applicable = input.provider !== null;
+    if ((!applicable && (input.decision === 'grant' || input.providerLegalRecipient !== null
+      || input.providerCountry !== null || input.purpose !== null || input.retentionDuration !== null))
+      || (applicable && (input.provider !== canonical.provider
+        || input.providerLegalRecipient !== snapshot.provider_legal_recipient
+        || input.providerCountry !== snapshot.provider_country || input.purpose !== canonical.purpose
+        || input.retentionDuration !== (input.domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null)))) {
+      throw new ConsentContractError('provider_scope_mismatch');
+    }
+    const eventId = newId();
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO consent_events (
+          id, org_id, beneficiary_id, support_case_id, domain, decision, provider,
+          provider_legal_recipient, provider_country, purpose, retention_duration, copy_version,
+          copy_hash, disclosure_snapshot_id, effective_at, recorded_by, recorded_at, idempotency_key,
+          request_hash, revision, event_sequence, correction_of_event_id, provider_registry_snapshot_id
+        ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+          (SELECT COALESCE(MAX(revision),0)+1 FROM consent_events
+           WHERE org_id=? AND beneficiary_id=? AND support_case_id=? AND domain=?),
+          (SELECT COALESCE(MAX(event_sequence),0)+1 FROM consent_events
+           WHERE org_id=? AND beneficiary_id=? AND support_case_id=?), NULL, ?
+          WHERE EXISTS (SELECT 1 FROM support_cases WHERE id=? AND org_id=? AND beneficiary_id=?)`,
+      ).bind(
+        eventId, actor.orgId, beneficiaryId, supportCaseId, input.domain, input.decision, input.provider,
+        input.providerLegalRecipient, input.providerCountry, input.purpose, input.retentionDuration,
+        input.copyVersion, input.copyHash, input.disclosureSnapshotId, input.effectiveAt, recordedBy,
+        recordedAt, input.idempotencyKey, await consentInputHash(input),
+        actor.orgId, beneficiaryId, supportCaseId, input.domain,
+        actor.orgId, beneficiaryId, supportCaseId,
+        applicable ? nullableString(snapshot.provider_registry_snapshot_id) : null,
+        supportCaseId, actor.orgId, beneficiaryId,
+      ),
+      env.DB.prepare(
+        `INSERT INTO consent_audit_events (id,org_id,actor_id,action,consent_event_id,outcome_code,recorded_at)
+         SELECT ?,?,?,'consent_append',?,'accepted',?
+         WHERE EXISTS (SELECT 1 FROM consent_events WHERE id=? AND org_id=?)`,
+      ).bind(newId(), actor.orgId, recordedBy, eventId, recordedAt, eventId, actor.orgId),
+    );
+  }
+  return statements;
+}
+
+async function validateConsentDisclosure(
+  env: Env, actor: Actor, programId: string, supportCaseId: string | null,
+  input: AppendConsentEventInput, recordedAt: string,
+): Promise<DbRow> {
+  const effectiveMs = parseUtcTimestamp(input.effectiveAt);
+  const recordedMs = parseUtcTimestamp(recordedAt);
+  if (!Number.isFinite(effectiveMs) || effectiveMs > recordedMs) throw new ConsentContractError('future_effective_at');
+  if (input.decision !== 'correct' && effectiveMs < recordedMs - 5 * 60_000) {
+    throw new ConsentContractError('backdated_consent_event');
+  }
+  const snapshot = await env.DB.prepare(
+    `SELECT disclosure.*, registry.id AS current_registry_id
+     FROM consent_disclosure_snapshots AS disclosure
+     JOIN consent_provider_registry_snapshots AS registry
+       ON registry.id = disclosure.provider_registry_snapshot_id
+      AND registry.org_id = disclosure.org_id AND registry.provider = disclosure.provider
+      AND registry.legal_recipient = disclosure.provider_legal_recipient
+      AND registry.country = disclosure.provider_country
+      AND registry.approved_at <= ? AND (registry.valid_until IS NULL OR registry.valid_until > ?)
+     WHERE disclosure.id = ? AND disclosure.org_id = ? AND disclosure.program_id = ?
+       AND (disclosure.support_case_id = ? OR (disclosure.support_case_id IS NULL AND CAST(? AS TEXT) IS NULL))
+       AND disclosure.issuer_id = ? AND disclosure.domain = ? AND disclosure.expires_at > ?`,
+  ).bind(recordedAt, recordedAt, input.disclosureSnapshotId, actor.orgId, programId,
+    supportCaseId, supportCaseId, actor.userId, input.domain, recordedAt).first<DbRow>();
+  if (snapshot === null || input.copyVersion !== CONSENT_COPY_VERSION
+    || snapshot.copy_version !== input.copyVersion || input.copyHash !== snapshot.copy_hash
+    || snapshot.full_korean_copy !== CONSENT_COPY[input.domain].copy) {
+    throw new ConsentContractError('consent_disclosure_mismatch');
+  }
+  return snapshot;
 }
 
 async function appendSupportCaseConsentEventUnchecked(
@@ -7923,37 +7935,11 @@ async function appendSupportCaseConsentEventUnchecked(
   }
 
   const recordedAt = now();
-  const effectiveMs = parseUtcTimestamp(input.effectiveAt);
-  const recordedMs = parseUtcTimestamp(recordedAt);
-  if (!Number.isFinite(effectiveMs) || effectiveMs > recordedMs) throw new ConsentContractError('future_effective_at');
-  if (input.decision !== 'correct' && effectiveMs < recordedMs - 5 * 60_000) {
-    throw new ConsentContractError('backdated_consent_event');
-  }
-  const snapshot = await env.DB.prepare(
-    `SELECT disclosure.*, registry.id AS current_registry_id
-     FROM consent_disclosure_snapshots AS disclosure
-     LEFT JOIN consent_provider_registry_snapshots AS registry
-       ON registry.id = disclosure.provider_registry_snapshot_id
-      AND registry.org_id = disclosure.org_id AND registry.provider = disclosure.provider
-      AND registry.legal_recipient = disclosure.provider_legal_recipient
-      AND registry.country = disclosure.provider_country
-      AND registry.approved_at <= ? AND (registry.valid_until IS NULL OR registry.valid_until > ?)
-     WHERE disclosure.id = ? AND disclosure.org_id = ? AND disclosure.support_case_id = ?
-       AND disclosure.issuer_id = ? AND disclosure.domain = ? AND disclosure.expires_at > ?`,
-  ).bind(
-    recordedAt, recordedAt, input.disclosureSnapshotId, actor.orgId, supportCaseId,
-    actor.userId, input.domain, recordedAt,
-  ).first<DbRow>();
-  if (snapshot === null || nullableString(snapshot.current_registry_id) === null) {
-    throw new ConsentContractError('consent_disclosure_mismatch');
-  }
+  const snapshot = await validateConsentDisclosure(
+    env, actor, supportCase.programId, supportCaseId, input, recordedAt,
+  );
   const canonical = CONSENT_COPY[input.domain];
   const retentionDuration = input.domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null;
-  if (
-    input.copyVersion !== CONSENT_COPY_VERSION
-    || input.copyHash !== stringValue(snapshot.copy_hash)
-    || stringValue(snapshot.full_korean_copy) !== canonical.copy
-  ) throw new ConsentContractError('consent_disclosure_mismatch');
 
   const latest = (await currentConsentEventMap(env, actor.orgId, supportCaseId, recordedAt)).get(input.domain);
   let target: ConsentEvent | undefined;
@@ -12427,6 +12413,7 @@ export interface SupportCase {
   orgId: string;
   beneficiaryId: string;
   legacyCaseId: string | null;
+  programId: string;
   programType: 'financial_support_v1';
   status: 'active' | 'closed';
   intakeAt: string | null;
@@ -12544,6 +12531,7 @@ function mapSupportCase(row: DbRow): SupportCase {
     orgId: stringValue(row.org_id),
     beneficiaryId: stringValue(row.beneficiary_id),
     legacyCaseId: nullableString(row.legacy_case_id),
+    programId: stringValue(row.program_id),
     programType,
     status: canonicalCaseStatus(row.status),
     intakeAt: nullableString(row.intake_at),
@@ -13540,6 +13528,9 @@ export async function updateProgram(env: Env, actor: Actor, programId: string, i
 
 export interface CreateBeneficiaryWithInitialSupportCaseInput {
   programId: string;
+  idempotencyKey: string;
+  consentEvents: AppendConsentEventInput[];
+  emergencyReason?: string;
   /**
    * 인테이크 **완료** 시각(CCC-56). 등록은 인테이크가 아니므로 **등록 경로는 이 값을 보내지
    * 않는다** — HTTP 등록 라우트는 키 자체를 거부하고, 미제공이면 NULL(아직 없음)로 만든다.
@@ -13634,11 +13625,6 @@ function assertPrivacyConsentGate(
   }
   return { at: createdAt, reason, dueAt: emergencyConsentDueAt(createdAt) };
 }
-interface LegacyInitialSupportCaseCompatibility {
-  intakeAt: string | null;
-  consentRecordingAt: string | null;
-  consentTextAiAt: string | null;
-}
 
 export interface CreateSupportCaseInput {
   schemaVersion: 1;
@@ -13651,17 +13637,7 @@ export interface CreateSupportCaseInput {
   intakeAt?: string | null;
   sourceSupportCaseId?: string;
   initialAssigneeUserId?: string;
-  /**
-   * ① 개인정보 수집·이용 동의 (G1). 같은 당사자의 두 번째 참여 사업도 동의 3종이 미체크로
-   * 시작하므로(D44) 여기서 ① 을 다시 받는다. false 면 `emergencyReason` 없이는 거부된다.
-   */
-  consentPrivacy: boolean;
-  /**
-   * ② AI를 활용한 녹취기록 동의 (D49). **선택 인자**다 — ② 는 하드 게이트가 아니므로(G1은 ① 만)
-   * 보내지 않으면 미동의로 시작한다. 이 인자가 생기기 전에는 두 번째 참여 사업에서 ② 를
-   * 기록할 API 경로가 아예 없어, 사업을 만든 뒤 당사자 정보 페이지에서 따로 고쳐야 했다.
-   */
-  consentRecordingAi?: boolean;
+  consentEvents: AppendConsentEventInput[];
   /** 긴급 등록 사유 (G1 예외). ① 미동의로 열어야 할 때만 넣는다. */
   emergencyReason?: string;
 }
@@ -14024,26 +14000,14 @@ async function supportCaseReceiptReplay(
   };
 }
 
-/**
- * Creates a permanent participant and its sole initial SupportCase in one D1
- * batch. PII is deliberately absent: the only vault row is an empty versioned
- * container. A failed audit or publication transition rolls the whole batch back.
- *
- * **① 하드 게이트(G1)**: `consent` 를 실은 호출 — 즉 사람이 쓰는 등록 경로 전부 — 는
- * ① 개인정보 수집·이용 동의가 없으면 거부되고, 긴급 등록(사유 필수)만 통과한다.
- * `consent` 없이 부르는 호출은 레거시 Phase-1 호환(`createCase`, 0008 시절 어휘라
- * ① 개념 자체가 없다)과 시드 하네스뿐이며, HTTP 등록 라우트는 언제나 consent 를 싣는다
- * (`parseInitialParticipantCreation`). 그 레거시 경로로 생긴 ① 미기록 케이스는
- * `listPrivacyConsentFollowUps` 의 보완 대상 리포트가 잡는다.
- */
+/** Creates the participant, case, six consent events and retry receipt in one atomic batch. */
 export async function createBeneficiaryWithInitialSupportCase(
   env: Env,
   actor: Actor,
   input: CreateBeneficiaryWithInitialSupportCaseInput,
-  legacyCompatibility?: LegacyInitialSupportCaseCompatibility,
-
-  consent?: ParticipantConsentInput,
+  options: { legacyProjection?: boolean } = {},
 ): Promise<SupportCaseCreationResult> {
+  const legacyProjection = options.legacyProjection === true;
   await assertCurrentHumanActor(env, actor);
   if (actor.role === 'admin') {
     await assertInstitutionAdmin(env, actor);
@@ -14058,18 +14022,28 @@ export async function createBeneficiaryWithInitialSupportCase(
   const optionalPiiKeys = (['name', 'phone', 'email', 'birthDate', 'region', 'gender'] as const)
     .filter((key) => input[key] !== undefined);
   const optionalIntakeKeys = input.intakeAt === undefined ? [] : ['intakeAt'];
-  assertExactKeys(input, [...expectedKeys, ...optionalIntakeKeys, ...optionalPiiKeys]);
+  assertExactKeys(input, [...expectedKeys, ...optionalIntakeKeys, ...optionalPiiKeys,
+    'idempotencyKey', 'consentEvents', ...(input.emergencyReason === undefined ? [] : ['emergencyReason'])]);
+  assertOpaqueIdentifier(input.idempotencyKey, 'idempotency key');
+  // 영수증 hash는 권한 입력만 접는다. PII를 섞으면 idempotency key 옆에 오프라인 대조 가능한 지문이 남는다.
+  const requestHash = await canonicalSha256({
+    consentEvents: input.consentEvents,
+    emergencyReason: input.emergencyReason ?? null,
+    idempotencyKey: input.idempotencyKey,
+    initialAssigneeUserId: input.initialAssigneeUserId ?? null,
+    intakeAt: input.intakeAt ?? null,
+    programId: input.programId,
+  });
+  const replay = await registrationReceiptReplay(env, actor, input.idempotencyKey, requestHash);
+  if (replay !== null) return replay;
   assertOpaqueIdentifier(input.programId, 'program id');
   for (const key of optionalPiiKeys) {
     const value = input[key];
     if (value !== null) assertNonBlankText(value, key);
   }
   if (input.birthDate !== undefined && input.birthDate !== null) assertDateOnly(input.birthDate);
-  const intakeAt = legacyCompatibility === undefined
-    ? (input.intakeAt === undefined || input.intakeAt === null
-      ? null
-      : canonicalUtcInstant(input.intakeAt, 'intake time'))
-    : legacyCompatibility.intakeAt;
+  const intakeAt = input.intakeAt === undefined || input.intakeAt === null
+    ? null : canonicalUtcInstant(input.intakeAt, 'intake time');
   await assertOrganizationSettings(env, actor.orgId);
   const admission = await requireProgramAdmission(env, actor.orgId, input.programId, 'registration');
   if (intakeAt !== null) {
@@ -14102,11 +14076,11 @@ export async function createBeneficiaryWithInitialSupportCase(
   assertOpaqueIdentifier(effectiveAssigneeUserId, 'initial assignee user id');
   await assertActivePractitionerUser(env, actor.orgId, effectiveAssigneeUserId);
 
-  // ① 하드 게이트(G1)는 가명 ID 재시도 루프 **밖에서** 한 번만 판정한다 — 입력 결함으로
-  // 가명 ID 를 소모하지 않게 한다. 시각만 각 시도의 createdAt 으로 다시 맞춘다.
-  const emergencyValidated = consent === undefined
-    ? null
-    : assertPrivacyConsentGate(consent.privacy === true, consent.emergency, now());
+  if (!Array.isArray(input.consentEvents)) throw new ValidationError('consent events are required');
+  const emergencyValidated = assertPrivacyConsentGate(
+    input.consentEvents.some(event => event.domain === 'personal_data_collection_use' && event.decision === 'grant'),
+    input.emergencyReason === undefined ? undefined : { reason: input.emergencyReason }, now(),
+  );
 
   let finalError: unknown;
   const attemptedIds: string[] = [];
@@ -14114,28 +14088,16 @@ export async function createBeneficiaryWithInitialSupportCase(
     const beneficiaryId = await allocateBeneficiaryId(env, actor.orgId, attemptedIds);
     attemptedIds.push(beneficiaryId);
     const supportCaseId = newId();
-    const legacyCaseId = legacyCompatibility === undefined ? null : beneficiaryId;
+    const legacyCaseId = legacyProjection ? beneficiaryId : null;
     const assignmentId = newId();
     const createdAt = now();
-    // 항목별 동의(D15·D23): 동의한 항목만 등록 시각을 남기고, 미동의는 NULL 로 둔다.
-    // 등록 폼 동의(consent)가 우선하고, 없으면 레거시 호환 경로의 값(있으면)을 쓴다.
-    // D49: ② 는 한 체크로 두 컬럼에 같은 시각을 찍는다.
-    const consentRecordingAt = consent?.recordingAi === true
-      ? createdAt
-      : (legacyCompatibility?.consentRecordingAt ?? null);
-    const consentTextAiAt = consent?.recordingAi === true
-      ? createdAt
-      : (legacyCompatibility?.consentTextAiAt ?? null);
-    // D44: 개인정보 동의는 레거시 호환 경로에 대응 입력이 없다 — 등록 폼 값만이 근거다.
-    const consentPrivacyAt = consent?.privacy === true ? createdAt : null;
     // 긴급 등록 3값(G1). 일반 등록이면 전부 NULL 이고, DB 가드가 셋의 정합을 강제한다(0028).
     const emergency: EmergencyRegistrationRecord | null = emergencyValidated === null
       ? null
       : { at: createdAt, reason: emergencyValidated.reason, dueAt: emergencyConsentDueAt(createdAt) };
-    const consentRecordId = consent === undefined ? null : newId();
-    const privacyEvidence = consentRecordId === null
-      ? null
-      : await privacyNoticeEvidence(consentRecordId, consentPrivacyAt);
+    const consentStatements = await registrationConsentStatements(
+      env, actor, input.programId, beneficiaryId, supportCaseId, input.consentEvents, createdAt,
+    );
     try {
       const statements: PreparedStatement[] = [
         env.DB.prepare(
@@ -14156,10 +14118,9 @@ export async function createBeneficiaryWithInitialSupportCase(
         env.DB.prepare(
           `INSERT INTO support_cases (
              id, org_id, beneficiary_id, legacy_case_id, program_id, program_type, status, intake_at,
-             consent_recording_at, consent_text_ai_at, consent_privacy_at,
              emergency_registration_at, emergency_registration_reason, consent_privacy_due_at,
              creation_kind, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, 'initial', ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'initial', ?, ?)`,
         ).bind(
           supportCaseId,
           actor.orgId,
@@ -14168,9 +14129,6 @@ export async function createBeneficiaryWithInitialSupportCase(
           admission.program.id,
           admission.program.programType,
           intakeAt,
-          consentRecordingAt,
-          consentTextAiAt,
-          consentPrivacyAt,
           emergency === null ? null : emergency.at,
           emergency === null ? null : emergency.reason,
           emergency === null ? null : emergency.dueAt,
@@ -14217,88 +14175,18 @@ detail: { role: 'primary', initial: true },
       ];
       // 당사자 완료 전환(위 UPDATE)의 changes 검사를 위해 인덱스를 고정한다.
       const completionIndex = statements.length - 1;
-      // 동의 기록은 반드시 완료 전환 '이후'에 넣는다. beneficiaries_complete_guard 가
-      // 그 시점에 당사자 감사 로그를 정확히 3건으로 요구하므로(D15·D23 · 0007), record_consent
-      // 감사(4번째 beneficiary_id 행)는 가드 통과 뒤에 쌓여야 한다.
-      if (consent !== undefined && consentRecordId !== null) {
-        statements.push(
-          env.DB.prepare(
-            `INSERT INTO participant_consent_records (
-               id, org_id, beneficiary_id, support_case_id, consent_recording_at,
-               consent_text_ai_at, consent_privacy_at, privacy_notice_version,
-               privacy_notice_sha256, privacy_evidence_ref,
-               recorded_by, recorded_at, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          ).bind(
-            consentRecordId,
-            actor.orgId,
-            beneficiaryId,
-            supportCaseId,
-            consentRecordingAt,
-            consentTextAiAt,
-            consentPrivacyAt,
-            privacyEvidence?.noticeVersion ?? null,
-            privacyEvidence?.noticeSha256 ?? null,
-            privacyEvidence?.evidenceRef ?? null,
-            actor.userId,
-            createdAt,
-            createdAt,
-          ),
-          canonicalAuditStatement(env, actor, {
-            action: 'record_consent',
-            targetTable: 'participant_consent_records',
-            targetId: consentRecordId,
-            beneficiaryId,
-            supportCaseId,
-            // 긴급 등록은 여기서 함께 남긴다(G1 — 전건 감사). 사유는 자유 텍스트라 싣지 않는다(R3 태도).
-            detail: {
-              privacy: consent.privacy === true,
-              recordingAi: consent.recordingAi,
-              ...(privacyEvidence?.noticeVersion === null || privacyEvidence === null
-                ? {}
-                : { privacyNoticeVersion: privacyEvidence.noticeVersion }),
-              ...(emergency === null ? {} : { emergencyRegistration: true, consentPrivacyDueAt: emergency.dueAt }),
-            },
-            caseId: legacyCaseId,
-          }),
-        );
-        // 등록 시점의 ② 체크도 AI 초안 근거 행을 만든다 (ADR-0027) — 정보 페이지에서
-        // 다시 저장해야만 근거가 생기는 상태를 남기지 않는다.
-        if (consentTextAiAt !== null) {
-          const evidenceId = newId();
-          statements.push(
-            env.DB.prepare(
-              `INSERT INTO pilot_text_ai_consent_evidence (
-                 id, org_id, support_case_id, notice_version, notice_sha256, evidence_ref,
-                 evidence_sha256, captured_by, effective_at, created_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            ).bind(
-              evidenceId,
-              actor.orgId,
-              supportCaseId,
-              CONSENT_TEXT_AI_NOTICE_VERSION,
-              await sha256Hex(CONSENT_TEXT_AI_NOTICE_TEXT),
-              `internal://participant-consent-records/${consentRecordId}`,
-              await sha256Hex(`${consentRecordId} ${supportCaseId} ${createdAt}`),
-              actor.userId,
-              consentTextAiAt,
-              createdAt,
-            ),
-            canonicalAuditStatement(env, actor, {
-              action: 'create',
-              targetTable: 'pilot_text_ai_consent_evidence',
-              targetId: evidenceId,
-              // 참여 사업 스코프 감사는 당사자 ID 를 함께 요구한다
-              // (audit_log_participant_provenance_guard). 이 행은 완료 전환 **이후**에
-              // 쌓이므로 beneficiaries_complete_guard 의 '당사자 감사 3건'은 그대로다.
-              beneficiaryId,
-              supportCaseId,
-              detail: { purpose: 'text_ai_consent_wiring', noticeVersion: CONSENT_TEXT_AI_NOTICE_VERSION },
-              caseId: legacyCaseId,
-            }),
-          );
-        }
-      }
+      statements.push(...consentStatements,
+        env.DB.prepare(
+          `INSERT INTO participant_registration_receipts
+           (org_id,actor_id,idempotency_key,request_hash,beneficiary_id,support_case_id,created_at)
+           VALUES (?,?,?,?,?,?,?)`,
+        ).bind(actor.orgId, actor.userId, input.idempotencyKey, requestHash, beneficiaryId, supportCaseId, createdAt),
+        ...(emergency === null ? [] : [canonicalAuditStatement(env, actor, {
+          action: 'record_consent', targetTable: 'support_cases', targetId: supportCaseId,
+          beneficiaryId, supportCaseId,
+          detail: { emergencyRegistration: true, consentPrivacyDueAt: emergency.dueAt },
+        })]),
+      );
       const results = await programPolicyBatch(env, admission.context, statements, admission.program);
       const completion = results[completionIndex] as unknown as { meta?: { changes?: number } };
       if ((completion.meta?.changes ?? 0) < 1) {
@@ -14313,165 +14201,27 @@ detail: { role: 'primary', initial: true },
     } catch (error) {
       finalError = error;
       if (!isUniqueConstraintError(error)) break;
+      const replay = await registrationReceiptReplay(env, actor, input.idempotencyKey, requestHash);
+      if (replay !== null) return replay;
     }
   }
   throw finalError instanceof Error ? finalError : new ConflictError('participant creation conflicted');
 }
 
-/** 동의 2종의 현재 상태 + 마지막 기록 정보 (D44 · 항목 수는 D49). 화면은 이 값으로 체크 상태를 그린다. */
-export interface ParticipantConsentState {
-  supportCaseId: string;
-  privacy: boolean;
-  /** ② AI를 활용한 녹취기록 (D49). 구 3종 기록은 두 컬럼 중 하나라도 찍혀 있으면 true 로 읽는다. */
-  recordingAi: boolean;
-  /** 마지막으로 동의 상태를 기록한 시각. 한 번도 기록한 적 없으면 null. */
-  recordedAt: string | null;
+async function registrationReceiptReplay(
+  env: Env, actor: Actor, idempotencyKey: string, requestHash: string,
+): Promise<SupportCaseCreationResult | null> {
+  const receipt = await env.DB.prepare(
+    `SELECT request_hash,beneficiary_id,support_case_id FROM participant_registration_receipts
+     WHERE org_id=? AND actor_id=? AND idempotency_key=?`,
+  ).bind(actor.orgId, actor.userId, idempotencyKey)
+    .first<{ request_hash: string; beneficiary_id: string; support_case_id: string }>();
+  if (receipt === null) return null;
+  if (receipt.request_hash !== requestHash) throw new ConsentContractError('idempotency_conflict');
+  return { beneficiaryId: receipt.beneficiary_id, supportCaseId: receipt.support_case_id,
+    assignmentRole: 'primary', replayed: true };
 }
 
-/**
- * 당사자 정보 페이지에서 동의 3종을 고친다 (D44 · 2026-07-29 Q 결정).
- *
- * **권한**: 이 참여 사업의 담당 실무자 또는 기관 관리자만 — 등록과 같은 층이다.
- * `assertSupportCaseAccess` 하나가 그 판정을 전부 한다(R1). 담당하지 않는 실무자는
- * 허브에서 그 사업 카드를 보더라도(D36) 여기서 막힌다 — 표시 범위가 쓰기 권한이 되면 안 된다.
- *
- * **이력**: 현재값은 `support_cases` 를 UPDATE 하지만, 그 행위는 언제나
- * `participant_consent_records` 에 **새 행**으로 쌓인다(append-only, D14·D23). 철회(체크 해제)도
- * 마찬가지다 — 시각을 NULL 로 되돌린 행이 남으므로 "언제 동의했고 언제 철회했나"가 보존된다.
- * 행을 고쳐 이력을 지우는 경로는 DB 트리거가 막는다.
- *
- * **알려진 결과**: 0008·0014 의 insert 가드가 "NULL 이 아닌 동의 시각 = recorded_at" 을
- * 요구하므로 한 행은 언제나 **그 시점의 전체 스냅샷**이다. 따라서 3종 중 하나만 고쳐도
- * 나머지 동의 시각이 이번 기록 시각으로 갱신된다. 화면은 이 값을 "최초 동의일"이 아니라
- * "마지막 기록 시각"으로 읽어야 한다.
- */
-export async function updateParticipantConsent(
-  env: Env,
-  actor: Actor,
-  supportCaseId: string,
-  consent: ParticipantConsentInput & { privacy: boolean },
-): Promise<ParticipantConsentState> {
-  assertOpaqueIdentifier(supportCaseId, 'support case id');
-  assertExactKeys(consent, ['privacy', 'recordingAi']);
-  for (const key of ['privacy', 'recordingAi'] as const) {
-    if (typeof consent[key] !== 'boolean') throw new ValidationError('consent is invalid');
-  }
-  const supportCase = await assertSupportCaseAssignedOrAdminAccess(env, actor, supportCaseId);
-  await assertCurrentHumanActor(env, actor);
-
-  const recordedAt = now();
-  const privacyAt = consent.privacy ? recordedAt : null;
-  // D49: ② 한 체크 → 두 컬럼에 같은 시각(또는 둘 다 NULL 로 철회).
-  const recordingAt = consent.recordingAi ? recordedAt : null;
-  const textAiAt = consent.recordingAi ? recordedAt : null;
-  const consentRecordId = newId();
-  const privacyEvidence = await privacyNoticeEvidence(consentRecordId, privacyAt);
-
-  // ② 체크는 AI 초안 저장의 근거 행도 만든다 (ADR-0027). 이 행이 없으면 동의를 다
-  // 받은 케이스에서도 0026 트리거가 초안을 거부한다 — 화면과 파이프라인이 서로
-  // 모르던 자리를 여기서 잇는다. 파일럿 스위치는 **사용**을 막을 뿐이므로, 근거는
-  // 스위치 상태와 무관하게 남긴다. 철회(②=false)는 새 근거를 만들지 않는다 —
-  // 근거 표는 append-only 라, 사용 차단은 `support_cases.consent_text_ai_at` 이 맡는다.
-  const textAiEvidence = consent.recordingAi
-    ? {
-      id: newId(),
-      noticeSha256: await sha256Hex(CONSENT_TEXT_AI_NOTICE_TEXT),
-      evidenceRef: `internal://participant-consent-records/${consentRecordId}`,
-      evidenceSha256: await sha256Hex(`${consentRecordId}\u0000${supportCaseId}\u0000${recordedAt}`),
-    }
-    : null;
-
-  await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE support_cases
-       SET consent_privacy_at = ?, consent_recording_at = ?, consent_text_ai_at = ?, updated_at = ?
-       WHERE id = ? AND org_id = ?`,
-    ).bind(privacyAt, recordingAt, textAiAt, recordedAt, supportCaseId, actor.orgId),
-    // 철회는 그 축의 열린 Agent 작업을 같은 원자 경계에서 닫는다 (S5 F4). 결과 저장과
-    // 외부 호출이 철회 뒤에 성립할 수 없게 claim 자격도 함께 비운다.
-    env.DB.prepare(
-      `UPDATE agent_jobs
-       SET state = 'cancelled', lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL,
-           lease_expires_at = NULL, updated_at = ?
-       WHERE org_id = ? AND support_case_id = ? AND state IN ('pending', 'leased', 'blocked')
-         AND ((kind = 'audio' AND CAST(? AS TEXT) IS NULL) OR (kind = 'text' AND CAST(? AS TEXT) IS NULL))`,
-    ).bind(recordedAt, actor.orgId, supportCaseId, recordingAt, textAiAt),
-    env.DB.prepare(
-      `INSERT INTO participant_consent_records (
-         id, org_id, beneficiary_id, support_case_id, consent_recording_at,
-         consent_text_ai_at, consent_privacy_at, privacy_notice_version,
-         privacy_notice_sha256, privacy_evidence_ref,
-         recorded_by, recorded_at, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      consentRecordId,
-      actor.orgId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      recordingAt,
-      textAiAt,
-      privacyAt,
-      privacyEvidence.noticeVersion,
-      privacyEvidence.noticeSha256,
-      privacyEvidence.evidenceRef,
-      actor.userId,
-      recordedAt,
-      recordedAt,
-    ),
-    canonicalAuditStatement(env, actor, {
-      action: 'record_consent',
-      targetTable: 'participant_consent_records',
-      targetId: consentRecordId,
-      beneficiaryId: supportCase.beneficiaryId,
-      supportCaseId,
-      // 동의 **여부**만 남긴다 — 동의 문안·PII 는 감사 detail 에 넣지 않는다(R3).
-      detail: {
-        privacy: consent.privacy,
-        recordingAi: consent.recordingAi,
-        kind: 'update',
-        ...(privacyEvidence.noticeVersion === null
-          ? {}
-          : { privacyNoticeVersion: privacyEvidence.noticeVersion }),
-      },
-      caseId: supportCase.legacyCaseId,
-    }),
-    ...(textAiEvidence === null ? [] : [
-      env.DB.prepare(
-        `INSERT INTO pilot_text_ai_consent_evidence (
-           id, org_id, support_case_id, notice_version, notice_sha256, evidence_ref,
-           evidence_sha256, captured_by, effective_at, created_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(
-        textAiEvidence.id,
-        actor.orgId,
-        supportCaseId,
-        CONSENT_TEXT_AI_NOTICE_VERSION,
-        textAiEvidence.noticeSha256,
-        textAiEvidence.evidenceRef,
-        textAiEvidence.evidenceSha256,
-        actor.userId,
-        recordedAt,
-        recordedAt,
-      ),
-      canonicalAuditStatement(env, actor, {
-        action: 'create',
-        targetTable: 'pilot_text_ai_consent_evidence',
-        targetId: textAiEvidence.id,
-        beneficiaryId: supportCase.beneficiaryId,
-        supportCaseId,
-        detail: { purpose: 'text_ai_consent_wiring', noticeVersion: CONSENT_TEXT_AI_NOTICE_VERSION },
-        caseId: supportCase.legacyCaseId,
-      }),
-    ]),
-  ]);
-
-  return {
-    supportCaseId,
-    privacy: consent.privacy,
-    recordingAi: consent.recordingAi,
-    recordedAt,
-  };
-}
 
 /** ① 동의 보완 대상 1건 (G1 완료 기준). PII 는 담지 않는다 — 가명 ID·사업·기한만이다(R3). */
 export interface PrivacyConsentFollowUp {
@@ -14487,6 +14237,18 @@ export interface PrivacyConsentFollowUp {
 
   overdue: boolean;
 }
+
+/** support_cases 행 기준 personal_data_collection_use 유효 grant 부재 술어. binding: copyVersion, now. */
+const PERSONAL_CONSENT_MISSING_SQL = `NOT EXISTS (
+         SELECT 1 FROM consent_events AS event
+         WHERE event.org_id = support_cases.org_id AND event.support_case_id = support_cases.id
+           AND event.domain = 'personal_data_collection_use' AND event.decision = 'grant'
+           AND event.copy_version = ? AND event.effective_at <= ?
+           AND event.event_sequence = (
+             SELECT MAX(candidate.event_sequence) FROM consent_events AS candidate
+             WHERE candidate.org_id = event.org_id AND candidate.beneficiary_id = event.beneficiary_id
+               AND candidate.support_case_id = event.support_case_id AND candidate.domain = event.domain
+               AND candidate.decision <> 'correct'))`;
 
 /**
  * ① 개인정보 동의가 기록되지 않은 참여 사업 목록 — **보완 대상 리포트** (G1 완료 기준).
@@ -14512,8 +14274,9 @@ export async function listPrivacyConsentFollowUps(
               support_cases.status, support_cases.emergency_registration_at,
               support_cases.consent_privacy_due_at
        FROM support_cases
-       WHERE support_cases.org_id = ? AND support_cases.consent_privacy_at IS NULL
+       WHERE support_cases.org_id = ?
          AND support_cases.status = 'active'
+         AND ${PERSONAL_CONSENT_MISSING_SQL}
        ORDER BY support_cases.consent_privacy_due_at NULLS LAST, support_cases.id`
     : `SELECT support_cases.id, support_cases.beneficiary_id, support_cases.program_type,
               support_cases.status, support_cases.emergency_registration_at,
@@ -14524,18 +14287,21 @@ export async function listPrivacyConsentFollowUps(
          AND support_case_assignees.user_id = ?
          AND support_case_assignees.unassigned_at IS NULL
          AND support_case_assignees.status = 'active'
-       WHERE support_cases.org_id = ? AND support_cases.consent_privacy_at IS NULL
+       WHERE support_cases.org_id = ?
          AND support_cases.status = 'active'
+         AND ${PERSONAL_CONSENT_MISSING_SQL}
        ORDER BY support_cases.consent_privacy_due_at NULLS LAST, support_cases.id`;
-  const bindings = hasInstitutionAdminAccess ? [actor.orgId] : [actor.userId, actor.orgId];
+  const bindings = hasInstitutionAdminAccess
+    ? [actor.orgId, CONSENT_COPY_VERSION, now()] : [actor.userId, actor.orgId, CONSENT_COPY_VERSION, now()];
   const result = await env.DB.prepare(sql).bind(...bindings).all<DbRow>();
+  const nowInstant = now();
+  const pending = result.results;
   await writeCanonicalAudit(env, actor, {
     action: 'read',
     targetTable: 'support_cases',
-    detail: { list: 'privacy_consent_follow_up', resultCount: result.results.length },
+    detail: { list: 'privacy_consent_follow_up', resultCount: pending.length },
   });
-  const nowInstant = now();
-  return result.results.map((row) => {
+  return pending.map((row) => {
     const dueAt = nullableString(row.consent_privacy_due_at);
     return {
       supportCaseId: stringValue(row.id),
@@ -14574,12 +14340,10 @@ export async function listEmergencyConsentDeadlines(env: Env): Promise<Emergency
             SUM(CASE WHEN consent_privacy_due_at < ? THEN 1 ELSE 0 END) AS overdue,
             SUM(CASE WHEN consent_privacy_due_at >= ? AND consent_privacy_due_at <= ? THEN 1 ELSE 0 END) AS due_soon
      FROM support_cases
-     WHERE consent_privacy_at IS NULL
-       AND consent_privacy_due_at IS NOT NULL
-       AND status = 'active'
+     WHERE consent_privacy_due_at IS NOT NULL AND status = 'active' AND ${PERSONAL_CONSENT_MISSING_SQL}
      GROUP BY org_id
      ORDER BY org_id`,
-  ).bind(nowInstant, nowInstant, soonInstant).all<DbRow>();
+  ).bind(nowInstant, nowInstant, soonInstant, CONSENT_COPY_VERSION, nowInstant).all<DbRow>();
   return result.results
     .map((row) => ({
       orgId: stringValue(row.org_id),
@@ -14667,16 +14431,11 @@ export async function createSupportCase(
   const expectedKeys = [
     ...baseKeys,
     ...(input.intakeAt === undefined ? [] : ['intakeAt']),
-    'consentPrivacy',
-    // ② 는 선택이라 값이 있을 때만 허용 키에 넣는다(긴급 사유와 같은 방식).
-    ...(input.consentRecordingAi === undefined ? [] : ['consentRecordingAi']),
+    'consentEvents',
     ...(input.emergencyReason === undefined ? [] : ['emergencyReason']),
   ];
   assertExactKeys(input, expectedKeys);
-  if (typeof input.consentPrivacy !== 'boolean') throw new ValidationError('consent is invalid');
-  if (input.consentRecordingAi !== undefined && typeof input.consentRecordingAi !== 'boolean') {
-    throw new ValidationError('consent is invalid');
-  }
+  if (!Array.isArray(input.consentEvents)) throw new ValidationError('consent events are required');
   if (input.schemaVersion !== 1) throw new ValidationError('schema version is invalid');
   assertCanonicalSubmissionId(input.submissionId);
   assertOpaqueIdentifier(input.programId, 'program id');
@@ -14705,7 +14464,7 @@ export async function createSupportCase(
   // 조용한 재생이 아니라 409 가 되게 한다.
   const createdAt = now();
   const emergency = assertPrivacyConsentGate(
-    input.consentPrivacy === true,
+    input.consentEvents.some(event => event.domain === 'personal_data_collection_use' && event.decision === 'grant'),
     input.emergencyReason === undefined ? undefined : { reason: input.emergencyReason },
     createdAt,
   );
@@ -14713,12 +14472,10 @@ export async function createSupportCase(
   const payloadHash = await canonicalSha256({
     actorId: actor.userId,
     beneficiaryId,
-    consentPrivacy: input.consentPrivacy === true,
-    // D49: 같은 제출 id 로 동의만 바꾼 재시도가 조용한 재생으로 통과하면 안 된다.
-    consentRecordingAi: input.consentRecordingAi === true,
+    consentEvents: input.consentEvents,
     creatorRole: actor.role,
     effectiveAssigneeUserId,
-    emergencyRegistration: emergency !== null,
+    emergencyReason: input.emergencyReason ?? null,
     intakeAt,
     orgId: actor.orgId,
     programId: admission.program.id,
@@ -14732,11 +14489,9 @@ export async function createSupportCase(
 
   const supportCaseId = newId();
   const assignmentId = newId();
-  const consentRecordId = newId();
-  const consentPrivacyAt = input.consentPrivacy === true ? createdAt : null;
-  const privacyEvidence = await privacyNoticeEvidence(consentRecordId, consentPrivacyAt);
-  // D49: ② 한 체크 → 두 컬럼에 같은 시각(insert 가드 정합).
-  const consentRecordingAiAt = input.consentRecordingAi === true ? createdAt : null;
+  const consentStatements = await registrationConsentStatements(
+    env, actor, input.programId, beneficiaryId, supportCaseId, input.consentEvents, createdAt,
+  );
   const creationBoundary = actor.role === 'counselor'
     ? {
       sql: `EXISTS (
@@ -14790,11 +14545,10 @@ export async function createSupportCase(
            id, org_id, beneficiary_id, program_id, program_type, status, intake_at, creation_kind,
            creation_submission_id, creation_payload_hash, created_by_actor_id,
            source_support_case_id, initial_assignee_user_id,
-           consent_privacy_at, consent_recording_at, consent_text_ai_at,
            emergency_registration_at, emergency_registration_reason,
            consent_privacy_due_at, created_at, updated_at
          )
-         SELECT ?, ?, ?, ?, ?, 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+         SELECT ?, ?, ?, ?, ?, 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
          WHERE ${creationBoundary.sql}`,
       ).bind(
         supportCaseId,
@@ -14808,9 +14562,6 @@ export async function createSupportCase(
         actor.userId,
         sourceSupportCaseId,
         effectiveAssigneeUserId,
-        consentPrivacyAt,
-        consentRecordingAiAt,
-        consentRecordingAiAt,
         emergency === null ? null : emergency.at,
         emergency === null ? null : emergency.reason,
         emergency === null ? null : emergency.dueAt,
@@ -14859,60 +14610,7 @@ export async function createSupportCase(
         sql: 'SELECT 1 FROM support_case_assignees WHERE id = ? AND org_id = ?',
         bindings: [assignmentId, actor.orgId],
       }, createdAt),
-      // ① 동의(또는 긴급 등록)의 이력 행 (D44 · G1). 케이스 생성이 경계에서 거부되면
-      // WHERE EXISTS 가 이 행도 함께 없앤다 — 고아 동의 기록을 남기지 않는다.
-      // ② 는 이 요청에서 받은 값이다(D49) — 두 번째 사업은 앞 사업의 동의를 물려받지 않고,
-      // 보내지 않으면 미동의(NULL)로 시작한다.
-      env.DB.prepare(
-        `INSERT INTO participant_consent_records (
-           id, org_id, beneficiary_id, support_case_id, consent_recording_at,
-           consent_text_ai_at, consent_privacy_at, privacy_notice_version,
-           privacy_notice_sha256, privacy_evidence_ref,
-           recorded_by, recorded_at, created_at
-         )
-         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-         WHERE EXISTS (
-           SELECT 1 FROM support_cases
-           WHERE id = ? AND org_id = ? AND beneficiary_id = ?
-         )`,
-      ).bind(
-        consentRecordId,
-        actor.orgId,
-        beneficiaryId,
-        supportCaseId,
-        consentRecordingAiAt,
-        consentRecordingAiAt,
-        consentPrivacyAt,
-        privacyEvidence.noticeVersion,
-        privacyEvidence.noticeSha256,
-        privacyEvidence.evidenceRef,
-        actor.userId,
-        createdAt,
-        createdAt,
-        supportCaseId,
-        actor.orgId,
-        beneficiaryId,
-      ),
-      conditionalCanonicalAuditStatement(env, actor, {
-        action: 'record_consent',
-        targetTable: 'participant_consent_records',
-
-        targetId: consentRecordId,
-        beneficiaryId,
-        supportCaseId,
-        // 사유 텍스트는 싣지 않는다(R3 태도) — 긴급 여부와 보완 기한만 남긴다.
-        detail: {
-          privacy: input.consentPrivacy === true,
-          recordingAi: input.consentRecordingAi === true,
-          ...(privacyEvidence.noticeVersion === null
-            ? {}
-            : { privacyNoticeVersion: privacyEvidence.noticeVersion }),
-          ...(emergency === null ? {} : { emergencyRegistration: true, consentPrivacyDueAt: emergency.dueAt }),
-        },
-      }, {
-        sql: 'SELECT 1 FROM participant_consent_records WHERE id = ? AND org_id = ?',
-        bindings: [consentRecordId, actor.orgId],
-      }, createdAt),
+      ...consentStatements,
     ], admission.program);
     const creation = results[0] as unknown as { meta?: { changes?: number } };
     if ((creation.meta?.changes ?? 0) < 1) {
@@ -15455,11 +15153,7 @@ async function loadUpcomingScheduleBySupportCase(
   return upcoming;
 }
 
-/**
- * 참여 사업별 마지막 동의 기록 시각 (D44). 동의 시각이 아니라 **기록 시각**을 읽는다 —
- * 3종을 모두 철회하면 동의 시각은 전부 NULL 이 되므로, 동의 시각에서 역산하면 방금 남긴
- * 철회 기록이 화면에서 "기록 없음"으로 보인다. 이력 표는 append-only 라 MAX 가 곧 최신이다.
- */
+/** 참여 사업별 마지막 동의 사건 기록 시각. 여섯 영역 사건 표는 append-only라 MAX가 최신이다. */
 async function loadLastConsentRecordedAt(
   env: Env,
   orgId: string,
@@ -15468,7 +15162,7 @@ async function loadLastConsentRecordedAt(
   const recorded = new Map<string, string>();
   const result = await env.DB.prepare(
     `SELECT support_case_id, MAX(recorded_at) AS recorded_at
-     FROM participant_consent_records
+     FROM consent_events
      WHERE org_id = ? AND beneficiary_id = ?
      GROUP BY support_case_id`,
   ).bind(orgId, beneficiaryId).all<DbRow>();
@@ -18682,15 +18376,6 @@ export interface IntakeActionItemInput {
   dueDate?: string;
 }
 
-/**
- * 동의 2체크(v0.3). 둘 다 true 여야 인테이크 성립.
- * privacy → consent_privacy_at, recordingAi → consent_recording_at·consent_text_ai_at
- * 2컬럼 동시 기록(D15 법률 검토 결과에 따라 마이그레이션 없이 되돌리기 쉬운 구조).
- */
-export interface IntakeConsentInput {
-  privacy: boolean;
-  recordingAi: boolean;
-}
 
 // --------------------------------------------------------------------------
 // P3·P4 서술형 답변 (CCC-9) — 하나의 어휘로 통일
@@ -18825,7 +18510,6 @@ export interface CreateIntakeRecordInput {
   submissionId: string;
   heldAt: string;
   channel: Session['channel'];
-  consent?: IntakeConsentInput;
   helpNarrative?: IntakeHelpNarrativeInput;
   lifeAreas?: IntakeLifeAreaInput[];
   goals?: IntakeGoalInput[];
@@ -18859,7 +18543,7 @@ export interface IntakeRecordContext {
   // 1-1 기본정보 표시용 금고 값(D42 ① — 인테이크 화면은 읽기만 한다). 감사는 화면 조회 1건에 합산.
   extendedPii: IntakeExtendedPii;
   // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫이라 여기서는 기록 여부만 읽는다.
-  consent: { privacy: boolean; recordingAi: boolean };
+  consent: CurrentConsentState[];
   // 저장된 인테이크 내용(2026-08-08 Q "확인/수정"). hasIntake 가 true 일 때만 채워진다.
   // 위저드가 소유한 필드만 싣는다 — 동의·기본정보(금고)는 각자의 화면 몫이라 싣지 않는다.
   saved: IntakeSavedRecord | null;
@@ -19012,7 +18696,6 @@ function assertIntakeRecordInput(input: CreateIntakeRecordInput): void {
   const hasSchedule = input.scheduleId !== undefined || input.expectedScheduleVersion !== undefined;
   const hasManagerOpinion = input.managerOpinion !== undefined;
   const expectedKeys = ['submissionId', 'heldAt', 'channel'];
-  if (input.consent !== undefined) expectedKeys.push('consent');
   if (input.helpNarrative !== undefined) expectedKeys.push('helpNarrative');
   if (input.lifeAreas !== undefined) expectedKeys.push('lifeAreas');
   if (input.goals !== undefined) expectedKeys.push('goals');
@@ -19032,13 +18715,6 @@ function assertIntakeRecordInput(input: CreateIntakeRecordInput): void {
     throw new ValidationError('record channel is invalid');
   }
 
-  // 동의 2체크 — 주면 둘 다 true 여야 한다. 안 주면 동의 기록을 만들지 않는다(D42 ②).
-  if (input.consent !== undefined) {
-    assertExactKeys(input.consent, ['privacy', 'recordingAi']);
-    if (input.consent.privacy !== true || input.consent.recordingAi !== true) {
-      throw new ValidationError('intake consent is required');
-    }
-  }
 
   // 원하는 도움 3문 — 주면 전부 비어있지 않은 문자열.
   if (input.helpNarrative !== undefined) {
@@ -19221,18 +18897,7 @@ export async function getIntakeRecordContext(
      WHERE org_id = ? AND support_case_id = ?`,
   ).bind(actor.orgId, supportCaseId).first<{ total: number; intake_count: number | null }>();
   const total = Number(counts?.total ?? 0);
-  // 1단계 동의 상태(D42 ② · D44). 3종 모두 이 참여 사업의 **현재값**을 읽는다 —
-  // 0020 이전에는 개인정보 동의만 이력 표(participant_consent_records)에서
-  // `consent_privacy_at IS NOT NULL` 로 골랐는데, 그 조회는 ① 철회 행(NULL)을 걸러내
-  // 철회가 화면에 영영 반영되지 않고 ② 당사자의 다른 참여 사업 기록까지 긁어 왔다.
-  // 표시 전용이라 시각이 아니라 기록 여부만 돌려준다.
-  const consentRow = await env.DB.prepare(
-    `SELECT consent_recording_at AS recording_at,
-            consent_text_ai_at AS text_ai_at,
-            consent_privacy_at AS privacy_at
-     FROM support_cases WHERE id = ? AND org_id = ?`,
-  ).bind(supportCaseId, actor.orgId)
-    .first<{ recording_at: string | null; text_ai_at: string | null; privacy_at: string | null }>();
+  const consent = await currentConsentStates(env, actor.orgId, supportCaseId);
   const hasIntake = Number(counts?.intake_count ?? 0) > 0;
   // 저장된 인테이크 내용(확인/수정 화면 재료, 2026-08-08 Q). 감사는 이 화면 조회 1건에
   // 이미 합산돼 있다 — 위 read_participant_pii 가 이 조회의 감사다(행을 나누지 않는다).
@@ -19267,11 +18932,7 @@ export async function getIntakeRecordContext(
     sessionSequence: total + 1,
     hasIntake,
     extendedPii,
-    consent: {
-      privacy: consentRow?.privacy_at != null,
-      // D49 표시 규칙: 구 3종 기록은 두 컬럼 중 하나라도 찍혀 있으면 ② 동의로 읽는다.
-      recordingAi: consentRow?.recording_at != null || consentRow?.text_ai_at != null,
-    },
+    consent,
     saved,
     overallGoal: supportCase.overallGoal,
     schedule,
@@ -19305,7 +18966,6 @@ export async function createIntakeRecord(
     additionalItems: input.additionalItems ?? null,
     answers: input.answers ?? null,
     channel: input.channel,
-    consent: input.consent ?? null,
     debts: input.debts ?? null,
     extendedPii: input.extendedPii ?? null,
     goals: (input.goals ?? []).map((goal) => ({ title: goal.title, scaleCriteria: goal.scaleCriteria ?? null })),
@@ -19591,67 +19251,6 @@ export async function createIntakeRecord(
     }, createdAt));
   }
 
-  // 동의 기록(append-only): 화면 체크 privacy → consent_privacy_at, recordingAi → 2컬럼 동시.
-  // 셋 다 recorded_at 과 같게 기록(insert_guard 정합). record_consent 감사(D14).
-  // D42 ②: 인테이크 화면은 동의를 입력받지 않으므로 consent 가 없으면 기록도 만들지 않는다 —
-  // 없는 동의를 인테이크 저장이 대신 남기면 등록 화면의 동의 기록과 어긋난다.
-  if (input.consent !== undefined) {
-  const consentRecordId = newId();
-  const privacyEvidence = await privacyNoticeEvidence(consentRecordId, createdAt);
-  statements.push(env.DB.prepare(
-    `INSERT INTO participant_consent_records (
-       id, org_id, beneficiary_id, support_case_id,
-       consent_recording_at, consent_text_ai_at, consent_privacy_at,
-       privacy_notice_version, privacy_notice_sha256, privacy_evidence_ref,
-       recorded_by, recorded_at, created_at
-     )
-     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-     WHERE ${sessionExistsClause}`,
-  ).bind(
-
-    consentRecordId,
-    actor.orgId,
-    supportCase.beneficiaryId,
-    supportCaseId,
-    createdAt,
-    createdAt,
-    createdAt,
-    privacyEvidence.noticeVersion,
-    privacyEvidence.noticeSha256,
-    privacyEvidence.evidenceRef,
-    actor.userId,
-    createdAt,
-    createdAt,
-    ...sessionExistsBindings,
-  ));
-  // D44 · 0020: 이력만 남기면 "지금 상태"(support_cases)와 어긋난다 — 인테이크 1단계와
-  // 당사자 정보 페이지가 읽는 곳이 그쪽이기 때문이다. 같은 배치에서 현재값도 맞춘다.
-  statements.push(env.DB.prepare(
-    `UPDATE support_cases
-     SET consent_recording_at = ?, consent_text_ai_at = ?, consent_privacy_at = ?, updated_at = ?
-     WHERE id = ? AND org_id = ? AND ${sessionExistsClause}`,
-  ).bind(
-    createdAt, createdAt, createdAt, createdAt,
-    supportCaseId, actor.orgId,
-    ...sessionExistsBindings,
-  ));
-  statements.push(conditionalCanonicalAuditStatement(env, actor, {
-    action: 'record_consent',
-    targetTable: 'participant_consent_records',
-    targetId: consentRecordId,
-    beneficiaryId: supportCase.beneficiaryId,
-    supportCaseId,
-    detail: {
-      privacy: true,
-      recordingAi: true,
-      kind: 'intake',
-      privacyNoticeVersion: privacyEvidence.noticeVersion,
-    },
-  }, {
-    sql: 'SELECT 1 FROM participant_consent_records WHERE id = ? AND org_id = ?',
-    bindings: [consentRecordId, actor.orgId],
-  }, createdAt));
-  }
 
   if (schedule !== null) {
     statements.push(env.DB.prepare(

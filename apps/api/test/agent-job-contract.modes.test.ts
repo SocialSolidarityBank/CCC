@@ -9,9 +9,7 @@ import {
   createCounselingRecord,
   enqueueTextWorkItem,
   listSupportCasesForBeneficiary,
-  recordPilotTextAiConsentEvidence,
   recordSttReadiness,
-  updateParticipantConsent,
   type AgentRuntime,
 } from '@ccc/core/gateway';
 import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId, type TestApiEnv } from './support/d1';
@@ -22,6 +20,7 @@ import {
   seedNerQualification,
 } from './support/agent-jobs';
 import { createTestSigner, signedManifest, SYNTHETIC_LOCAL_REGISTRY } from './support/install-manifest';
+import { registrationInput } from './support/registration';
 
 vi.setConfig({ testTimeout: 60_000 });
 
@@ -66,7 +65,9 @@ async function seedJobs(
   mode: DeploymentMode = 'local-single',
   expectedUploadStatus = 200,
 ) {
-  const beneficiary = await createCase(env, counselor, { programId: testProgramId(counselor.orgId) });
+  const beneficiary = await createCase(env, counselor, await registrationInput(env, counselor, {
+    programId: testProgramId(counselor.orgId),
+  }));
   const { programs } = await listSupportCasesForBeneficiary(env, counselor, beneficiary.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected an initial support case');
@@ -78,14 +79,7 @@ async function seedJobs(
     state: 'ready',
     capacity: 1,
   });
-  await updateParticipantConsent(env, counselor, supportCaseId, { privacy: true, recordingAi: true });
-  await recordPilotTextAiConsentEvidence(env, counselor, beneficiary.id, {
-    noticeVersion: 'pilot-text-ai-v1',
-    noticeSha256: 'a'.repeat(64),
-    evidenceRef: `r2://pilot-evidence/${beneficiary.id}`,
-    evidenceSha256: 'f'.repeat(64),
-    effectiveAt: '2026-01-01T00:00:00.000Z',
-  });
+  // 등록 6종 동의 + seedCanonicalSttConsent 가 권한의 유일한 근거다(파일럿 증빙 기록기는 폐지).
 
   const textRecord = await createCounselingRecord(env, counselor, supportCaseId, {
     submissionId: crypto.randomUUID(),
@@ -244,7 +238,9 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
   it('upload-target admission and completion failures stay inside the structured HTTP error boundary', async () => {
     await t.reset();
     const env = await envForMode('community-cloud');
-    const beneficiary = await createCase(env, counselor, { programId: testProgramId(counselor.orgId) });
+    const beneficiary = await createCase(env, counselor, await registrationInput(env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
     const { programs } = await listSupportCasesForBeneficiary(env, counselor, beneficiary.id);
     const supportCaseId = programs[0]?.supportCase.id;
     if (supportCaseId === undefined) throw new Error('expected support case');

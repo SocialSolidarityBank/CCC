@@ -6,6 +6,7 @@ import { startPostgresHarness, type PostgresHarness } from './support/postgres';
 import { assertPostgresIdentityBoundary, type PostgresDatabase } from '@ccc/db-postgres';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import { PROGRAM_ADMISSION_COPY, PROGRAM_ADMISSION_COPY_VERSION } from '@ccc/contracts/program-admission';
+import { registrationInput } from './support/registration';
 let harness: PostgresHarness;
 let admin: PostgresDatabase;
 let api: PostgresDatabase;
@@ -97,10 +98,11 @@ beforeAll(async () => {
       installationMode: 'community-cloud',
       secretStore: createEnvironmentSecretStore({}),
     };
-    const created = await createBeneficiaryWithInitialSupportCase(env, actor, {
+    const created = await createBeneficiaryWithInitialSupportCase(env, actor, await registrationInput(env, actor, {
       programId: `legacy-program:${actor.orgId}`,
       initialAssigneeUserId: actor.userId,
-    }, { intakeAt: null, consentRecordingAt: null, consentTextAiAt: null });
+      intakeAt: null,
+    }));
     if (actor === actorA) caseA = created;
     else caseB = created;
     const session = await createCounselingRecord(env, actor, created.supportCaseId, {

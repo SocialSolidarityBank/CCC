@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createCase, createManualSession } from '@ccc/core/gateway';
 import worker from './support/local-worker';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 const counselor = testActors.counselor;
@@ -16,7 +17,7 @@ const headers = {
 describe('POST /cases/:caseId/action-items (CCC-128)', () => {
   it('creates an action with the source session while owner and due date come from the worker', async () => {
     await t.reset();
-    const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     const session = await createManualSession(t.env, counselor, caseRecord.id, {
       submissionId: crypto.randomUUID(),
       heldAt: '2026-08-21T09:00:00.000Z',
@@ -51,7 +52,7 @@ describe('POST /cases/:caseId/action-items (CCC-128)', () => {
 
   it('accepts the canonical support-case id for a migrated legacy session', async () => {
     await t.reset();
-    const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     const supportCase = await t.db.prepare(
       'SELECT id FROM support_cases WHERE org_id = ? AND legacy_case_id = ?',
     ).bind(counselor.orgId, caseRecord.id).first<{ id: string }>();
@@ -86,8 +87,8 @@ describe('POST /cases/:caseId/action-items (CCC-128)', () => {
 
   it('rejects a source session from another case', async () => {
     await t.reset();
-    const first = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
-    const second = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const first = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
+    const second = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     const otherSession = await createManualSession(t.env, counselor, second.id, {
       submissionId: crypto.randomUUID(),
       heldAt: '2026-08-21T09:00:00.000Z',

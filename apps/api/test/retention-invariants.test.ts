@@ -13,14 +13,15 @@ import {
   updateParticipantPii,
 } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationConsentEvents, registrationInput } from './support/registration';
 const t = setupD1();
 const counselor = testActors.counselor;
 const admin = testActors.admin;
 async function makeClosedParticipant(closedAt = '2025-01-01 00:00:00') {
-  const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
+  const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
     programId: testProgramId(counselor.orgId),
     intakeAt: '2024-01-01T09:00:00.000Z',
-  });
+  }));
   await updateParticipantPii(t.env, admin, created.beneficiaryId, {
     supportCaseContextId: created.supportCaseId,
     expectedVersion: 1,
@@ -105,10 +106,10 @@ describe('participant PII retention invariants (CCC-121)', () => {
   });
   it('blocks ordinary case and schedule reads after archive', async () => {
     await t.reset();
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
       programId: testProgramId(counselor.orgId),
       intakeAt: '2024-01-01T09:00:00.000Z',
-    });
+    }));
     await createCounselingSchedule(t.env, counselor, {
       beneficiaryId: created.beneficiaryId,
       supportCaseId: created.supportCaseId,
@@ -222,7 +223,7 @@ describe('participant PII retention invariants (CCC-121)', () => {
       submissionId: '74747474-7474-4747-8747-747474747474',
       programId: testProgramId(counselor.orgId),
       initialAssigneeUserId: counselor.userId,
-      consentPrivacy: true,
+      consentEvents: await registrationConsentEvents(t.env, admin, testProgramId(counselor.orgId)),
     });
     const archive = await t.db.prepare(
       'SELECT 1 AS present FROM participant_pii_archives WHERE beneficiary_id = ?',
@@ -252,7 +253,7 @@ describe('participant PII retention invariants (CCC-121)', () => {
       submissionId: '75757575-7575-4757-8757-757575757575',
       programId: testProgramId(counselor.orgId),
       initialAssigneeUserId: counselor.userId,
-      consentPrivacy: true,
+      consentEvents: await registrationConsentEvents(t.env, admin, testProgramId(counselor.orgId)),
     });
     await reRegisterParticipantPii(t.env, admin, participant.beneficiaryId, {
       supportCaseContextId: later.supportCaseId,
