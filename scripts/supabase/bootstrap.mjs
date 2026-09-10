@@ -3,6 +3,8 @@
 import { createHostedInspector } from './hosted-inspector.mjs';
 import { createLocalInspector } from './local-inspector.mjs';
 import { buildSupabasePlan, PlanFailure } from './plan.mjs';
+import { requireSignedOwnerPreflight } from './manifest-preflight.mjs';
+import { assertApplicationCaBinding } from '../../apps/community-cloud/src/application-ca.mjs';
 
 const exitCodes = Object.freeze({
   CREDENTIAL_MISSING: 2,
@@ -14,22 +16,33 @@ const exitCodes = Object.freeze({
   OUTPUT_REDACTION_FAILED: 5,
   OPERATION_UNSUPPORTED: 2,
   TARGET_UNSUPPORTED: 2,
+  OWNER_EVIDENCE_MISSING: 6,
+  OWNER_MANIFEST_CONTRACT_UNRESOLVED: 6,
+  INSTALLER_CONTRACT_UNRESOLVED: 6,
+  MANIFEST_VERIFIER_UNAVAILABLE: 2,
+  MIGRATION_CHECKSUM_MISMATCH: 6,
+  CA_TRUST_UNAVAILABLE: 5,
 });
 
 function parseArgs(argv) {
   const normalized = argv[0] === '--' ? argv.slice(1) : argv;
-  const [operation, ...rest] = normalized;
+  const [operation = 'plan', ...rest] = normalized;
+  if (['apply', 'doctor', 'rollback'].includes(operation)) throw new PlanFailure('INSTALLER_CONTRACT_UNRESOLVED');
   if (operation !== 'plan') throw new PlanFailure('OPERATION_UNSUPPORTED');
-  const options = { operation, target: null, projectRef: null, format: 'text', workdir: process.cwd() };
+  const options = { operation, target: 'hosted', projectRef: null, installManifest: null, format: 'text', workdir: process.cwd() };
+  const seen = new Set();
   for (let index = 0; index < rest.length; index += 1) {
     const flag = rest[index];
     const value = rest[index + 1];
-    if (!['--target', '--project-ref', '--format', '--workdir'].includes(flag) || value === undefined) {
+    if (!['--target', '--project-ref', '--install-manifest', '--format', '--workdir'].includes(flag)
+      || seen.has(flag) || value === undefined) {
       throw new PlanFailure('OPERATION_UNSUPPORTED');
     }
     index += 1;
+    seen.add(flag);
     if (flag === '--target') options.target = value;
     if (flag === '--project-ref') options.projectRef = value;
+    if (flag === '--install-manifest') options.installManifest = value;
     if (flag === '--format') options.format = value;
     if (flag === '--workdir') options.workdir = value;
   }
@@ -64,7 +77,7 @@ function text(plan) {
     'Supabase 변경 계획',
     `대상: ${plan.target === 'hosted' ? '호스팅 프로젝트' : '로컬 개발 프로젝트'}`,
     `읽기 전용 확인: ${plan.readOnly && plan.unchanged ? '통과' : '차단'}`,
-    `설치 상태: ${plan.installed.state === 'installed' ? `버전 ${plan.installed.version}` : '설치 전'}`,
+    `설치 상태: ${plan.installed.state === 'not-installed' ? '설치 전' : '소유권과 설치 이력 검증 필요'}`,
     '',
     '적용 예정 자원:',
     ...plan.plannedResources.map((resource) => `- ${resource.name}`),
@@ -95,6 +108,16 @@ async function main() {
   let options;
   try {
     options = parseArgs(process.argv.slice(2));
+    try { assertApplicationCaBinding(); } catch { throw new PlanFailure('CA_TRUST_UNAVAILABLE'); }
+    // S11 requires signed institution ownership before even observing the hosted
+    // project. Never infer approval from a live response or substitute an owner DB URL.
+    if (options.target === 'hosted') {
+      await requireSignedOwnerPreflight({
+        installManifest: options.installManifest ?? process.env.CCC_INSTALL_MANIFEST,
+        signingKeys: process.env.CCC_INSTALL_SIGNING_KEYS,
+        projectRef: options.projectRef ?? process.env.CCC_SUPABASE_PROJECT_REF,
+      });
+    }
     const inspector = options.target === 'local'
       ? createLocalInspector({ workdir: options.workdir })
       : createHostedInspector({

@@ -1,12 +1,13 @@
 /**
  * Build: pnpm --filter @ccc/community-cloud build
- * Run: CCC_INSTALL_DATABASE_URL='postgresql://…' node apps/community-cloud/dist/install-consent-registry.js --input ./consent-registry.json
+ * Run with approved environment injection: sh apps/community-cloud/with-ca.sh node apps/community-cloud/dist/install-consent-registry.js --input ./consent-registry.json
  * CCC_INSTALL_DATABASE_URL must identify a trusted install role, never the ccc_api request role.
  */
 import { open } from 'node:fs/promises';
 import type { InstallConsentProviderRegistryInput } from '@ccc/contracts/consent';
 import { installConsentProviderRegistry } from '@ccc/core/gateway';
 import { createPostgresDatabase } from '@ccc/db-postgres';
+import { assertApplicationCaBinding } from './application-ca.mjs';
 
 const MAX_INPUT_BYTES = 64 * 1024;
 
@@ -54,6 +55,7 @@ async function main(): Promise<void> {
   }
 
   try {
+    assertApplicationCaBinding();
     const database = createPostgresDatabase({ connectionString, maxConnections: 1, ssl: 'verify-full' });
     const result = await (async () => {
       try {
