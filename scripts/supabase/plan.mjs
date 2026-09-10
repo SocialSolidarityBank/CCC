@@ -405,10 +405,17 @@ export async function buildSupabasePlan({ target, inspector, authorization, rene
       }
     } catch (error) { deny(error?.code ?? 'INSTALL_AUTHORIZATION_MISMATCH'); }
   }
+  let installStateUnchanged = false;
+  try {
+    installStateUnchanged = await hashCanonical(before.installState ?? null)
+      === await hashCanonical(after.installState ?? null);
+  } catch {
+    deny('INSTALL_JOURNAL_INVALID');
+  }
   const unchanged = stateFingerprint === afterStateFingerprint
     && await hashCanonical(observationSafety(before)) === await hashCanonical(observationSafety(after))
     && await hashCanonical(before.installed) === await hashCanonical(after.installed)
-    && await hashCanonical(before.installState ?? null) === await hashCanonical(after.installState ?? null);
+    && installStateUnchanged;
   if (!unchanged) deny('PLAN_STATE_CHANGED');
   const planFingerprint = await hashCanonical({
     stateFingerprint, resourcesSha256, migrationsSha256,
