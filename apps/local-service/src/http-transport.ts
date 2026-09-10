@@ -75,10 +75,39 @@ export async function sendLocalResponse(req: IncomingMessage, res: ServerRespons
   else await pipeline(Readable.fromWeb(response.body as NodeReadableStream<Uint8Array>), res);
 }
 
-export async function closeLocalServer(server: Server | undefined): Promise<void> {
-  if (!server?.listening) return;
-  const { promise, resolve, reject } = Promise.withResolvers<void>();
-  server.close((error) => error ? reject(error) : resolve());
-  server.closeIdleConnections();
-  await promise;
+export interface LocalRequestTracker {
+  handle(req: IncomingMessage, res: ServerResponse): void;
+  stop(): void;
+  drain(): Promise<void>;
+}
+
+/** Track handler completion separately from sockets: disconnected clients can still have a DB operation in flight. */
+export function trackLocalRequests(handler: (req: IncomingMessage, res: ServerResponse) => Promise<void>): LocalRequestTracker {
+  const active = new Set<Promise<void>>();
+  let stopping = false;
+  return {
+    handle(req, res) {
+      if (stopping) { res.writeHead(503, { connection: 'close' }); res.end(); req.destroy(); return; }
+      const operation = handler(req, res).catch(() => { res.destroy(); });
+      active.add(operation);
+      void operation.finally(() => { active.delete(operation); });
+    },
+    stop() { stopping = true; },
+    async drain() { await Promise.all(active); },
+  };
+}
+
+export async function closeLocalServer(server: Server | undefined, requests?: LocalRequestTracker): Promise<void> {
+  requests?.stop();
+  const closed = Promise.withResolvers<void>();
+  if (server?.listening) server.close((error) => error ? closed.reject(error) : closed.resolve());
+  else closed.resolve();
+  server?.closeIdleConnections();
+  const force = setTimeout(() => { server?.closeAllConnections(); }, 5_000);
+  const deadline = Promise.withResolvers<never>();
+  const timeout = setTimeout(() => { deadline.reject(new Error('local_shutdown_incomplete')); }, 10_000);
+  try {
+    // A bounded failure retains resources; callers must not close DB/keys in finally.
+    await Promise.race([Promise.all([closed.promise, requests?.drain()]), deadline.promise]);
+  } finally { clearTimeout(force); clearTimeout(timeout); }
 }

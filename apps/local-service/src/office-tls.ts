@@ -102,6 +102,13 @@ export async function verifyOfficeTlsIdentity(input: {
       if (index + 1 < chain.length && (!chain[index + 1]!.ca || !cert.checkIssued(chain[index + 1]!) || !cert.verify(chain[index + 1]!.publicKey))) throw new Error();
     }
     const leaf = chain[0]!;
+    const leafUsage = extensions(leaf).get('551d0f');
+    if (leafUsage !== undefined) {
+      const usage = leafUsage.value[0];
+      if (leafUsage.value.length !== 1 || usage?.tag !== 3 || usage.bytes.length < 2 || usage.bytes.length > 3
+        || usage.bytes[0]! > 7 || (usage.bytes[usage.bytes.length - 1]! & ((1 << usage.bytes[0]!) - 1)) !== 0
+        || (usage.bytes[1]! & 0xa8) === 0) throw new Error();
+    }
     if (!leaf.keyUsage?.includes('1.3.6.1.5.5.7.3.1')) throw new Error();
     if (hostIp === null ? leaf.checkHost(manifest.host, { subject: 'never', wildcards: false }) !== manifest.host : leaf.checkIP(manifest.host) !== manifest.host) throw new Error();
     const san = extensions(leaf).get('551d11');

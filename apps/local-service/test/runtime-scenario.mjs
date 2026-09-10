@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { randomBytes, randomUUID, createHash, createHmac } from 'node:crypto';
 import { networkInterfaces, tmpdir } from 'node:os';
-import { mkdtemp, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { request as httpsRequest } from 'node:https';
 import { request as httpRequest } from 'node:http';
@@ -10,20 +10,24 @@ import { createDpapiSecretStore, createLocalIdentityRepository } from '@ccc/secr
 import { createProtectedRecordRepository } from '@ccc/secrets-dpapi/records';
 import { sealRecoveryKit, openRecoveryKit, wipeCbor } from '@ccc/secrets-dpapi/recovery-kit';
 import { signInstallManifest, InstallManifestError } from '@ccc/contracts/install-manifest';
-import { createOfficeAccount } from '@ccc/core/gateway';
+import { createOfficeAccount, decodeOfficeTotpSecret } from '@ccc/core/gateway';
 import { startLocalSingle, startLocalOffice, stageNewSingleIdentity, loadLocalMigrations } from '../src/main.ts';
 import { readEndpointRecord } from '../src/runtime.ts';
 import { hashPassword } from '../src/office-identity.ts';
 import { parseIPv4, isRfc1918 } from '../src/bind-validation.ts';
 import { verifyOfficeTlsIdentity } from '../src/office-tls.ts';
 import { syntheticOfficeTls } from './synthetic-tls.mjs';
+import { scenarioDiagnostics } from './scenario-diagnostics.mjs';
 
 const PASSWORD = 'Synthetic local runtime passphrase';
-const MFA_SECRET = 'JBSWY3DPEHPK3PXP';
+const MFA_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 function totp() {
   const counter = Buffer.alloc(8); counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
-  const digest = createHmac('sha1', Buffer.from('Hello!\xde\xad\xbe\xef', 'latin1')).update(counter).digest();
-  return ((digest.readUInt32BE(digest[19] & 15) & 0x7fffffff) % 1_000_000).toString().padStart(6, '0');
+  const secret = decodeOfficeTotpSecret(MFA_SECRET); assert.ok(secret);
+  try {
+    const digest = createHmac('sha1', secret).update(counter).digest();
+    return ((digest.readUInt32BE(digest[19] & 15) & 0x7fffffff) % 1_000_000).toString().padStart(6, '0');
+  } finally { secret.fill(0); }
 }
 function lan() {
   const hostArg = process.argv.find((argument) => argument.startsWith('--office-host='))?.slice(14);
@@ -69,7 +73,7 @@ export async function runRuntimeScenario(root, report) {
   async function stage(mode, name, operation) {
     const item = { mode, stage: name, verdict: 'RUNNING' }; report.stages.push(item);
     try { const value = await operation(); item.verdict = 'PASS'; return value; }
-    catch (error) { item.verdict = 'FAIL'; throw error; }
+    catch (error) { item.verdict = 'FAIL'; item.diagnostic = scenarioDiagnostics(error); throw error; }
   }
   for (const mode of ['local-single', 'local-office']) {
     const dataPath = await mkdtemp(join(tmpdir(), 'ccc-runtime-scenario-'));
@@ -88,6 +92,17 @@ export async function runRuntimeScenario(root, report) {
     if (mode === 'local-single') {
       const installed = await stageNewSingleIdentity(common, new TextEncoder().encode(PASSWORD));
       userId = installed.stableUserId; identityHash = installed.identityHash;
+      await stage(mode, 'reinitialization-rejected-and-original-identity-preserved', async () => {
+        const repository = await createLocalIdentityRepository(join(dataPath, 'identity'));
+        for (const generation of [1, 2]) {
+          await assert.rejects(stageNewSingleIdentity({ ...common, generation }, new TextEncoder().encode(PASSWORD)),
+            (error) => error.message === 'single_identity_already_exists');
+        }
+        await assert.rejects(stat(join(dataPath, 'identity/generation-2')), (error) => error.code === 'ENOENT');
+        const original = await repository.readSingle(1, identityHash);
+        try { assert.equal(original.stableUserId, userId); }
+        finally { original.handshakeKey.fill(0); }
+      });
     }
     const otherUser = randomUUID(), technician = randomUUID();
     const key = new Uint8Array(randomBytes(32)), fileKey = new Uint8Array(randomBytes(32)), piiKey = new Uint8Array(randomBytes(32));
@@ -128,22 +143,28 @@ export async function runRuntimeScenario(root, report) {
         : { ...common, recordsHash, bindHost: network.host, privateCidr: network.cidr, tlsCertPath: join(dataPath, 'server.crt'), tlsCaPath: join(dataPath, 'ca.crt') };
       const start = mode === 'local-single' ? startLocalSingle : startLocalOffice;
       await stage(mode, 'startup-rejects-unsigned-expired-and-wrong-mode-before-database', async () => {
+        const forbidden = join(dataPath, 'must-not-be-created');
         for (const replacement of [
           { ...manifest, ed25519Signature: 'invalid' },
           await signInstallManifest({ ...unsigned, expiresAt: new Date(Date.now() - 1000).toISOString() }, pair.privateKey),
           await signInstallManifest({ ...unsigned, mode: mode === 'local-single' ? 'local-office' : 'local-single' }, pair.privateKey),
-        ]) await assert.rejects(start({ ...config, dataPath: join(dataPath, 'must-not-be-created'), installManifest: JSON.stringify(replacement) }),
-          (error) => error instanceof InstallManifestError);
+        ]) {
+          await assert.rejects(start({ ...config, dataPath: forbidden, installManifest: JSON.stringify(replacement) }),
+            (error) => error instanceof InstallManifestError);
+          await assert.rejects(stat(forbidden), (error) => error.code === 'ENOENT');
+        }
       });
       if (mode === 'local-office') await stage(mode, 'certificate-constraints-and-public-bind-denials', async () => {
-        for (const options of [{ unconstrained: true }, { constraintIp: network.host === '10.254.254.254' ? '10.254.254.253' : '10.254.254.254' }]) {
+        for (const options of [{ unconstrained: true }, { wrongLeafUsage: true }, { constraintIp: network.host === '10.254.254.254' ? '10.254.254.253' : '10.254.254.254' }]) {
           const invalid = syntheticOfficeTls(network.host, options);
           try {
             await assert.rejects(verifyOfficeTlsIdentity({ manifest, bindHost: network.host, privateCidr: network.cidr, ...invalid }),
               (error) => error.message === 'tls_identity_invalid');
           } finally { invalid.privateKey.fill(0); }
         }
-        await assert.rejects(start({ ...config, bindHost: '0.0.0.0' }), (error) => error.message === 'bind_address_not_private');
+        const forbidden = join(dataPath, 'public-bind-must-not-be-created');
+        await assert.rejects(start({ ...config, dataPath: forbidden, bindHost: '0.0.0.0' }), (error) => error.message === 'bind_address_not_private');
+        await assert.rejects(stat(forbidden), (error) => error.code === 'ENOENT');
       });
       runtime = await stage(mode, 'actual-runtime-startup', () => start(config));
       let base = mode === 'local-single' ? `http://127.0.0.1:${runtime.port}` : apiBase;
@@ -182,8 +203,9 @@ export async function runRuntimeScenario(root, report) {
         } else {
           bearer = await login('admin');
           assert.equal((await call('/me', { bearer })).status, 403);
-          assert.equal((await call('/api/auth/mfa', { method: 'POST', body: { code: totp() }, bearer })).status, 204);
-          assert.equal((await call('/api/auth/mfa', { method: 'POST', body: { code: totp() }, bearer })).status, 401);
+          const code = totp();
+          assert.equal((await call('/api/auth/mfa', { method: 'POST', body: { code }, bearer })).status, 204);
+          assert.equal((await call('/api/auth/mfa', { method: 'POST', body: { code }, bearer })).status, 401);
           assert.equal((await call('/api/auth/login', { method: 'POST', body: { username: 'admin', password: 'x'.repeat(5000) } })).status, 413);
         }
         const me = await call('/me', { bearer }); assert.equal(me.status, 200); assert.equal(me.body.id, userId);
@@ -219,7 +241,17 @@ export async function runRuntimeScenario(root, report) {
           let worker = await login('worker');
           assert.equal((await call(`/support-cases/${supportCaseId}/records`, { bearer: worker })).status, 403);
           assert.equal((await call('/api/auth/logout', { method: 'POST', bearer: worker, body: {} })).status, 204);
-          assert.equal((await call('/me', { bearer: worker })).status, 403);
+          assert.equal((await call('/me', { bearer: worker })).status, 401);
+          const revocations = await database.prepare("SELECT COUNT(*) AS count FROM auth_revocations WHERE kind = 'session'").first();
+          assert.equal((await call('/api/auth/logout', { method: 'POST', bearer: worker, body: {} })).status, 204);
+          const unknown = `CCC-LOCAL-OFFICEv1-${randomBytes(32).toString('base64url')}`;
+          assert.equal((await call('/api/auth/logout', { method: 'POST', bearer: unknown, body: {} })).status, 401);
+          assert.equal((await database.prepare("SELECT COUNT(*) AS count FROM auth_revocations WHERE kind = 'session'").first()).count, revocations.count);
+          assert.equal((await call('/me', { bearer })).status, 200);
+          worker = await login('worker');
+          assert.equal((await call('/auth/logout', { method: 'POST', bearer: worker, body: {} })).status, 204);
+          assert.equal((await call('/me', { bearer: worker })).status, 401);
+          assert.equal((await call('/api/auth/logout', { method: 'POST', bearer: worker, body: {} })).status, 204);
           worker = await login('worker');
           const tech = await login('technician');
           assert.equal((await call('/api/auth/mfa', { method: 'POST', bearer: tech, body: { code: totp() } })).status, 204);
@@ -228,12 +260,12 @@ export async function runRuntimeScenario(root, report) {
           await database.prepare('UPDATE user_role_assignments SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').bind(new Date().toISOString(), technician).run();
           assert.equal((await call('/me', { bearer: tech })).status, 403);
           await database.prepare('UPDATE office_accounts SET enabled = 0 WHERE user_id = ?').bind(otherUser).run();
-          assert.equal((await call('/me', { bearer: worker })).status, 403);
+          assert.equal((await call('/me', { bearer: worker })).status, 401);
           await database.prepare('UPDATE office_accounts SET enabled = 1 WHERE user_id = ?').bind(otherUser).run();
-          assert.equal((await call('/me', { bearer: worker })).status, 403);
+          assert.equal((await call('/me', { bearer: worker })).status, 401);
           worker = await login('worker');
           await database.prepare('UPDATE users SET active = 0 WHERE id = ?').bind(otherUser).run();
-          assert.equal((await call('/me', { bearer: worker })).status, 403);
+          assert.equal((await call('/me', { bearer: worker })).status, 401);
           await database.prepare('UPDATE users SET active = 1 WHERE id = ?').bind(otherUser).run();
           for (let attempt = 0; attempt < 5; attempt++) assert.equal((await call('/api/auth/login', { method: 'POST', body: { username: 'worker', password: 'wrong password' } })).status, 401);
           assert.equal((await call('/api/auth/login', { method: 'POST', body: { username: 'worker', password: PASSWORD } })).status, 423);
@@ -243,7 +275,29 @@ export async function runRuntimeScenario(root, report) {
           assert.equal((await call('/me', { bearer })).status, 401);
         }
       });
-      await runtime.close(); runtime = undefined;
+      await stage(mode, 'bounded-shutdown-with-stalled-body', async () => {
+        const ready = Promise.withResolvers(), closed = Promise.withResolvers();
+        let responded = false;
+        const stalled = (tls ? httpsRequest : httpRequest)(new URL('/api/auth/login', base), {
+          method: 'POST', ...(tls ? { ca: tls.ca } : {}),
+          headers: { expect: '100-continue', 'content-type': 'application/json', 'content-length': '1024' },
+        });
+        stalled.once('continue', ready.resolve);
+        stalled.on('error', () => { ready.reject(new Error('transport_failed')); });
+        stalled.once('close', closed.resolve);
+        stalled.on('response', (response) => { responded = true; response.resume(); });
+        stalled.setTimeout(15_000, () => { stalled.destroy(new Error('request_timeout')); });
+        stalled.flushHeaders();
+        try {
+          await ready.promise;
+          const started = performance.now();
+          await runtime.close();
+          runtime = undefined;
+          await closed.promise;
+          assert.ok(performance.now() - started < 12_000);
+          assert.equal(responded, false);
+        } finally { stalled.destroy(); }
+      });
       await stage(mode, 'acknowledged-record-survives-database-reopen', async () => {
         const reread = openEncryptedSqlite({ filename: join(dataPath, 'database.sqlite'), key, fileMustExist: true });
         try { assert.equal((await reread.prepare('SELECT memo FROM sessions WHERE id = ?').bind(recordId).first()).memo, memo); }

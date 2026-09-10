@@ -9,7 +9,7 @@ import { handleRequest } from '@ccc/http-api';
 import { createLocalOfficeIdentity, LocalAuthError, type LocalOfficeIdentity } from './office-identity.ts';
 import { verifyOfficeTlsIdentity } from './office-tls.ts';
 import { validateBindAddress } from './bind-validation.ts';
-import { authBody, closeLocalServer, localError, localRequest, sendLocalResponse } from './http-transport.ts';
+import { authBody, closeLocalServer, localError, localRequest, sendLocalResponse, trackLocalRequests, type LocalRequestTracker } from './http-transport.ts';
 import { openLocalResources, verifyLocalInstallation, type LocalRuntimeConfig, type LocalRuntimeResources } from './runtime-resources.ts';
 
 export interface LocalOfficeRuntimeConfig extends LocalRuntimeConfig {
@@ -33,6 +33,7 @@ export async function createLocalOfficeRuntime(config: LocalOfficeRuntimeConfig)
   const tlsKey = await repository.readOfficeTlsKey();
   let resources: LocalRuntimeResources | undefined, identity: LocalOfficeIdentity | undefined, server: Server | undefined;
   let pemKey: Buffer | undefined;
+  let requests: LocalRequestTracker | undefined;
   try {
     const [certificate, ca] = await Promise.all([readFile(config.tlsCertPath, 'utf8'), readFile(config.tlsCaPath, 'utf8')]);
     await verifyOfficeTlsIdentity({ manifest, bindHost: config.bindHost, privateCidr: config.privateCidr, certificate, ca, privateKey: tlsKey });
@@ -43,7 +44,7 @@ export async function createLocalOfficeRuntime(config: LocalOfficeRuntimeConfig)
     // Server identity was verified above. Client certificates are not the human authentication mechanism.
     const privateKey = createPrivateKey({ key: Buffer.from(tlsKey.buffer, tlsKey.byteOffset, tlsKey.byteLength), format: 'der', type: 'pkcs8' });
     pemKey = Buffer.from(privateKey.export({ type: 'pkcs8', format: 'pem' }));
-    server = createServer({ cert: certificate, key: pemKey, minVersion: 'TLSv1.2', requestCert: false }, async (req, res) => {
+    requests = trackLocalRequests(async (req, res) => {
       let response: Response;
       try {
         const request = localRequest(req, manifest.apiBase, manifest);
@@ -76,21 +77,28 @@ export async function createLocalOfficeRuntime(config: LocalOfficeRuntimeConfig)
       } catch (error) { response = localError(error); }
       try { await sendLocalResponse(req, res, response, manifest); } catch { res.destroy(); }
     });
+    server = createServer({ cert: certificate, key: pemKey, minVersion: 'TLSv1.2', requestCert: false }, requests.handle);
     const listening = Promise.withResolvers<void>();
     server.once('error', listening.reject);
     server.listen(8443, config.bindHost, listening.resolve);
     await listening.promise;
     const opened = resources;
+    let closing: Promise<void> | undefined;
     return {
       port: 8443, host: config.bindHost, installationId: manifest.installationId,
-      async close() {
-        localIdentity.close();
-        try { await closeLocalServer(server); } finally { await opened.close(); }
+      close() {
+        closing ??= (async () => {
+          localIdentity.close();
+          await closeLocalServer(server, requests);
+          await opened.close();
+        })().catch((error) => { closing = undefined; throw error; });
+        return closing;
       },
     };
   } catch (error) {
     identity?.close();
-    try { await closeLocalServer(server); } finally { await resources?.close(); }
+    await closeLocalServer(server, requests);
+    await resources?.close();
     throw error;
   } finally { tlsKey.fill(0); pemKey?.fill(0); }
 }

@@ -31,6 +31,8 @@ export const checkpoints = [
   { id: 'staff-invites', sqlite: '0058_staff_invites.sql', postgres: '0014_staff_invites.sql' },
   { id: 'participant-request-links', sqlite: '0059_participant_request_links.sql', postgres: '0015_participant_request_links.sql' },
   { id: 'canonical-compatibility-views', sqlite: '0060_canonical_compatibility_views.sql', postgres: '0016_canonical_compatibility_views.sql' },
+  { id: 'office-accounts', sqlite: '0061_office_accounts.sql', postgres: '0017_office_accounts.sql' },
+  { id: 'local-office-sessions', sqlite: '0062_local_office_sessions.sql', postgres: '0018_local_office_sessions.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;

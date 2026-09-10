@@ -37,7 +37,7 @@ export function syntheticOfficeTls(ip, options = {}) {
   const ca = certificate(rootName, rootName, root.publicKey, root.privateKey, rootExtensions);
   const cert = certificate(name('CCC synthetic Office'), rootName, leaf.publicKey, root.privateKey, [
     extension('551d13', seq(), true),
-    extension('551d0f', tag(3, Buffer.from([5, 0xa0])), true),
+    extension('551d0f', tag(3, Buffer.from(options.wrongLeafUsage ? [1, 6] : [5, 0xa0])), true),
     extension('551d25', seq(oid('2b06010505070301'))),
     extension('551d11', seq(tag(0x87, address))),
   ]);

@@ -9,7 +9,8 @@
   },
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
-    "test": "node --test test/contract.test.ts"
+    "test": "node --experimental-transform-types --import ./test/source-loader.mjs --test test/contract.test.ts test/office-contract.test.ts",
+    "source-runtime-scenario": "node --experimental-transform-types test/run-runtime-scenario.mjs"
   },
   "dependencies": {
     "@ccc/audio-file": "workspace:*",
