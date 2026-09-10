@@ -273,6 +273,7 @@ export function RecordListScreen() {
         </WireButton>
         <WireButton variant="neutral" href={`${base}/records/intake`}>인테이크 기록</WireButton>
         <WireButton variant="neutral" href={`${base}/briefing`}>15초 페이지</WireButton>
+      <WireButton variant="neutral" href={`${base}/report`}>전체 상담 리포트</WireButton>
       </div>
     </WireCard>
     <WireCard title="회차">

@@ -14,6 +14,7 @@ import { ParticipantsApi } from './business/participants';
 import { AiReviewApi } from './business/ai-review';
 import { ConsentApi } from './business/consent';
 import { InvitesApi, PublicJoinApi } from './business/invites';
+import { ReportApi } from './business/report';
 import { IntakeApi } from './business/intake';
 import { CaseWorkApi, RecordsApi } from './business/records';
 import { SchedulesApi } from './business/schedules';
@@ -31,6 +32,7 @@ import { SettingsScreen } from './screens/settings';
 import {
   ParticipantInviteScreen, ParticipantJoinScreen, StaffInviteScreen, StaffJoinScreen,
 } from './screens/invites';
+import { ReportScreen } from './screens/report';
 import { registerShellWorker } from './business/service-worker';
 import { BusinessError, safeError } from './business/errors';
 import { loadInstallation, type VerifiedInstallation } from './business/installation';
@@ -134,6 +136,7 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
     const intake = new IntakeApi(transport);
     const consent = new ConsentApi(transport);
     const invites = new InvitesApi(transport);
+    const report = new ReportApi(transport);
     const aiReview = new AiReviewApi(transport);
     let live = true;
     const unsubscribe = runtime.auth.subscribe(() => {
@@ -148,7 +151,7 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
         const me = await api.me();
         if (live) {
           setSession({
-            auth: runtime.auth, api, participants, institution, schedules, records, caseWork, intake, consent, invites, aiReview, me, capabilities,
+            auth: runtime.auth, api, participants, institution, schedules, records, caseWork, intake, consent, invites, report, aiReview, me, capabilities,
             reloadIdentity: () => setIdentityNonce((current) => current + 1),
           });
         }
@@ -282,6 +285,7 @@ export const appRoutes: RouteObject[] = [{
           { path: 'participants/:beneficiaryId/edit', element: <ParticipantBasicInfoScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/briefing', element: <BriefingScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records', element: <RecordListScreen /> },
+          { path: 'participants/:beneficiaryId/programs/:supportCaseId/report', element: <ReportScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records/new', element: <RecordCreateScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records/intake', element: <IntakeScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records/:sessionId/review', element: <RecordReviewScreen /> },

@@ -410,6 +410,44 @@ export function handleApi(request, state, options) {
       birthDate: '1980-03-05', region: '서울', gender: null,
     }, 200, cors);
   }
+  if (path === `/support-cases/${CASE_ID}/report` && request.method === 'GET') {
+    // 저장된 근거만 투영한다. riskSignals 는 근거가 없어 일부러 빠진다("자료 없음").
+    const ev = (source, text, number = 1) => ({
+      sessionId: SESSION_ID, sessionNumber: number, heldAt: '2026-09-02T01:00:00.000Z', source, text,
+    });
+    return json({
+      schemaVersion: 1, supportCaseId: CASE_ID, beneficiaryId: 'swallow-003',
+      programId: 'program-1', programName: '합성 사업', status: state.caseClosed === null ? 'active' : 'closed',
+      sessions: [
+        { sessionId: SESSION_ID, sessionNumber: 1, heldAt: '2026-09-02T01:00:00.000Z', kind: 'intake',
+          channel: 'in_person', summary: ev('records.memo', '체납 정리 계획을 함께 세웠습니다') },
+        { sessionId: '5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f', sessionNumber: 2,
+          heldAt: '2026-09-08T01:00:00.000Z', kind: 'regular', channel: 'phone' },
+      ],
+      firstIntakeGoal: ev('intake.overallGoal', '월세 체납을 정리하고 안정적인 소득을 만든다'),
+      nextConfirmations: [{
+        item: '전체 채무 잔액', reason: '채무조정 가능성 판단', method: '신용정보조회서 확인',
+        dueNote: '다음 상담 전', evidence: ev('intake.additionalItems[0]', '전체 채무 잔액 확인 필요'),
+      }],
+      sections: {
+        situationChanges: { entries: [ev('records.memo', '월세 2개월 체납이 1개월로 줄었습니다', 2)] },
+        goalChanges: {
+          initialGoal: ev('goals[0].revisions[0]', '월세 체납 정리'),
+          directions: [ev('goals[0].revisions[1]', '월세 체납 정리 (2차)', 2)],
+        },
+        actionItems: { items: [{
+          id: 'c1a1c9d2-4b6e-4a30-8c52-1d3e5f70b2a4', description: '주민센터 긴급복지 상담 예약',
+          resolutionStatus: 'in_progress', resolvedAt: null, dueDate: '2026-09-20',
+          evidence: ev('actionItems[0].description', '주민센터 긴급복지 상담 예약'),
+        }] },
+        resourceConnections: { entries: [{
+          orgName: 'OO구 주민센터', serviceName: '긴급복지 생계지원', supportDetail: '생계비 713,100원',
+          usagePeriod: '2026.07~2026.09', progressStatus: '심사 중',
+          evidence: ev('intake.linkedOrgs[0]', 'OO구 주민센터 긴급복지 생계지원 심사 중'),
+        }] },
+      },
+    }, 200, cors);
+  }
   if (path === `/support-cases/${CASE_ID}/consent` && request.method === 'GET') {
     return json({ consent: CONSENT_DOMAINS.map((domain) => {
       const event = state.consentEvents.get(domain) ?? null;
