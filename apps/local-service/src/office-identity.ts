@@ -1,7 +1,7 @@
 import { argon2, createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Actor, ActorRole, Identity } from '@ccc/contracts/runtime';
 import { ActorAuthenticationError, IdentityStoreUnavailableError, MfaRequiredError } from '@ccc/contracts/runtime';
-import { ForbiddenError, type OfficeAccountStore, type OfficeAccountRecord, type OfficeSessionRecord } from '@ccc/core/gateway';
+import { ForbiddenError, decodeOfficeTotpSecret, type OfficeAccountStore, type OfficeAccountRecord, type OfficeSessionRecord } from '@ccc/core/gateway';
 export type { OfficeAccountStore, OfficeAccountRecord } from '@ccc/core/gateway';
 
 const BEARER_PREFIX = 'CCC-LOCAL-OFFICEv1-';
@@ -54,14 +54,9 @@ export async function hashPassword(password: Uint8Array): Promise<{ hash: string
 
 /** RFC 6238 counter, consumed atomically by the gateway to prevent code replay. */
 function totpCounter(secretText: string, code: string): number | null {
-  if (!/^[A-Z2-7]{16,128}$/.test(secretText) || !/^\d{6}$/.test(code)) return null;
-  const secret = new Uint8Array(Math.floor(secretText.length * 5 / 8));
-  let bits = 0, value = 0, index = 0;
-  for (const character of secretText) {
-    value = (value << 5) | 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(character);
-    bits += 5;
-    if (bits >= 8) { bits -= 8; secret[index++] = (value >>> bits) & 255; }
-  }
+  if (!/^\d{6}$/.test(code)) return null;
+  const secret = decodeOfficeTotpSecret(secretText);
+  if (secret === null) return null;
   const counter = Math.floor(Date.now() / 30_000);
   const buffer = Buffer.alloc(8);
   const supplied = Buffer.from(code);
@@ -95,7 +90,7 @@ export function createLocalOfficeIdentity(config: LocalOfficeIdentityConfig): Lo
   }
   function assertOpen(): void { if (closed) throw new ActorAuthenticationError(); }
   function assertAccount(account: OfficeAccountRecord | null): asserts account is OfficeAccountRecord {
-    if (account === null || !account.enabled) throw new ForbiddenError('account unavailable');
+    if (account === null || !account.enabled) throw new ActorAuthenticationError();
     if (account.lockedUntil !== null) {
       const until = Date.parse(account.lockedUntil);
       if (!Number.isFinite(until)) throw new IdentityStoreUnavailableError();
@@ -105,19 +100,23 @@ export function createLocalOfficeIdentity(config: LocalOfficeIdentityConfig): Lo
   function needsMfa(account: OfficeAccountRecord): boolean {
     return account.mfaRequired || account.roles.some((role) => PRIVILEGED.includes(role));
   }
-  async function sessionFor(bearer: string): Promise<{ session: OfficeSessionRecord; account: OfficeAccountRecord; actor: Actor }> {
+  async function sessionForBearer(bearer: string): Promise<OfficeSessionRecord> {
     assertOpen();
     if (!/^CCC-LOCAL-OFFICEv1-[A-Za-z0-9_-]{43}$/.test(bearer)) throw new ActorAuthenticationError();
     const session = await stored(() => store.getSession(createHash('sha256').update(bearer).digest('hex')));
     if (session === null) throw new ActorAuthenticationError();
+    return session;
+  }
+  async function sessionFor(bearer: string): Promise<{ session: OfficeSessionRecord; account: OfficeAccountRecord; actor: Actor }> {
+    const session = await sessionForBearer(bearer);
     const expiry = Date.parse(session.expiresAt), lastUsed = Date.parse(session.lastUsedAt), issued = Date.parse(session.issuedAt);
     if (![expiry, lastUsed, issued].every(Number.isFinite)) throw new IdentityStoreUnavailableError();
     if (Date.now() >= expiry || Date.now() - lastUsed >= IDLE_TTL) throw new ActorAuthenticationError();
-    if (session.revokedAt !== null) throw new ForbiddenError('session unavailable');
+    if (session.revokedAt !== null) throw new ActorAuthenticationError();
     const account = await stored(() => store.getById(session.userId));
     assertAccount(account);
     const actor = await stored(() => store.resolveActor(session));
-    if (actor === null || actor.orgId !== config.orgId || actor.kind !== 'human') throw new ForbiddenError('account unavailable');
+    if (actor === null || actor.orgId !== config.orgId || actor.kind !== 'human') throw new ActorAuthenticationError();
     account.roles = actor.roles;
     if (needsMfa(account) && session.mfaVerifiedAt === null && Date.now() - issued >= MFA_PENDING_TTL) throw new ActorAuthenticationError();
     assertOpen();
@@ -171,9 +170,15 @@ export function createLocalOfficeIdentity(config: LocalOfficeIdentityConfig): Lo
     },
     async revokeAll(userId, reason) { assertOpen(); await stored(() => store.revokeAll(userId, reason)); },
     async revokeSession(sessionId, reason) { assertOpen(); await stored(() => store.revokeSession(sessionId, reason)); },
-    async logout(bearer) {
-      const { session } = await sessionFor(bearer);
-      await stored(() => store.revokeSession(session.sessionId, 'logout'));
+    logout(bearer) {
+      return serial(async () => {
+        const session = await sessionForBearer(bearer);
+        const expiry = Date.parse(session.expiresAt), lastUsed = Date.parse(session.lastUsedAt);
+        if (![expiry, lastUsed].every(Number.isFinite)) throw new IdentityStoreUnavailableError();
+        // Known retired credentials are already logged out. Never mint another revocation.
+        if (session.revokedAt !== null || Date.now() >= expiry || Date.now() - lastUsed >= IDLE_TTL) return;
+        await stored(() => store.revokeSession(session.sessionId, 'logout'));
+      });
     },
     close() { closed = true; },
   };

@@ -47,7 +47,7 @@ import {
   type ProgramRecord, type ProgramView, type CreateProgramInput, type UpdateProgramInput,
   type ProgramListResponse, type ProgramOption,
 } from '@ccc/contracts/program-admission';
-import { AGENT_SCOPES, IdentityStoreUnavailableError, type Actor as IdentityActor, type ActorRole, type AgentStatus, type RevocationReason, type DeploymentMode } from '@ccc/contracts/runtime';
+import { AGENT_SCOPES, ActorAuthenticationError, IdentityStoreUnavailableError, type Actor as IdentityActor, type ActorRole, type AgentStatus, type RevocationReason, type DeploymentMode } from '@ccc/contracts/runtime';
 import {
   AGENT_JOB_ERROR_CODES,
   AGENT_JOB_MAX_ATTEMPTS,
@@ -12209,7 +12209,11 @@ export function createLocalOfficeAccountStore(env: Env, orgId: string): OfficeAc
     },
     async getSession(sessionHash) {
       const row = await env.DB.prepare(
-        `SELECT s.* FROM office_sessions s JOIN users u ON u.id = s.user_id
+        `SELECT s.session_id, s.session_hash, s.user_id, s.issued_at, s.expires_at, s.last_used_at, s.mfa_verified_at,
+           COALESCE(s.revoked_at, (SELECT MAX(r.revoked_at) FROM auth_revocations r
+             WHERE (r.kind = 'session' AND r.subject = s.session_id)
+               OR (r.kind = 'actor' AND r.subject = s.user_id AND r.revoked_at >= s.issued_at))) AS revoked_at
+         FROM office_sessions s JOIN users u ON u.id = s.user_id
          WHERE s.session_hash = ? AND u.org_id = ?`,
       ).bind(sessionHash, orgId).first<DbRow>();
       if (row === null) return null;
@@ -12256,13 +12260,32 @@ export function createLocalOfficeAccountStore(env: Env, orgId: string): OfficeAc
     },
     async revokeSession(sessionId, reason) {
       const row = await env.DB.prepare(
-        `SELECT 1 FROM office_sessions s JOIN users u ON u.id = s.user_id
+        `SELECT s.revoked_at FROM office_sessions s JOIN users u ON u.id = s.user_id
          WHERE s.session_id = ? AND u.org_id = ?`,
-      ).bind(sessionId, orgId).first();
-      if (row === null) throw new ForbiddenError('session unavailable');
-      await appendAuthRevocation(env, 'session', sessionId, reason);
+      ).bind(sessionId, orgId).first<{ revoked_at: string | null }>();
+      if (row === null) throw new ActorAuthenticationError();
+      if (row.revoked_at === null) await revokeIdentitySession(env, sessionId, reason);
     },
   };
+}
+
+/** Canonical unpadded RFC 4648 base32 with the RFC 4226 minimum of 128 decoded bits. */
+export function decodeOfficeTotpSecret(text: string): Uint8Array | null {
+  if (typeof text !== 'string' || text.length > 128 || !/^[A-Z2-7]+$/.test(text)) return null;
+  const bytes = new Uint8Array(Math.floor(text.length * 5 / 8));
+  let value = 0, bits = 0, index = 0;
+  for (const character of text) {
+    value = (value << 5) | 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(character);
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes[index++] = value >>> bits;
+      value &= (1 << bits) - 1;
+    }
+  }
+  // Reject extra encoding characters and nonzero unused bits, not just short strings.
+  if (bytes.length < 16 || bits >= 5 || value !== 0) { bytes.fill(0); return null; }
+  return bytes;
 }
 
 /** Administrative credential provisioning for an already-provisioned local directory member. */
@@ -12273,9 +12296,12 @@ export async function createOfficeAccount(
   if (env.installationMode !== 'local-office') throw new ForbiddenError('local identity is unavailable');
   await assertInstitutionAdmin(env, actor);
   await assertActiveHumanUser(env, actor.orgId, account.userId);
+  const mfaBytes = account.mfaSecret === null ? null : decodeOfficeTotpSecret(account.mfaSecret);
+  const validMfaSecret = account.mfaSecret === null || mfaBytes !== null;
+  mfaBytes?.fill(0);
   if (!/^[A-Za-z0-9_-]{43}$/.test(account.passwordHash) || !/^[A-Za-z0-9_-]{22}$/.test(account.salt)
     || account.username.trim().length < 1 || account.username.length > 254
-    || (account.mfaSecret !== null && !/^[A-Z2-7]{16,128}$/.test(account.mfaSecret))) {
+    || !validMfaSecret) {
     throw new ValidationError('local credential is invalid');
   }
   await env.DB.batch([
@@ -12398,7 +12424,12 @@ export async function revokeActorSessions(env: Env, userId: string, reason: Revo
 }
 
 export async function revokeIdentitySession(env: Env, sessionId: string, reason: RevocationReason): Promise<void> {
-  await appendAuthRevocation(env, 'session', sessionId, reason);
+  assertOpaqueIdentifier(sessionId, 'session revocation subject');
+  await env.DB.prepare(
+    `INSERT INTO auth_revocations (id, kind, subject, revoked_at, reason)
+     SELECT ?, 'session', ?, ?, ?
+     WHERE NOT EXISTS (SELECT 1 FROM auth_revocations WHERE kind = 'session' AND subject = ?)`,
+  ).bind(newId(), sessionId, now(), reason, sessionId).run();
 }
 
 /** 사용자 디렉터리 목록. 권한: admin 전용, 자기 기관만. 감사: read(users). */

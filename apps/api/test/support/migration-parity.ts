@@ -27,6 +27,8 @@ export const checkpoints = [
   { id: 'program-admission', sqlite: '0054_program_admission.sql', postgres: '0010_program_admission.sql' },
   { id: 'account-settings', sqlite: '0055_account_settings.sql', postgres: '0011_account_settings.sql' },
   { id: 'schedule-display', sqlite: '0056_schedule_display.sql', postgres: '0012_schedule_display.sql' },
+  { id: 'office-accounts', sqlite: '0061_office_accounts.sql', postgres: '0017_office_accounts.sql' },
+  { id: 'local-office-sessions', sqlite: '0062_local_office_sessions.sql', postgres: '0018_local_office_sessions.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;

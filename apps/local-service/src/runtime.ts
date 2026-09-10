@@ -6,7 +6,7 @@ import { ActorAuthenticationError } from '@ccc/contracts/runtime';
 import { resolveLocalDirectoryActor } from '@ccc/core/gateway';
 import { handleRequest } from '@ccc/http-api';
 import { createLocalSingleIdentity, type LocalSingleIdentity } from './identity.ts';
-import { authBody, closeLocalServer, localError, localRequest, sendLocalResponse } from './http-transport.ts';
+import { authBody, closeLocalServer, localError, localRequest, sendLocalResponse, trackLocalRequests, type LocalRequestTracker } from './http-transport.ts';
 import { LocalAuthError } from './office-identity.ts';
 import { openLocalResources, verifyLocalInstallation, type LocalRuntimeConfig, type LocalRuntimeResources } from './runtime-resources.ts';
 
@@ -27,6 +27,7 @@ export async function createLocalSingleRuntime(config: LocalSingleRuntimeConfig)
   const install = await repository.readSingle(config.generation, config.identityHash);
   let resources: LocalRuntimeResources | undefined;
   let identity: LocalSingleIdentity | undefined, server: Server | undefined;
+  let requests: LocalRequestTracker | undefined;
   try {
     if (install.installationId !== manifest.installationId || install.orgId !== config.orgId || manifest.sequence < install.sequence) throw new Error('installation_invalid');
     resources = await openLocalResources(config, manifest);
@@ -39,7 +40,7 @@ export async function createLocalSingleRuntime(config: LocalSingleRuntimeConfig)
     });
     const localIdentity = identity;
     let port = 0;
-    server = createServer(async (req, res) => {
+    requests = trackLocalRequests(async (req, res) => {
       let response: Response;
       try {
         const request = localRequest(req, `http://127.0.0.1:${port}`, manifest);
@@ -69,6 +70,7 @@ export async function createLocalSingleRuntime(config: LocalSingleRuntimeConfig)
       } catch (error) { response = localError(error); }
       try { await sendLocalResponse(req, res, response, manifest); } catch { res.destroy(); }
     });
+    server = createServer(requests.handle);
     const listening = Promise.withResolvers<void>();
     server.once('error', listening.reject);
     server.listen(0, '127.0.0.1', listening.resolve);
@@ -78,16 +80,22 @@ export async function createLocalSingleRuntime(config: LocalSingleRuntimeConfig)
     port = address.port;
     await repository.writeEndpoint({ installationId: manifest.installationId, port });
     const opened = resources;
+    let closing: Promise<void> | undefined;
     return {
       port, installationId: manifest.installationId,
-      async close() {
-        localIdentity.close();
-        try { await closeLocalServer(server); } finally { await opened.close(); }
+      close() {
+        closing ??= (async () => {
+          localIdentity.close();
+          await closeLocalServer(server, requests);
+          await opened.close();
+        })().catch((error) => { closing = undefined; throw error; });
+        return closing;
       },
     };
   } catch (error) {
     identity?.close();
-    try { await closeLocalServer(server); } finally { await resources?.close(); }
+    await closeLocalServer(server, requests);
+    await resources?.close();
     throw error;
   } finally { install.handshakeKey.fill(0); }
 }

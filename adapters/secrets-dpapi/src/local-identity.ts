@@ -44,11 +44,12 @@ export async function createLocalIdentityRepository(root: string) {
     } catch { throw new Error('secret_access_denied'); }
     finally { plain.fill(0); entropy.fill(0); blob?.fill(0); }
   }
-  async function unprotect(name: string, expectedHash?: string): Promise<CborValue> {
+  async function unprotect(name: string, expectedHash?: string, optional = false): Promise<CborValue> {
     const entropy = new TextEncoder().encode(`CCC-LOCAL-IDENTITY\0v1\0${name}`);
-    let blob: Uint8Array | undefined, plain: Uint8Array | undefined;
+    let blob: Uint8Array | null | undefined, plain: Uint8Array | undefined;
     try {
-      blob = await files.read(name, 16_384);
+      blob = optional ? await files.readOptional(name, 16_384) : await files.read(name, 16_384);
+      if (blob === null) return null;
       if (expectedHash !== undefined && createHash('sha256').update(blob).digest('hex') !== expectedHash) throw new Error();
       plain = native.unprotectData(blob, entropy, 'CurrentUser');
       return decodeCbor(plain);
@@ -56,11 +57,32 @@ export async function createLocalIdentityRepository(root: string) {
     finally { entropy.fill(0); blob?.fill(0); plain?.fill(0); }
   }
   return {
-    async stageSingle(generation: number, data: SingleInstallData): Promise<string> {
+    async stageSingle(generation: number, data: SingleInstallData): Promise<{ stableUserId: string; identityHash: string }> {
       validate(data);
+      if (!Number.isSafeInteger(generation) || generation < 1) throw new Error('secret_access_denied');
+      if (await files.hasGenerationFile('single.cbor')) throw new Error('single_identity_already_exists');
+      // One immutable reservation fences concurrent first installers across generations.
+      // A retry after reservation but before publication reuses the reserved ID.
+      const markerName = 'single-initialization.cbor';
+      let marker = await unprotect(markerName, undefined, true);
+      if (marker === null) {
+        try {
+          await protect(markerName, { generation, installationId: data.installationId, orgId: data.orgId, stableUserId: data.stableUserId }, false);
+        } catch (error) {
+          marker = await unprotect(markerName, undefined, true);
+          if (marker === null) throw error;
+        }
+        marker ??= await unprotect(markerName);
+      }
+      if (marker === null || typeof marker !== 'object' || Array.isArray(marker) || marker instanceof Uint8Array
+        || Object.keys(marker).sort().join(',') !== 'generation,installationId,orgId,stableUserId'
+        || marker.generation !== generation || marker.installationId !== data.installationId || marker.orgId !== data.orgId
+        || typeof marker.stableUserId !== 'string') throw new Error('single_identity_already_exists');
+      const installed: SingleInstallData = { ...data, stableUserId: marker.stableUserId };
+      validate(installed);
       await files.ensureGeneration(generation);
-      // Recovery passes the verified Kit's original stableUserId here, never a new UUID.
-      return protect(`generation-${generation}/single.cbor`, data as unknown as CborValue, false);
+      const identityHash = await protect(`generation-${generation}/single.cbor`, installed as unknown as CborValue, false);
+      return { stableUserId: installed.stableUserId, identityHash };
     },
     /** Staging primitive for an authorized restore transaction after openRecoveryKit; not activation. */
     async stageRecoveredSingle(generation: number, target: Omit<SingleInstallData, 'stableUserId'>, openedKit: RecoveryPayload): Promise<string> {
@@ -84,9 +106,10 @@ export async function createLocalIdentityRepository(root: string) {
     },
     async readSingle(generation: number, expectedHash: string): Promise<SingleInstallData> {
       if (!Number.isSafeInteger(generation) || generation < 1 || !/^[0-9a-f]{64}$/.test(expectedHash)) throw new Error('secret_access_denied');
-      const value = await unprotect(`generation-${generation}/single.cbor`, expectedHash);
+      const decoded = await unprotect(`generation-${generation}/single.cbor`, expectedHash);
+      const value: unknown = decoded;
       try { validate(value); return { ...value, handshakeKey: new Uint8Array(value.handshakeKey) }; }
-      finally { wipeCbor(value); }
+      finally { wipeCbor(decoded); }
     },
     async writeEndpoint(record: SingleEndpointRecord): Promise<void> {
       if (!Number.isInteger(record.port) || record.port < 1 || record.port > 65535 || !record.installationId) throw new Error('secret_access_denied');

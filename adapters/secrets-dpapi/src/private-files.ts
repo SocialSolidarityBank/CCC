@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { lstat, mkdir, realpath, open, link, unlink, rename } from 'node:fs/promises';
+import { lstat, mkdir, realpath, open, link, unlink, rename, readdir } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { loadNative } from './native.mjs';
@@ -53,6 +53,28 @@ export async function createPrivateFiles(rootPath: string) {
         if (!Number.isSafeInteger(generation) || generation < 1) denied();
         await checkDirectory(root); await createDirectory(join(root, `generation-${generation}`));
       } catch { denied(); }
+    },
+    async hasGenerationFile(name: string): Promise<boolean> {
+      try {
+        if (!/^[a-z0-9][a-z0-9.-]*$/.test(name)) denied();
+        await checkDirectory(root);
+        for (const entry of await readdir(root)) {
+          if (!/^generation-[1-9][0-9]*$/.test(entry)) continue;
+          await checkDirectory(join(root, entry));
+          try { await lstat(join(root, entry, name)); return true; }
+          catch (error) { if (!code(error, 'ENOENT')) throw error; }
+        }
+        return false;
+      } catch { return denied(); }
+    },
+    async readOptional(name: string, limit = LIMIT): Promise<Uint8Array | null> {
+      try {
+        if (!Number.isSafeInteger(limit) || limit < 1 || limit > LIMIT) denied();
+        const path = pathFor(name); await checkDirectory(root); await checkDirectory(dirname(path));
+        try { await lstat(path); }
+        catch (error) { if (code(error, 'ENOENT')) return null; throw error; }
+        return await readPath(path, limit);
+      } catch { return denied(); }
     },
     async read(name: string, limit = LIMIT): Promise<Uint8Array> {
       try {

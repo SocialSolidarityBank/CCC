@@ -43,7 +43,7 @@ export async function stageNewSingleIdentity(
       orgId: config.orgId, stableUserId: generateStableUserId(), passwordHash: verifier.hash, salt: verifier.salt, handshakeKey,
     };
     const repository = await createLocalIdentityRepository(join(config.dataPath, 'identity'));
-    return { stableUserId: data.stableUserId, identityHash: await repository.stageSingle(config.generation, data) };
+    return await repository.stageSingle(config.generation, data);
   } finally { password.fill(0); handshakeKey?.fill(0); }
 }
 
