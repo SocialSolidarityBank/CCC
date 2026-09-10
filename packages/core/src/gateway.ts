@@ -12068,9 +12068,232 @@ export async function resolveDirectoryActorByAuthSubject(
   return actor?.kind === 'human' ? actor : null;
 }
 
+/** Local credentials are bound to an installed directory ID, never a username or OS SID. */
+export async function resolveLocalDirectoryActor(
+  env: Env,
+  orgId: string,
+  userId: string,
+  authn: IdentityActor['authn'],
+  issuedAt: string,
+): Promise<IdentityActor | null> {
+  if ((env.installationMode !== 'local-single' || authn.source !== 'single-local-bearer')
+    && (env.installationMode !== 'local-office' || authn.source !== 'office-local-bearer')) {
+    throw new ForbiddenError('local identity is unavailable');
+  }
+  if (authn.sessionId === null) return null;
+  const actor = await resolveDirectoryActorByKey(env, 'id', userId, authn, issuedAt);
+  return actor?.kind === 'human' && actor.orgId === orgId ? actor : null;
+}
+
+export interface OfficeAccountRecord {
+  userId: string;
+  username: string;
+  passwordHash: string;
+  salt: string;
+  roles: ActorRole[];
+  mfaSecret: string | null;
+  mfaRequired: boolean;
+  enabled: boolean;
+  failedAttempts: number;
+  lockedUntil: string | null;
+  createdAt: string;
+}
+
+export interface OfficeSessionRecord {
+  sessionId: string;
+  userId: string;
+  issuedAt: string;
+  expiresAt: string;
+  lastUsedAt: string;
+  mfaVerifiedAt: string | null;
+  revokedAt: string | null;
+}
+
+export interface OfficeAccountStore {
+  getByUsername(username: string): Promise<OfficeAccountRecord | null>;
+  getById(userId: string): Promise<OfficeAccountRecord | null>;
+  recordFailure(userId: string): Promise<void>;
+  createSession(account: OfficeAccountRecord, session: OfficeSessionRecord, sessionHash: string): Promise<boolean>;
+  getSession(sessionHash: string): Promise<OfficeSessionRecord | null>;
+  touchSession(sessionId: string): Promise<void>;
+  completeMfa(sessionId: string, counter: number): Promise<boolean>;
+  resolveActor(session: OfficeSessionRecord): Promise<IdentityActor | null>;
+  revokeAll(userId: string, reason: RevocationReason): Promise<void>;
+  revokeSession(sessionId: string, reason: RevocationReason): Promise<void>;
+}
+
+/**
+ * Pre-authentication credential boundary. Only the verified Office composition root constructs it.
+ * The installed organization scopes every lookup; roles and enabled state come from the directory.
+ * Credentials never leave this port for HTTP DTOs or audit detail.
+ */
+export function createLocalOfficeAccountStore(env: Env, orgId: string): OfficeAccountStore {
+  if (env.installationMode !== 'local-office' || orgId.trim().length === 0) {
+    throw new ForbiddenError('local identity is unavailable');
+  }
+  function authAudit(userId: string, event: string): PreparedStatement {
+    return canonicalAuditStatement(env, { userId, orgId, role: 'service' }, {
+      action: 'update', targetTable: 'office_accounts', targetId: userId,
+      beneficiaryId: null, supportCaseId: null, detail: { event },
+    });
+  }
+  async function accountBy(key: 'username' | 'id', value: string): Promise<OfficeAccountRecord | null> {
+    const statement = key === 'username'
+      ? env.DB.prepare(
+        `SELECT a.*, u.active, u.role FROM office_accounts a JOIN users u ON u.id = a.user_id
+         WHERE u.org_id = ? AND a.username = ? COLLATE NOCASE AND u.role <> 'service'`,
+      )
+      : env.DB.prepare(
+        `SELECT a.*, u.active, u.role FROM office_accounts a JOIN users u ON u.id = a.user_id
+         WHERE u.org_id = ? AND a.user_id = ? AND u.role <> 'service'`,
+      );
+    const row = await statement.bind(orgId, value).first<DbRow>();
+    if (row === null) return null;
+    const userId = stringValue(row.user_id);
+    // Reuse the same lossless role projection as other Identity adapters.
+    const directory = await resolveDirectoryActorByKey(env, 'id', userId, {
+      source: 'office-local-bearer', assurance: 'none', sessionId: null,
+    }, now());
+    return {
+      userId, username: stringValue(row.username), passwordHash: stringValue(row.password_hash),
+      salt: stringValue(row.salt), roles: directory?.roles ?? [],
+      mfaSecret: nullableString(row.mfa_secret), mfaRequired: row.mfa_required === 1,
+      enabled: row.enabled === 1 && row.active === 1 && directory !== null,
+      failedAttempts: Number(row.failed_attempts), lockedUntil: nullableString(row.locked_until),
+      createdAt: stringValue(row.created_at),
+    };
+  }
+  return {
+    getByUsername: (username) => accountBy('username', username),
+    getById: (userId) => accountBy('id', userId),
+    async recordFailure(userId) {
+      const at = now();
+      const until = new Date(Date.parse(at) + 15 * 60_000).toISOString();
+      await env.DB.batch([
+        env.DB.prepare(
+          `UPDATE office_accounts SET
+             failed_attempts = CASE WHEN locked_until IS NOT NULL AND locked_until <= ? THEN 1 ELSE failed_attempts + 1 END,
+             locked_until = CASE
+               WHEN locked_until IS NOT NULL AND locked_until <= ? THEN NULL
+               WHEN failed_attempts + 1 >= 5 THEN ? ELSE locked_until END,
+             updated_at = ?
+           WHERE user_id = ? AND user_id IN (SELECT id FROM users WHERE org_id = ?)`,
+        ).bind(at, at, until, at, userId, orgId),
+        authAudit(userId, 'authentication_failed'),
+      ]);
+    },
+    async createSession(account, session, sessionHash) {
+      const at = now();
+      const inserted = await env.DB.prepare(
+        `INSERT INTO office_sessions (session_id, session_hash, user_id, issued_at, expires_at, last_used_at)
+         SELECT ?, ?, a.user_id, ?, ?, ? FROM office_accounts a JOIN users u ON u.id = a.user_id
+         WHERE a.user_id = ? AND u.org_id = ? AND u.active = 1 AND a.enabled = 1
+           AND a.password_hash = ? AND a.salt = ?
+           AND (a.locked_until IS NULL OR a.locked_until <= ?)
+         RETURNING session_id`,
+      ).bind(session.sessionId, sessionHash, session.issuedAt, session.expiresAt, session.lastUsedAt,
+        account.userId, orgId, account.passwordHash, account.salt, at).first();
+      if (inserted === null) return false;
+      try {
+        await env.DB.batch([
+          ...(!account.mfaRequired && !account.roles.some((role) => role === 'institution-admin' || role === 'technical-admin' || role === 'supervisor')
+            ? [env.DB.prepare('UPDATE office_accounts SET failed_attempts = 0, locked_until = NULL, updated_at = ? WHERE user_id = ?')
+              .bind(at, account.userId)] : []),
+          authAudit(account.userId, 'password_verified'),
+        ]);
+      } catch (error) {
+        await appendAuthRevocation(env, 'session', session.sessionId, 'security-event');
+        throw error;
+      }
+      return true;
+    },
+    async getSession(sessionHash) {
+      const row = await env.DB.prepare(
+        `SELECT s.* FROM office_sessions s JOIN users u ON u.id = s.user_id
+         WHERE s.session_hash = ? AND u.org_id = ?`,
+      ).bind(sessionHash, orgId).first<DbRow>();
+      if (row === null) return null;
+      return {
+        sessionId: stringValue(row.session_id), userId: stringValue(row.user_id),
+        issuedAt: stringValue(row.issued_at), expiresAt: stringValue(row.expires_at),
+        lastUsedAt: stringValue(row.last_used_at), mfaVerifiedAt: nullableString(row.mfa_verified_at),
+        revokedAt: nullableString(row.revoked_at),
+      };
+    },
+    async touchSession(sessionId) {
+      await env.DB.prepare(
+        `UPDATE office_sessions SET last_used_at = ?
+         WHERE session_id = ? AND user_id IN (SELECT id FROM users WHERE org_id = ?)`,
+      ).bind(now(), sessionId, orgId).run();
+    },
+    async completeMfa(sessionId, counter) {
+      const at = now();
+      // The local migration's trigger consumes the counter and writes the MFA audit atomically.
+      const row = await env.DB.prepare(
+        `UPDATE office_sessions SET mfa_verified_at = ?, mfa_counter = ?
+         WHERE session_id = ? AND revoked_at IS NULL AND expires_at > ? AND mfa_verified_at IS NULL
+           AND user_id IN (
+             SELECT a.user_id FROM office_accounts a JOIN users u ON u.id = a.user_id
+             WHERE u.org_id = ? AND u.active = 1 AND a.enabled = 1 AND a.last_totp_counter < ?
+               AND (a.locked_until IS NULL OR a.locked_until <= ?)
+           )
+           AND NOT EXISTS (SELECT 1 FROM auth_revocations r WHERE
+             (r.kind = 'session' AND r.subject = office_sessions.session_id)
+             OR (r.kind = 'actor' AND r.subject = office_sessions.user_id AND r.revoked_at >= office_sessions.issued_at))
+         RETURNING session_id`,
+      ).bind(at, counter, sessionId, at, orgId, counter, at).first();
+      return row !== null;
+    },
+    resolveActor(session) {
+      return resolveLocalDirectoryActor(env, orgId, session.userId, {
+        source: 'office-local-bearer', assurance: session.mfaVerifiedAt === null ? 'aal1' : 'mfa',
+        sessionId: session.sessionId,
+      }, session.issuedAt);
+    },
+    async revokeAll(userId, reason) {
+      if (await accountBy('id', userId) === null) throw new ForbiddenError('account unavailable');
+      await appendAuthRevocation(env, 'actor', userId, reason);
+    },
+    async revokeSession(sessionId, reason) {
+      const row = await env.DB.prepare(
+        `SELECT 1 FROM office_sessions s JOIN users u ON u.id = s.user_id
+         WHERE s.session_id = ? AND u.org_id = ?`,
+      ).bind(sessionId, orgId).first();
+      if (row === null) throw new ForbiddenError('session unavailable');
+      await appendAuthRevocation(env, 'session', sessionId, reason);
+    },
+  };
+}
+
+/** Administrative credential provisioning for an already-provisioned local directory member. */
+export async function createOfficeAccount(
+  env: Env, actor: Actor,
+  account: Omit<OfficeAccountRecord, 'roles' | 'failedAttempts' | 'lockedUntil' | 'createdAt'>,
+): Promise<void> {
+  if (env.installationMode !== 'local-office') throw new ForbiddenError('local identity is unavailable');
+  await assertInstitutionAdmin(env, actor);
+  await assertActiveHumanUser(env, actor.orgId, account.userId);
+  if (!/^[A-Za-z0-9_-]{43}$/.test(account.passwordHash) || !/^[A-Za-z0-9_-]{22}$/.test(account.salt)
+    || account.username.trim().length < 1 || account.username.length > 254
+    || (account.mfaSecret !== null && !/^[A-Z2-7]{16,128}$/.test(account.mfaSecret))) {
+    throw new ValidationError('local credential is invalid');
+  }
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO office_accounts (user_id, username, password_hash, salt, mfa_secret, mfa_required, enabled)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(account.userId, account.username, account.passwordHash, account.salt,
+      account.mfaSecret, account.mfaRequired ? 1 : 0, account.enabled ? 1 : 0),
+    canonicalAuditStatement(env, actor, {
+      action: 'create', targetTable: 'office_accounts', targetId: account.userId,
+      beneficiaryId: null, supportCaseId: null, detail: { event: 'credential_provisioned' },
+    }),
+  ]);
+}
+
 async function resolveDirectoryActorByKey(
   env: Env,
-  key: 'email' | 'auth_subject',
+  key: 'email' | 'auth_subject' | 'id',
   principal: string,
   authn: IdentityActor['authn'],
   credentialIssuedAt: string | null,
@@ -12087,7 +12310,7 @@ async function resolveDirectoryActorByKey(
        WHERE email = ? AND active = 1
        LIMIT 1`,
     )
-    : env.DB.prepare(
+    : key === 'auth_subject' ? env.DB.prepare(
       `SELECT id, org_id, role,
          (SELECT MAX(revoked_at) FROM auth_revocations
           WHERE kind = 'actor' AND subject = users.id) AS actor_revoked_at,
@@ -12096,6 +12319,13 @@ async function resolveDirectoryActorByKey(
        FROM users
        WHERE auth_subject = ? AND active = 1
        LIMIT 1`,
+    ) : env.DB.prepare(
+      `SELECT id, org_id, role,
+         (SELECT MAX(revoked_at) FROM auth_revocations
+          WHERE kind = 'actor' AND subject = users.id) AS actor_revoked_at,
+         (SELECT MAX(revoked_at) FROM auth_revocations
+          WHERE kind = 'session' AND subject = ?) AS session_revoked_at
+       FROM users WHERE id = ? AND active = 1 LIMIT 1`,
     );
   const user = await userStatement.bind(authn.sessionId, principal).first<DbRow>();
   if (user === null || nullableString(user.session_revoked_at) !== null) return null;

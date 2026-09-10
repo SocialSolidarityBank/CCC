@@ -16,8 +16,9 @@ export function parseIPv4(ip: string): number | null {
   if (parts.length !== 4) return null;
   let result = 0;
   for (const part of parts) {
-    const num = parseInt(part, 10);
-    if (isNaN(num) || num < 0 || num > 255) return null;
+    if (!/^(0|[1-9][0-9]{0,2})$/.test(part)) return null;
+    const num = Number(part);
+    if (num > 255) return null;
     result = (result << 8) | num;
   }
   return result >>> 0; // Ensure unsigned
@@ -61,6 +62,12 @@ export function validateBindAddress(host: string, privateCidr: string): void {
   }
 
   const mask = (0xffffffff << (32 - prefix)) >>> 0;
+  const networkStart = (networkNum & mask) >>> 0;
+  const networkEnd = (networkStart | ~mask) >>> 0;
+  if (networkStart !== networkNum
+    || !RFC1918_RANGES.some((range) => networkStart >= range.start && networkEnd <= range.end)) {
+    throw new Error('invalid_private_cidr');
+  }
   if ((hostNum & mask) !== (networkNum & mask)) {
     throw new Error('host_outside_cidr');
   }

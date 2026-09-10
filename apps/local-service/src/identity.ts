@@ -1,112 +1,100 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
-import {
-  type Actor,
-  type ActorRole,
-  type Identity,
-  ActorAuthenticationError,
-  type RevocationReason,
-} from '@ccc/contracts/runtime';
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { type Actor, type Identity, ActorAuthenticationError, IdentityStoreUnavailableError } from '@ccc/contracts/runtime';
+import type { SingleInstallData } from '@ccc/secrets-dpapi';
+import { ForbiddenError } from '@ccc/core/gateway';
+import { LocalAuthError, verifyPassword } from './office-identity.ts';
 
-const BEARER_PREFIX = 'CCC-LOCAL-SINGLEv1-';
-
-/**
- * E7-1a stable local identity. No raw SID, no email, no persisted bearer.
- * The token lives in memory only and regenerates on each service start.
- */
 export interface LocalSingleIdentityConfig {
-  /**
-   * Stable user ID loaded from DPAPI. Must be random UUID generated at install,
-   * preserved through recovery. NEVER derived from username, SID, or email.
-   * S4 §2.2: "Single stable user ID는 설치 때 무작위로 생성하고 SID에서 파생하지 않는다"
-   */
-  stableUserId: string;
-  /** Organization ID from install manifest. */
-  orgId: string;
-  /** Roles assigned to the single local user. Default: institution-admin + worker. */
-  roles?: ActorRole[];
+  install: SingleInstallData;
+  resolveActor(sessionId: string, issuedAt: string): Promise<Actor | null>;
 }
-
 export interface LocalSingleIdentity extends Identity {
-  /** Memory-only bearer for same-origin Electron requests. Never persisted. */
-  readonly bearer: string;
-  /** Stable user ID from hashed username. No raw SID or email. */
   readonly stableUserId: string;
-  /** Zeros memory and invalidates all further requests. */
+  challenge(): string;
+  unlock(challenge: string, proof: string, password: Uint8Array): Promise<{ bearer: string; sessionId: string }>;
+  lock(): void;
   close(): void;
 }
 
-/** Generate a new stable user ID for install. Store result in DPAPI. */
-export function generateStableUserId(): string {
-  // 20 random bytes = 160 bits, base64url encoded
-  return randomBytes(20).toString('base64url');
-}
+export function generateStableUserId(): string { return randomUUID(); }
 
-function generateOpaqueBearer(): { bearer: string; secretBytes: Uint8Array } {
-  // 32 random bytes for 256-bit entropy, base64url encoded
-  const secretBytes = randomBytes(32);
-  const bearer = BEARER_PREFIX + secretBytes.toString('base64url');
-  return { bearer, secretBytes };
-}
-
+/** Starts locked. DPAPI possession plus the app passphrase is required for each new bearer. */
 export function createLocalSingleIdentity(config: LocalSingleIdentityConfig): LocalSingleIdentity {
-  if (!config.orgId || config.orgId.trim().length === 0) {
-    throw new Error('identity_invalid');
-  }
-  if (!config.stableUserId || config.stableUserId.trim().length === 0) {
-    throw new Error('identity_invalid');
-  }
-  const stableUserId = config.stableUserId;
-  const { bearer, secretBytes } = generateOpaqueBearer();
-  const roles: ActorRole[] = config.roles ?? ['institution-admin', 'worker'];
-  let closed = false;
-
-  const actor: Actor = {
-    kind: 'human',
-    userId: stableUserId,
-    orgId: config.orgId,
-    roles,
-    scopes: ['*'],
-    authn: {
-      source: 'single-local-bearer',
-      assurance: 'app-lock',
-      sessionId: null, // No session tracking for single user
-    },
-  };
-
-  function verifyBearer(authorization: string): void {
-    if (closed) throw new ActorAuthenticationError('identity closed');
-    // Constant-time comparison to prevent timing attacks
-    const expected = Buffer.from(bearer);
-    const provided = Buffer.from(authorization.replace(/^Bearer\s+/i, ''));
-    if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
-      throw new ActorAuthenticationError('invalid bearer');
-    }
-  }
-
+  const { install } = config;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(install.stableUserId)
+    || !install.orgId || install.handshakeKey.length !== 32) throw new Error('identity_invalid');
+  const handshakeKey = new Uint8Array(install.handshakeKey);
+  let closed = false, pendingNonce: string | null = null, nonceExpires = 0;
+  let session: { id: string; hash: Buffer; issuedAt: number; lastUsedAt: number } | null = null;
+  let failures = 0, lockedUntil = 0, unlocking = false, lockVersion = 0;
+  function lock(): void { lockVersion++; session?.hash.fill(0); session = null; pendingNonce = null; }
   return {
-    bearer,
-    stableUserId,
-
-    async resolve(request: Request): Promise<Actor> {
+    stableUserId: install.stableUserId,
+    challenge() {
+      if (closed) throw new ActorAuthenticationError();
+      if (Date.now() < lockedUntil) throw new LocalAuthError('account_locked', 423);
+      pendingNonce = randomBytes(32).toString('base64url');
+      nonceExpires = Date.now() + 30_000;
+      return pendingNonce;
+    },
+    async unlock(challenge, proof, password) {
+      try {
+        if (closed || unlocking) throw new ActorAuthenticationError();
+        if (Date.now() < lockedUntil) throw new LocalAuthError('account_locked', 423);
+        if (challenge !== pendingNonce || Date.now() >= nonceExpires) throw new ActorAuthenticationError();
+        pendingNonce = null;
+        const expected = createHmac('sha256', handshakeKey).update(`${install.installationId}\0${challenge}`).digest();
+        const supplied = Buffer.from(proof, 'base64url');
+        const match = expected.length === supplied.length && timingSafeEqual(expected, supplied);
+        expected.fill(0); supplied.fill(0);
+        if (!match) throw new ActorAuthenticationError();
+        unlocking = true;
+        const version = lockVersion;
+        try {
+          if (!await verifyPassword(password, install.salt, install.passwordHash)) {
+            failures++;
+            if (failures >= 5) { lockedUntil = Date.now() + 15 * 60_000; failures = 0; }
+            throw new ActorAuthenticationError();
+          }
+          if (closed || lockVersion !== version) throw new ActorAuthenticationError();
+          const id = randomUUID(), at = Date.now();
+          let actor: Actor | null;
+          try { actor = await config.resolveActor(id, new Date(at).toISOString()); }
+          catch { throw new IdentityStoreUnavailableError(); }
+          if (actor === null || actor.roles.length === 0) throw new ForbiddenError('account unavailable');
+          if (closed || lockVersion !== version) throw new ActorAuthenticationError();
+          lock();
+          const bytes = randomBytes(32);
+          const bearer = `CCC-LOCAL-SINGLEv1-${bytes.toString('base64url')}`;
+          bytes.fill(0);
+          session = { id, hash: createHash('sha256').update(bearer).digest(), issuedAt: at, lastUsedAt: at };
+          failures = 0;
+          return { bearer, sessionId: id };
+        } finally { unlocking = false; }
+      } finally { password.fill(0); }
+    },
+    async resolve(request) {
       const authorization = request.headers.get('authorization');
-      if (!authorization) throw new ActorAuthenticationError('missing authorization');
-      verifyBearer(authorization);
+      const current = session;
+      if (closed || current === null || authorization === null || !/^Bearer CCC-LOCAL-SINGLEv1-[A-Za-z0-9_-]{43}$/i.test(authorization)) throw new ActorAuthenticationError();
+      const hash = createHash('sha256').update(authorization.slice(7)).digest();
+      const match = timingSafeEqual(hash, current.hash);
+      hash.fill(0);
+      if (!match) throw new ActorAuthenticationError();
+      if (Date.now() - current.issuedAt >= 12 * 60 * 60_000 || Date.now() - current.lastUsedAt >= 30 * 60_000) {
+        lock(); throw new ActorAuthenticationError();
+      }
+      let actor: Actor | null;
+      try { actor = await config.resolveActor(current.id, new Date(current.issuedAt).toISOString()); }
+      catch { throw new IdentityStoreUnavailableError(); }
+      if (actor === null || actor.roles.length === 0) { lock(); throw new ForbiddenError('account unavailable'); }
+      if (closed || session !== current) throw new ActorAuthenticationError();
+      current.lastUsedAt = Date.now();
       return actor;
     },
-
-    async revokeAll(_userId: string, _reason: RevocationReason): Promise<void> {
-      // Single user mode: revoke means close the service
-      closed = true;
-      secretBytes.fill(0);
-    },
-
-    async revokeSession(_sessionId: string, _reason: RevocationReason): Promise<void> {
-      // No session tracking in single mode
-    },
-
-    close(): void {
-      closed = true;
-      secretBytes.fill(0);
-    },
+    async revokeAll(userId) { if (userId === install.stableUserId) lock(); },
+    async revokeSession(sessionId) { if (session?.id === sessionId) lock(); },
+    lock,
+    close() { closed = true; lock(); handshakeKey.fill(0); },
   };
 }

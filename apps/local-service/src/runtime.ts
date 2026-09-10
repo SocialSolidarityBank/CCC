@@ -1,286 +1,99 @@
 import { createServer, type Server } from 'node:http';
-import { writeFile, readFile, mkdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { openEncryptedSqlite, type EncryptedSqliteDatabase, type SqliteMigration } from '@ccc/db-sqlite';
-import { createFileAudioStore } from '@ccc/audio-file';
-import { createNodeScheduler, type NodeScheduler, type SchedulerFailure } from '@ccc/scheduler-node';
-import { createDpapiSecretStore, type DpapiRecord } from '@ccc/secrets-dpapi';
-import type { AudioStore, CoreSecretStore, DeploymentMode, VersionedSecretBytes } from '@ccc/contracts/runtime';
+import { join } from 'node:path';
+import { createLocalIdentityRepository } from '@ccc/secrets-dpapi';
 import type { SingleEndpointRecord } from '@ccc/contracts/install-manifest';
-import { createScheduledJobRunner, type ScheduledJobEnv } from '@ccc/core/scheduled-job-runner';
-import { handleRequest, type ActorResolver } from '@ccc/http-api';
-import type { ApiEnv } from '@ccc/http-api/identity';
-import { createLocalSingleIdentity, type LocalSingleIdentity } from './identity.js';
+import { ActorAuthenticationError } from '@ccc/contracts/runtime';
+import { resolveLocalDirectoryActor } from '@ccc/core/gateway';
+import { handleRequest } from '@ccc/http-api';
+import { createLocalSingleIdentity, type LocalSingleIdentity } from './identity.ts';
+import { authBody, closeLocalServer, localError, localRequest, sendLocalResponse } from './http-transport.ts';
+import { LocalAuthError } from './office-identity.ts';
+import { openLocalResources, verifyLocalInstallation, type LocalRuntimeConfig, type LocalRuntimeResources } from './runtime-resources.ts';
 
-const LOOPBACK = '127.0.0.1';
-
-export interface LocalSingleRuntimeConfig {
-  /** Root directory for all local data (database, audio, secrets, endpoint). */
-  dataPath: string;
-  /** Stable user ID from install. Generated at install and stored in DPAPI. */
-  stableUserId: string;
-  /** Organization ID from install manifest. */
-  orgId: string;
-  /** Install manifest JSON string (signed). */
-  installManifest: string;
-  /** Install signing keys JSON string. */
-  signingKeys: string;
-  /** Pre-loaded DPAPI-protected secret records from the generation file. */
-  secretRecords: readonly DpapiRecord[];
-  /** SQLite migrations to apply on startup. */
-  migrations: readonly SqliteMigration[];
-  /** Optional runtime settings overrides. */
-  settings?: Partial<Pick<ApiEnv,
-    'CCC_STT_MODE' | 'CCC_LLM_MODE' | 'TEXT_AI_PILOT_ENABLED'
-    | 'EXTERNAL_AI_CALLS_ENABLED' | 'PUBLIC_SIGNUP_ENABLED' | 'PII_PURGE_ENABLED' | 'PII_KEY_VERSION'>>;
-  /** Callback for scheduler job failures. */
-  onSchedulerError?: (failure: SchedulerFailure) => void;
+export interface LocalSingleRuntimeConfig extends LocalRuntimeConfig {
+  generation: number;
+  identityHash: string;
 }
-
 export interface LocalSingleRuntime {
-  /** The loopback server port (ephemeral). */
   readonly port: number;
-  /** Installation ID from manifest. */
   readonly installationId: string;
-  /** The opaque memory-only bearer for Electron IPC. */
-  readonly bearer: string;
-  /** Graceful shutdown: stops server, scheduler, closes database. */
   close(): Promise<void>;
 }
 
-/**
- * E7-1a/E7-1b Local Single runtime composition.
- * - Loopback-only bind with ephemeral port
- * - DPAPI-protected encrypted SQLite and file audio store
- * - Node process scheduler
- * - Opaque memory-only bearer
- * - Fails closed on unsupported platform
- */
 export async function createLocalSingleRuntime(config: LocalSingleRuntimeConfig): Promise<LocalSingleRuntime> {
-  // Fail closed: Windows only
-  if (process.platform !== 'win32') {
-    throw new Error('platform_unsupported');
-  }
-
-  // Initialize DPAPI secret store with provided records
-  const dpapiStore = createDpapiSecretStore('local-single', config.secretRecords);
-
-  // Retrieve required keys
-  const dbMasterKey = await dpapiStore.getBytesWithVersion('DB_MASTER_KEY');
-  const fileEncKey = await dpapiStore.getBytesWithVersion('FILE_ENC_KEY');
-  const piiEncKey = await dpapiStore.getBytesWithVersion('PII_ENC_KEY');
-  if (dbMasterKey === null || fileEncKey === null || piiEncKey === null) {
-    dpapiStore.close();
-    throw new Error('secret_access_denied');
-  }
-
-  const dataPath = config.dataPath;
-  const dbPath = join(dataPath, 'database.sqlite');
-  const audioPath = join(dataPath, 'audio');
-  const endpointPath = join(dataPath, 'endpoint.json');
-
-  // Ensure directories exist (private-files handles permissions on Windows)
-  await mkdir(dirname(dbPath), { recursive: true });
-  await mkdir(audioPath, { recursive: true });
-
-  let database: EncryptedSqliteDatabase | undefined;
-  let audioStore: AudioStore | undefined;
-  let scheduler: NodeScheduler | undefined;
-  let identity: LocalSingleIdentity | undefined;
-  let server: Server | undefined;
-
+  if (process.platform !== 'win32') throw new Error('platform_unsupported');
+  const manifest = await verifyLocalInstallation(config, 'local-single');
+  const repository = await createLocalIdentityRepository(join(config.dataPath, 'identity'));
+  const install = await repository.readSingle(config.generation, config.identityHash);
+  let resources: LocalRuntimeResources | undefined;
+  let identity: LocalSingleIdentity | undefined, server: Server | undefined;
   try {
-    // Open encrypted database
-    database = openEncryptedSqlite({ filename: dbPath, key: dbMasterKey.bytes });
-    database.applyMigrations(config.migrations as SqliteMigration[]);
-
-    // Create encrypted audio store
-    audioStore = await createFileAudioStore(audioPath, fileEncKey);
-
-    // Create local identity
+    if (install.installationId !== manifest.installationId || install.orgId !== config.orgId || manifest.sequence < install.sequence) throw new Error('installation_invalid');
+    resources = await openLocalResources(config, manifest);
+    const { baseEnv } = resources;
     identity = createLocalSingleIdentity({
-      stableUserId: config.stableUserId,
-      orgId: config.orgId,
+      install,
+      resolveActor: (sessionId, issuedAt) => resolveLocalDirectoryActor(baseEnv, install.orgId, install.stableUserId, {
+        source: 'single-local-bearer', assurance: 'app-lock', sessionId,
+      }, issuedAt),
     });
-
-    // Parse install manifest for installation ID (signature verification is caller's responsibility)
-    const manifest = JSON.parse(config.installManifest) as { installationId: string; mode: DeploymentMode };
-    if (manifest.mode !== 'local-single') throw new Error('installation_invalid');
-    const installationId = manifest.installationId;
-
-    // Build core secret store (read-only, no platform keys)
-    const coreSecretStore: CoreSecretStore = {
-      async get(_name: 'CODEX_API_KEY' | 'NOTIFY_WEBHOOK_URL'): Promise<string | null> {
-        // These are stored differently in local mode; return null for now
-        return null;
-      },
-      async getBytesWithVersion(_name: 'PII_ENC_KEY'): Promise<VersionedSecretBytes | null> {
-        return piiEncKey;
-      },
-    };
-
-    // Build API environment
-    const installation = {
-      CCC_INSTALL_MANIFEST: config.installManifest,
-      CCC_INSTALL_SIGNING_KEYS: config.signingKeys,
-    };
-
-    const baseEnv: ApiEnv = {
-      ...config.settings,
-      ...installation,
-      installationMode: 'local-single' as DeploymentMode,
-      DB: database,
-      secretStore: coreSecretStore,
-      audioStore,
-    };
-
-    // Create scheduled job environment
-    const scheduledJobEnv: ScheduledJobEnv = {
-      ...baseEnv,
-      audioStore,
-    };
-
-    // Create scheduler with job runner
-    const jobRunner = createScheduledJobRunner(scheduledJobEnv);
-    scheduler = createNodeScheduler(
-      jobRunner,
-      config.onSchedulerError ?? (() => {/* default: silent */}),
-    );
-
-    // Register standard cron jobs
-    await scheduler.schedule('pipeline_watchdog', '*/5 * * * *');
-    await scheduler.schedule('pii_retention', '0 2 * * *');
-    await scheduler.schedule('audio_expiry', '*/30 * * * *');
-
-    // Actor resolver for requests
-    const resolveActor: ActorResolver = async (request) => {
-      return identity!.resolve(request);
-    };
-
-    // Variables to track server state
-    let port: number;
-
-    // Create HTTP server bound to loopback only with ephemeral port
+    const localIdentity = identity;
+    let port = 0;
     server = createServer(async (req, res) => {
-      // Build Request from IncomingMessage
-      const url = new URL(req.url ?? '/', `http://${LOOPBACK}:${port}`);
-      const headers = new Headers();
-      for (const [key, value] of Object.entries(req.headers)) {
-        if (value !== undefined) {
-          headers.set(key, Array.isArray(value) ? value.join(', ') : value);
-        }
-      }
-
-      let bodyInit: BodyInit | null = null;
-      if (req.method !== 'GET' && req.method !== 'HEAD') {
-        const chunks: Buffer[] = [];
-        for await (const chunk of req) {
-          chunks.push(chunk as Buffer);
-        }
-        if (chunks.length > 0) {
-          bodyInit = Buffer.concat(chunks);
-        }
-      }
-
-      const method = req.method ?? 'GET';
-      const request = new Request(url.toString(), {
-        method,
-        headers,
-        body: bodyInit,
-      });
-
+      let response: Response;
       try {
-        const response = await handleRequest(request, baseEnv, resolveActor);
-        res.statusCode = response.status;
-        for (const [key, value] of response.headers) {
-          res.setHeader(key, value);
-        }
-        const responseBody = await response.arrayBuffer();
-        res.end(new Uint8Array(responseBody));
-      } catch {
-        res.statusCode = 500;
-        res.setHeader('content-type', 'application/json; charset=utf-8');
-        res.end(JSON.stringify({ error: 'internal_error' }));
-      }
+        const request = localRequest(req, `http://127.0.0.1:${port}`, manifest);
+        const path = new URL(request.url).pathname;
+        if (path === '/auth/challenge' || path === '/auth/unlock') {
+          // Electron main only: loopback transport plus DPAPI possession, never a renderer Origin.
+          if (request.method !== 'POST' || req.socket.remoteAddress !== '127.0.0.1'
+            || request.headers.has('origin') || request.headers.get('x-ccc-install-id') !== manifest.installationId) throw new ActorAuthenticationError();
+          const body = await authBody(request);
+          if (path === '/auth/challenge') {
+            if (Object.keys(body).length !== 0) throw new LocalAuthError('invalid_request', 400);
+            response = Response.json({ challenge: localIdentity.challenge() });
+          } else {
+            if (Object.keys(body).sort().join(',') !== 'challenge,password,proof'
+              || typeof body.challenge !== 'string' || typeof body.proof !== 'string' || typeof body.password !== 'string') throw new LocalAuthError('invalid_request', 400);
+            const password = new TextEncoder().encode(body.password);
+            delete body.password;
+            response = Response.json(await localIdentity.unlock(body.challenge, body.proof, password));
+          }
+        } else if (path === '/auth/lock' && request.method === 'POST') {
+          await localIdentity.resolve(request);
+          if (Object.keys(await authBody(request)).length !== 0) throw new LocalAuthError('invalid_request', 400);
+          localIdentity.lock();
+          response = new Response(null, { status: 204 });
+        } else if (request.method === 'OPTIONS') response = new Response(null, { status: 204 });
+        else response = await handleRequest(request, baseEnv, (next) => localIdentity.resolve(next));
+      } catch (error) { response = localError(error); }
+      try { await sendLocalResponse(req, res, response, manifest); } catch { res.destroy(); }
     });
-
-    // Bind to loopback with ephemeral port
-    port = await new Promise<number>((resolve, reject) => {
-      server!.listen(0, LOOPBACK, () => {
-        const addr = server!.address();
-        if (addr && typeof addr === 'object') {
-          resolve(addr.port);
-        } else {
-          reject(new Error('server_bind_failed'));
-        }
-      });
-      server!.on('error', reject);
-    });
-
-    // Write DPAPI endpoint record (port discovery for Electron)
-    const endpointRecord: SingleEndpointRecord = { installationId, port };
-    await writeFile(endpointPath, JSON.stringify(endpointRecord), { mode: 0o600 });
-
-    // Cleanup helper
-    async function close(): Promise<void> {
-      // Stop accepting new connections
-      await new Promise<void>((resolve) => {
-        if (server?.listening) {
-          server.close(() => resolve());
-        } else {
-          resolve();
-        }
-      });
-
-      // Close scheduler (drains in-flight jobs)
-      await scheduler?.close();
-
-      // Close identity (zeros memory)
-      identity?.close();
-
-      // Close database
-      database?.close();
-
-      // Zero key material (non-null: checked at line 72 before try)
-      dbMasterKey!.bytes.fill(0);
-      fileEncKey!.bytes.fill(0);
-      piiEncKey!.bytes.fill(0);
-
-      // Close DPAPI store
-      dpapiStore.close();
-    }
-
+    const listening = Promise.withResolvers<void>();
+    server.once('error', listening.reject);
+    server.listen(0, '127.0.0.1', listening.resolve);
+    await listening.promise;
+    const address = server.address();
+    if (address === null || typeof address === 'string' || address.address !== '127.0.0.1') throw new Error('server_bind_failed');
+    port = address.port;
+    await repository.writeEndpoint({ installationId: manifest.installationId, port });
+    const opened = resources;
     return {
-      port,
-      installationId,
-      bearer: identity.bearer,
-      close,
+      port, installationId: manifest.installationId,
+      async close() {
+        localIdentity.close();
+        try { await closeLocalServer(server); } finally { await opened.close(); }
+      },
     };
   } catch (error) {
-    // Cleanup on initialization failure
-    if (dbMasterKey !== null) dbMasterKey.bytes.fill(0);
-    if (fileEncKey !== null) fileEncKey.bytes.fill(0);
-    if (piiEncKey !== null) piiEncKey.bytes.fill(0);
-    dpapiStore.close();
     identity?.close();
-    database?.close();
-    if (server?.listening) {
-      await new Promise<void>((resolve) => server!.close(() => resolve()));
-    }
+    try { await closeLocalServer(server); } finally { await resources?.close(); }
     throw error;
-  }
+  } finally { install.handshakeKey.fill(0); }
 }
 
-/** Read DPAPI endpoint record written by the runtime. */
-export async function readEndpointRecord(dataPath: string): Promise<SingleEndpointRecord | null> {
-  try {
-    const content = await readFile(join(dataPath, 'endpoint.json'), 'utf-8');
-    const record = JSON.parse(content) as SingleEndpointRecord;
-    if (typeof record.installationId !== 'string' || typeof record.port !== 'number') {
-      return null;
-    }
-    return record;
-  } catch {
-    return null;
-  }
+/** Endpoint discovery remains DPAPI protected and bound to the expected installation. */
+export async function readEndpointRecord(dataPath: string, installationId: string): Promise<SingleEndpointRecord> {
+  const repository = await createLocalIdentityRepository(join(dataPath, 'identity'));
+  return repository.readEndpoint(installationId);
 }
