@@ -242,6 +242,7 @@ import { gatewayActorFromIdentity, type ApiEnv } from './identity';
 import { buildCapabilities, CapabilitiesUnavailableError, verifiedInstallManifest } from './capabilities';
 import {
   jobErrorHttpStatus,
+  normalizeClaimLimit,
   routeForMode,
   type AudioVerifyRequest,
   type ClaimRequest,
@@ -1727,6 +1728,11 @@ function parseClaimRequest(body: JsonObject): ClaimRequest {
   requireOnlyKeys(body, hasLimit
     ? ['limit', 'nerAttestation', 'releaseQualificationReceiptId']
     : ['nerAttestation', 'releaseQualificationReceiptId']);
+  let limit: number | undefined;
+  if (hasLimit) {
+    try { limit = normalizeClaimLimit(requiredInteger(body, 'limit')); }
+    catch { throw new ValidationError('claim limit is invalid'); }
+  }
   const attestation = asObject(body.nerAttestation);
   requireOnlyKeys(attestation, [
     'id', 'modelId', 'modelRevision', 'labelSetHash', 'corpusHash', 'resultHash',
@@ -1734,7 +1740,7 @@ function parseClaimRequest(body: JsonObject): ClaimRequest {
   ]);
   if (attestation.status !== 'passed') throw new ValidationError('ner attestation status is invalid');
   return {
-    ...(hasLimit ? { limit: requiredInteger(body, 'limit') } : {}),
+    ...(limit === undefined ? {} : { limit }),
     nerAttestation: {
       id: requiredString(attestation, 'id'),
       modelId: requiredString(attestation, 'modelId'),

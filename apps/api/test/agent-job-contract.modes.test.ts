@@ -308,6 +308,19 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
     await expect(completion.json()).resolves.toEqual({ error: 'conflict' });
   });
 
+  it('claim limit 범위 오류는 500이 아니라 안전한 400으로 거부한다', async () => {
+    await t.reset();
+    const env = await envForMode('local-single');
+    const qualification = await seedNerQualification(t.db);
+    const response = await worker.fetch(new Request('http://localhost/pipeline/jobs/claim', {
+      method: 'POST',
+      headers: serviceHeaders,
+      body: JSON.stringify(claimRequest(qualification, 1)),
+    }), env);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'invalid_request' });
+  });
+
   it('사람은 job endpoint 를, Agent 는 업무 API 를 쓸 수 없다', async () => {
     await t.reset();
     const env = await envForMode('local-single');

@@ -20520,12 +20520,9 @@ export async function getParticipantBriefing(
   for (const row of pending.results) {
     const supportCaseId = stringValue(row.support_case_id);
     const entry = pendingBySupportCase.get(supportCaseId) ?? { count: 0, sessionIds: [] };
-    if (Number(row.fixture_generated) === 1) {
-      const sessionId = stringValue(row.session_id);
-      if (!entry.sessionIds.includes(sessionId)) entry.sessionIds.push(sessionId);
-    } else {
-      entry.count += 1;
-    }
+    const sessionId = stringValue(row.session_id);
+    if (!entry.sessionIds.includes(sessionId)) entry.sessionIds.push(sessionId);
+    if (Number(row.fixture_generated) !== 1) entry.count += 1;
     pendingBySupportCase.set(supportCaseId, entry);
   }
   const latestSessionBySupportCase = new Map<string, DbRow>();

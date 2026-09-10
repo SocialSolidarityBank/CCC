@@ -17,6 +17,7 @@ import { handleRequest } from '@ccc/http-api';
 import {
   activateAiProviderConfiguration,
   createCase,
+  createProgram,
   createCounselingSchedule,
   createManualSession,
   enqueueTextWorkItem,
@@ -29,7 +30,7 @@ import {
   CODEX_PROVIDER_ID,
   canonicalAiProviderConfigHash,
 } from '@ccc/ai-runtime';
-import { seedTestProgramWithRuntimeModes, testProgramId } from '../support/d1.ts';
+import { PROGRAM_ADMISSION_COPY, PROGRAM_ADMISSION_COPY_VERSION } from '@ccc/contracts/program-admission';
 import { createTestSigner, signedManifest } from '../support/install-manifest.ts';
 import worker from '../support/local-worker.ts';
 import { seedProviderRegistry, registrationInput } from '../support/registration.ts';
@@ -51,7 +52,6 @@ const ACTORS = {
     subject: '21000000-0000-4000-8000-000000000001',
     email: 'assigned@example.invalid',
     legacyRole: 'counselor',
-    canonicalRole: 'practitioner',
     name: '합성 담당 실무자',
   },
   admin: {
@@ -59,7 +59,6 @@ const ACTORS = {
     subject: '21000000-0000-4000-8000-000000000002',
     email: 'admin@example.invalid',
     legacyRole: 'admin',
-    canonicalRole: 'institution_admin',
     name: '합성 비담당 관리자',
   },
   unassigned: {
@@ -67,7 +66,6 @@ const ACTORS = {
     subject: '21000000-0000-4000-8000-000000000003',
     email: 'unassigned@example.invalid',
     legacyRole: 'counselor',
-    canonicalRole: 'practitioner',
     name: '합성 비담당 실무자',
   },
   service: {
@@ -75,7 +73,6 @@ const ACTORS = {
     subject: '21000000-0000-4000-8000-000000000004',
     email: 'service@example.invalid',
     legacyRole: 'service',
-    canonicalRole: null,
     name: '합성 처리 장비',
   },
 };
@@ -120,10 +117,19 @@ class FakeAiProviderAdapter {
         section: 'other_topics',
         text: '합성 상담에서 생활비 지출을 확인했습니다.',
         evidence: [{ ...evidence }],
+      }, {
+        claimKey: 'prepare-expense-record',
+        section: 'next_session_commitments',
+        text: '다음 상담까지 지출 내역을 정리하기로 했습니다.',
+        evidence: [{ ...evidence }],
       }],
       questions: [{
         title: '생활비 변동이 있었나요?',
         reason: '저장된 수기 기록에 생활비 확인 내용이 있습니다.',
+        evidence: [{ ...evidence }],
+      }, {
+        title: '주거비 변화가 있었나요?',
+        reason: '생활비 기록과 함께 주거비 변화를 확인합니다.',
         evidence: [{ ...evidence }],
       }],
       oneLiner: '생활비 지출 상황을 확인했습니다.',
@@ -243,7 +249,10 @@ function createAuthHandler() {
 
   return async (request) => {
     const url = new URL(request.url);
-    const cors = corsHeaders(clientOrigin);
+    const cors = {
+      ...corsHeaders(clientOrigin),
+      'access-control-allow-headers': 'authorization, content-type, apikey, x-client-info, x-supabase-api-version',
+    };
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
     if (url.pathname === '/auth/v1/token') {
@@ -379,18 +388,12 @@ async function main() {
         `INSERT INTO users (id, org_id, email, role, active, name, auth_subject)
          VALUES (?, ?, ?, ?, 1, ?, ?)`,
       ).bind(actor.id, ORG_ID, actor.email, actor.legacyRole, actor.name, actor.subject).run();
-      if (actor.canonicalRole !== null) {
-        await adminDb.prepare(
-          `INSERT INTO user_role_assignments (id, org_id, user_id, role, source, granted_by, granted_at)
-           VALUES (?, ?, ?, ?, 'manual', ?, '2026-09-10T00:00:00.000Z')`,
-        ).bind(`role-${actor.id}`, ORG_ID, actor.id, actor.canonicalRole, ACTORS.admin.id).run();
-      }
     }
+    await adminDb.prepare(
+      `INSERT INTO program_admission_policies (org_id, version, stt_mode, llm_mode)
+       VALUES (?, 1, 'off', 'openai')`,
+    ).bind(ORG_ID).run();
 
-    await seedTestProgramWithRuntimeModes(adminDb, ORG_ID, ACTORS.admin.id, {
-      deploymentMode: 'community-cloud', sttMode: 'off', llmMode: 'openai',
-    }, '합성 AI 검토 사업');
-    await seedProviderRegistry(adminDb, ORG_ID);
 
     const apiDb = await harness.openApiDatabase(adminDb, 8);
     const piiKey = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64');
@@ -411,6 +414,24 @@ async function main() {
     const assignedEnv = envFor(ACTORS.assigned.id);
     const adminEnv = envFor(ACTORS.admin.id);
     const serviceEnv = envFor(ACTORS.service.id);
+    const admissionCopyHash = await sha256Hex(canonicalizeJcs(PROGRAM_ADMISSION_COPY));
+    const installationConfigHash = await sha256Hex(canonicalizeJcs({
+      deploymentMode: 'community-cloud', sttMode: 'off', llmMode: 'openai',
+    }));
+    const program = await createProgram(adminEnv, ADMIN_ACTOR, {
+      displayName: '합성 AI 검토 사업',
+      storageMode: 'supabase_seoul',
+      processingMode: 'external_allowed',
+      confirmation: {
+        copyVersion: PROGRAM_ADMISSION_COPY_VERSION,
+        copyHash: admissionCopyHash,
+        installationPolicyVersion: 1,
+        installationConfigHash,
+      },
+      staff: [{ userId: ACTORS.assigned.id, isResponsible: true }],
+    });
+    const fixtureProgramId = program.id;
+    await seedProviderRegistry(adminDb, ORG_ID);
 
     const providerConfig = await registerAiProviderConfiguration(adminEnv, ADMIN_ACTOR, {
       adapterId: CODEX_PROVIDER_ID,
@@ -439,7 +460,7 @@ async function main() {
 
     async function createGraph(label, ordinal) {
       const registration = await registrationInput(assignedEnv, ASSIGNED_ACTOR, {
-        programId: testProgramId(ORG_ID),
+        programId: fixtureProgramId,
         name: `합성 ${label}`,
       });
       const caseRecord = await createCase(assignedEnv, ASSIGNED_ACTOR, registration);
@@ -487,7 +508,7 @@ async function main() {
         method: 'POST',
         headers: SERVICE_HEADERS,
         body: JSON.stringify({
-          limit: 1,
+          limit: 2,
           nerAttestation: qualification.attestation,
           releaseQualificationReceiptId: qualification.receiptId,
         }),

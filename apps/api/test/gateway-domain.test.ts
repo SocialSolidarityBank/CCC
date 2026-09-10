@@ -2531,6 +2531,9 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
     );
     expect(pendingBriefing.aiSuggestions).toEqual([]);
     expectNoCanaries(pendingBriefing, ['OLDER_TITLE_1', 'NEWER_TITLE_1', 'OLDER_REASON_1', 'NEWER_REASON_1']);
+    expect([
+      ...(pendingBriefing.pendingReviewSessionIdsBySupportCase[scope.id] ?? []),
+    ].sort()).toEqual([olderSession.id, newerSession.id].sort());
 
     await approveGeneratedAiDraft(t.env, counselor, olderDraft.workItemId, 1);
     // 승인 시각(ms)이 겹치면 최신순 정렬이 비결정적이 된다 — 두 승인 사이 간격을 강제한다.
