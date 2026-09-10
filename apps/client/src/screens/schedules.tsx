@@ -209,6 +209,8 @@ export function ScheduleCreateScreen() {
   }, [session.schedules, session.auth]);
 
   const selected = (candidates ?? []).find((candidate) => candidate.supportCaseId === supportCaseId) ?? null;
+  // 인테이크 일정에는 세션 목표를 붙일 수 없다(서버 규칙). 같은 칸이 케이스의 세부 목표가 된다(D62).
+  const intake = selected !== null && selected.intakeAt === null;
 
   const submit = async () => {
     if (busy || selected === null || localDateTime === '') return;
@@ -220,8 +222,8 @@ export function ScheduleCreateScreen() {
         supportCaseId: selected.supportCaseId,
         // 입력칸은 브라우저 지역 시각이다. 서버 계약은 UTC 순간이라 여기서 한 번만 바꾼다.
         scheduledAt: new Date(localDateTime).toISOString(),
-        sessionKind: selected.intakeAt === null ? 'intake' : 'regular',
-        sessionGoals: goals.split('\n').map((line) => line.trim()).filter((line) => line !== ''),
+        sessionKind: intake ? 'intake' : 'regular',
+        goals: goals.split('\n'),
       });
       void navigate(`/schedules/${encodeURIComponent(created.id)}/plan`);
     } catch (cause) {
@@ -235,7 +237,9 @@ export function ScheduleCreateScreen() {
 
   return <WireCard title="상담 일정 등록">
     {loadError && <WireError>{loadError.message}</WireError>}
-    {error && <WireError>{error.message}</WireError>}
+    {error && <WireError>{error.status === 403
+      ? '이 사업에 담당으로 배정된 실무자만 일정을 등록할 수 있습니다. 담당 배정을 먼저 받아 주세요.'
+      : error.message}</WireError>}
     {candidates === null && loadError === null && <WireEmpty live reserve>담당 당사자를 불러오고 있습니다.</WireEmpty>}
     {candidates !== null && candidates.length === 0 && <WireEmpty>담당 중인 활성 참여 사업이 없습니다.</WireEmpty>}
     <form className="business-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
@@ -249,16 +253,19 @@ export function ScheduleCreateScreen() {
         </select>
       </WireFormField>
       {selected !== null && <WireCallout tone="info" title="상담 유형">
-        {selected.intakeAt === null
-          ? '인테이크 기록이 없어 인테이크로 등록합니다.'
+        {intake
+          ? '인테이크 기록이 없어 인테이크로 등록합니다. 이 회차에는 회기 목표를 붙이지 않고, 적은 목표는 이 사업의 세부 목표가 됩니다.'
           : '인테이크가 끝난 사업이라 기본 상담으로 등록합니다.'}
       </WireCallout>}
       <WireFormField label="일시" htmlFor="schedule-at" required hint="이 기기의 시간대로 입력합니다">
         <input id="schedule-at" type="datetime-local" value={localDateTime} required disabled={busy}
           onChange={(event) => setLocalDateTime(event.target.value)} />
       </WireFormField>
-      <WireFormField label="이번 상담의 목표" htmlFor="schedule-goals" control="textarea"
-        hint="한 줄에 하나씩 적습니다. 비워 두어도 됩니다">
+      <WireFormField label={intake ? '이 사업의 세부 목표' : '이번 상담의 목표'} htmlFor="schedule-goals"
+        control="textarea"
+        hint={intake
+          ? '한 줄에 하나씩 적습니다. 비워 두어도 됩니다. 인테이크에서 적은 목표는 사업의 세부 목표로 저장됩니다'
+          : '한 줄에 하나씩 적습니다. 비워 두어도 됩니다'}>
         <textarea id="schedule-goals" value={goals} rows={4} disabled={busy}
           onChange={(event) => setGoals(event.target.value)} />
       </WireFormField>
