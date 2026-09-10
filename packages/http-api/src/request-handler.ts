@@ -140,6 +140,7 @@ import {
   getUpcomingSchedules,
   listCases,
   listCounselingRecords,
+  getSupportCaseReport,
   listCounselorAssignments,
   listMySupportCaseAssignmentRequests,
   listGoals,
@@ -3082,6 +3083,10 @@ export async function handleRequest(
     }
     if (parts[0] === 'support-cases' && parts[1] !== undefined) {
       const supportCaseId = requireRouteUuid(parts[1], 'support case id');
+      if (request.method === 'GET' && parts.length === 3 && parts[2] === 'report') {
+        requestQuery(url, []);
+        return json(await getSupportCaseReport(env, actor, supportCaseId), 200, { 'cache-control': 'no-store' });
+      }
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'export') {
         requestQuery(url, []);
         return json(await exportCase(env, actor, supportCaseId));

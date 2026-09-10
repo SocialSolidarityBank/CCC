@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import { closeSupportCase, createBeneficiaryWithInitialSupportCase, createCounselingRecord, createOrganizationSettings, resolveDirectoryActorByPrincipal, revokeActorSessions, revokeIdentitySession, type SupportCaseCreationResult, type Env, type Actor } from '@ccc/core/gateway';
+import { getSupportCaseReport } from '@ccc/core/gateway';
 import { startPostgresHarness, type PostgresHarness } from './support/postgres';
 import { assertPostgresIdentityBoundary, type PostgresDatabase } from '@ccc/db-postgres';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
@@ -248,6 +249,18 @@ it('scopes compatibility views and indirect child tables through protected paren
   expect((await scopedA.prepare('SELECT job_id FROM agent_job_result_acceptances').all()).results)
     .toEqual([{ job_id: 'job-a' }]);
 });
+
+it('reads a source-backed report through ccc_api without crossing the case tenant', async () => {
+  const env: Env = { DB: api.forActor(contextA), secretStore: createEnvironmentSecretStore({}) };
+  const report = await getSupportCaseReport(env, actorA, caseA.supportCaseId);
+  expect(report.supportCaseId).toBe(caseA.supportCaseId);
+  expect(report.sessions).toMatchObject([{
+    sessionNumber: 1, kind: 'regular', summary: { source: 'sessions.memo', text: 'Synthetic RLS fixture' },
+  }]);
+  expect(report.sections).toEqual({});
+  await expect(getSupportCaseReport(env, actorA, caseB.supportCaseId)).rejects.toThrow();
+});
+
 it('reaches retention helpers through a restricted close-case gateway write', async () => {
   const env: Env = { DB: api.forActor(contextA), secretStore: createEnvironmentSecretStore({}) };
   const closed = await closeSupportCase(env, actorA, caseA.supportCaseId, 'retention helper witness');
