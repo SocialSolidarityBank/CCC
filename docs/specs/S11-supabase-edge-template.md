@@ -413,8 +413,8 @@ rollback 중 다음 조건을 지킨다.
 검증 명령과 실패 판정:
 
 ```bash
-pnpm supabase:bootstrap -- plan --project-ref "$CCC_SUPABASE_PROJECT_REF" --install-manifest "$CCC_INSTALL_MANIFEST"
-pnpm supabase:bootstrap -- apply --project-ref "$CCC_SUPABASE_PROJECT_REF" --install-manifest "$CCC_INSTALL_MANIFEST"
+pnpm supabase:bootstrap -- plan --project-ref "$CCC_SUPABASE_PROJECT_REF" --install-manifest "$CCC_INSTALL_MANIFEST" --install-approval "$CCC_INSTALL_APPROVAL"
+pnpm supabase:bootstrap -- apply --project-ref "$CCC_SUPABASE_PROJECT_REF" --install-manifest "$CCC_INSTALL_MANIFEST" --install-approval "$CCC_INSTALL_APPROVAL"
 pnpm supabase:bootstrap -- doctor --project-ref "$CCC_SUPABASE_PROJECT_REF"
 pnpm --filter @ccc/api exec vitest run test/supabase-install.test.ts test/supabase-rls.test.ts test/edge-wrapper.test.ts
 pnpm test:contracts --db=postgres
