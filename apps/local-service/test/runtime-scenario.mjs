@@ -58,7 +58,11 @@ async function exchange(base, path, { method = 'GET', body, bearer, ca, headers 
       result.resolve({ status: response.statusCode, body: text ? JSON.parse(text) : null });
     } catch { result.reject(new Error('response_invalid')); }
   });
-  request.once('error', () => result.reject(new Error('transport_failed')));
+  request.once('error', (cause) => {
+    const failure = new Error('transport_failed');
+    if (cause !== null && typeof cause === 'object' && 'code' in cause) failure.code = String(cause.code);
+    result.reject(failure);
+  });
   request.setTimeout(10_000, () => request.destroy(new Error('request_timeout')));
   request.end(payload);
   return result.promise;

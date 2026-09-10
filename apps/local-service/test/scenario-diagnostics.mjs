@@ -17,6 +17,9 @@ export function scenarioDiagnostics(error) {
   const result = { name: NAMES.has(error.name) ? error.name : 'Error' };
   const code = CODES.has(error.code) ? error.code : CODES.has(error.message) ? error.message : undefined;
   if (code !== undefined) result.code = code;
+  if (error.message === 'transport_failed' && typeof error.code === 'string' && /^[A-Z0-9_]{2,64}$/.test(error.code)) {
+    result.transportCode = error.code;
+  }
   const isStatus = (value) => Number.isInteger(value) && value >= 100 && value <= 599;
   if (error.code === 'ERR_ASSERTION' && isStatus(error.expected) && isStatus(error.actual)) {
     result.expectedStatus = error.expected;
