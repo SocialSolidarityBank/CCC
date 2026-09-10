@@ -298,6 +298,69 @@ export function decodeRetentionPolicy(value: unknown): RetentionPolicy {
   return { orgId: row.orgId, piiPurgeGraceDays: row.piiPurgeGraceDays, version: row.version };
 }
 
+/** 관리자 배정 화면의 케이스 한 줄. 이름·전화는 서버가 D24 역할 검사 뒤 준다. */
+export interface AssignmentCaseOption {
+  supportCaseId: string;
+  beneficiaryId: string;
+  name: string | null;
+  phone: string | null;
+  programName: string;
+  status: 'active' | 'closed';
+  intakeAt: string | null;
+}
+export interface AssignmentCasePage { items: AssignmentCaseOption[]; nextCursor: string | null }
+export interface SupportCaseAssignee {
+  id: string;
+  supportCaseId: string;
+  userId: string;
+  role: AssignmentRole;
+  status: 'requested' | 'active' | 'ended';
+  acceptanceRequestedBy: string | null;
+  acceptedAt: string | null;
+  transferReason: string | null;
+  assignedAt: string;
+}
+
+export function decodeAssignmentCasePage(value: unknown): AssignmentCasePage {
+  const row = record(value);
+  if (!Array.isArray(row.items) || !isNullableString(row.nextCursor)) throw new BusinessError('invalid_response');
+  return {
+    nextCursor: row.nextCursor,
+    items: row.items.map((entry) => {
+      const item = record(entry);
+      if (!isOpaqueIdentifier(item.supportCaseId) || !isOpaqueIdentifier(item.beneficiaryId)
+        || !isNullableString(item.name) || !isNullableString(item.phone) || typeof item.programName !== 'string'
+        || (item.status !== 'active' && item.status !== 'closed') || !isNullableString(item.intakeAt)) {
+        throw new BusinessError('invalid_response');
+      }
+      return {
+        supportCaseId: item.supportCaseId, beneficiaryId: item.beneficiaryId, name: item.name, phone: item.phone,
+        programName: item.programName, status: item.status, intakeAt: item.intakeAt,
+      };
+    }),
+  };
+}
+
+export function decodeSupportCaseAssignees(value: unknown): SupportCaseAssignee[] {
+  const row = record(value);
+  if (!Array.isArray(row.assignees)) throw new BusinessError('invalid_response');
+  return row.assignees.map((entry) => {
+    const item = record(entry);
+    if (!isOpaqueIdentifier(item.id) || !isOpaqueIdentifier(item.supportCaseId) || typeof item.userId !== 'string'
+      || (item.role !== 'primary' && item.role !== 'secondary')
+      || (item.status !== 'requested' && item.status !== 'active' && item.status !== 'ended')
+      || !isNullableString(item.acceptanceRequestedBy) || !isNullableString(item.acceptedAt)
+      || !isNullableString(item.transferReason) || typeof item.assignedAt !== 'string') {
+      throw new BusinessError('invalid_response');
+    }
+    return {
+      id: item.id, supportCaseId: item.supportCaseId, userId: item.userId, role: item.role, status: item.status,
+      acceptanceRequestedBy: item.acceptanceRequestedBy, acceptedAt: item.acceptedAt,
+      transferReason: item.transferReason, assignedAt: item.assignedAt,
+    };
+  });
+}
+
 /** 역할 판단은 /me의 canonical roles만 사용한다. legacy role과 URL 미리보기 값은 읽지 않는다. */
 export class SettingsApi {
   private identity: MyIdentity | null = null;
@@ -450,5 +513,23 @@ export class SettingsApi {
     return decodeRetentionPolicy(await this.transport.request('/settings/retention-policy', 'PUT', {
       expectedVersion: input.expectedVersion, piiPurgeGraceDays: input.piiPurgeGraceDays,
     }));
+  }
+
+  /** 관리자 배정 화면의 케이스 목록(기관 전체). 서버가 50건씩 자른다. */
+  async getAssignmentCases(cursor?: string): Promise<AssignmentCasePage> {
+    this.requireAdmin();
+    if (cursor !== undefined && !isOpaqueIdentifier(cursor)) throw new BusinessError('invalid_request', 400);
+    const path = cursor === undefined
+      ? '/settings/assignments/cases' : `/settings/assignments/cases?cursor=${encodeURIComponent(cursor)}`;
+    return decodeAssignmentCasePage(await this.transport.request(path));
+  }
+
+  /** 케이스 하나의 담당 목록. 요청 상태(`requested`)도 함께 온다. */
+  async getCaseAssignees(supportCaseId: string): Promise<SupportCaseAssignee[]> {
+    this.requireAdmin();
+    if (!isOpaqueIdentifier(supportCaseId)) throw new BusinessError('invalid_request', 400);
+    return decodeSupportCaseAssignees(await this.transport.request(
+      `/settings/assignments/cases/${encodeURIComponent(supportCaseId)}`,
+    ));
   }
 }

@@ -2,7 +2,7 @@ import type { HumanRole } from './api';
 
 export interface ShellDestination {
   id: 'account' | 'schedule' | 'schedule-register' | 'participants' | 'participant-register'
-    | 'onboarding' | 'system' | 'institution-profile' | 'accounts' | 'memory' | 'audit'
+    | 'onboarding' | 'system' | 'institution-profile' | 'accounts' | 'assignments' | 'memory' | 'audit'
     | 'retention' | 'retention-policy';
   title: string;
   href: string;
@@ -19,6 +19,7 @@ const destinations: readonly ShellDestination[] = [
   { id: 'system', title: '연결 상태', href: '/settings?module=system', roles: ['institution-admin', 'technical-admin'] },
   { id: 'institution-profile', title: '기관 정보', href: '/settings?module=institution-profile', roles: ['institution-admin'] },
   { id: 'accounts', title: '사용자와 역할', href: '/settings?module=accounts', roles: ['institution-admin'] },
+  { id: 'assignments', title: '담당 배정 요청', href: '/settings?module=assignments', roles: ['institution-admin'] },
   { id: 'memory', title: '기관 상담 기억', href: '/settings?module=memory', roles: ['institution-admin'] },
   { id: 'audit', title: '감사 기록', href: '/settings?module=audit', roles: ['institution-admin'] },
   { id: 'retention-policy', title: '개인정보 보유기간', href: '/settings?module=retention-policy', roles: ['institution-admin'] },
@@ -36,7 +37,7 @@ const SCHEDULE_PLAN = /^\/schedules\/[A-Za-z0-9-]{1,200}\/plan$/;
 
 /** `/settings` 아래 탭으로 열 수 있는 모듈. 목록에 없는 값은 주소로도 열리지 않는다. */
 const SETTINGS_MODULES: readonly string[] = [
-  'account', 'system', 'institution-profile', 'accounts', 'memory', 'audit', 'retention', 'retention-policy',
+  'account', 'system', 'institution-profile', 'accounts', 'assignments', 'memory', 'audit', 'retention', 'retention-policy',
 ];
 
 export function canOpenDestination(destination: ShellDestination, roles: readonly HumanRole[]): boolean {

@@ -32,6 +32,15 @@ export function createSyntheticState() {
     consentEvents: new Map(),
     lastRegistration: null,
     retentionPolicy: { orgId: 'org-1', piiPurgeGraceDays: 365, version: 1 },
+    assignees: [
+      { id: '5d0c1e2f-3a4b-4c5d-8e6f-7a8b9c0d1e2f', supportCaseId: CASE_ID, userId: USER_ID, role: 'primary',
+        status: 'active', acceptanceRequestedBy: null, acceptedAt: '2026-02-01T00:00:00.000Z', transferReason: null,
+        notifiedBy: null, notifiedAt: null, assignedAt: '2026-02-01T00:00:00.000Z', unassignedAt: null },
+      { id: '8c2d1f04-5a3b-4e62-9d17-4f8a0b1c2d35', supportCaseId: CASE_ID, userId: 'a1c3f5e7-1234-4a5b-8c9d-0e1f2a3b4c5d',
+        role: 'secondary', status: 'requested', acceptanceRequestedBy: 'a1c3f5e7-1234-4a5b-8c9d-0e1f2a3b4c5d',
+        acceptedAt: null, transferReason: '같은 지역 사례를 맡고 있습니다', notifiedBy: null, notifiedAt: null,
+        assignedAt: '2026-09-09T00:00:00.000Z', unassignedAt: null },
+    ],
     accounts: [
       { id: 'a1c3f5e7-1234-4a5b-8c9d-0e1f2a3b4c5d', email: 'worker@example.invalid', name: '실무자 하나',
         active: true, roles: ['worker'], supervisedTeamIds: [], assignmentCount: 2 },
@@ -498,6 +507,32 @@ export function handleApi(request, state, options) {
         target.retainUntil = body.retainUntil;
       } else {
         target.status = 'purged';
+      }
+      return json(target, 200, cors);
+    });
+  }
+  if (path === '/settings/assignments/cases' && request.method === 'GET') {
+    return json({ items: [{
+      supportCaseId: CASE_ID, beneficiaryId: 'swallow-003', name: '김합성', phone: '010-0000-0000',
+      programName: '합성 사업', status: 'active', intakeAt: '2026-02-01T00:00:00.000Z',
+    }], nextCursor: null }, 200, cors);
+  }
+  if (path === `/settings/assignments/cases/${CASE_ID}` && request.method === 'GET') {
+    return json({ assignees: state.assignees }, 200, cors);
+  }
+  if (/^\/support-cases\/[^/]+\/assignment-requests\/[^/]+\/review$/.test(path) && request.method === 'POST') {
+    return request.json().then((body) => {
+      const id = path.split('/')[4];
+      const target = state.assignees.find((entry) => entry.id === id);
+      if (target === undefined || target.status !== 'requested') return json({ error: 'conflict' }, 409, cors);
+      if (body.decision === 'reject') {
+        if (typeof body.reason !== 'string' || body.reason === '') return json({ error: 'invalid_request' }, 400, cors);
+        target.status = 'ended';
+        target.transferReason = body.reason;
+      } else {
+        target.status = 'active';
+        target.role = body.decision === 'transfer' ? 'primary' : 'secondary';
+        target.acceptedAt = new Date().toISOString();
       }
       return json(target, 200, cors);
     });

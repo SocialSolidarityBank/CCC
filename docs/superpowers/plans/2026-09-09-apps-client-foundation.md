@@ -977,3 +977,68 @@ readiness 뿐). 다섯 구획과 회차별 요약, 최초 인테이크 목표 �
 - 실측(합성 관리자): 실무자 하나에게 실무 책임자 역할 추가 저장, 보유기간 365 → 400 저장 반영.
 - 남은 P7: 팀 감독 지정, 담당 배정 요청 승인·이관(허브의 요청 발신은 있음), 동의 문안 관리 탭, 사업 도입 확인
   잠금(BACKEND, 미구현). 실무자 초대는 P8 계약 뒤다.
+
+## 23. P7 잔여 2차: 담당 배정 요청 (실계약)
+
+- `담당 배정 요청` 탭: `GET /settings/assignments/cases`(기관 전체, 50건 커서),
+  `GET /settings/assignments/cases/:supportCaseId`(요청 상태 포함),
+  `POST /support-cases/:id/assignment-requests/:assignmentId/review`(`coassign`·`transfer`·`reject`+사유).
+  요청 발신은 계속 당사자 허브가 갖고, 이 탭은 결정만 한다.
+- 실측(합성 관리자): 요청 행이 `요청 중` 배지와 사유로 뜨고, 사유 없이는 `반려` 가 비활성이며,
+  `공동 담당` 을 누르면 `담당 중` 으로 바뀐다.
+- **팀 감독 지정은 만들지 않았다.** 서버에 팀 CRUD 엔드포인트가 없다(`request-handler.ts` 에 `team`
+  경로 0건, gateway 에 팀 생성·지정 함수 0건). 디렉터리 응답의 `supervisedTeamIds` 는 읽기만 한다.
+- **동의 문안 관리 탭도 만들지 않았다.** 문안 발행은 `GET /support-cases/:id/consent/disclosures` 뿐이고
+  기관 문안 등록·버전 올리기 엔드포인트가 없다.
+
+## 24. P8 BACKEND 선행 조건 (D86·S2·S7)
+
+지금 서버 계약으로는 화면을 만들 수 없다. 필요한 계약을 정확히 적는다.
+
+### 1. 실무자 초대: 이메일 1개 1회용
+
+- 지금: `POST /invites/counselor`(본문 없음)이 익명 토큰을 만들고, 공개 `POST /invites/worker` 가
+  가입자가 스스로 적은 이메일로 계정을 만든다. D86 ③ 이 폐기한 모양이다.
+- 필요: 발급 요청이 `{ email, roles }` 를 받고 그 이메일로만 완료되는 1회용 초대. 만드는 사람의
+  역할 합이 줄 수 있는 역할을 서버가 정하고, 기술 관리자만 있으면 가입자는 `역할 대기` 로 만든다.
+  목록·취소 경로(`GET`·`DELETE`)와 만료 시각을 포함한다.
+- 스위치: 이 표면은 참여자 공개 가입과 분리해야 한다. 지금은 둘 다 `PUBLIC_SIGNUP_ENABLED === '1'`
+  하나에 묶여 있어 내부 실무자 초대를 켜면 참여자 공개 가입까지 열린다.
+
+### 2. 당사자 요청 링크: 목적 하나, 만료, 1회 사용
+
+- 지금: `GET /invites/participant/:token` 과 `GET /invites/participant/:token/me`(자기 확인),
+  `POST /signup/participant` 가 `consent: { privacy, recordingAi }` 를 **필수**로 받는다.
+- 필요(S2·D86 ④):
+  - 토큰은 주소 경로가 아니라 조각(`/join#t=<token>`)으로 오고, 화면이 `POST` 로 교환해 단발
+    `nonce` 를 받는다. 교환 뒤 주소에서 조각을 지운다. `GET` 으로 소진하지 않는다.
+  - 완료 요청은 `nonce` 로만 제출한다. 목적 하나, 기본 만료 7일, 1회 사용, 중복 제출은 같은 결과.
+  - 동의는 여섯 영역 사건으로 받는다. `privacy`·`recordingAi` 불리언은 400 으로 거부한다(S7 §5.1.1).
+    이때 §20 의 등록 전 고지문 발행 계약이 함께 필요하다.
+  - 자기 확인 페이지(`/:token/me`)는 이식하지 않는다. 은퇴 시점은 API 소유자가 정한다.
+
+### 3. 이 레인이 기다리는 것
+
+위 두 계약이 오면 `src/join/`, `src/invitations/` 를 그때 만든다. 그 전에는 링크 발급 버튼도 만들지
+않는다. 발급만 먼저 두면 곧바로 옛 2종 동의 가입으로 이어지기 때문이다.
+
+## 25. P9 공유 자산 추출 계약 (apps/web 소유자 앞)
+
+`apps/client` 는 지금 빌드 시점에 `apps/web` 을 읽는다. 정확한 의존은 셋이다.
+
+| 읽는 곳 | 읽는 대상 | 성격 |
+|---|---|---|
+| `apps/client/build/shared-styles.mjs:27` | `apps/web/app/layout.tsx` | CSS 문자열 7묶음(`styles`, `participantStyles`, `briefingStyles`, `settingsStyles`, `scheduleStyles`, `registerStyles`, `recordFormStyles`)을 파일에서 읽어 이어붙인다 |
+| `apps/client/build/shared-styles.mjs:16` | `scripts/design/hierarchy-audit.mjs` 의 `composeRuntimeCss` | 이어붙이는 **순서 계약**. `shellStyles` 순서가 바뀌면 여기서 먼저 던진다 |
+| `apps/client/vite.config.ts:4`, 화면 전부 | `@ccc/web/wire`, `@ccc/web/wire-styles` (`apps/web/app/components/wire/client-surface.ts`) | 공유 부품과 `wireStyles` 문자열 |
+
+필요한 추출 계약(디자인·export 소유자):
+
+1. 위 일곱 CSS 문자열이 `apps/web/app/layout.tsx` 밖의 한 위치로 옮겨지고, `layout.tsx` 가 그 위치를
+   가져다 쓴다. 이름은 소유자 PR 이 하나로 정한다. 이 레인이 새 이름을 만들지 않는다.
+2. 이어붙이는 순서 계약이 그 위치와 함께 이동하거나, `composeRuntimeCss` 가 새 위치를 읽도록 바뀐다.
+   순서가 두 곳에 복사되면 안 된다.
+3. `@ccc/web/wire` 공개 진입점이 같은 위치로 옮겨지고, STT 시험 화면(`apps/client/src/stt-trial/**`)의
+   호출자까지 함께 옮긴다.
+
+이 셋이 끝나기 전에는 `apps/web` 삭제(E2-7)가 불가능하다. 이 레인은 `apps/web` 을 고치지 않는다.

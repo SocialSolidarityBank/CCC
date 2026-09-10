@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useOutletContext } from 'react-router';
 import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireDataRow, WireDataRows,
-  WireChoice, WireEmpty, WireError, WireFormField, WireItem,
+  WireChoice, WireEmpty, WireError, WireFormField, WireItem, ParticipantName,
 } from '@ccc/web/wire';
 import {
-  ROLE_LABELS, type AuditLogItem, type DirectoryAccountsPage, type HumanRole, type RetentionPolicy,
-  type RetentionReview, type RetentionReasonKind,
+  ROLE_LABELS, type AssignmentCasePage, type AuditLogItem, type DirectoryAccountsPage, type HumanRole,
+  type RetentionPolicy, type RetentionReview, type RetentionReasonKind, type SupportCaseAssignee,
 } from '../business/api';
 import { type BusinessError, safeError } from '../business/errors';
 import { AccountModule, InstitutionModule, MemoryModule } from '../business/settings-modules';
@@ -326,6 +326,112 @@ function RetentionPolicyModule({ session }: { session: Session }) {
   </WireCard>;
 }
 
+const ASSIGNEE_STATUS_LABELS: Record<SupportCaseAssignee['status'], string> = {
+  requested: '요청 중', active: '담당 중', ended: '종료',
+};
+
+/** 담당 배정 요청 승인·이관·반려(D86 6). 요청 발신은 당사자 허브에 있고 여기서는 결정만 한다. */
+function AssignmentsModule({ session }: { session: Session }) {
+  const [page, setPage] = useState<AssignmentCasePage | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const [assignees, setAssignees] = useState<SupportCaseAssignee[] | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<BusinessError | null>(null);
+  const generation = useRef(0);
+
+  const fail = useCallback((cause: unknown) => {
+    const safe = safeError(cause);
+    if (safe.code === 'session_changed') return;
+    setError(safe);
+    if (safe.status === 401) void session.auth.signOut(safe);
+  }, [session.auth]);
+
+  const loadCases = useCallback(() => {
+    const own = ++generation.current;
+    setError(null);
+    void session.api.getAssignmentCases().then((value) => {
+      if (own === generation.current) setPage(value);
+    }).catch((cause: unknown) => { if (own === generation.current) fail(cause); });
+  }, [session.api, fail]);
+
+  const loadAssignees = useCallback((supportCaseId: string) => {
+    const own = ++generation.current;
+    setAssignees(null);
+    void session.api.getCaseAssignees(supportCaseId).then((value) => {
+      if (own === generation.current) setAssignees(value);
+    }).catch((cause: unknown) => { if (own === generation.current) fail(cause); });
+  }, [session.api, fail]);
+
+  useEffect(() => {
+    loadCases();
+    return () => { generation.current += 1; };
+  }, [loadCases]);
+
+  const review = async (supportCaseId: string, assignmentId: string,
+    input: { decision: 'coassign' | 'transfer' } | { decision: 'reject'; reason: string }) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await session.participants.reviewAssignmentRequest(supportCaseId, assignmentId, input);
+      setRejectReason('');
+      loadAssignees(supportCaseId);
+    } catch (cause) {
+      fail(cause);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <WireCard title="담당 배정 요청">
+    <WireCallout tone="info" title="승인은 공동 담당이나 이관 중 하나입니다">
+      실무자가 보낸 요청을 여기서 결정합니다. 승인 전에는 상담 내용과 개인정보가 그 실무자에게 열리지 않습니다.
+    </WireCallout>
+    {error && <WireError>{error.message}</WireError>}
+    {page === null && error === null && <WireEmpty live reserve>케이스 목록을 불러오고 있습니다.</WireEmpty>}
+    {page !== null && page.items.length === 0 && <WireEmpty>기관에 등록된 케이스가 없습니다.</WireEmpty>}
+    {(page?.items ?? []).map((item) => <WireCardSection key={item.supportCaseId}
+      title={<ParticipantName name={item.name} beneficiaryId={item.beneficiaryId} />}
+      action={<WireButton variant="neutral" disabled={busy}
+        onClick={() => {
+          const next = open === item.supportCaseId ? null : item.supportCaseId;
+          setOpen(next);
+          if (next !== null) loadAssignees(next);
+        }}>
+        {open === item.supportCaseId ? '접기' : '담당 보기'}
+      </WireButton>}>
+      <WireDataRows>
+        <WireDataRow label="사업" value={item.programName} />
+        <WireDataRow label="상태" value={item.status === 'active' ? '진행 중' : '종결'} />
+      </WireDataRows>
+      {open === item.supportCaseId && assignees === null && <WireEmpty live reserve>담당 목록을 불러오고 있습니다.</WireEmpty>}
+      {open === item.supportCaseId && assignees !== null && assignees.length === 0
+        && <WireEmpty>담당 실무자가 없습니다.</WireEmpty>}
+      {open === item.supportCaseId && (assignees ?? []).map((assignee) => <WireItem key={assignee.id}
+        title={assignee.userId}
+        description={`${assignee.role === 'primary' ? '주 담당' : '공동 담당'}, ${assignee.assignedAt}${
+          assignee.transferReason === null ? '' : `, 사유: ${assignee.transferReason}`}`}
+        status={<WireBadge tone={assignee.status === 'active' ? 'mint' : assignee.status === 'requested' ? 'lavender' : 'neutral'}>
+          {ASSIGNEE_STATUS_LABELS[assignee.status]}
+        </WireBadge>}
+        action={assignee.status === 'requested' ? <>
+          <WireButton variant="primary" disabled={busy}
+            onClick={() => { void review(item.supportCaseId, assignee.id, { decision: 'coassign' }); }}>공동 담당</WireButton>
+          <WireButton variant="neutral" disabled={busy}
+            onClick={() => { void review(item.supportCaseId, assignee.id, { decision: 'transfer' }); }}>이관</WireButton>
+          <WireButton variant="neutral" disabled={busy || rejectReason.trim() === ''}
+            onClick={() => { void review(item.supportCaseId, assignee.id, { decision: 'reject', reason: rejectReason }); }}>반려</WireButton>
+        </> : undefined} />)}
+      {open === item.supportCaseId && (assignees ?? []).some((assignee) => assignee.status === 'requested')
+        && <WireFormField label="반려 사유" htmlFor={`reject-${item.supportCaseId}`} hint="반려할 때만 필요합니다">
+          <input id={`reject-${item.supportCaseId}`} value={rejectReason} disabled={busy}
+            onChange={(event) => setRejectReason(event.target.value)} />
+        </WireFormField>}
+    </WireCardSection>)}
+  </WireCard>;
+}
+
 export function SettingsScreen() {
   const session = useOutletContext<Session>();
   const location = useLocation();
@@ -354,6 +460,7 @@ export function SettingsScreen() {
   if (destination?.id === 'memory') return <MemoryModule api={session.api} onFailure={onFailure} />;
   if (destination?.id === 'audit') return <AuditModule session={session} />;
   if (destination?.id === 'accounts') return <AccountsModule session={session} />;
+  if (destination?.id === 'assignments') return <AssignmentsModule session={session} />;
   if (destination?.id === 'retention-policy') return <RetentionPolicyModule session={session} />;
   if (destination?.id === 'retention') return <RetentionModule session={session} />;
   return <AccountModule me={session.me} api={session.api} onFailure={onFailure} />;
