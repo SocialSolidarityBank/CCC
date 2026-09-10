@@ -13,10 +13,22 @@ const SHA256_K = new Uint32Array([
   0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ]);
 
+/** Error codes for AudioStore operations, safe for logging (no paths or key material). */
+export type AudioStoreErrorCode =
+  | 'bad_key_material'      // fileKey.bytes not 32-byte Uint8Array or version out of range
+  | 'directory_not_private' // root directory missing, symlink, or wrong permissions
+  | 'directory_sync_failed' // fsync on directory failed
+  | 'unsupported_platform'  // platform lacks required filesystem semantics
+  | 'file_not_private'      // file is symlink or has wrong permissions
+  | 'journal_corrupted'     // deletion journal failed integrity check
+  | 'operation_failed';     // generic fallback for internal errors
+
 export class AudioStoreError extends Error {
-  constructor() {
-    super('audio storage operation failed');
+  readonly code: AudioStoreErrorCode;
+  constructor(code: AudioStoreErrorCode = 'operation_failed') {
+    super(`audio storage operation failed: ${code}`);
     this.name = 'AudioStoreError';
+    this.code = code;
   }
 }
 

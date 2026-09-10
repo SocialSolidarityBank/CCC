@@ -7,25 +7,48 @@ import { AudioStoreError, checkedBody, hashKey, validKey, validMetadata, validSh
 import { isRecord } from '@ccc/contracts/guards';
 import { CHUNK_BYTES, decryptRecord, encryptRecord, footer, newContext, readContext, readExact, readFooter, writeAll } from './format.js';
 
+const IS_WINDOWS = process.platform === 'win32';
+
+// O_NOFOLLOW is not supported on Windows; use 0 as fallback (symlink check done separately)
+const O_NOFOLLOW_SAFE = IS_WINDOWS ? 0 : constants.O_NOFOLLOW;
+
 function hasCode(error: unknown, code: string): boolean { return isRecord(error) && error.code === code; }
+
+/** Check if path is a real directory (not symlink). Returns false for ENOENT. */
 async function privateDirectory(path: string): Promise<boolean> {
   try {
     const info = await lstat(path);
-    if (!info.isDirectory() || info.isSymbolicLink()) throw new AudioStoreError();
+    if (!info.isDirectory() || info.isSymbolicLink()) throw new AudioStoreError('directory_not_private');
     return true;
-  } catch (error) { if (hasCode(error, 'ENOENT')) return false; throw error; }
+  } catch (error) {
+    if (hasCode(error, 'ENOENT')) return false;
+    if (error instanceof AudioStoreError) throw error;
+    throw new AudioStoreError('directory_not_private');
+  }
 }
+
+/** Check POSIX permissions (skip on Windows where mode bits are emulated). */
+function hasPrivatePermissions(mode: number): boolean {
+  if (IS_WINDOWS) return true; // Windows uses ACLs, not POSIX mode bits
+  return (mode & 0o077) === 0; // No group/other permissions
+}
+
 async function syncDirectory(path: string): Promise<void> {
-  const directory = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  // O_NOFOLLOW not supported on Windows; symlink already checked by privateDirectory
+  const directory = await open(path, constants.O_RDONLY | O_NOFOLLOW_SAFE);
   try { await directory.sync(); } finally { await directory.close(); }
 }
+
 async function readFileHandle(path: string): Promise<FileHandle | null> {
   let file: FileHandle;
-  try { file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW); }
+  try { file = await open(path, constants.O_RDONLY | O_NOFOLLOW_SAFE); }
   catch (error) { if (hasCode(error, 'ENOENT')) return null; throw error; }
-  try { if (!(await file.stat()).isFile()) throw new AudioStoreError(); return file; }
-  catch (error) { await file.close(); throw error; }
+  try {
+    if (!(await file.stat()).isFile()) throw new AudioStoreError('file_not_private');
+    return file;
+  } catch (error) { await file.close(); throw error; }
 }
+
 interface DeletionRecord {
   formatVersion: 1;
   keyVersion: number;
@@ -35,9 +58,12 @@ interface DeletionRecord {
   generationId: string | null;
   deletedAt: string | null;
 }
+
 /** Composition supplies one versioned FILE_ENC_KEY; this adapter never fetches or persists secret material. */
 export async function createFileAudioStore(rootPath: string, fileKey: VersionedSecretBytes): Promise<AudioStore> {
-  if (!(fileKey.bytes instanceof Uint8Array) || fileKey.bytes.byteLength !== 32 || !Number.isInteger(fileKey.version) || fileKey.version < 1 || fileKey.version > 0xffffffff) throw new AudioStoreError();
+  if (!(fileKey.bytes instanceof Uint8Array) || fileKey.bytes.byteLength !== 32 || !Number.isInteger(fileKey.version) || fileKey.version < 1 || fileKey.version > 0xffffffff) {
+    throw new AudioStoreError('bad_key_material');
+  }
   const master = createSecretKey(fileKey.bytes);
   const keyVersion = fileKey.version;
   let root: string;
@@ -45,32 +71,38 @@ export async function createFileAudioStore(rootPath: string, fileKey: VersionedS
     const supplied = resolve(rootPath);
     try { await mkdir(supplied, { mode: 0o700 }); }
     catch (error) { if (!hasCode(error, 'EEXIST')) throw error; }
-    if (!(await privateDirectory(supplied)) || ((await lstat(supplied)).mode & 0o077) !== 0) throw new AudioStoreError();
+    if (!(await privateDirectory(supplied))) throw new AudioStoreError('directory_not_private');
+    const info = await lstat(supplied);
+    if (!hasPrivatePermissions(info.mode)) throw new AudioStoreError('directory_not_private');
     root = await realpath(supplied);
     await syncDirectory(root);
     await syncDirectory(dirname(root));
-  } catch { throw new AudioStoreError(); }
+  } catch (error) {
+    if (error instanceof AudioStoreError) throw error;
+    throw new AudioStoreError('directory_sync_failed');
+  }
   function mac(bytes: Uint8Array): Buffer { return createHmac('sha256', master).update('CCC-AUDIO-DELETE\0v1').update(bytes).digest(); }
   async function readJournal(path: string, expectedHash: string): Promise<DeletionRecord | null> {
     const file = await readFileHandle(path); if (file === null) return null;
     try {
       const size = (await file.stat()).size;
-      if (size < 66 || size > 4096) throw new AudioStoreError();
+      if (size < 66 || size > 4096) throw new AudioStoreError('journal_corrupted');
       const bytes = await readExact(file, size, 0); const separator = bytes.length - 65;
       const digest = bytes.subarray(separator + 1).toString('ascii');
-      if (bytes[separator] !== 10 || !validSha256(digest) || !timingSafeEqual(mac(bytes.subarray(0, separator)), Buffer.from(digest, 'hex'))) throw new AudioStoreError();
+      if (bytes[separator] !== 10 || !validSha256(digest) || !timingSafeEqual(mac(bytes.subarray(0, separator)), Buffer.from(digest, 'hex'))) throw new AudioStoreError('journal_corrupted');
       const value: unknown = JSON.parse(bytes.subarray(0, separator).toString('utf8'));
       if (!isRecord(value) || value.formatVersion !== 1 || value.keyVersion !== keyVersion || value.keyHash !== expectedHash
         || typeof value.deletionAttemptId !== 'string' || !validKey(`audio/x/${value.deletionAttemptId}`)
         || typeof value.deletionRequestedAt !== 'string' || !Number.isFinite(Date.parse(value.deletionRequestedAt))
         || !(value.generationId === null || typeof value.generationId === 'string' && validKey(`audio/x/${value.generationId}`))
-        || !(value.deletedAt === null || typeof value.deletedAt === 'string' && Number.isFinite(Date.parse(value.deletedAt)))) throw new AudioStoreError();
+        || !(value.deletedAt === null || typeof value.deletedAt === 'string' && Number.isFinite(Date.parse(value.deletedAt)))) throw new AudioStoreError('journal_corrupted');
       return value as unknown as DeletionRecord;
     } finally { await file.close(); }
   }
   async function journal(path: string, value: DeletionRecord): Promise<DeletionRecord> {
     const temporary = join(root, `.journal-${randomUUID()}`);
-    const file = await open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+    // O_NOFOLLOW not supported on Windows; symlink check done separately via lstat
+    const file = await open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | O_NOFOLLOW_SAFE, 0o600);
     try {
       try {
         const body = Buffer.from(JSON.stringify(value));
@@ -80,7 +112,7 @@ export async function createFileAudioStore(rootPath: string, fileKey: VersionedS
       try { await link(temporary, path); } catch (error) { if (!hasCode(error, 'EEXIST')) throw error; }
       await syncDirectory(root);
       const stored = await readJournal(path, value.keyHash);
-      if (stored === null) throw new AudioStoreError();
+      if (stored === null) throw new AudioStoreError('journal_corrupted');
       return stored;
     } finally { await unlink(temporary); await syncDirectory(root); }
   }
@@ -97,7 +129,7 @@ export async function createFileAudioStore(rootPath: string, fileKey: VersionedS
         // The second check closes creation racing a durable deletion marker.
         if (await readJournal(marker, hashed)) throw new AudioStoreError();
         await syncDirectory(root);
-        file = await open(stage, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+        file = await open(stage, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | O_NOFOLLOW_SAFE, 0o600);
         const ctx = newContext(master, metadata, hashed, keyVersion);
         await writeAll(file, ctx.frame); await writeAll(file, encryptRecord(ctx, 0, 0, new Uint8Array()));
         const hash = createHash('sha256');
