@@ -28,6 +28,7 @@ export const checkpoints = [
   { id: 'account-settings', sqlite: '0055_account_settings.sql', postgres: '0011_account_settings.sql' },
   { id: 'schedule-display', sqlite: '0056_schedule_display.sql', postgres: '0012_schedule_display.sql' },
   { id: 'preregistration-consent', sqlite: '0057_preregistration_consent.sql', postgres: '0013_preregistration_consent.sql' },
+  { id: 'staff-invites', sqlite: '0058_staff_invites.sql', postgres: '0014_staff_invites.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;

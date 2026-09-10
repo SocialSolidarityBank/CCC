@@ -88,12 +88,14 @@ import {
   createIntakeRecord,
   updateIntakeRecord,
   createParticipantInvite,
-  createCounselorInvite,
   completeParticipantSignup,
-  completeCounselorSignup,
-  getCounselorInviteSignupInfo,
   getInviteForSignup,
   getParticipantSelfCheck,
+  createStaffInvite,
+  listStaffInvites,
+  revokeStaffInvite,
+  getStaffInvitePublicInfo,
+  acceptStaffInvite,
   getIntakeRecordContext,
   createCounselingSchedule,
   listScheduleCandidates,
@@ -2590,24 +2592,23 @@ export async function handleRequest(
     const publicSignupPath =
       (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant')
       || (request.method === 'GET' && pubParts.length === 4 && pubParts[0] === 'invites' && pubParts[1] === 'participant' && pubParts[3] === 'me')
-      || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant')
-      // 실무자 초대 가입(CCC-108)도 같은 공개 가입 표면이다 — 아래 두 worker 경로가
-      // CCC-112 스위치·미리보기 코드 게이트를 자동으로 함께 받는다.
-      || (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'worker')
-      || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'invites' && pubParts[1] === 'worker');
+      || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant');
+    // D86 실무자 초대 공개 경로는 당사자 공개 가입 스위치와 무관하다. 토큰이 자격이고 실패는 전부 404다.
+    const staffInviteTokenPath = pubParts.length >= 3 && pubParts[0] === 'staff-invites' && pubParts[1] === 'token';
+    // D86: 익명 실무자 초대 가입 경로(worker)는 폐기됐다. 인증 전에 404로 닫아 토큰 유효성을 새지 않는다.
+    if (pubParts[0] === 'invites' && pubParts[1] === 'worker') return json({ error: 'not_found' }, 404);
     // ── 기능 스위치(CCC-112 · P0-2): 공개 가입 표면은 PUBLIC_SIGNUP_ENABLED 가 정확히
     // '1' 일 때만 열린다. 없거나 다른 값이면 404 — 미지의 경로와 응답을 구분 불가하게
     // 둔다(fail closed, EXTERNAL_AI_CALLS_ENABLED 와 같은 규약). 미리보기 코드 게이트보다
     // **앞**이다: 스위치가 닫힌 배포에서는 코드가 있어도 이 표면이 존재하지 않는다.
-    // CCC-108 worker 가입 라우트도 이 게이트 안에 든다 — 새 게이트를 만들지 말고
-    // publicSignupPath 매칭에 worker 경로 패턴을 추가한다.
+    // D86 실무자 초대 공개 경로는 이 스위치 밖이지만 미리보기 코드 게이트는 같이 받는다.
     const publicSignupEnabled = env.PUBLIC_SIGNUP_ENABLED === '1';
     if (publicSignupPath && !publicSignupEnabled) return json({ error: 'not_found' }, 404);
     if (env.installationMode === undefined && env.CCC_INSTALL_MANIFEST !== undefined) {
       const installation = await verifiedInstallManifest(env);
       env = { ...env, installationMode: installation.mode };
     }
-    if (publicSignupPath && previewModeEnabled(env)) await resolveActor(request, env);
+    if ((publicSignupPath || staffInviteTokenPath) && previewModeEnabled(env)) await resolveActor(request, env);
     if (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant') {
       requestQuery(url, []);
       // 빈 토큰은 조회 자체를 하지 않는다 — 아래 실패들과 같은 404 로 맞춰 응답을 구분 불가하게 둔다.
@@ -2668,31 +2669,24 @@ export async function handleRequest(
         throw e;
       }
     }
-    // ── 공개 경로: 실무자 초대 가입(토큰이 자격, Access 불필요, CCC-108 · CCC-33) ──
-    // participant 경로와 같은 규약: 실패는 전부 not_found(404)로 뭉쳐 열거 단서를 없앤다.
-    if (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'worker') {
+    if (staffInviteTokenPath && request.method === 'GET' && pubParts.length === 3) {
       requestQuery(url, []);
-      const pathToken = pubParts[2] ?? '';
-      if (pathToken.length === 0) return json({ error: 'not_found' }, 404);
       try {
-        return json(await getCounselorInviteSignupInfo(env, pathToken));
+        return json(await getStaffInvitePublicInfo(env, pubParts[2] ?? ''), 200, { 'cache-control': 'no-store' });
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
       }
     }
-    if (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'invites' && pubParts[1] === 'worker') {
+    if (staffInviteTokenPath && request.method === 'POST' && pubParts.length === 4 && pubParts[3] === 'accept') {
       requestQuery(url, []);
       const body = await requestBody(request);
-      const token = requiredString(body, 'token');
-      const name = requiredString(body, 'name');
-      // 이메일은 필수 — Cloudflare Access 의 신원 키다(users.email 전역 UNIQUE).
-      const email = requiredString(body, 'email');
+      requireOnlyKeys(body, ['name', 'email']);
       try {
-        return json(await completeCounselorSignup(env, { token, name, email }), 201);
+        return json(await acceptStaffInvite(env, {
+          token: pubParts[2] ?? '', name: requiredString(body, 'name'), email: requiredString(body, 'email'),
+        }), 201);
       } catch (e) {
-        // 토큰 무효·이미 소비·발급자 비활성은 404. 이메일 중복·동시 이중 제출(ConflictError)은
-        // errorResponse 가 409 로 번역한다 — 화면이 "이미 등록된 이메일"을 구분해 안내해야 한다.
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
       }
@@ -2935,13 +2929,27 @@ export async function handleRequest(
       requireOnlyKeys(body, ['programId']);
       return json(await createParticipantInvite(env, actor, { programId: requiredString(body, 'programId') }), 201);
     }
-    if (request.method === 'POST' && parts.length === 2 && parts[0] === 'invites' && parts[1] === 'counselor') {
-      // 실무자 초대 링크 발급(CCC-108 · CCC-33). 관리자 전용 — 권한·감사는
-      // createCounselorInvite(R1 관문) 내장. 소비·가입은 위 공개 worker 경로.
-      // 발급도 공개 가입 표면의 일부다(CCC-112): 같은 스위치로 404 한다.
-      if (!publicSignupEnabled) return json({ error: 'not_found' }, 404);
+    if (parts[0] === 'staff-invites') {
       requestQuery(url, []);
-      return json(await createCounselorInvite(env, actor), 201);
+      if (request.method === 'GET' && parts.length === 1) return json({ invites: await listStaffInvites(env, actor) });
+      if (request.method === 'POST' && parts.length === 1) {
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['email', 'roles']);
+        if (!Array.isArray(body.roles) || body.roles.some((role) => typeof role !== 'string')) {
+          throw new ValidationError('invite roles are invalid');
+        }
+        return json(await createStaffInvite(env, actor, {
+          email: requiredString(body, 'email'), roles: body.roles as Parameters<typeof createStaffInvite>[2]['roles'],
+        }), 201);
+      }
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'revoke') {
+        try {
+          return json({ invite: await revokeStaffInvite(env, actor, decodeURIComponent(parts[1]!)) });
+        } catch (e) {
+          if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
+          throw e;
+        }
+      }
     }
     if (request.method === 'GET' && parts.length === 4 && parts[0] === 'programs'
       && parts[2] === 'consent' && parts[3] === 'disclosures') {

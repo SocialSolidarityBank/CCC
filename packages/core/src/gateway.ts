@@ -21074,28 +21074,6 @@ export async function createParticipantInvite(
   return getInviteTokenOrThrow(env, token);
 }
 
-/**
- * 실무자 초대 링크 발급(CCC-33 이 화면을 단다). 관리자만 발급한다.
- * 가입 시 users 등재로 이어진다 — 소비는 counselor 종류로만 가능하다.
- */
-export async function createCounselorInvite(env: Env, actor: Actor): Promise<InviteToken> {
-  assertAdmin(actor);
-
-  const token = newInviteTokenValue();
-  await env.DB.prepare(
-    `INSERT INTO invite_tokens (token, org_id, kind, program_type, issued_by)
-     VALUES (?, ?, 'counselor', NULL, ?)`,
-  ).bind(token, actor.orgId, actor.userId).run();
-
-  await writeAudit(env, actor, {
-    action: 'invite_issue',
-    targetTable: 'invite_tokens',
-    targetId: token,
-    detail: { kind: 'counselor' },
-  });
-
-  return getInviteTokenOrThrow(env, token);
-}
 
 async function getInviteTokenOrThrow(env: Env, token: string): Promise<InviteToken> {
   const row = await env.DB.prepare("SELECT * FROM invite_tokens WHERE token = ? AND revoked_at IS NULL")
@@ -21559,169 +21537,226 @@ export async function completeParticipantSignup(
   throw finalError instanceof Error ? finalError : new ConflictError('participant signup conflicted');
 }
 
+
 // ============================================================================
-// 실무자 초대 가입 (CCC-108 · CCC-33 · ADR-0016)
+// 실무자 초대 (D86 결정 3 · ADR-0044)
 //
-// 실무자는 당사자와 달리 users 디렉터리에 등재된다 — 이메일이 Cloudflare Access 의
-// 신원 키이므로 가입 화면은 이름과 함께 **이메일을 반드시** 받는다. 가입이 끝나면
-// 그 이메일로 Access 로그인해서 들어온다(별도 비밀번호 없음).
+// 초대는 이메일 1개에 묶인 1회용 링크다. 표에는 토큰 sha256만 남고 평문은 발급 응답에
+// 한 번만 실린다. 역할 칸은 만드는 사람의 역할 합이 정한다: 기관 관리자는 업무 역할을
+// 하나 이상 골라야 하고, 기술 관리자만 있으면 역할 없이 초대해 가입자가 역할 대기가 된다.
 // ============================================================================
 
-/** 실무자 초대 링크의 공개 정보. 화면이 "어느 기관의 초대인가"만 보여 준다. */
-export interface CounselorInvitePublicInfo {
-  /** 기관 표시 이름. 온보딩 전이면 null — 화면이 일반 문안으로 폴백한다. */
-  orgName: string | null;
-}
+const STAFF_INVITE_TTL_MS = 7 * 24 * 60 * 60_000;
 
-/**
- * 실무자 초대 토큰의 경계 조회(Actor 없음, CCC-108). 유효하면 기관 표시 이름만 돌려준다 —
- * 토큰이 곧 자격이므로 그 이상(발급자·기관 id)은 공개 표면에 내보내지 않는다.
- * 무효·이미 사용·종류 불일치는 전부 같은 ForbiddenError(getInviteForSignup 규약).
- */
-export async function getCounselorInviteSignupInfo(
-  env: Env,
-  token: string,
-): Promise<CounselorInvitePublicInfo> {
-  const invite = await getInviteForSignup(env, token, 'counselor');
-  const row = await env.DB.prepare('SELECT org_name FROM organization_settings WHERE org_id = ?')
-    .bind(invite.orgId)
-    .first<DbRow>();
-  return { orgName: row === null ? null : nullableString(row.org_name) };
-}
-
-export interface CounselorSignupInput {
-  token: string;
-  name: string;
+export interface StaffInvite {
+  id: string;
   email: string;
+  roles: DirectoryStoredRole[];
+  status: 'issued' | 'used' | 'revoked';
+  issuedAt: string;
+  expiresAt: string;
+  usedAt: string | null;
+  revokedAt: string | null;
 }
 
-export interface CounselorSignupResult {
+function mapStaffInvite(row: DbRow): StaffInvite {
+  return {
+    id: stringValue(row.id),
+    email: stringValue(row.email_normalized),
+    roles: parseJson<DirectoryStoredRole[]>(stringValue(row.roles_json)) ?? [],
+    status: stringValue(row.status) as StaffInvite['status'],
+    issuedAt: stringValue(row.issued_at),
+    expiresAt: stringValue(row.expires_at),
+    usedAt: nullableString(row.used_at),
+    revokedAt: nullableString(row.revoked_at),
+  };
+}
+
+function normalizedStaffEmail(value: unknown): string {
+  assertNonBlankText(value, 'email');
+  const email = value.trim().toLowerCase();
+  if (email.length > 254 || !email.includes('@')) throw new ValidationError('email is invalid');
+  return email;
+}
+
+async function staffInviteForOrg(env: Env, orgId: string, inviteId: string): Promise<DbRow> {
+  const row = await env.DB.prepare('SELECT * FROM staff_invites WHERE id = ? AND org_id = ?')
+    .bind(inviteId, orgId).first<DbRow>();
+  if (row === null) throw new ForbiddenError('staff invite is unavailable');
+  return row;
+}
+
+/** 토큰 경계 조회(Actor 없음). 만료·소비·회수·미존재는 전부 같은 ForbiddenError다. */
+async function liveStaffInviteByToken(env: Env, token: string): Promise<DbRow> {
+  if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)) throw new ForbiddenError('staff invite is unavailable');
+  const row = await env.DB.prepare(
+    "SELECT * FROM staff_invites WHERE token_hash = ? AND status = 'issued' AND expires_at > ?",
+  ).bind(await sha256Hex(token), now()).first<DbRow>();
+  if (row === null) throw new ForbiddenError('staff invite is unavailable');
+  return row;
+}
+
+export async function createStaffInvite(
+  env: Env,
+  actor: Actor,
+  input: { email: string; roles: DirectoryStoredRole[] },
+): Promise<{ invite: StaffInvite; token: string }> {
+  assertHuman(actor);
+  assertExactKeys(input, ['email', 'roles']);
+  const issuerRoles = await currentDirectoryRoles(env, actor);
+  const isInstitutionAdmin = issuerRoles.includes('institution-admin');
+  if (!isInstitutionAdmin && !issuerRoles.includes('technical-admin')) {
+    throw new ForbiddenError('staff invites require an administrator role');
+  }
+  if (!Array.isArray(input.roles) || input.roles.length > 3) throw new ValidationError('invite roles are invalid');
+  const roles = [...new Set(input.roles)].sort();
+  if (roles.some((role) => !Object.hasOwn(DIRECTORY_ROLE_MAP, role)) || roles.length !== input.roles.length) {
+    throw new ValidationError('invite roles are invalid');
+  }
+  // 기관 관리자는 업무 역할을 반드시 고르고, 기술 관리자만 있으면 역할 대기 초대만 만든다(D86 결정 3).
+  if (isInstitutionAdmin ? roles.length === 0 : roles.length > 0) throw new ValidationError('invite roles are invalid');
+  const email = normalizedStaffEmail(input.email);
+  const token = newInviteTokenValue();
+  const id = newId();
+  const issuedAt = now();
+  const expiresAt = new Date(parseUtcTimestamp(issuedAt) + STAFF_INVITE_TTL_MS).toISOString();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO staff_invites (id, org_id, token_hash, email_normalized, roles_json, issued_by, issued_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, actor.orgId, await sha256Hex(token), email, JSON.stringify(roles), actor.userId, issuedAt, expiresAt),
+    canonicalAuditStatement(env, actor, {
+      action: 'invite_issue', targetTable: 'staff_invites', targetId: id, beneficiaryId: null, supportCaseId: null,
+      detail: { roles, expiresAt },
+    }),
+  ]);
+  return { invite: mapStaffInvite(await staffInviteForOrg(env, actor.orgId, id)), token };
+}
+
+export async function listStaffInvites(env: Env, actor: Actor): Promise<StaffInvite[]> {
+  assertHuman(actor);
+  const roles = await currentDirectoryRoles(env, actor);
+  if (!roles.includes('institution-admin') && !roles.includes('technical-admin')) {
+    throw new ForbiddenError('staff invites require an administrator role');
+  }
+  const rows = await env.DB.prepare(
+    'SELECT * FROM staff_invites WHERE org_id = ? ORDER BY issued_at DESC, id',
+  ).bind(actor.orgId).all<DbRow>();
+  await writeAudit(env, actor, { action: 'read', targetTable: 'staff_invites', detail: { list: true, count: rows.results.length } });
+  return rows.results.map(mapStaffInvite);
+}
+
+export async function revokeStaffInvite(env: Env, actor: Actor, inviteId: string): Promise<StaffInvite> {
+  assertHuman(actor);
+  const roles = await currentDirectoryRoles(env, actor);
+  if (!roles.includes('institution-admin') && !roles.includes('technical-admin')) {
+    throw new ForbiddenError('staff invites require an administrator role');
+  }
+  assertOpaqueIdentifier(inviteId, 'staff invite id');
+  await staffInviteForOrg(env, actor.orgId, inviteId);
+  const revokedAt = now();
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE staff_invites SET status = 'revoked', revoked_at = ?, revoked_by = ?
+       WHERE id = ? AND org_id = ? AND status = 'issued'`,
+    ).bind(revokedAt, actor.userId, inviteId, actor.orgId),
+    canonicalAuditStatement(env, actor, {
+      action: 'invite_revoke', targetTable: 'staff_invites', targetId: inviteId, beneficiaryId: null, supportCaseId: null,
+      detail: { revoked: true },
+    }),
+  ]);
+  if ((results[0]?.meta.changes ?? 0) !== 1) throw new ConflictError('staff invite is not revocable');
+  return mapStaffInvite(await staffInviteForOrg(env, actor.orgId, inviteId));
+}
+
+export interface StaffInvitePublicInfo {
+  orgName: string | null;
+  roles: DirectoryStoredRole[];
+  expiresAt: string;
+}
+
+export async function getStaffInvitePublicInfo(env: Env, token: string): Promise<StaffInvitePublicInfo> {
+  const row = await liveStaffInviteByToken(env, token);
+  const org = await env.DB.prepare('SELECT org_name FROM organization_settings WHERE org_id = ?')
+    .bind(stringValue(row.org_id)).first<DbRow>();
+  const invite = mapStaffInvite(row);
+  return { orgName: org === null ? null : nullableString(org.org_name), roles: invite.roles, expiresAt: invite.expiresAt };
+}
+
+export interface StaffInviteAcceptResult {
   userId: string;
   email: string;
+  roleWaiting: boolean;
 }
 
 /**
- * 실무자 초대 링크로 가입을 완료한다(원자, CCC-108). 토큰 검증 → users 등재(role=counselor)
- * → 토큰 소비를 한 배치에 묶는다. 인증된 행위자를 받지 않는다(토큰이 자격).
- *
- * 감사 행위자 분리(당사자 자기 가입과 같은 규약): users 생성 감사는 발급자(관리자)를
- * 후원 행위자로 복원해 남기고, invite_consume 감사는 시스템 행위자
- * (INVITE_SIGNUP_ACTOR_ID)로 남긴다. 배치의 첫 문장이 supplied consumption ID로 토큰을
- * 소비하고, 뒤 INSERT들은 그 정확한 post-state를 `EXISTS`로 확인한다. 경합에서 토큰
- * 소비가 0행이면 계정과 감사도 0행이라 고아 계정이 남지 않는다.
- *
- * 이메일은 전역 UNIQUE(신원 키)다. 이미 등재된 이메일이면 ConflictError — 재가입이
- * 아니라 관리자 화면(POST /users)의 재활성화 경로를 쓰라는 뜻이다.
+ * 초대 수락(원자). 토큰 소비, users 등재, 초대에 적힌 역할 부여, legacy 자동 부여 역할 회수를
+ * 한 배치에 묶는다. 이메일이 초대와 다르면 소비하지 않고 미존재와 같은 ForbiddenError다.
  */
-export async function completeCounselorSignup(
+export async function acceptStaffInvite(
   env: Env,
-  input: CounselorSignupInput,
-): Promise<CounselorSignupResult> {
+  input: { token: string; name: string; email: string },
+): Promise<StaffInviteAcceptResult> {
   assertExactKeys(input, ['token', 'name', 'email']);
-  assertNonBlankText(input.token, 'token');
   assertNonBlankText(input.name, 'name');
-  assertNonBlankText(input.email, 'email');
   const name = input.name.trim();
-  const email = input.email.trim();
-  if (email.length > 254 || !email.includes('@')) {
-    throw new ValidationError('email is invalid');
-  }
-
-  // 순차 이중 제출 게이트 — 이미 소비된 토큰은 여기서 거부한다(동시 경계는 배치 안 가드).
-  const invite = await getInviteForSignup(env, input.token, 'counselor');
-
-  // 후원 행위자 복원: 발급 관리자가 아직 활성인지 확인한다. 발급자가 비활성이면 그
-  // 초대는 근거를 잃는다(당사자 가입의 sponsor 규약과 동일).
-  const sponsorRow = await env.DB.prepare(
-    `SELECT id FROM users
-     WHERE id = ? AND org_id = ? AND active = 1 AND role = 'admin'`,
-  ).bind(invite.issuedBy, invite.orgId).first<{ id: string }>();
-  if (sponsorRow === null) {
-    throw new ForbiddenError('invite sponsor is unavailable');
-  }
-
-  // 이메일 선점 검사(순차 경로) — 전역 UNIQUE 라 기관 무관하게 걸린다. 동시 경계는
-  // 아래 INSERT 의 UNIQUE 제약이 배치 전체를 되감아 토큰도 소비되지 않는다.
-  const existing = await findUserByEmail(env, email);
-  if (existing !== null) {
-    throw new ConflictError('email is already registered');
-  }
+  const email = normalizedStaffEmail(input.email);
+  const row = await liveStaffInviteByToken(env, input.token);
+  if (stringValue(row.email_normalized) !== email) throw new ForbiddenError('staff invite is unavailable');
+  const invite = mapStaffInvite(row);
+  const orgId = stringValue(row.org_id);
+  const issuerId = stringValue(row.issued_by);
+  const issuer = await env.DB.prepare('SELECT id, role FROM users WHERE id = ? AND org_id = ? AND active = 1')
+    .bind(issuerId, orgId).first<{ id: string; role: string }>();
+  if (issuer === null) throw new ForbiddenError('staff invite is unavailable');
+  if (await findUserByEmail(env, email) !== null) throw new ConflictError('email is already registered');
 
   const userId = newId();
   const createdAt = now();
   const consumptionId = newId();
+  const consumed = `EXISTS (SELECT 1 FROM staff_invites WHERE id = ? AND status = 'used' AND consumption_id = ?)`;
+  const storedRole: Role = invite.roles.some((role) => role !== 'practitioner') ? 'admin' : 'counselor';
+  const sponsor: Actor = { userId: issuer.id, orgId, role: issuer.role as Actor['role'] };
   try {
     const results = await env.DB.batch([
       env.DB.prepare(
-        `UPDATE invite_tokens
-         SET status = 'used', used_at = ?, used_by_beneficiary_id = NULL,
-             used_by_user_id = ?, consumption_id = ?
-         WHERE token = ? AND status = 'issued' AND revoked_at IS NULL`,
-      ).bind(createdAt, userId, consumptionId, input.token),
+        `UPDATE staff_invites SET status = 'used', used_at = ?, used_by_user_id = ?, consumption_id = ?
+         WHERE id = ? AND status = 'issued' AND expires_at > ?`,
+      ).bind(createdAt, userId, consumptionId, invite.id, createdAt),
       env.DB.prepare(
-        `INSERT INTO users (id, org_id, email, role, active, name)
-         SELECT ?, ?, ?, ?, 1, ?
-         WHERE EXISTS (
-           SELECT 1 FROM invite_tokens
-           WHERE token = ? AND status = 'used' AND used_by_user_id = ? AND consumption_id = ?
-         )`,
-      ).bind(userId, invite.orgId, email, 'counselor', name, input.token, userId, consumptionId),
+        `INSERT INTO users (id, org_id, email, role, active, name, created_at)
+         SELECT ?, ?, ?, ?, 1, ?, ? WHERE ${consumed}`,
+      ).bind(userId, orgId, email, storedRole, name, createdAt, invite.id, consumptionId),
+      // users 등재 트리거가 심는 legacy 역할은 초대 계약이 아니므로 같은 배치에서 회수한다.
       env.DB.prepare(
-        `INSERT INTO audit_log (
-           org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
-         )
-         SELECT ?, ?, 'admin', 'create', 'users', ?, NULL, ?, ?
-         WHERE EXISTS (
-           SELECT 1 FROM invite_tokens
-           WHERE token = ? AND status = 'used' AND used_by_user_id = ? AND consumption_id = ?
-         )`,
-      ).bind(
-        invite.orgId,
-        sponsorRow.id,
-        userId,
-        stringifyJson({ role: 'counselor', via: 'invite_signup' }),
-        createdAt,
-        input.token,
-        userId,
-        consumptionId,
-      ),
+        `UPDATE user_role_assignments SET revoked_at = ?
+         WHERE org_id = ? AND user_id = ? AND source = 'legacy' AND revoked_at IS NULL AND ${consumed}`,
+      ).bind(createdAt, orgId, userId, invite.id, consumptionId),
+      ...invite.roles.map((role) => env.DB.prepare(
+        `INSERT INTO user_role_assignments (id, org_id, user_id, role, source, granted_by, granted_at)
+         SELECT ?, ?, ?, ?, 'manual', ?, ? WHERE ${consumed}`,
+      ).bind(newId(), orgId, userId, role, issuerId, createdAt, invite.id, consumptionId)),
       env.DB.prepare(
-        `INSERT INTO audit_log (
-           org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
-         )
-         SELECT ?, ?, 'service', 'invite_consume', 'invite_tokens', ?, NULL, ?, ?
-         WHERE EXISTS (
-           SELECT 1 FROM invite_tokens
-           WHERE token = ? AND status = 'used' AND used_by_user_id = ? AND consumption_id = ?
-         )`,
-      ).bind(
-        invite.orgId,
-        INVITE_SIGNUP_ACTOR_ID,
-        input.token,
-        stringifyJson({ kind: 'counselor', userId, via: 'signup' }),
-        createdAt,
-        input.token,
-        userId,
-        consumptionId,
-      ),
+        `INSERT INTO audit_log (org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at)
+         SELECT ?, ?, ?, 'create', 'users', ?, NULL, ?, ? WHERE ${consumed}`,
+      ).bind(orgId, sponsor.userId, sponsor.role, userId,
+        stringifyJson({ via: 'staff_invite', roles: invite.roles, roleWaiting: invite.roles.length === 0 }),
+        createdAt, invite.id, consumptionId),
+      env.DB.prepare(
+        `INSERT INTO audit_log (org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at)
+         SELECT ?, ?, 'service', 'invite_consume', 'staff_invites', ?, NULL, ?, ? WHERE ${consumed}`,
+      ).bind(orgId, INVITE_SIGNUP_ACTOR_ID, invite.id, stringifyJson({ userId }), createdAt, invite.id, consumptionId),
     ]);
-    const tokenChanges = results[0]?.meta.changes ?? 0;
-    if (tokenChanges !== 1) {
-      throw new ForbiddenError('invite token is not available');
-    }
+    if ((results[0]?.meta.changes ?? 0) !== 1) throw new ForbiddenError('staff invite is unavailable');
   } catch (error) {
-    if (hasApplicationCode(error, 'invite_token_already_used')) {
-      throw new ConflictError('invite token already used');
+    if (hasApplicationCode(error, 'staff_invite_immutable')
+      || (error instanceof Error && error.message.includes('staff_invite_immutable'))) {
+      throw new ConflictError('staff invite already used');
     }
-    if (error instanceof Error && error.message.includes('invite_token_already_used')) {
-      throw new ConflictError('invite token already used');
-    }
-    if (isUniqueConstraintError(error)) {
-      throw new ConflictError('email is already registered');
-    }
+    if (isUniqueConstraintError(error)) throw new ConflictError('email is already registered');
     throw error;
   }
-  return { userId, email };
+  return { userId, email, roleWaiting: invite.roles.length === 0 };
 }
 
 // Auxiliary memory uses a separate source/material namespace from session drafts.
