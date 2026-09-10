@@ -1018,8 +1018,10 @@ const registerStyles = `
 .preview-gate-head{display:grid;gap:var(--space-2);justify-items:center}
 .preview-gate-head>h1{margin:0}
 .preview-gate-head>p{margin:0;font-size:var(--text-sm);font-weight:400;color:var(--sub)}
-.preview-gate-card{width:min(400px,100%);display:grid;gap:var(--space-5);padding:var(--space-6);text-align:left}
-.preview-gate-card .preview-gate-submit{width:100%;justify-content:center}
+/* 공개 소개 WireCard는 폭과 정렬만 공유한다. 내부 간격은 공용 카드와 구분선이 소유한다. */
+.preview-gate-card,.preview-intro-card{width:min(400px,100%);text-align:left}
+.preview-gate-card{display:grid;gap:var(--space-5);padding:var(--space-6)}
+.preview-gate-card .preview-gate-submit,.preview-intro-card .preview-gate-submit{width:100%;justify-content:center}
 /* 당사자 등록·초대 (#37) */
 .wire-register-form{display:grid;gap:var(--space-6);margin-top:var(--space-8)}
 .wire-register-submit{width:100%}
