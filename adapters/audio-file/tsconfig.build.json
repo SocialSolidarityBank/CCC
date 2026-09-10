@@ -4,11 +4,8 @@
     "outDir": "dist",
     "rootDir": "src",
     "declaration": true,
-    "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "better-sqlite3-multiple-ciphers": ["./node_modules/better-sqlite3-multiple-ciphers"]
-    }
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
   },
   "include": ["src/**/*.ts"]
 }

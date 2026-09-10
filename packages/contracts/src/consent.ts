@@ -1,4 +1,4 @@
-import { canonicalizeJcs } from './jcs';
+import { canonicalizeJcs } from './jcs.js';
 
 export const CONSENT_DOMAINS = [
   'personal_data_collection_use',

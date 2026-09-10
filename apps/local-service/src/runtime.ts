@@ -10,7 +10,7 @@ import type { SingleEndpointRecord } from '@ccc/contracts/install-manifest';
 import { createScheduledJobRunner, type ScheduledJobEnv } from '@ccc/core/scheduled-job-runner';
 import { handleRequest, type ActorResolver } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
-import { createLocalSingleIdentity, type LocalSingleIdentity } from './identity';
+import { createLocalSingleIdentity, type LocalSingleIdentity } from './identity.js';
 
 const LOOPBACK = '127.0.0.1';
 

@@ -21,5 +21,8 @@
     "./institution": "./src/institution.ts",
     "./report": "./src/report.ts",
     "./sql": "./src/sql.ts"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json"
   }
 }

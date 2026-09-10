@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { readFile, readdir } from 'node:fs/promises';
 import type { SqliteMigration } from '@ccc/db-sqlite';
 import { createProtectedRecordRepository } from '@ccc/secrets-dpapi/records';
-import { createLocalSingleRuntime, type LocalSingleRuntime } from './runtime';
+import { createLocalSingleRuntime, type LocalSingleRuntime } from './runtime.js';
 
 const MIGRATION_PATTERN = /^(\d{4})_[A-Za-z0-9][A-Za-z0-9_-]*\.sql$/;
 
@@ -83,5 +83,5 @@ export async function startLocalSingle(config: LocalSingleStartupConfig): Promis
   }
 }
 
-export { createLocalSingleRuntime, readEndpointRecord } from './runtime';
-export { createLocalSingleIdentity, type LocalSingleIdentity } from './identity';
+export { createLocalSingleRuntime, readEndpointRecord } from './runtime.js';
+export { createLocalSingleIdentity, type LocalSingleIdentity } from './identity.js';
