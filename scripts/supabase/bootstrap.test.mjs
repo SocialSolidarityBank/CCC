@@ -41,10 +41,35 @@ function databaseSnapshot(overrides = {}) {
   };
 }
 
+function providerInventorySnapshot(overrides = {}) {
+  return {
+    objects: [],
+    grants: [],
+    ...overrides,
+  };
+}
+
+function objectRowForInspector() {
+  return {
+    object_kind: 'schema', namespace_name: 'auth', object_identity: 'auth',
+    owner_name: 'supabase_admin', definition_text: '{"name":"auth"}',
+    provenance: 'supabase_managed',
+  };
+}
+
+function grantRowForInspector() {
+  return {
+    grant_kind: 'schema', namespace_name: 'auth', object_identity: 'auth',
+    grantor_name: 'supabase_admin', grantee_name: 'authenticated', privilege: 'USAGE',
+    is_grantable: false, provenance: 'supabase_managed',
+  };
+}
+
 async function withManagementApi({
   region = 'ap-northeast-2',
   status = 200,
   database = databaseSnapshot(),
+  providerInventory = providerInventorySnapshot(),
   mutateAuth = false,
   mutateData = false,
 }, run) {
@@ -111,6 +136,10 @@ async function withManagementApi({
           hash_b: mutateData && dataReadCount > 1 ? 'changed-b' : 'stable-b',
         }]));
       } else {
+        if (query.includes('provider_object_inventory')) {
+          response.end(JSON.stringify([providerInventory]));
+          return;
+        }
         if (query.includes('catalog_state')) {
           response.end(JSON.stringify([{ catalog_state: 'synthetic-public-catalog' }]));
           return;
@@ -337,49 +366,114 @@ test('read-only observations preserve region and unowned-project denials', async
   });
 });
 
-test('hosted inventory rejects a business table hidden in the extensions schema without reading its rows', async () => {
-  const objectName = 'extensions.legacy_business';
+test('hosted inventory preserves provider-looking tables, routines, and types as exact untrusted candidates', async () => {
+  const objects = [
+    {
+      object_kind: 'relation', namespace_name: 'extensions',
+      object_identity: 'extensions.legacy_business TABLE', owner_name: 'postgres',
+      definition_text: '{"relkind":"r"}', provenance: 'supabase_managed',
+    },
+    {
+      object_kind: 'routine', namespace_name: 'auth',
+      object_identity: 'auth.hidden() RETURNS void', owner_name: 'postgres',
+      definition_text: 'CREATE FUNCTION auth.hidden() RETURNS void LANGUAGE sql AS $$ SELECT $$',
+      provenance: 'supabase_managed',
+    },
+    {
+      object_kind: 'type', namespace_name: 'storage',
+      object_identity: 'storage.unverified_type', owner_name: 'postgres',
+      definition_text: '{"typtype":"e"}', provenance: 'supabase_managed',
+    },
+  ];
   await withManagementApi({
-    database: databaseSnapshot({
-      unowned_object_count: 1,
-      provider_inventory_evidence: { objectName, rowCount: 3 },
-    }),
+    database: databaseSnapshot({ unowned_object_count: objects.length }),
+    providerInventory: providerInventorySnapshot({ objects }),
   }, async ({ origin, requests }) => {
+    const snapshot = await hostedInspector(origin).inspect();
+    assert.equal(snapshot.providerInventory.objects.length, 3);
+    assert.deepEqual(
+      snapshot.providerInventory.objects.map(({ kind, schema, identity, provenance }) => (
+        { kind, schema, identity, provenance }
+      )).sort((left, right) => left.kind.localeCompare(right.kind)),
+      [
+        {
+          kind: 'relation', schema: 'extensions', identity: 'extensions.legacy_business TABLE',
+          provenance: 'supabase_managed',
+        },
+        {
+          kind: 'routine', schema: 'auth', identity: 'auth.hidden() RETURNS void',
+          provenance: 'supabase_managed',
+        },
+        {
+          kind: 'type', schema: 'storage', identity: 'storage.unverified_type',
+          provenance: 'supabase_managed',
+        },
+      ],
+    );
+    assert.ok(requests.every(({ body }) => !body.includes('AS row_value')));
     const output = await inspectPlan(origin);
     assert.equal(output.ready, false);
     assert.ok(output.blockers.some(({ code }) => code === 'EXISTING_PROJECT_NOT_CLEAN'));
-    assert.ok(requests.every(({ body }) => !body.includes('AS row_value')));
-    assert.equal(JSON.stringify(output).includes(objectName), false);
+    assert.doesNotMatch(JSON.stringify(output), /legacy_business|hidden|unverified_type/u);
+  });
+});
+
+test('hosted inventory preserves default grants and role memberships as separate stable records', async () => {
+  const grants = [
+    {
+      grant_kind: 'default', namespace_name: 'auth',
+      object_identity: 'default privileges for role postgres in schema auth',
+      grantor_name: 'postgres', grantee_name: 'unrelated_reader_must_not_escape',
+      privilege: 'SELECT', is_grantable: false, provenance: 'supabase_managed',
+    },
+    {
+      grant_kind: 'role', namespace_name: '', object_identity: 'authenticator',
+      grantor_name: 'postgres', grantee_name: 'unrelated_member_must_not_escape',
+      privilege: 'MEMBER', is_grantable: true, provenance: 'supabase_managed',
+    },
+  ];
+  await withManagementApi({
+    database: databaseSnapshot({ unexpected_grant_count: grants.length }),
+    providerInventory: providerInventorySnapshot({ grants }),
+  }, async ({ origin }) => {
+    const snapshot = await hostedInspector(origin).inspect();
+    assert.equal(snapshot.providerInventory.grants.length, 2);
+    assert.deepEqual(
+      snapshot.providerInventory.grants.map(({ kind, objectIdentity, privilege, grantable }) => (
+        { kind, objectIdentity, privilege, grantable }
+      )).sort((left, right) => left.kind.localeCompare(right.kind)),
+      [
+        {
+          kind: 'default', objectIdentity: 'default privileges for role postgres in schema auth',
+          privilege: 'SELECT', grantable: false,
+        },
+        {
+          kind: 'role', objectIdentity: 'authenticator', privilege: 'MEMBER', grantable: true,
+        },
+      ],
+    );
+    const output = await inspectPlan(origin);
+    assert.equal(output.ready, false);
+    assert.ok(output.blockers.some(({ code }) => code === 'EXISTING_PROJECT_NOT_CLEAN'));
+    assert.doesNotMatch(JSON.stringify(output), /unrelated_(?:reader|member)_must_not_escape/u);
   });
 });
 
 test('hosted inventory rejects an opaque object in a non-system schema', async () => {
   const objectName = 'extensions.legacy_collation';
   await withManagementApi({
-    database: databaseSnapshot({
-      unowned_object_count: 1,
-      provider_inventory_evidence: { objectName, objectKind: 'collation' },
+    database: databaseSnapshot({ unowned_object_count: 1 }),
+    providerInventory: providerInventorySnapshot({
+      objects: [{
+        object_kind: 'catalog', namespace_name: 'extensions', object_identity: objectName,
+        owner_name: '', definition_text: '{"provider":"i"}', provenance: 'supabase_managed',
+      }],
     }),
   }, async ({ origin }) => {
     const output = await inspectPlan(origin);
     assert.equal(output.ready, false);
     assert.ok(output.blockers.some(({ code }) => code === 'EXISTING_PROJECT_NOT_CLEAN'));
     assert.equal(JSON.stringify(output).includes(objectName), false);
-  });
-});
-
-test('hosted inventory rejects a stable default SELECT grant to an unrelated role', async () => {
-  const roleName = 'unrelated_reader_must_not_escape';
-  await withManagementApi({
-    database: databaseSnapshot({
-      unexpected_grant_count: 1,
-      provider_inventory_evidence: { roleName, privilege: 'SELECT', defaultPrivilege: true },
-    }),
-  }, async ({ origin }) => {
-    const output = await inspectPlan(origin);
-    assert.equal(output.ready, false);
-    assert.ok(output.blockers.some(({ code }) => code === 'EXISTING_PROJECT_NOT_CLEAN'));
-    assert.equal(JSON.stringify(output).includes(roleName), false);
   });
 });
 
@@ -398,6 +492,17 @@ test('hosted inventory accepts exact provider metadata and extension ownership e
     assert.equal(output.ready, true);
     assert.doesNotMatch(JSON.stringify(output), /(?:provider|extension)_object_must_not_escape/u);
   });
+});
+
+test('hosted inventory rejects object and grant records that disagree with counted candidates', async () => {
+  for (const providerInventory of [
+    providerInventorySnapshot({ objects: [objectRowForInspector()] }),
+    providerInventorySnapshot({ grants: [grantRowForInspector()] }),
+  ]) {
+    await withManagementApi({ providerInventory }, async ({ origin }) => {
+      await assert.rejects(hostedInspector(origin).inspect(), error => error.code === 'PROVIDER_UNREADABLE');
+    });
+  }
 });
 
 test('hosted inventory fails closed when object or grant counts are malformed', async () => {

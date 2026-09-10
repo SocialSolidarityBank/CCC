@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { PlanFailure } from './plan.mjs';
 import { buildInstallStateQuery, DATABASE_INSTALL_FINGERPRINT_QUERY, hashDatabaseInstallFingerprint, INSTALL_METADATA_TABLES } from './install-journal.mjs';
 import { assertAuthorizationCurrent } from './manifest-preflight.mjs';
+import { normalizeProviderInventory, PROVIDER_INVENTORY_QUERY } from './provider-inventory.mjs';
 
 export const DATABASE_STATE_QUERY = `SELECT * FROM (
 WITH
@@ -646,9 +647,10 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
   return {
     async inspect() {
       const project = await projectEvidence();
-      const [authConfig, database] = await Promise.all([
+      const [authConfig, database, providerInventoryRow] = await Promise.all([
         request(`/v1/projects/${ref}/config/auth`),
         readOnlyQuery(DATABASE_STATE_QUERY),
+        readOnlyQuery(PROVIDER_INVENTORY_QUERY),
       ]);
       const auth = safeAuth(authConfig);
       for (const key of [
@@ -660,6 +662,11 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
         const value = database[key];
         if ((typeof value !== 'number' && typeof value !== 'string') || !/^\d+$/.test(String(value))
           || !Number.isSafeInteger(Number(value))) throw new PlanFailure('PROVIDER_UNREADABLE');
+      }
+      const providerInventory = normalizeProviderInventory(providerInventoryRow);
+      if (providerInventory.objects.length !== number(database.unowned_object_count)
+        || providerInventory.grants.length !== number(database.unexpected_grant_count)) {
+        throw new PlanFailure('PROVIDER_UNREADABLE');
       }
       const metadataTables = [...INSTALL_METADATA_TABLES].sort();
       const privateTables = database.private_table_names;
@@ -716,6 +723,7 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
           authFingerprint: fingerprint(authState),
           institutionDataFingerprint: '',
         }),
+        providerInventory,
         installState,
         databaseFingerprint,
         cronJobCount: number(cron.count),
