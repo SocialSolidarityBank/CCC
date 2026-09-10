@@ -8,6 +8,7 @@
     "./identity": "./src/identity.ts"
   },
   "scripts": {
+    "build": "tsc --project tsconfig.build.json",
     "test": "node --test test/contract.test.ts"
   },
   "dependencies": {
