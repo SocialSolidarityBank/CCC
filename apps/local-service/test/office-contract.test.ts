@@ -10,6 +10,7 @@ import {
   type OfficeAccountRecord,
 } from '../src/office-identity.ts';
 import { ActorAuthenticationError, MfaRequiredError } from '@ccc/contracts/runtime';
+import { isRfc1918, validateBindAddress } from '../src/bind-validation.ts';
 
 /**
  * E8-1 contract tests for Local Office identity.
@@ -449,6 +450,84 @@ describe('Local Office Runtime Guards (E8-1)', () => {
 });
 
 /**
+ * E8-1 bind address validation tests.
+ * Local Office must refuse to bind to non-RFC1918 addresses.
+ */
+describe('Local Office Bind Validation (E8-1)', () => {
+  it('accepts 10.x.x.x addresses', () => {
+    assert.ok(isRfc1918('10.0.0.1'), '10.0.0.1 should be RFC1918');
+    assert.ok(isRfc1918('10.255.255.255'), '10.255.255.255 should be RFC1918');
+  });
+
+  it('accepts 172.16.x.x - 172.31.x.x addresses', () => {
+    assert.ok(isRfc1918('172.16.0.1'), '172.16.0.1 should be RFC1918');
+    assert.ok(isRfc1918('172.31.255.255'), '172.31.255.255 should be RFC1918');
+    assert.ok(!isRfc1918('172.15.255.255'), '172.15.255.255 should NOT be RFC1918');
+    assert.ok(!isRfc1918('172.32.0.1'), '172.32.0.1 should NOT be RFC1918');
+  });
+
+  it('accepts 192.168.x.x addresses', () => {
+    assert.ok(isRfc1918('192.168.0.1'), '192.168.0.1 should be RFC1918');
+    assert.ok(isRfc1918('192.168.255.255'), '192.168.255.255 should be RFC1918');
+  });
+
+  it('rejects public IP addresses', () => {
+    assert.ok(!isRfc1918('8.8.8.8'), '8.8.8.8 should NOT be RFC1918');
+    assert.ok(!isRfc1918('1.1.1.1'), '1.1.1.1 should NOT be RFC1918');
+    assert.ok(!isRfc1918('203.0.113.1'), '203.0.113.1 should NOT be RFC1918');
+  });
+
+  it('rejects localhost/loopback', () => {
+    assert.ok(!isRfc1918('127.0.0.1'), '127.0.0.1 should NOT be RFC1918');
+    assert.ok(!isRfc1918('127.255.255.254'), '127.x.x.x should NOT be RFC1918');
+  });
+
+  it('validateBindAddress accepts valid RFC1918 within CIDR', () => {
+    // Should not throw
+    validateBindAddress('192.168.1.10', '192.168.1.0/24');
+    validateBindAddress('10.0.0.5', '10.0.0.0/8');
+    validateBindAddress('172.16.5.100', '172.16.0.0/12');
+  });
+
+  it('validateBindAddress rejects public IP', () => {
+    assert.throws(
+      () => validateBindAddress('8.8.8.8', '8.8.8.0/24'),
+      /bind_address_not_private/,
+      'should reject public IP',
+    );
+  });
+
+  it('validateBindAddress rejects IP outside CIDR', () => {
+    assert.throws(
+      () => validateBindAddress('192.168.2.10', '192.168.1.0/24'),
+      /host_outside_cidr/,
+      'should reject IP outside CIDR',
+    );
+  });
+
+  it('validateBindAddress rejects invalid CIDR', () => {
+    assert.throws(
+      () => validateBindAddress('192.168.1.10', 'invalid'),
+      /invalid_private_cidr/,
+      'should reject invalid CIDR format',
+    );
+  });
+
+  it('validateBindAddress rejects CIDR prefix out of range', () => {
+    assert.throws(
+      () => validateBindAddress('192.168.1.10', '192.168.1.0/31'),
+      /invalid_cidr_prefix/,
+      'should reject CIDR prefix > 30',
+    );
+    assert.throws(
+      () => validateBindAddress('10.0.0.1', '10.0.0.0/7'),
+      /invalid_cidr_prefix/,
+      'should reject CIDR prefix < 8',
+    );
+  });
+});
+
+/**
  * Contract answer verification:
  *
  * Q1: Does the Office login path go through the same core gateway authorization as Cloud and Single?
@@ -459,13 +538,9 @@ describe('Local Office Runtime Guards (E8-1)', () => {
  *
  * Q2: Where do the local account records live?
  * A2: S4 §2.2 says "두 Local 모드의 DB·file·PII·CA key는 DPAPI `CurrentUser`로 암호화한다"
- *     - accounts MUST be in DPAPI-encrypted storage
- *     - The `OfficeAccountStore` interface is defined but concrete implementation is not yet written
- *     - It's passed as a config parameter to `LocalOfficeRuntimeConfig`
- *     - S4 leaves the exact table structure open; only requires encryption
- *     - Natural implementation: accounts in the same encrypted SQLite as business data
- *       (since we already have encrypted SQLite), but that's an implementation decision
- *       not explicitly stated in S4
+ *     Implemented in: office-account-store.ts (createOfficeAccountStore)
+ *     Migration: 0057_office_accounts.sql
+ *     Table: office_accounts in the same encrypted SQLite as business data
  */
 describe('S4 contract answers (documentation)', () => {
   it('documents gateway path: Office uses same handleRequest as Cloud', () => {
@@ -475,9 +550,9 @@ describe('S4 contract answers (documentation)', () => {
     assert.ok(true, 'See office-runtime.ts:298 - handleRequest(request, baseEnv, resolveActor)');
   });
 
-  it('documents account storage: S4 requires DPAPI encryption, leaves table structure open', () => {
+  it('documents account storage: implemented in office-account-store.ts', () => {
     // S4 §2.2: "두 Local 모드의 DB·file·PII·CA key는 DPAPI `CurrentUser`로 암호화한다"
-    // OfficeAccountStore interface exists, concrete implementation not yet provided
-    assert.ok(true, 'See S4 §2.2 and OfficeAccountStore interface in office-identity.ts');
+    // OfficeAccountStore implemented with migration 0057_office_accounts.sql
+    assert.ok(true, 'See office-account-store.ts and migrations/sqlite/0057_office_accounts.sql');
   });
 });
