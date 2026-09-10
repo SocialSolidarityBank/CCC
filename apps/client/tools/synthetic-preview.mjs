@@ -59,13 +59,15 @@ const manifest = await signInstallManifest({
   supabasePublishableKey: 'sb_publishable_synthetic', signingKeyId: 'preview',
 }, pair.privateKey);
 
+// 검수용 스위치. 기본은 켬이고 `CCC_PREVIEW_PUBLIC_SIGNUP=0` 이면 끈 설치를 흉내 낸다.
+const PUBLIC_SIGNUP_ENABLED = process.env.CCC_PREVIEW_PUBLIC_SIGNUP !== '0';
 const state = createSyntheticState();
 const tls = { key: readFileSync(keyPath, 'utf8'), cert: readFileSync(certPath, 'utf8') };
 const admissionCopyHash = await sha256Hex(canonicalizeJcs(PROGRAM_ADMISSION_COPY));
 const capabilities = buildCapabilityManifest({
   mode: 'community-cloud', requestedSttMode: 'off', requestedLlmMode: 'off', registry: [],
   sttGatePassed: { local: false, azure: false }, azureKeyPresent: false, llmKeyPresent: false,
-  llmGateOpen: false, agentStatus: 'inactive', publicSignupEnabled: false,
+  llmGateOpen: false, agentStatus: 'inactive', publicSignupEnabled: PUBLIC_SIGNUP_ENABLED,
 });
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -94,6 +96,7 @@ Bun.serve({
   fetch: (request) => handleApi(request, state, {
     clientOrigin, installationId: INSTALLATION_ID, basePath: API_BASE_PATH,
     admissionCopyHash, admissionCopyVersion: PROGRAM_ADMISSION_COPY_VERSION, capabilities,
+    publicSignupEnabled: PUBLIC_SIGNUP_ENABLED,
   }),
 });
 

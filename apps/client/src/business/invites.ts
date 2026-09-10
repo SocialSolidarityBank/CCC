@@ -42,7 +42,7 @@ export interface StaffInvitePublicInfo { orgName: string | null; roles: InviteSt
 export interface StaffInviteAccepted { userId: string; email: string; roleWaiting: boolean }
 export type RequestLinkInfo =
   | { status: 'issued'; programId: string; programType: string; orgName: string | null; expiresAt: string }
-  | { status: 'used'; counselorName: string | null };
+  | { status: 'used'; counselorName: string | null; message: string };
 
 function isStoredRole(value: unknown): value is InviteStoredRole {
   return typeof value === 'string' && Object.hasOwn(INVITE_ROLE_LABELS, value);
@@ -91,10 +91,20 @@ export class InvitesApi {
     return decodeInvite(row.invite);
   }
 
-  /** 당사자 요청 링크 발급. 목적 하나, 만료는 서버가 정한다(7일). */
+  /**
+   * 당사자 요청 링크 발급. 목적 하나, 만료는 서버가 정한다(7일).
+   * 이 설치가 공개 가입 표면을 닫아 두면 서버는 404 로 답한다(CCC-112). 연결 실패가 아니므로
+   * 다시 시도하라고 하지 않고 그 사실을 그대로 알리는 코드로 바꾼다.
+   */
   async createRequestLink(programId: string): Promise<{ token: string; expiresAt: string | null }> {
     if (!isOpaqueIdentifier(programId)) throw new BusinessError('invalid_request', 400);
-    const row = record(await this.transport.request('/invites/participant', 'POST', { programId }));
+    const row = record(await this.transport.request('/invites/participant', 'POST', { programId })
+      .catch((cause: unknown) => {
+        if (cause instanceof BusinessError && cause.status === 404) {
+          throw new BusinessError('public_signup_disabled', 404);
+        }
+        throw cause;
+      }));
     if (typeof row.token !== 'string' || row.token === '' || !isNullableString(row.expiresAt)) {
       throw new BusinessError('invalid_response');
     }
@@ -127,8 +137,10 @@ export class PublicJoinApi {
   async requestLink(token: string): Promise<RequestLinkInfo> {
     const row = record(await this.transport.request(`/invites/participant/${encodeURIComponent(token)}`));
     if (row.status === 'used') {
-      if (!isNullableString(row.counselorName)) throw new BusinessError('invalid_response');
-      return { status: 'used', counselorName: row.counselorName };
+      if (!isNullableString(row.counselorName) || typeof row.message !== 'string' || row.message === '') {
+        throw new BusinessError('invalid_response');
+      }
+      return { status: 'used', counselorName: row.counselorName, message: row.message };
     }
     if (row.status !== 'issued' || typeof row.programId !== 'string' || typeof row.programType !== 'string'
       || !isNullableString(row.orgName) || typeof row.expiresAt !== 'string') {

@@ -127,6 +127,8 @@ export function StaffInviteScreen() {
 /** 당사자 요청 링크 발급(D86 ④). 목적 하나, 만료는 서버가 정한다. */
 export function ParticipantInviteScreen() {
   const session = useOutletContext<Session>();
+  // 설치가 공개 가입 표면을 닫아 두면 발급이 서버에서 404 다. 주소로 직접 들어와도 같은 사실을 알린다.
+  const publicSignup = session.capabilities.features.public_signup === true;
   const [options, setOptions] = useState<ProgramOption[] | null>(null);
   const [programId, setProgramId] = useState('');
   const [issued, setIssued] = useState<string | null>(null);
@@ -150,6 +152,17 @@ export function ParticipantInviteScreen() {
 
   const ready = (options ?? []).filter((option) => option.admissionState === 'ready');
   const locked = (options ?? []).filter((option) => option.admissionState !== 'ready');
+
+  if (!publicSignup) {
+    return <WireCard title="당사자 초대">
+      <WireCallout tone="info" title="이 설치는 요청 링크를 쓰지 않습니다">
+        당사자 요청 링크가 꺼져 있어 링크를 만들 수 없습니다. 당사자 등록 화면에서 직접 등록해 주세요.
+      </WireCallout>
+      <div className="business-actions">
+        <WireButton variant="neutral" href="/participants/new">당사자 등록</WireButton>
+      </div>
+    </WireCard>;
+  }
 
   return <WireCard title="당사자 초대">
     <WireCallout tone="info" title="링크 하나에 목적 하나입니다">
@@ -188,24 +201,29 @@ export function ParticipantInviteScreen() {
   </WireCard>;
 }
 
-/** 조각에서 토큰을 읽고 주소에서 지운다(S2 §2.10). 토큰은 기록에 남지 않는다. */
-function useFragmentToken(): string | null {
+/**
+ * 조각에서 토큰을 읽고 주소에서 지운다(S2 §2.10). 토큰은 기록에 남지 않는다.
+ *
+ * `nonce` 는 링크를 다시 열 때마다 오른다. 같은 토큰으로 다시 들어오면 브라우저가 문서를 새로
+ * 읽지 않고 조각만 바꾸므로, 이 값이 없으면 앞선 제출 완료 화면이 그대로 남는다.
+ */
+function useFragmentToken(): { token: string | null; nonce: number } {
   const location = useLocation();
   const navigate = useNavigate();
-  const [token, setToken] = useState<string | null>(null);
+  const [state, setState] = useState<{ token: string | null; nonce: number }>({ token: null, nonce: 0 });
   useEffect(() => {
     const raw = location.hash.startsWith('#t=') ? location.hash.slice(3) : '';
     if (raw === '') return;
-    setToken(raw);
+    setState((current) => ({ token: raw, nonce: current.nonce + 1 }));
     void navigate({ pathname: location.pathname, search: location.search, hash: '' }, { replace: true });
   }, [location.hash, location.pathname, location.search, navigate]);
-  return token;
+  return state;
 }
 
 /** 실무자 초대 수락(공개). 업무 셸도 Bearer 도 쓰지 않는다. */
 export function StaffJoinScreen() {
   const session = useOutletContext<PublicSession>();
-  const token = useFragmentToken();
+  const { token, nonce } = useFragmentToken();
   const [info, setInfo] = useState<StaffInvitePublicInfo | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -215,8 +233,10 @@ export function StaffJoinScreen() {
 
   useEffect(() => {
     if (token === null) return;
+    setDone(null);
+    setError(null);
     void session.publicJoin.staffInvite(token).then(setInfo).catch((cause: unknown) => setError(safeError(cause)));
-  }, [token, session.publicJoin]);
+  }, [token, nonce, session.publicJoin]);
 
   if (token === null) {
     return <WireCard title="실무자 초대"><WireEmpty>초대 링크가 아닙니다.</WireEmpty></WireCard>;
@@ -271,7 +291,7 @@ export function StaffJoinScreen() {
 /** 당사자 요청 링크 완료(공개). 여섯 영역 동의를 여기서 받는다. */
 export function ParticipantJoinScreen() {
   const session = useOutletContext<PublicSession>();
-  const token = useFragmentToken();
+  const { token, nonce } = useFragmentToken();
   const [info, setInfo] = useState<RequestLinkInfo | null>(null);
   const [disclosures, setDisclosures] = useState<ConsentDisclosureSnapshot[]>([]);
   const [decisions, setDecisions] = useState<ConsentDecisions>({});
@@ -284,12 +304,15 @@ export function ParticipantJoinScreen() {
 
   useEffect(() => {
     if (token === null) return;
+    // 링크를 다시 열 때마다 제출 완료 상태를 지운다. 이미 쓴 링크를 방금 접수한 것처럼 보이면 안 된다.
+    setDone(false);
+    setError(null);
     void session.publicJoin.requestLink(token).then((value) => {
       setInfo(value);
-      if (value.status !== 'issued') return;
+      if (value.status !== 'issued') { setDisclosures([]); return; }
       return session.publicJoin.requestLinkDisclosures(token).then(setDisclosures);
     }).catch((cause: unknown) => setError(safeError(cause)));
-  }, [token, session.publicJoin]);
+  }, [token, nonce, session.publicJoin]);
 
   if (token === null) return <WireCard title="당사자 등록"><WireEmpty>요청 링크가 아닙니다.</WireEmpty></WireCard>;
   if (done) {
@@ -303,7 +326,11 @@ export function ParticipantJoinScreen() {
     {error && <WireError>{error.message}</WireError>}
     {info === null && error === null && <WireEmpty live reserve>요청 링크를 확인하고 있습니다.</WireEmpty>}
     {info?.status === 'used' && <WireCallout tone="info" title="이미 사용한 링크입니다">
-      {info.counselorName === null ? '담당 실무자에게 문의해 주세요.' : `${info.counselorName} 실무자에게 문의해 주세요.`}
+      {/* 문구는 서버가 준 그대로 쓰고, 담당 이름이 있으면 한 줄 덧붙인다. 접수 완료 화면과 다른 자리다. */}
+      <p className="wire-section-value">{info.message}</p>
+      {info.counselorName !== null && <p className="wire-section-value">
+        {`담당 실무자: ${info.counselorName}`}
+      </p>}
     </WireCallout>}
     {info?.status === 'issued' && <>
       <WireDataRows>

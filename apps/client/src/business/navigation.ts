@@ -7,6 +7,8 @@ export interface ShellDestination {
   title: string;
   href: string;
   roles: readonly HumanRole[];
+  /** 설치가 이 기능을 끄면 자리 자체를 보이지 않는다(`GET /capabilities` 의 features). */
+  feature?: 'public_signup';
 }
 
 const destinations: readonly ShellDestination[] = [
@@ -15,7 +17,8 @@ const destinations: readonly ShellDestination[] = [
   { id: 'schedule-register', title: '상담 일정 등록', href: '/schedules/new', roles: ['institution-admin', 'worker'] },
   { id: 'participants', title: '당사자 목록', href: '/participants', roles: ['institution-admin', 'supervisor', 'worker'] },
   { id: 'participant-register', title: '당사자 등록', href: '/participants/new', roles: ['institution-admin', 'worker'] },
-  { id: 'participant-invite', title: '당사자 초대', href: '/participants/invite', roles: ['institution-admin', 'worker'] },
+  { id: 'participant-invite', title: '당사자 초대', href: '/participants/invite',
+    roles: ['institution-admin', 'worker'], feature: 'public_signup' },
   { id: 'staff-invites', title: '실무자 초대', href: '/staff-invites', roles: ['institution-admin', 'technical-admin'] },
   { id: 'onboarding', title: '기관 준비', href: '/onboarding', roles: ['institution-admin'] },
   { id: 'system', title: '연결 상태', href: '/settings?module=system', roles: ['institution-admin', 'technical-admin'] },
@@ -48,8 +51,12 @@ export function canOpenDestination(destination: ShellDestination, roles: readonl
   return destination.roles.some((role) => roles.includes(role));
 }
 
-export function visibleDestinations(roles: readonly HumanRole[]): readonly ShellDestination[] {
-  return destinations.filter((destination) => canOpenDestination(destination, roles));
+export function visibleDestinations(
+  roles: readonly HumanRole[],
+  features: Partial<Record<'public_signup', boolean>> = { public_signup: true },
+): readonly ShellDestination[] {
+  return destinations.filter((destination) => canOpenDestination(destination, roles)
+    && (destination.feature === undefined || features[destination.feature] === true));
 }
 
 export function destinationAt(pathname: string, search: string): ShellDestination | null {

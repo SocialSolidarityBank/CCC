@@ -17,6 +17,7 @@ const messages = {
   purge_disabled: '최종 파기는 현재 비활성화되어 있습니다. 기록은 그대로 보존됩니다.',
   invalid_request: '입력 내용을 확인해 주세요.',
   program_admission_required: '사업 도입 확인이 필요합니다. 설명을 다시 읽고 선택을 확인해 주세요.',
+  public_signup_disabled: '이 설치는 당사자 요청 링크를 쓰지 않습니다. 당사자 등록 화면에서 직접 등록해 주세요.',
   consent_scope_mismatch: '동의 문안과 보낸 값이 맞지 않아 저장하지 않았습니다. 화면을 새로 고쳐 최신 문안으로 다시 받아 주세요.',
   emergency_reason_required: '긴급 등록을 고르면 사유를 적어야 합니다.',
   privacy_consent_required: '개인정보 수집과 이용 동의가 없어 등록할 수 없습니다. 동의를 아직 받지 못했으면 긴급 등록 사유를 적어 주세요.',

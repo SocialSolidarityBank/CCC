@@ -197,7 +197,7 @@ function BusinessShell() {
       <WireCard as="nav" className="settings-navigation" labelledBy="business-navigation"
         title={<h2 id="business-navigation">업무 메뉴</h2>}>
         <ul className="settings-navigation-list">
-          {visibleDestinations(session.me.roles).map((item) => {
+          {visibleDestinations(session.me.roles, session.capabilities.features).map((item) => {
             const active = destination?.id === item.id;
             return <li key={item.id}><Link className="navigation-link" to={item.href}
               aria-current={active ? 'page' : undefined} data-current={active ? 'true' : 'false'}>{item.title}</Link></li>;
