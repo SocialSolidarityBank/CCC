@@ -1,18 +1,18 @@
-import { WireBullets, WireButton, WireCard, WireCardSection } from '@ccc/wire';
+import { PageTitle, WireBullets, WireButton, WireCard, WireCardSection } from '@ccc/wire';
 
 /** 공개 소개 문안. 인증, 업무 API, 기관 생성 없이 렌더한다. */
 export function WelcomePage({ loginOrigin = null }: { loginOrigin?: string | null }) {
   return (
     <main className="page-content preview-gate">
       <div className="preview-gate-head">
-        <h1>CCC 사례관리</h1>
+        <PageTitle>Relayer</PageTitle>
         <p>
           금전 지원 사업 당사자 상담을 인테이크부터 종결까지 기록하고,
           상담 5분 전 브리핑 한 화면으로 보여주는 사례관리 도구입니다.
         </p>
       </div>
 
-      <WireCard as="section" labelledBy="briefing-title" title={<h2 id="briefing-title">15초 브리핑</h2>} className="preview-gate-card">
+      <WireCard as="section" labelledBy="briefing-title" title={<h2 id="briefing-title">15초 페이지</h2>} className="preview-gate-card">
         <p className="wire-section-value">상담 5분 전에 열어 15초 안에 훑는 한 화면에 담기는 것:</p>
         <WireBullets items={[
           '오늘 만나기 전 꼭 기억할 것',

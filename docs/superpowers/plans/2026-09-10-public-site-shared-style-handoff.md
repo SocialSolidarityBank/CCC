@@ -4,9 +4,9 @@
 
 Source pass on `design/beta-public-site`, based on `d35dbaab947fdcd74b5ac341f6a73030eeab9eac`. Main owns integration and frozen-snapshot validation. This is not production deployment evidence, E2-7 retirement, or full P9 completion.
 
-Owned changes: `apps/site`, canonical wire styles/build entry, narrowly required legacy web style consumers, root workspace build/test wiring. Q additionally granted design-guard source-path and kit harness wiring. No guard algorithm, threshold, assertion or baseline was relaxed. No `apps/client`, STT, API/core, migrations, credentials, infrastructure, deployment or other-worktree source was edited. No MacBook prototypes were copied or added.
+Owned changes: `apps/site`, canonical wire styles/build entry, narrowly required legacy web style consumers, root workspace build/test wiring. Main, acting as integration coordinator, approved the narrow design-guard source-path and kit harness wiring; this was not an additional direct Q decision. No guard algorithm, threshold, assertion or baseline was relaxed. No `apps/client`, STT, API/core, migrations, credentials, infrastructure, deployment or other-worktree source was edited. No MacBook prototypes were copied or added.
 
-D86 was read from ADR-0044. This base contains neither D89 text nor the P9 frontend acceptance plan after searches of `docs`, `PRD` and decision filenames. The explicit takeover contract supplies this pass's acceptance criteria; Main must reconcile the missing documents before claiming full acceptance. `apps/web/app/globals.css` is absent in this base: the shared rules lived in layout template literals.
+D86 was read from ADR-0044. D89 (ADR-0048) was initially absent from this base and was subsequently reviewed read-only at `/tmp/ccc-d89-runtime-contract.txt` for the narrow public-surface correction. The public guidance is consistent with its boundary: Supabase describes institution-owned storage, not hosted Edge execution of the business API; institution creation remains install-owned, with no public signup or fabricated initial-setup success. D89's independent business runtime and install-owned first-administrator invitation do not authorize provider selection, deployment, live invitations or AI/STT activation here. The explicit HTTPS business-client origin remains separate from any API/Auth manifest contract. No copy of D89 is added as a second canon. The P9 frontend acceptance plan remains absent from this base; Main must reconcile that plan before claiming full acceptance. `apps/web/app/globals.css` is absent in this base: the shared rules lived in layout template literals.
 
 ## Public surface
 
@@ -32,8 +32,8 @@ Deployment owner must map `/welcome` to the emitted `welcome.html` (or its platf
 
 | Line/group | Hierarchy | Existing component/style |
 |---|---|---|
-| CCC name and introduction | Page title + explanation | `preview-gate-head` |
-| Fifteen-second briefing heading | Card title | `WireCard` with semantic h2 |
+| Relayer name and introduction | Sole h1 + explanation | `PageTitle` inside `preview-gate-head` |
+| `15초 페이지` heading | Card title | `WireCard` with semantic h2 |
 | Three briefing areas | Peer reading list | `WireBullets` |
 | Manual/approved AI distinction | Explanation | `report-description` |
 | Adoption action | Primary action | `WireButton` |
@@ -120,7 +120,7 @@ The package still depends on repository design tokens and the existing compositi
 
 ## Verification performed and deferred
 
-Performed locally:
+Performed locally for source commit `3bb2f6c1ea0c9ff0f5435f4973c426101b0ac95f`, before the naming/PageTitle correction:
 
 - `pnpm install --frozen-lockfile --ignore-scripts`: succeeded, existing versions only; supply-chain policy checked 569 entries. No lifecycle scripts ran.
 - Actual canonical composition: identical bytes/hash above; seven raw blocks identical; all eight existing component test files have identical hashes to their pre-pass contents.
@@ -134,6 +134,12 @@ Limitations:
 - Browser screenshot capture repeatedly timed out, including direct Puppeteer capture. Later reload/click helpers also timed out. These were reported as tooling failures. **No successful screenshot, visual design approval or adoption-click interaction claim.** DOM and HTTP evidence are narrower than visual acceptance.
 - No builds, test suites, linters, formatters or design gates ran in this source pass. Main validates the frozen snapshot. The user-provided base `guard-core-imports` pass was not rerun.
 - No production/site deployment, Windows runtime, live login or installation-mode verification.
+
+### Narrow public-surface correction (2026-09-10)
+
+Q confirmed the official product name **Relayer** (naming only). The new site's heading now uses the existing `@ccc/wire` `PageTitle` as its sole h1, both HTML document titles use Relayer, and the briefing card uses the approved screen name `15초 페이지`. Repository/package/infrastructure names remain unchanged. The approval attribution and D89 reconciliation above are corrected without copying the decision text.
+
+Correction inventory: `apps/site/src/welcome-page.tsx`, `apps/site/index.html`, `apps/site/welcome.html`, and this handoff. Navigation, origin validation, no-business-I/O behavior assertions and all existing tests are untouched; no text-only tests were re-pinned. CSS bytes/order and all gate algorithms, thresholds and baselines are untouched. No build/test/lint/format run or deployment was performed for this correction. Main owns screenshots, actual built-site and gate verification; the earlier runtime observations are not fresh verification of this correction.
 
 Main's pending commands after client handoff and source freeze:
 
