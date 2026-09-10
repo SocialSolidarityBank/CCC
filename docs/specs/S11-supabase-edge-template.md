@@ -16,7 +16,7 @@ Community Cloud는 기관이 소유한 Supabase 프로젝트 하나에 PostgreSQ
 
 [ADR-0048](../adr/0048-independent-cloud-api-runtime.md)이 이 문서의 일반 업무 실행을 Supabase hosted Edge로 한정한 조항을 대체한다. 일반 업무 요청·PII·AI 호출은 독립 업무 API에서 실행하며, 본문의 Supabase Edge 배포/리전 헤더/공급자 CPU·메모리 한계는 그 플랫폼에 남는 전용 기능에만 적용한다. 공통 HTTP 본문 한도, 원음 중계 금지, 권한·동의·감사·서명·정확한 CORS/CSP 규칙은 유지한다. 새 업무 호스팅의 공급자·리전 증거·배포 방식은 별도 승인과 실제 검증 전까지 미완료다.
 
-S2의 공개 signed manifest에는 아래 §2.1이 전제한 `institutionId`와 `expectedOwnerOrgId`가 없다. 기관 소유 확인의 입력 계약, 최초 관리자와 직원 초대의 Auth 관리자 권한 경계는 후속 결정이 필요하다. 임의 필드를 공개 manifest에 추가하거나 소유 확인을 생략하지 않으며, 이 공백이 있는 설치 apply/초대 경로를 완료로 세지 않는다.
+2026-09-10 Q는 기관 소유 확인을 **설치기 전용 서명 승인서**로 분리하도록 확정했다. S2 공개 signed manifest의 필드와 검증기는 유지하며 기관·소유자 식별자를 추가하지 않는다. 설치기는 공개 manifest와 비공개 승인서의 서명 및 결합을 모두 확인한다. 정확한 계약은 §2.1을 따른다. 최초 관리자 초대는 ADR-0048의 기존 결정대로이며, 이후 직원 초대의 Auth 관리자 권한 경계는 별도다.
 
 ## 2. 설치 경계와 명령
 
@@ -24,19 +24,45 @@ S2의 공개 signed manifest에는 아래 §2.1이 전제한 `institutionId`와 
 
 | 항목 | 계약 |
 |---|---|
-| 소유 | 설치를 요청한 기관의 Supabase 조직이 소유한다. 관찰한 owner organization ID가 기관 승인 manifest의 `expectedOwnerOrgId`와 정확히 같아야 한다. |
+| 소유 | 설치를 요청한 기관의 Supabase 조직이 소유한다. 관찰한 owner organization ID가 설치기 전용 서명 승인서의 `expectedOwnerOrgId`와 정확히 같아야 한다. |
 | 리전 | `ap-northeast-2`(Seoul)만 허용한다. 리전 값이 없거나 다른 리전이면 `REGION_MISMATCH`로 중단한다. |
 | 실행 백엔드 | 한 기관 프로젝트는 한 시점에 하나의 PostgreSQL 실행 백엔드만 사용한다. D1과 PostgreSQL에 이중 쓰기하지 않는다. |
 | 설치 대상 | 새 프로젝트 또는 이 계약의 journal/영수증이 같은 `installationId`를 가리키는 설치만 허용한다. 기존 업무 데이터가 있는 프로젝트에는 적용하지 않는다. |
 | 사전 동작 | 첫 공개 명령은 ADR-0042의 read-only `plan`이다. plan은 Management API의 프로젝트/Auth 조회와 `database/query/read-only`만 사용한다. |
 
-기관 관리자가 승인한 S2 signed install manifest는 `institutionId`, `projectRef`, `expectedOwnerOrgId`, `installationId`, contract version, expiry, signature와 manifest digest를 묶는다. `plan`과 `apply`는 manifest signature, expiry, projectRef binding을 먼저 확인한 뒤 Management API가 관찰한 owner organization ID를 `expectedOwnerOrgId`와 비교한다. manifest가 없거나 서명이 틀리거나 owner가 다르면 `OWNER_EVIDENCE_MISSING` 또는 `OWNER_MISMATCH`로 끝내며 write는 0건이다. 관찰된 owner ID만 hash하여 영수증에 남기고 manifest 원문과 project URL은 출력하지 않는다.
+**설치 승인서(2026-09-10 Q 확정)**는 S2 공개 manifest와 별개의 비공개 입력이다. 공개 manifest는 접속과 실행 구성을, 승인서는 기관이 승인한 설치 대상과 소유권을 갖는다. 승인서는 다음 필드만 받는다.
+
+```ts
+type SignedInstallApproval = {
+  schemaVersion: 1;
+  institutionId: string;
+  projectRef: string;
+  expectedOwnerOrgId: string;
+  installationId: string;
+  runtimeManifestSha256: string;
+  contractVersion: 'S11-install-approval-v1';
+  expiresAt: string;
+  signingKeyId: string;
+  ed25519Signature: string;
+};
+```
+
+- 서명은 S2와 같은 RFC 8785 JCS 및 Ed25519를 사용한다. 승인서 자신의 `ed25519Signature`를 제외한 객체에 서명하며, 설치 담당자가 신뢰하도록 설정한 키 목록과 폐기 키 검사를 재사용한다. 문서에 실린 키를 스스로 신뢰 근거로 삼지 않는다.
+- 승인서 검증 키는 설치 담당자가 해당 기관에 대해 신뢰하도록 구성한 키만 허용한다. `institutionId`는 설치 대상의 `CCC_ORGANIZATION_ID`와 대조하고, 업무 실행에 넘기는 기관 값도 그 검증된 값으로 고정한다. 승인서가 자신의 키나 대상 기관을 신뢰 설정에 자동 등록할 수 없다.
+- `runtimeManifestSha256`은 **서명을 포함한 S2 공개 manifest 전체**를 JCS로 정규화한 UTF-8 바이트의 SHA-256(소문자 64자리)이다. 공개 설정을 바꾸면 승인서도 다시 발급한다. 파일 두 개의 생성과 연결 검증은 설치 도구가 책임진다.
+- `plan`과 `apply`는 두 서명과 만료, Community Cloud 모드, 승인서 `projectRef`와 공개 manifest `supabaseProjectRef`, 두 `installationId`, 공개 manifest 해시를 먼저 대조한다. 알려지지 않은 필드와 계약 버전은 거부한다.
+- 서명과 결합 확인 뒤에만 Management API를 읽고, 관찰한 owner organization ID를 **미리 승인서에 서명된** `expectedOwnerOrgId`와 대조한다. 실측 owner를 자동으로 승인값에 복사하거나 unsigned 옵션으로 대신하지 않는다.
+- 승인서 부재·잘못된 서명·만료·결합 불일치는 `OWNER_EVIDENCE_MISSING`, 관찰한 소유자 불일치는 `OWNER_MISMATCH`로 끝내며 write는 0건이다. 유효기간은 두 문서 중 더 이른 만료를 넘지 못한다.
+- 승인서는 `CCC_INSTALL_APPROVAL` 또는 명시적 `--install-approval`의 JSON/로컬 파일 입력으로만 받는다. 공개 파일, bootstrap, browser, 일반 업무 API, 로그나 영수증에 원문을 싣지 않는다. 서명 개인키도 설치 담당자의 승인된 SecretStore 밖으로 내보내지 않는다.
+- 승인서의 `institutionId`가 journal의 기관 식별 근거다. `projectRef`, `institutionId`, `expectedOwnerOrgId`는 journal과 영수증에서 기존 규칙대로 hash만 기록한다. 승인서 해시와 공개 manifest 해시를 함께 기록해 다른 승인서/설치본의 혼용을 거부한다.
+- 중단 뒤 재개도 두 서명 문서를 다시 제출받거나 승인된 설치 저장소에서 읽어 현재 만료·폐기 키·결합 검증을 반복한다. 일반 재개는 journal의 두 해시와 정확히 일치해야 한다. 원문이 없다고 hash만으로 권한을 복원하지 않는다.
+- 문서가 만료되거나 키가 폐기되면 추가 write를 멈춘다. 만료 갱신을 위한 명시적 재승인은 새 서명 쌍의 기관·프로젝트·소유자·installation ID, 계약과 적용할 자원·migration digest가 기존 journal과 같을 때만 허용한다. 공개 manifest에서 바뀔 수 있는 것은 발행/만료 시각, sequence, signing key와 signature뿐이며, 주소나 능력 변경은 이 재승인 경로가 아니라 별도의 update 계약을 따른다. 재승인은 기존 승인 이력을 덮지 않고 새 해시를 추가하며, 이미 완료한 설치 step을 다시 실행하지 않는다. 자동 갱신이나 unsigned 재개 옵션은 없다.
 
 공개 진입점은 다음과 같다.
 
 ```text
-pnpm supabase:bootstrap -- plan --project-ref "$CCC_SUPABASE_PROJECT_REF" --install-manifest "$CCC_INSTALL_MANIFEST"
-pnpm supabase:bootstrap -- apply --project-ref "$CCC_SUPABASE_PROJECT_REF" --install-manifest "$CCC_INSTALL_MANIFEST"
+pnpm supabase:bootstrap -- plan --project-ref "$CCC_SUPABASE_PROJECT_REF" --install-manifest "$CCC_INSTALL_MANIFEST" --install-approval "$CCC_INSTALL_APPROVAL"
+pnpm supabase:bootstrap -- apply --project-ref "$CCC_SUPABASE_PROJECT_REF" --install-manifest "$CCC_INSTALL_MANIFEST" --install-approval "$CCC_INSTALL_APPROVAL"
 pnpm supabase:bootstrap -- doctor --project-ref "$CCC_SUPABASE_PROJECT_REF"
 pnpm supabase:bootstrap -- rollback --project-ref "$CCC_SUPABASE_PROJECT_REF" --to "$TARGET_VERSION"
 ```

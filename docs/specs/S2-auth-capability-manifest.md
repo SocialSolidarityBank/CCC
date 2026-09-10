@@ -189,6 +189,8 @@ interface SignedInstallManifest {
 
 client는 먼저 같은 origin의 signed manifest를 검증한 뒤에만 public bootstrap을 읽는다. `bootstrap.mode === signedManifest.mode === capabilities.mode`이어야 하며, Cloud/Office의 `bootstrap.apiBase === signedManifest.apiBase === effectiveApiBase`여야 한다. Single은 bootstrap의 `apiBase`와 `mode`가 서명된 `http://127.0.0.1` base와 exact equality여야 하고, 실제 random port는 DPAPI endpoint record가 같은 installationId에 대해 추가한다. 인증 뒤 `GET /capabilities`의 `X-CCC-Installation-Id` header도 signed manifest의 `installationId`와 byte-equal이어야 하며 하나라도 다르면 403으로 중지한다. public join은 unsigned bootstrap target이 아니라 이 검증과 equality가 끝난 effective `apiBase`만 사용한다.
 
+2026-09-10 Q 후속 결정으로 설치 대상의 기관·Supabase 소유권은 S11 §2.1의 **설치기 전용 서명 승인서**가 갖는다. 승인서는 서명을 포함한 이 공개 manifest 전체의 JCS SHA-256에 결합된다. 공개 manifest와 bootstrap의 필드는 바꾸지 않고 승인서 원문을 client에 전달하지 않는다. 설치기의 두 서명·소유권 대조와 입력 계약은 S11이 소유한다.
+
 ### 2.8 CapabilityManifest 정본과 18개 조합
 
 인증을 끝낸 human client만 `GET /capabilities`를 호출한다. Agent와 scheduler는 403이다. 응답은 `Cache-Control: no-store`이고 `X-CCC-Installation-Id` header를 포함한다. header 값은 signed manifest와 비교하며 JSON body는 아래 타입과 정확히 같은 key만 허용한다.
@@ -299,7 +301,7 @@ E2-5c가 legacy token-path route를 이 계약으로 cutover한다. 초대 token
 5. join page에는 third-party resource·analytics·external link가 없다. token 원문은 static/API 로그, errors, cache, Referer, history에 남지 않는다. 가입 완료 뒤 self-check에는 내 정보·참여 사업·담당 실무자·일정·동의 상태만 있고 상담 기록·요약·GAS·flag·기관 전체 목록은 없다.
 소유: join route·fragment cutover는 E2-5c, Cloud Auth user linkage와 service-role 경계는 E4-2, Local join transport는 E7/E8이다. S3는 E2-5c cutover 뒤 이 endpoint/DTO 표를 참조한다.
 
-D89는 업무 API의 관리자 키 접근을 금지한다. 따라서 위 worker complete의 Auth 관리자 호출을 일반 업무 handler에 직접 구현하지 않는다. 최초 관리자 생성과 직원 초대의 별도 권한 경계, S11 설치 승인 정보와 공개 manifest의 누락된 결합 계약은 후속 결정 전 미완료로 남긴다. 이 보류는 초대 기능을 전체 범위에서 제외하거나 StorageSigner에 Auth 관리자 기능을 추가하는 승인이 아니다. 정본: [ADR-0048](../adr/0048-independent-cloud-api-runtime.md).
+D89는 업무 API의 관리자 키 접근을 금지한다. 따라서 위 worker complete의 Auth 관리자 호출을 일반 업무 handler에 직접 구현하지 않는다. 최초 관리자 초대 방식은 ADR-0048의 2026-09-09 후속 결정이, 설치 소유권 증거와 공개 manifest의 결합은 2026-09-10 설치기 전용 서명 승인서 결정이 정한다. 이후 직원 초대의 별도 Auth 관리자 권한 경계는 여전히 미완료이며, 이 보류는 초대 기능을 전체 범위에서 제외하거나 StorageSigner에 Auth 관리자 기능을 추가하는 승인이 아니다. 정본: [ADR-0048](../adr/0048-independent-cloud-api-runtime.md), S11 §2.1.
 
 ## 3. 세 모드에서 어떻게 다른가
 

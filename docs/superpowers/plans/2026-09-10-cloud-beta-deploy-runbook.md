@@ -26,10 +26,10 @@ Azure 로그인은 유지되고 있다. 앞서 만든 자원은 `ccc-beta-krc`, 
 서명된 설치 manifest, 소유 기관과 프로젝트 결합, 만료, 깨끗한 프로젝트 또는 일치하는 설치 journal을
 먼저 확인해야 한다. 연결 성공이나 비어 보이는 화면만으로 마이그레이션을 실행하지 않는다.
 
-현재 구현된 읽기 전용 명령의 인자는 다음과 같다.
+Q가 승인한 설치 전용 승인서 계약의 구현 후 읽기 전용 명령은 다음과 같다.
 
 ```sh
-node scripts/supabase/bootstrap.mjs plan --target hosted --format json
+node scripts/supabase/bootstrap.mjs plan --target hosted --install-manifest "$CCC_INSTALL_MANIFEST" --install-approval "$CCC_INSTALL_APPROVAL" --format json
 ```
 
 이 명령은 주입된 `SUPABASE_ACCESS_TOKEN`과 `CCC_SUPABASE_PROJECT_REF`를 읽는다.
@@ -37,13 +37,14 @@ Q의 별도 승인으로 Aside에서 새 관리 인증을 연결했다. 설치 �
 사용하며 평문 토큰 파일 fallback은 차단했다. 설치 프로세스용 인증은 공식 CLI의 브라우저 교환 절차로
 메모리에서 받아 자식 환경에만 주입한다. 기존 정본 토큰은 바꾸지 않았다.
 
-현재 구현의 실제 실행은 exit 0, `readOnly:true`, `unchanged:true`, 서울 리전 확인,
-DB/Auth/Storage 읽기 성공, 업무 테이블 0개를 보고했다. `productionReady`는 계속 `false`다.
-이 결과는 아래에 남은 S11 서명·소유권·설치 journal 검증을 대신하지 않는다.
+이전 `9bbc553`의 관찰용 plan 실행은 exit 0, `readOnly:true`, `unchanged:true`, 서울 리전 확인,
+DB/Auth/Storage 읽기 성공, 업무 테이블 0개를 보고했다. `productionReady`는 `false`였다.
+이 결과는 서명된 기관 소유권 승인이나 설치 완료를 뜻하지 않는다.
 
-현재 bootstrap은 `plan`만 지원하고 S11의 `--install-manifest`, `apply`, `doctor`, `rollback`은
-구현되지 않았다. 계획의 옛 `ccc_worker`와 30일 원음 보관 선언도 현행 계약과 맞지 않는다.
-API 레인이 이 차이를 해소하기 전에는 이 문서를 실행 가능한 설치기로 취급하지 않는다.
+2026-09-10 Q는 별도 비공개 설치 승인서를 선택했다. S2 공개 형식은 유지하며,
+정확한 서명·해시 결합, 재개와 갱신 규칙은 S11 §2.1을 따른다. 현재 `c78484c6`은 CA 처리와
+잘못된 소유권 입력의 거부까지만 구현했고 완전한 승인서/journal 경로는 API 레인이 이어서 구현한다.
+관찰용 plan이나 항상 거부하는 안전 잠금을 실제 설치기 대신 사용하지 않는다.
 
 ## 구현 후 실행할 순서
 
