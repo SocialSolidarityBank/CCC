@@ -20,11 +20,11 @@ D86 was read from ADR-0044. D89 (ADR-0048) was initially absent from this base a
 
 ### Public login configuration
 
-`apps/site/.env.example` defines the optional, nonsecret, build-time `CCC_BUSINESS_CLIENT_ORIGIN`. Supply only the separately deployed business client's HTTPS origin. No default hostname is invented. Only this value, not the environment object, enters the public bundle.
+`apps/site/.env.example` defines the optional, nonsecret, build-time `CCC_BUSINESS_CLIENT_ORIGIN`. Supply only the separately deployed business client's HTTPS origin, without `/login` or any other path. Validation still returns an origin; the staff-login anchor appends `/login`. Main verified that `apps/client/src/app.tsx:264-276` implements business authentication at `/login` while the bare client `/` intentionally remains the STT entry. Neither client route is changed here. No default hostname is invented. Only the configured origin value, not the environment object, enters the public bundle.
 
 Absent/invalid values, non-HTTPS URLs, credentials, paths, queries, fragments and the public site's own origin omit the login link. The page instead tells existing staff to obtain their address from the institution administrator. No fake login endpoint is created.
 
-A local smoke server was also started with `CCC_BUSINESS_CLIENT_ORIGIN=https://work.example.test` (reserved test domain, not a deployment). Its rendered login anchor had exactly that origin. The link was not followed.
+Historical smoke for `3bb2f6c1`: a local server used `CCC_BUSINESS_CLIENT_ORIGIN=https://work.example.test` (reserved test domain, not a deployment). Its rendered login anchor had exactly that origin; this was the destination defect later identified by Main, not successful staff-login verification. The corrected anchor targets `https://work.example.test/login`. The link was not followed, and the corrected destination remains subject to Main's built-site verification.
 
 Deployment owner must map `/welcome` to the emitted `welcome.html` (or its platform's equivalent extensionless HTML routing) and verify direct navigation. This source pass does not change hosting configuration or deploy anything.
 
@@ -120,7 +120,7 @@ The package still depends on repository design tokens and the existing compositi
 
 ## Verification performed and deferred
 
-Performed locally for source commit `3bb2f6c1ea0c9ff0f5435f4973c426101b0ac95f`, before the naming/PageTitle correction:
+Performed locally for source commit `3bb2f6c1ea0c9ff0f5435f4973c426101b0ac95f`, before the naming/PageTitle and login-destination corrections:
 
 - `pnpm install --frozen-lockfile --ignore-scripts`: succeeded, existing versions only; supply-chain policy checked 569 entries. No lifecycle scripts ran.
 - Actual canonical composition: identical bytes/hash above; seven raw blocks identical; all eight existing component test files have identical hashes to their pre-pass contents.
@@ -140,6 +140,12 @@ Limitations:
 Q confirmed the official product name **Relayer** (naming only). The new site's heading now uses the existing `@ccc/wire` `PageTitle` as its sole h1, both HTML document titles use Relayer, and the briefing card uses the approved screen name `15초 페이지`. Repository/package/infrastructure names remain unchanged. The approval attribution and D89 reconciliation above are corrected without copying the decision text.
 
 Correction inventory: `apps/site/src/welcome-page.tsx`, `apps/site/index.html`, `apps/site/welcome.html`, and this handoff. Navigation, origin validation, no-business-I/O behavior assertions and all existing tests are untouched; no text-only tests were re-pinned. CSS bytes/order and all gate algorithms, thresholds and baselines are untouched. No build/test/lint/format run or deployment was performed for this correction. Main owns screenshots, actual built-site and gate verification; the earlier runtime observations are not fresh verification of this correction.
+
+### Verified business login destination correction (2026-09-10)
+
+Main's browser/source finding establishes `/login` as the existing business authentication entry and bare `/` as the preserved STT entry. Only the public staff-login href changes to the validated configured origin plus `/login`; `businessClientOrigin` and its origin-only validation assertions remain unchanged. The naming/PageTitle changes from `eb82e9258edb2f6ab5dada8d282cf8e9c89f8569` are retained on this lane.
+
+Changed files for this follow-up: `apps/site/src/welcome-page.tsx`, `apps/web/app/welcome/page.test.tsx`, and this handoff. The existing rendered navigation assertions retain the unconfigured `#adoption`-only path and no-form assertion; an added rendered-href regression expects `#adoption` plus `https://work.example.test/login` for a configured origin, again with no form. No text-only assertion was re-pinned and no business I/O was added. No client/STT routes, CSS, gate algorithms, thresholds or baselines were changed. No tests, builds or deployment ran during this source correction; Main owns their execution and actual built-site verification.
 
 Main's pending commands after client handoff and source freeze:
 

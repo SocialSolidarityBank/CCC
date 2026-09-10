@@ -30,7 +30,7 @@ export function WelcomePage({ loginOrigin = null }: { loginOrigin?: string | nul
         </WireButton>
         {loginOrigin !== null ? (
           <>
-            <WireButton variant="neutral" href={loginOrigin} className="preview-gate-submit">
+            <WireButton variant="neutral" href={`${loginOrigin}/login`} className="preview-gate-submit">
               실무자 로그인
             </WireButton>
             <p className="report-description">기관에서 안내받은 업무 클라이언트로 이동합니다. 이 소개 페이지에서는 로그인하지 않습니다.</p>
