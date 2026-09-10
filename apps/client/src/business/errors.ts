@@ -17,6 +17,7 @@ const messages = {
   purge_disabled: '최종 파기는 현재 비활성화되어 있습니다. 기록은 그대로 보존됩니다.',
   invalid_request: '입력 내용을 확인해 주세요.',
   program_admission_required: '사업 도입 확인이 필요합니다. 설명을 다시 읽고 선택을 확인해 주세요.',
+  consent_scope_mismatch: '동의 문안과 보낸 값이 맞지 않아 저장하지 않았습니다. 화면을 새로 고쳐 최신 문안으로 다시 받아 주세요.',
   emergency_reason_required: '긴급 등록을 고르면 사유를 적어야 합니다.',
   privacy_consent_required: '개인정보 수집과 이용 동의가 없어 등록할 수 없습니다. 동의를 아직 받지 못했으면 긴급 등록 사유를 적어 주세요.',
   unavailable: '서버에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요. 저장 요청이었다면 최신 상태를 먼저 확인해 주세요.',
@@ -52,8 +53,13 @@ export function httpError(status: number, value: unknown): BusinessError {
   }
   if (status === 409) {
     const code = typeof value === 'object' && value !== null && 'error' in value ? value.error : undefined;
-    return new BusinessError(code === 'purge_disabled' ? 'purge_disabled'
-      : code === 'program_admission_required' ? 'program_admission_required' : 'conflict', status);
+    if (code === 'purge_disabled') return new BusinessError('purge_disabled', status);
+    if (code === 'program_admission_required') return new BusinessError('program_admission_required', status);
+    // 동의 계약 위반은 낙관 잠금 충돌이 아니다. 같은 409 라도 사람이 할 일이 다르다.
+    if (code === 'provider_scope_mismatch' || code === 'consent_disclosure_mismatch') {
+      return new BusinessError('consent_scope_mismatch', status);
+    }
+    return new BusinessError('conflict', status);
   }
   if (status === 429) return new BusinessError('rate_limited', status);
   if (status === 422 || status === 400) {

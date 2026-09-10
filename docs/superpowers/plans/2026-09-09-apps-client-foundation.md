@@ -1224,3 +1224,42 @@ pnpm --filter @ccc/client run build:release -- --config <배포설정.json> [--o
 
 `WireQuote` 가 `@ccc/web/wire` 공개 진입점에 없어 인용을 기존 본문 클래스로 그렸다. 공개 exports
 추가는 design 레인 몫이라 손대지 않았고, 인계 목록에 남긴다.
+
+## 30. 실서버 결함 교정: 동의 사건 보유기간 (2026-09-10)
+
+**증상(Main 실런타임 관측):** `POST /participants` 가 409 `provider_scope_mismatch` 를 돌려주고
+화면은 `다른 사람이 먼저 변경했습니다` 를 띄웠다. 두 가지가 함께 틀렸다.
+
+**원인:** 사건 빌더가 여섯 영역 모두에 `retentionDuration` 을 실었다. 서버 규칙은
+`voice_original_retention_period` 만 `default_temporary_d85` 이고 나머지 다섯은 `null` 이다
+(`packages/core/src/gateway.ts` 초기 동의 사건 검사와 `appendSupportCaseConsentEventUnchecked`).
+합성 하네스가 그 모양을 받아 줘서 화면 검수에서 드러나지 않았다.
+
+**고친 것**
+
+1. `consentEventFrom` 이 음성 원본 영역에만 보유기간을 싣는다. 사업자, 법적 수령자, 국가, 목적,
+   문안 버전, 확인값, 스냅샷 ID 는 발행본 그대로다.
+2. 허브의 여섯 영역 기록 경로도 같은 빌더를 쓰게 바꿨다. 규칙을 두 곳에 적지 않는다.
+   등록과 요청 링크 경로는 이미 이 빌더를 쓴다.
+3. 409 번역을 갈랐다. `provider_scope_mismatch` 와 `consent_disclosure_mismatch` 는
+   `consent_scope_mismatch` 로 매핑하고 `동의 문안과 보낸 값이 맞지 않아 저장하지 않았습니다.
+   화면을 새로 고쳐 최신 문안으로 다시 받아 주세요.` 를 보인다. 나머지 409 만 낙관 잠금 문구다.
+4. 하네스를 실제 서버와 같은 규칙으로 조였다. 영역별 사업자·목적을 `CONSENT_COPY` 와 같게 발행하고,
+   사건의 사업자·수령자·국가·목적·보유기간·문안 버전·확인값·스냅샷 ID 를 전부 대조해 어긋나면
+   409 `provider_scope_mismatch` 로 거절한다.
+
+**검증**
+
+| # | 확인 | 결과 |
+|---|---|---|
+| 1 | 단위: 음성 영역만 보유기간, 나머지 다섯 null | 통과 |
+| 2 | 단위: 발행본 사업자·문안 값 그대로 전송 | 통과 |
+| 3 | 단위: 409 `provider_scope_mismatch` → 낙관 잠금 문구 아님 | 통과 |
+| 4 | 하네스가 옛 잘못된 모양을 409 로 거절 | 통과 |
+| 5 | 고친 모양은 201 | 통과 |
+| 6 | 화면 등록(여섯 영역 동의) 성공 | 통과 |
+| 7 | 허브 여섯 영역 기록 성공 | 통과 |
+| 8 | 요청 링크 공개 완료 성공 | 통과 |
+| 9 | 옛 2종 키는 여전히 400 | 통과 |
+
+client 68 tests, typecheck, build, tokens·align·hierarchy 통과.

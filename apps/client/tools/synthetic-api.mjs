@@ -64,21 +64,54 @@ const CONSENT_DOMAINS = [
   'external_stt_processing', 'external_llm_cross_border_processing', 'voice_original_retention_period',
 ];
 
+/** 실제 서버가 쓰는 영역별 사업자와 목적(`CONSENT_COPY`). 하네스도 같은 값을 발행한다. */
+const CONSENT_CANONICAL = {
+  personal_data_collection_use: { provider: 'institution', purpose: 'case_management' },
+  sensitive_information_processing: { provider: 'institution', purpose: 'sensitive_case_management' },
+  counseling_recording: { provider: 'institution_recording', purpose: 'counseling_recording' },
+  external_stt_processing: { provider: 'azure', purpose: 'speech_to_text' },
+  external_llm_cross_border_processing: { provider: 'openai', purpose: 'ai_briefing' },
+  voice_original_retention_period: { provider: 'institution_private_storage', purpose: 'voice_original_retention' },
+};
+
 /** 합성 고지문. 실제 기관 문안이 아니고 실제 사업자 연결도 없다. */
 function syntheticDisclosure(domain) {
   const external = domain === 'external_stt_processing' || domain === 'external_llm_cross_border_processing';
+  const canonical = CONSENT_CANONICAL[domain];
+  const retention = domain === 'voice_original_retention_period' ? 'default_temporary_d85' : 'p1y';
   return {
     snapshotId: `d0000000-0000-4000-8000-${String(CONSENT_DOMAINS.indexOf(domain) + 1).padStart(12, '0')}`,
     scopeBinding: { orgId: 'org-1', programId: 'program-1', issuerId: USER_ID, supportCaseId: CASE_ID },
     domain,
     fullKoreanCopy: `합성 고지문입니다. ${domain} 영역의 처리 목적과 보관 기간을 설명합니다.`,
-    provider: external ? (domain === 'external_stt_processing' ? 'azure' : 'openai') : 'institution',
+    provider: canonical.provider,
     providerLegalRecipient: external ? '합성 사업자' : '기관',
     country: external ? 'KR' : null,
-    purpose: null, retentionProfile: 'p1y', retentionDuration: 'p1y',
+    purpose: canonical.purpose, retentionProfile: retention, retentionDuration: retention,
     copyVersion: 'synthetic-consent-v1', copyHash: `hash-${domain}`,
     issuedAt: '2026-09-09T00:00:00.000Z', expiresAt: '2027-09-09T00:00:00.000Z',
   };
+}
+
+/**
+ * 실제 서버의 초기 동의 사건 검사와 같은 규칙(gateway `provider_scope_mismatch`).
+ * 하네스가 실제 서버라면 거절할 모양을 받아 주면 다음 결함을 숨긴다.
+ */
+function consentScopeError(event) {
+  const disclosure = syntheticDisclosure(event.domain);
+  const expectedRetention = event.domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null;
+  if (event.provider === null) {
+    return event.decision === 'grant' || event.providerLegalRecipient !== null || event.providerCountry !== null
+      || event.purpose !== null || event.retentionDuration !== null;
+  }
+  return event.provider !== disclosure.provider
+    || event.providerLegalRecipient !== disclosure.providerLegalRecipient
+    || event.providerCountry !== disclosure.country
+    || event.purpose !== disclosure.purpose
+    || event.retentionDuration !== expectedRetention
+    || event.copyVersion !== disclosure.copyVersion
+    || event.copyHash !== disclosure.copyHash
+    || event.disclosureSnapshotId !== disclosure.snapshotId;
 }
 
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), {
@@ -345,6 +378,10 @@ export function handleApi(request, state, options) {
       if (!Array.isArray(body.consentEvents) || body.consentEvents.length !== CONSENT_DOMAINS.length) {
         return json({ error: 'invalid_request' }, 400, cors);
       }
+      for (const event of body.consentEvents) {
+        if (!CONSENT_DOMAINS.includes(event.domain)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
+        if (consentScopeError(event)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
+      }
       link.status = 'used';
       return json({
         beneficiaryId: 'heron-021', supportCaseId: '4b7c1d2e-5f60-4a71-8b92-0c3d4e5f6a70',
@@ -364,10 +401,8 @@ export function handleApi(request, state, options) {
       const events = Array.isArray(body.consentEvents) ? body.consentEvents : [];
       if (events.length !== CONSENT_DOMAINS.length) return json({ error: 'invalid_request' }, 400, cors);
       for (const event of events) {
-        const disclosure = syntheticDisclosure(event.domain);
-        if (event.copyHash !== disclosure.copyHash || event.disclosureSnapshotId !== disclosure.snapshotId) {
-          return json({ error: 'invalid_request' }, 400, cors);
-        }
+        if (!CONSENT_DOMAINS.includes(event.domain)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
+        if (consentScopeError(event)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
       }
       const privacy = events.find((event) => event.domain === 'personal_data_collection_use');
       const emergency = typeof body.emergencyReason === 'string' && body.emergencyReason.trim() !== '';
@@ -469,11 +504,8 @@ export function handleApi(request, state, options) {
   }
   if (path === `/support-cases/${CASE_ID}/consent-events` && request.method === 'POST') {
     return request.json().then((body) => {
-      if (!CONSENT_DOMAINS.includes(body.domain)) return json({ error: 'invalid_request' }, 400, cors);
-      const disclosure = syntheticDisclosure(body.domain);
-      if (body.copyHash !== disclosure.copyHash || body.disclosureSnapshotId !== disclosure.snapshotId) {
-        return json({ error: 'invalid_request' }, 400, cors);
-      }
+      if (!CONSENT_DOMAINS.includes(body.domain)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
+      if (consentScopeError(body)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
       const previous = state.consentEvents.get(body.domain) ?? null;
       const event = {
         id: `f1000000-0000-4000-8000-${String(state.consentEvents.size + 1).padStart(12, '0')}`,

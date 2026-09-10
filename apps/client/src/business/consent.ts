@@ -95,7 +95,10 @@ export function consentEventFrom(
     providerLegalRecipient: disclosure.providerLegalRecipient,
     providerCountry: disclosure.country,
     purpose: disclosure.purpose,
-    retentionDuration: disclosure.retentionDuration,
+    // 보유기간은 음성 원본 영역만 값을 갖는다. 나머지 다섯은 null 이어야 하고, 값을 실으면
+    // 서버가 `provider_scope_mismatch` 로 거절한다(gateway 초기 동의 사건 검사).
+    retentionDuration: disclosure.domain === 'voice_original_retention_period'
+      ? disclosure.retentionDuration : null,
     copyVersion: disclosure.copyVersion,
     copyHash: disclosure.copyHash,
     disclosureSnapshotId: disclosure.snapshotId,
@@ -145,22 +148,13 @@ export class ConsentApi {
     if (!isOpaqueIdentifier(supportCaseId) || !isOpaqueIdentifier(input.idempotencyKey)) {
       throw new BusinessError('invalid_request', 400);
     }
+    // 사건 모양은 등록·요청 링크와 같은 빌더가 만든다. 보유기간 규칙을 두 곳에 적지 않는다.
     const value = record(await this.transport.request(
       `/support-cases/${encodeURIComponent(supportCaseId)}/consent-events`, 'POST',
       {
-        domain: input.disclosure.domain,
+        ...consentEventFrom(input.disclosure, input.decision === 'grant' ? 'grant' : 'decline'),
         decision: input.decision,
-        provider: input.disclosure.provider,
-        providerLegalRecipient: input.disclosure.providerLegalRecipient,
-        providerCountry: input.disclosure.country,
-        purpose: input.disclosure.purpose,
-        retentionDuration: input.disclosure.retentionDuration,
-        copyVersion: input.disclosure.copyVersion,
-        copyHash: input.disclosure.copyHash,
-        disclosureSnapshotId: input.disclosure.snapshotId,
-        effectiveAt: new Date().toISOString(),
         idempotencyKey: input.idempotencyKey,
-        correctionOfEventId: null,
         expectedRevision: input.expectedRevision,
       },
     ));
