@@ -15,7 +15,6 @@ const MAX_UINT64 = 18_446_744_073_709_551_615n;
 const SHA256 = /^[a-f0-9]{64}$/u;
 const SIGNATURE = /^[A-Za-z0-9_-]{86}$/u;
 const ABSENT_MODEL_MANIFEST = '0'.repeat(64);
-const PUBLIC_KEY = /^[A-Za-z0-9_-]{43}$/u;
 const DECIMAL = /^(0|[1-9][0-9]*)$/u;
 const UTC_RFC3339 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/u;
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
@@ -302,9 +301,12 @@ export async function verifyReleaseManifest({ document, trustStore, now, expecte
       || value.artifactBytes !== bundleEntry.artifactBytes) fail('ARTIFACT_NOT_INDEXED');
     if (value.minSchemaVersion !== bundleEntry.minSchemaVersion
       || value.maxSchemaVersion !== bundleEntry.maxSchemaVersion) fail('SCHEMA_INCOMPATIBLE');
-
-    const key = selectSigningKey(trustStore, value.signingKeyId, now, { allowRetiredForRollback: false });
     const { ed25519Signature, ...unsigned } = value;
+
+    const key = selectSigningKey(trustStore, value.signingKeyId, now, {
+      allowRetiredForRollback: false,
+      requiredRole: 'release',
+    });
     if (!await verifyEd25519Bytes(
       signatureMessage(MANIFEST_DOMAIN, unsigned),
       standardBase64(ed25519Signature),
@@ -422,30 +424,36 @@ function validateBundleShape(value, channel) {
   return lifetimeBounds;
 }
 
-function validateRootTrust(rootKeys, revokedRootKeyIds) {
-  if (typeof rootKeys !== 'object' || rootKeys === null || Array.isArray(rootKeys)
-    || Object.keys(rootKeys).length === 0 || !Array.isArray(revokedRootKeyIds)
-    || new Set(revokedRootKeyIds).size !== revokedRootKeyIds.length) fail('BUNDLE_SIGNATURE_INVALID');
-  for (const [keyId, publicKey] of Object.entries(rootKeys)) {
-    if (!boundedString(keyId, { nonempty: true })
-      || !validBase64url(publicKey, PUBLIC_KEY, 32)) fail('BUNDLE_SIGNATURE_INVALID');
-  }
-  if (revokedRootKeyIds.some(keyId => !boundedString(keyId, { nonempty: true }))) {
+function activeRootKeys(trustStore, now) {
+  if (!exactKeys(trustStore, ['keys']) || !Array.isArray(trustStore.keys)) {
     fail('BUNDLE_SIGNATURE_INVALID');
   }
+  const keys = [];
+  for (const record of trustStore.keys) {
+    if (record?.role !== 'root') continue;
+    try {
+      keys.push(selectSigningKey(trustStore, record.keyId, now, {
+        allowRetiredForRollback: false,
+        requiredRole: 'root',
+      }));
+    } catch {
+      // Inactive, retired and revoked roots grant no bundle authority.
+    }
+  }
+  return keys;
 }
 
-export async function verifyReleaseBundle({ document, rootKeys, revokedRootKeyIds, now, channel }) {
+export async function verifyReleaseBundle({ document, trustStore, now, channel }) {
   const { value } = await parsedDocument(document, 'BUNDLE_ENTRY_INVALID');
   const lifetimeBounds = validateBundleShape(value, channel);
   if (!validBase64url(value.offlineRootSignature, SIGNATURE, 64)) fail('BUNDLE_SIGNATURE_INVALID');
-  validateRootTrust(rootKeys, revokedRootKeyIds);
+  const rootKeys = activeRootKeys(trustStore, now);
   try {
     const { offlineRootSignature, ...unsigned } = value;
     const message = signatureMessage(BUNDLE_DOMAIN, unsigned);
     let authenticated = false;
-    for (const [keyId, publicKey] of Object.entries(rootKeys)) {
-      if (!revokedRootKeyIds.includes(keyId) && await verifyEd25519Bytes(
+    for (const { publicKey } of rootKeys) {
+      if (await verifyEd25519Bytes(
         message,
         standardBase64(offlineRootSignature),
         standardBase64(publicKey),

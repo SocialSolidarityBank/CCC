@@ -71,6 +71,14 @@ const bundleEntry = Object.freeze({
 const activeTrustStore = await loadReleaseTrustStore(JSON.stringify({ keys: [{
   keyId: releaseKey.keyId,
   publicKey: releaseKey.publicKey,
+  role: 'release',
+  status: 'active',
+  notBefore: '2026-09-01T00:00:00.000Z',
+  notAfter: '2026-10-01T00:00:00.000Z',
+}, {
+  keyId: rootKey.keyId,
+  publicKey: rootKey.publicKey,
+  role: 'root',
   status: 'active',
   notBefore: '2026-09-01T00:00:00.000Z',
   notAfter: '2026-10-01T00:00:00.000Z',
@@ -117,6 +125,17 @@ test('verifies the exact twelve-field signed ReleaseManifestV1', async () => {
   });
   assert.deepEqual(result, value);
   assert.equal(Object.keys(result).length, 12);
+});
+
+test('rejects a manifest signed by an active root-role key', async () => {
+  const value = signed(manifest({
+    signingKeyId: rootKey.keyId,
+  }), 'ed25519Signature', MANIFEST_DOMAIN, rootKey.privateKey);
+  const document = JSON.stringify(value);
+  await rejectsCode(verifyReleaseManifest({
+    document, trustStore: trustStore(), now: NOW, expectedTuple,
+    bundleEntry: { ...bundleEntry, manifestSha256: sha256(document) },
+  }), 'SIGNATURE_INVALID');
 });
 
 test('rejects missing, extra, wrong-typed and unknown-enum manifest fields', async t => {
@@ -402,8 +421,7 @@ function bundle(channel = 'stable', families) {
 function verifyBundle(value, options = {}) {
   return verifyReleaseBundle({
     document: JSON.stringify(value),
-    rootKeys: { [rootKey.keyId]: rootKey.publicKey },
-    revokedRootKeyIds: [],
+    trustStore: activeTrustStore,
     now: NOW,
     channel: value.channel,
     ...options,
@@ -416,6 +434,21 @@ test('verifies stable bundles with exactly five distinct family rows', async () 
     document: JSON.stringify(Object.fromEntries(Object.entries(value).reverse())),
   }), value);
   await rejectsCode(verifyBundle(bundle('stable', Object.keys(familyDefaults).slice(0, 4))), 'BUNDLE_ENTRY_INVALID');
+});
+
+test('rejects a bundle signed by an active release-role key', async () => {
+  const value = signed(
+    unsignedBundle('dev', ['community-cloud-cli']),
+    'offlineRootSignature',
+    BUNDLE_DOMAIN,
+    releaseKey.privateKey,
+  );
+  await rejectsCode(verifyReleaseBundle({
+    document: JSON.stringify(value),
+    trustStore: activeTrustStore,
+    now: NOW,
+    channel: 'dev',
+  }), 'BUNDLE_SIGNATURE_INVALID');
 });
 
 test('allows one through five distinct family rows for dev and beta', async () => {
@@ -522,8 +555,7 @@ test('rejects bundle unknown fields, nested unknown fields, duplicate keys and w
   const value = bundle('dev', ['community-cloud-cli']);
   const duplicate = JSON.stringify(value).replace('"apiName":', '"apiName":"ccc-http-api","apiName":');
   await rejectsCode(verifyReleaseBundle({
-    document: duplicate,
-    rootKeys: { [rootKey.keyId]: rootKey.publicKey }, revokedRootKeyIds: [], now: NOW, channel: 'dev',
+    document: duplicate, trustStore: activeTrustStore, now: NOW, channel: 'dev',
   }), 'BUNDLE_ENTRY_INVALID');
 });
 
@@ -555,8 +587,21 @@ test('distinguishes authenticated bundle lifetime failure from shape and signatu
 test('rejects unknown, revoked and noncanonical offline root keys or signatures', async () => {
   const value = bundle('dev', ['community-cloud-cli']);
   const otherRoot = keyPair('other-root');
-  await rejectsCode(verifyBundle(value, { rootKeys: { [otherRoot.keyId]: otherRoot.publicKey } }), 'BUNDLE_SIGNATURE_INVALID');
-  await rejectsCode(verifyBundle(value, { revokedRootKeyIds: [rootKey.keyId] }), 'BUNDLE_SIGNATURE_INVALID');
-  await rejectsCode(verifyBundle(value, { rootKeys: { [rootKey.keyId]: `${rootKey.publicKey}=` } }), 'BUNDLE_SIGNATURE_INVALID');
+  const otherTrustStore = await loadReleaseTrustStore(JSON.stringify({ keys: [{
+    keyId: otherRoot.keyId, publicKey: otherRoot.publicKey, role: 'root', status: 'active',
+    notBefore: '2026-09-01T00:00:00.000Z', notAfter: '2026-10-01T00:00:00.000Z',
+  }] }));
+  await rejectsCode(verifyBundle(value, { trustStore: otherTrustStore }), 'BUNDLE_SIGNATURE_INVALID');
+  const revokedTrustStore = await loadReleaseTrustStore(JSON.stringify({ keys: [{
+    keyId: rootKey.keyId, publicKey: rootKey.publicKey, role: 'root', status: 'revoked',
+    notBefore: '2026-09-01T00:00:00.000Z', notAfter: '2026-10-01T00:00:00.000Z',
+    revokedAt: '2026-09-10T00:00:00.000Z', revocationReason: 'synthetic compromise',
+  }] }));
+  await rejectsCode(verifyBundle(value, { trustStore: revokedTrustStore }), 'BUNDLE_SIGNATURE_INVALID');
+  const invalidTrustStore = { keys: [{
+    keyId: rootKey.keyId, publicKey: `${rootKey.publicKey}=`, role: 'root', status: 'active',
+    notBefore: '2026-09-01T00:00:00.000Z', notAfter: '2026-10-01T00:00:00.000Z',
+  }] };
+  await rejectsCode(verifyBundle(value, { trustStore: invalidTrustStore }), 'BUNDLE_SIGNATURE_INVALID');
   await rejectsCode(verifyBundle({ ...value, offlineRootSignature: `${value.offlineRootSignature}=` }), 'BUNDLE_SIGNATURE_INVALID');
 });

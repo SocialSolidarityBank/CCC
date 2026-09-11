@@ -10,20 +10,20 @@ function publicKey() {
 
 const records = [
   {
-    keyId: 'next-key', publicKey: publicKey(), status: 'next',
+    keyId: 'next-key', publicKey: publicKey(), role: 'release', status: 'next',
     notBefore: '2026-09-01T00:00:00.000Z', notAfter: '2026-10-01T00:00:00.000Z',
   },
   {
-    keyId: 'active-key', publicKey: publicKey(), status: 'active',
+    keyId: 'active-key', publicKey: publicKey(), role: 'release', status: 'active',
     notBefore: '2026-09-01T00:00:00.000Z', notAfter: '2026-10-01T00:00:00.000Z',
   },
   {
-    keyId: 'retired-key', publicKey: publicKey(), status: 'retired',
+    keyId: 'retired-key', publicKey: publicKey(), role: 'release', status: 'retired',
     notBefore: '2026-08-01T00:00:00.000Z', notAfter: '2026-10-01T00:00:00.000Z',
     retiredAt: '2026-09-10T00:00:00.000Z',
   },
   {
-    keyId: 'revoked-key', publicKey: publicKey(), status: 'revoked',
+    keyId: 'revoked-key', publicKey: publicKey(), role: 'release', status: 'revoked',
     notBefore: '2026-08-01T00:00:00.000Z', notAfter: '2026-10-01T00:00:00.000Z',
     revokedAt: '2026-09-10T00:00:00.000Z', revocationReason: 'synthetic compromise',
   },
@@ -106,46 +106,68 @@ test('enforces exact UTC validity windows and 4096-byte strings', async () => {
 
 test('selects only an active key inside its validity window', () => {
   assert.equal(selectSigningKey(trustStore, 'active-key', new Date('2026-09-11T00:00:00.000Z'), {
-    allowRetiredForRollback: false,
+    allowRetiredForRollback: false, requiredRole: 'release',
   }).keyId, 'active-key');
   throwsCode(() => selectSigningKey(trustStore, 'next-key', new Date('2026-09-11T00:00:00.000Z'), {
-    allowRetiredForRollback: false,
+    allowRetiredForRollback: false, requiredRole: 'release',
   }), 'SIGNATURE_INVALID');
   throwsCode(() => selectSigningKey(trustStore, 'active-key', new Date('2026-10-01T00:00:00.000Z'), {
-    allowRetiredForRollback: false,
+    allowRetiredForRollback: false, requiredRole: 'release',
   }), 'SIGNATURE_INVALID');
 });
 
 test('rejects unknown and revoked keys outright including rollback', () => {
   throwsCode(() => selectSigningKey(trustStore, 'missing-key', new Date('2026-09-09T00:00:00.000Z'), {
-    allowRetiredForRollback: true,
+    allowRetiredForRollback: true, requiredRole: 'release',
   }), 'SIGNING_KEY_UNKNOWN');
   throwsCode(() => selectSigningKey(trustStore, 'revoked-key', new Date('2026-09-09T00:00:00.000Z'), {
-    allowRetiredForRollback: true,
+    allowRetiredForRollback: true, requiredRole: 'release',
   }), 'SIGNING_KEY_REVOKED');
 });
 
 test('allows a retired key only for an explicit historical rollback before retirement', () => {
   const historicalTime = new Date('2026-09-09T23:59:59.999Z');
   throwsCode(() => selectSigningKey(trustStore, 'retired-key', historicalTime, {
-    allowRetiredForRollback: false,
+    allowRetiredForRollback: false, requiredRole: 'release',
   }), 'SIGNATURE_INVALID');
   assert.equal(selectSigningKey(trustStore, 'retired-key', historicalTime, {
-    allowRetiredForRollback: true,
+    allowRetiredForRollback: true, requiredRole: 'release',
   }).keyId, 'retired-key');
   throwsCode(() => selectSigningKey(trustStore, 'retired-key', new Date('2026-09-10T00:00:00.000Z'), {
-    allowRetiredForRollback: true,
+    allowRetiredForRollback: true, requiredRole: 'release',
   }), 'SIGNATURE_INVALID');
 });
 
 test('fails closed on invalid selection inputs', () => {
   throwsCode(() => selectSigningKey(trustStore, '', new Date('2026-09-11T00:00:00.000Z'), {
-    allowRetiredForRollback: false,
+    allowRetiredForRollback: false, requiredRole: 'release',
   }), 'SIGNING_KEY_UNKNOWN');
   throwsCode(() => selectSigningKey(trustStore, 'active-key', new Date('invalid'), {
-    allowRetiredForRollback: false,
+    allowRetiredForRollback: false, requiredRole: 'release',
   }), 'SIGNATURE_INVALID');
   throwsCode(() => selectSigningKey(trustStore, 'active-key', new Date('2026-09-11T00:00:00.000Z'), {
-    allowRetiredForRollback: 'yes',
+    allowRetiredForRollback: 'yes', requiredRole: 'release',
   }), 'SIGNATURE_INVALID');
+});
+
+test('loads explicit root and release key roles', async () => {
+  const value = structuredClone(records);
+  value[0].role = 'root';
+  for (const record of value.slice(1)) record.role = 'release';
+  assert.deepEqual((await load(value)).keys.map(record => record.role), [
+    'root', 'release', 'release', 'release',
+  ]);
+});
+
+test('rejects a trust record with an absent role', async () => {
+  const value = structuredClone(records);
+  delete value[0].role;
+  await rejectsCode(load(value), 'SIGNATURE_INVALID');
+});
+
+test('rejects a trust record with an unknown role', async () => {
+  const value = structuredClone(records);
+  for (const record of value) record.role = 'release';
+  value[0].role = 'publisher';
+  await rejectsCode(load(value), 'SIGNATURE_INVALID');
 });

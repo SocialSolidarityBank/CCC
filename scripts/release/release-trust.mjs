@@ -4,7 +4,8 @@ import { readStrictJsonDocument } from '../supabase/manifest-preflight.mjs';
 
 const PUBLIC_KEY = /^[A-Za-z0-9_-]{43}$/u;
 const UTC_RFC3339 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/u;
-const BASE_KEYS = ['keyId', 'notAfter', 'notBefore', 'publicKey', 'status'].sort();
+const ROLES = new Set(['root', 'release']);
+const BASE_KEYS = ['keyId', 'notAfter', 'notBefore', 'publicKey', 'role', 'status'].sort();
 const STATUS_KEYS = Object.freeze({
   next: BASE_KEYS,
   active: BASE_KEYS,
@@ -56,6 +57,7 @@ function validateRecord(record) {
     ? STATUS_KEYS[record.status] : undefined;
   if (expectedKeys === undefined || !exactKeys(record, expectedKeys)
     || !boundedString(record.keyId, { nonempty: true })
+    || !ROLES.has(record.role)
     || !canonicalPublicKey(record.publicKey)) fail();
   const notBefore = parseInstant(record.notBefore);
   const notAfter = parseInstant(record.notAfter);
@@ -89,14 +91,15 @@ export function selectSigningKey(
   trustStore,
   keyId,
   now,
-  { allowRetiredForRollback = false } = {},
+  { allowRetiredForRollback = false, requiredRole } = {},
 ) {
   if (!exactKeys(trustStore, ['keys']) || !Array.isArray(trustStore.keys)
     || typeof keyId !== 'string' || keyId.length === 0) fail('SIGNING_KEY_UNKNOWN');
   if (!(now instanceof Date) || Number.isNaN(now.getTime())
-    || typeof allowRetiredForRollback !== 'boolean') fail();
+    || typeof allowRetiredForRollback !== 'boolean' || !ROLES.has(requiredRole)) fail();
   const record = trustStore.keys.find(candidate => candidate?.keyId === keyId);
   if (record === undefined) fail('SIGNING_KEY_UNKNOWN');
+  if (record.role !== requiredRole || !canonicalPublicKey(record.publicKey)) fail();
   if (record.status === 'revoked') fail('SIGNING_KEY_REVOKED');
   const at = now.getTime();
   if (at < Date.parse(record.notBefore) || at >= Date.parse(record.notAfter)) fail();
