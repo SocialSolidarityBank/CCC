@@ -75,6 +75,7 @@ function databaseSnapshot(overrides = {}) {
     provider_object_count: 0, provider_grant_count: 0,
     private_schema_exists: false, private_install_metadata_exists: false, cron_exists: false,
     database_version: '17.4',
+    database_version_num: '170004',
     read_only: true,
     database_readable: true,
     ...overrides,
@@ -895,24 +896,39 @@ test('hosted inventory retains extension and initial-privilege records outside u
   });
 });
 
-test('SQL-observed database version is authoritative and must agree with control-plane metadata', async () => {
+test('SQL version number is authoritative across real PostgreSQL and Supabase version vocabularies', async () => {
   await withManagementApi({
-    controlDatabaseVersion: '017.004',
-    database: databaseSnapshot({ database_version: '17.4' }),
+    controlDatabaseVersion: '17.6.1.166',
+    database: databaseSnapshot({
+      database_version: '17.9 (Debian 17.9-1.pgdg13+1)',
+      database_version_num: '170009',
+    }),
   }, async ({ origin }) => {
-    assert.equal((await hostedInspector(origin).inspect()).project.databaseVersion, '17.4');
+    assert.equal((await hostedInspector(origin).inspect()).project.databaseVersion, '17.9');
   });
   await withManagementApi({
-    controlDatabaseVersion: '17.5',
-    database: databaseSnapshot({ database_version: '17.4' }),
+    controlDatabaseVersion: '18.1.0.7',
+    database: databaseSnapshot({
+      database_version: '17.9 (Debian 17.9-1.pgdg13+1)',
+      database_version_num: '170009',
+    }),
   }, async ({ origin }) => {
     await assert.rejects(hostedInspector(origin).inspect(), error => error.code === 'PROVIDER_UNREADABLE');
   });
-  await withManagementApi({
-    database: databaseSnapshot({ database_version: '17.4 (volatile build suffix)' }),
-  }, async ({ origin }) => {
-    await assert.rejects(hostedInspector(origin).inspect(), error => error.code === 'PROVIDER_UNREADABLE');
-  });
+  for (const database of [
+    databaseSnapshot({
+      database_version: '17.8 (Debian 17.8-1.pgdg13+1)',
+      database_version_num: '170009',
+    }),
+    databaseSnapshot({
+      database_version: '17.9 (Debian 17.9-1.pgdg13+1)',
+      database_version_num: 'not-a-version-number',
+    }),
+  ]) {
+    await withManagementApi({ controlDatabaseVersion: '17.6.1.166', database }, async ({ origin }) => {
+      await assert.rejects(hostedInspector(origin).inspect(), error => error.code === 'PROVIDER_UNREADABLE');
+    });
+  }
 });
 
 test('database policy fingerprint uses tagged stable role names instead of role OIDs', () => {

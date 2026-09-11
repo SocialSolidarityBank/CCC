@@ -535,6 +535,7 @@ SELECT
     WHERE n.nspname='cron' AND c.relname='job') AS cron_exists,
   EXISTS(SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname='private') AS private_schema_exists,
   pg_catalog.current_setting('server_version') AS database_version,
+  pg_catalog.current_setting('server_version_num') AS database_version_num,
   (pg_catalog.current_setting('transaction_read_only') = 'on') AS read_only,
   pg_catalog.has_database_privilege(CURRENT_USER, pg_catalog.current_database(), 'CONNECT') AS database_readable,
   EXISTS(SELECT 1 FROM pg_catalog.pg_class AS relation
@@ -630,12 +631,30 @@ export function boolean(value) {
   return value === true || value === 'true' || value === 1 || value === '1';
 }
 
-function canonicalDatabaseVersion(value) {
+function canonicalDottedVersion(value) {
   if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > 1_024
     || !/^\d+(?:\.\d+)*$/u.test(value)) {
     throw new PlanFailure('PROVIDER_UNREADABLE');
   }
   return value.split('.').map(part => BigInt(part).toString()).join('.');
+}
+
+function databaseVersionFromServer(versionNumber, versionLabel) {
+  if (typeof versionNumber !== 'string' || !/^[1-9]\d{4,5}$/u.test(versionNumber)
+    || typeof versionLabel !== 'string' || Buffer.byteLength(versionLabel, 'utf8') > 1_024) {
+    throw new PlanFailure('PROVIDER_UNREADABLE');
+  }
+  const numeric = BigInt(versionNumber);
+  const major = numeric / 10_000n;
+  const remainder = numeric % 10_000n;
+  const canonical = major >= 10n
+    ? `${major}.${remainder}`
+    : `${major}.${remainder / 100n}.${remainder % 100n}`;
+  const prefix = /^(\d+(?:\.\d+)*)(?=$|\s|\()/u.exec(versionLabel)?.[1];
+  if (prefix === undefined || canonicalDottedVersion(prefix) !== canonical) {
+    throw new PlanFailure('PROVIDER_UNREADABLE');
+  }
+  return canonical;
 }
 
 export function normalizeDatabaseSnapshot({ database, migration, auth, authFingerprint = fingerprint(auth), institutionDataFingerprint = '' }) {
@@ -771,9 +790,12 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
         if ((typeof value !== 'number' && typeof value !== 'string') || !/^\d+$/.test(String(value))
           || !Number.isSafeInteger(Number(value))) throw new PlanFailure('PROVIDER_UNREADABLE');
       }
-      const observedDatabaseVersion = canonicalDatabaseVersion(database.database_version);
-      const controlDatabaseVersion = canonicalDatabaseVersion(project.database?.version);
-      if (observedDatabaseVersion !== controlDatabaseVersion) {
+      const observedDatabaseVersion = databaseVersionFromServer(
+        database.database_version_num,
+        database.database_version,
+      );
+      const controlDatabaseVersion = canonicalDottedVersion(project.database?.version);
+      if (observedDatabaseVersion.split('.')[0] !== controlDatabaseVersion.split('.')[0]) {
         throw new PlanFailure('PROVIDER_UNREADABLE');
       }
       const providerInventory = normalizeProviderInventory(providerInventoryRow);
