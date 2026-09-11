@@ -78,7 +78,13 @@ export async function fetchPinnedRelease({ fetchImpl, floorStore, now, verifyBun
     if (error instanceof ReleaseOriginError) throw error;
     fail('TRUSTED_TIME_UNAVAILABLE');
   }
-  const bundle = await verifyBundle(document, new Date(serverTime));
+  let bundle;
+  try {
+    bundle = await verifyBundle(document, new Date(serverTime));
+  } catch (error) {
+    if (error?.code === 'BUNDLE_LIFETIME_INVALID') fail('TRUSTED_TIME_UNAVAILABLE');
+    throw error;
+  }
   const publishedAt = instant(bundle?.publishedAt);
   const expiresAt = instant(bundle?.expiresAt);
   if (!Number.isFinite(publishedAt) || !Number.isFinite(expiresAt)

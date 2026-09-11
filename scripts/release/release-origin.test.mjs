@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import { generateKeyPairSync, sign } from 'node:crypto';
 import test from 'node:test';
 
+import { canonicalizeJcs } from '@ccc/contracts/jcs';
+
+import { verifyReleaseBundle } from './release-manifest.mjs';
 import { fetchPinnedRelease } from './release-origin.mjs';
 
 const ENDPOINT = 'https://ccc-releases.account-855.workers.dev/.well-known/ccc/release-bundle.json';
@@ -16,6 +20,14 @@ const FLOOR = [{
 }];
 const RAW_BUNDLE = '{"signed":"bundle"}';
 const BUNDLE = { publishedAt: PUBLISHED_AT, expiresAt: EXPIRES_AT, sequenceFloor: FLOOR };
+const HASH_A = '11'.repeat(32);
+const HASH_B = '22'.repeat(32);
+const HASH_C = '33'.repeat(32);
+const BUNDLE_DOMAIN = 'CCC-RELEASE-BUNDLE-V1\0';
+const rootKey = (() => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  return { privateKey, publicKey: publicKey.export({ format: 'jwk' }).x };
+})();
 
 function response({ url = ENDPOINT, date = SERVER_DATE, ok = true, body = RAW_BUNDLE } = {}) {
   return {
@@ -47,6 +59,63 @@ const verifiedBundle = async (document, trustedDate) => {
   assert.equal(trustedDate instanceof Date, true);
   return structuredClone(BUNDLE);
 };
+
+function realSignedBundle(overrides = {}) {
+  const unsigned = {
+    schemaVersion: 1,
+    bundleId: 'bundle-beta-7',
+    version: '1.2.3-beta.1',
+    sequence: '7',
+    channel: 'beta',
+    publishedAt: PUBLISHED_AT,
+    expiresAt: EXPIRES_AT,
+    protocol: {
+      apiName: 'ccc-http-api',
+      apiVersion: '1.0.0',
+      contractsSha256: HASH_A,
+      peers: [
+        { name: 'cloud-cli', protocolVersion: '1.0.0', contractsSha256: HASH_A },
+        { name: 'edge', protocolVersion: '1.0.0', contractsSha256: HASH_A },
+      ],
+    },
+    entries: [{
+      family: 'community-cloud-cli',
+      artifacts: [{
+        manifestUrl: 'https://ccc-releases.account-855.workers.dev/manifests/community-cloud-cli.json',
+        manifestSha256: HASH_B,
+        edgeComponentManifestSha256: HASH_C,
+        mode: 'community-cloud',
+        platform: 'macos',
+        arch: 'arm64',
+        artifactSha256: HASH_A,
+        artifactBytes: 1234,
+        minSchemaVersion: 1,
+        maxSchemaVersion: 3,
+      }],
+    }],
+    sequenceFloor: FLOOR,
+    modelManifestSha256: HASH_C,
+    ...overrides,
+  };
+  const message = Buffer.concat([
+    Buffer.from(BUNDLE_DOMAIN, 'ascii'),
+    Buffer.from(canonicalizeJcs(unsigned), 'utf8'),
+  ]);
+  return {
+    ...unsigned,
+    offlineRootSignature: sign(null, message, rootKey.privateKey).toString('base64url'),
+  };
+}
+
+function verifyRealBundle(document, trustedDate) {
+  return verifyReleaseBundle({
+    document,
+    rootKeys: { 'root-key-1': rootKey.publicKey },
+    revokedRootKeyIds: [],
+    now: trustedDate,
+    channel: 'beta',
+  });
+}
 
 async function rejectCode(promise, code) {
   await assert.rejects(promise, error => error?.code === code);
@@ -110,14 +179,15 @@ test('does not use the supplied local clock when the TLS Date header is missing'
   assert.equal(store.writes(), 0);
 });
 
-test('rejects server Date before publishedAt or at expiresAt', async () => {
+test('maps only a real verifier lifetime rejection to unavailable trusted time', async () => {
+  const document = JSON.stringify(realSignedBundle());
   for (const date of ['Thu, 10 Sep 2026 23:59:59 GMT', 'Sat, 12 Sep 2026 00:00:00 GMT']) {
     const store = memoryFloorStore();
     await rejectCode(fetchPinnedRelease({
-      fetchImpl: async () => response({ date }),
+      fetchImpl: async () => response({ date, body: document }),
       floorStore: store,
       now: NOW,
-      verifyBundle: verifiedBundle,
+      verifyBundle: verifyRealBundle,
     }), 'TRUSTED_TIME_UNAVAILABLE');
     assert.equal(store.writes(), 0);
   }
@@ -161,14 +231,16 @@ test('requires successful signed-bundle verification before persisting floor or 
   }), 'RELEASE_ORIGIN_INVALID');
   assert.equal(missingVerifierStore.writes(), 0);
 
-  const rejectedVerifierStore = memoryFloorStore();
-  await rejectCode(fetchPinnedRelease({
-    fetchImpl: async () => response(),
-    floorStore: rejectedVerifierStore,
-    now: NOW,
-    verifyBundle: async () => {
-      throw Object.assign(new Error('bad signature'), { code: 'BUNDLE_SIGNATURE_INVALID' });
-    },
-  }), 'BUNDLE_SIGNATURE_INVALID');
-  assert.equal(rejectedVerifierStore.writes(), 0);
+  for (const code of ['BUNDLE_SIGNATURE_INVALID', 'BUNDLE_ENTRY_INVALID']) {
+    const rejectedVerifierStore = memoryFloorStore();
+    await rejectCode(fetchPinnedRelease({
+      fetchImpl: async () => response(),
+      floorStore: rejectedVerifierStore,
+      now: NOW,
+      verifyBundle: async () => {
+        throw Object.assign(new Error(code), { code });
+      },
+    }), code);
+    assert.equal(rejectedVerifierStore.writes(), 0);
+  }
 });

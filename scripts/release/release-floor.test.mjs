@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { chmod, mkdtemp, open, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -54,6 +55,53 @@ test('keeps the maximum existing and signed floor for every tuple', async () => 
   });
   assert.deepEqual(state.sequenceFloor, [ARM_FLOOR, { ...X64_FLOOR, minimumSequence: '9' }]);
   assert.equal(state.lastTrustedTime, '2026-09-11T13:00:00.000Z');
+}));
+
+test('serializes overlapping updates from separate store instances', async () => fixture(async (_store, directory) => {
+  const entered = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  const firstStore = createReleaseFloorStoreForTest(directory, {
+    beforeWrite: async () => {
+      entered.resolve();
+      await release.promise;
+    },
+  });
+  const secondStore = createReleaseFloorStoreForTest(directory);
+  const first = firstStore.updateVerified({
+    sequenceFloor: [{ ...ARM_FLOOR, minimumSequence: '8' }],
+    trustedTime: '2026-09-11T13:00:00.000Z',
+  });
+  await Promise.race([
+    entered.promise,
+    delay(100).then(() => { throw new Error('first update did not reach the overlap point'); }),
+  ]);
+  const second = secondStore.updateVerified({
+    sequenceFloor: [{ ...ARM_FLOOR, minimumSequence: '9' }],
+    trustedTime: '2026-09-11T14:00:00.000Z',
+  });
+  await delay(20);
+  release.resolve();
+  await Promise.all([first, second]);
+  assert.deepEqual(await secondStore.read(), {
+    schemaVersion: 1,
+    sequenceFloor: [{ ...ARM_FLOOR, minimumSequence: '9' }],
+    lastTrustedTime: '2026-09-11T14:00:00.000Z',
+  });
+}));
+
+test('fails closed before mutation when a Windows owner-only DACL cannot be established or verified', async () => fixture(async (_store, directory) => {
+  const cases = [
+    { establish: async () => false, verify: async () => true },
+    { establish: async () => true, verify: async () => false },
+  ];
+  for (const windowsAcl of cases) {
+    const store = createReleaseFloorStoreForTest(directory, { platform: 'win32', windowsAcl });
+    await rejectCode(store.updateVerified({
+      sequenceFloor: [ARM_FLOOR],
+      trustedTime: '2026-09-11T12:00:00.000Z',
+    }), 'RELEASE_FLOOR_PERMISSIONS_INVALID');
+    assert.equal((await readdir(directory)).includes('release-floor.json'), false);
+  }
 }));
 
 test('writes an owner-only file by atomic replacement', async () => fixture(async (store, directory) => {
