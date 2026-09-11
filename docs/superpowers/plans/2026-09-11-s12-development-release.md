@@ -246,9 +246,57 @@ git commit -m "feat(supabase): report installation state without secrets"
 
 ---
 
+### Task 6: StorageSigner의 매 요청 온라인 권한 확인
+
+2026-09-11 Q가 권장안을 선택했다. S11 §2.7의 온라인 확인 계약을 적용하며, 이전 허용 결과를
+캐시하거나 요청 본문의 `principal`을 신원으로 믿지 않는다.
+
+**소유 경계**
+
+- API 쪽: `packages/contracts/src/audio.ts`의 닫힌 DTO와 decoder,
+  `packages/core/src/gateway.ts`의 기존 권한 검사 재사용,
+  `packages/http-api/src/request-handler.ts`의 `POST /internal/storage/authorize`,
+  `apps/api/test/storage-signer-authorization.test.ts`.
+- Signer 쪽: `apps/community-cloud/src/storage-signer.ts`의 독립 handler와
+  `apps/api/test/storage-signer.test.ts`. 업무 DB나 공통 업무 handler를 import하지 않는다.
+- 통합: 기존 Cloud build에 독립 bundle을 연결하고 API와 Signer 사이 왕복을 검증한다.
+
+```ts
+authorizeStorageSignerOperation(env, canonicalActor, request): Promise<StorageSignerDecision>
+decodeStorageSignerRequest(value: unknown): StorageSignerRequest
+decodeStorageSignerDecision(value: unknown): StorageSignerDecision
+```
+
+판정은 `{ allowed: true, requestSha256, generationId, authorizedAt,
+authorizationExpiresAt, expiresAt }`만 반환한다. 요청 hash는 전체 요청의 JCS SHA-256이며,
+판정 유효기간은 최대 5초다. 업로드와 Agent 읽기의 URL 만료는 S8 및 현재 DB의 기한으로 제한한다.
+삭제와 metadata 조회에는 URL 만료를 반환하지 않는다.
+
+- [ ] 원래 Bearer를 기존 Identity로 다시 검증하고, 같은 기관의 현재 담당·사업 정책·동의·claim을
+  gateway에서 확인한다. 조회 전용 검증에서 새 업로드나 claim을 만들지 않는다.
+- [ ] 삭제와 삭제 확인은 기존 `deletion_pending` 및 정확한 삭제 시도 기록을 확인한다.
+  철회가 삭제 이유일 수 있으므로 새 녹음 동의를 요구하지 않는다.
+- [ ] Signer는 고정 API 주소만 호출하고 original Bearer만 전달한다. Storage 관리자 키는 보내지
+  않는다. timeout·redirect·잘못된 설치 ID·요청 hash·만료·형식 오류는 Storage 호출 전에 거부한다.
+- [ ] 성공 후 다음 요청에서 철회·담당 변경·lease 만료·API 장애가 발생하면 이전 허용을 재사용하지
+  않고 거부하는 회귀 검사를 남긴다. Signer의 삭제 수락을 S8의 네 가지 삭제 증거로 바꾸어 적지 않는다.
+- [ ] 실제 Supabase API가 URL 만료나 generation 조건을 지원하는지 확인한다. 지원하지 않는 조건을
+  mock으로 충족했다고 간주하거나 임의의 성공 응답으로 대체하지 않는다.
+
+```sh
+pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/storage-signer-authorization.test.ts apps/api/test/storage-signer.test.ts
+pnpm --filter @ccc/community-cloud build
+pnpm --filter @ccc/community-cloud typecheck
+```
+
+현재 Community Cloud runtime의 Identity는 human용이고 `audioStore`는 연결되지 않았다.
+이 사실을 JSON의 `principal`이나 테스트 resolver로 대신하지 않는다. Agent와 scheduler의 실제 인증,
+AudioStore 배선, provider 배포 및 전체 설치 성공은 그 경로가 실제로 연결되어 검증되기 전에는
+완료로 표기하지 않는다.
+
 ## Final Review Gate
 
-다섯 작업이 끝나면 Tasks 1-5 전체에 전용 보안 검토를 한 번 돌린다. 검토는 자기 신뢰, 서명 도메인
+여섯 작업이 끝나면 Tasks 1-6 전체에 전용 보안 검토를 한 번 돌린다. 검토는 자기 신뢰, 서명 도메인
 혼동, 출처 위조, floor 되돌리기, 시각 되돌리기, tuple 우회, Edge component 누락과 추가, 백업 면제
 조건 우회, journal 이중화, 출력 누출을 각각 판정해야 한다. 중대와 중요 지적을 모두 닫은 뒤에만
 Main이 실제 발급과 설치를 실행한다.

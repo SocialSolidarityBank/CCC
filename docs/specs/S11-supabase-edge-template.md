@@ -178,10 +178,20 @@ type StorageSignerRequest = {
   action: 'upload' | 'agent_read' | 'delete' | 'head';
   principal: 'client' | 'agent' | 'scheduler';
   objectSha256: string | null;
+  context:
+    | { kind: 'upload'; audioObjectId: string }
+    | { kind: 'claim'; jobId: string; claimToken: string; attempt: number }
+    | { kind: 'deletion'; audioObjectId: string; generationId: string; deletionAttemptId: string };
 };
 ```
 
 signer는 bucket, opaque key 형식, caller principal, 허용 action을 모두 검사하고 만료 시각을 S8 lifetime에서 서버가 계산한다. caller가 만료 시각이나 signed URL을 지정하지 않는다. 임의 bucket, table, SQL, URL, key, action을 받지 않으며 signer function 외 runtime에는 service role key가 존재하지 않는다.
+
+**2026-09-11 Q 확정: 매 요청 온라인 권한 확인.** Signer는 작업마다 설치 설정으로 고정한 업무 API의 `POST /internal/storage/authorize`에 원래 호출자의 Bearer와 위 요청을 전달한다. API의 기존 Identity가 신원을 다시 검증하고 gateway가 현재 기관, 담당, 사업 도입 확인, 동의, claim 및 삭제 의도를 확인한다. 요청의 `principal`은 신원 증거가 아니며 검증된 신원과 다르면 거부한다. 콜백 주소는 요청에서 받지 않고, redirect·응답 캐시·이전 허용 결과 재사용·장애 시 허용은 금지한다. Signer의 관리자 Storage 키를 업무 API로 전달하지 않는다.
+
+`upload`와 client의 `head`는 본인의 현재 담당 범위에 있는 `pending_upload` 객체만 허용한다. `agent_read`는 해당 Agent의 살아 있는 claim, attempt, generation, 동의와 처리 기한을 모두 대조한다. `delete`와 scheduler의 `head`는 같은 기관의 `deletion_pending` 객체와 정확한 삭제 시도 기록을 근거로 허용하며, 철회 후 필요한 삭제를 막지 않도록 현재 녹음 동의를 요구하지 않는다. scheduler는 기존 system 신원과 이 콜백 경로에 한정된 scope를 요구한다. 미구현 Agent 또는 scheduler Identity를 요청 본문으로 대체하지 않는다.
+
+허용 응답은 정확한 요청 본문의 JCS SHA-256, 판정 시각, 최대 5초의 판정 유효기한, generation과 서버가 계산한 URL 만료 시각만 전달한다. `claimToken`이나 원음은 되돌려 보내지 않는다. 업로드 URL은 S8의 2시간, Agent 읽기는 600초와 현재 lease·처리·보존 기한 중 가장 이른 시각을 넘지 않는다. 삭제와 metadata 조회는 URL을 만들지 않는다. 응답 부재, 만료, 형식·요청 hash 불일치는 Storage 호출 전에 거부한다. 이 5초는 허용 결과를 캐시할 수 있다는 뜻이 아니라 한 번의 네트워크 왕복을 위한 상한이다.
 
 secret rotation은 새 값을 먼저 전용 signer binding에 주입하고 health check를 통과한 뒤 이전 값을 폐기한다. 값 자체를 fingerprint, migration, receipt, report에 넣지 않는다.
 ### 2.8 private Storage와 cron

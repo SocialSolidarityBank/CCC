@@ -59,6 +59,7 @@ import {
   beginRecordingUploadIntent,
   abandonRecordingUpload,
   authorizeRecordingUploadTarget,
+  authorizeStorageSignerOperation,
   authorizeRecordingUploadStream,
   beginAgentJobAudioTargetMint,
   completeAgentJobAudioTargetMint,
@@ -264,6 +265,7 @@ import { isSttReadinessReport } from '@ccc/contracts/stt-readiness';
 import { previewModeEnabled } from './preview-gate';
 import { memoryTrialEnabled, memoryTrialReadiness } from './counseling-memory-trial';
 import { runCounselingMemoryTrial } from './counseling-memory-runner';
+import { decodeStorageSignerRequest, type StorageSignerRequest } from '@ccc/contracts/audio';
 import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, MfaRequiredError, type Actor as IdentityActor, type AudioContentType, type AudioObjectMetadata } from '@ccc/contracts/runtime';
 
 type JsonObject = Record<string, unknown>;
@@ -303,6 +305,26 @@ async function requestBody(request: Request): Promise<JsonObject> {
   } catch (error) {
     if (error instanceof ValidationError) throw error;
     throw new ValidationError('request body must be valid JSON');
+  }
+}
+
+const STORAGE_AUTHORIZATION_BODY_BYTES = 1024 * 1024;
+async function storageAuthorizationBody(request: Request): Promise<StorageSignerRequest> {
+  const contentType = request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
+  const declaredLength = request.headers.get('content-length');
+  if (
+    contentType !== 'application/json'
+    || (declaredLength !== null
+      && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > STORAGE_AUTHORIZATION_BODY_BYTES))
+  ) throw new ValidationError('storage authorization body is invalid');
+  const text = await request.text();
+  if (new TextEncoder().encode(text).byteLength > STORAGE_AUTHORIZATION_BODY_BYTES) {
+    throw new ValidationError('storage authorization body is invalid');
+  }
+  try {
+    return decodeStorageSignerRequest(JSON.parse(text));
+  } catch {
+    throw new ValidationError('storage authorization body is invalid');
   }
 }
 
@@ -2679,6 +2701,36 @@ export async function handleRequest(
     }
     const resolvedActor = await resolveActor(request, env);
     const parts = url.pathname.split('/').filter((part) => part.length > 0);
+    if (url.pathname === '/internal/storage/authorize') {
+      if (request.method !== 'POST') return json({ error: 'not_found' }, 404);
+      if (request.headers.has('origin')) return json({ error: 'forbidden' }, 403);
+      const authorization = request.headers.get('authorization');
+      if (authorization === null || !/^Bearer [^\s,]+$/.test(authorization)) {
+        throw new ActorAuthenticationError();
+      }
+      requestQuery(url, []);
+      const installation = await verifiedInstallManifest(env);
+      if (installation.mode !== 'community-cloud' || !('kind' in resolvedActor)) {
+        return json({ error: 'forbidden' }, 403);
+      }
+      const body = await storageAuthorizationBody(request);
+      try {
+        return json(
+          await authorizeStorageSignerOperation(env, resolvedActor, body),
+          200,
+          { 'cache-control': 'no-store', 'x-ccc-installation-id': installation.installationId },
+        );
+      } catch (error) {
+        if (
+          error instanceof ForbiddenError
+          || error instanceof ConflictError
+          || error instanceof ProgramAdmissionRequiredError
+          || error instanceof ConsentContractError
+          || error instanceof AgentJobContractError
+        ) return json({ error: 'forbidden' }, 403);
+        throw error;
+      }
+    }
     if (request.method === 'POST' && parts.length === 2 && parts[0] === 'auth' && parts[1] === 'logout') {
       requestQuery(url, []);
       requireOnlyKeys(await requestBody(request), []);

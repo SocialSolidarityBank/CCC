@@ -23,6 +23,11 @@ import type { InstitutionReadiness, OrganizationProfile, OrganizationOnboardingI
 import type { ReportEvidence, SupportCaseReport } from '@ccc/contracts/report';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
+import {
+  decodeStorageSignerRequest,
+  type StorageSignerDecision,
+  type StorageSignerRequest,
+} from '@ccc/contracts/audio';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import {
   CONSENT_COPY,
@@ -9379,6 +9384,267 @@ export async function getAgentJobAudioDelivery(
     action: 'download_audio', targetTable: 'agent_jobs', targetId: jobId, caseId: audio.support_case_id,
   });
   return { audioR2Key: audio.key, caseId: audio.support_case_id, generationId: audio.generation_id };
+}
+
+type StorageSignerContext = StorageSignerRequest['context'];
+type StorageUploadContext = Extract<StorageSignerContext, { kind: 'upload' }>;
+type StorageClaimContext = Extract<StorageSignerContext, { kind: 'claim' }>;
+type StorageDeletionContext = Extract<StorageSignerContext, { kind: 'deletion' }>;
+
+/** Upload and the client's own metadata read: current pending_upload row plus every live gate. */
+async function authorizePendingStorageUpload(
+  env: Env,
+  actor: Actor,
+  objectKey: string,
+  objectSha256: string | null,
+  context: StorageUploadContext,
+): Promise<{ generationId: string; uploadExpiresAt: string; supportCaseId: string }> {
+  const row = await env.DB.prepare(
+    `SELECT audio.session_id,audio.support_case_id,audio.key,audio.generation_id,
+            audio.stt_route,audio.stt_engine_id,audio.audio_delivery,audio.client_asserted_sha256,
+            audio.consent_gate_receipt_revision,audio.consent_gate_receipt_json,
+            audio.upload_expires_at
+     FROM audio_objects AS audio
+     JOIN sessions AS session ON session.id=audio.session_id AND session.org_id=audio.org_id
+       AND session.support_case_id=audio.support_case_id
+       AND session.approved_at IS NULL AND session.channel='in_person'
+     WHERE audio.id=? AND audio.org_id=? AND audio.state='pending_upload'`,
+  ).bind(context.audioObjectId, actor.orgId).first<DbRow>();
+  const at = now();
+  const sttMode = row === null ? null : stringValue(row.stt_route);
+  const sttEngineId = row === null ? null : stringValue(row.stt_engine_id);
+  if (
+    row === null
+    || stringValue(row.key) !== objectKey
+    // The caller's hash is an assertion, never provider evidence: absent, or exactly this row's.
+    || (objectSha256 !== null && nullableString(row.client_asserted_sha256) !== objectSha256)
+    || stringValue(row.audio_delivery) !== 'protected-get'
+    || stringValue(row.upload_expires_at) <= at
+    || (sttMode !== 'local' && sttMode !== 'azure')
+    || (sttEngineId !== 'qwen3-asr' && sttEngineId !== 'azure-speech-koreacentral')
+  ) throw new ForbiddenError('storage upload is unavailable');
+
+  // Current role, assignment and D87 admission come from the existing write-path gates.
+  const session = await assertSessionWriteAccess(env, actor, stringValue(row.session_id));
+  const admission = await assertRecordingUploadAllowedForSession(env, actor, session);
+  await assertRecordingResultNotCommitted(env, actor, session);
+  if (
+    admission.context.sttMode !== sttMode
+    || await getSttReadiness(env, actor.orgId, sttMode, sttEngineId) === null
+  ) throw new ForbiddenError('storage upload is unavailable');
+
+  const receipt = parseJson<ConsentGateReceipt>(nullableString(row.consent_gate_receipt_json));
+  if (
+    receipt === null
+    || receipt.consentRevision !== stringValue(row.consent_gate_receipt_revision)
+  ) throw new ForbiddenError('storage upload is unavailable');
+  const supportCaseId = stringValue(row.support_case_id);
+  const current = await assertConsentGate(
+    env, actor.orgId, supportCaseId, receipt.required.map((entry) => entry.domain),
+  ).catch(() => { throw new ForbiddenError('storage upload is unavailable'); });
+  if (
+    current.consentRevision !== receipt.consentRevision
+    || canonicalizeJcs(current.required) !== canonicalizeJcs(receipt.required)
+  ) throw new ForbiddenError('storage upload is unavailable');
+  return {
+    generationId: stringValue(row.generation_id),
+    uploadExpiresAt: stringValue(row.upload_expires_at),
+    supportCaseId,
+  };
+}
+
+/**
+ * Agent read: the live claim decides. Unlike `getAgentJobAudioDelivery` this never mutates job
+ * lifecycle when the row is gone — an authorization callback must not close somebody's job.
+ */
+async function authorizeClaimedStorageRead(
+  env: Env,
+  actor: Actor,
+  objectKey: string,
+  objectSha256: string | null,
+  context: StorageClaimContext,
+): Promise<{ generationId: string; expiresAt: string; supportCaseId: string }> {
+  const job = await loadClaimedAgentJob(env, actor, context.jobId, context.claimToken, context.attempt);
+  if (
+    job.kind !== 'audio'
+    || job.audioObjectId === null
+    || job.audioGenerationId === null
+    || (job.sttEngine !== 'local' && job.sttEngine !== 'azure')
+    || job.sttEngineId === null
+    || job.leaseExpiresAt === null
+    || job.processingDeadlineAt === null
+    || job.retentionHardCapAt === null
+  ) throw new AgentJobContractError('route_mismatch', job.id);
+  await requireAgentJobProgramAdmission(env, actor.orgId, job);
+  if (await getSttReadiness(env, actor.orgId, job.sttEngine, job.sttEngineId, actor.userId) === null) {
+    throw new AgentJobContractError('engine_unavailable', job.id);
+  }
+  await agentJobConsentRevision(env, actor.orgId, job);
+  const at = now();
+  const audio = await env.DB.prepare(
+    `SELECT key,generation_id,object_sha256,storage_sha256,support_case_id,
+            processing_deadline_at,retention_hard_cap_at
+     FROM audio_objects
+     WHERE id=? AND org_id=? AND generation_id=? AND state IN ('claimed','processing')
+       AND claim_id=? AND claim_agent_id=? AND retention_hard_cap_at>? AND processing_deadline_at>?`,
+  ).bind(
+    job.audioObjectId, actor.orgId, job.audioGenerationId, job.id, actor.userId, at, at,
+  ).first<DbRow>();
+  if (
+    audio === null
+    || stringValue(audio.key) !== objectKey
+    || (objectSha256 !== null
+      && nullableString(audio.object_sha256) !== objectSha256
+      && nullableString(audio.storage_sha256) !== objectSha256)
+  ) throw new AgentJobContractError('audio_object_missing', job.id);
+  return {
+    generationId: stringValue(audio.generation_id),
+    // 600 seconds, the live lease, the processing deadline and the S8 hard cap — earliest wins.
+    expiresAt: [
+      new Date(parseUtcTimestamp(at) + 600_000).toISOString(),
+      job.leaseExpiresAt,
+      job.processingDeadlineAt,
+      job.retentionHardCapAt,
+      stringValue(audio.processing_deadline_at),
+      stringValue(audio.retention_hard_cap_at),
+    ].reduce((earliest, value) => value < earliest ? value : earliest),
+    supportCaseId: stringValue(audio.support_case_id),
+  };
+}
+
+/**
+ * Deletion and the scheduler's metadata read. Recording consent is deliberately not required:
+ * withdrawal is the reason the deletion exists. The durable intent is the whole authority.
+ */
+async function authorizePendingStorageDeletion(
+  env: Env,
+  orgId: string,
+  objectKey: string,
+  objectSha256: string | null,
+  context: StorageDeletionContext,
+): Promise<{ generationId: string; supportCaseId: string }> {
+  const audio = await env.DB.prepare(
+    `SELECT key,generation_id,object_sha256,storage_sha256,support_case_id,
+            deletion_reason,deletion_attempt_id
+     FROM audio_objects WHERE id=? AND org_id=? AND state='deletion_pending'`,
+  ).bind(context.audioObjectId, orgId).first<DbRow>();
+  if (
+    audio === null
+    || stringValue(audio.key) !== objectKey
+    || stringValue(audio.generation_id) !== context.generationId
+    || nullableString(audio.deletion_attempt_id) !== context.deletionAttemptId
+    || (objectSha256 !== null
+      && nullableString(audio.object_sha256) !== objectSha256
+      && nullableString(audio.storage_sha256) !== objectSha256)
+  ) throw new ForbiddenError('storage deletion is unavailable');
+  const journal = await env.DB.prepare(
+    `SELECT 1 AS present FROM audio_deletion_attempts
+     WHERE id=? AND deletion_attempt_id=? AND phase='requested' AND org_id=?
+       AND audio_object_id=? AND generation_id=? AND reason=?`,
+  ).bind(
+    `${context.deletionAttemptId}:requested`,
+    context.deletionAttemptId,
+    orgId,
+    context.audioObjectId,
+    context.generationId,
+    stringValue(audio.deletion_reason),
+  ).first<{ present: number }>();
+  if (journal === null) throw new ForbiddenError('storage deletion is unavailable');
+  return {
+    generationId: stringValue(audio.generation_id),
+    supportCaseId: stringValue(audio.support_case_id),
+  };
+}
+
+/**
+ * S11 §2.7: every StorageSigner operation is authorized from current business state. The caller is
+ * the canonical identity re-resolved from the original Bearer; `principal` is only a claimed lane
+ * and never identity evidence. No allow is cached, minted or retried here, and no storage is touched.
+ */
+export async function authorizeStorageSignerOperation(
+  env: Env,
+  canonicalActor: IdentityActor,
+  request: StorageSignerRequest,
+): Promise<StorageSignerDecision> {
+  const parsed = decodeStorageSignerRequest(request);
+  let generationId: string;
+  let expiresAt: string | null = null;
+  let supportCaseId: string;
+  let auditActor: Actor;
+  let auditTargetId: string;
+  if (parsed.principal === 'client') {
+    if (
+      canonicalActor.kind !== 'human'
+      || canonicalActor.orgId === null
+      || canonicalActor.authn.source !== 'supabase-jwt'
+      || canonicalActor.authn.assurance !== 'aal2'
+      || canonicalActor.authn.sessionId === null
+      || !canonicalActor.roles.includes('worker')
+      || (parsed.action !== 'upload' && parsed.action !== 'head')
+      || parsed.context.kind !== 'upload'
+    ) throw new ForbiddenError('storage principal is not allowed');
+    auditActor = { userId: canonicalActor.userId, orgId: canonicalActor.orgId, role: 'counselor' };
+    auditTargetId = parsed.context.audioObjectId;
+    const target = await authorizePendingStorageUpload(
+      env, auditActor, parsed.objectKey, parsed.objectSha256, parsed.context,
+    );
+    generationId = target.generationId;
+    supportCaseId = target.supportCaseId;
+    // Only a target mint carries a URL expiry; metadata reads create no URL.
+    if (parsed.action === 'upload') expiresAt = target.uploadExpiresAt;
+  } else if (parsed.principal === 'agent') {
+    if (
+      canonicalActor.kind !== 'agent'
+      || canonicalActor.orgId === null
+      || canonicalActor.authn.source !== 'agent-bearer'
+      || !canonicalActor.roles.includes('service')
+      || !canonicalActor.scopes.includes('audio:read')
+      || parsed.action !== 'agent_read'
+      || parsed.context.kind !== 'claim'
+    ) throw new ForbiddenError('storage principal is not allowed');
+    auditActor = { userId: canonicalActor.userId, orgId: canonicalActor.orgId, role: 'service' };
+    auditTargetId = parsed.context.jobId;
+    const target = await authorizeClaimedStorageRead(
+      env, auditActor, parsed.objectKey, parsed.objectSha256, parsed.context,
+    );
+    generationId = target.generationId;
+    expiresAt = target.expiresAt;
+    supportCaseId = target.supportCaseId;
+  } else {
+    if (
+      canonicalActor.kind !== 'system'
+      || canonicalActor.orgId === null
+      || canonicalActor.authn.source !== 'scheduler-secret'
+      || !canonicalActor.roles.includes('service')
+      || !canonicalActor.scopes.includes('/internal/storage/authorize')
+      || (parsed.action !== 'delete' && parsed.action !== 'head')
+      || parsed.context.kind !== 'deletion'
+    ) throw new ForbiddenError('storage principal is not allowed');
+    auditActor = { userId: canonicalActor.userId, orgId: canonicalActor.orgId, role: 'service' };
+    auditTargetId = parsed.context.audioObjectId;
+    const target = await authorizePendingStorageDeletion(
+      env, canonicalActor.orgId, parsed.objectKey, parsed.objectSha256, parsed.context,
+    );
+    generationId = target.generationId;
+    supportCaseId = target.supportCaseId;
+  }
+  await writeAudit(env, auditActor, {
+    action: parsed.action === 'agent_read' ? 'download_audio' : 'read',
+    targetTable: 'audio_objects',
+    targetId: auditTargetId,
+    caseId: supportCaseId,
+    detail: { storageAction: parsed.action, principal: parsed.principal },
+  });
+  const authorizedAt = now();
+  return {
+    allowed: true,
+    requestSha256: await sha256Hex(canonicalizeJcs(parsed)),
+    generationId,
+    authorizedAt,
+    // One network round trip, not a cache window (S11 §2.7).
+    authorizationExpiresAt: new Date(parseUtcTimestamp(authorizedAt) + 5_000).toISOString(),
+    expiresAt,
+  };
 }
 
 export interface AgentAudioTargetMint {

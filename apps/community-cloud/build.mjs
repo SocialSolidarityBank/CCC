@@ -34,3 +34,15 @@ await build({
   sourcemap: false,
   logLevel: 'warning',
 });
+
+// The StorageSigner is a separate deployment unit, never part of the business runtime.
+await build({
+  entryPoints: ['src/storage-signer.ts'],
+  outfile: 'dist/storage-signer.js',
+  bundle: true,
+  format: 'esm',
+  platform: 'neutral',
+  target: 'es2022',
+  sourcemap: false,
+  logLevel: 'warning',
+});
