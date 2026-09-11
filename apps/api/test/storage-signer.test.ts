@@ -12,6 +12,7 @@ const NOW = Date.parse('2026-09-11T00:00:00.000Z');
 const AUTHORIZED_AT = '2026-09-11T00:00:00.000Z';
 const AUTHORIZATION_EXPIRES_AT = '2026-09-11T00:00:05.000Z';
 const GENERATION_ID = 'version-7';
+const PENDING_GENERATION_ID = 'pending:audio-object-1';
 const OBJECT_KEY = 'audio/session_01/550e8400-e29b-41d4-a716-446655440000';
 const OBJECT_SHA256 = 'a'.repeat(64);
 const CALLBACK_URL = `${API_BASE}/internal/storage/authorize`;
@@ -40,7 +41,7 @@ function fixtureHash(canonical: string): string {
   return createHash('sha256').update(canonical).digest('hex');
 }
 
-/** Mirrors the provider's signed download token shape: header.payload.signature, base64url claims. */
+/** Mirrors the provider's signed token shape: header.payload.signature, base64url claims. */
 function downloadToken(claims: Record<string, unknown>): string {
   const part = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${part({ alg: 'HS256', typ: 'JWT' })}.${part(claims)}.c2lnbmF0dXJl`;
@@ -288,23 +289,104 @@ describe('StorageSigner online authorization boundary', () => {
     expect(provider.init?.body).toBeUndefined();
   });
 
-  it('fails closed after online authorization because Supabase signed-upload expiry is not caller-bounded', async () => {
-    let callbackCalls = 0;
-    let providerCalls = 0;
-    const handler = createStorageSignerHandler(config((async (input) => {
-      if (String(input) === CALLBACK_URL) {
-        callbackCalls += 1;
-        return callbackResponse(decision(UPLOAD_HASH, '2026-09-11T02:00:00.000Z', { generationId: 'pending:audio-object-1' }));
+  it('mints one signed upload without upsert and releases the expiry the provider signed', async () => {
+    const token = downloadToken({
+      url: `ccc-audio/${OBJECT_KEY}`,
+      scope: 'upload',
+      upsert: false,
+      exp: Math.floor(Date.parse('2026-09-11T01:00:00.000Z') / 1_000),
+    });
+    const calls: Array<{ url: string; init?: RequestInit | undefined }> = [];
+    const handler = createStorageSignerHandler(config((async (input, init) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url === CALLBACK_URL) {
+        return callbackResponse(decision(UPLOAD_HASH, '2026-09-11T02:00:00.000Z', { generationId: PENDING_GENERATION_ID }));
       }
-      providerCalls += 1;
-      throw new Error('unbounded signed upload must not be minted');
+      return new Response(JSON.stringify({ url: `/object/upload/sign/ccc-audio/${OBJECT_KEY}?token=${token}`, token }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
     }) as typeof fetch));
 
     const response = await handler(signerRequest(UPLOAD_REQUEST));
-    expect(response.status).toBe(501);
-    expect(await fixedError(response)).toEqual({ code: 'STORAGE_OPERATION_UNSUPPORTED' });
-    expect(callbackCalls).toBe(1);
-    expect(providerCalls).toBe(0);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      action: 'upload',
+      url: `${STORAGE_BASE}/object/upload/sign/ccc-audio/${OBJECT_KEY}?token=${token}`,
+      expiresAt: '2026-09-11T01:00:00.000Z',
+      generationId: PENDING_GENERATION_ID,
+    });
+    expect(calls.length).toBe(2);
+    const provider = calls[1]!;
+    expect(provider.url).toBe(`${STORAGE_BASE}/object/upload/sign/ccc-audio/${OBJECT_KEY}`);
+    expect(provider.init?.method).toBe('POST');
+    expect(provider.init?.redirect).toBe('error');
+    expect(provider.init?.body).toBeUndefined();
+    expect(headersOf(provider.init).get('x-upsert')).toBeNull();
+    expect(headersOf(provider.init).get('authorization')).toBe(`Bearer ${SERVICE_ROLE_KEY}`);
+    expect(headersOf(provider.init).get('authorization')).not.toContain(CALLER_BEARER);
+  });
+
+  it('withholds the upload URL when the provider token outlives the ceiling, upserts, or points elsewhere', async () => {
+    const insideCeiling = Math.floor(Date.parse('2026-09-11T01:00:00.000Z') / 1_000);
+    const objectPath = `ccc-audio/${OBJECT_KEY}`;
+    const providerUrls = [
+      `/object/upload/sign/ccc-audio/${OBJECT_KEY}?token=${downloadToken({ url: objectPath, scope: 'upload', upsert: false, exp: Math.floor(Date.parse('2026-09-11T02:00:01.000Z') / 1_000) })}`,
+      `/object/upload/sign/ccc-audio/${OBJECT_KEY}?token=${downloadToken({ url: objectPath, scope: 'upload', upsert: true, exp: insideCeiling })}`,
+      `/object/upload/sign/ccc-audio/${OBJECT_KEY}?token=${downloadToken({ url: 'ccc-audio/audio/other/550e8400-e29b-41d4-a716-446655440000', scope: 'upload', upsert: false, exp: insideCeiling })}`,
+      `https://attacker.invalid/object/upload/sign/ccc-audio/${OBJECT_KEY}?token=${downloadToken({ url: objectPath, scope: 'upload', upsert: false, exp: insideCeiling })}`,
+    ];
+    let providerIndex = 0;
+    const handler = createStorageSignerHandler(config((async (input) => {
+      if (String(input) === CALLBACK_URL) {
+        return callbackResponse(decision(UPLOAD_HASH, '2026-09-11T02:00:00.000Z', { generationId: PENDING_GENERATION_ID }));
+      }
+      const url = providerUrls[providerIndex++]!;
+      return new Response(JSON.stringify({ url }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch));
+
+    for (let index = 0; index < providerUrls.length; index++) {
+      const response = await handler(signerRequest(UPLOAD_REQUEST));
+      expect(response.status).toBe(502);
+      const text = await response.text();
+      expect(text).toBe('{"code":"STORAGE_UNAVAILABLE"}');
+      expect(text).not.toContain('token=');
+      expect(text).not.toContain('attacker');
+    }
+    expect(providerIndex).toBe(providerUrls.length);
+  });
+
+  it('pins the upload ceiling to the authorization expiry plus exactly two hours', async () => {
+    const atCeiling = '2026-09-11T02:00:05.000Z';
+    const token = downloadToken({
+      url: `ccc-audio/${OBJECT_KEY}`, scope: 'upload', upsert: false, exp: Math.floor(Date.parse(atCeiling) / 1_000),
+    });
+    let decisionExpiresAt = atCeiling;
+    let providerCalls = 0;
+    const handler = createStorageSignerHandler(config((async (input) => {
+      if (String(input) === CALLBACK_URL) {
+        return callbackResponse(decision(UPLOAD_HASH, decisionExpiresAt, { generationId: PENDING_GENERATION_ID }));
+      }
+      providerCalls += 1;
+      return new Response(JSON.stringify({ url: `/object/upload/sign/ccc-audio/${OBJECT_KEY}?token=${token}`, token }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch));
+
+    const accepted = await handler(signerRequest(UPLOAD_REQUEST));
+    expect(accepted.status).toBe(200);
+    expect(await accepted.json()).toEqual({
+      action: 'upload',
+      url: `${STORAGE_BASE}/object/upload/sign/ccc-audio/${OBJECT_KEY}?token=${token}`,
+      expiresAt: atCeiling,
+      generationId: PENDING_GENERATION_ID,
+    });
+
+    decisionExpiresAt = '2026-09-11T02:00:06.000Z';
+    const refused = await handler(signerRequest(UPLOAD_REQUEST));
+    expect(refused.status).toBe(503);
+    expect(await fixedError(refused)).toEqual({ code: 'AUTHORIZATION_INVALID' });
+    expect(providerCalls).toBe(1);
   });
 
   it('rejects provider redirects, hostile signed URLs and raw provider errors without leaking them', async () => {

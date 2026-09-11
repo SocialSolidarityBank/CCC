@@ -42,7 +42,6 @@ type FailureCode =
   | 'AUTHORIZATION_DENIED'
   | 'AUTHORIZATION_UNAVAILABLE'
   | 'AUTHORIZATION_INVALID'
-  | 'STORAGE_OPERATION_UNSUPPORTED'
   | 'STORAGE_UNAVAILABLE';
 
 class SignerFailure extends Error {
@@ -85,9 +84,7 @@ export function createStorageSignerHandler(config: StorageSignerConfig): (reques
       });
 
       if (parsedRequest.action === 'upload') {
-        // Supabase's signed-upload endpoint has a deployment-level fixed TTL and no expiresIn input.
-        // It cannot be proven not to exceed the earlier absolute business-API expiry ceiling.
-        throw new SignerFailure(501, 'STORAGE_OPERATION_UNSUPPORTED');
+        return await createUploadTarget(parsedRequest, decision, storageBase, config, fetchImpl, now);
       }
       if (parsedRequest.action === 'agent_read') {
         return await createReadTarget(parsedRequest, decision, storageBase, config, fetchImpl, now);
@@ -202,8 +199,12 @@ async function authorize(input: {
   if (input.request.action === 'upload' || input.request.action === 'agent_read') {
     if (decision.expiresAt === null) throw new SignerFailure(503, 'AUTHORIZATION_INVALID');
     const expiresAt = exactIsoMillis(decision.expiresAt);
-    const maximumLifetime = input.request.action === 'upload' ? MAX_UPLOAD_LIFETIME_MS : MAX_READ_LIFETIME_MS;
-    if (expiresAt <= checkedAt || expiresAt - authorizedAt > maximumLifetime) {
+    // Upload ceilings are pinned to the authorization expiry the business API moved,
+    // reads stay measured from the instant the decision was made.
+    const ceiling = input.request.action === 'upload'
+      ? authorizationExpiresAt + MAX_UPLOAD_LIFETIME_MS
+      : authorizedAt + MAX_READ_LIFETIME_MS;
+    if (expiresAt <= checkedAt || expiresAt > ceiling) {
       throw new SignerFailure(503, 'AUTHORIZATION_INVALID');
     }
   } else if (decision.expiresAt !== null) {
@@ -241,13 +242,54 @@ async function createReadTarget(
   // Release the URL only after the token the provider actually signed is proven
   // to be live and inside the authorized ceiling. No re-signing, no retry.
   const providerExpiresAt = provenTokenExpiry(url, {
-    objectPath: `${BUCKET}/${request.objectKey}`,
-    generationId: decision.generationId,
+    accepts: (claims) => claims.scope === 'download'
+      && claims.url === `${BUCKET}/${request.objectKey}`
+      && claims.versionId === decision.generationId,
     ceilingMs: expiresAt,
     checkedAtMs: checkedAt,
   });
   return jsonResponse(200, {
     action: 'agent_read',
+    url,
+    expiresAt: new Date(providerExpiresAt).toISOString(),
+    generationId: decision.generationId,
+  }, config.installationId);
+}
+
+async function createUploadTarget(
+  request: StorageSignerRequest,
+  decision: StorageSignerDecision,
+  storageBase: string,
+  config: StorageSignerConfig,
+  fetchImpl: typeof fetch,
+  now: () => number,
+): Promise<Response> {
+  const checkedAt = requireLiveDecision(decision, now);
+  const expiresAt = exactIsoMillis(decision.expiresAt!);
+  if (expiresAt <= checkedAt) throw new SignerFailure(503, 'AUTHORIZATION_INVALID');
+  const path = `/object/upload/sign/${BUCKET}/${encodeObjectKey(request.objectKey)}`;
+  // No x-upsert header: the mint must never authorize overwriting an existing object.
+  // No JSON content-type either, because the endpoint takes no body.
+  const data = await providerJson(fetchImpl, `${storageBase}${path}`, {
+    method: 'POST',
+    headers: providerHeaders(config, false),
+  });
+  if (
+    (!hasExactKeys(data, ['url']) && !hasExactKeys(data, ['url', 'token']))
+    || typeof data.url !== 'string'
+  ) throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
+  const url = canonicalSignedUrl(data.url, path, storageBase);
+  // The provider picks the upload TTL from its own deployment config, so the URL is
+  // released only when the token it actually signed is inside the authorized ceiling.
+  const providerExpiresAt = provenTokenExpiry(url, {
+    accepts: (claims) => claims.scope === 'upload'
+      && claims.url === `${BUCKET}/${request.objectKey}`
+      && (claims.upsert === undefined || claims.upsert === false),
+    ceilingMs: expiresAt,
+    checkedAtMs: checkedAt,
+  });
+  return jsonResponse(200, {
+    action: 'upload',
     url,
     expiresAt: new Date(providerExpiresAt).toISOString(),
     generationId: decision.generationId,
@@ -419,39 +461,41 @@ function canonicalSignedUrl(raw: string, expectedPath: string, storageBase: stri
 }
 
 /**
- * Reads the expiry the provider actually signed into the returned download token.
+ * Reads the expiry the provider actually signed into the returned token.
  * The token is provider-response metadata only: it is never verified here as a
  * credential, and a token that outlives the authorized ceiling is refused.
+ * `accepts` carries the per-action claim binding (scope, object path, version, upsert).
  */
 function provenTokenExpiry(url: string, bound: {
-  objectPath: string;
-  generationId: string;
+  accepts: (claims: Record<string, unknown>) => boolean;
   ceilingMs: number;
   checkedAtMs: number;
 }): number {
-  const token = new URL(url).searchParams.get('token') ?? '';
-  const segments = token.split('.');
-  if (segments.length !== 3) throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
-  let claims: Record<string, unknown>;
-  try {
-    const padded = segments[1]!.replace(/-/g, '+').replace(/_/g, '/');
-    const decoded = atob(padded.padEnd(padded.length + (4 - padded.length % 4) % 4, '='));
-    const parsed: unknown = JSON.parse(decoded);
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid token claims');
-    claims = parsed as Record<string, unknown>;
-  } catch {
-    throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
-  }
+  const claims = tokenClaims(url);
   const expiresAtMs = typeof claims.exp === 'number' && Number.isSafeInteger(claims.exp) ? claims.exp * 1_000 : NaN;
   if (
     !Number.isSafeInteger(expiresAtMs)
     || expiresAtMs <= bound.checkedAtMs
     || expiresAtMs > bound.ceilingMs
-    || claims.scope !== 'download'
-    || claims.url !== bound.objectPath
-    || claims.versionId !== bound.generationId
+    || !bound.accepts(claims)
   ) throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
   return expiresAtMs;
+}
+
+/** Decodes the unverified claim set carried by the provider token in a signed URL. */
+function tokenClaims(url: string): Record<string, unknown> {
+  const token = new URL(url).searchParams.get('token') ?? '';
+  const segments = token.split('.');
+  if (segments.length !== 3) throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
+  try {
+    const padded = segments[1]!.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = atob(padded.padEnd(padded.length + (4 - padded.length % 4) % 4, '='));
+    const parsed: unknown = JSON.parse(decoded);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid token claims');
+    return parsed as Record<string, unknown>;
+  } catch {
+    throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
+  }
 }
 
 async function readBounded(

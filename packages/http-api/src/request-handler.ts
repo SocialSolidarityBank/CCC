@@ -2489,16 +2489,30 @@ async function handleAudioUploadTarget(
     { contentLength, contentType, clientAssertedSha256, storageSha256: null, uploadExpiresAt },
   );
   let target: { url: string; expiresAt: string } | null;
+  let ceiling: number;
   try {
     target = await env.audioStore.createUploadTarget(intent.key, {
       contentLength, contentType, expiresAt: uploadExpiresAt,
     });
+    // S8 §2.2 (2026-09-11 개정): the online upload decision moves `upload_expires_at` forward, so
+    // the minted target is compared against the ceiling that is durable now, not against the value
+    // this request asked for. Both sides are canonical UTC ISO instants; parse anyway so a
+    // non-canonical provider string fails closed instead of comparing as a smaller string.
+    ceiling = Date.parse(
+      (await getPendingRecordingUpload(env, actor, sessionId, intent.audioObjectId)).uploadExpiresAt,
+    );
   } catch (error) {
     await abandonRecordingUpload(env, actor, intent.audioObjectId, 'upload_abandoned');
     await reconcileAudioObjectDeletion(env, env.audioStore, intent.audioObjectId);
     throw error;
   }
-  if (target === null || target.expiresAt !== uploadExpiresAt) {
+  const mintedExpiresAt = target === null ? Number.NaN : Date.parse(target.expiresAt);
+  if (
+    target === null
+    || !Number.isFinite(mintedExpiresAt)
+    || !Number.isFinite(ceiling)
+    || mintedExpiresAt > ceiling
+  ) {
     await abandonRecordingUpload(env, actor, intent.audioObjectId, 'upload_abandoned');
     await reconcileAudioObjectDeletion(env, env.audioStore, intent.audioObjectId);
     throw new CapabilitiesUnavailableError('audio upload target unavailable');

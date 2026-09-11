@@ -103,7 +103,7 @@ async function createSession(): Promise<{ sessionId: string; supportCaseId: stri
   return { sessionId: session.id, supportCaseId: scope.support_case_id };
 }
 
-async function pendingUpload(): Promise<{ request: StorageSignerRequest; supportCaseId: string }> {
+async function pendingUpload(): Promise<{ request: StorageSignerRequest; supportCaseId: string; audioObjectId: string }> {
   const { sessionId, supportCaseId } = await createSession();
   await recordSttReadiness(env, service, {
     schemaVersion: 1,
@@ -122,6 +122,7 @@ async function pendingUpload(): Promise<{ request: StorageSignerRequest; support
   });
   return {
     supportCaseId,
+    audioObjectId: intent.audioObjectId,
     request: {
       bucket: 'ccc-audio',
       objectKey: intent.key,
@@ -131,6 +132,14 @@ async function pendingUpload(): Promise<{ request: StorageSignerRequest; support
       context: { kind: 'upload', audioObjectId: intent.audioObjectId },
     },
   };
+}
+
+async function audioUploadRow(audioObjectId: string): Promise<{ upload_expires_at: string; updated_at: string }> {
+  const row = await t.db.prepare(
+    'SELECT upload_expires_at,updated_at FROM audio_objects WHERE id=? AND org_id=?',
+  ).bind(audioObjectId, counselor.orgId).first<{ upload_expires_at: string; updated_at: string }>();
+  if (row === null) throw new Error('missing audio object fixture');
+  return row;
 }
 
 async function withdrawRecordingConsent(supportCaseId: string): Promise<void> {
@@ -221,6 +230,45 @@ describe('StorageSigner gateway authorization', () => {
     expect(decision.requestSha256).toBe(await sha256Hex(canonicalizeJcs(request)));
     expect(decision.expiresAt).toBeTruthy();
     expect(Date.parse(decision.authorizationExpiresAt) - Date.parse(decision.authorizedAt)).toBe(5_000);
+  });
+
+  it('moves the upload ceiling to the authorization expiry plus two hours on every upload decision', async () => {
+    const { request, audioObjectId } = await pendingUpload();
+    const before = await audioUploadRow(audioObjectId);
+    const first = await authorizeStorageSignerOperation(env, humanActor, request);
+    expect(first.expiresAt).toBe(
+      new Date(Date.parse(first.authorizationExpiresAt) + 2 * 60 * 60_000).toISOString(),
+    );
+    expect((await audioUploadRow(audioObjectId)).upload_expires_at).toBe(first.expiresAt);
+    expect(Date.parse(first.expiresAt!)).toBeGreaterThan(Date.parse(before.upload_expires_at));
+
+    // A later decision sits on a lower live ceiling; compressing that gap keeps the forward move
+    // observable without making the assertion depend on wall-clock drift between two decisions.
+    await t.db.prepare('UPDATE audio_objects SET upload_expires_at=? WHERE id=? AND org_id=?')
+      .bind(new Date(Date.now() + 60_000).toISOString(), audioObjectId, counselor.orgId).run();
+    const second = await authorizeStorageSignerOperation(env, humanActor, request);
+    expect(second.expiresAt).toBe(
+      new Date(Date.parse(second.authorizationExpiresAt) + 2 * 60 * 60_000).toISOString(),
+    );
+    expect(Date.parse(second.expiresAt!)).toBeGreaterThan(Date.now() + 60_000);
+    expect((await audioUploadRow(audioObjectId)).upload_expires_at).toBe(second.expiresAt);
+  });
+
+  it('writes nothing for the client metadata read', async () => {
+    const { request, audioObjectId } = await pendingUpload();
+    const before = await audioUploadRow(audioObjectId);
+    const decision = await authorizeStorageSignerOperation(env, humanActor, { ...request, action: 'head' });
+    expect(decision.expiresAt).toBeNull();
+    expect(await audioUploadRow(audioObjectId)).toEqual(before);
+  });
+
+  it('refuses to move the upload ceiling past the retention hard cap and writes nothing', async () => {
+    const { request, audioObjectId } = await pendingUpload();
+    await t.db.prepare('UPDATE audio_objects SET retention_hard_cap_at=? WHERE id=? AND org_id=?')
+      .bind(new Date(Date.now() + 60 * 60_000).toISOString(), audioObjectId, counselor.orgId).run();
+    const before = await audioUploadRow(audioObjectId);
+    await expect(authorizeStorageSignerOperation(env, humanActor, request)).rejects.toThrow();
+    expect(await audioUploadRow(audioObjectId)).toEqual(before);
   });
 
   it('rejects unassigned, cross-organization and spoofed principals', async () => {

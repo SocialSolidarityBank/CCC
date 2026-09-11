@@ -9391,6 +9391,17 @@ type StorageUploadContext = Extract<StorageSignerContext, { kind: 'upload' }>;
 type StorageClaimContext = Extract<StorageSignerContext, { kind: 'claim' }>;
 type StorageDeletionContext = Extract<StorageSignerContext, { kind: 'deletion' }>;
 
+/** S8 §2.2: an upload decision owns the ceiling for its own authorization window plus two hours. */
+const STORAGE_UPLOAD_CEILING_MS = 2 * 60 * 60_000;
+
+interface PendingStorageUploadTarget {
+  audioObjectId: string;
+  objectKey: string;
+  generationId: string;
+  supportCaseId: string;
+  admission: ProgramAdmissionGrant;
+}
+
 /** Upload and the client's own metadata read: current pending_upload row plus every live gate. */
 async function authorizePendingStorageUpload(
   env: Env,
@@ -9398,7 +9409,7 @@ async function authorizePendingStorageUpload(
   objectKey: string,
   objectSha256: string | null,
   context: StorageUploadContext,
-): Promise<{ generationId: string; uploadExpiresAt: string; supportCaseId: string }> {
+): Promise<PendingStorageUploadTarget> {
   const row = await env.DB.prepare(
     `SELECT audio.session_id,audio.support_case_id,audio.key,audio.generation_id,
             audio.stt_route,audio.stt_engine_id,audio.audio_delivery,audio.client_asserted_sha256,
@@ -9447,10 +9458,38 @@ async function authorizePendingStorageUpload(
     || canonicalizeJcs(current.required) !== canonicalizeJcs(receipt.required)
   ) throw new ForbiddenError('storage upload is unavailable');
   return {
+    audioObjectId: context.audioObjectId,
+    objectKey,
     generationId: stringValue(row.generation_id),
-    uploadExpiresAt: stringValue(row.upload_expires_at),
     supportCaseId,
+    admission,
   };
+}
+
+/**
+ * S8 §2.2 and S11 §2.7 (2026-09-11 개정): hosted Supabase fixes the signed upload lifetime by
+ * deployment setting, so the upload decision itself moves `audio_objects.upload_expires_at` forward
+ * to its authorization expiry + 2h in exactly one guarded write. The ceiling only moves forward and
+ * never past `retention_hard_cap_at`; 0 changed rows is a denial, never a silent allow.
+ */
+async function moveStorageUploadCeiling(
+  env: Env,
+  actor: Actor,
+  target: PendingStorageUploadTarget,
+  ceiling: string,
+): Promise<string> {
+  const at = now();
+  const [moved] = await programPolicyBatch(env, target.admission.context, [env.DB.prepare(
+    `UPDATE audio_objects SET upload_expires_at=?,updated_at=?
+     WHERE id=? AND org_id=? AND key=? AND generation_id=? AND state='pending_upload'
+       AND audio_delivery='protected-get' AND upload_expires_at>? AND upload_expires_at<?
+       AND retention_hard_cap_at>=?`,
+  ).bind(
+    ceiling, at, target.audioObjectId, actor.orgId, target.objectKey, target.generationId,
+    at, ceiling, ceiling,
+  )], target.admission.program);
+  if ((moved?.meta?.changes ?? 0) === 0) throw new ForbiddenError('storage upload is unavailable');
+  return ceiling;
 }
 
 /**
@@ -9572,6 +9611,7 @@ export async function authorizeStorageSignerOperation(
   let supportCaseId: string;
   let auditActor: Actor;
   let auditTargetId: string;
+  let uploadCeilingTarget: PendingStorageUploadTarget | null = null;
   if (parsed.principal === 'client') {
     if (
       canonicalActor.kind !== 'human'
@@ -9590,8 +9630,8 @@ export async function authorizeStorageSignerOperation(
     );
     generationId = target.generationId;
     supportCaseId = target.supportCaseId;
-    // Only a target mint carries a URL expiry; metadata reads create no URL.
-    if (parsed.action === 'upload') expiresAt = target.uploadExpiresAt;
+    // Only a target mint owns a ceiling; a metadata read creates no URL and writes nothing.
+    if (parsed.action === 'upload') uploadCeilingTarget = target;
   } else if (parsed.principal === 'agent') {
     if (
       canonicalActor.kind !== 'agent'
@@ -9628,6 +9668,16 @@ export async function authorizeStorageSignerOperation(
     generationId = target.generationId;
     supportCaseId = target.supportCaseId;
   }
+  const authorizedAt = now();
+  const authorizationExpiresAt = new Date(parseUtcTimestamp(authorizedAt) + 5_000).toISOString();
+  if (uploadCeilingTarget !== null) {
+    expiresAt = await moveStorageUploadCeiling(
+      env,
+      auditActor,
+      uploadCeilingTarget,
+      new Date(parseUtcTimestamp(authorizationExpiresAt) + STORAGE_UPLOAD_CEILING_MS).toISOString(),
+    );
+  }
   await writeAudit(env, auditActor, {
     action: parsed.action === 'agent_read' ? 'download_audio' : 'read',
     targetTable: 'audio_objects',
@@ -9635,14 +9685,13 @@ export async function authorizeStorageSignerOperation(
     caseId: supportCaseId,
     detail: { storageAction: parsed.action, principal: parsed.principal },
   });
-  const authorizedAt = now();
   return {
     allowed: true,
     requestSha256: await sha256Hex(canonicalizeJcs(parsed)),
     generationId,
     authorizedAt,
     // One network round trip, not a cache window (S11 §2.7).
-    authorizationExpiresAt: new Date(parseUtcTimestamp(authorizedAt) + 5_000).toISOString(),
+    authorizationExpiresAt,
     expiresAt,
   };
 }
