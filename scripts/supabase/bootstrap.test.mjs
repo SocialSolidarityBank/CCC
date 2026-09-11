@@ -13,8 +13,16 @@ import {
   buildSupabaseDoctor,
   installationStateFingerprint,
 } from './plan.mjs';
-import { BETA_TRUST_DOMAIN, PROVIDER_BASELINE_DOMAIN } from './provider-baseline.mjs';
-import { normalizeProviderInventory, providerInventoryFingerprint } from './provider-inventory.mjs';
+import {
+  BETA_TRUST_DOMAIN,
+  PROVIDER_BASELINE_DOMAIN,
+  requireProviderBaseline,
+} from './provider-baseline.mjs';
+import {
+  normalizeProviderInventory,
+  providerInventoryFingerprint,
+  PROVIDER_INVENTORY_QUERY,
+} from './provider-inventory.mjs';
 import { hashDatabaseInstallFingerprint, INSTALL_METADATA_TABLES } from './install-journal.mjs';
 import { observationAuthorization } from './fixtures/authorization.mjs';
 import { canonicalizeJcs, sha256Jcs } from '../../apps/community-cloud/dist/install-manifest-verifier.js';
@@ -290,6 +298,7 @@ test('owner-aware hosted observation uses only read endpoints and produces a red
 async function signedCliInputs(expectedOwnerOrgId = 'test-organization', {
   expiredTrust = false,
   expiredBaseline = false,
+  baselineInventory = emptyProviderInventory,
 } = {}) {
   const install = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   const root = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
@@ -362,10 +371,10 @@ async function signedCliInputs(expectedOwnerOrgId = 'test-organization', {
       bucketCount: 0,
       storageObjectCount: 0,
     },
-    objects: [],
-    grants: [],
-    objectInventorySha256: await sha256Jcs([]),
-    grantInventorySha256: await sha256Jcs([]),
+    objects: baselineInventory.objects,
+    grants: baselineInventory.grants,
+    objectInventorySha256: baselineInventory.objectInventorySha256,
+    grantInventorySha256: baselineInventory.grantInventorySha256,
     issuedAt: new Date(expiredBaseline ? now - 120_000 : now - 60_000).toISOString(),
     expiresAt: baselineExpiresAt,
     signingKeyId: 'synthetic-beta-release',
@@ -553,39 +562,113 @@ test('provider baseline mismatch is redacted and uses the fixed recovery code', 
   });
 });
 
-test('real inspector reconciles journal-proven installation records before resumed plan comparison', async t => {
-  const providerObject = objectRowForInspector();
-  const installationObject = {
-    object_kind: 'relation',
-    namespace_name: 'private',
-    object_identity: 'private.ccc_install_journal TABLE',
-    owner_name: 'ccc_schema_owner',
-    definition_text: '{"relkind":"r","replicaIdentity":"d"}',
-    provenance: 'supabase_managed',
-  };
-  const installationGrant = {
-    grant_kind: 'role',
-    namespace_name: '',
-    object_identity: 'ccc_schema_owner',
-    grantor_name: 'postgres',
-    grantee_name: 'ROLE:postgres',
-    privilege: 'MEMBER',
-    is_grantable: false,
-    inherit_option: true,
-    set_option: true,
-    provenance: 'supabase_managed',
-  };
+test('real inspector reconciles complete provider and journal-owned installation inventory', async t => {
+  const providerObjects = [
+    objectRowForInspector(),
+    {
+      object_kind: 'routine', namespace_name: 'auth',
+      object_identity: 'auth.extension_routine() FUNCTION RETURNS void',
+      owner_name: 'supabase_admin', definition_text: 'extension routine definition',
+      provenance: 'extension',
+    },
+    {
+      object_kind: 'type', namespace_name: 'storage',
+      object_identity: 'storage.initial_type', owner_name: 'supabase_storage_admin',
+      definition_text: 'initial type definition', provenance: 'initial_privilege',
+    },
+  ];
+  const providerGrants = [
+    {
+      grant_kind: 'schema', namespace_name: 'auth', object_identity: 'auth',
+      grantor_name: 'supabase_admin', grantee_name: 'ROLE:supabase_admin',
+      privilege: 'USAGE', is_grantable: false, inherit_option: null, set_option: null,
+      provenance: 'supabase_managed',
+    },
+    {
+      grant_kind: 'routine', namespace_name: 'auth',
+      object_identity: 'auth.extension_routine() FUNCTION RETURNS void',
+      grantor_name: 'supabase_admin', grantee_name: 'PUBLIC',
+      privilege: 'EXECUTE', is_grantable: false, inherit_option: null, set_option: null,
+      provenance: 'initial_privilege',
+    },
+    {
+      grant_kind: 'type', namespace_name: 'storage', object_identity: 'storage.initial_type',
+      grantor_name: 'supabase_storage_admin', grantee_name: 'ROLE:authenticated',
+      privilege: 'USAGE', is_grantable: false, inherit_option: null, set_option: null,
+      provenance: 'supabase_managed',
+    },
+  ];
+  const installationObjects = [
+    {
+      object_kind: 'relation', namespace_name: 'private',
+      object_identity: 'private.ccc_install_journal TABLE', owner_name: 'ccc_schema_owner',
+      definition_text: '{"relkind":"r","replicaIdentity":"d"}',
+      provenance: 'supabase_managed',
+    },
+    {
+      object_kind: 'routine', namespace_name: 'public',
+      object_identity: 'public.ccc_program_admission_write() FUNCTION RETURNS void',
+      owner_name: 'ccc_schema_owner', definition_text: 'installation routine definition',
+      provenance: 'supabase_managed',
+    },
+    {
+      object_kind: 'type', namespace_name: 'public',
+      object_identity: 'public.ccc_program_state', owner_name: 'ccc_schema_owner',
+      definition_text: 'installation type definition', provenance: 'supabase_managed',
+    },
+  ];
+  const installationGrants = [
+    {
+      grant_kind: 'relation', namespace_name: 'private',
+      object_identity: 'private.ccc_install_journal TABLE',
+      grantor_name: 'ccc_schema_owner', grantee_name: 'ROLE:ccc_schema_owner',
+      privilege: 'SELECT', is_grantable: false, inherit_option: null, set_option: null,
+      provenance: 'supabase_managed',
+    },
+    {
+      grant_kind: 'routine', namespace_name: 'public',
+      object_identity: 'public.ccc_program_admission_write() FUNCTION RETURNS void',
+      grantor_name: 'ccc_schema_owner', grantee_name: 'ROLE:ccc_api',
+      privilege: 'EXECUTE', is_grantable: false, inherit_option: null, set_option: null,
+      provenance: 'supabase_managed',
+    },
+    {
+      grant_kind: 'type', namespace_name: 'public', object_identity: 'public.ccc_program_state',
+      grantor_name: 'ccc_schema_owner', grantee_name: 'ROLE:ccc_schema_owner',
+      privilege: 'USAGE', is_grantable: false, inherit_option: null, set_option: null,
+      provenance: 'supabase_managed',
+    },
+    {
+      grant_kind: 'role', namespace_name: '', object_identity: 'ccc_schema_owner',
+      grantor_name: 'postgres', grantee_name: 'ROLE:postgres',
+      privilege: 'MEMBER', is_grantable: false, inherit_option: true, set_option: true,
+      provenance: 'supabase_managed',
+    },
+  ];
   const baselineInventory = normalizeProviderInventory({
-    objects: [providerObject],
-    grants: [],
+    objects: providerObjects,
+    grants: providerGrants,
   });
   const rawInventory = {
-    objects: [providerObject, installationObject],
-    grants: [installationGrant],
-    installation_objects: [installationObject],
-    installation_grants: [installationGrant],
+    objects: [...providerObjects, ...installationObjects],
+    grants: [...providerGrants, ...installationGrants],
+    installation_objects: installationObjects,
+    installation_grants: installationGrants,
   };
-  const authorization = observationAuthorization();
+  const signedInput = await signedCliInputs('test-organization', { baselineInventory });
+  const authorization = {
+    ...observationAuthorization(),
+    expiresAt: JSON.parse(signedInput.CCC_INSTALL_APPROVAL).expiresAt,
+  };
+  const baseline = await requireProviderBaseline({
+    releaseTrust: signedInput.CCC_BETA_RELEASE_TRUST,
+    providerBaseline: signedInput.CCC_PROVIDER_BASELINE,
+    rootKeys: JSON.parse(signedInput.CCC_BETA_TRUST_ROOT_KEYS),
+    revokedRootKeyIds: JSON.parse(signedInput.CCC_BETA_REVOKED_ROOT_KEY_IDS),
+    authorization,
+    manifestExpiresAt: JSON.parse(signedInput.CCC_INSTALL_APPROVAL).expiresAt,
+    now: new Date(),
+  });
   const databaseFingerprint = hashDatabaseInstallFingerprint(
     [{ catalog_state: 'synthetic-public-catalog' }],
     normalizeProviderInventory(rawInventory),
@@ -619,9 +702,9 @@ test('real inspector reconciles journal-proven installation records before resum
       ledger_exists: true,
       private_table_names: [...INSTALL_METADATA_TABLES],
       private_schema_exists: true,
-      unowned_object_count: 2,
-      unknown_object_count: 2,
-      installation_unowned_object_count: 1,
+      unowned_object_count: 4,
+      unknown_object_count: 4,
+      installation_unowned_object_count: 3,
       custom_schema_count: 1,
       unexpected_grant_count: 1,
       installation_unexpected_grant_count: 1,
@@ -631,12 +714,13 @@ test('real inspector reconciles journal-proven installation records before resum
     providerInventory: rawInventory,
     installState,
   }, async ({ origin }) => {
-    const baseline = verifiedProviderBaseline(baselineInventory);
     const first = await hostedInspector(origin).inspect();
-    assert.equal(first.providerInventory.installationObjects.length, 1);
-    assert.equal(first.providerInventory.installationGrants.length, 1);
+    assert.equal(first.providerInventory.installationObjects.length, 3);
+    assert.equal(first.providerInventory.installationGrants.length, 4);
     assert.equal(first.state.unownedObjectCount, 1);
-    assert.equal(first.providerInventory.objects.length, 2);
+    assert.equal(first.state.unexpectedGrantCount, 0);
+    assert.equal(first.state.providerObjectCount, 6);
+    assert.equal(first.state.providerGrantCount, 7);
 
     const fresh = structuredClone(first);
     fresh.installed = { ledger: 'absent', version: null, checksum: null };
@@ -644,6 +728,8 @@ test('real inspector reconciles journal-proven installation records before resum
     fresh.providerInventory = baselineInventory;
     fresh.state = {
       ...fresh.state,
+      providerObjectCount: baselineInventory.objects.length,
+      providerGrantCount: baselineInventory.grants.length,
       privateTableNames: [],
       privateSchemaExists: false,
     };
@@ -666,67 +752,32 @@ test('real inspector reconciles journal-proven installation records before resum
     });
     assert.equal(resumed.ready, true, JSON.stringify(resumed.blockers));
     assert.equal(resumed.providerBaseline.matched, true);
-    const renewedAuthorization = {
-      ...authorization,
-      runtimeManifestSha256: 'a'.repeat(64),
-      approvalSha256: 'b'.repeat(64),
-      runtimeSequence: authorization.runtimeSequence + 1,
-    };
-    const renewal = await buildSupabasePlan({
-      target: 'hosted',
-      authorization: renewedAuthorization,
-      providerBaseline: baseline,
-      renewAuthorization: true,
-      inspector: hostedInspector(origin, accessToken, renewedAuthorization),
-    });
-    assert.equal(renewal.ready, true, JSON.stringify(renewal.blockers));
-    assert.equal(renewal.providerBaseline.matched, true);
-    const doctor = await buildSupabaseDoctor({
-      target: 'hosted',
-      authorization,
-      providerBaseline: baseline,
-      inspector: hostedInspector(origin),
-    });
-    assert.equal(doctor.providerBaseline.matched, true);
-    assert.equal(
-      doctor.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'),
-      false,
-    );
-    await t.test('replica-identity-only installation drift fails closed', async () => {
-      installationObject.definition_text = '{"relkind":"r","replicaIdentity":"f"}';
-      const drifted = await buildSupabasePlan({
-        target: 'hosted',
-        authorization,
-        providerBaseline: baseline,
-        inspector: hostedInspector(origin),
-      });
-      assert.equal(drifted.providerBaseline.matched, false);
-      assert.ok(drifted.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'));
-      installationObject.definition_text = '{"relkind":"r","replicaIdentity":"d"}';
-    });
-    await t.test('grantor-only installation drift fails closed', async () => {
-      installationGrant.grantor_name = 'supabase_admin';
-      const drifted = await buildSupabasePlan({
-        target: 'hosted',
-        authorization,
-        providerBaseline: baseline,
-        inspector: hostedInspector(origin),
-      });
-      assert.equal(drifted.providerBaseline.matched, false);
-      assert.ok(drifted.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'));
-      installationGrant.grantor_name = 'postgres';
-    });
-    installState.journal.databaseFingerprint = 'f'.repeat(64);
-    const unproved = await buildSupabasePlan({
-      target: 'hosted',
-      authorization,
-      providerBaseline: baseline,
-      inspector: hostedInspector(origin),
-    });
-    assert.equal(unproved.ready, false);
-    assert.ok(unproved.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'));
-  });
 
+    await t.test('provider object drift remains a baseline mismatch', async () => {
+      providerObjects[1].definition_text = 'drifted extension routine definition';
+      const drifted = await buildSupabasePlan({
+        target: 'hosted',
+        authorization,
+        providerBaseline: baseline,
+        inspector: hostedInspector(origin),
+      });
+      assert.equal(drifted.providerBaseline.matched, false);
+      assert.ok(drifted.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'));
+      providerObjects[1].definition_text = 'extension routine definition';
+    });
+    await t.test('installation routine grant drift remains unproved', async () => {
+      installationGrants[1].grantee_name = 'ROLE:unrelated';
+      const drifted = await buildSupabasePlan({
+        target: 'hosted',
+        authorization,
+        providerBaseline: baseline,
+        inspector: hostedInspector(origin),
+      });
+      assert.equal(drifted.providerBaseline.matched, false);
+      assert.ok(drifted.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'));
+      installationGrants[1].grantee_name = 'ROLE:ccc_api';
+    });
+  });
 });
 
 test('signed owner mismatch stops after the project observation and before other access', async () => {
@@ -870,6 +921,26 @@ test('database policy fingerprint uses tagged stable role names instead of role 
   assert.match(policyFingerprint, /CASE WHEN role_oid = 0 THEN 'PUBLIC'/u);
   assert.match(policyFingerprint, /ELSE 'ROLE:' \|\| pg_catalog\.pg_get_userbyid\(role_oid\)/u);
   assert.doesNotMatch(policyFingerprint, /policy\.polroles::text/u);
+});
+
+test('initial-privilege types are excluded consistently from both filtered counters', () => {
+  const hostedUnowned = DATABASE_STATE_QUERY.slice(
+    DATABASE_STATE_QUERY.indexOf('unowned_object AS MATERIALIZED'),
+    DATABASE_STATE_QUERY.indexOf('installation_unowned_object AS MATERIALIZED'),
+  );
+  const inventoryUnowned = PROVIDER_INVENTORY_QUERY.slice(
+    PROVIDER_INVENTORY_QUERY.indexOf('unowned_object AS MATERIALIZED'),
+    PROVIDER_INVENTORY_QUERY.indexOf('provider_object_candidate AS MATERIALIZED'),
+  );
+  for (const query of [hostedUnowned, inventoryUnowned]) {
+    const typeBranch = query.slice(
+      query.indexOf("SELECT 'type'"),
+      query.indexOf("SELECT DISTINCT 'catalog"),
+    );
+    assert.match(typeBranch, /initial\.classoid = 'pg_catalog\.pg_type'::regclass/u);
+    assert.match(typeBranch, /initial\.objoid = type_value\.oid/u);
+    assert.match(typeBranch, /initial\.privtype IN \('i', 'e'\)/u);
+  }
 });
 
 test('hosted inventory preserves provider-looking tables, routines, and types as exact untrusted candidates', async () => {

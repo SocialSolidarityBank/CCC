@@ -159,6 +159,12 @@ WITH
           AND dependency.refclassid = 'pg_catalog.pg_extension'::regclass
           AND dependency.deptype = 'e'
       )
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_init_privs AS initial
+        WHERE initial.classoid = 'pg_catalog.pg_type'::regclass
+          AND initial.objoid = type_value.oid AND initial.objsubid = 0
+          AND initial.privtype IN ('i', 'e')
+      )
     UNION ALL
     SELECT DISTINCT 'catalog:' || dependency.classid::text, dependency.objid
     FROM pg_catalog.pg_depend AS dependency

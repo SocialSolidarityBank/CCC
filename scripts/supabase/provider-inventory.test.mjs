@@ -320,6 +320,13 @@ test('inventories extension and initial objects plus every effective privilege',
   assert.match(PROVIDER_INVENTORY_QUERY, /pg_catalog\.acldefault\('f'::"char", procedure\.proowner\)/u);
   assert.match(PROVIDER_INVENTORY_QUERY, /pg_catalog\.acldefault\('T'::"char", type_value\.typowner\)/u);
   assert.match(PROVIDER_INVENTORY_QUERY, /FROM provider_grant AS grant_record/u);
+  const installationGrantRules = querySegment(
+    'provider_grant_inventory AS MATERIALIZED',
+    '\n  )\nSELECT',
+  );
+  assert.match(installationGrantRules, /FROM provider_object_inventory AS installation_object/u);
+  assert.match(installationGrantRules, /installation_object\.object_kind = grant_record\.grant_kind/u);
+  assert.match(installationGrantRules, /grant_record\.grant_kind = 'column'/u);
   const inventory = normalizeProviderInventory({
     objects: [
       objectRow({ object_identity: 'extension_object', provenance: 'extension' }),

@@ -110,6 +110,12 @@ WITH
           AND dependency.refclassid = 'pg_catalog.pg_extension'::regclass
           AND dependency.deptype = 'e'
       )
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_init_privs AS initial
+        WHERE initial.classoid = 'pg_catalog.pg_type'::regclass
+          AND initial.objoid = type_value.oid AND initial.objsubid = 0
+          AND initial.privtype IN ('i', 'e')
+      )
     UNION ALL
     SELECT DISTINCT 'catalog', dependency.classid, dependency.objid, 0, namespace.oid
     FROM pg_catalog.pg_depend AS dependency
@@ -347,7 +353,9 @@ WITH
       pg_catalog.jsonb_build_object('name', namespace.nspname)::text AS definition_text,
       inventory.provenance,
       ((SELECT present FROM installation_evidence)
-        AND namespace.nspname = 'private') AS installation_candidate
+        AND namespace.nspname = 'private') AS installation_candidate,
+      inventory.class_oid AS inventory_class_oid,
+      inventory.object_oid AS inventory_object_oid
     FROM provider_object AS inventory
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.object_oid
     WHERE inventory.object_kind = 'schema'
@@ -448,7 +456,9 @@ WITH
         ))
         OR (namespace.nspname = 'private' AND relation.relkind IN ('r', 'p')
           AND relation.relname IN (${INSTALL_METADATA_TABLES.map(name => `'${name}'`).join(', ')}))
-      ))
+      )),
+      inventory.class_oid,
+      inventory.object_oid
     FROM provider_object AS inventory
     JOIN pg_catalog.pg_class AS relation ON relation.oid = inventory.object_oid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
@@ -511,7 +521,9 @@ WITH
           AND procedure.proname = 'ccc_install_append_only'
           AND pg_catalog.pg_get_function_identity_arguments(procedure.oid) = ''
           AND procedure.prorettype = 'pg_catalog.trigger'::regtype)
-      ))
+      )),
+      inventory.class_oid,
+      inventory.object_oid
     FROM provider_object AS inventory
     JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = inventory.object_oid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
@@ -563,7 +575,9 @@ WITH
         AND type_value.typowner IN (
           CURRENT_USER::regrole::oid,
           (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_schema_owner')
-        ))
+        )),
+      inventory.class_oid,
+      inventory.object_oid
     FROM provider_object AS inventory
     JOIN pg_catalog.pg_type AS type_value ON type_value.oid = inventory.object_oid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
@@ -812,7 +826,9 @@ WITH
       END,
       inventory.provenance,
       ((SELECT present FROM installation_evidence)
-        AND COALESCE(identified.schema, '') IN ('public', 'private'))
+        AND COALESCE(identified.schema, '') IN ('public', 'private')),
+      inventory.class_oid,
+      inventory.object_oid
     FROM provider_object AS inventory
     CROSS JOIN LATERAL pg_catalog.pg_identify_object(inventory.class_oid, inventory.object_oid, 0) AS identified
     WHERE inventory.object_kind = 'catalog'
@@ -885,22 +901,18 @@ WITH
               SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_api'
             ) AND grant_record.privilege_type = 'USAGE')
           ))
-        OR (grant_record.grant_kind = 'relation'
-          AND grant_record.schema_name = 'public'
-          AND EXISTS (
-            SELECT 1
-            FROM pg_catalog.pg_class AS relation
-            WHERE relation.oid = grant_record.object_oid
-              AND relation.relkind IN ('r', 'p')
-          )
-          AND grant_record.owner_oid IN (
-            CURRENT_USER::regrole::oid,
-            (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_schema_owner')
-          )
-          AND grant_record.grantee = (
-            SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_api'
-          )
-          AND grant_record.privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE'))
+        OR EXISTS (
+          SELECT 1
+          FROM provider_object_inventory AS installation_object
+          WHERE installation_object.installation_candidate
+            AND installation_object.inventory_class_oid = grant_record.class_oid
+            AND installation_object.inventory_object_oid = grant_record.object_oid
+            AND (
+              installation_object.object_kind = grant_record.grant_kind
+              OR (grant_record.grant_kind = 'column'
+                AND installation_object.object_kind = 'relation')
+            )
+        )
         OR (grant_record.grant_kind = 'role'
           AND grant_record.object_oid = (
             SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_schema_owner'
