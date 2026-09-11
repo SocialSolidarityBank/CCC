@@ -166,3 +166,24 @@ Use `GET /readyz` or `HEAD /readyz` for startup and readiness probing. This rese
 Readiness means only that startup completed, the signed installation manifest passed verification, the `ccc_api` database identity boundary passed once, identity configuration was created, and the manifest is still current. It is not a continuing database health guarantee. A readiness response must never include user data or report whether business records exist.
 
 Startup completes before the listener opens. Any invalid port, missing required binding, manifest failure, forbidden binding, database identity failure, or other initialization failure writes only `installation_unavailable` and exits with status 1; raw errors are not exposed.
+
+## StorageSigner
+
+The StorageSigner is a separate deployment unit, not part of this container. Build it with the same `pnpm --filter @ccc/community-cloud build` command; the bundle is `dist/storage-signer.js`, produced from `src/storage-signer-main.ts`. Deploy it as the Supabase Edge Function `ccc-storage-signer` with `verify_jwt = false`, because the caller's Bearer token is verified by the business API through the online authorization callback, not by the platform gateway.
+
+Required bindings for that function, all non-blank:
+
+| Name | Contract |
+| --- | --- |
+| `CCC_INSTALL_MANIFEST` | The same signed installation manifest JSON the business runtime receives. It must verify with mode `community-cloud` and carry `supabaseAuthOrigin`; the signer reads the API origin, installation identity, and storage origin only from this verified document. |
+| `CCC_INSTALL_SIGNING_KEYS` | The same installer-supplied JSON map of manifest verification public keys. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Storage service-role credential. This credential lives only here; the business runtime refuses to start if it can read it. |
+| `PORT` | Decimal digits resolving to an integer from 1 through 65535. The signer listens on `0.0.0.0` and has no default. |
+
+Never bind any of these to the signer: `CCC_DATABASE_URL`, `CODEX_API_KEY`, `PII_ENC_KEY`, `NOTIFY_WEBHOOK_URL`, `SCHEDULER_SECRET`, `CCC_INSTALL_DATABASE_URL`, `CCC_INSTALL_SIGNING_PRIVATE_KEY`, `CCC_BETA_ROOT_SIGNING_PRIVATE_KEY`, `CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY`, `CCC_RELEASE_ROOT_SIGNING_PRIVATE_KEY`, `CCC_RELEASE_SIGNING_PRIVATE_KEY`, `CCC_INSTALL_APPROVAL`, `SUPABASE_SECRET_KEY`, `SUPABASE_SECRET_KEYS`, `SUPABASE_DB_URL`, `SUPABASE_ACCESS_TOKEN`. Presence is forbidden even when the value is empty. The signer bundle contains no database, gateway, or business handler code, and any invalid port, missing required binding, manifest failure, or forbidden binding writes only `storage_signer_unavailable` and exits with status 1. No binding value, request field, or provider message is logged.
+
+The business runtime never receives a signer address as a binding. It builds the address as the verified manifest's `supabaseAuthOrigin` followed by `/functions/v1/ccc-storage-signer`, so an unsigned environment value cannot redirect signing. Each business request builds its signer client with that request's own `Authorization` header; a request without one fails at the first signer call.
+
+Every signer call re-checks authorization online: the signer posts the canonical request back to the business API's `/internal/storage/authorize` with the caller's Bearer token and acts only on a live allow decision. It signs, deletes, and proves absence; it never returns audio bytes to the business runtime.
+
+Live deployment has not been performed. This repository provides the bundle and this contract only; creating the Edge Function, binding its values, and publishing it remain operator-owned steps that were not executed here.

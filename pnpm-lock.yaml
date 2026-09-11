@@ -76,6 +76,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
 
+  adapters/audio-signer:
+    dependencies:
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
   adapters/db-d1:
     dependencies:
       '@ccc/contracts':
@@ -210,6 +216,9 @@ importers:
 
   apps/community-cloud:
     dependencies:
+      '@ccc/audio-signer':
+        specifier: workspace:*
+        version: link:../../adapters/audio-signer
       '@ccc/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

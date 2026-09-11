@@ -10616,7 +10616,12 @@ export async function reconcileAudioObjectDeletion(
 
   let evidence: AudioDeletionEvidence;
   try {
-    evidence = await audioStore.delete(row.key);
+    evidence = await audioStore.delete(row.key, {
+      kind: 'deletion',
+      audioObjectId: row.id,
+      generationId: row.generation_id,
+      deletionAttemptId: row.deletion_attempt_id,
+    });
   } catch {
     const failedAt = now();
     const retryCount = Number(row.retry_count) + 1;

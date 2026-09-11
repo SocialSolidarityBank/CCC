@@ -2494,7 +2494,7 @@ async function handleAudioUploadTarget(
   try {
     target = await env.audioStore.createUploadTarget(intent.key, {
       contentLength, contentType, expiresAt: uploadExpiresAt,
-    });
+    }, { kind: 'upload', audioObjectId: intent.audioObjectId });
     // S8 §2.2 (2026-09-11 개정): the online upload decision moves `upload_expires_at` forward, so
     // the minted target is compared against the ceiling that is durable now, not against the value
     // this request asked for. Both sides are canonical UTC ISO instants; parse anyway so a
@@ -2541,7 +2541,7 @@ async function handleAudioUploadCompletion(
   if (runtime.audioDelivery !== 'protected-get') throw new ValidationError('upload targets are cloud-only');
   const admission = await admitRecordingUpload(env, actor, sessionId, runtime);
   const pending = await getPendingRecordingUpload(env, actor, sessionId, audioObjectId);
-  const object = await env.audioStore.get(pending.key);
+  const object = await env.audioStore.get(pending.key, { kind: 'upload', audioObjectId });
   if (
     object === null || object.contentLength !== pending.contentLength
     || object.contentType !== pending.contentType
@@ -3789,7 +3789,12 @@ export async function handleRequest(
             );
             let target: { url: string; expiresAt: string } | null;
             try {
-              target = await env.audioStore.createDownloadTarget(mint.key, 600);
+              target = await env.audioStore.createDownloadTarget(mint.key, 600, {
+                kind: 'claim',
+                jobId,
+                claimToken: credentials.claimToken,
+                attempt: credentials.attempt,
+              });
             } catch (error) {
               await failAgentJobAudioTargetMint(env, actor, mint.mintId);
               throw error;
