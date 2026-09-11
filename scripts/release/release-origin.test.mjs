@@ -94,7 +94,7 @@ function realSignedBundle(overrides = {}) {
       }],
     }],
     sequenceFloor: FLOOR,
-    modelManifestSha256: HASH_C,
+    modelManifestSha256: '0'.repeat(64),
     ...overrides,
   };
   const message = Buffer.concat([
