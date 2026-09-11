@@ -264,9 +264,10 @@ import { isSttReadinessReport } from '@ccc/contracts/stt-readiness';
 // preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
 import { previewModeEnabled } from './preview-gate';
 import { memoryTrialEnabled, memoryTrialReadiness } from './counseling-memory-trial';
-import { runCounselingMemoryTrial } from './counseling-memory-runner';
+import { runCounselingMemory, runCounselingMemoryTrial } from './counseling-memory-runner';
+import { createScheduledJobRunner, dueScheduledJobKinds } from '@ccc/core/scheduled-job-runner';
 import { decodeStorageSignerRequest, type StorageSignerRequest } from '@ccc/contracts/audio';
-import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, MfaRequiredError, type Actor as IdentityActor, type AudioContentType, type AudioObjectMetadata } from '@ccc/contracts/runtime';
+import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, MfaRequiredError, type Actor as IdentityActor, type AudioContentType, type AudioObjectMetadata, type JobReport } from '@ccc/contracts/runtime';
 
 type JsonObject = Record<string, unknown>;
 function normalizeAudioContentType(header: string | null): AudioContentType | null {
@@ -2715,6 +2716,35 @@ export async function handleRequest(
     }
     const resolvedActor = await resolveActor(request, env);
     const parts = url.pathname.split('/').filter((part) => part.length > 0);
+    // S2 §2.6: system Actor 는 내부 두 경로에서만 받는다. 업무 route 는 신원을 사람 역할로
+    // 투영하기 전에 여기서 끊는다 — /me·/capabilities 처럼 투영을 건너뛰는 route 도 포함이다.
+    if ('kind' in resolvedActor && resolvedActor.kind === 'system'
+      && url.pathname !== '/internal/storage/authorize' && url.pathname !== '/internal/scheduler/run') {
+      return json({ error: 'forbidden' }, 403);
+    }
+    if (url.pathname === '/internal/scheduler/run') {
+      // S11 §2.8 cron tick. 자격은 공유 비밀 하나이고, 무엇을 돌릴지는 서버 시각이 정한다.
+      if (request.method !== 'POST') return json({ error: 'not_found' }, 404);
+      if (request.headers.has('origin')) return json({ error: 'forbidden' }, 403);
+      requestQuery(url, []);
+      if (!('kind' in resolvedActor) || resolvedActor.kind !== 'system'
+        || resolvedActor.authn.source !== 'scheduler-secret'
+        || !resolvedActor.scopes.includes('scheduler:run')) return json({ error: 'forbidden' }, 403);
+      const text = (await request.text()).trim();
+      if (text.length > 0) {
+        let body: unknown;
+        try { body = JSON.parse(text); } catch { throw new ValidationError('request body must be valid JSON'); }
+        requireOnlyKeys(asObject(body), []);
+      }
+      const audioStore = env.audioStore;
+      if (audioStore === null) return json({ error: 'service_unavailable' }, 503);
+      const ranAt = new Date().toISOString();
+      const runtimeEnv = env;
+      const runner = createScheduledJobRunner({ ...runtimeEnv, audioStore }, () => runCounselingMemory(runtimeEnv));
+      const jobs: JobReport[] = [];
+      for (const kind of dueScheduledJobKinds(ranAt)) jobs.push(await runner.run(kind, ranAt));
+      return json({ ranAt, jobs }, 200, { 'cache-control': 'no-store' });
+    }
     if (url.pathname === '/internal/storage/authorize') {
       if (request.method !== 'POST') return json({ error: 'not_found' }, 404);
       if (request.headers.has('origin')) return json({ error: 'forbidden' }, 403);

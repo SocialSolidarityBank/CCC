@@ -8,7 +8,8 @@
     "./identity": "./src/identity.ts",
     "./counseling-memory-runner": "./src/counseling-memory-runner.ts",
     "./preview-gate": "./src/preview-gate.ts",
-    "./capabilities": "./src/capabilities.ts"
+    "./capabilities": "./src/capabilities.ts",
+    "./scheduler-identity": "./src/scheduler-identity.ts"
   },
   "dependencies": {
     "@ccc/ai-runtime": "workspace:*",
