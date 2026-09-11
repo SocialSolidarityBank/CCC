@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -262,22 +262,26 @@ test('signs verified stable empty observations and writes owner-only verified do
   });
 });
 
-test('verifies authorization, external root and root keypair before the first observation', async () => {
-  await withFixture(async current => {
-    for (const mutate of [
-      inputs => { inputs.authorization.expiresAt = '2026-09-11T11:59:59.000Z'; },
-      inputs => { inputs.rootKeys = { [current.root.keyId]: current.release.publicKey }; },
-      inputs => { inputs.revokedRootKeyIds = [current.root.keyId]; },
-      inputs => {
-        inputs.releaseTrustUnsigned.notBefore = `Fri,${' '.repeat(1_025)}11 Sep 2026 00:00:00 GMT`;
-      },
-    ]) {
+test('verifies each authorization, external root, keypair and timestamp failure before observation', async () => {
+  const mutations = [
+    (_current, inputs) => { inputs.authorization.expiresAt = '2026-09-11T11:59:59.000Z'; },
+    (current, inputs) => { inputs.rootKeys = { [current.root.keyId]: current.release.publicKey }; },
+    (current, inputs) => { inputs.revokedRootKeyIds = [current.root.keyId]; },
+    (_current, inputs) => {
+      inputs.releaseTrustUnsigned.notBefore = new String('2026-09-11T00:00:00.000Z');
+    },
+    (_current, inputs) => {
+      inputs.releaseTrustUnsigned.notBefore = `Fri,${' '.repeat(1_025)}11 Sep 2026 00:00:00 GMT`;
+    },
+  ];
+  for (const mutate of mutations) {
+    await withFixture(async current => {
       const inputs = await generationInputs(current);
-      mutate(inputs);
+      mutate(current, inputs);
       await assertGenerationFailure(inputs, 'BETA_TRUST_INVALID');
       assert.equal(inputs.inspector.calls, 0);
-    }
-  });
+    });
+  }
 });
 
 test('rejects strict source evidence failures without partial output', async () => {
@@ -291,6 +295,7 @@ test('rejects strict source evidence failures without partial output', async () 
       ['wrong source hash', { ...valid, records: [{ ...valid.records[0], sourceSha256: 'A'.repeat(64) }, valid.records[1]] }],
       ['wrong identity hash', { ...valid, records: [{ ...valid.records[0], identitySha256: '00'.repeat(32) }, valid.records[1]] }],
       ['nonnormal source path', { ...valid, records: [{ ...valid.records[0], sourcePath: 'schema/../schema.sql' }, valid.records[1]] }],
+      ['parent-only source path', { ...valid, records: [{ ...valid.records[0], sourcePath: '..' }, valid.records[1]] }],
       ['unknown evidence field', { ...valid, unknown: true }],
     ];
     for (const [name, evidence] of cases) {
@@ -360,6 +365,32 @@ test('never overwrites either existing output or leaves the other output behind'
       await rm(current.outputPaths[existing]);
     }
   });
+});
+
+test('pins output directory identity across observation and leaves no signed files after replacement', async () => {
+  const current = await fixture();
+  const moved = `${current.directory}-moved`;
+  try {
+    const observed = await snapshot();
+    let calls = 0;
+    const inputs = await generationInputs(current, observed, observed);
+    inputs.inspector = {
+      async inspect() {
+        if (calls === 0) {
+          await rename(current.directory, moved);
+          await mkdir(current.directory);
+        }
+        calls += 1;
+        return structuredClone(observed);
+      },
+    };
+    await assertGenerationFailure(inputs);
+    assert.deepEqual(await readdir(current.directory), []);
+    assert.deepEqual(await readdir(moved), []);
+  } finally {
+    await rm(current.directory, { recursive: true, force: true });
+    await rm(moved, { recursive: true, force: true });
+  }
 });
 
 test('CLI accepts only the three documented flags and emits only redacted result fields', async () => {

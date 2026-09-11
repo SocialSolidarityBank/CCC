@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { link, lstat, open, unlink } from 'node:fs/promises';
+import { link, lstat, open, realpath, unlink } from 'node:fs/promises';
 import { basename, dirname, posix, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -76,10 +76,12 @@ function hasExactKeys(value, keys) {
   return isRecord(value) && Object.keys(value).sort().join('\0') === keys.join('\0');
 }
 
+function boundedString(value) {
+  return typeof value === 'string' && Buffer.byteLength(value, 'utf8') <= MAX_STRING_BYTES;
+}
+
 function boundedIdentity(value) {
-  return typeof value === 'string' && value.length > 0
-    && Buffer.byteLength(value, 'utf8') <= MAX_STRING_BYTES
-    && !FORBIDDEN_IDENTITY.test(value);
+  return boundedString(value) && value.length > 0 && !FORBIDDEN_IDENTITY.test(value);
 }
 
 function canonicalBase64(value, pattern, bytes) {
@@ -99,8 +101,8 @@ function validRootConfiguration(rootKeys, revokedRootKeyIds) {
 }
 
 function validUnsignedTrust(value, authorization, rootKeys, revokedRootKeyIds, now) {
-  const notBefore = Date.parse(value?.notBefore);
-  const expiresAt = Date.parse(value?.expiresAt);
+  const notBefore = boundedString(value?.notBefore) ? Date.parse(value.notBefore) : Number.NaN;
+  const expiresAt = boundedString(value?.expiresAt) ? Date.parse(value.expiresAt) : Number.NaN;
   return hasExactKeys(value, TRUST_UNSIGNED_KEYS)
     && value.schemaVersion === 1
     && value.profile === 'development'
@@ -162,6 +164,7 @@ function normalizedSourcePath(value) {
     && !/[\\\p{Cc}]/u.test(value)
     && posix.normalize(value) === value
     && value !== '.'
+    && value !== '..'
     && !value.startsWith('../');
 }
 
@@ -219,71 +222,183 @@ function validateOutputPaths(outputPaths) {
   };
 }
 
-async function pathMustNotExist(path) {
+function fileIdentity(info) {
+  return Object.freeze({ device: info.dev, inode: info.ino });
+}
+
+function hasIdentity(info, identity) {
+  return info.dev === identity.device && info.ino === identity.inode;
+}
+
+async function requireSafeAncestry(path) {
+  const ancestors = [];
+  for (let current = path; ; current = dirname(current)) {
+    ancestors.push(current);
+    if (dirname(current) === current) break;
+  }
+  for (const ancestor of ancestors.reverse()) {
+    const info = await lstat(ancestor);
+    if (!info.isDirectory() || info.isSymbolicLink()) fail();
+  }
+}
+
+async function assertPinnedDirectory(directory) {
   try {
-    await lstat(path);
+    const [opened, current] = await Promise.all([
+      directory.handle.stat(),
+      lstat(directory.path),
+    ]);
+    if (!opened.isDirectory() || !current.isDirectory() || current.isSymbolicLink()
+      || !hasIdentity(opened, directory.identity) || !hasIdentity(current, directory.identity)) fail();
+    for (const requestedPath of directory.requestedPaths) {
+      if (await realpath(requestedPath) !== directory.path) fail();
+    }
+  } catch (error) {
+    if (error instanceof ProviderBaselineGenerationError) throw error;
+    fail();
+  }
+}
+
+async function pathMustNotExist(output) {
+  await assertPinnedDirectory(output.directory);
+  try {
+    await lstat(output.path);
     fail();
   } catch (error) {
     if (error instanceof ProviderBaselineGenerationError) throw error;
     if (error?.code !== 'ENOENT') fail();
   }
+  await assertPinnedDirectory(output.directory);
 }
 
-async function requireSafeParents(paths) {
-  for (const path of new Set(Object.values(paths).map(dirname))) {
-    try {
-      const info = await lstat(path);
-      if (!info.isDirectory() || info.isSymbolicLink()) fail();
-    } catch (error) {
-      if (error instanceof ProviderBaselineGenerationError) throw error;
-      fail();
-    }
-  }
-}
-
-async function writeOwnerOnlyTemp(destination, contents) {
-  const temp = resolve(dirname(destination), `.${basename(destination)}.${randomUUID()}.tmp`);
-  let handle;
+async function pinOutputPaths(paths) {
+  const directories = new Map();
+  const outputs = {};
   try {
-    handle = await open(
-      temp,
-      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0),
-      0o600,
-    );
-    await handle.writeFile(contents, 'utf8');
-    await handle.chmod(0o600);
-    await handle.sync();
-    const info = await handle.stat();
-    if (!info.isFile() || (info.mode & 0o777) !== 0o600) fail();
-    await handle.close();
-    handle = undefined;
-    return temp;
+    for (const [key, destination] of Object.entries(paths)) {
+      const requestedPath = dirname(destination);
+      const canonicalPath = await realpath(requestedPath);
+      await requireSafeAncestry(canonicalPath);
+      let directory = directories.get(canonicalPath);
+      if (directory === undefined) {
+        const handle = await open(
+          canonicalPath,
+          constants.O_RDONLY | (constants.O_DIRECTORY ?? 0) | (constants.O_NOFOLLOW ?? 0),
+        );
+        const info = await handle.stat();
+        if (!info.isDirectory()) {
+          await handle.close();
+          fail();
+        }
+        directory = {
+          path: canonicalPath,
+          requestedPaths: new Set(),
+          handle,
+          identity: fileIdentity(info),
+        };
+        directories.set(canonicalPath, directory);
+      }
+      directory.requestedPaths.add(requestedPath);
+      outputs[key] = {
+        path: resolve(canonicalPath, basename(destination)),
+        directory,
+      };
+    }
+    if (outputs.releaseTrust.path === outputs.baseline.path) fail();
+    await Promise.all([...directories.values()].map(assertPinnedDirectory));
+    await Promise.all(Object.values(outputs).map(pathMustNotExist));
+    return { directories, outputs };
   } catch (error) {
-    if (handle !== undefined) await handle.close().catch(() => {});
-    await unlink(temp).catch(() => {});
+    await Promise.all([...directories.values()].map(directory => directory.handle.close().catch(() => {})));
     if (error instanceof ProviderBaselineGenerationError) throw error;
     fail();
   }
 }
 
-async function installOutputs(paths, documents) {
-  await requireSafeParents(paths);
-  await Promise.all(Object.values(paths).map(pathMustNotExist));
+async function closePinnedOutputs(pinned) {
+  await Promise.all([...pinned.directories.values()].map(directory => directory.handle.close().catch(() => {})));
+}
+
+async function assertPinnedOutputs(pinned) {
+  await Promise.all([...pinned.directories.values()].map(assertPinnedDirectory));
+}
+
+async function assertKnownPath(record) {
+  await assertPinnedDirectory(record.directory);
+  const info = await lstat(record.path);
+  if (info.isSymbolicLink() || !info.isFile() || !hasIdentity(info, record.identity)) fail();
+  return info;
+}
+
+async function unlinkKnownPath(record) {
+  await assertKnownPath(record);
+  await unlink(record.path);
+  try {
+    await lstat(record.path);
+    fail();
+  } catch (error) {
+    if (error instanceof ProviderBaselineGenerationError) throw error;
+    if (error?.code !== 'ENOENT') fail();
+  }
+  await assertPinnedDirectory(record.directory);
+}
+
+async function writeOwnerOnlyTemp(output, contents) {
+  const tempPath = resolve(output.directory.path, `.${basename(output.path)}.${randomUUID()}.tmp`);
+  let handle;
+  let temp;
+  try {
+    await assertPinnedDirectory(output.directory);
+    handle = await open(
+      tempPath,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0),
+      0o600,
+    );
+    let info = await handle.stat();
+    temp = { path: tempPath, directory: output.directory, identity: fileIdentity(info) };
+    if (!info.isFile() || (info.mode & 0o777) !== 0o600) fail();
+    await assertPinnedDirectory(output.directory);
+    await handle.writeFile(contents, 'utf8');
+    await handle.chmod(0o600);
+    await handle.sync();
+    info = await handle.stat();
+    if (!info.isFile() || !hasIdentity(info, temp.identity) || (info.mode & 0o777) !== 0o600) fail();
+    await assertPinnedDirectory(output.directory);
+    await handle.close();
+    handle = undefined;
+    await assertKnownPath(temp);
+    return temp;
+  } catch (error) {
+    if (handle !== undefined) await handle.close().catch(() => {});
+    if (temp !== undefined) await unlinkKnownPath(temp).catch(() => {});
+    if (error instanceof ProviderBaselineGenerationError) throw error;
+    fail();
+  }
+}
+
+async function installOutputs(pinned, documents) {
+  await assertPinnedOutputs(pinned);
+  await Promise.all(Object.values(pinned.outputs).map(pathMustNotExist));
   const temps = {};
   const installed = [];
   try {
-    temps.releaseTrust = await writeOwnerOnlyTemp(paths.releaseTrust, documents.releaseTrust);
-    temps.baseline = await writeOwnerOnlyTemp(paths.baseline, documents.baseline);
+    temps.releaseTrust = await writeOwnerOnlyTemp(pinned.outputs.releaseTrust, documents.releaseTrust);
+    temps.baseline = await writeOwnerOnlyTemp(pinned.outputs.baseline, documents.baseline);
     for (const key of ['releaseTrust', 'baseline']) {
-      await link(temps[key], paths[key]);
-      installed.push(paths[key]);
-      const info = await lstat(paths[key]);
-      if (!info.isFile() || info.isSymbolicLink() || (info.mode & 0o777) !== 0o600) fail();
+      const output = pinned.outputs[key];
+      await assertKnownPath(temps[key]);
+      await assertPinnedDirectory(output.directory);
+      await link(temps[key].path, output.path);
+      const info = await lstat(output.path);
+      if (info.isSymbolicLink() || !info.isFile() || !hasIdentity(info, temps[key].identity)
+        || (info.mode & 0o777) !== 0o600) fail();
+      installed.push({ path: output.path, directory: output.directory, identity: temps[key].identity });
+      await assertPinnedDirectory(output.directory);
     }
-    await Promise.all(Object.values(temps).map(path => unlink(path)));
+    for (const temp of Object.values(temps)) await unlinkKnownPath(temp);
   } catch (error) {
-    await Promise.all(installed.map(path => unlink(path).catch(() => {})));
-    await Promise.all(Object.values(temps).map(path => unlink(path).catch(() => {})));
+    for (const output of installed.reverse()) await unlinkKnownPath(output).catch(() => {});
+    for (const temp of Object.values(temps)) await unlinkKnownPath(temp).catch(() => {});
     if (error instanceof ProviderBaselineGenerationError) throw error;
     fail();
   }
@@ -346,21 +461,24 @@ export async function generateProviderBaseline({
   if (!await verifySignedTrust(releaseTrust, rootKeys[releaseTrust.rootKeyId])) fail('BETA_TRUST_INVALID');
 
   let sourceEvidence;
+  let pinnedOutputs;
   try {
     sourceEvidence = validateSourceEvidenceShape(await readStrictJsonDocument(sourceEvidenceInput));
-    await requireSafeParents(paths);
-    await Promise.all(Object.values(paths).map(pathMustNotExist));
+    pinnedOutputs = await pinOutputPaths(paths);
   } catch (error) {
     if (error instanceof ProviderBaselineGenerationError) throw error;
     fail();
   }
+  try {
 
   let first;
   let second;
   try {
     if (typeof inspector?.inspect !== 'function') fail('PROVIDER_BASELINE_MISMATCH');
     first = stableObservation(await inspector.inspect(), authorization, sourceEvidence.databaseVersion);
+    await assertPinnedOutputs(pinnedOutputs);
     second = stableObservation(await inspector.inspect(), authorization, sourceEvidence.databaseVersion);
+    await assertPinnedOutputs(pinnedOutputs);
   } catch (error) {
     if (error instanceof ProviderBaselineGenerationError) throw error;
     fail('PROVIDER_BASELINE_MISMATCH');
@@ -415,7 +533,7 @@ export async function generateProviderBaseline({
   } catch {
     fail();
   }
-  await installOutputs(paths, documents);
+  await installOutputs(pinnedOutputs, documents);
   return {
     releaseTrustSha256: verified.releaseTrustSha256,
     baselineSha256: verified.baselineSha256,
@@ -424,6 +542,9 @@ export async function generateProviderBaseline({
     grantCount: verified.grants.length,
     sourceEvidenceSha256,
   };
+  } finally {
+    await closePinnedOutputs(pinnedOutputs);
+  }
 }
 
 function parseCliArgs(argv) {
