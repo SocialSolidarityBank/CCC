@@ -225,6 +225,31 @@ test('verification rejects altered, missing, extra, duplicated and unsafe compon
       await rm(documentPath, { force: true });
     }
   });
+  await t.test('document bytes cannot redirect the strict parser to another file', async () => {
+    const targetPath = `${root}.target.json`;
+    const redirectPath = `${root}.redirect.txt`;
+    const embeddedPath = join(root, 'edge-component-manifest.json');
+    const redirectDocument = targetPath;
+    await writeFile(targetPath, document);
+    await writeFile(redirectPath, redirectDocument);
+    await writeFile(embeddedPath, redirectDocument);
+    try {
+      await assert.rejects(
+        verifyEdgeComponentManifest({
+          document: redirectPath,
+          stagedRoot: root,
+          bundleRow: { edgeComponentManifestSha256: sha256(redirectDocument) },
+          trustStore,
+          now: NOW,
+        }),
+        error => error?.code === 'SIGNATURE_INVALID',
+      );
+    } finally {
+      await rm(targetPath, { force: true });
+      await rm(redirectPath, { force: true });
+      await writeFile(embeddedPath, document);
+    }
+  });
   await t.test('oversized document filename', async () => {
     const documentPath = `${root}.oversized.json`;
     await writeFile(documentPath, Buffer.alloc(1_048_577, 0x20));

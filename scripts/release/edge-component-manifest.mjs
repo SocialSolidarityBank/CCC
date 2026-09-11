@@ -209,6 +209,7 @@ async function documentBytes(document) {
     }
     if (bytes.byteLength === 0 || bytes.byteLength > MAX_DOCUMENT_BYTES) fail('SIGNATURE_INVALID');
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    if (!source.trimStart().startsWith('{')) fail('SIGNATURE_INVALID');
     return { bytes, value: await readStrictJsonDocument(source) };
   } catch (error) {
     if (error instanceof EdgeComponentManifestError) throw error;
