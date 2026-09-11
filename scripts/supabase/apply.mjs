@@ -93,6 +93,7 @@ function injectedSecrets(secrets) {
   return [
     secrets?.schedulerSecret, secrets?.serviceRoleKey,
     secrets?.installManifestJson, secrets?.signingKeysJson,
+    secrets?.apiDatabasePassword,
   ].every(value => typeof value === 'string' && value.length > 0);
 }
 
@@ -483,7 +484,15 @@ async function recordInstalled(session, input, authorize) {
   const schemaFingerprint = promotion?.databaseFingerprint;
   const observedOwnerOrgIdHash = health?.observedOwnerOrgIdHash;
   const migrationHead = plan.migrations?.at(-1)?.id;
-  requireHealthyInstallation(health, authorization);
+  const firstInstall = firstInstallOnly(plan, receipt.backup);
+  requireHealthyInstallation(health, authorization, { runtimeRequired: !firstInstall });
+  // 첫 설치는 /readyz를 증거로 요구하지 않으므로 기록도 하지 않는다. 실제 기동 여부는
+  // runtime 배포 뒤 doctor가 읽는다(S12 §6 2026-09-12).
+  if (receipt.productionReady !== !firstInstall || receipt.runtimeReady !== !firstInstall
+    || input.productionReady !== receipt.productionReady
+    || input.runtimeReady !== receipt.runtimeReady) {
+    throw failure('HEALTH_FAILED');
+  }
   if (receipt.releaseSequence !== installationSequence(bundle.sequence)
     || receipt.artifactSetDigest !== (promotion?.artifactSetDigest ?? input.edge?.edgeArtifactSha256)
     || receipt.edgeArtifactSha256 !== input.edge?.edgeArtifactSha256) {
@@ -635,10 +644,22 @@ function installationSequence(value) {
   return sequence;
 }
 
-function requireHealthyInstallation(health, authorization) {
+/**
+ * S12 §6 (2026-09-12): a first install proves the installation itself — signer
+ * refusal for this installation, Seoul edge region, owner and a restricted
+ * `ccc_api` role — but not `/readyz`, because the business runtime logs in as
+ * `ccc_api` only after this apply set that password. Resume and update keep
+ * requiring the runtime evidence too.
+ */
+function firstInstallOnly(plan, backup) {
+  return backup?.backup === 'not_applicable' && plan?.installed?.state === 'not-installed';
+}
+
+function requireHealthyInstallation(health, authorization, { runtimeRequired }) {
   const region = health?.edgeRegionEvidence;
   const database = health?.restrictedDatabase;
-  if (health?.healthy !== true
+  if (health?.installedHealthy !== true
+    || (runtimeRequired && health.healthy !== true)
     || health.observedOwnerOrgIdHash !== authorization.expectedOwnerOrgIdHash
     || health.storageSignerHealthy !== true
     || region?.requestedRegion !== 'ap-northeast-2'
@@ -768,7 +789,8 @@ export async function applyInstallation({
         session, authorization, providerBaseline, plan, bundle, manifest, edge, promotion,
         now: currentTrustedTime(clock),
       });
-      requireHealthyInstallation(health, authorization);
+      const firstInstall = firstInstallOnly(plan, backup);
+      requireHealthyInstallation(health, authorization, { runtimeRequired: !firstInstall });
       candidate = await verifyCandidate({
         authorization, providerBaseline, plan, release, clock,
       });
@@ -787,13 +809,17 @@ export async function applyInstallation({
         artifactSetDigest: promotion?.artifactSetDigest ?? edge.edgeArtifactSha256,
         edgeArtifactSha256: edge.edgeArtifactSha256,
         backup,
+        productionReady: !firstInstall,
+        runtimeReady: !firstInstall,
       };
       await requireMethod(journalSession, 'complete')(session, {
         authorization, plan, bundle, manifest, edge, promotion, providerSteps, health, receipt,
+        productionReady: receipt.productionReady, runtimeReady: receipt.runtimeReady,
         idempotencyKey, now: clock,
       });
       return {
-        operation: 'apply', target: 'hosted', ready: true, readOnly: false, productionReady: false,
+        operation: 'apply', target: 'hosted', ready: true, readOnly: false,
+        productionReady: receipt.productionReady,
         profile: 'development', backup, receipt,
         plannedResources: plan.plannedResources ?? [],
         blockers: [],

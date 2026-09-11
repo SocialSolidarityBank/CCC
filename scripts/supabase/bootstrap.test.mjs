@@ -1358,6 +1358,8 @@ test('health evidence comes only from the readiness route, the signer refusal an
   await withDeployment({}, async ({ origin, requests }) => {
     const evidence = await health(origin)({});
     assert.equal(evidence.healthy, true);
+    assert.equal(evidence.installedHealthy, true);
+    assert.equal(evidence.runtimeReady, true);
     assert.equal(evidence.storageSignerHealthy, true);
     assert.deepEqual(evidence.edgeRegionEvidence, {
       requestedRegion: 'ap-northeast-2',
@@ -1417,8 +1419,13 @@ test('each absent health dimension fails closed without inventing evidence', asy
     ['edge region outside Seoul', {
       signer: { status: 401, body: { code: 'UNAUTHORIZED' }, installationId, region: 'us-east-1' },
     }, {}, evidence => assert.equal(evidence.edgeRegionEvidence.mismatch, true)],
+    // 설치 증거는 그대로 서 있고 runtime 기동만 아직 없는 경우다.
     ['runtime not ready', { ready: { status: 503, body: { status: 'unavailable' } } }, {},
-      evidence => assert.equal(evidence.restrictedDatabase.connected, false)],
+      evidence => {
+        assert.equal(evidence.runtimeReady, false);
+        assert.equal(evidence.installedHealthy, true);
+        assert.equal(evidence.restrictedDatabase.connected, true);
+      }],
     ['restricted role unreadable', {}, {
       readRestrictedRole: async () => { throw new Error('unreadable'); },
     }, evidence => assert.deepEqual(evidence.restrictedDatabase, {
@@ -1479,7 +1486,8 @@ test('doctor reports the same health read-only and blocks on its failure', async
         health: health(origin),
       });
       assert.equal(doctor.readOnly, true);
-      assert.equal(doctor.health.healthy, false);
+      assert.equal(doctor.health.installedHealthy, false);
+      assert.equal(doctor.health.runtimeReady, true);
       assert.equal(doctor.health.storageSignerHealthy, false);
       assert.ok(doctor.blockers.some(({ code }) => code === 'HEALTH_FAILED'));
       assertNoSensitiveOutput({ stdout: JSON.stringify(doctor), stderr: '' }, origin);

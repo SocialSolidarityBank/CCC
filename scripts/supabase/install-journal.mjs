@@ -10,8 +10,8 @@ const CONTRACT_VERSION = 'S11-install-approval-v1';
 const PHASES = new Set(['planned', 'installing', 'installed', 'rollback_failed']);
 const STEPS = new Set([
   'baseline', 'platform_migration', 'auth_config', 'storage_bucket', 'cron_job',
-  'edge_secret_binding', 'receipt', 'prepare_backup', 'verify_manifest', 'restore_data',
-  'restore_provider_metadata', 'switch_release', 'verify_receipt',
+  'edge_secret_binding', 'api_credential', 'receipt', 'prepare_backup', 'verify_manifest',
+  'restore_data', 'restore_provider_metadata', 'switch_release', 'verify_receipt',
 ]);
 export const INSTALL_METADATA_TABLES = Object.freeze([
   'ccc_install_authorizations',

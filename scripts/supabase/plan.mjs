@@ -75,6 +75,7 @@ const safeFailures = Object.freeze({
   INSTALL_STEP_MISMATCH: '설치 단계의 idempotency key 또는 상태가 다릅니다.',
   MIGRATION_APPLY_FAILED: '마이그레이션 transaction이 실패했으며 해당 변경은 반영되지 않았습니다.',
   HEALTH_FAILED: '승격한 설치 상태의 읽기 전용 확인을 통과하지 못했습니다.',
+  RUNTIME_NOT_READY: '설치는 끝났고 업무 runtime이 아직 기동하지 않았습니다(차단 사유가 아닙니다).',
   EDGE_COMPONENT_DEPLOYER_UNAVAILABLE: '이 설치기가 적용할 수 없는 Edge component가 포함되어 있습니다.',
   EDGE_BUNDLE_LIMIT: 'Edge 함수 묶음이 배포 한도를 넘었습니다.',
 });
@@ -127,8 +128,8 @@ const LEGACY_CLEANLINESS_GRANT_KINDS = new Set(['schema', 'relation', 'column', 
 const INSTALL_PHASES = new Set(['planned', 'installing', 'installed', 'rollback_failed']);
 const INSTALL_STEPS = new Set([
   'baseline', 'platform_migration', 'auth_config', 'storage_bucket', 'cron_job',
-  'edge_secret_binding', 'receipt', 'prepare_backup', 'verify_manifest', 'restore_data',
-  'restore_provider_metadata', 'switch_release', 'verify_receipt',
+  'edge_secret_binding', 'api_credential', 'receipt', 'prepare_backup', 'verify_manifest',
+  'restore_data', 'restore_provider_metadata', 'switch_release', 'verify_receipt',
 ]);
 
 const VERIFIED_PROVIDER_BASELINE_KEYS = [
@@ -693,9 +694,17 @@ export async function buildSupabaseDoctor(options) {
   }
   const state = snapshot.installState;
   const issues = [...plan.blockers];
+  const notices = [];
   const addIssue = code => {
     if (!issues.some(issue => issue.code === code)) {
       issues.push({ code, message: new PlanFailure(code).message });
+    }
+  };
+  // A notice is evidence the operator still owes, not a reason to refuse: the
+  // business runtime is deployed after the installation exists (S12 §6 2026-09-12).
+  const addNotice = code => {
+    if (!notices.some(notice => notice.code === code)) {
+      notices.push({ code, message: new PlanFailure(code).message });
     }
   };
   if (!(snapshot.connection.readOnly && snapshot.connection.databaseReadable
@@ -736,23 +745,28 @@ export async function buildSupabaseDoctor(options) {
       providerBaseline: options.providerBaseline,
     });
     health = {
-      healthy: observed.healthy === true,
+      installedHealthy: observed.installedHealthy === true,
+      runtimeReady: observed.runtimeReady === true,
       storageSignerHealthy: observed.storageSignerHealthy === true,
       edgeRegionEvidence: observed.edgeRegionEvidence,
       restrictedDatabase: observed.restrictedDatabase,
     };
-    if (!health.healthy) addIssue('HEALTH_FAILED');
+    if (!health.installedHealthy) addIssue('HEALTH_FAILED');
+    if (!health.runtimeReady) addNotice('RUNTIME_NOT_READY');
   }
   if (options.target === 'hosted') {
     assertAuthorizationCurrent(options.authorization);
     assertProviderBaselineCurrent(options.providerBaseline, options.authorization, now());
   }
   return {
-    operation: 'doctor', readOnly: true, ready: issues.length === 0, productionReady: false,
+    operation: 'doctor', readOnly: true, ready: issues.length === 0,
+    productionReady: health !== null && health.installedHealthy && health.runtimeReady
+      && issues.length === 0,
     installed: state ? safeInstalledSummary(state, plan.migrations) : plan.installed,
     stateFingerprint,
     completedSteps: safeCompletedSteps(state),
     blockers: issues,
+    notices,
     ...(health === null ? {} : { health }),
     ...(options.target === 'hosted' ? {
       providerBaseline: safeProviderBaseline(options.providerBaseline, {

@@ -84,7 +84,7 @@ function providerBaseline() {
   };
 }
 
-function fixture({ failAt, observed = emptyObservation() } = {}) {
+function fixture({ failAt, observed = emptyObservation(), health: healthOverrides = {} } = {}) {
   const events = [];
   const journal = { status: 'absent', prepared: null, installed: null, failure: null };
   let promotions = 0;
@@ -155,7 +155,9 @@ function fixture({ failAt, observed = emptyObservation() } = {}) {
       events.push('health');
       if (failAt === 'health') throw Object.assign(new Error('health'), { code: 'HEALTH_FAILED' });
       return {
-        healthy: true,
+        healthy: healthOverrides.runtimeReady !== false,
+        installedHealthy: true,
+        runtimeReady: healthOverrides.runtimeReady !== false,
         stateFingerprint: 'd'.repeat(64),
         observedOwnerOrgIdHash: '3'.repeat(64),
         storageSignerHealthy: true,
@@ -324,6 +326,7 @@ test('doctor-rejected Edge and restricted-role evidence never reaches installed'
     ['region mismatch', health => { health.edgeRegionEvidence.mismatch = true; }],
     ['restricted connection absent', health => { health.restrictedDatabase.connected = false; }],
     ['installer connection substituted', health => { health.restrictedDatabase.role = 'postgres'; }],
+    ['installation health refused', health => { health.installedHealthy = false; }],
   ];
   for (const [name, mutate] of cases) {
     await t.test(name, async () => {
@@ -342,6 +345,29 @@ test('doctor-rejected Edge and restricted-role evidence never reaches installed'
       assert.equal(f.promotions(), 1);
     });
   }
+});
+
+test('a first install records itself without runtime readiness and is not production ready', async () => {
+  const f = fixture({ health: { runtimeReady: false } });
+  const result = await applyInstallation(f.input);
+
+  assert.equal(f.journal.status, 'installed');
+  assert.equal(result.ready, true);
+  assert.equal(result.productionReady, false);
+  assert.equal(result.receipt.productionReady, false);
+  assert.equal(result.receipt.runtimeReady, false);
+  assert.equal(f.journal.installed.productionReady, false);
+  assert.equal(f.journal.installed.runtimeReady, false);
+  assert.equal(f.journal.installed.receipt.runtimeReady, false);
+});
+
+test('a first install whose runtime is already ready still records the runtime stage as unproven', async () => {
+  const f = fixture();
+  const result = await applyInstallation(f.input);
+
+  // /readyz는 첫 설치의 증거가 아니므로 통과해도 기록하지 않는다.
+  assert.equal(result.receipt.runtimeReady, false);
+  assert.equal(result.productionReady, false);
 });
 
 test('the component set must be the planned migrations plus exactly one signer function', async t => {
@@ -580,6 +606,7 @@ test('release verifier adapter checks signed documents, target tuple, bytes and 
       serviceRoleKey: 'service-role-value',
       installManifestJson: '{"schemaVersion":1}',
       signingKeysJson: '{"synthetic-key":"public"}',
+      apiDatabasePassword: 'api-role-password-value',
     };
     const plan = {
       ready: true,
@@ -654,7 +681,10 @@ test('release verifier adapter checks signed documents, target tuple, bytes and 
       error => error?.code === 'PROVIDER_UNREADABLE',
     );
 
-    for (const missing of ['schedulerSecret', 'serviceRoleKey', 'installManifestJson', 'signingKeysJson']) {
+    for (const missing of [
+      'schedulerSecret', 'serviceRoleKey', 'installManifestJson', 'signingKeysJson',
+      'apiDatabasePassword',
+    ]) {
       const withoutSecret = createVerifiedRelease({
         ...releaseOptions,
         secrets: { ...secrets, [missing]: undefined },

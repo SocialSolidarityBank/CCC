@@ -53,6 +53,26 @@ function parseSigningKeys(raw: string): Record<string, string> {
   return parsed as Record<string, string>;
 }
 
+/**
+ * Storage 호출용 관리자 키. Supabase 는 Edge Function 에 legacy `SUPABASE_SERVICE_ROLE_KEY` 또는
+ * 새 형식의 `SUPABASE_SECRET_KEYS`(JSON 사전, `default` 항목)를 주입한다. 둘 다 없으면 기동하지 않는다.
+ */
+function storageAdminKey(): string {
+  const legacy = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (legacy !== undefined && legacy.trim().length > 0) return legacy;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(required('SUPABASE_SECRET_KEYS'));
+  } catch {
+    throw new Error('storage_signer_unavailable');
+  }
+  const key = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>).default
+    : undefined;
+  if (typeof key !== 'string' || key.trim().length === 0) throw new Error('storage_signer_unavailable');
+  return key;
+}
+
 async function initialize(): Promise<(request: Request) => Promise<Response>> {
   if (FORBIDDEN_BINDINGS.some((name) => Deno.env.has(name))) throw new Error('storage_signer_unavailable');
   let raw: unknown;
@@ -72,7 +92,7 @@ async function initialize(): Promise<(request: Request) => Promise<Response>> {
     apiBase: manifest.apiBase,
     installationId: manifest.installationId,
     supabaseOrigin: manifest.supabaseAuthOrigin,
-    serviceRoleKey: required('SUPABASE_SERVICE_ROLE_KEY'),
+    serviceRoleKey: storageAdminKey(),
     region: 'ap-northeast-2',
   });
 }

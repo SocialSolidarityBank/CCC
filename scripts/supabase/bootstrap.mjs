@@ -194,6 +194,10 @@ function text(plan) {
       : '설치 승인 이력만 갱신했으며 완료된 자원 단계는 재실행하지 않았습니다.';
     lines.push('', plan.readOnly ? '이 명령은 프로젝트를 변경하지 않았습니다.' : success);
   }
+  if ((plan.notices ?? []).length > 0) {
+    lines.push('', '안내(차단 아님):');
+    for (const item of plan.notices) lines.push(`- [${item.code}] ${item.message}`);
+  }
   const rendered = `${lines.join('\n')}\n`;
   assertSafeOutput(rendered);
   return rendered;
@@ -355,6 +359,8 @@ async function main() {
           serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
           installManifestJson: JSON.stringify(signedManifest),
           signingKeysJson: process.env.CCC_INSTALL_SIGNING_KEYS,
+          // 업무 runtime의 ccc_api 로그인 비밀번호. apply의 api_credential 단계만 쓴다.
+          apiDatabasePassword: process.env.CCC_API_DATABASE_PASSWORD,
         },
         apiBase: signedManifest.apiBase,
         supabaseOrigin: signedManifest.supabaseAuthOrigin,

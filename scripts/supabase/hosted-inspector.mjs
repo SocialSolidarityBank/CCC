@@ -959,25 +959,33 @@ export function createInstallationHealth({
     throw new PlanFailure('OWNER_EVIDENCE_MISSING');
   }
   return async function health(input = {}) {
-    const [connected, signer, role] = await Promise.all([
+    const [runtimeReady, signer, role] = await Promise.all([
       readyEvidence(fetchImpl, readyUrl),
       signerEvidence(fetchImpl, signerUrl, installationId),
       (async () => readRestrictedRole(input))().catch(() => null),
     ]);
-    // An unreadable role is never read as a restricted role.
+    // An unreadable role is never read as a restricted role. `connected` is the
+    // install connection's own read of the role, so it stays true while the
+    // business runtime is still absent (S11 §2 2026-09-12).
     const restrictedDatabase = Object.freeze({
-      connected: connected === true && role !== null && role !== undefined,
+      connected: role !== null && role !== undefined,
       role: role === null || role === undefined ? null : 'ccc_api',
       superuser: typeof role?.rolsuper === 'boolean' ? role.rolsuper : true,
       bypassRls: typeof role?.rolbypassrls === 'boolean' ? role.rolbypassrls : true,
     });
+    // The installation itself: signer refusal for this installation, Seoul edge
+    // region and a restricted ccc_api role. `/readyz` is the separate runtime
+    // stage, because the runtime logs in as ccc_api only after apply set it.
+    const installedHealthy = restrictedDatabase.connected
+      && restrictedDatabase.superuser === false
+      && restrictedDatabase.bypassRls === false
+      && signer.storageSignerHealthy === true
+      && signer.edgeRegionEvidence.mismatch === false;
     const observation = input.observation;
     return Object.freeze({
-      healthy: restrictedDatabase.connected
-        && restrictedDatabase.superuser === false
-        && restrictedDatabase.bypassRls === false
-        && signer.storageSignerHealthy === true
-        && signer.edgeRegionEvidence.mismatch === false,
+      healthy: installedHealthy && runtimeReady === true,
+      installedHealthy,
+      runtimeReady: runtimeReady === true,
       stateFingerprint: observation === undefined
         ? null
         : await installationStateFingerprint(observation, input.providerBaseline),

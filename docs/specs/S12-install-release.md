@@ -278,6 +278,8 @@ health는 최대 120초, 2초 간격으로 확인한다. health 실패·peer mis
 
 3번의 예외는 하나뿐이다(2026-09-11 Q 결정). D84 read-only plan이 `ready`이고, 관찰된 업무 표와 행, Auth 사용자, bucket, Storage 객체, 공개 routine과 type, private 설치 표가 모두 0이며, 설치 journal이 없는 **첫 설치**는 백업 대상이 없으므로 backup을 면제한다. 면제는 journal과 진단에 `backup: not_applicable`과 그 근거 수치로 남기며 조용히 건너뛰지 않는다. 두 번째 설치, 재개, 모든 업데이트와 rollback은 면제 대상이 아니며 검증된 backup 없이 진행하지 않는다.
 
+5번 health의 예외도 하나뿐이다(2026-09-12 Q 결정). 업무 runtime은 apply의 `api_credential` 단계가 `ccc_api` 비밀번호를 세운 뒤에야 뜨므로, **첫 설치**의 health는 설치 증거(`installedHealth`: Signer의 설치 ID 포함 401, 서울 edge region, 비특권 `ccc_api`)만 요구하고 `/readyz`는 요구하지 않는다. 이때 receipt는 `installed`로 쓰되 결과와 journal에 `productionReady:false`와 `runtimeReady:false`를 남긴다. `doctor`는 두 단계를 나눠 보고하며 `productionReady = installedHealth && runtimeReady && drift 없음`이고, `runtimeReady=false`는 `HEALTH_FAILED`가 아니라 `ready`를 바꾸지 않는 `RUNTIME_NOT_READY` 안내다. 재개와 모든 업데이트는 `/readyz`를 포함한 전체 health를 그대로 요구한다.
+
 ## 7. 정식 release 증거, 진단과 redaction
 
 ### 7.1 formal release gate와 owner

@@ -25,7 +25,7 @@ const AUDIO_CONTENT_TYPES: Record<string, true> = {
   'audio/webm': true, 'audio/x-m4a': true,
 };
 const BEARER = /^Bearer [A-Za-z0-9._~+/-]{1,8192}=*$/;
-const SECRET = /^[A-Za-z0-9._~+/-]{1,8192}=*$/;
+const SECRET = /^[A-Za-z0-9._~+/_-]{1,8192}=*$/;
 
 export interface StorageSignerConfig {
   apiBase: string;

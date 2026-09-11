@@ -65,6 +65,7 @@ type InstallStep =
   | 'storage_bucket'
   | 'cron_job'
   | 'edge_secret_binding'
+  | 'api_credential'
   | 'receipt';
 
 type InstallJournal = {
@@ -92,6 +93,8 @@ type InstallJournal = {
 7. 모든 step의 최종 지문이 일치할 때만 release receipt를 기록하고 journal을 `installed`로 바꾼다.
 
 step 전후에 같은 provider API를 다시 읽어 desired digest와 ownership tag를 비교한다. 부분 생성이 발견되면 같은 idempotency key로 완료 처리하거나 보정하고, 다른 소유 자원이 발견되면 변경 없이 `RESOURCE_OWNERSHIP_MISMATCH`로 끝낸다. `DROP`과 광범위한 보상 삭제는 하지 않는다.
+
+**2026-09-12 Q 확정: provider step의 마지막은 `api_credential`이다.** 업무 runtime이 로그인할 `ccc_api`의 비밀번호를 주입받은 값으로 설정하되, 값은 bind 파라미터로만 보내고 SQL 문자열, journal, receipt, 출력에 남기지 않는다. desired digest는 값과 무관한 `SHA-256('ccc_api:' + installationId)`이고, 완료된 step은 다시 설정하지 않고 `pg_roles`에서 `rolcanlogin`과 `rolvaliduntil IS NULL`, 비특권 여부만 관찰한다. 이 단계가 있기 전에는 runtime이 뜰 수 없으므로, 첫 설치의 health는 설치 자체(Signer의 설치 ID 포함 401, 서울 region, 비특권 `ccc_api`)만 요구하고 `/readyz`는 요구하지 않는다.
 
 ### 2.4 PostgreSQL baseline과 forward migration
 

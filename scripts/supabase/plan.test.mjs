@@ -1273,3 +1273,55 @@ test('internally consistent receipt and history remain incomplete without S12 re
   assert.equal(result.ready, false);
   assert.deepEqual(blockerCodes(result), ['RELEASE_PREREQUISITES_MISSING']);
 });
+
+test('doctor separates installed health from runtime readiness', async () => {
+  const evidence = ({ installedHealthy, runtimeReady }) => async () => ({
+    healthy: installedHealthy && runtimeReady,
+    installedHealthy,
+    runtimeReady,
+    storageSignerHealthy: installedHealthy,
+    edgeRegionEvidence: {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'ap-northeast-2',
+      functionRegion: 'ap-northeast-2',
+      mismatch: false,
+    },
+    restrictedDatabase: {
+      connected: true, role: 'ccc_api', superuser: false, bypassRls: false,
+    },
+  });
+  const doctor = async health => {
+    const fixture = await installedReceiptSnapshot();
+    return buildSupabaseDoctor({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+      ...(health === undefined ? {} : { health }),
+    });
+  };
+  const baseline = await doctor();
+
+  // ① 설치 health 실패는 지금처럼 차단 사유다.
+  const failed = await doctor(evidence({ installedHealthy: false, runtimeReady: false }));
+  assert.ok(blockerCodes(failed).includes('HEALTH_FAILED'));
+  assert.deepEqual(failed.notices.map(({ code }) => code), ['RUNTIME_NOT_READY']);
+  assert.equal(failed.health.installedHealthy, false);
+  assert.equal(failed.productionReady, false);
+
+  // ② runtime 미준비는 안내뿐이고 ready를 바꾸지 않는다.
+  const notReady = await doctor(evidence({ installedHealthy: true, runtimeReady: false }));
+  assert.equal(blockerCodes(notReady).includes('HEALTH_FAILED'), false);
+  assert.deepEqual(blockerCodes(notReady), blockerCodes(baseline));
+  assert.equal(notReady.ready, baseline.ready);
+  assert.deepEqual(notReady.notices.map(({ code }) => code), ['RUNTIME_NOT_READY']);
+  assert.equal(notReady.health.runtimeReady, false);
+  assert.equal(notReady.productionReady, false);
+
+  // ③ 두 단계 모두 통과하면 남은 차단 사유만이 productionReady를 막는다.
+  const both = await doctor(evidence({ installedHealthy: true, runtimeReady: true }));
+  assert.equal(blockerCodes(both).includes('HEALTH_FAILED'), false);
+  assert.deepEqual(both.notices, []);
+  assert.deepEqual(blockerCodes(both), ['RELEASE_PREREQUISITES_MISSING']);
+  assert.equal(both.productionReady, false);
+  assert.equal(both.health.installedHealthy && both.health.runtimeReady, true);
+});

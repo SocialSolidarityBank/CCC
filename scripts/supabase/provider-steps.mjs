@@ -1,5 +1,6 @@
 /**
- * 설치 apply의 provider 단계: storage_bucket → cron_job → edge_secret_binding (S11 §2 84-94, §2.8).
+ * 설치 apply의 provider 단계: storage_bucket → cron_job → edge_secret_binding → api_credential
+ * (S11 §2 84-94, §2.8).
  *
  * bucket과 cron은 설치 연결 SQL(postgres.js session)로만 쓰고, Edge secret과 Signer 배포만
  * Management API로 쓴다. secret 값은 언제나 파라미터 바인딩으로만 전달하며 SQL 문자열, journal,
@@ -34,6 +35,22 @@ const SIGNER_SLUG = 'ccc-storage-signer';
 const SIGNER_ENTRYPOINT = 'index.js';
 const EDGE_SECRET_NAMES = Object.freeze(['CCC_INSTALL_MANIFEST', 'CCC_INSTALL_SIGNING_KEYS']);
 const REGION = 'ap-northeast-2';
+const API_ROLE = 'ccc_api';
+const API_CREDENTIAL_GUC = 'ccc.api_credential';
+const API_ROLE_QUERY = `SELECT rolcanlogin, rolsuper, rolbypassrls,
+  rolvaliduntil IS NULL AS never_expires
+  FROM pg_catalog.pg_roles WHERE rolname = '${API_ROLE}'`;
+// PostgreSQL은 ALTER ROLE 같은 utility 문에 $1 바인딩을 허용하지 않는다. 그래서 값은
+// transaction-local GUC에 bind 파라미터로만 넣고, 리터럴은 서버가 format %L로 만든다.
+// 우리 SQL 문자열에는 GUC 이름만 남고 비밀번호는 어디에도 결합되지 않는다.
+const API_CREDENTIAL_BIND_SQL =
+  `SELECT set_config('${API_CREDENTIAL_GUC}', $1, true) IS NOT NULL AS bound`;
+const API_CREDENTIAL_ALTER_SQL = `DO $ccc_api_credential$
+BEGIN
+  EXECUTE format('ALTER ROLE ${API_ROLE} PASSWORD %L',
+    current_setting('${API_CREDENTIAL_GUC}', false));
+END
+$ccc_api_credential$`;
 // cron command에 그대로 들어가므로 서명된 manifest의 apiBase도 여기서 다시 좁힌다
 // (storage-signer.ts의 exactApiBase와 같은 규칙 + SQL literal에 안전한 문자만).
 const SAFE_URL = /^[A-Za-z0-9:/._~-]{1,512}$/u;
@@ -128,6 +145,9 @@ function requireContext(input) {
       serviceRoleKey: requireSecret(input?.secrets?.serviceRoleKey),
       installManifestJson: requireSecret(input?.secrets?.installManifestJson),
       signingKeysJson: requireSecret(input?.secrets?.signingKeysJson),
+      // 업무 runtime이 ccc_api로 로그인할 비밀번호. 값은 bind 파라미터로만 가며 SQL 문자열,
+      // journal, receipt, 반환값에 남지 않는다(S11 §2 2026-09-12).
+      apiDatabasePassword: requireSecret(input?.secrets?.apiDatabasePassword),
     },
     tag: ownershipTag(installationId),
   };
@@ -381,6 +401,49 @@ async function edgeSecretBindingStep(context) {
   ]);
 }
 
+/**
+ * 업무 runtime의 로그인 신원을 세운다. 마이그레이션이 만든 ccc_api에는 비밀번호가 없어
+ * 이 단계 없이는 runtime이 뜨지 못한다(S11 §2 2026-09-12). digest는 값과 무관한 고정
+ * 문자열이므로 비밀번호가 바뀌어도 idempotency key는 같다.
+ */
+async function readApiRole(context) {
+  return firstRow(context, API_ROLE_QUERY, []);
+}
+
+function requireLoginRole(row) {
+  if (row?.rolcanlogin !== true || row.never_expires !== true
+    || row.rolsuper !== false || row.rolbypassrls !== false) {
+    throw failure('RESOURCE_OWNERSHIP_MISMATCH');
+  }
+  return row;
+}
+
+async function bindApiCredential(context) {
+  try {
+    await context.session.unsafe('BEGIN');
+    await context.session.unsafe(API_CREDENTIAL_BIND_SQL, [context.secrets.apiDatabasePassword]);
+    await context.session.unsafe(API_CREDENTIAL_ALTER_SQL, []);
+    await context.session.unsafe('COMMIT');
+  } catch {
+    // transaction-local 설정이므로 rollback 뒤 세션에 값이 남지 않는다.
+    await context.session.unsafe('ROLLBACK').catch(() => {});
+    throw failure('PROVIDER_UNREADABLE');
+  }
+}
+
+async function apiCredentialStep(context) {
+  const desiredDigest = sha256(`${API_ROLE}:${context.installationId}`);
+  const { key, completed } = await startStep(context, 'api_credential', desiredDigest);
+  if (completed) {
+    // 완료된 단계는 비밀번호를 다시 쓰지 않고 로그인 가능한 비특권 role인지만 관찰한다.
+    requireLoginRole(await readApiRole(context));
+    return recordedStep(context, 'api_credential', key);
+  }
+  await bindApiCredential(context);
+  requireLoginRole(await readApiRole(context));
+  return completeStep(context, 'api_credential', key, desiredDigest, []);
+}
+
 export async function applyProviderSteps(input) {
   const context = requireContext(input);
   const probe = await firstRow(context, EXTENSION_PROBE_QUERY, []);
@@ -393,6 +456,7 @@ export async function applyProviderSteps(input) {
       await storageBucketStep(context),
       await cronJobStep(context),
       await edgeSecretBindingStep(context),
+      await apiCredentialStep(context),
     ],
   };
 }

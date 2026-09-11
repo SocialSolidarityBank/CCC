@@ -10,6 +10,7 @@ const installationId = 'installation-fixture-0001';
 const tag = `ccc.installation_id=${installationId}`;
 const schedulerSecret = 'scheduler-secret-must-not-escape';
 const serviceRoleKey = 'service-role-key-must-not-escape';
+const apiDatabasePassword = 'api-role-password-must-not-escape';
 const installManifestJson = '{"installationId":"installation-fixture-0001"}';
 const signingKeysJson = '{"keys":[{"keyId":"install-key","publicKey":"cHVibGlj"}]}';
 const signerBytes = new TextEncoder().encode('export default () => new Response("ok");\n');
@@ -87,12 +88,24 @@ function fakeSession(options = {}) {
     extensions: { cron: true, net: true, vault: true, storage: true, ...(options.extensions ?? {}) },
     steps: new Map(),
     resources: new Map(),
+    // 마이그레이션이 만든 ccc_api: 로그인 가능하지만 비밀번호가 아직 없다.
+    apiRole: options.apiRole === undefined
+      ? {
+        rolcanlogin: true, rolsuper: false, rolbypassrls: false, never_expires: true, password: null,
+      }
+      : options.apiRole,
+    apiCredentialWrites: [],
+    guc: new Map(),
   };
   const log = [];
 
   async function unsafe(sql, params = []) {
     log.push({ sql, params });
-    if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) return [];
+    if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) {
+      // transaction-local 설정은 transaction이 끝나면 사라진다.
+      if (sql !== 'BEGIN') state.guc.clear();
+      return [];
+    }
     if (sql.includes('FROM private.ccc_install_journal')) return [journalRow()];
     if (sql.startsWith('UPDATE private.ccc_install_journal')) return [];
     if (sql.startsWith('SELECT provider_resource_id_hashes')) {
@@ -183,6 +196,27 @@ function fakeSession(options = {}) {
       state.cronJob = { jobid: '1', schedule: params[1], command: params[2] };
       return [{ jobid: '1' }];
     }
+    if (sql.includes("set_config('ccc.api_credential'")) {
+      state.guc.set('ccc.api_credential', params[0]);
+      return [{ bound: true }];
+    }
+    // 실제 Postgres는 문자열 리터럴도, GUC를 읽는 DO 블록도 똑같이 받아들인다. 여기서도
+    // 둘 다 실행해 둔다. 비밀번호가 SQL 문자열로 갔는지는 assertNoSecretValues가 가른다.
+    if (sql.includes('ALTER ROLE ccc_api PASSWORD')) {
+      const literal = /ALTER ROLE ccc_api PASSWORD '([^']*)'/u.exec(sql)?.[1];
+      const value = literal ?? state.guc.get('ccc.api_credential');
+      if (typeof value !== 'string' || value.length === 0) {
+        throw new Error('unset ccc.api_credential');
+      }
+      state.apiCredentialWrites.push(value);
+      if (state.apiRole !== null) state.apiRole = { ...state.apiRole, password: value };
+      return [];
+    }
+    if (sql.includes('FROM pg_catalog.pg_roles')) {
+      if (state.apiRole === null) return [];
+      const { password, ...row } = state.apiRole;
+      return [row];
+    }
     throw new Error(`unexpected statement: ${sql}`);
   }
 
@@ -248,7 +282,12 @@ function input({ session, management, secrets = {}, staged = stagedFunction, bas
     installationId,
     stagedFunction: staged,
     secrets: {
-      schedulerSecret, serviceRoleKey, installManifestJson, signingKeysJson, ...secrets,
+      schedulerSecret,
+      serviceRoleKey,
+      installManifestJson,
+      signingKeysJson,
+      apiDatabasePassword,
+      ...secrets,
     },
     authorize: async () => authorization(),
     now: new Date(),
@@ -271,13 +310,16 @@ function assertNoSecretValues(session, requests) {
   for (const entry of session.log) {
     assert.equal(entry.sql.includes(schedulerSecret), false, entry.sql);
     assert.equal(entry.sql.includes(serviceRoleKey), false, entry.sql);
+    assert.equal(entry.sql.includes(apiDatabasePassword), false, entry.sql);
     assert.equal(JSON.stringify(entry.params).includes(serviceRoleKey), false, entry.sql);
   }
   for (const request of requests) {
     const body = request.body.toString('utf8');
     assert.equal(body.includes(schedulerSecret), false, request.url);
     assert.equal(body.includes(serviceRoleKey), false, request.url);
+    assert.equal(body.includes(apiDatabasePassword), false, request.url);
     assert.equal(request.url.includes(schedulerSecret), false);
+    assert.equal(request.url.includes(apiDatabasePassword), false);
   }
 }
 
@@ -312,13 +354,13 @@ test('the cron command carries the signed route prefix and only an exact https b
   }
 });
 
-test('runs bucket, cron and edge steps once and records only hashes', async () => {
+test('runs bucket, cron, edge and credential steps once and records only hashes', async () => {
   const session = fakeSession();
   const api = fakeManagement();
   const result = await applyProviderSteps(input({ session, management: api.management }));
 
   assert.deepEqual(result.steps.map(step => step.step), [
-    'storage_bucket', 'cron_job', 'edge_secret_binding',
+    'storage_bucket', 'cron_job', 'edge_secret_binding', 'api_credential',
   ]);
   assert.deepEqual(session.state.bucket, {
     public: false,
@@ -362,7 +404,8 @@ test('runs bucket, cron and edge steps once and records only hashes', async () =
   assert.deepEqual(observed.requests.map(request => request.method), ['GET']);
   assert.deepEqual(
     session.log.slice(before).filter(entry => /^(INSERT|UPDATE)/u.test(entry.sql)
-      || entry.sql.includes('cron.schedule(') || entry.sql.includes('vault.')),
+      || entry.sql.includes('cron.schedule(') || entry.sql.includes('vault.')
+      || entry.sql.includes('ALTER ROLE') || entry.sql.includes('set_config(')),
     [],
   );
 });
@@ -526,12 +569,16 @@ test('provider write failures and missing management credentials close with fixe
     applyProviderSteps(input({ session: fakeSession(), management: { accessToken: '' } })),
     error => error.code === 'EDGE_COMPONENT_DEPLOYER_UNAVAILABLE',
   );
-  await assert.rejects(
-    applyProviderSteps(input({
-      session: fakeSession(), management: fakeManagement().management, secrets: { schedulerSecret: '' },
-    })),
-    error => error.code === 'EDGE_COMPONENT_DEPLOYER_UNAVAILABLE',
-  );
+  for (const secrets of [{ schedulerSecret: '' }, { apiDatabasePassword: '' }]) {
+    const session = fakeSession();
+    await assert.rejects(
+      applyProviderSteps(input({
+        session, management: fakeManagement().management, secrets,
+      })),
+      error => error.code === 'EDGE_COMPONENT_DEPLOYER_UNAVAILABLE',
+    );
+    assert.deepEqual(session.log, []);
+  }
 });
 
 test('a completed edge step whose deployed function disappeared stops the install', async () => {
@@ -551,4 +598,61 @@ test('a completed edge step whose function was redeployed under a new version st
     applyProviderSteps(input({ session, management: redeployed.management })),
     error => error.code === 'RESOURCE_OWNERSHIP_MISMATCH',
   );
+});
+
+test('api_credential sets the runtime password by binding only, with a value-free digest', async () => {
+  const session = fakeSession();
+  const api = fakeManagement();
+  const result = await applyProviderSteps(input({ session, management: api.management }));
+
+  // 값은 바인딩으로만 전달되고 SQL 문자열에는 GUC 이름만 남는다.
+  assert.deepEqual(session.state.apiCredentialWrites, [apiDatabasePassword]);
+  const bind = session.log.find(entry => entry.sql.includes("set_config('ccc.api_credential'"));
+  assert.deepEqual(bind.params, [apiDatabasePassword]);
+  const alter = session.log.find(entry => entry.sql.includes('ALTER ROLE ccc_api PASSWORD'));
+  assert.match(alter.sql, /format\('ALTER ROLE ccc_api PASSWORD %L'/u);
+  assert.deepEqual(alter.params, []);
+  assertNoSecretValues(session, api.requests);
+
+  // journal에는 값과 무관한 고정 digest에서 나온 key와 빈 자원 목록만 남는다.
+  const step = result.steps.at(-1);
+  assert.equal(step.step, 'api_credential');
+  assert.deepEqual(step.resourceIdHashes, []);
+  assert.deepEqual(step.resourceDigests, []);
+  const row = session.state.steps.get('api_credential');
+  assert.equal(row.status, 'completed');
+  assert.equal(
+    row.idempotencyKey,
+    sha256(`${installationId}api_credential${sha256(`ccc_api:${installationId}`)}`),
+  );
+  assert.equal(JSON.stringify([...session.state.steps.values()]).includes(apiDatabasePassword), false);
+  assert.equal(JSON.stringify([...session.state.resources.values()]).includes(apiDatabasePassword), false);
+  assert.equal(JSON.stringify(result).includes(apiDatabasePassword), false);
+});
+
+test('a completed api_credential step is observed, never set again', async () => {
+  const session = fakeSession();
+  await applyProviderSteps(input({ session, management: fakeManagement().management }));
+  const observed = fakeManagement({ installedFunction: { id: 'signer-function-id' } });
+  await applyProviderSteps(input({
+    session, management: observed.management, secrets: { apiDatabasePassword: 'rotated-value' },
+  }));
+  assert.deepEqual(session.state.apiCredentialWrites, [apiDatabasePassword]);
+});
+
+test('an api role that cannot log in or expires stops the install', async () => {
+  for (const apiRole of [
+    null,
+    { rolcanlogin: false, rolsuper: false, rolbypassrls: false, never_expires: true },
+    { rolcanlogin: true, rolsuper: false, rolbypassrls: false, never_expires: false },
+    { rolcanlogin: true, rolsuper: true, rolbypassrls: false, never_expires: true },
+    { rolcanlogin: true, rolsuper: false, rolbypassrls: true, never_expires: true },
+  ]) {
+    const session = fakeSession({ apiRole });
+    await assert.rejects(
+      applyProviderSteps(input({ session, management: fakeManagement().management })),
+      error => error.code === 'RESOURCE_OWNERSHIP_MISMATCH',
+    );
+    assert.equal(session.state.steps.get('api_credential').status, 'started');
+  }
 });
