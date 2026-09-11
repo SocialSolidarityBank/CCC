@@ -24,6 +24,29 @@ export const CONSENT_COPY: Record<ConsentDomain, { label: string; copy: string; 
   voice_original_retention_period: { label: '음성 원본 보유기간', copy: '상담 음성 원본을 고지한 보유기간 동안 보관한 뒤 삭제합니다.', provider: 'institution_private_storage', purpose: 'voice_original_retention' },
 };
 
+/** Trusted installation input, never accepted by the business HTTP API. */
+export interface InstallConsentProviderRegistryInput {
+  schemaVersion: 1;
+  orgId: string;
+  approvedBy: string;
+  approvedAt: string;
+  /** Opaque reference to the institution's approval, not document contents. */
+  approvalRef: string;
+  providers: Array<{
+    provider: ProviderId;
+    legalRecipient: string;
+    country: string;
+    validUntil: string | null;
+  }>;
+}
+
+export interface InstalledConsentProviderRegistry {
+  orgId: string;
+  approvedAt: string;
+  snapshotIds: string[];
+  replayed: boolean;
+}
+
 export interface ConsentEvent {
   id: string; orgId: string; beneficiaryId: string; supportCaseId: string;
   domain: ConsentDomain; decision: ConsentDecision; provider: ProviderId | null;

@@ -39,6 +39,8 @@ import {
   type ConsentGateReceiptEntry,
   type CurrentConsentState,
   type ProviderId,
+  type InstallConsentProviderRegistryInput,
+  type InstalledConsentProviderRegistry,
 } from '@ccc/contracts/consent';
 import type { SttEngineId, SttReadinessRecord, SttReadinessReport } from '@ccc/contracts/stt-readiness';
 import {
@@ -7749,6 +7751,82 @@ export async function issueRegistrationConsentDisclosures(
   return issueConsentDisclosures(env, actor, programId, null);
 }
 
+/**
+ * Trusted installation only: pass the installer Database, never the request-role
+ * connection. PostgreSQL deliberately denies this INSERT to ccc_api; there is no
+ * HTTP route for this command. Append a complete, approved recipient set atomically.
+ */
+export async function installConsentProviderRegistry(
+  database: Database, input: InstallConsentProviderRegistryInput,
+): Promise<InstalledConsentProviderRegistry> {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw new ValidationError('consent registry installation input is invalid');
+  }
+  assertExactKeys(input, ['schemaVersion', 'orgId', 'approvedBy', 'approvedAt', 'approvalRef', 'providers']);
+  if (input.schemaVersion !== 1) throw new ValidationError('consent registry schema version is invalid');
+  assertOpaqueIdentifier(input.orgId, 'organization id');
+  assertOpaqueIdentifier(input.approvedBy, 'approval actor');
+  assertOpaqueIdentifier(input.approvalRef, 'approval reference');
+  const approvedAt = canonicalUtcInstant(input.approvedAt, 'approved at');
+  const installedAt = now();
+  if (approvedAt > installedAt) throw new ValidationError('consent registry approval is in the future');
+  const required = [...new Set(CONSENT_DOMAINS.map(domain => CONSENT_COPY[domain].provider))];
+  if (!Array.isArray(input.providers) || input.providers.length !== required.length) {
+    throw new ValidationError('complete consent provider approval is required');
+  }
+  const entries = new Map<ProviderId, InstallConsentProviderRegistryInput['providers'][number]>();
+  for (const entry of input.providers) {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new ValidationError('consent provider approval is invalid');
+    }
+    assertExactKeys(entry, ['provider', 'legalRecipient', 'country', 'validUntil']);
+    if (!required.includes(entry.provider) || entries.has(entry.provider)) {
+      throw new ValidationError('consent provider approval is duplicated or unsupported');
+    }
+    assertNonBlankText(entry.legalRecipient, 'legal recipient');
+    if (entry.legalRecipient.length > 500 || entry.legalRecipient !== entry.legalRecipient.trim()
+      || /[\r\n\0]/.test(entry.legalRecipient) || typeof entry.country !== 'string' || !/^[A-Z]{2}$/.test(entry.country)) {
+      throw new ValidationError('consent provider recipient is invalid');
+    }
+    if (entry.validUntil !== null) {
+      const validUntil = canonicalUtcInstant(entry.validUntil, 'valid until');
+      if (validUntil <= installedAt || validUntil <= approvedAt) {
+        throw new ValidationError('consent provider approval has expired');
+      }
+    }
+    entries.set(entry.provider, entry);
+  }
+  const existing = await database.prepare(`SELECT id, provider, legal_recipient, country, valid_until
+    FROM consent_provider_registry_snapshots WHERE org_id=? AND approved_at=?`)
+    .bind(input.orgId, approvedAt).all<DbRow>();
+  const existingByProvider = new Map(existing.results.map(row => [stringValue(row.provider), row]));
+  const snapshotIds: string[] = [], statements: PreparedStatement[] = [];
+  for (const provider of required) {
+    const entry = entries.get(provider)!;
+    const prior = existingByProvider.get(provider);
+    if (prior !== undefined) {
+      if (prior.legal_recipient !== entry.legalRecipient || prior.country !== entry.country
+        || nullableString(prior.valid_until) !== entry.validUntil) {
+        throw new ConflictError('consent provider approval conflicts with an immutable snapshot');
+      }
+      snapshotIds.push(stringValue(prior.id));
+      continue;
+    }
+    const id = newId();
+    snapshotIds.push(id);
+    statements.push(database.prepare(`INSERT INTO consent_provider_registry_snapshots
+      (id,org_id,provider,legal_recipient,country,approved_at,valid_until) VALUES (?,?,?,?,?,?,?)`)
+      .bind(id, input.orgId, provider, entry.legalRecipient, entry.country, approvedAt, entry.validUntil));
+  }
+  if (statements.length === 0) return { orgId: input.orgId, approvedAt, snapshotIds, replayed: true };
+  statements.push(database.prepare(`INSERT INTO audit_log
+    (org_id,actor_id,actor_role,action,target_table,target_id,detail,created_at)
+    VALUES (?,?,'service','consent_provider_registry_installed','consent_provider_registry_snapshots',?,?,?)`)
+    .bind(input.orgId, input.approvedBy, input.approvalRef,
+      stringifyJson({ schemaVersion: 1, approvedAt, providers: required, snapshotIds }), installedAt));
+  await database.batch(statements);
+  return { orgId: input.orgId, approvedAt, snapshotIds, replayed: false };
+}
 async function issueConsentDisclosures(
   env: Env,
   actor: Actor,

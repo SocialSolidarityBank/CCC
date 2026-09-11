@@ -5,9 +5,32 @@ await build({
   outfile: 'dist/index.js',
   bundle: true,
   format: 'esm',
-  platform: 'neutral',
+  // Deno implements these node: built-ins; bundle postgres so the image needs no npm install.
+  platform: 'node',
+  target: 'es2022',
+  sourcemap: false,
+  logLevel: 'warning',
+});
+
+await build({
+  entryPoints: ['src/install-consent-registry.ts'],
+  outfile: 'dist/install-consent-registry.js',
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
   target: 'es2022',
   external: ['postgres'],
+  sourcemap: false,
+  logLevel: 'warning',
+});
+
+await build({
+  entryPoints: ['src/install-manifest-verifier.ts'],
+  outfile: 'dist/install-manifest-verifier.js',
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  target: 'es2022',
   sourcemap: false,
   logLevel: 'warning',
 });
