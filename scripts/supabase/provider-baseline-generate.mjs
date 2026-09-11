@@ -242,17 +242,12 @@ async function requireSafeAncestry(path) {
   }
 }
 
-async function assertPinnedDirectory(directory) {
+async function requireSafeDirectory(path) {
   try {
-    const [opened, current] = await Promise.all([
-      directory.handle.stat(),
-      lstat(directory.path),
-    ]);
-    if (!opened.isDirectory() || !current.isDirectory() || current.isSymbolicLink()
-      || !hasIdentity(opened, directory.identity) || !hasIdentity(current, directory.identity)) fail();
-    for (const requestedPath of directory.requestedPaths) {
-      if (await realpath(requestedPath) !== directory.path) fail();
-    }
+    await requireSafeAncestry(path);
+    const info = await lstat(path);
+    if (!info.isDirectory() || info.isSymbolicLink()) fail();
+    return info;
   } catch (error) {
     if (error instanceof ProviderBaselineGenerationError) throw error;
     fail();
@@ -260,7 +255,7 @@ async function assertPinnedDirectory(directory) {
 }
 
 async function pathMustNotExist(output) {
-  await assertPinnedDirectory(output.directory);
+  await requireSafeDirectory(output.directory);
   try {
     await lstat(output.path);
     fail();
@@ -268,137 +263,135 @@ async function pathMustNotExist(output) {
     if (error instanceof ProviderBaselineGenerationError) throw error;
     if (error?.code !== 'ENOENT') fail();
   }
-  await assertPinnedDirectory(output.directory);
+  await requireSafeDirectory(output.directory);
 }
 
-async function pinOutputPaths(paths) {
-  const directories = new Map();
+async function prepareOutputPaths(paths) {
   const outputs = {};
   try {
     for (const [key, destination] of Object.entries(paths)) {
-      const requestedPath = dirname(destination);
-      const canonicalPath = await realpath(requestedPath);
-      await requireSafeAncestry(canonicalPath);
-      let directory = directories.get(canonicalPath);
-      if (directory === undefined) {
-        const handle = await open(
-          canonicalPath,
-          constants.O_RDONLY | (constants.O_DIRECTORY ?? 0) | (constants.O_NOFOLLOW ?? 0),
-        );
-        const info = await handle.stat();
-        if (!info.isDirectory()) {
-          await handle.close();
-          fail();
-        }
-        directory = {
-          path: canonicalPath,
-          requestedPaths: new Set(),
-          handle,
-          identity: fileIdentity(info),
-        };
-        directories.set(canonicalPath, directory);
-      }
-      directory.requestedPaths.add(requestedPath);
+      const directory = await realpath(dirname(destination));
+      const directoryIdentity = fileIdentity(await requireSafeDirectory(directory));
       outputs[key] = {
-        path: resolve(canonicalPath, basename(destination)),
+        path: resolve(directory, basename(destination)),
         directory,
+        directoryIdentity,
       };
     }
     if (outputs.releaseTrust.path === outputs.baseline.path) fail();
-    await Promise.all([...directories.values()].map(assertPinnedDirectory));
     await Promise.all(Object.values(outputs).map(pathMustNotExist));
-    return { directories, outputs };
+    return outputs;
   } catch (error) {
-    await Promise.all([...directories.values()].map(directory => directory.handle.close().catch(() => {})));
     if (error instanceof ProviderBaselineGenerationError) throw error;
     fail();
   }
-}
-
-async function closePinnedOutputs(pinned) {
-  await Promise.all([...pinned.directories.values()].map(directory => directory.handle.close().catch(() => {})));
-}
-
-async function assertPinnedOutputs(pinned) {
-  await Promise.all([...pinned.directories.values()].map(assertPinnedDirectory));
 }
 
 async function assertKnownPath(record) {
-  await assertPinnedDirectory(record.directory);
+  const directory = await lstat(record.directory);
   const info = await lstat(record.path);
-  if (info.isSymbolicLink() || !info.isFile() || !hasIdentity(info, record.identity)) fail();
+  if (!directory.isDirectory() || directory.isSymbolicLink()
+    || !hasIdentity(directory, record.directoryIdentity)
+    || info.isSymbolicLink() || !info.isFile() || !hasIdentity(info, record.identity)) fail();
   return info;
 }
 
-async function unlinkKnownPath(record) {
-  await assertKnownPath(record);
-  await unlink(record.path);
+async function removeKnownPath(record) {
   try {
-    await lstat(record.path);
-    fail();
-  } catch (error) {
-    if (error instanceof ProviderBaselineGenerationError) throw error;
-    if (error?.code !== 'ENOENT') fail();
+    const directory = await lstat(record.directory);
+    if (!directory.isDirectory() || directory.isSymbolicLink()
+      || !hasIdentity(directory, record.directoryIdentity)) return false;
+    const info = await lstat(record.path);
+    if (info.isSymbolicLink() || !info.isFile() || !hasIdentity(info, record.identity)) return false;
+    await unlink(record.path);
+    try {
+      await lstat(record.path);
+      return false;
+    } catch (error) {
+      return error?.code === 'ENOENT';
+    }
+  } catch {
+    return false;
   }
-  await assertPinnedDirectory(record.directory);
+}
+
+async function cleanupKnownPaths(records) {
+  let complete = true;
+  for (const record of records) {
+    if (!await removeKnownPath(record)) complete = false;
+  }
+  return complete;
 }
 
 async function writeOwnerOnlyTemp(output, contents) {
-  const tempPath = resolve(output.directory.path, `.${basename(output.path)}.${randomUUID()}.tmp`);
+  const tempPath = resolve(output.directory, `.${basename(output.path)}.${randomUUID()}.tmp`);
   let handle;
+  let created = false;
   let temp;
   try {
-    await assertPinnedDirectory(output.directory);
+    await requireSafeDirectory(output.directory);
     handle = await open(
       tempPath,
       constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0),
       0o600,
     );
+    created = true;
     let info = await handle.stat();
-    temp = { path: tempPath, directory: output.directory, identity: fileIdentity(info) };
+    temp = {
+      path: tempPath,
+      directory: output.directory,
+      directoryIdentity: output.directoryIdentity,
+      identity: fileIdentity(info),
+    };
     if (!info.isFile() || (info.mode & 0o777) !== 0o600) fail();
-    await assertPinnedDirectory(output.directory);
     await handle.writeFile(contents, 'utf8');
     await handle.chmod(0o600);
     await handle.sync();
     info = await handle.stat();
     if (!info.isFile() || !hasIdentity(info, temp.identity) || (info.mode & 0o777) !== 0o600) fail();
-    await assertPinnedDirectory(output.directory);
     await handle.close();
     handle = undefined;
     await assertKnownPath(temp);
     return temp;
   } catch (error) {
     if (handle !== undefined) await handle.close().catch(() => {});
-    if (temp !== undefined) await unlinkKnownPath(temp).catch(() => {});
+    const cleaned = !created || (temp !== undefined && await removeKnownPath(temp));
+    if (!cleaned) fail('OUTPUT_CLEANUP_INCOMPLETE');
     if (error instanceof ProviderBaselineGenerationError) throw error;
     fail();
   }
 }
 
-async function installOutputs(pinned, documents) {
-  await assertPinnedOutputs(pinned);
-  await Promise.all(Object.values(pinned.outputs).map(pathMustNotExist));
+// The output directory is an operator-controlled trust boundary. Node has no
+// openat/unlinkat API, so cleanup is identity-checked and best effort rather
+// than claiming safety against a principal concurrently renaming that directory.
+async function installOutputs(outputs, documents) {
+  await Promise.all(Object.values(outputs).map(pathMustNotExist));
   const temps = {};
   const installed = [];
   try {
-    temps.releaseTrust = await writeOwnerOnlyTemp(pinned.outputs.releaseTrust, documents.releaseTrust);
-    temps.baseline = await writeOwnerOnlyTemp(pinned.outputs.baseline, documents.baseline);
+    temps.releaseTrust = await writeOwnerOnlyTemp(outputs.releaseTrust, documents.releaseTrust);
+    temps.baseline = await writeOwnerOnlyTemp(outputs.baseline, documents.baseline);
     for (const key of ['releaseTrust', 'baseline']) {
-      const output = pinned.outputs[key];
+      const output = outputs[key];
       await assertKnownPath(temps[key]);
-      await assertPinnedDirectory(output.directory);
+      await requireSafeDirectory(output.directory);
       await link(temps[key].path, output.path);
+      const installedOutput = {
+        path: output.path,
+        directory: output.directory,
+        directoryIdentity: output.directoryIdentity,
+        identity: temps[key].identity,
+      };
+      installed.push(installedOutput);
       const info = await lstat(output.path);
-      if (info.isSymbolicLink() || !info.isFile() || !hasIdentity(info, temps[key].identity)
+      if (info.isSymbolicLink() || !info.isFile() || !hasIdentity(info, installedOutput.identity)
         || (info.mode & 0o777) !== 0o600) fail();
-      installed.push({ path: output.path, directory: output.directory, identity: temps[key].identity });
-      await assertPinnedDirectory(output.directory);
     }
-    for (const temp of Object.values(temps)) await unlinkKnownPath(temp);
+    if (!await cleanupKnownPaths(Object.values(temps))) fail('OUTPUT_CLEANUP_INCOMPLETE');
   } catch (error) {
-    for (const output of installed.reverse()) await unlinkKnownPath(output).catch(() => {});
-    for (const temp of Object.values(temps)) await unlinkKnownPath(temp).catch(() => {});
+    const cleaned = await cleanupKnownPaths([...installed.reverse(), ...Object.values(temps)]);
+    if (!cleaned) fail('OUTPUT_CLEANUP_INCOMPLETE');
     if (error instanceof ProviderBaselineGenerationError) throw error;
     fail();
   }
@@ -461,24 +454,21 @@ export async function generateProviderBaseline({
   if (!await verifySignedTrust(releaseTrust, rootKeys[releaseTrust.rootKeyId])) fail('BETA_TRUST_INVALID');
 
   let sourceEvidence;
-  let pinnedOutputs;
+  let outputs;
   try {
     sourceEvidence = validateSourceEvidenceShape(await readStrictJsonDocument(sourceEvidenceInput));
-    pinnedOutputs = await pinOutputPaths(paths);
+    outputs = await prepareOutputPaths(paths);
   } catch (error) {
     if (error instanceof ProviderBaselineGenerationError) throw error;
     fail();
   }
-  try {
 
   let first;
   let second;
   try {
     if (typeof inspector?.inspect !== 'function') fail('PROVIDER_BASELINE_MISMATCH');
     first = stableObservation(await inspector.inspect(), authorization, sourceEvidence.databaseVersion);
-    await assertPinnedOutputs(pinnedOutputs);
     second = stableObservation(await inspector.inspect(), authorization, sourceEvidence.databaseVersion);
-    await assertPinnedOutputs(pinnedOutputs);
   } catch (error) {
     if (error instanceof ProviderBaselineGenerationError) throw error;
     fail('PROVIDER_BASELINE_MISMATCH');
@@ -533,7 +523,7 @@ export async function generateProviderBaseline({
   } catch {
     fail();
   }
-  await installOutputs(pinnedOutputs, documents);
+  await installOutputs(outputs, documents);
   return {
     releaseTrustSha256: verified.releaseTrustSha256,
     baselineSha256: verified.baselineSha256,
@@ -542,9 +532,6 @@ export async function generateProviderBaseline({
     grantCount: verified.grants.length,
     sourceEvidenceSha256,
   };
-  } finally {
-    await closePinnedOutputs(pinnedOutputs);
-  }
 }
 
 function parseCliArgs(argv) {

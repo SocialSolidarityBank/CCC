@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { registerHooks } from 'node:module';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -367,29 +369,77 @@ test('never overwrites either existing output or leaves the other output behind'
   });
 });
 
-test('pins output directory identity across observation and leaves no signed files after replacement', async () => {
+test('post-link failures roll back registered destinations or report incomplete cleanup', async () => {
+  const actual = await import('node:fs/promises');
+  let linkedDestination;
+  let failPostLinkValidation = true;
+  const bridgeKey = `ccc-provider-output-${randomUUID()}`;
+  globalThis[bridgeKey] = {
+    ...actual,
+    link: async (source, destination) => {
+      await actual.link(source, destination);
+      linkedDestination = destination;
+    },
+    lstat: async path => {
+      const info = await actual.lstat(path);
+      if (path === linkedDestination && failPostLinkValidation) {
+        failPostLinkValidation = false;
+        return new Proxy(info, {
+          get(target, property) {
+            if (property === 'mode') return target.mode | 0o044;
+            const value = Reflect.get(target, property);
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        });
+      }
+      return info;
+    },
+  };
+  const moduleUrl = new URL(`./provider-baseline-generate.mjs?rollback=${randomUUID()}`, import.meta.url);
+  const bridgeSource = ['link', 'lstat', 'open', 'realpath', 'unlink']
+    .map(name => `export const ${name}=(...args)=>globalThis[${JSON.stringify(bridgeKey)}].${name}(...args);`)
+    .join('\n');
+  const bridgeUrl = `data:text/javascript,${encodeURIComponent(bridgeSource)}`;
+  const hooks = registerHooks({
+    resolve(specifier, context, nextResolve) {
+      if (specifier === 'node:fs/promises' && context.parentURL === moduleUrl.href) {
+        return { shortCircuit: true, url: bridgeUrl };
+      }
+      return nextResolve(specifier, context);
+    },
+  });
   const current = await fixture();
-  const moved = `${current.directory}-moved`;
   try {
-    const observed = await snapshot();
-    let calls = 0;
-    const inputs = await generationInputs(current, observed, observed);
-    inputs.inspector = {
-      async inspect() {
-        if (calls === 0) {
-          await rename(current.directory, moved);
-          await mkdir(current.directory);
-        }
-        calls += 1;
-        return structuredClone(observed);
-      },
+    const isolated = await import(moduleUrl.href);
+    const inputs = await generationInputs(current);
+    await assert.rejects(
+      isolated.generateProviderBaseline(inputs),
+      error => error?.code === 'PROVIDER_BASELINE_INVALID',
+    );
+    await assertAbsent(current.outputPaths);
+
+    failPostLinkValidation = true;
+    linkedDestination = undefined;
+    globalThis[bridgeKey].unlink = async path => {
+      if (path === linkedDestination) {
+        const error = new Error('blocked cleanup');
+        error.code = 'EACCES';
+        throw error;
+      }
+      return actual.unlink(path);
     };
-    await assertGenerationFailure(inputs);
-    assert.deepEqual(await readdir(current.directory), []);
-    assert.deepEqual(await readdir(moved), []);
+    await assert.rejects(
+      isolated.generateProviderBaseline(await generationInputs(current)),
+      error => error?.code === 'OUTPUT_CLEANUP_INCOMPLETE'
+        && error.message === 'OUTPUT_CLEANUP_INCOMPLETE',
+    );
+    assert.equal((await stat(current.outputPaths.releaseTrust)).isFile(), true);
+    await actual.rm(current.outputPaths.releaseTrust);
+    await assertAbsent(current.outputPaths);
   } finally {
+    hooks.deregister();
+    delete globalThis[bridgeKey];
     await rm(current.directory, { recursive: true, force: true });
-    await rm(moved, { recursive: true, force: true });
   }
 });
 

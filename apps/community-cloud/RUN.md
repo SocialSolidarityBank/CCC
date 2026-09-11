@@ -84,7 +84,7 @@ node scripts/supabase/provider-baseline-generate.mjs \
   --baseline-output /tmp/relayer-provider-baseline-20260911.json
 ```
 
-Both output parents must already exist. The generator resolves them to canonical directories, rejects unsafe canonical ancestry, pins each directory identity across both observations and output installation, and verifies every created-file identity before cleanup. Output creation is exclusive and atomic per path, never overwrites an existing document, writes mode `0600`, and removes temporary or newly linked files if the pair cannot be completed. Successful stdout contains only `baselineVersion`, object and grant counts, and the three document hashes. Failure emits no document, URL, project ref, object or grant name, key, signature, token, or connection string.
+Both output parents must already exist. The generator resolves them to canonical directories and checks ancestry and type before writing. Each destination is created exclusively and atomically per path from an fsynced mode `0600` no-follow temporary file, and an existing document is never overwritten. Node does not expose `openat` or `unlinkat`, so cleanup verifies each created file's device and inode and is best effort. If cleanup cannot be verified, generation fails with a fixed redacted code and never returns success. The operator must choose output directories that it controls and that no other principal can write or rename during generation. Successful stdout contains only `baselineVersion`, object and grant counts, and the three document hashes. Failure emits no document detail, URL, project ref, object or grant name, key, signature, token, connection string, or path.
 
 ### Pending executable verification
 
