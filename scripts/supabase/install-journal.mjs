@@ -45,11 +45,12 @@ export const DATABASE_INSTALL_FINGERPRINT_QUERY = `SELECT jsonb_build_object(
   ), '[]'::jsonb),
   'namespaceDependencies', COALESCE((
     SELECT jsonb_agg(jsonb_build_array(
-      namespace.nspname,
-      dependency.classid, dependency.objid, dependency.objsubid, dependency.deptype,
-      identified.type, identified.schema, identified.name, identified.identity
-    ) ORDER BY namespace.nspname, dependency.classid, dependency.objid,
-      dependency.objsubid, dependency.deptype)
+      namespace.nspname, identified.type,
+      COALESCE(identified.schema, ''), COALESCE(identified.name, ''),
+      identified.identity, dependency.deptype
+    ) ORDER BY namespace.nspname, identified.type,
+      COALESCE(identified.schema, ''), COALESCE(identified.name, ''),
+      identified.identity, dependency.deptype)
     FROM pg_catalog.pg_depend AS dependency
     JOIN pg_catalog.pg_namespace AS namespace
       ON dependency.refclassid = 'pg_catalog.pg_namespace'::regclass
@@ -62,7 +63,7 @@ export const DATABASE_INSTALL_FINGERPRINT_QUERY = `SELECT jsonb_build_object(
   'relations', COALESCE((
     SELECT jsonb_agg(jsonb_build_array(
       namespace.nspname, relation.relname, relation.relkind,
-      relation.relrowsecurity, relation.relforcerowsecurity,
+      relation.relrowsecurity, relation.relforcerowsecurity, relation.relreplident,
       pg_catalog.pg_get_userbyid(relation.relowner), relation.relacl::text, relation.reloptions
     ) ORDER BY namespace.nspname, relation.relname, relation.relkind)
     FROM pg_catalog.pg_class AS relation
@@ -72,10 +73,13 @@ export const DATABASE_INSTALL_FINGERPRINT_QUERY = `SELECT jsonb_build_object(
   'columns', COALESCE((
     SELECT jsonb_agg(jsonb_build_array(
       namespace.nspname, relation.relname, attribute.attname,
-      attribute.atttypid, attribute.atttypmod,
+      pg_catalog.format_type(attribute.atttypid, attribute.atttypmod),
       attribute.attnotnull, attribute.attidentity, attribute.attgenerated,
-      pg_catalog.pg_get_expr(default_value.adbin, default_value.adrelid), attribute.attacl::text
-    ) ORDER BY namespace.nspname, relation.relname, attribute.attnum)
+      CASE WHEN attribute.attcollation = 0 THEN NULL
+        ELSE attribute.attcollation::regcollation::text END,
+      pg_catalog.pg_get_expr(default_value.adbin, default_value.adrelid, false),
+      attribute.attacl::text
+    ) ORDER BY namespace.nspname, relation.relname, attribute.attname)
     FROM pg_catalog.pg_attribute AS attribute
     JOIN pg_catalog.pg_class AS relation ON relation.oid = attribute.attrelid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
@@ -108,8 +112,10 @@ export const DATABASE_INSTALL_FINGERPRINT_QUERY = `SELECT jsonb_build_object(
   ), '[]'::jsonb),
   'sequences', COALESCE((
     SELECT jsonb_agg(jsonb_build_array(
-      namespace.nspname, relation.relname, sequence.seqtypid, sequence.seqstart,
-      sequence.seqincrement, sequence.seqmax, sequence.seqmin, sequence.seqcache, sequence.seqcycle
+      namespace.nspname, relation.relname,
+      pg_catalog.format_type(sequence.seqtypid, NULL),
+      sequence.seqstart, sequence.seqincrement, sequence.seqmax,
+      sequence.seqmin, sequence.seqcache, sequence.seqcycle
     ) ORDER BY namespace.nspname, relation.relname)
     FROM pg_catalog.pg_sequence AS sequence
     JOIN pg_catalog.pg_class AS relation ON relation.oid = sequence.seqrelid
@@ -127,36 +133,43 @@ export const DATABASE_INSTALL_FINGERPRINT_QUERY = `SELECT jsonb_build_object(
   'routines', COALESCE((
     SELECT jsonb_agg(jsonb_build_array(
       namespace.nspname, procedure.proname, procedure.prokind,
-      procedure.proargtypes::text, procedure.proallargtypes::text,
-      procedure.proargmodes, procedure.proargnames, procedure.proargdefaults::text,
-      procedure.pronargdefaults, procedure.prorettype, procedure.proretset,
-      language.lanname, procedure.prosecdef, procedure.proleakproof,
-      procedure.proisstrict, procedure.provolatile, procedure.proparallel,
-      procedure.prosupport, procedure.proacl::text, procedure.proconfig,
-      procedure.procost, procedure.prorows, procedure.probin, procedure.prosrc,
-      procedure.prosqlbody::text, pg_catalog.pg_get_userbyid(procedure.proowner)
-    ) ORDER BY namespace.nspname, procedure.proname, procedure.proargtypes::text)
+      pg_catalog.pg_get_function_identity_arguments(procedure.oid),
+      pg_catalog.pg_get_function_arguments(procedure.oid),
+      pg_catalog.pg_get_function_result(procedure.oid),
+      pg_catalog.pg_get_functiondef(procedure.oid),
+      pg_catalog.pg_get_userbyid(procedure.proowner),
+      procedure.proacl::text
+    ) ORDER BY namespace.nspname, procedure.proname,
+      pg_catalog.pg_get_function_identity_arguments(procedure.oid))
     FROM pg_catalog.pg_proc AS procedure
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
-    JOIN pg_catalog.pg_language AS language ON language.oid = procedure.prolang
     WHERE namespace.nspname IN ('public','private') AND procedure.prokind <> 'a'
   ), '[]'::jsonb),
   'aggregates', COALESCE((
     SELECT jsonb_agg(jsonb_build_array(
-      namespace.nspname, procedure.proname, procedure.proargtypes::text,
+      namespace.nspname, procedure.proname,
+      pg_catalog.pg_get_function_identity_arguments(procedure.oid),
+      pg_catalog.pg_get_function_result(procedure.oid),
       pg_catalog.pg_get_userbyid(procedure.proowner), procedure.proacl::text,
       procedure.proparallel, aggregate_record.aggkind, aggregate_record.aggnumdirectargs,
-      aggregate_record.aggtransfn, aggregate_record.aggfinalfn,
-      aggregate_record.aggcombinefn, aggregate_record.aggserialfn,
-      aggregate_record.aggdeserialfn, aggregate_record.aggmtransfn,
-      aggregate_record.aggminvtransfn, aggregate_record.aggmfinalfn,
+      NULLIF(aggregate_record.aggtransfn, 0)::regprocedure::text,
+      NULLIF(aggregate_record.aggfinalfn, 0)::regprocedure::text,
+      NULLIF(aggregate_record.aggcombinefn, 0)::regprocedure::text,
+      NULLIF(aggregate_record.aggserialfn, 0)::regprocedure::text,
+      NULLIF(aggregate_record.aggdeserialfn, 0)::regprocedure::text,
+      NULLIF(aggregate_record.aggmtransfn, 0)::regprocedure::text,
+      NULLIF(aggregate_record.aggminvtransfn, 0)::regprocedure::text,
+      NULLIF(aggregate_record.aggmfinalfn, 0)::regprocedure::text,
       aggregate_record.aggfinalextra, aggregate_record.aggmfinalextra,
       aggregate_record.aggfinalmodify, aggregate_record.aggmfinalmodify,
-      aggregate_record.aggsortop, aggregate_record.aggtranstype,
-      aggregate_record.aggtransspace, aggregate_record.aggmtranstype,
+      NULLIF(aggregate_record.aggsortop, 0)::regoperator::text,
+      pg_catalog.format_type(aggregate_record.aggtranstype, NULL),
+      aggregate_record.aggtransspace,
+      pg_catalog.format_type(aggregate_record.aggmtranstype, NULL),
       aggregate_record.aggmtransspace, aggregate_record.agginitval,
       aggregate_record.aggminitval
-    ) ORDER BY namespace.nspname, procedure.proname, procedure.proargtypes::text)
+    ) ORDER BY namespace.nspname, procedure.proname,
+      pg_catalog.pg_get_function_identity_arguments(procedure.oid))
     FROM pg_catalog.pg_aggregate AS aggregate_record
     JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = aggregate_record.aggfnoid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
@@ -176,12 +189,13 @@ export const DATABASE_INSTALL_FINGERPRINT_QUERY = `SELECT jsonb_build_object(
     SELECT jsonb_agg(jsonb_build_array(
       namespace.nspname, relation.relname, policy.polname, policy.polpermissive, policy.polcmd,
       ARRAY(
-        SELECT CASE WHEN role_oid = 0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(role_oid) END
-        FROM unnest(policy.polroles) AS role_oid
+        SELECT CASE WHEN role_oid = 0 THEN 'PUBLIC'
+          ELSE 'ROLE:' || pg_catalog.pg_get_userbyid(role_oid) END
+        FROM pg_catalog.unnest(policy.polroles) AS role_oid
         ORDER BY 1
       ),
-      pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
-      pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+      pg_catalog.pg_get_expr(policy.polqual, policy.polrelid, false),
+      pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid, false)
     ) ORDER BY namespace.nspname, relation.relname, policy.polname)
     FROM pg_catalog.pg_policy AS policy
     JOIN pg_catalog.pg_class AS relation ON relation.oid = policy.polrelid
@@ -200,28 +214,33 @@ export const DATABASE_INSTALL_FINGERPRINT_QUERY = `SELECT jsonb_build_object(
           WHERE enum.enumtypid = type_record.oid
         ), '[]'::jsonb)
         WHEN 'd' THEN jsonb_build_array(
-          type_record.typbasetype, type_record.typtypmod,
+          pg_catalog.format_type(type_record.typbasetype, type_record.typtypmod),
           type_record.typnotnull,
-          type_record.typdefaultbin::text, type_record.typdefault,
-          type_record.typcollation
+          pg_catalog.pg_get_expr(type_record.typdefaultbin, 0, false),
+          type_record.typdefault,
+          CASE WHEN type_record.typcollation = 0 THEN NULL
+            ELSE type_record.typcollation::regcollation::text END
         )
         WHEN 'c' THEN COALESCE((
           SELECT jsonb_agg(jsonb_build_array(
-            attribute.attname, attribute.atttypid, attribute.atttypmod,
-            attribute.attcollation
-          ) ORDER BY attribute.attnum)
+            attribute.attname,
+            pg_catalog.format_type(attribute.atttypid, attribute.atttypmod),
+            CASE WHEN attribute.attcollation = 0 THEN NULL
+              ELSE attribute.attcollation::regcollation::text END
+          ) ORDER BY attribute.attname)
           FROM pg_catalog.pg_attribute AS attribute
           WHERE attribute.attrelid = type_record.typrelid
             AND attribute.attnum > 0 AND NOT attribute.attisdropped
         ), '[]'::jsonb)
         WHEN 'r' THEN (
           SELECT jsonb_build_array(
-            range_record.rngsubtype,
-            range_record.rngsubopc,
-            range_record.rngcollation,
-            range_record.rngcanonical,
-            range_record.rngsubdiff,
-            range_record.rngmultitypid
+            pg_catalog.format_type(range_record.rngsubtype, NULL),
+            pg_catalog.format('%I.%I', opclass_namespace.nspname, opclass.opcname),
+            CASE WHEN range_record.rngcollation = 0 THEN NULL
+              ELSE range_record.rngcollation::regcollation::text END,
+            NULLIF(range_record.rngcanonical, 0)::regprocedure::text,
+            NULLIF(range_record.rngsubdiff, 0)::regprocedure::text,
+            pg_catalog.format_type(range_record.rngmultitypid, NULL)
           )
           FROM pg_catalog.pg_range AS range_record
           JOIN pg_catalog.pg_opclass AS opclass ON opclass.oid = range_record.rngsubopc
@@ -250,16 +269,21 @@ export const DATABASE_INSTALL_FINGERPRINT_QUERY = `SELECT jsonb_build_object(
     FROM pg_catalog.pg_roles WHERE rolname IN ('ccc_api','ccc_schema_owner')
   ), '[]'::jsonb),
   'apiMemberships', COALESCE((
-    SELECT jsonb_agg(jsonb_build_array(pg_catalog.pg_get_userbyid(membership.roleid),
-      pg_catalog.pg_get_userbyid(membership.member), membership.admin_option)
-      ORDER BY membership.roleid, membership.member)
+    SELECT jsonb_agg(jsonb_build_array(
+      'ROLE:' || pg_catalog.pg_get_userbyid(membership.roleid),
+      'ROLE:' || pg_catalog.pg_get_userbyid(membership.member),
+      'ROLE:' || pg_catalog.pg_get_userbyid(membership.grantor),
+      membership.admin_option, membership.inherit_option, membership.set_option
+    ) ORDER BY pg_catalog.pg_get_userbyid(membership.roleid),
+      pg_catalog.pg_get_userbyid(membership.member),
+      pg_catalog.pg_get_userbyid(membership.grantor))
     FROM pg_catalog.pg_auth_members membership
     WHERE membership.roleid IN (SELECT oid FROM pg_catalog.pg_roles WHERE rolname IN ('ccc_api','ccc_schema_owner'))
       OR membership.member IN (SELECT oid FROM pg_catalog.pg_roles WHERE rolname IN ('ccc_api','ccc_schema_owner'))
   ), '[]'::jsonb),
   'defaultPrivileges', COALESCE((
     SELECT jsonb_agg(jsonb_build_array(
-      pg_catalog.pg_get_userbyid(default_acl.defaclrole),
+      'ROLE:' || pg_catalog.pg_get_userbyid(default_acl.defaclrole),
       COALESCE(namespace.nspname, ''), default_acl.defaclobjtype, default_acl.defaclacl::text
     ) ORDER BY pg_catalog.pg_get_userbyid(default_acl.defaclrole),
       COALESCE(namespace.nspname, ''), default_acl.defaclobjtype)

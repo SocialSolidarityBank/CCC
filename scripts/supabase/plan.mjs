@@ -474,11 +474,12 @@ export async function buildSupabasePlan({
   authorization,
   providerBaseline,
   renewAuthorization = false,
+  now = Date.now,
 }) {
   if (target !== 'hosted' && target !== 'local') throw new PlanFailure('TARGET_UNSUPPORTED');
   if (target === 'hosted') {
     assertAuthorizationCurrent(authorization);
-    assertProviderBaselineCurrent(providerBaseline, authorization);
+    assertProviderBaselineCurrent(providerBaseline, authorization, now());
   }
   const migrations = postgresMigrationPlan();
   const migrationsSha256 = await hashCanonical(migrations);
@@ -488,12 +489,12 @@ export async function buildSupabasePlan({
     before = await inspector.inspect();
     if (target === 'hosted') {
       assertAuthorizationCurrent(authorization);
-      assertProviderBaselineCurrent(providerBaseline, authorization);
+      assertProviderBaselineCurrent(providerBaseline, authorization, now());
     }
     after = await inspector.inspect();
     if (target === 'hosted') {
       assertAuthorizationCurrent(authorization);
-      assertProviderBaselineCurrent(providerBaseline, authorization);
+      assertProviderBaselineCurrent(providerBaseline, authorization, now());
     }
   } catch (error) {
     throw new PlanFailure(error?.code ?? (target === 'local' ? 'LOCAL_SUPABASE_UNAVAILABLE' : 'PROVIDER_UNREADABLE'));
@@ -593,6 +594,10 @@ export async function buildSupabasePlan({
     providerGrantsSha256: beforeProvider.inventory.grantInventorySha256,
   });
   const planFingerprint = await hashCanonical(planFingerprintInput);
+  if (target === 'hosted') {
+    assertAuthorizationCurrent(authorization);
+    assertProviderBaselineCurrent(providerBaseline, authorization, now());
+  }
   return {
     operation: 'plan', target, readOnly: true, ready: blockers.length === 0, productionReady: false, unchanged,
     planFingerprint, stateFingerprint, resourcesSha256, migrationsSha256,
@@ -629,13 +634,14 @@ export async function buildSupabasePlan({
 }
 
 export async function buildSupabaseDoctor(options) {
-  const plan = await buildSupabasePlan(options);
+  const now = options.now ?? Date.now;
+  const plan = await buildSupabasePlan({ ...options, now });
   let snapshot;
   try {
     snapshot = await options.inspector.inspect();
     if (options.target === 'hosted') {
       assertAuthorizationCurrent(options.authorization);
-      assertProviderBaselineCurrent(options.providerBaseline, options.authorization);
+      assertProviderBaselineCurrent(options.providerBaseline, options.authorization, now());
     }
   } catch (error) {
     throw new PlanFailure(error?.code ?? (options.target === 'local'
@@ -676,6 +682,10 @@ export async function buildSupabaseDoctor(options) {
     for (const code of await doctorReceiptIssues(
       snapshot, state, options.authorization, plan.migrations,
     )) addIssue(code);
+  }
+  if (options.target === 'hosted') {
+    assertAuthorizationCurrent(options.authorization);
+    assertProviderBaselineCurrent(options.providerBaseline, options.authorization, now());
   }
   return {
     operation: 'doctor', readOnly: true, ready: issues.length === 0, productionReady: false,

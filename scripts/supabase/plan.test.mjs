@@ -421,6 +421,48 @@ test('provider baseline expiry before doctor observation result is never matched
   assert.equal(calls, 3);
 });
 
+test('provider baseline expiry during final plan hashing prevents a terminal result', async () => {
+  const baseline = verifiedProviderFixture();
+  const expiry = Date.parse(baseline.expiresAt);
+  let reads = 0;
+  const now = () => {
+    reads += 1;
+    return reads < 4 ? expiry - 1 : expiry;
+  };
+  await assert.rejects(
+    buildPlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      providerBaseline: baseline,
+      inspector: inspector(snapshot(), snapshot()),
+      now,
+    }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  assert.equal(reads, 4);
+});
+
+test('provider baseline expiry during final doctor hashing prevents a terminal result', async () => {
+  const baseline = verifiedProviderFixture();
+  const expiry = Date.parse(baseline.expiresAt);
+  let reads = 0;
+  const now = () => {
+    reads += 1;
+    return reads < 6 ? expiry - 1 : expiry;
+  };
+  await assert.rejects(
+    buildDoctor({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      providerBaseline: baseline,
+      inspector: inspector(snapshot(), snapshot(), snapshot()),
+      now,
+    }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  assert.equal(reads, 6);
+});
+
 test('provider baseline detects inventory drift between observations', async () => {
   const changed = providerFixture({ grantCount: 904 });
   const result = await buildSupabasePlan({

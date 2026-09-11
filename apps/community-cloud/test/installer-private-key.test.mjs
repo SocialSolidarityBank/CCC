@@ -5,6 +5,8 @@ import test from 'node:test';
 // Module loading must occur after the synthetic Deno boundary is installed.
 const privilegedBindings = [
   'CCC_INSTALL_SIGNING_PRIVATE_KEY',
+  'CCC_INSTALL_DATABASE_URL',
+  'CCC_INSTALL_APPROVAL',
   'CCC_BETA_ROOT_SIGNING_PRIVATE_KEY',
   'CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY',
   'CCC_PROVIDER_BASELINE',

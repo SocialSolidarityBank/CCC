@@ -602,6 +602,32 @@ databaseTest('catalog fingerprint covers both schemas and standalone user types 
   });
 });
 
+databaseTest('equivalent restored catalog keeps its fingerprint across new OIDs', async () => {
+  await withDatabase(async sql => {
+    const session = await sql.reserve();
+    try {
+      await bootstrap(session, authorization(), desired());
+      const createEquivalentCatalog = () => session.unsafe(`
+        CREATE TYPE public.ccc_install_journal_oid_type AS ENUM ('first', 'second');
+        CREATE FUNCTION public.ccc_install_journal_oid_identity(
+          value public.ccc_install_journal_oid_type
+        ) RETURNS public.ccc_install_journal_oid_type
+        LANGUAGE sql IMMUTABLE AS 'SELECT value'
+      `);
+      await createEquivalentCatalog();
+      const before = await readDatabaseInstallFingerprint(session);
+      await session.unsafe(
+        'DROP TYPE public.ccc_install_journal_oid_type CASCADE',
+      );
+      await createEquivalentCatalog();
+      const after = await readDatabaseInstallFingerprint(session);
+      assert.equal(after, before);
+    } finally {
+      await session.release();
+    }
+  });
+});
+
 databaseTest('foreign ownership and authorization hash drift are refused without adoption', async () => {
   await withDatabase(async sql => {
     const session = await sql.reserve();
