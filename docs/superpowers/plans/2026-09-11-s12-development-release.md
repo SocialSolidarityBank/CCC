@@ -418,9 +418,24 @@ apply는 `migration` 종류 component만 받는다.
 - [ ] doctor는 같은 health를 읽기 전용으로 보고한다(`report.mjs`의 고정 코드 집합에 새 코드가 있으면 추가).
 - [ ] 테스트: health 각 항목의 실패가 `HEALTH_FAILED`로 닫히고 receipt를 쓰지 않음, prerequisites 각 조건, apply 전체 순서(가짜 release·inspector·journal로 provider step이 migration 뒤·health 앞에 오는지).
 
+### Task 14: 첫 설치의 2단 health와 `api_credential` 단계
+
+2026-09-12 Q 결정(권장안 A). 업무 runtime은 `ccc_api`로 로그인해야 뜨는데 그 role은 apply의 마이그레이션이
+만들고 비밀번호를 설정하는 코드가 없어, 첫 설치에서 `/readyz`를 같은 실행 안에 요구하면 순서가 모순이다.
+
+**Files:**
+- Modify: `docs/specs/S11-supabase-edge-template.md` (§2 step union에 `api_credential`, 첫 설치 health 규칙), `docs/specs/S12-install-release.md` §6 health 문단
+- Modify: `scripts/supabase/install-journal.mjs` (STEPS에 `api_credential`), `scripts/supabase/plan.mjs`(같은 목록, doctor `productionReady`), `scripts/supabase/provider-steps.mjs`(단계 추가), `scripts/supabase/apply.mjs`(첫 설치 health 축소, receipt `productionReady=false`), `scripts/supabase/bootstrap.mjs`(`CCC_API_DATABASE_PASSWORD` 주입), `scripts/supabase/hosted-inspector.mjs`(`readyEvidence` 결과를 분리해 돌려줌), `apps/community-cloud/RUN.md`
+- Modify: 관련 테스트
+
+- [ ] `api_credential` 단계: provider 단계의 마지막에 설치 연결로 `ALTER ROLE ccc_api PASSWORD $1`을 파라미터 바인딩으로 실행한다. 값은 주입된 `CCC_API_DATABASE_PASSWORD`이며 SQL 문자열·journal·receipt·출력에 남지 않는다. 재실행 시에는 같은 값으로 다시 설정해도 되므로(멱등) 완료된 단계라도 관찰만 하지 않고 한 번 더 설정하지 않는다: 완료 단계는 `pg_roles.rolvaliduntil IS NULL`과 `rolcanlogin`만 확인한다. digest는 `sha256('ccc_api:' || installationId)`처럼 값과 무관한 고정 문자열이다.
+- [ ] 첫 설치 health: `installedHealth`(Signer 401 + 설치 ID, region, `pg_roles`의 ccc_api 비특권)만 요구하고 `/readyz`는 요구하지 않는다. receipt는 `installed`로 쓰되 결과와 journal에 `productionReady:false`, `runtimeReady:false`를 남긴다. 업데이트·재개(S12 §6)는 지금처럼 `/readyz`를 포함한 전체 health를 요구한다(`BACKUP_FAILED`로 막혀 있는 경로는 그대로).
+- [ ] `doctor`: health를 `runtimeReady`(`/readyz`)와 `installedHealth`로 나눠 보고하고, `productionReady = installedHealth && runtimeReady && drift 없음`이다. `runtimeReady=false`는 `HEALTH_FAILED`가 아니라 `RUNTIME_NOT_READY` 안내(blocker 아님, `ready:true`)다. `installedHealth` 실패는 지금처럼 `HEALTH_FAILED`.
+- [ ] 테스트: 첫 설치 apply가 `/readyz` 없이 receipt를 쓰고 `productionReady:false`; Signer·region·role 실패는 여전히 receipt 없음; `api_credential`이 값 없이 journal에 남고 SQL 기록 seam에서 바인딩으로만 보임; doctor의 세 상태(설치 health 실패 / runtime 미준비 / 전부 통과) 각각의 코드와 `productionReady`.
+
 ## Final Review Gate
 
-열세 작업이 끝나면 Tasks 1-13 전체에 전용 보안 검토를 한 번 돌린다. 검토는 자기 신뢰, 서명 도메인
+열네 작업이 끝나면 Tasks 1-14 전체에 전용 보안 검토를 한 번 돌린다. 검토는 자기 신뢰, 서명 도메인
 혼동, 출처 위조, floor 되돌리기, 시각 되돌리기, tuple 우회, Edge component 누락과 추가, 백업 면제
 조건 우회, journal 이중화, 출력 누출을 각각 판정해야 한다. 중대와 중요 지적을 모두 닫은 뒤에만
 Main이 실제 발급과 설치를 실행한다.
