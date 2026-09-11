@@ -1274,6 +1274,72 @@ test('internally consistent receipt and history remain incomplete without S12 re
   assert.deepEqual(blockerCodes(result), ['RELEASE_PREREQUISITES_MISSING']);
 });
 
+// bootstrap이 고정 원본에서 받아 서명과 trust를 확인한 뒤 넘기는 모양 그대로다.
+function verifiedReleaseIndex(receipt, {
+  bundleId = 'ccc-dev-1.0.0-1-abcdef123456',
+  version = receipt.releaseVersion,
+  sequence = String(receipt.releaseSequence),
+  manifestSha256 = receipt.manifestDigest,
+} = {}) {
+  return {
+    bundle: { bundleId, version, sequence },
+    rows: [{
+      family: 'community-cloud-cli',
+      manifestSha256,
+      edgeComponentManifestSha256: createHash('sha256').update('edge-manifest').digest('hex'),
+      mode: 'community-cloud',
+      platform: 'macos',
+      arch: 'arm64',
+    }],
+  };
+}
+
+test('doctor clears the release blocker only when the receipt matches the verified pinned bundle', async () => {
+  const doctor = async index => {
+    const fixture = await installedReceiptSnapshot();
+    return buildSupabaseDoctor({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+      ...(index === undefined
+        ? {}
+        : { release: index(fixture.observed.installState.currentReceipt) }),
+    });
+  };
+
+  // ① 영수증의 manifest digest, 판과 순번이 서명된 묶음과 같으면 차단 사유가 없다.
+  const exact = await doctor(receipt => verifiedReleaseIndex(receipt));
+  assert.deepEqual(blockerCodes(exact), []);
+  assert.deepEqual(exact.notices, []);
+  assert.equal(exact.ready, true);
+
+  // ② trust store가 없으면 index도 없고 차단 사유가 그대로 남는다.
+  const absent = await doctor();
+  assert.deepEqual(blockerCodes(absent), ['RELEASE_PREREQUISITES_MISSING']);
+  assert.equal(absent.ready, false);
+
+  // ③ 영수증의 digest가 묶음 색인에 없으면 릴리스 승인이 아니다.
+  const unindexed = await doctor(receipt =>
+    verifiedReleaseIndex(receipt, { manifestSha256: 'f'.repeat(64) }));
+  assert.deepEqual(blockerCodes(unindexed), ['RELEASE_PREREQUISITES_MISSING']);
+  assert.equal(unindexed.ready, false);
+
+  // ④ 원본이 더 나아갔어도 설치된 digest가 여전히 색인되어 있으면 안내뿐이다.
+  const superseded = await doctor(receipt => verifiedReleaseIndex(receipt, {
+    bundleId: 'ccc-dev-1.1.0-2-abcdef123456',
+    version: '1.1.0',
+    sequence: '2',
+  }));
+  assert.deepEqual(blockerCodes(superseded), []);
+  assert.deepEqual(superseded.notices.map(({ code }) => code), ['RELEASE_SUPERSEDED']);
+  assert.match(superseded.notices[0].message, /ccc-dev-1\.1\.0-2-abcdef123456/u);
+  assert.equal(superseded.ready, true);
+
+  // ⑤ 같은 순번의 다른 판이나 과거로의 이동은 안내가 아니라 차단이다.
+  const sideways = await doctor(receipt => verifiedReleaseIndex(receipt, { version: '1.0.1' }));
+  assert.deepEqual(blockerCodes(sideways), ['RELEASE_PREREQUISITES_MISSING']);
+});
+
 test('doctor separates installed health from runtime readiness', async () => {
   const evidence = ({ installedHealthy, runtimeReady }) => async () => ({
     healthy: installedHealthy && runtimeReady,

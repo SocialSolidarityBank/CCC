@@ -70,6 +70,7 @@ const safeFailures = Object.freeze({
   INSTALL_NOT_FOUND: '이 설치의 journal 또는 영수증이 없습니다.',
   INSTALL_INCOMPLETE: '설치 단계가 완료되지 않았습니다.',
   RELEASE_PREREQUISITES_MISSING: '승인된 S12 릴리스 원본, 고정 trust/floor와 서명된 플랫폼 artifact가 필요합니다.',
+  RELEASE_SUPERSEDED: '설치된 릴리스보다 새로운 묶음이 고정 원본에 있습니다(차단 사유가 아닙니다).',
   ROLLBACK_PREREQUISITES_MISSING: 'S12 rollback 승인과 E6-7의 검증된 백업 및 복원 실행기가 필요합니다.',
   INSTALL_JOURNAL_INVALID: '설치 journal의 구조나 현재 상태가 유효하지 않습니다.',
   INSTALL_JOURNAL_MISSING: '검증된 설치 journal이 없습니다.',
@@ -526,7 +527,32 @@ function providerDigestsMatch(receipt, state) {
         .sort(([left], [right]) => left.localeCompare(right)));
 }
 
-async function doctorReceiptIssues(snapshot, state, authorization, migrations) {
+/**
+ * The receipt records only the bundle-level version/sequence and the manifest
+ * digest, so the proof doctor can rebuild is exactly that: the installed
+ * manifest digest is indexed for this family in the currently signed, pinned
+ * and trust-verified bundle, at the version and sequence the receipt claims.
+ * The artifact-set digest lives inside the archived Edge component manifest,
+ * which doctor never downloads; the signed bundle row carries the document
+ * digest instead, so it is checked for presence, not equality.
+ */
+function releaseReceiptVerdict(receipt, release) {
+  const bundle = release?.bundle;
+  if (!isRecord(bundle) || !Array.isArray(release?.rows)) return 'RELEASE_PREREQUISITES_MISSING';
+  const row = release.rows.find(candidate => candidate?.family === 'community-cloud-cli'
+    && candidate?.manifestSha256 === receipt.manifestDigest);
+  if (row === undefined || !SHA256_HEX.test(row.edgeComponentManifestSha256 ?? '')) {
+    return 'RELEASE_PREREQUISITES_MISSING';
+  }
+  if (!/^[1-9][0-9]*$/u.test(String(bundle.sequence ?? ''))) return 'RELEASE_PREREQUISITES_MISSING';
+  const sequence = BigInt(bundle.sequence);
+  if (bundle.version === receipt.releaseVersion
+    && sequence === BigInt(receipt.releaseSequence)) return null;
+  // 고정 원본이 더 나아갔을 때만 안내다. 같은 순번의 다른 판이나 과거로의 이동은 차단한다.
+  return sequence > BigInt(receipt.releaseSequence) ? 'RELEASE_SUPERSEDED' : 'RELEASE_PREREQUISITES_MISSING';
+}
+
+async function doctorReceiptIssues(snapshot, state, authorization, migrations, release) {
   let incomplete = state.journal?.phase !== 'installed';
   let drift = false;
   const receipt = state.currentReceipt;
@@ -564,12 +590,18 @@ async function doctorReceiptIssues(snapshot, state, authorization, migrations) {
     }
   }
 
-  // These inputs contain no verified S12 manifest, artifact-set, trust-floor or release-origin proof.
-  // Consistent durable metadata is still not release authorization.
-  return [
-    ...(incomplete ? ['INSTALL_INCOMPLETE'] : ['RELEASE_PREREQUISITES_MISSING']),
-    ...(drift ? ['DRIFT_DETECTED'] : []),
-  ];
+  // 검증된 릴리스 index가 없으면 durable 메타데이터가 아무리 일관되어도 릴리스 승인이 아니다.
+  const verdict = incomplete ? null : releaseReceiptVerdict(receipt, release);
+  return {
+    issues: [
+      ...(incomplete ? ['INSTALL_INCOMPLETE'] : []),
+      ...(verdict === 'RELEASE_PREREQUISITES_MISSING' ? ['RELEASE_PREREQUISITES_MISSING'] : []),
+      ...(drift ? ['DRIFT_DETECTED'] : []),
+    ],
+    notices: verdict === 'RELEASE_SUPERSEDED'
+      ? [{ code: 'RELEASE_SUPERSEDED', detail: release.bundle.bundleId }]
+      : [],
+  };
 }
 
 /** Observations contain no credentials or source documents; authority is verified separately. */
@@ -769,9 +801,15 @@ export async function buildSupabaseDoctor(options) {
   };
   // A notice is evidence the operator still owes, not a reason to refuse: the
   // business runtime is deployed after the installation exists (S12 §6 2026-09-12).
-  const addNotice = code => {
+  // 서명된 묶음 식별자만 덧붙인다. URL이나 서명 값이 섞일 수 있는 문자열은 버린다.
+  const addNotice = (code, detail) => {
+    const safeDetail = typeof detail === 'string' && /^[A-Za-z0-9._-]{1,128}$/u.test(detail)
+      ? detail : null;
     if (!notices.some(notice => notice.code === code)) {
-      notices.push({ code, message: new PlanFailure(code).message });
+      notices.push({
+        code,
+        message: `${new PlanFailure(code).message}${safeDetail === null ? '' : ` (현재 묶음: ${safeDetail})`}`,
+      });
     }
   };
   if (!(snapshot.connection.readOnly && snapshot.connection.databaseReadable
@@ -797,9 +835,11 @@ export async function buildSupabaseDoctor(options) {
     }
     if (!SHA256_HEX.test(state.journal?.stateFingerprint)
       || state.journal.stateFingerprint !== stateFingerprint) addIssue('DRIFT_DETECTED');
-    for (const code of await doctorReceiptIssues(
-      snapshot, state, options.authorization, plan.migrations,
-    )) addIssue(code);
+    const receiptVerdict = await doctorReceiptIssues(
+      snapshot, state, options.authorization, plan.migrations, options.release,
+    );
+    for (const code of receiptVerdict.issues) addIssue(code);
+    for (const notice of receiptVerdict.notices) addNotice(notice.code, notice.detail);
   }
   // The same post-promotion evidence apply requires, read only and redacted:
   // booleans and the region names, never an address, token or provider body.

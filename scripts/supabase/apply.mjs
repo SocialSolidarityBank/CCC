@@ -182,6 +182,58 @@ function releaseTarget() {
   throw failure('ARTIFACT_IDENTITY_MISMATCH');
 }
 
+/**
+ * Fetches the pinned release bundle and verifies it against the injected trust
+ * store, returning the signed bundle plus this family's indexed artifact rows.
+ * No manifest URL is required: the rows are the index every caller selects from.
+ */
+export async function loadPinnedReleaseIndex({
+  trustStoreValue = process.env.CCC_RELEASE_TRUST_STORE,
+  fetchImpl = fetch,
+  floorStore = createReleaseFloorStore(),
+  now,
+} = {}) {
+  const trustStore = await loadReleaseTrustStore(trustStoreValue);
+  const fetched = await fetchPinnedRelease({
+    fetchImpl,
+    floorStore,
+    now,
+    verifyBundle: async (document, trustedDate) => {
+      const candidate = await readStrictJsonDocument(document);
+      if (!['dev', 'beta'].includes(candidate?.channel)) throw failure('BUNDLE_ENTRY_INVALID');
+      return verifyReleaseBundle({
+        document,
+        trustStore,
+        now: trustedDate,
+        channel: candidate.channel,
+      });
+    },
+  });
+  const entry = fetched.bundle.entries.find(candidate => candidate.family === 'community-cloud-cli');
+  return {
+    bundle: fetched.bundle,
+    rows: (entry?.artifacts ?? []).map(artifact => ({ family: entry.family, ...artifact })),
+    trustStore,
+    trustedTime: fetched.trustedTime,
+  };
+}
+
+/**
+ * Doctor is read-only diagnosis: without the injected trust store, or when the
+ * pinned origin cannot be verified, it returns nothing and the release blocker
+ * stands. The trust store itself never leaves this function.
+ */
+export async function loadReleaseIndexForDoctor(options) {
+  if (typeof process.env.CCC_RELEASE_TRUST_STORE !== 'string'
+    || process.env.CCC_RELEASE_TRUST_STORE.length === 0) return undefined;
+  try {
+    const { bundle, rows } = await loadPinnedReleaseIndex(options);
+    return { bundle, rows };
+  } catch {
+    return undefined;
+  }
+}
+
 export async function loadReleaseForApply({
   manifestUrl,
   authorize,
@@ -194,29 +246,14 @@ export async function loadReleaseForApply({
   localNow,
   fetchImpl = fetch,
 }) {
-  const trustStore = await loadReleaseTrustStore(process.env.CCC_RELEASE_TRUST_STORE);
-  const fetched = await fetchPinnedRelease({
-    fetchImpl,
-    floorStore,
-    now: localNow,
-    verifyBundle: async (document, trustedDate) => {
-      const candidate = await readStrictJsonDocument(document);
-      if (!['dev', 'beta'].includes(candidate?.channel)) throw failure('BUNDLE_ENTRY_INVALID');
-      return verifyReleaseBundle({
-        document,
-        trustStore,
-        now: trustedDate,
-        channel: candidate.channel,
-      });
-    },
-  });
-  const trustedTime = fetched.trustedTime;
+  const {
+    bundle, rows, trustStore, trustedTime,
+  } = await loadPinnedReleaseIndex({ fetchImpl, floorStore, now: localNow });
   const target = releaseTarget();
-  const entry = fetched.bundle.entries.find(candidate => candidate.family === target.family);
-  const row = entry?.artifacts?.find(candidate => candidate.manifestUrl === manifestUrl);
+  const row = rows.find(candidate => candidate.manifestUrl === manifestUrl);
   if (row === undefined) throw failure('ARTIFACT_NOT_INDEXED');
   requireExpectedTuple({
-    family: entry.family,
+    family: row.family,
     mode: row.mode,
     platform: row.platform,
     arch: row.arch,
@@ -229,7 +266,7 @@ export async function loadReleaseForApply({
     trustStore,
     now: currentTrustedTime(trustedTime),
     expectedTuple: target,
-    bundleEntry: { family: entry.family, ...row },
+    bundleEntry: row,
   });
   const artifactBytes = await pinnedBytes(
     verifiedManifest.artifactUrl,
@@ -250,14 +287,14 @@ export async function loadReleaseForApply({
     const edgeDocument = await readFile(join(extractedRoot, 'edge-component-manifest.json'), 'utf8');
     return {
       release: createVerifiedRelease({
-        bundleDocument: canonicalDocument(fetched.bundle),
+        bundleDocument: canonicalDocument(bundle),
         manifestDocument,
         artifactBytes,
         edgeDocument,
         stagedRoot: extractedRoot,
         manifestUrl,
         trustStore,
-        channel: fetched.bundle.channel,
+        channel: bundle.channel,
         expectedTuple: target,
         authorize,
         inspector,

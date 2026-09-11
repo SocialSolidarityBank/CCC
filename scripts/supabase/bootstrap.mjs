@@ -31,6 +31,7 @@ import {
   applyInstallation,
   createInstallJournalSession,
   loadReleaseForApply,
+  loadReleaseIndexForDoctor,
 } from './apply.mjs';
 import { assertSafeOutput, buildRedactedReport, writeRedactedReport } from './report.mjs';
 
@@ -315,8 +316,14 @@ async function main() {
         },
       },
     } : planOptions;
+    // doctor와 report는 고정 원본의 서명된 묶음을 읽어 영수증을 대조한다.
+    // trust store가 없으면 index도 없고 릴리스 차단 사유가 그대로 남는다.
     let result = ['doctor', 'report'].includes(options.operation)
-      ? await buildSupabaseDoctor(diagnosisOptions) : await buildSupabasePlan(planOptions);
+      ? await buildSupabaseDoctor({
+        ...diagnosisOptions,
+        release: await loadReleaseIndexForDoctor({ now: new Date() }),
+      })
+      : await buildSupabasePlan(planOptions);
     if (options.operation === 'report') {
       const report = buildRedactedReport({ doctor: result, ledger: reportLedger });
       await writeRedactedReport({

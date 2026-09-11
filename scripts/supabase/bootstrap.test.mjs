@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
@@ -31,6 +31,8 @@ import {
   PROVIDER_INVENTORY_QUERY,
 } from './provider-inventory.mjs';
 import { hashDatabaseInstallFingerprint, INSTALL_METADATA_TABLES } from './install-journal.mjs';
+import { loadReleaseIndexForDoctor } from './apply.mjs';
+import { PINNED_RELEASE_ORIGIN } from '../release/release-origin.mjs';
 import { observationAuthorization } from './fixtures/authorization.mjs';
 import { canonicalizeJcs, sha256Jcs } from '../../apps/community-cloud/dist/install-manifest-verifier.js';
 
@@ -243,6 +245,7 @@ async function runCli(origin, {
   delete childEnv.CCC_BETA_REVOKED_ROOT_KEY_IDS;
   delete childEnv.CCC_BETA_RELEASE_TRUST;
   delete childEnv.CCC_PROVIDER_BASELINE;
+  delete childEnv.CCC_RELEASE_TRUST_STORE;
   if (signedInput !== undefined) Object.assign(childEnv, signedInput);
   if (managementOrigin !== undefined) childEnv.CCC_SUPABASE_MANAGEMENT_ORIGIN = managementOrigin;
   const child = spawn(process.execPath, args, {
@@ -1523,4 +1526,126 @@ test('doctor reports the same health read-only and blocks on its failure', async
       assertNoSensitiveOutput({ stdout: JSON.stringify(doctor), stderr: '' }, origin);
     });
   });
+});
+
+// 고정 원본을 흉내 내는 서명된 묶음이다. doctor는 이 index만 받고 trust store는 받지 않는다.
+function pinnedOriginFixture({ sequence = '7', version = '0.9.0-dev.1' } = {}) {
+  const rootKeys = generateKeyPairSync('ed25519');
+  const trustDocument = JSON.stringify({ keys: [{
+    keyId: 'root-key-doctor',
+    publicKey: rootKeys.publicKey.export({ format: 'jwk' }).x,
+    role: 'root',
+    status: 'active',
+    notBefore: '2026-09-01T00:00:00.000Z',
+    notAfter: '2026-10-01T00:00:00.000Z',
+  }] });
+  const contractsSha256 = 'e'.repeat(64);
+  const unsigned = {
+    schemaVersion: 1,
+    bundleId: 'bundle-dev-7',
+    version,
+    sequence,
+    channel: 'dev',
+    publishedAt: '2026-09-11T00:00:00.000Z',
+    expiresAt: '2026-09-20T00:00:00.000Z',
+    protocol: {
+      apiName: 'ccc-http-api',
+      apiVersion: '1.0.0',
+      contractsSha256,
+      peers: ['cloud-cli', 'edge'].map(name => ({
+        name, protocolVersion: '1.0.0', contractsSha256,
+      })),
+    },
+    entries: [{
+      family: 'community-cloud-cli',
+      artifacts: [{
+        manifestUrl: `${PINNED_RELEASE_ORIGIN}/manifests/community-cloud-cli.json`,
+        manifestSha256: 'a'.repeat(64),
+        edgeComponentManifestSha256: 'b'.repeat(64),
+        mode: 'community-cloud',
+        platform: 'macos',
+        arch: 'arm64',
+        artifactSha256: 'c'.repeat(64),
+        artifactBytes: 1234,
+        minSchemaVersion: 0,
+        maxSchemaVersion: 0,
+      }],
+    }],
+    sequenceFloor: [{
+      family: 'community-cloud-cli',
+      mode: 'community-cloud',
+      platform: 'macos',
+      arch: 'arm64',
+      minimumSequence: sequence,
+    }],
+    modelManifestSha256: '0'.repeat(64),
+  };
+  const document = JSON.stringify({
+    ...unsigned,
+    offlineRootSignature: sign(null, Buffer.concat([
+      Buffer.from('CCC-RELEASE-BUNDLE-V1\0', 'ascii'),
+      Buffer.from(canonicalizeJcs(unsigned), 'utf8'),
+    ]), rootKeys.privateKey).toString('base64url'),
+  });
+  const requested = [];
+  let stored = null;
+  return {
+    trustDocument,
+    requested,
+    options: {
+      now: new Date('2026-09-11T12:00:01.000Z'),
+      fetchImpl: async url => {
+        requested.push(url);
+        return {
+          url,
+          ok: true,
+          headers: new Headers({ date: 'Fri, 11 Sep 2026 12:00:00 GMT' }),
+          text: async () => document,
+        };
+      },
+      floorStore: {
+        read: async () => structuredClone(stored),
+        updateVerified: async ({ sequenceFloor, trustedTime }) => {
+          stored = { schemaVersion: 1, sequenceFloor, lastTrustedTime: trustedTime };
+          return structuredClone(stored);
+        },
+      },
+    },
+  };
+}
+
+test('doctor reads the pinned release index only with an injected trust store and never exposes it', async () => {
+  const previous = process.env.CCC_RELEASE_TRUST_STORE;
+  const fixture = pinnedOriginFixture();
+  try {
+    // ① trust store가 없으면 고정 원본을 부르지도 않는다.
+    delete process.env.CCC_RELEASE_TRUST_STORE;
+    assert.equal(await loadReleaseIndexForDoctor(fixture.options), undefined);
+    assert.deepEqual(fixture.requested, []);
+
+    // ② trust store가 있으면 서명된 묶음과 색인된 행만 돌려준다.
+    process.env.CCC_RELEASE_TRUST_STORE = fixture.trustDocument;
+    const index = await loadReleaseIndexForDoctor(fixture.options);
+    assert.deepEqual(fixture.requested, [
+      `${PINNED_RELEASE_ORIGIN}/.well-known/ccc/release-bundle.json`,
+    ]);
+    assert.deepEqual(Object.keys(index).sort(), ['bundle', 'rows']);
+    assert.equal(index.bundle.bundleId, 'bundle-dev-7');
+    assert.equal(index.bundle.sequence, '7');
+    assert.deepEqual(index.rows.map(row => row.family), ['community-cloud-cli']);
+    assert.equal(index.rows[0].manifestSha256, 'a'.repeat(64));
+    assert.equal(index.rows[0].edgeComponentManifestSha256, 'b'.repeat(64));
+    const rendered = JSON.stringify(index);
+    assert.equal(rendered.includes(JSON.parse(fixture.trustDocument).keys[0].publicKey), false);
+    assert.doesNotMatch(rendered, /trustStore|publicKey|privateKey/u);
+
+    // ③ 원본을 읽지 못하면 doctor는 실패하지 않고 릴리스 차단 사유를 그대로 남긴다.
+    assert.equal(await loadReleaseIndexForDoctor({
+      ...fixture.options,
+      fetchImpl: async () => { throw new Error('offline'); },
+    }), undefined);
+  } finally {
+    if (previous === undefined) delete process.env.CCC_RELEASE_TRUST_STORE;
+    else process.env.CCC_RELEASE_TRUST_STORE = previous;
+  }
 });
