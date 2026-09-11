@@ -317,8 +317,8 @@ test('inventories extension and initial objects plus every effective privilege',
   assert.match(PROVIDER_INVENTORY_QUERY, /FROM provider_object AS inventory/u);
   assert.match(PROVIDER_INVENTORY_QUERY, /THEN 'extension'[\s\S]*THEN 'initial_privilege'/u);
   assert.match(PROVIDER_INVENTORY_QUERY, /provider_grant AS MATERIALIZED/u);
-  assert.match(PROVIDER_INVENTORY_QUERY, /pg_catalog\.acldefault\('f', procedure\.proowner\)/u);
-  assert.match(PROVIDER_INVENTORY_QUERY, /pg_catalog\.acldefault\('T', type_value\.typowner\)/u);
+  assert.match(PROVIDER_INVENTORY_QUERY, /pg_catalog\.acldefault\('f'::"char", procedure\.proowner\)/u);
+  assert.match(PROVIDER_INVENTORY_QUERY, /pg_catalog\.acldefault\('T'::"char", type_value\.typowner\)/u);
   assert.match(PROVIDER_INVENTORY_QUERY, /FROM provider_grant AS grant_record/u);
   const inventory = normalizeProviderInventory({
     objects: [

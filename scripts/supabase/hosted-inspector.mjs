@@ -462,7 +462,7 @@ SELECT
     SELECT 1
     FROM non_system_namespace AS namespace
     CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
-      namespace.nspacl, pg_catalog.acldefault('n', namespace.nspowner)
+      namespace.nspacl, pg_catalog.acldefault('n'::"char", namespace.nspowner)
     )) AS privilege
     UNION ALL
     SELECT 1
@@ -470,7 +470,7 @@ SELECT
     JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
     CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
       relation.relacl,
-      pg_catalog.acldefault(CASE WHEN relation.relkind = 'S' THEN 's' ELSE 'r' END, relation.relowner)
+      pg_catalog.acldefault((CASE WHEN relation.relkind = 'S' THEN 's' ELSE 'r' END)::"char", relation.relowner)
     )) AS privilege
     WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
     UNION ALL
@@ -479,7 +479,7 @@ SELECT
     JOIN pg_catalog.pg_class AS relation ON relation.oid = attribute.attrelid
     JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
     CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
-      attribute.attacl, pg_catalog.acldefault('c', relation.relowner)
+      attribute.attacl, pg_catalog.acldefault('c'::"char", relation.relowner)
     )) AS privilege
     WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
     UNION ALL
@@ -487,7 +487,7 @@ SELECT
     FROM pg_catalog.pg_proc AS procedure
     JOIN non_system_namespace AS namespace ON namespace.oid = procedure.pronamespace
     CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
-      procedure.proacl, pg_catalog.acldefault('f', procedure.proowner)
+      procedure.proacl, pg_catalog.acldefault('f'::"char", procedure.proowner)
     )) AS privilege
     UNION ALL
     SELECT 1
@@ -495,7 +495,7 @@ SELECT
     JOIN non_system_namespace AS namespace ON namespace.oid = type_value.typnamespace
     LEFT JOIN pg_catalog.pg_class AS composite_relation ON composite_relation.oid = type_value.typrelid
     CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
-      type_value.typacl, pg_catalog.acldefault('T', type_value.typowner)
+      type_value.typacl, pg_catalog.acldefault('T'::"char", type_value.typowner)
     )) AS privilege
     WHERE (type_value.typrelid = 0 OR composite_relation.relkind = 'c')
       AND NOT EXISTS (
