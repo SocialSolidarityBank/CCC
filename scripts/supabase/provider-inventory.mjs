@@ -5,7 +5,7 @@ import { canonicalizeJcs } from '../../apps/community-cloud/dist/install-manifes
 import { PlanFailure } from './plan.mjs';
 import { INSTALL_METADATA_TABLES } from './install-journal.mjs';
 
-const MAX_RECORD_STRING_BYTES = 1_024;
+const MAX_RECORD_STRING_BYTES = 4_096;
 const MAX_OBJECTS = 5_000;
 const MAX_GRANTS = 20_000;
 const FORBIDDEN_IDENTITY = /[\p{Cc}/\\]/u;

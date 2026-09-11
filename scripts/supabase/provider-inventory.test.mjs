@@ -182,14 +182,24 @@ test('sorts by UTF-8 canonical JSON and rejects duplicate stable identities', ()
 });
 
 test('enforces record string and inventory count bounds', () => {
+  const observedRoutineIdentity = `extensions.long_routine(${Array.from(
+    { length: 80 },
+    (_, index) => `argument_${String(index).padStart(3, '0')} text`,
+  ).join(', ')}) FUNCTION RETURNS void`;
+  assert.ok(Buffer.byteLength(observedRoutineIdentity, 'utf8') > 1_024);
+  assert.ok(Buffer.byteLength(observedRoutineIdentity, 'utf8') < 4_096);
   assert.equal(normalizeProviderInventory({
-    objects: [objectRow({ object_identity: 'a'.repeat(1_024) })], grants: [],
+    objects: [objectRow({ object_kind: 'routine', object_identity: observedRoutineIdentity })],
+    grants: [],
+  }).objects.length, 1);
+  assert.equal(normalizeProviderInventory({
+    objects: [objectRow({ object_identity: 'a'.repeat(4_096) })], grants: [],
   }).objects.length, 1);
   rejectsUnreadable(() => normalizeProviderInventory({
-    objects: [objectRow({ object_identity: 'a'.repeat(1_025) })], grants: [],
+    objects: [objectRow({ object_identity: 'a'.repeat(4_097) })], grants: [],
   }));
   rejectsUnreadable(() => normalizeProviderInventory({
-    objects: [objectRow({ object_identity: '가'.repeat(342) })], grants: [],
+    objects: [objectRow({ object_identity: '가'.repeat(1_366) })], grants: [],
   }));
   const objectsAtLimit = Array.from(
     { length: 5_000 },

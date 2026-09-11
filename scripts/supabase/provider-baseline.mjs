@@ -6,7 +6,8 @@ export const BETA_TRUST_DOMAIN = 'CCC-BETA-TRUST-ROOT-V1\0';
 export const PROVIDER_BASELINE_DOMAIN = 'CCC-SUPABASE-PROVIDER-BASELINE-V1\0';
 
 const MAX_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
-const MAX_RECORD_STRING_BYTES = 1_024;
+const MAX_METADATA_STRING_BYTES = 1_024;
+const MAX_RECORD_STRING_BYTES = 4_096;
 const MAX_OBJECTS = 5_000;
 const MAX_GRANTS = 20_000;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
@@ -69,10 +70,11 @@ function isCanonicalBase64(value, pattern, byteLength) {
     && Buffer.from(value, 'base64').toString('base64') === value;
 }
 
-function isBoundedString(value, { nonempty = false, identity = false } = {}) {
+function isBoundedString(value, { nonempty = false, identity = false, record = false } = {}) {
   return typeof value === 'string'
     && (!nonempty || value.length > 0)
-    && Buffer.byteLength(value, 'utf8') <= MAX_RECORD_STRING_BYTES
+    && Buffer.byteLength(value, 'utf8')
+      <= (record ? MAX_RECORD_STRING_BYTES : MAX_METADATA_STRING_BYTES)
     && (!identity || !FORBIDDEN_IDENTITY.test(value));
 }
 
@@ -115,9 +117,9 @@ function validObjectRecord(value) {
   return hasExactKeys(value, OBJECT_KEYS)
     && OBJECT_KINDS.has(value.kind)
     && OBJECT_PROVENANCE.has(value.provenance)
-    && isBoundedString(value.schema)
-    && isBoundedString(value.identity, { nonempty: true, identity: true })
-    && isBoundedString(value.owner)
+    && isBoundedString(value.schema, { record: true })
+    && isBoundedString(value.identity, { nonempty: true, identity: true, record: true })
+    && isBoundedString(value.owner, { record: true })
     && typeof value.definitionSha256 === 'string'
     && SHA256_HEX.test(value.definitionSha256);
 }
@@ -127,11 +129,11 @@ function validGrantRecord(value) {
   return hasExactKeys(value, GRANT_KEYS)
     && GRANT_KINDS.has(value.kind)
     && GRANT_PROVENANCE.has(value.provenance)
-    && isBoundedString(value.schema)
-    && isBoundedString(value.objectIdentity, { nonempty: true, identity: true })
-    && isBoundedString(value.grantor)
-    && isBoundedString(value.grantee)
-    && isBoundedString(value.privilege)
+    && isBoundedString(value.schema, { record: true })
+    && isBoundedString(value.objectIdentity, { nonempty: true, identity: true, record: true })
+    && isBoundedString(value.grantor, { record: true })
+    && isBoundedString(value.grantee, { record: true })
+    && isBoundedString(value.privilege, { record: true })
     && typeof value.grantable === 'boolean'
     && (roleMembership
       ? typeof value.inheritOption === 'boolean' && typeof value.setOption === 'boolean'

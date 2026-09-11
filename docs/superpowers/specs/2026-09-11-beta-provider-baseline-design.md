@@ -156,7 +156,7 @@ identity에 쓰지 않는다. relation은 schema, 이름, relkind, 보안 속성
 routine은 schema, 이름, identity arguments, return type, definition hash로 식별한다. grant는 object
 identity와 grantor, grantee, privilege, grantable을 모두 비교한다.
 
-한 객체나 grant의 문자열은 UTF-8 1,024바이트 이하이며 `objects`는 최대 5,000개, `grants`는
+한 객체나 grant의 문자열은 UTF-8 4,096바이트 이하이며 `objects`는 최대 5,000개, `grants`는
 최대 20,000개다. 문서 전체의 1 MiB 상한이 먼저 적용된다. `baselineVersion`, key ID, identity는
 빈 문자열, NUL, 경로 구분자와 제어 문자를 거부한다.
 

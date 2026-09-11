@@ -291,10 +291,26 @@ test('closed schemas and beta-only trust reject malformed or broadened authority
   }
 });
 
+test('signed baseline accepts long PostgreSQL routine identities within 4096 UTF-8 bytes', async () => {
+  const fixture = await signedBaselineFixture();
+  const identity = `extensions.long_routine(${Array.from(
+    { length: 80 },
+    (_, index) => `argument_${String(index).padStart(3, '0')} text`,
+  ).join(', ')}) FUNCTION RETURNS void`;
+  assert.ok(Buffer.byteLength(identity, 'utf8') > 1_024);
+  assert.ok(Buffer.byteLength(identity, 'utf8') < 4_096);
+  const objects = [
+    { ...fixture.providerBaseline.objects[0], kind: 'routine', identity },
+    fixture.providerBaseline.objects[1],
+  ];
+  const verified = await requireProviderBaseline(await resignBaseline(fixture, { objects }));
+  assert.equal(verified.objects[0].identity, identity);
+});
+
 test('baseline exact schemas, hashes, ordering, bounds, and bindings fail closed', async t => {
   const fixture = await signedBaselineFixture();
   const objectWithUnknownField = { ...fixture.providerBaseline.objects[0], unknown: true };
-  const longObject = { ...fixture.providerBaseline.objects[0], identity: '가'.repeat(342) };
+  const longObject = { ...fixture.providerBaseline.objects[0], identity: '가'.repeat(1_366) };
   const cases = [
     ['baseline unknown field', { unknown: true }],
     ['empty business state unknown field', {
