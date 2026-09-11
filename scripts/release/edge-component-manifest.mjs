@@ -25,6 +25,9 @@ const KIND_BY_ROOT = Object.freeze({
   templates: 'template',
   migrations: 'migration',
 });
+// S11 §3.1: Edge bundle 상한은 20 MB이고 판정은 deploy 전이다. build와 verify 양쪽에서 본다.
+export const EDGE_BUNDLE_MAX_BYTES = 20 * 1024 * 1024;
+export const SIGNER_COMPONENT_PATH = 'functions/ccc-storage-signer/index.js';
 
 export class EdgeComponentManifestError extends Error {
   constructor(code) {
@@ -155,6 +158,7 @@ async function componentsAt(root) {
   for (const file of files) {
     const kind = componentKind(file.path);
     const bytes = await regularFileBytes(file.absolute);
+    if (kind === 'function' && bytes.byteLength > EDGE_BUNDLE_MAX_BYTES) fail('EDGE_BUNDLE_LIMIT');
     components.push({
       kind,
       path: file.path,
@@ -238,6 +242,9 @@ function validateManifest(value) {
       || !Number.isSafeInteger(component.artifactBytes) || component.artifactBytes < 0
       || !boundedString(component.artifactSha256) || !SHA256.test(component.artifactSha256)) fail();
     paths.push(component.path);
+    if (component.kind === 'function' && component.artifactBytes > EDGE_BUNDLE_MAX_BYTES) {
+      fail('EDGE_BUNDLE_LIMIT');
+    }
   }
   if (new Set(paths).size !== paths.length
     || paths.some((path, index) => index > 0 && compareUtf8(paths[index - 1], path) >= 0)

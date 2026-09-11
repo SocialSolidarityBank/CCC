@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, Protocol
 from urllib.parse import urlsplit
 
 from . import __version__
@@ -24,6 +24,10 @@ _TIMEOUT_SECONDS = 120
 _MAX_AUDIO_BYTES = 200 * 1024 * 1024
 _MAX_SIGNED_TARGET_BYTES = 16 * 1024
 _SIGNED_TARGET_TTL_SECONDS = 600
+# S2 §2.4 L135-136: bearer 900초, refresh 30일 rotate-on-use. 서버 만료보다 60초 먼저
+# 갱신해 긴 폴링 중 경계에 걸리지 않게 한다(preview 세션과 같은 규약).
+_CREDENTIAL_RENEWAL_MARGIN_SECONDS = 60
+_MAX_TOKEN_BYTES = 4096
 # Wire codes from packages/contracts/src/agent-jobs.ts, never provider error text.
 _API_ERROR_CODES = frozenset({
     "authentication_required", "forbidden", "job_not_found", "lease_expired",
@@ -98,6 +102,44 @@ class AudioDownloadError(Exception):
         self.transient = transient
 
 
+class AgentCredentialSource(Protocol):
+    """Agent refresh 자격의 출처(S9 · E6-4).
+
+    회전한 값을 돌려주는 자리도 이 인터페이스다 — 클라이언트는 자격을 어디에 두는지
+    모른 채 읽고 되돌려 쓴다. DPAPI CurrentUser backend 는 E5-1b 몫이라 여기 없다.
+    """
+
+    def refresh_token(self) -> str:
+        ...
+
+    def store_refresh_token(self, token: str) -> None:
+        ...
+
+
+class EnvAgentCredentialSource:
+    """환경변수 backend. `CCC_AGENT_REFRESH_TOKEN` 을 생성 시 한 번만 읽는다.
+
+    회전된 값은 프로세스 메모리에만 두고(환경변수를 되쓰지 않는다) 다음 교환에 쓴다.
+    값은 어떤 로그·예외 메시지에도 넣지 않는다 (R3).
+    """
+
+    ENV_NAME = "CCC_AGENT_REFRESH_TOKEN"
+
+    def __init__(self) -> None:
+        token = os.environ.get(self.ENV_NAME, "").strip()
+        if not token:
+            raise ValueError("agent refresh token is unavailable")
+        self._token = token
+
+    def refresh_token(self) -> str:
+        return self._token
+
+    def store_refresh_token(self, token: str) -> None:
+        if not token:
+            raise ValueError("agent refresh token is unavailable")
+        self._token = token
+
+
 class ApiClient:
     def __init__(
         self,
@@ -108,13 +150,26 @@ class ApiClient:
         runtime_environment: str,
         preview_access_code: str | None = None,
         audio_download_origin: str | None = None,
+        agent_credentials: AgentCredentialSource | None = None,
     ):
         if runtime_environment not in ("preview", "production"):
             raise ValueError("runtime environment must be preview or production")
         if runtime_environment == "preview":
-            if preview_access_code is None or client_id is not None or client_secret is not None:
+            if (
+                preview_access_code is None
+                or client_id is not None
+                or client_secret is not None
+                or agent_credentials is not None
+            ):
                 raise ValueError("preview client requires only the Preview credential")
-        elif preview_access_code is not None or client_id is None or client_secret is None:
+        elif preview_access_code is not None:
+            raise ValueError("production client requires only Access credentials")
+        # 운영에는 두 자격 방식이 배타적으로 하나만 있다: E6-4 의 canonical Agent Bearer,
+        # 또는 E2-7 까지 남는 legacy Cloudflare Access 서비스 토큰(S2 §2.1 L46).
+        elif agent_credentials is not None:
+            if client_id is not None or client_secret is not None:
+                raise ValueError("agent client requires only the pairing credential")
+        elif client_id is None or client_secret is None:
             raise ValueError("production client requires only Access credentials")
         self._base_url = base_url.rstrip("/")
         self._client_id = client_id
@@ -123,6 +178,9 @@ class ApiClient:
         self._preview_access_code = preview_access_code
         self._preview_token: str | None = None
         self._preview_token_expires_at = 0.0
+        self._agent_credentials = agent_credentials
+        self._agent_bearer_token: str | None = None
+        self._agent_bearer_expires_at = 0.0
         self._opener = urllib.request.build_opener(_RejectRedirects())
         if audio_download_origin is not None:
             parsed_origin = urlsplit(audio_download_origin)
@@ -163,6 +221,55 @@ class ApiClient:
             return self._unlock_preview()
         return self._preview_token
 
+    def _exchange_agent_refresh(self) -> str:
+        """POST /agents/token — refresh 를 회전하고 새 bearer 를 받는다(S2 §2.4 L136).
+
+        회전된 refresh 는 반드시 출처를 통해서만 되돌려 쓴다. 교환 요청 자체에는
+        Authorization 을 싣지 않으므로 이 경로는 재시도 고리에 들어가지 않는다.
+        """
+        source = self._agent_credentials
+        if source is None:
+            raise ApiError(401, "agent credential unavailable")
+        request = urllib.request.Request(
+            self._base_url + "/agents/token",
+            data=json.dumps({"refreshToken": source.refresh_token()}).encode("utf-8"),
+            headers={"User-Agent": USER_AGENT, "Content-Type": "application/json"},
+            method="POST",
+        )
+        self._agent_bearer_token = None
+        self._agent_bearer_expires_at = 0.0
+        with self._open(request, allow_refresh=False) as response:
+            payload = json.loads(response.read(_MAX_TOKEN_BYTES + 1).decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ApiError(200, "malformed agent token response")
+        bearer = payload.get("bearerToken")
+        refresh = payload.get("refreshToken")
+        expires_raw = payload.get("bearerExpiresAt")
+        if (
+            not isinstance(bearer, str) or bearer == ""
+            or not isinstance(refresh, str) or refresh == ""
+            or not isinstance(expires_raw, str)
+        ):
+            raise ApiError(200, "malformed agent token response")
+        try:
+            expires_at = datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
+        except ValueError:
+            raise ApiError(200, "malformed agent token response") from None
+        if expires_at.tzinfo is None:
+            raise ApiError(200, "malformed agent token response")
+        lifetime = (expires_at - datetime.now(timezone.utc)).total_seconds()
+        source.store_refresh_token(refresh)
+        self._agent_bearer_token = bearer
+        self._agent_bearer_expires_at = time.monotonic() + max(
+            0.0, lifetime - _CREDENTIAL_RENEWAL_MARGIN_SECONDS
+        )
+        return bearer
+
+    def _agent_bearer(self) -> str:
+        if self._agent_bearer_token is None or time.monotonic() >= self._agent_bearer_expires_at:
+            return self._exchange_agent_refresh()
+        return self._agent_bearer_token
+
     def _request(
         self,
         method: str,
@@ -176,6 +283,9 @@ class ApiClient:
         }
         if self._runtime_environment == "preview":
             headers["Cookie"] = f"ccc_preview={self._preview_session_token()}"
+        elif self._agent_credentials is not None:
+            # E6-4 canonical 경로: 업무 API 는 Authorization Bearer 만 받는다(S2 §2.1 L46).
+            headers["Authorization"] = f"Bearer {self._agent_bearer()}"
         else:
             if self._client_id is None or self._client_secret is None:
                 raise ApiError(401, "production credential unavailable")
@@ -190,12 +300,13 @@ class ApiClient:
             headers["Content-Type"] = "application/json"
         return urllib.request.Request(self._base_url + path, data=data, headers=headers, method=method)
 
-    def _open(self, request: urllib.request.Request):  # noqa: ANN202 — http.client.HTTPResponse
+    def _open(self, request: urllib.request.Request, *, allow_refresh: bool = True):  # noqa: ANN202 — http.client.HTTPResponse
         try:
             return self._opener.open(request, timeout=_TIMEOUT_SECONDS)
         except urllib.error.HTTPError as error:
             # Accept only protocol codes; an upstream error may echo credentials.
             detail = "unknown"
+            status = error.code
             try:
                 payload = json.loads(error.read().decode("utf-8"))
                 if isinstance(payload, dict) and isinstance(payload.get("error"), str) and payload["error"] in _API_ERROR_CODES:
@@ -204,7 +315,17 @@ class ApiClient:
                 pass
             finally:
                 error.close()
-            raise ApiError(error.code, detail) from None
+        # bearer 는 900초짜리다. 만료·폐기 뒤 첫 401 에서만 refresh 를 한 번 돌리고 한 번
+        # 다시 보낸다 — 두 번째 401 은 그대로 올린다(재사용 폐기를 되돌릴 길은 없다).
+        if (
+            status == 401
+            and allow_refresh
+            and self._agent_credentials is not None
+            and request.has_header("Authorization")
+        ):
+            request.add_header("Authorization", f"Bearer {self._exchange_agent_refresh()}")
+            return self._open(request, allow_refresh=False)
+        raise ApiError(status, detail)
 
     # ------------------------------------------------------------------
     # Agent 작업 계약 v2 (S5). 모든 후속 요청은 claim token 과 attempt 를 함께 보낸다.
@@ -405,5 +526,5 @@ class MemoryApiClient(ApiClient):
             method, "/pipeline/memory/" + path[len("/pipeline/jobs/"):], body, claim
         )
 
-    def _open(self, request: urllib.request.Request):  # noqa: ANN202
-        return self._client._open(request)
+    def _open(self, request: urllib.request.Request, *, allow_refresh: bool = True):  # noqa: ANN202
+        return self._client._open(request, allow_refresh=allow_refresh)

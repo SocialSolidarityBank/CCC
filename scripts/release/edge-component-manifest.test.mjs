@@ -127,6 +127,33 @@ test('builds the closed signed EdgeComponentManifestV1 in UTF-8 path order', asy
   assert.deepEqual(verified, manifest);
 }));
 
+test('a function component over the S11 20 MB bundle limit is rejected at build and at verification', async () => fixture(async ({ root, signing }) => {
+  const oversized = join(root, 'functions', 'oversized.js');
+  await writeFile(oversized, Buffer.alloc(20 * 1024 * 1024 + 1, 0x20));
+  await assert.rejects(buildEdgeComponentManifest(root), error => error?.code === 'EDGE_BUNDLE_LIMIT');
+  await rm(oversized);
+
+  const manifest = await buildEdgeComponentManifest(root);
+  const components = manifest.components.map(component => component.kind === 'function'
+    ? { ...component, artifactBytes: 20 * 1024 * 1024 + 1 }
+    : component);
+  const document = canonicalizeJcs({
+    ...manifest,
+    components,
+    edgeArtifactSha256: sha256(canonicalizeJcs(components)),
+  });
+  await assert.rejects(
+    verifyEdgeComponentManifest({
+      document,
+      stagedRoot: root,
+      bundleRow: { edgeComponentManifestSha256: sha256(document) },
+      trustStore: await loadReleaseTrustStore(signing.trustJson),
+      now: NOW,
+    }),
+    error => error?.code === 'EDGE_BUNDLE_LIMIT',
+  );
+}));
+
 test('rejects filesystem links without producing a manifest', async t => fixture(async ({ root }) => {
   await t.test('symbolic link', async () => {
     await symlink(join(root, 'templates', 'mail.json'), join(root, 'functions', 'linked.ts'));

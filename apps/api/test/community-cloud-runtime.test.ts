@@ -17,9 +17,22 @@ const authOrigin = 'https://abcdefghijklmnopqrst.supabase.co';
 const signerPromise = createTestSigner();
 
 // Mini-only attestation outcomes, not PostgreSQL/RLS proof. Any business SQL here is a fixture error.
+// The one exception is the S2 §2.2 L64 agent-bearer lane: it hashes the presented Bearer and asks
+// `agent_credentials` before the human adapter runs, and no row means the request flows onward.
 function attestedDatabase(allowed = 1): PostgresDatabase {
   const forbidden = () => { throw new Error('unexpected_business_database_access'); };
-  const scoped: Database = { prepare: forbidden, batch: forbidden };
+  const absent: PreparedStatement = {
+    bind() { return this; },
+    async first<T>() { return null as T | null; },
+    all: forbidden, run: forbidden,
+  };
+  const scoped: Database = {
+    prepare: (sql: string): PreparedStatement => {
+      if (/\bagent_credentials\b/.test(sql)) return absent;
+      return forbidden();
+    },
+    batch: forbidden,
+  };
   const statement: PreparedStatement = {
     bind() { return this; },
     async first<T>() { return { allowed } as T; },

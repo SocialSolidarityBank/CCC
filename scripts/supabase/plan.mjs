@@ -74,6 +74,9 @@ const safeFailures = Object.freeze({
   INSTALL_JOURNAL_MISSING: '검증된 설치 journal이 없습니다.',
   INSTALL_STEP_MISMATCH: '설치 단계의 idempotency key 또는 상태가 다릅니다.',
   MIGRATION_APPLY_FAILED: '마이그레이션 transaction이 실패했으며 해당 변경은 반영되지 않았습니다.',
+  HEALTH_FAILED: '승격한 설치 상태의 읽기 전용 확인을 통과하지 못했습니다.',
+  EDGE_COMPONENT_DEPLOYER_UNAVAILABLE: '이 설치기가 적용할 수 없는 Edge component가 포함되어 있습니다.',
+  EDGE_BUNDLE_LIMIT: 'Edge 함수 묶음이 배포 한도를 넘었습니다.',
 });
 
 export class PlanFailure extends Error {
@@ -724,6 +727,22 @@ export async function buildSupabaseDoctor(options) {
       snapshot, state, options.authorization, plan.migrations,
     )) addIssue(code);
   }
+  // The same post-promotion evidence apply requires, read only and redacted:
+  // booleans and the region names, never an address, token or provider body.
+  let health = null;
+  if (typeof options.health === 'function') {
+    const observed = await options.health({
+      observation: snapshot,
+      providerBaseline: options.providerBaseline,
+    });
+    health = {
+      healthy: observed.healthy === true,
+      storageSignerHealthy: observed.storageSignerHealthy === true,
+      edgeRegionEvidence: observed.edgeRegionEvidence,
+      restrictedDatabase: observed.restrictedDatabase,
+    };
+    if (!health.healthy) addIssue('HEALTH_FAILED');
+  }
   if (options.target === 'hosted') {
     assertAuthorizationCurrent(options.authorization);
     assertProviderBaselineCurrent(options.providerBaseline, options.authorization, now());
@@ -734,6 +753,7 @@ export async function buildSupabaseDoctor(options) {
     stateFingerprint,
     completedSteps: safeCompletedSteps(state),
     blockers: issues,
+    ...(health === null ? {} : { health }),
     ...(options.target === 'hosted' ? {
       providerBaseline: safeProviderBaseline(options.providerBaseline, {
         ...providerComparison,

@@ -31,6 +31,7 @@ export const checkpoints = [
   { id: 'staff-invites', sqlite: '0058_staff_invites.sql', postgres: '0014_staff_invites.sql' },
   { id: 'participant-request-links', sqlite: '0059_participant_request_links.sql', postgres: '0015_participant_request_links.sql' },
   { id: 'canonical-compatibility-views', sqlite: '0060_canonical_compatibility_views.sql', postgres: '0016_canonical_compatibility_views.sql' },
+  { id: 'agent-credentials', sqlite: '0061_agent_credentials.sql', postgres: '0017_agent_credentials.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;
@@ -277,6 +278,43 @@ export async function proveCanonicalCompatibilityViews(db: Database): Promise<vo
       expect(await rejection(db.prepare(sql).run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
     }
   }
+}
+
+/**
+ * 0061/0017: credentials bind to an installation, store only 64-hex hashes, and both
+ * consumed_at and revoked_at are one-way. Identity edits, reversals and deletes abort.
+ */
+export async function proveAgentCredentialsSchema(db: Database): Promise<void> {
+  const org = 'parity-agent-org', user = 'parity-agent-service', install = 'parity-agent-install';
+  const at = '2026-09-11T00:00:00.000Z';
+  await db.prepare("INSERT INTO users (id,org_id,email,role,active,created_at) VALUES (?,?,?,'service',1,?)")
+    .bind(user, org, 'agent@example.invalid', at).run();
+  await db.prepare('INSERT INTO agent_installations (installation_id,org_id,actor_user_id,paired_at) VALUES (?,?,?,?)')
+    .bind(install, org, user, at).run();
+  const insert = (id: string, kind: string, hash: string, installation = install) => db.prepare(
+    'INSERT INTO agent_credentials (id,installation_id,kind,token_hash,issued_at,expires_at) VALUES (?,?,?,?,?,?)',
+  ).bind(id, installation, kind, hash, at, '2026-10-11T00:00:00.000Z').run();
+  expect(await insert('parity-agent-refresh', 'refresh', 'a'.repeat(64))).toMatchObject({ meta: { changes: 1 } });
+  expect(await rejection(insert('parity-agent-bad-kind', 'password', 'b'.repeat(64)))).toMatchObject({ kind: 'constraint' });
+  expect(await rejection(insert('parity-agent-bad-hash', 'bearer', `${'b'.repeat(63)}z`))).toMatchObject({ kind: 'constraint' });
+  expect(await rejection(insert('parity-agent-duplicate', 'bearer', 'a'.repeat(64)))).toMatchObject({ kind: 'constraint' });
+  expect(await rejection(insert('parity-agent-orphan', 'bearer', 'c'.repeat(64), 'parity-agent-missing')))
+    .toMatchObject({ kind: 'constraint' });
+  for (const sql of [
+    `UPDATE agent_credentials SET token_hash='${'d'.repeat(64)}' WHERE id='parity-agent-refresh'`,
+    "UPDATE agent_credentials SET kind='bearer' WHERE id='parity-agent-refresh'",
+    "DELETE FROM agent_credentials WHERE id='parity-agent-refresh'",
+  ]) {
+    expect(await rejection(db.prepare(sql).run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+  }
+  expect(await db.prepare("UPDATE agent_credentials SET consumed_at=? WHERE id='parity-agent-refresh' AND consumed_at IS NULL")
+    .bind('2026-09-11T00:10:00.000Z').run()).toMatchObject({ meta: { changes: 1 } });
+  expect(await rejection(db.prepare("UPDATE agent_credentials SET consumed_at=NULL WHERE id='parity-agent-refresh'").run()))
+    .toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+  expect(await db.prepare("UPDATE agent_credentials SET revoked_at=? WHERE id='parity-agent-refresh' AND revoked_at IS NULL")
+    .bind('2026-09-11T00:20:00.000Z').run()).toMatchObject({ meta: { changes: 1 } });
+  expect(await rejection(db.prepare("UPDATE agent_credentials SET revoked_at=? WHERE id='parity-agent-refresh'")
+    .bind('2026-09-11T00:30:00.000Z').run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
 }
 export async function openParityDatabase(profile: Profile, harness: PostgresHarness): Promise<ParityDatabase> {
   if (profile === 'postgres') {

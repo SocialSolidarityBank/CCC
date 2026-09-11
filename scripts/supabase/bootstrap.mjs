@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 import { dirname, resolve } from 'node:path';
-import { createHostedInspector } from './hosted-inspector.mjs';
+import {
+  createHostedInspector,
+  createInstallationHealth,
+  readRestrictedRoleFromSession,
+} from './hosted-inspector.mjs';
 import { createLocalInspector } from './local-inspector.mjs';
 import {
   assertProviderBaselineCurrent,
@@ -9,7 +13,12 @@ import {
   buildSupabaseDoctor,
   PlanFailure,
 } from './plan.mjs';
-import { configuredInstallTrust, requireSignedOwnerPreflight } from './manifest-preflight.mjs';
+import {
+  configuredInstallTrust,
+  hashCanonical,
+  readStrictJsonDocument,
+  requireSignedOwnerPreflight,
+} from './manifest-preflight.mjs';
 import { requireProviderBaseline } from './provider-baseline.mjs';
 import { assertApplicationCaBinding } from '../../apps/community-cloud/src/application-ca.mjs';
 import { withInstallerConnection } from './installer-connection.mjs';
@@ -56,6 +65,7 @@ const exitCodes = Object.freeze({
   BUNDLE_LIFETIME_INVALID: 6,
   EDGE_COMPONENT_DEPLOYER_UNAVAILABLE: 6,
   EDGE_COMPONENT_SET_MISMATCH: 6,
+  EDGE_BUNDLE_LIMIT: 6,
   HASH_MISMATCH: 6,
   HEALTH_FAILED: 6,
   INSTALL_POST_PROMOTION_FAILED: 6,
@@ -137,6 +147,7 @@ const task4Failures = Object.freeze({
   BUNDLE_LIFETIME_INVALID: '릴리스 묶음의 유효 기간을 확인하지 못했습니다.',
   EDGE_COMPONENT_DEPLOYER_UNAVAILABLE: '이 설치기가 적용할 수 없는 Edge component가 포함되어 있습니다.',
   EDGE_COMPONENT_SET_MISMATCH: '검증된 Edge component 집합과 적용 대상이 다릅니다.',
+  EDGE_BUNDLE_LIMIT: 'Edge 함수 묶음이 배포 한도를 넘었습니다.',
   HASH_MISMATCH: '다운로드한 artifact의 확인값이 manifest와 다릅니다.',
   HEALTH_FAILED: '승격한 설치 상태의 읽기 전용 확인을 통과하지 못했습니다.',
   INSTALL_POST_PROMOTION_FAILED: '마이그레이션 승격 뒤 확인이 실패해 설치를 완료하지 않았습니다. journal에서 재개 상태를 확인합니다.',
@@ -208,6 +219,21 @@ function parseBetaConfiguration(value, fallback) {
   }
 }
 
+/**
+ * The already-verified installation manifest, re-read only for the addresses
+ * the health probes and the signer bindings need. Its JCS digest must be the
+ * one the signed approval bound, so no unsigned value can redirect a probe.
+ */
+async function verifiedInstallManifest(document, authorization) {
+  const manifest = await readStrictJsonDocument(document);
+  if (await hashCanonical(manifest) !== authorization.runtimeManifestSha256
+    || typeof manifest.apiBase !== 'string' || manifest.apiBase.length === 0
+    || typeof manifest.supabaseAuthOrigin !== 'string' || manifest.supabaseAuthOrigin.length === 0) {
+    throw new PlanFailure('OWNER_EVIDENCE_MISSING');
+  }
+  return manifest;
+}
+
 async function main() {
   let options;
   try {
@@ -250,12 +276,29 @@ async function main() {
         accessToken: process.env.SUPABASE_ACCESS_TOKEN, projectRef: authorization.projectRef,
         authorization, authorize: authorizeProviderAccess,
       });
+    const installManifest = options.installManifest ?? process.env.CCC_INSTALL_MANIFEST;
+    const signedManifest = options.target === 'hosted'
+      ? await verifiedInstallManifest(installManifest, authorization)
+      : undefined;
+    // One probe set for both lanes: doctor has no installer connection and
+    // reads the restricted role through the read-only Management query.
+    const installationHealth = options.target === 'hosted'
+      ? createInstallationHealth({
+        apiBase: signedManifest.apiBase,
+        supabaseAuthOrigin: signedManifest.supabaseAuthOrigin,
+        installationId: authorization.installationId,
+        readRestrictedRole: input => (input.session === undefined
+          ? inspector.restrictedRole()
+          : readRestrictedRoleFromSession(input.session)),
+      })
+      : undefined;
     const planOptions = {
       target: options.target,
       inspector,
       authorization,
       providerBaseline,
       renewAuthorization: options.renewAuthorization,
+      health: installationHealth,
     };
     let reportLedger = null;
     const diagnosisOptions = options.operation === 'report' ? {
@@ -304,6 +347,17 @@ async function main() {
         manifestUrl: options.manifestUrl,
         authorize: authorizeProviderAccess,
         inspector,
+        // Written provider access is the Management API with the same scoped
+        // token; the value stays in this object and is never printed.
+        management: { fetch, accessToken: process.env.SUPABASE_ACCESS_TOKEN },
+        secrets: {
+          schedulerSecret: process.env.SCHEDULER_SECRET,
+          serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          installManifestJson: JSON.stringify(signedManifest),
+          signingKeysJson: process.env.CCC_INSTALL_SIGNING_KEYS,
+        },
+        apiBase: signedManifest.apiBase,
+        supabaseOrigin: signedManifest.supabaseAuthOrigin,
         localNow: new Date(),
       });
       try {
@@ -328,6 +382,12 @@ async function main() {
               }
               return observed;
             },
+            // Health reads the promoted installation once more, read only.
+            health: async input => installationHealth({
+              session: input.session,
+              observation: await inspector.inspect(),
+              providerBaseline,
+            }),
           };
           return applyInstallation({
             authorization,

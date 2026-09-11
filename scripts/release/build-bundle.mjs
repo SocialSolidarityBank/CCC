@@ -18,6 +18,7 @@ import { canonicalizeJcs } from '@ccc/contracts/jcs';
 
 import {
   EDGE_PROTOCOL_VERSION,
+  SIGNER_COMPONENT_PATH,
   buildEdgeComponentManifest,
   verifyEdgeComponentManifest,
 } from './edge-component-manifest.mjs';
@@ -516,6 +517,13 @@ async function copyComponents(componentRoot, stagingRoot, components) {
   }
 }
 
+// 설치 apply는 migration N개 + StorageSigner function 1개만 받는다(S12 Task 12).
+// 호출자가 apps/community-cloud/dist/storage-signer.js 를 이 자리에 복사해 둔다.
+function requireSignerComponent(components) {
+  const functions = components.filter(component => component.kind === 'function');
+  if (functions.length !== 1 || functions[0].path !== SIGNER_COMPONENT_PATH) fail();
+}
+
 async function build({ componentRoot, outDir, version, sequence, channel }) {
   const target = releaseTarget();
   const artifactName = validateInputs({ version, sequence, channel, target });
@@ -530,6 +538,7 @@ async function build({ componentRoot, outDir, version, sequence, channel }) {
 
   try {
     const edgeManifest = await buildEdgeComponentManifest(componentRoot);
+    requireSignerComponent(edgeManifest.components);
     const publishedAt = new Date();
     const keys = await signingState(edgeManifest, publishedAt);
     const expiresAt = new Date(publishedAt.getTime() + 7 * 24 * 60 * 60 * 1_000);

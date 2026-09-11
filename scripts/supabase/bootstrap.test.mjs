@@ -8,7 +8,12 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { createHostedInspector, DATABASE_STATE_QUERY } from './hosted-inspector.mjs';
+import {
+  createHostedInspector,
+  createInstallationHealth,
+  DATABASE_STATE_QUERY,
+  RESTRICTED_ROLE_QUERY,
+} from './hosted-inspector.mjs';
 import {
   assertProviderBaselineCurrent,
   buildSupabasePlan,
@@ -1285,4 +1290,199 @@ test('inspector credential errors retain fixed codes without provider response t
       });
     });
   }
+});
+
+const installationId = 'synthetic-installation';
+
+/**
+ * Stands in for the promoted deployment: the runtime readiness route and the
+ * StorageSigner Edge Function, on one loopback origin per lane.
+ */
+async function withDeployment({
+  ready = { status: 200, body: { status: 'ready' } },
+  signer = {
+    status: 401,
+    body: { code: 'UNAUTHORIZED' },
+    installationId,
+    region: 'ap-northeast-2',
+  },
+}, run) {
+  const requests = [];
+  const server = createServer(async (request, response) => {
+    let body = '';
+    for await (const chunk of request) body += chunk;
+    requests.push({ method: request.method, path: request.url, body });
+    if (request.url === '/readyz') {
+      response.writeHead(ready.status, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(ready.body));
+      return;
+    }
+    if (request.url === '/functions/v1/ccc-storage-signer') {
+      response.writeHead(signer.status, {
+        'content-type': 'application/json',
+        ...(signer.installationId === null
+          ? {} : { 'x-ccc-installation-id': signer.installationId }),
+        ...(signer.region === null ? {} : { 'x-sb-edge-region': signer.region }),
+      });
+      response.end(JSON.stringify(signer.body));
+      return;
+    }
+    response.writeHead(404, { 'content-type': 'application/json' });
+    response.end('{}');
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  try {
+    await run({ origin: `http://127.0.0.1:${address.port}`, requests });
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+}
+
+function health(origin, {
+  role = { rolsuper: false, rolbypassrls: false },
+  readRestrictedRole,
+} = {}) {
+  return createInstallationHealth({
+    apiBase: `${origin}/api`,
+    supabaseAuthOrigin: origin,
+    installationId,
+    readRestrictedRole: readRestrictedRole ?? (async () => role),
+  });
+}
+
+test('health evidence comes only from the readiness route, the signer refusal and the restricted role', async () => {
+  await withDeployment({}, async ({ origin, requests }) => {
+    const evidence = await health(origin)({});
+    assert.equal(evidence.healthy, true);
+    assert.equal(evidence.storageSignerHealthy, true);
+    assert.deepEqual(evidence.edgeRegionEvidence, {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'ap-northeast-2',
+      functionRegion: 'ap-northeast-2',
+      mismatch: false,
+    });
+    assert.deepEqual(evidence.restrictedDatabase, {
+      connected: true,
+      role: 'ccc_api',
+      superuser: false,
+      bypassRls: false,
+    });
+    assert.equal(evidence.stateFingerprint, null);
+    assert.deepEqual(requests, [
+      { method: 'GET', path: '/readyz', body: '' },
+      { method: 'POST', path: '/functions/v1/ccc-storage-signer', body: '' },
+    ]);
+    assertNoSensitiveOutput({ stdout: JSON.stringify(evidence), stderr: '' }, origin);
+  });
+});
+
+test('a signer answering for another installation is never read as healthy', async () => {
+  await withDeployment({
+    signer: {
+      status: 401,
+      body: { code: 'UNAUTHORIZED' },
+      installationId: 'other-installation',
+      region: 'ap-northeast-2',
+    },
+  }, async ({ origin }) => {
+    const evidence = await health(origin)({});
+    assert.equal(evidence.storageSignerHealthy, false);
+    assert.equal(evidence.healthy, false);
+  });
+});
+
+test('each absent health dimension fails closed without inventing evidence', async t => {
+  const cases = [
+    ['signer identity header absent', {
+      signer: { status: 401, body: { code: 'UNAUTHORIZED' }, installationId: null, region: 'ap-northeast-2' },
+    }, {}, evidence => assert.equal(evidence.storageSignerHealthy, false)],
+    ['signer accepts an unauthenticated call', {
+      signer: { status: 200, body: { url: 'https://must-not-escape.test' }, installationId, region: 'ap-northeast-2' },
+    }, {}, evidence => assert.equal(evidence.storageSignerHealthy, false)],
+    ['signer failure code is not the refusal contract', {
+      signer: { status: 401, body: { code: 'INSTALLATION_UNAVAILABLE' }, installationId, region: 'ap-northeast-2' },
+    }, {}, evidence => assert.equal(evidence.storageSignerHealthy, false)],
+    ['edge region absent', {
+      signer: { status: 401, body: { code: 'UNAUTHORIZED' }, installationId, region: null },
+    }, {}, evidence => assert.deepEqual(evidence.edgeRegionEvidence, {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'not_run',
+      functionRegion: 'not_run',
+      mismatch: true,
+    })],
+    ['edge region outside Seoul', {
+      signer: { status: 401, body: { code: 'UNAUTHORIZED' }, installationId, region: 'us-east-1' },
+    }, {}, evidence => assert.equal(evidence.edgeRegionEvidence.mismatch, true)],
+    ['runtime not ready', { ready: { status: 503, body: { status: 'unavailable' } } }, {},
+      evidence => assert.equal(evidence.restrictedDatabase.connected, false)],
+    ['restricted role unreadable', {}, {
+      readRestrictedRole: async () => { throw new Error('unreadable'); },
+    }, evidence => assert.deepEqual(evidence.restrictedDatabase, {
+      connected: false, role: null, superuser: true, bypassRls: true,
+    })],
+    ['runtime role is a superuser', {}, { role: { rolsuper: true, rolbypassrls: false } },
+      evidence => assert.equal(evidence.restrictedDatabase.superuser, true)],
+    ['runtime role bypasses RLS', {}, { role: { rolsuper: false, rolbypassrls: true } },
+      evidence => assert.equal(evidence.restrictedDatabase.bypassRls, true)],
+  ];
+  for (const [name, deployment, options, check] of cases) {
+    await t.test(name, async () => {
+      await withDeployment(deployment, async ({ origin }) => {
+        const evidence = await health(origin, options)({});
+        assert.equal(evidence.healthy, false);
+        check(evidence);
+        assertNoSensitiveOutput({ stdout: JSON.stringify(evidence), stderr: '' }, origin);
+      });
+    });
+  }
+});
+
+test('health reads the restricted role from the installer session it is given', async () => {
+  await withDeployment({}, async ({ origin }) => {
+    const queries = [];
+    const session = {
+      unsafe: async query => {
+        queries.push(query);
+        return [{ rolsuper: false, rolbypassrls: false }];
+      },
+    };
+    const evidence = await createInstallationHealth({
+      apiBase: `${origin}/api`,
+      supabaseAuthOrigin: origin,
+      installationId,
+    })({ session });
+    assert.equal(evidence.healthy, true);
+    assert.deepEqual(queries, [RESTRICTED_ROLE_QUERY]);
+    assert.match(queries[0], /^SELECT rolsuper, rolbypassrls FROM pg_catalog\.pg_roles/u);
+  });
+});
+
+test('doctor reports the same health read-only and blocks on its failure', async () => {
+  await withManagementApi({}, async ({ origin: managementOrigin }) => {
+    await withDeployment({
+      signer: {
+        status: 401,
+        body: { code: 'UNAUTHORIZED' },
+        installationId: 'other-installation',
+        region: 'ap-northeast-2',
+      },
+    }, async ({ origin }) => {
+      const doctor = await buildSupabaseDoctor({
+        target: 'hosted',
+        inspector: hostedInspector(managementOrigin),
+        authorization: observationAuthorization(),
+        providerBaseline: verifiedProviderBaseline(),
+        health: health(origin),
+      });
+      assert.equal(doctor.readOnly, true);
+      assert.equal(doctor.health.healthy, false);
+      assert.equal(doctor.health.storageSignerHealthy, false);
+      assert.ok(doctor.blockers.some(({ code }) => code === 'HEALTH_FAILED'));
+      assertNoSensitiveOutput({ stdout: JSON.stringify(doctor), stderr: '' }, origin);
+    });
+  });
 });

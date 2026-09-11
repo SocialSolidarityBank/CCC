@@ -97,6 +97,10 @@ import {
   acceptStaffInvite,
   getParticipantRequestLinkInfo,
   issueParticipantRequestLinkDisclosures,
+  issueAgentPairingCode,
+  redeemAgentPairingCode,
+  rotateAgentRefreshCredential,
+  revokeAgentInstallation,
   getIntakeRecordContext,
   createCounselingSchedule,
   listScheduleCandidates,
@@ -2714,6 +2718,19 @@ export async function handleRequest(
         throw e;
       }
     }
+    // ── E6-4 Agent 자격 교환: 제시한 code·refresh 자체가 자격이라 신원 해석 앞에 온다.
+    // 사람 신원이 없는 요청이므로 Actor 로 투영하지 않고, 실패는 모두 401 이다.
+    if (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'agents'
+      && (pubParts[1] === 'pair' || pubParts[1] === 'token')) {
+      requestQuery(url, []);
+      const body = await requestBody(request);
+      if (pubParts[1] === 'pair') {
+        requireOnlyKeys(body, ['pairingCode']);
+        return json(await redeemAgentPairingCode(env, body.pairingCode), 201, { 'cache-control': 'no-store' });
+      }
+      requireOnlyKeys(body, ['refreshToken']);
+      return json(await rotateAgentRefreshCredential(env, body.refreshToken), 201, { 'cache-control': 'no-store' });
+    }
     const resolvedActor = await resolveActor(request, env);
     const parts = url.pathname.split('/').filter((part) => part.length > 0);
     // S2 §2.6: system Actor 는 내부 두 경로에서만 받는다. 업무 route 는 신원을 사람 역할로
@@ -3971,6 +3988,24 @@ export async function handleRequest(
       const supportCaseId = requireRouteUuid(parts[3] ?? '', 'support case id');
       const assignees = await listSupportCaseAssignees(env, actor, supportCaseId, { includeRequested: true });
       return json({ assignees: assignees.map(supportCaseAssigneeResponse) });
+    }
+    if (parts[0] === 'agents') {
+      // E6-4 관리자 표면 — 설치 발급과 폐기 둘뿐이다(gateway 가 admin 을 강제한다).
+      // 자격 평문은 발급 응답에만 나가므로 두 경로 모두 캐시하지 않는다.
+      requestQuery(url, []);
+      if (request.method === 'POST' && parts.length === 2 && parts[1] === 'pairing-codes') {
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['actorUserId']);
+        return json(await issueAgentPairingCode(env, actor, {
+          actorUserId: requiredString(body, 'actorUserId'),
+        }), 201, { 'cache-control': 'no-store' });
+      }
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'revoke' && parts[1] !== undefined) {
+        requireOnlyKeys(await requestBody(request), []);
+        return json(await revokeAgentInstallation(env, actor, decodeURIComponent(parts[1])), 200, {
+          'cache-control': 'no-store',
+        });
+      }
     }
     if (parts[0] === 'users') {
       // 사용자 디렉터리 관리 — 관리자 전용(gateway 내부에서 강제). 자기 기관만.

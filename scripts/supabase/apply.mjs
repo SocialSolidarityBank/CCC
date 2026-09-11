@@ -86,25 +86,47 @@ function failureCode(error) {
     ? error.code : 'PROVIDER_UNREADABLE';
 }
 
-function requireMigrationComponents(edge, plan) {
-  if (!Array.isArray(edge?.components) || edge.components.length === 0) {
+
+// Presence of the externally injected values only. A secret is never read,
+// logged, hashed into an identifier, or compared against a literal here.
+function injectedSecrets(secrets) {
+  return [
+    secrets?.schedulerSecret, secrets?.serviceRoleKey,
+    secrets?.installManifestJson, secrets?.signingKeysJson,
+  ].every(value => typeof value === 'string' && value.length > 0);
+}
+
+export const SIGNER_COMPONENT_PATH = 'functions/ccc-storage-signer/index.js';
+
+/**
+ * The verified component set is exactly the planned migrations plus the one
+ * StorageSigner function this installer can deploy. Anything else is refused
+ * before the install lock rather than partially applied.
+ */
+function requireInstallComponents(edge, plan) {
+  const components = Array.isArray(edge?.components) ? edge.components : [];
+  const migrations = components.filter(component => component?.kind === 'migration');
+  const functions = components.filter(component => component?.kind === 'function');
+  if (components.length === 0
+    || migrations.length + functions.length !== components.length
+    || functions.length !== 1
+    || functions[0].path !== SIGNER_COMPONENT_PATH
+    || !/^[a-f0-9]{64}$/u.test(functions[0].artifactSha256 ?? '')) {
     throw failure('EDGE_COMPONENT_SET_MISMATCH');
   }
-  if (edge.components.some(component => component?.kind !== 'migration')) {
-    throw failure('EDGE_COMPONENT_DEPLOYER_UNAVAILABLE');
-  }
-  const expected = plan.migrations?.map(migration => ({
+  const expected = plan?.migrations?.map(migration => ({
     path: `migrations/${migration.id}`,
     artifactSha256: migration.checksum,
   }));
-  if (!Array.isArray(expected) || expected.length !== edge.components.length
-    || expected.some((item, index) => item.path !== edge.components[index]?.path
-      || item.artifactSha256 !== edge.components[index]?.artifactSha256)) {
+  if (!Array.isArray(expected) || expected.length !== migrations.length
+    || expected.some((item, index) => item.path !== migrations[index]?.path
+      || item.artifactSha256 !== migrations[index]?.artifactSha256)) {
     throw failure('MIGRATION_CHECKSUM_MISMATCH');
   }
+  return { migrations, signer: functions[0] };
 }
 
-async function readVerifiedMigration(stagedRoot, component) {
+async function readVerifiedComponent(stagedRoot, component) {
   const path = join(stagedRoot, ...component.path.split('/'));
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
@@ -119,7 +141,7 @@ async function readVerifiedMigration(stagedRoot, component) {
       || createHash('sha256').update(bytes).digest('hex') !== component.artifactSha256) {
       throw failure('EDGE_COMPONENT_SET_MISMATCH');
     }
-    return bytes.toString('utf8');
+    return bytes;
   } finally {
     await file.close();
   }
@@ -163,6 +185,10 @@ export async function loadReleaseForApply({
   manifestUrl,
   authorize,
   inspector,
+  management,
+  secrets,
+  apiBase,
+  supabaseOrigin,
   floorStore = createReleaseFloorStore(),
   localNow,
   fetchImpl = fetch,
@@ -234,6 +260,10 @@ export async function loadReleaseForApply({
         expectedTuple: target,
         authorize,
         inspector,
+        management,
+        secrets,
+        apiBase,
+        supabaseOrigin,
       }),
       trustedTime,
       cleanup: () => rm(stagingRoot, { recursive: true, force: true }),
@@ -261,6 +291,11 @@ export function createVerifiedRelease({
   promote,
   authorize,
   inspector,
+  management,
+  secrets,
+  apiBase,
+  supabaseOrigin,
+  providerSteps,
 }) {
   let bundleRow;
   let edgeManifest;
@@ -304,8 +339,51 @@ export function createVerifiedRelease({
       });
       return edgeManifest;
     },
-    async verifyDeploymentPrerequisites() {
-      throw failure('RELEASE_PREREQUISITES_MISSING');
+    /**
+     * S12 §6: the one deployable function plus either a verified backup or the
+     * 2026-09-11 first-install exemption, and both provider-step secrets
+     * actually injected. Presence only; no value is read, compared or emitted.
+     */
+    async verifyDeploymentPrerequisites({ edge, plan }) {
+      if (edgeManifest === undefined || edge !== edgeManifest || bundleRow === undefined) {
+        throw failure('EDGE_COMPONENT_SET_MISMATCH');
+      }
+      const { signer } = requireInstallComponents(edge, plan);
+      // No E6-7 verified backup catalog exists, so only the empty first
+      // install may proceed. Resume and update are not exempt.
+      if (plan?.ready !== true || plan?.installed?.state !== 'not-installed') {
+        throw failure('BACKUP_FAILED');
+      }
+      if (!injectedSecrets(secrets)) throw failure('RELEASE_PREREQUISITES_MISSING');
+      return Object.freeze({
+        ready: true,
+        backup: 'not_applicable',
+        signerComponentSha256: signer.artifactSha256,
+      });
+    },
+    /** Provider resources are applied from staged bytes only, after migrations. */
+    async applyProviderSteps(input) {
+      if (edgeManifest === undefined || typeof authorize !== 'function'
+        || !injectedSecrets(secrets)) throw failure('RELEASE_PREREQUISITES_MISSING');
+      const { signer } = requireInstallComponents(edgeManifest, input.plan);
+      const run = providerSteps ?? (await import('./provider-steps.mjs')).applyProviderSteps;
+      return run({
+        session: input.session,
+        authorization: input.authorization,
+        management,
+        apiBase,
+        supabaseOrigin,
+        projectRef: input.authorization.projectRef,
+        installationId: input.authorization.installationId,
+        stagedFunction: {
+          path: signer.path,
+          bytes: await readVerifiedComponent(stagedRoot, signer),
+          sha256: signer.artifactSha256,
+        },
+        secrets,
+        authorize,
+        now: input.now,
+      });
     },
     async promote(input) {
       if (typeof promote === 'function') return promote(input);
@@ -321,7 +399,8 @@ export function createVerifiedRelease({
         );
         return fresh;
       };
-      for (const [index, component] of edgeManifest.components.entries()) {
+      const { migrations } = requireInstallComponents(edgeManifest, input.plan);
+      for (const [index, component] of migrations.entries()) {
         const at = currentTrustedTime(now);
         await verifyReleaseBundle({
           document: bundleDocument, trustStore, now: at, channel,
@@ -340,7 +419,7 @@ export function createVerifiedRelease({
         await applyJournaledMigration(input.session, input.authorization, {
           id: planned.id,
           checksum: planned.checksum,
-          sql: await readVerifiedMigration(stagedRoot, component),
+          sql: (await readVerifiedComponent(stagedRoot, component)).toString('utf8'),
         }, { authorize: authorizeMigration });
       }
       const observation = await inspector.inspect();
@@ -380,6 +459,22 @@ async function requireFreshAuthorization(authorization, plan, authorize, now) {
   });
 }
 
+/** Hash-only resource evidence from the provider steps; never a resource value. */
+function providerStepDigests(result) {
+  const steps = Array.isArray(result?.steps) ? result.steps : [];
+  return Object.fromEntries(steps.flatMap(step => {
+    const ids = Array.isArray(step?.resourceIdHashes) ? step.resourceIdHashes : [];
+    const digests = Array.isArray(step?.resourceDigests) ? step.resourceDigests : [];
+    if (ids.length !== digests.length) throw failure('RESOURCE_OWNERSHIP_MISMATCH');
+    return ids.map((id, index) => {
+      if (!/^[a-f0-9]{64}$/u.test(id ?? '') || !/^[a-f0-9]{64}$/u.test(digests[index] ?? '')) {
+        throw failure('RESOURCE_OWNERSHIP_MISMATCH');
+      }
+      return [id, digests[index]];
+    });
+  }));
+}
+
 async function recordInstalled(session, input, authorize) {
   const {
     authorization, plan, bundle, promotion, health, receipt, now,
@@ -406,7 +501,10 @@ async function recordInstalled(session, input, authorize) {
     .update(JSON.stringify(receipt.backup.evidence))
     .digest('hex');
   const edgeRegionEvidence = health.edgeRegionEvidence;
-  const providerResourceDigests = promotion?.providerResourceDigests ?? {};
+  const providerResourceDigests = {
+    ...(promotion?.providerResourceDigests ?? {}),
+    ...providerStepDigests(input.providerSteps),
+  };
   await requireFreshAuthorization(
     authorization,
     plan,
@@ -577,7 +675,7 @@ async function verifyCandidate({
   const edge = await requireMethod(release, 'verifyEdgeComponentSet')({
     bundle, manifest, authorization, plan, now: currentTrustedTime(clock),
   });
-  requireMigrationComponents(edge, plan);
+  requireInstallComponents(edge, plan);
   const deployment = await requireMethod(release, 'verifyDeploymentPrerequisites')({
     bundle, manifest, edge, authorization, providerBaseline, plan,
     now: currentTrustedTime(clock),
@@ -660,6 +758,12 @@ export async function applyInstallation({
         authorization, plan, bundle, manifest, edge, promotion, idempotencyKey,
         now: currentTrustedTime(clock),
       });
+      // Provider resources come after the promoted migrations and before any
+      // health evidence is read, so health observes the complete installation.
+      const providerSteps = await requireMethod(release, 'applyProviderSteps')({
+        session, authorization, providerBaseline, plan, bundle, manifest, edge, promotion,
+        now: currentTrustedTime(clock),
+      });
       const health = await requireMethod(inspector, 'health')({
         session, authorization, providerBaseline, plan, bundle, manifest, edge, promotion,
         now: currentTrustedTime(clock),
@@ -685,7 +789,7 @@ export async function applyInstallation({
         backup,
       };
       await requireMethod(journalSession, 'complete')(session, {
-        authorization, plan, bundle, manifest, edge, promotion, health, receipt,
+        authorization, plan, bundle, manifest, edge, promotion, providerSteps, health, receipt,
         idempotencyKey, now: clock,
       });
       return {

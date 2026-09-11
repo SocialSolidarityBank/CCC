@@ -63,7 +63,7 @@ The resumed planner currently reconciles recorded `storage_bucket` resources aga
 
 **Current live approval is signed read-only plan only, not database writes.** The renewal writer and journal scenarios are source for later separately approved execution. No account, credential, schema, provider or deployment operations were executed for this handoff.
 
-**Full resource apply and rollback remain incomplete at real release prerequisites.** This repository has no approved S12 embedded release origin/offline-root/factory floor, signed platform artifact set (including StorageSigner and authenticated Vault scheduler), or E6-7 verified backup/restore catalog and executor. The CLI reports `RELEASE_PREREQUISITES_MISSING` or `ROLLBACK_PREREQUISITES_MISSING` after owner-aware preflight instead of running checkout SQL, manufacturing an installed receipt, or deleting resources. The journal module's migration primitives are not permission to bypass those gates.
+**Apply now stops at named prerequisites instead of one blanket refusal; rollback is still blocked.** `apply` proceeds only when all of the following hold, and each failure is a fixed code with no live installation attempted: the pinned release origin, trust floor and both signatures verify; the verified Edge component set is exactly the planned migrations plus one `functions/ccc-storage-signer/index.js` function (`EDGE_COMPONENT_SET_MISMATCH` otherwise); the S12 §6 first-install exemption applies, because this repository still has no E6-7 verified backup/restore catalog and executor, so a resume, a second installation or any update stops with `BACKUP_FAILED`; and `SCHEDULER_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `CCC_INSTALL_MANIFEST` and `CCC_INSTALL_SIGNING_KEYS` are injected (`RELEASE_PREREQUISITES_MISSING` otherwise). Only the presence of those four values is checked; no value is read, logged, hashed into an identifier or written to the journal, receipt or report. `rollback` still reports `ROLLBACK_PREREQUISITES_MISSING`, because no S12 rollback bundle or verified restore executor exists. The journal module's migration primitives are not permission to bypass those gates.
 
 Credentials continue to enter only through scoped environment injection. A working pooler connection does not replace Management API owner/control-plane checks. `CCC_INSTALL_DATABASE_URL` is used only by separately approved installer writes, never as a fallback for the ordinary runtime's `CCC_DATABASE_URL`. It must bind the already-approved project through its direct endpoint or Seoul session-pooler username and port 5432; TLS remains `verify-full`. No native keyring, browser, token file, owner discovery or authentication mechanism is added.
 
@@ -102,15 +102,23 @@ The report projects fixed codes and validated release metadata before serializat
 
 An interrupted installation cannot reuse the empty-project backup exemption. Until verified backup and recovery exist, retry/resume fails with `BACKUP_FAILED` without updating its journal.
 
-The production apply path remains blocked before migration writes. A migration-only archive is not proof of a completed Community Cloud deployment: it does not deploy StorageSigner, provision an authenticated restricted `ccc_api` runtime connection, or establish the required provider-resource health evidence. The installation adapter must not write an `installed` receipt for that state. Local PostgreSQL tests prove migration transaction and receipt behavior, not hosted deployment, Auth/MFA, or recovery of a live institution.
+The apply order inside the install lock is fixed: journal preparation, the per-migration promotion, the provider steps (`storage_bucket`, `cron_job`, `edge_secret_binding` including the StorageSigner deployment from staged bytes), then health, and only then the receipt. Health is read-only and bounded: one `SELECT rolsuper, rolbypassrls` for `ccc_api` on the installer session, one `GET /readyz` on the signed `apiBase` host, and one `POST` with no body to `<supabaseAuthOrigin>/functions/v1/ccc-storage-signer`. Each request refuses redirects and gives up after five seconds, and no address, token, header or provider body reaches stdout, the journal, the receipt or the report. Readiness must answer `200` with `{"status":"ready"}`, the signer must answer `401` with `{"code":"UNAUTHORIZED"}` and this installation's `x-ccc-installation-id`, and its `x-sb-edge-region` must be `ap-northeast-2`. Any missing dimension is read as absent rather than assumed: apply closes with `HEALTH_FAILED`, writes no `installed` receipt, and leaves an explicit incomplete journal. `doctor` reports the same evidence read-only and adds a `HEALTH_FAILED` blocker. Local PostgreSQL tests prove migration transaction and receipt behavior, not hosted deployment, Auth/MFA, or recovery of a live institution.
+
+The provider steps never enable a database extension. `cron.schedule`, `net.http_post`, `vault.create_secret` and `storage.buckets` must already exist in the project, and a missing one stops apply with `PROVIDER_UNREADABLE` before any write, so enabling pg_cron, pg_net and Vault in the Supabase dashboard is an operator prerequisite. `SUPABASE_SERVICE_ROLE_KEY` is required to be injected into the installer but is never sent to the Management API: its `CreateSecretBody` name pattern refuses `SUPABASE_`-prefixed names and Supabase injects that credential into Edge Functions itself, so `edge_secret_binding` binds only `CCC_INSTALL_MANIFEST` and `CCC_INSTALL_SIGNING_KEYS`.
 
 ### Pending executable verification
 
-Main may run these only after merging the frozen migration/checkpoint changes and approving verification. They were **not run** in this source-only checkpoint:
+The installer unit suites for the apply, health and prerequisite changes were run in this checkpoint and pass:
+
+```sh
+node --test scripts/supabase/apply.test.mjs scripts/supabase/bootstrap.test.mjs scripts/supabase/plan.test.mjs scripts/supabase/install-authorization.test.mjs
+```
+
+They exercise fake provider and deployment seams only: a loopback readiness route and StorageSigner stand-in, a fake Management API, and recorded SQL. They are not evidence of a hosted installation. Main may run the remaining commands only after merging the frozen migration/checkpoint changes and approving verification; they were **not run** here:
 
 ```sh
 pnpm --filter @ccc/community-cloud build
-node --test scripts/supabase/install-authorization.test.mjs scripts/supabase/plan.test.mjs scripts/supabase/bootstrap.test.mjs scripts/supabase/installer-connection.test.mjs
+node --test scripts/supabase/installer-connection.test.mjs scripts/supabase/provider-steps.test.mjs
 node --test apps/community-cloud/test/installer-private-key.test.mjs
 ```
 
@@ -186,4 +194,4 @@ The business runtime never receives a signer address as a binding. It builds the
 
 Every signer call re-checks authorization online: the signer posts the canonical request back to the business API's `/internal/storage/authorize` with the caller's Bearer token and acts only on a live allow decision. It signs, deletes, and proves absence; it never returns audio bytes to the business runtime.
 
-Live deployment has not been performed. This repository provides the bundle and this contract only; creating the Edge Function, binding its values, and publishing it remain operator-owned steps that were not executed here.
+Live deployment has not been performed. The installer's `edge_secret_binding` step now binds exactly `CCC_INSTALL_MANIFEST`, `CCC_INSTALL_SIGNING_KEYS` and `SUPABASE_SERVICE_ROLE_KEY` and deploys `ccc-storage-signer` with `verify_jwt = false` from the verified staged bytes of the release bundle, and apply's health then proves the deployed function refuses an unauthenticated call for this installation. No installation has been run against a live project in this checkpoint, so no Edge Function has actually been created, bound or published here.

@@ -62,11 +62,11 @@ async function fixture(run) {
   const componentRoot = join(root, 'components');
   const outDir = join(root, 'out');
   try {
-    for (const directory of ['functions', 'templates', 'migrations']) {
+    for (const directory of ['functions/ccc-storage-signer', 'templates', 'migrations']) {
       await mkdir(join(componentRoot, directory), { recursive: true });
     }
-    await writeFile(join(componentRoot, 'functions', 'apply.ts'), 'export default true;');
-    await writeFile(join(componentRoot, 'functions', '😀.ts'), 'export default true;');
+    await writeFile(join(componentRoot, 'functions', 'ccc-storage-signer', 'index.js'), 'export default true;');
+    await writeFile(join(componentRoot, 'templates', '😀.ts'), 'export default true;');
     await writeFile(join(componentRoot, 'templates', 'config.json'), '{"safe":true}');
     await writeFile(join(componentRoot, 'migrations', '0001.sql'), 'select 1;');
     await run({ root, componentRoot, outDir, signing: signingFixture() });
@@ -178,13 +178,13 @@ test('builds four development files that pass the Task 1 verifiers in a real rou
   const stagedRoot = join(root, 'staged');
   await mkdir(stagedRoot);
   await runFile('tar', ['-xzf', join(outDir, basename), '-C', stagedRoot]);
-  const unicodeName = (await readdir(join(componentRoot, 'functions')))
-    .find(name => name !== 'apply.ts');
+  const unicodeName = (await readdir(join(componentRoot, 'templates')))
+    .find(name => name !== 'config.json');
   const archivePaths = await readdir(stagedRoot, { recursive: true });
   for (const expected of [
     'edge-component-manifest.json',
-    'functions/apply.ts',
-    `functions/${unicodeName}`,
+    'functions/ccc-storage-signer/index.js',
+    `templates/${unicodeName}`,
     'migrations/0001.sql',
     'templates/config.json',
     'ccc-cloud.mjs',
@@ -236,6 +236,31 @@ test('builds four development files that pass the Task 1 verifiers in a real rou
     schemaVersion: 1,
     lastTrustedTime: bundle.publishedAt,
     sequenceFloor: bundle.sequenceFloor,
+  });
+}));
+
+test('packages exactly one function component and it is the StorageSigner', async t => fixture(async ({ componentRoot, outDir, signing }) => {
+  await t.test('extra function component', async () => {
+    const extra = join(componentRoot, 'functions', 'extra.js');
+    await writeFile(extra, 'export default true;');
+    const failedOut = `${outDir}-extra-function`;
+    const result = await rejectedRun(args(componentRoot, failedOut), signing.env);
+    assert.equal(result.stdout, '');
+    assert.equal(result.stderr, 'BUILD_FAILED\n');
+    assert.deepEqual(await filesOrEmpty(failedOut), []);
+    await rm(extra);
+  });
+
+  await t.test('missing signer component', async () => {
+    const signer = join(componentRoot, 'functions', 'ccc-storage-signer', 'index.js');
+    const bytes = await readFile(signer);
+    await rm(signer);
+    const failedOut = `${outDir}-missing-signer`;
+    const result = await rejectedRun(args(componentRoot, failedOut), signing.env);
+    assert.equal(result.stdout, '');
+    assert.equal(result.stderr, 'BUILD_FAILED\n');
+    assert.deepEqual(await filesOrEmpty(failedOut), []);
+    await writeFile(signer, bytes);
   });
 }));
 

@@ -89,6 +89,7 @@ function fixture({ failAt, observed = emptyObservation() } = {}) {
   const journal = { status: 'absent', prepared: null, installed: null, failure: null };
   let promotions = 0;
   let journalWrites = 0;
+  let providerStepRuns = 0;
   const gate = (name, value) => async () => {
     events.push(name);
     if (failAt === name) throw Object.assign(new Error(name), { code: `${name.toUpperCase()}_FAILED` });
@@ -102,6 +103,10 @@ function fixture({ failAt, observed = emptyObservation() } = {}) {
     edge: {
       edgeArtifactSha256: 'b'.repeat(64),
       components: [{
+        kind: 'function',
+        path: 'functions/ccc-storage-signer/index.js',
+        artifactSha256: '1'.repeat(64),
+      }, {
         kind: 'migration',
         path: 'migrations/0001_baseline.sql',
         artifactSha256: 'f'.repeat(64),
@@ -124,6 +129,20 @@ function fixture({ failAt, observed = emptyObservation() } = {}) {
         databaseFingerprint: 'e'.repeat(64),
         responseRegion: 'ap-northeast-2',
         providerResourceDigests: {},
+      };
+    },
+    async applyProviderSteps() {
+      events.push('provider_steps');
+      if (failAt === 'provider_steps') {
+        throw Object.assign(new Error('provider'), { code: 'RESOURCE_OWNERSHIP_MISMATCH' });
+      }
+      providerStepRuns += 1;
+      return {
+        steps: [{
+          step: 'storage_bucket',
+          resourceIdHashes: ['7'.repeat(64)],
+          resourceDigests: ['8'.repeat(64)],
+        }],
       };
     },
   };
@@ -206,6 +225,7 @@ function fixture({ failAt, observed = emptyObservation() } = {}) {
     events,
     journal,
     promotions: () => promotions,
+    providerStepRuns: () => providerStepRuns,
   };
 }
 
@@ -219,12 +239,14 @@ test('verifies every release layer before locking, then prepares, promotes, chec
     'lock', 'inspect_first_install',
     'bundle', 'manifest', 'tuple', 'artifact_hash', 'edge_component_set',
     'deployment_prerequisites', 'bundle', 'manifest',
-    'journal_prepared', 'promote', 'journal_promoted', 'health',
+    'journal_prepared', 'promote', 'journal_promoted', 'provider_steps', 'health',
     'bundle', 'manifest', 'tuple', 'artifact_hash', 'edge_component_set',
     'deployment_prerequisites', 'bundle', 'manifest',
     'journal_installed',
   ]);
   assert.equal(result.receipt.releaseSequence, 7);
+  assert.equal(f.providerStepRuns(), 1);
+  assert.deepEqual(f.journal.installed.providerSteps.steps[0].step, 'storage_bucket');
   assert.equal(f.promotions(), 1);
   assert.equal(f.journal.status, 'installed');
   assert.equal(result.backup.backup, 'not_applicable');
@@ -275,7 +297,7 @@ test('receipt sequence must fit the durable integer contract before the lock', a
 });
 
 test('post-promotion failures write no installed receipt and leave an explicit incomplete journal', async t => {
-  for (const failAt of ['journal_prepared', 'promote', 'health', 'journal_installed']) {
+  for (const failAt of ['journal_prepared', 'promote', 'provider_steps', 'health', 'journal_installed']) {
     await t.test(failAt, async () => {
       const f = fixture({ failAt });
       await assert.rejects(
@@ -285,7 +307,8 @@ test('post-promotion failures write no installed receipt and leave an explicit i
           : error?.code === 'INSTALL_POST_PROMOTION_FAILED',
       );
       assert.notEqual(f.journal.status, 'installed');
-      assert.equal(f.promotions(), failAt === 'health' || failAt === 'journal_installed' ? 1 : 0);
+      assert.equal(f.promotions(), failAt === 'journal_prepared' || failAt === 'promote' ? 0 : 1);
+      assert.equal(f.providerStepRuns(), failAt === 'health' || failAt === 'journal_installed' ? 1 : 0);
       if (failAt !== 'journal_prepared') {
         assert.ok(f.journalWrites() >= 2);
         assert.ok(f.journal.failure);
@@ -321,26 +344,44 @@ test('doctor-rejected Edge and restricted-role evidence never reaches installed'
   }
 });
 
-test('function and template components are refused before the install lock', async t => {
-  for (const kind of ['function', 'template']) {
-    await t.test(kind, async () => {
+test('the component set must be the planned migrations plus exactly one signer function', async t => {
+  const signer = {
+    kind: 'function',
+    path: 'functions/ccc-storage-signer/index.js',
+    artifactSha256: '1'.repeat(64),
+  };
+  const migration = {
+    kind: 'migration',
+    path: 'migrations/0001_baseline.sql',
+    artifactSha256: 'f'.repeat(64),
+  };
+  const cases = [
+    ['template component', [signer, migration, {
+      kind: 'template', path: 'templates/config.json', artifactSha256: 'f'.repeat(64),
+    }], 'EDGE_COMPONENT_SET_MISMATCH'],
+    ['signer absent', [migration], 'EDGE_COMPONENT_SET_MISMATCH'],
+    ['second function', [signer, {
+      kind: 'function', path: 'functions/other/index.js', artifactSha256: 'f'.repeat(64),
+    }, migration], 'EDGE_COMPONENT_SET_MISMATCH'],
+    ['unexpected function path', [{ ...signer, path: 'functions/other/index.js' }, migration],
+      'EDGE_COMPONENT_SET_MISMATCH'],
+    ['migration absent', [signer], 'MIGRATION_CHECKSUM_MISMATCH'],
+    ['migration checksum changed', [signer, { ...migration, artifactSha256: 'e'.repeat(64) }],
+      'MIGRATION_CHECKSUM_MISMATCH'],
+  ];
+  for (const [name, components, code] of cases) {
+    await t.test(name, async () => {
       const f = fixture();
       f.input.release.verifyEdgeComponentSet = async () => ({
         edgeArtifactSha256: 'b'.repeat(64),
-        components: [{
-          kind,
-          path: `${kind}s/not-supported`,
-          artifactSha256: 'f'.repeat(64),
-        }],
+        components,
       });
-      await assert.rejects(
-        applyInstallation(f.input),
-        error => error?.code === 'EDGE_COMPONENT_DEPLOYER_UNAVAILABLE',
-      );
+      await assert.rejects(applyInstallation(f.input), error => error?.code === code);
       assert.equal(f.journalWrites(), 0);
       assert.equal(f.events.includes('lock'), false);
       assert.equal(f.journal.status, 'absent');
       assert.equal(f.promotions(), 0);
+      assert.equal(f.providerStepRuns(), 0);
     });
   }
 });
@@ -459,9 +500,10 @@ test('release verifier adapter checks signed documents, target tuple, bytes and 
     .export({ format: 'pem', type: 'pkcs8' }).toString();
   process.env.CCC_RELEASE_TRUST_STORE = trustDocument;
   try {
-    for (const directory of ['functions', 'templates', 'migrations']) await mkdir(join(root, directory));
-    await writeFile(join(root, 'functions', 'apply.ts'), 'export default true;');
-    await writeFile(join(root, 'templates', 'config.json'), '{}');
+    await mkdir(join(root, 'functions', 'ccc-storage-signer'), { recursive: true });
+    await mkdir(join(root, 'migrations'));
+    const signerBytes = 'Deno.serve(() => new Response(null, { status: 401 }));';
+    await writeFile(join(root, 'functions', 'ccc-storage-signer', 'index.js'), signerBytes);
     await writeFile(join(root, 'migrations', '0001.sql'), 'select 1;');
     const edge = await buildEdgeComponentManifest(root);
     const edgeDocument = canonicalizeJcs(edge);
@@ -533,7 +575,22 @@ test('release verifier adapter checks signed documents, target tuple, bytes and 
       }],
       modelManifestSha256: '0'.repeat(64),
     }, 'offlineRootSignature', 'CCC-RELEASE-BUNDLE-V1\0', rootKeys.privateKey);
-    const release = createVerifiedRelease({
+    const secrets = {
+      schedulerSecret: 'scheduler-secret-value',
+      serviceRoleKey: 'service-role-value',
+      installManifestJson: '{"schemaVersion":1}',
+      signingKeysJson: '{"synthetic-key":"public"}',
+    };
+    const plan = {
+      ready: true,
+      installed: { state: 'not-installed', migrationHead: null },
+      migrations: [{
+        id: '0001.sql',
+        checksum: createHash('sha256').update(await readFile(join(root, 'migrations', '0001.sql'))).digest('hex'),
+      }],
+    };
+    let deployed = null;
+    const releaseOptions = {
       bundleDocument: canonicalizeJcs(bundle),
       manifestDocument,
       artifactBytes,
@@ -549,15 +606,76 @@ test('release verifier adapter checks signed documents, target tuple, bytes and 
         arch: 'arm64',
       },
       promote: async () => ({ artifactSetDigest: edge.edgeArtifactSha256 }),
-    });
+      authorize: async () => authorization(),
+      management: { fetch: () => { throw new Error('unused'); }, accessToken: 'token' },
+      apiBase: 'https://api.example.invalid/api',
+      supabaseOrigin: 'https://test-project.supabase.co',
+      providerSteps: async input => {
+        deployed = input;
+        return { steps: [] };
+      },
+    };
+    const release = createVerifiedRelease({ ...releaseOptions, secrets });
     const verifiedBundle = await release.verifyBundle({ now: NOW });
     const verifiedManifest = await release.verifyManifest({ bundle: verifiedBundle, now: NOW });
     await release.verifyTuple({ manifest: verifiedManifest });
     await release.verifyArtifactHash({ manifest: verifiedManifest });
-    assert.deepEqual(await release.verifyEdgeComponentSet({ now: NOW }), edge);
+    const verifiedEdge = await release.verifyEdgeComponentSet({ now: NOW });
+    assert.deepEqual(verifiedEdge, edge);
+    assert.deepEqual(
+      await release.verifyDeploymentPrerequisites({ edge: verifiedEdge, plan }),
+      {
+        ready: true,
+        backup: 'not_applicable',
+        signerComponentSha256: createHash('sha256').update(signerBytes).digest('hex'),
+      },
+    );
+
+    // Only the verified staged bytes reach the deployer, and nothing else.
+    await release.applyProviderSteps({
+      session: {}, authorization: authorization(), plan, now: NOW,
+    });
+    assert.equal(deployed.stagedFunction.path, 'functions/ccc-storage-signer/index.js');
+    assert.equal(deployed.stagedFunction.bytes.toString('utf8'), signerBytes);
+    assert.equal(deployed.stagedFunction.sha256, createHash('sha256').update(signerBytes).digest('hex'));
+    assert.equal(deployed.secrets, secrets);
+    assert.equal(deployed.apiBase, 'https://api.example.invalid/api');
+    assert.equal(deployed.supabaseOrigin, 'https://test-project.supabase.co');
+
+    // Without an injected deployer the real provider-step module is used, and
+    // it refuses an unusable session before touching any provider.
+    const wired = createVerifiedRelease({ ...releaseOptions, secrets, providerSteps: undefined });
+    await wired.verifyManifest({ bundle: await wired.verifyBundle({ now: NOW }), now: NOW });
+    await wired.verifyEdgeComponentSet({ now: NOW });
     await assert.rejects(
-      release.verifyDeploymentPrerequisites(),
-      error => error?.code === 'RELEASE_PREREQUISITES_MISSING',
+      wired.applyProviderSteps({
+        session: {}, authorization: authorization(), plan, now: NOW,
+      }),
+      error => error?.code === 'PROVIDER_UNREADABLE',
+    );
+
+    for (const missing of ['schedulerSecret', 'serviceRoleKey', 'installManifestJson', 'signingKeysJson']) {
+      const withoutSecret = createVerifiedRelease({
+        ...releaseOptions,
+        secrets: { ...secrets, [missing]: undefined },
+      });
+      await withoutSecret.verifyManifest({
+        bundle: await withoutSecret.verifyBundle({ now: NOW }), now: NOW,
+      });
+      const candidateEdge = await withoutSecret.verifyEdgeComponentSet({ now: NOW });
+      await assert.rejects(
+        withoutSecret.verifyDeploymentPrerequisites({ edge: candidateEdge, plan }),
+        error => error?.code === 'RELEASE_PREREQUISITES_MISSING',
+      );
+    }
+
+    // A resumed or second installation has no verified backup to fall back on.
+    await assert.rejects(
+      release.verifyDeploymentPrerequisites({
+        edge: verifiedEdge,
+        plan: { ...plan, installed: { state: 'installing', migrationHead: null } },
+      }),
+      error => error?.code === 'BACKUP_FAILED',
     );
 
     const tampered = createVerifiedRelease({
