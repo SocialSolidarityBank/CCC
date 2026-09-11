@@ -5,7 +5,7 @@ import { registerHooks } from 'node:module';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { mock, test } from 'node:test';
 
 import {
   generateProviderBaseline,
@@ -173,7 +173,7 @@ async function fixture() {
     rootKeys: { [root.keyId]: root.publicKey },
     revokedRootKeyIds: [],
     sourceEvidenceInput: JSON.stringify(await sourceEvidence()),
-    now: NOW,
+    now: () => new Date(NOW),
     outputPaths,
     directory,
   };
@@ -337,6 +337,31 @@ test('rejects database version and either inventory hash drift without partial o
       await generationInputs(current, before, await snapshot({ providerInventory: changedGrants })),
       'PROVIDER_BASELINE_MISMATCH',
     );
+  });
+});
+
+test('expiry reached after the last observation prevents baseline signing and publication', async () => {
+  await withFixture(async current => {
+    const observed = await snapshot();
+    let observationCount = 0;
+    let expired = false;
+    const inputs = await generationInputs(current, observed, observed);
+    inputs.inspector = {
+      async inspect() {
+        observationCount += 1;
+        if (observationCount === 2) expired = true;
+        return structuredClone(observed);
+      },
+    };
+    inputs.now = () => new Date(expired ? current.releaseTrustUnsigned.expiresAt : NOW);
+    const sign = mock.method(crypto.subtle, 'sign');
+    try {
+      await assertGenerationFailure(inputs, 'BETA_TRUST_INVALID');
+      assert.equal(observationCount, 2);
+      assert.equal(sign.mock.callCount(), 3);
+    } finally {
+      sign.mock.restore();
+    }
   });
 });
 

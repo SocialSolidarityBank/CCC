@@ -125,6 +125,35 @@ function validUnsignedTrust(value, authorization, rootKeys, revokedRootKeyIds, n
     && expiresAt <= Date.parse(authorization.expiresAt);
 }
 
+function freshNow(clock) {
+  let value;
+  try {
+    value = clock();
+  } catch {
+    fail('BETA_TRUST_INVALID');
+  }
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) fail('BETA_TRUST_INVALID');
+  return new Date(value.getTime());
+}
+
+function requireTrustCurrent(authorization, releaseTrustUnsigned, rootKeys, revokedRootKeyIds, clock) {
+  const current = freshNow(clock);
+  try {
+    assertAuthorizationCurrent(authorization, { now: current });
+    if (!validUnsignedTrust(
+      releaseTrustUnsigned,
+      authorization,
+      rootKeys,
+      revokedRootKeyIds,
+      current,
+    )) fail('BETA_TRUST_INVALID');
+  } catch (error) {
+    if (error instanceof ProviderBaselineGenerationError) throw error;
+    fail('BETA_TRUST_INVALID');
+  }
+  return current;
+}
+
 async function signBytes(privateKey, bytes) {
   try {
     return Buffer.from(await crypto.subtle.sign('Ed25519', privateKey, bytes)).toString('base64');
@@ -412,6 +441,7 @@ function stableObservation(observation, authorization, databaseVersion) {
       || computed.grantInventorySha256 !== observation.providerInventory.grantInventorySha256) {
       fail('PROVIDER_BASELINE_MISMATCH');
     }
+
   } catch {
     fail('PROVIDER_BASELINE_MISMATCH');
   }
@@ -421,6 +451,22 @@ function stableObservation(observation, authorization, databaseVersion) {
 function baselineVersion(databaseVersion, now) {
   const day = now.toISOString().slice(0, 10).replaceAll('-', '');
   return `supabase-hosted-pg${databaseVersion.split('.')[0]}-${day}-v1`;
+}
+async function verifyGeneratedDocuments(documents, rootKeys, revokedRootKeyIds, authorization, current) {
+  try {
+    return await requireProviderBaseline({
+      releaseTrust: documents.releaseTrust,
+      providerBaseline: documents.baseline,
+      rootKeys,
+      revokedRootKeyIds,
+      authorization,
+      manifestExpiresAt: authorization.expiresAt,
+      now: current,
+      verifier,
+    });
+  } catch {
+    fail();
+  }
 }
 
 export async function generateProviderBaseline({
@@ -436,11 +482,17 @@ export async function generateProviderBaseline({
   outputPaths,
 }) {
   const paths = validateOutputPaths(outputPaths);
+  const initialNow = freshNow(now);
   try {
-    assertAuthorizationCurrent(authorization, { now });
-    if (!(now instanceof Date) || Number.isNaN(now.getTime())
-      || !validRootConfiguration(rootKeys, revokedRootKeyIds)
-      || !validUnsignedTrust(releaseTrustUnsigned, authorization, rootKeys, revokedRootKeyIds, now)
+    assertAuthorizationCurrent(authorization, { now: initialNow });
+    if (!validRootConfiguration(rootKeys, revokedRootKeyIds)
+      || !validUnsignedTrust(
+        releaseTrustUnsigned,
+        authorization,
+        rootKeys,
+        revokedRootKeyIds,
+        initialNow,
+      )
       || !await verifyKeyPair(rootPrivateKey, rootKeys[releaseTrustUnsigned.rootKeyId])
       || !await verifyKeyPair(releasePrivateKey, releaseTrustUnsigned.releasePublicKey)) {
       fail('BETA_TRUST_INVALID');
@@ -450,8 +502,12 @@ export async function generateProviderBaseline({
     fail('BETA_TRUST_INVALID');
   }
 
+  requireTrustCurrent(authorization, releaseTrustUnsigned, rootKeys, revokedRootKeyIds, now);
   const releaseTrust = await signDomain(releaseTrustUnsigned, rootPrivateKey, BETA_TRUST_DOMAIN);
-  if (!await verifySignedTrust(releaseTrust, rootKeys[releaseTrust.rootKeyId])) fail('BETA_TRUST_INVALID');
+  requireTrustCurrent(authorization, releaseTrustUnsigned, rootKeys, revokedRootKeyIds, now);
+  if (!await verifySignedTrust(releaseTrust, rootKeys[releaseTrust.rootKeyId])) {
+    fail('BETA_TRUST_INVALID');
+  }
 
   let sourceEvidence;
   let outputs;
@@ -467,8 +523,11 @@ export async function generateProviderBaseline({
   let second;
   try {
     if (typeof inspector?.inspect !== 'function') fail('PROVIDER_BASELINE_MISMATCH');
+    requireTrustCurrent(authorization, releaseTrustUnsigned, rootKeys, revokedRootKeyIds, now);
     first = stableObservation(await inspector.inspect(), authorization, sourceEvidence.databaseVersion);
+    requireTrustCurrent(authorization, releaseTrustUnsigned, rootKeys, revokedRootKeyIds, now);
     second = stableObservation(await inspector.inspect(), authorization, sourceEvidence.databaseVersion);
+    requireTrustCurrent(authorization, releaseTrustUnsigned, rootKeys, revokedRootKeyIds, now);
   } catch (error) {
     if (error instanceof ProviderBaselineGenerationError) throw error;
     fail('PROVIDER_BASELINE_MISMATCH');
@@ -479,6 +538,13 @@ export async function generateProviderBaseline({
   }
   await requireExactSourceMappings(sourceEvidence, first.providerInventory);
 
+  const issuedAt = requireTrustCurrent(
+    authorization,
+    releaseTrustUnsigned,
+    rootKeys,
+    revokedRootKeyIds,
+    now,
+  );
   const emptyBusinessState = Object.fromEntries(EMPTY_BUSINESS_KEYS.map(key => [key, 0]));
   const sourceEvidenceSha256 = await verifier.sha256Jcs(sourceEvidence);
   const unsignedBaseline = {
@@ -486,7 +552,7 @@ export async function generateProviderBaseline({
     profile: 'development',
     channel: 'beta',
     provider: 'supabase',
-    baselineVersion: baselineVersion(sourceEvidence.databaseVersion, now),
+    baselineVersion: baselineVersion(sourceEvidence.databaseVersion, issuedAt),
     projectRefSha256: authorization.projectRefHash,
     ownerOrgIdSha256: authorization.expectedOwnerOrgIdHash,
     region: 'ap-northeast-2',
@@ -498,31 +564,45 @@ export async function generateProviderBaseline({
     grants: first.providerInventory.grants,
     objectInventorySha256: first.providerInventory.objectInventorySha256,
     grantInventorySha256: first.providerInventory.grantInventorySha256,
-    issuedAt: now.toISOString(),
+    issuedAt: issuedAt.toISOString(),
     expiresAt: releaseTrust.expiresAt,
     signingKeyId: releaseTrust.releaseKeyId,
   };
+  requireTrustCurrent(authorization, releaseTrustUnsigned, rootKeys, revokedRootKeyIds, now);
   const providerBaseline = await signDomain(unsignedBaseline, releasePrivateKey, PROVIDER_BASELINE_DOMAIN);
   const documents = {
     releaseTrust: JSON.stringify(releaseTrust),
     baseline: JSON.stringify(providerBaseline),
   };
 
-  let verified;
-  try {
-    verified = await requireProviderBaseline({
-      releaseTrust: documents.releaseTrust,
-      providerBaseline: documents.baseline,
-      rootKeys,
-      revokedRootKeyIds,
-      authorization,
-      manifestExpiresAt: authorization.expiresAt,
-      now,
-      verifier,
-    });
-  } catch {
-    fail();
-  }
+  const verificationNow = requireTrustCurrent(
+    authorization,
+    releaseTrustUnsigned,
+    rootKeys,
+    revokedRootKeyIds,
+    now,
+  );
+  await verifyGeneratedDocuments(
+    documents,
+    rootKeys,
+    revokedRootKeyIds,
+    authorization,
+    verificationNow,
+  );
+  const publicationNow = requireTrustCurrent(
+    authorization,
+    releaseTrustUnsigned,
+    rootKeys,
+    revokedRootKeyIds,
+    now,
+  );
+  const verified = await verifyGeneratedDocuments(
+    documents,
+    rootKeys,
+    revokedRootKeyIds,
+    authorization,
+    publicationNow,
+  );
   await installOutputs(outputs, documents);
   return {
     releaseTrustSha256: verified.releaseTrustSha256,
@@ -585,8 +665,8 @@ async function publicKeyFromPrivate(privateKey) {
 }
 
 async function defaultCliInputs({ sourceEvidenceInput, outputPaths }, environment) {
-  const now = new Date();
-  const authorize = () => requireSignedOwnerPreflight({
+  const issuedAt = new Date();
+  const authorize = (current = new Date()) => requireSignedOwnerPreflight({
     installManifest: environment.CCC_INSTALL_MANIFEST,
     installApproval: environment.CCC_INSTALL_APPROVAL,
     trust: configuredInstallTrust({
@@ -596,9 +676,9 @@ async function defaultCliInputs({ sourceEvidenceInput, outputPaths }, environmen
     }),
     organizationId: environment.CCC_ORGANIZATION_ID,
     projectRef: environment.CCC_SUPABASE_PROJECT_REF,
-    now,
+    now: current,
   });
-  const authorization = await authorize();
+  const authorization = await authorize(issuedAt);
   const rootKeys = await readStrictJsonDocument(environment.CCC_BETA_TRUST_ROOT_KEYS);
   let revokedRootKeyIds;
   try {
@@ -617,7 +697,7 @@ async function defaultCliInputs({ sourceEvidenceInput, outputPaths }, environmen
   const releaseKeyId = `beta-release-${createHash('sha256').update(releasePublicKey, 'base64').digest('hex').slice(0, 16)}`;
   const expiresAt = new Date(Math.min(
     Date.parse(authorization.expiresAt),
-    now.getTime() + MAX_LIFETIME_MS,
+    issuedAt.getTime() + MAX_LIFETIME_MS,
   )).toISOString();
   return {
     authorization,
@@ -632,7 +712,7 @@ async function defaultCliInputs({ sourceEvidenceInput, outputPaths }, environmen
       rootKeyId: rootKeyIds[0],
       releaseKeyId,
       releasePublicKey,
-      notBefore: now.toISOString(),
+      notBefore: issuedAt.toISOString(),
       expiresAt,
     },
     rootPrivateKey,
@@ -646,7 +726,7 @@ async function defaultCliInputs({ sourceEvidenceInput, outputPaths }, environmen
       authorization,
       authorize,
     }),
-    now,
+    now: () => new Date(),
     outputPaths,
   };
 }
