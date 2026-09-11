@@ -4002,7 +4002,10 @@ export async function handleRequest(
       }
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'revoke' && parts[1] !== undefined) {
         requireOnlyKeys(await requestBody(request), []);
-        return json(await revokeAgentInstallation(env, actor, decodeURIComponent(parts[1])), 200, {
+        let installationId: string;
+        try { installationId = decodeURIComponent(parts[1]); }
+        catch { throw new ValidationError('installation id is invalid'); }
+        return json(await revokeAgentInstallation(env, actor, installationId), 200, {
           'cache-control': 'no-store',
         });
       }

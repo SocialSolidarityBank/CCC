@@ -1,6 +1,7 @@
 // E6-4 Agent 페어링. S2 §2.2 L64·L94·L96 과 §2.4 L135-136 의 계약을 고정한다.
 // 합성 자격만 쓴다. 저장은 hash 뿐이고 평문은 발급 응답에만 있다는 것도 함께 본다.
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PreparedStatement } from '@ccc/contracts/database';
 import { ActorAuthenticationError, type Actor as IdentityActor } from '@ccc/contracts/runtime';
 import {
   ForbiddenError,
@@ -170,6 +171,39 @@ describe('E6-4 pairing credentials', () => {
       .bind(agentActorUserId(installationId)).first()).toEqual({ reason: 'pairing-revoked' });
   });
 
+  it('closes the installation when a concurrent rotation consumed the same refresh first', async () => {
+    const { grant, installationId } = await pair();
+    // 경쟁을 재현한다: 회전의 CAS 가 돌기 직전에 다른 요청이 같은 행을 소비한다.
+    const prepare = env.DB.prepare.bind(env.DB);
+    let raced = false;
+    vi.spyOn(env.DB, 'prepare').mockImplementation((sql: string) => {
+      const statement = prepare(sql);
+      if (raced || !sql.startsWith('UPDATE agent_credentials SET consumed_at')) return statement;
+      raced = true;
+      return {
+        bind: (...values: unknown[]) => {
+          const bound = statement.bind(...values as string[]);
+          return {
+            run: async () => {
+              await t.db.prepare(
+                "UPDATE agent_credentials SET consumed_at = ? WHERE kind = 'refresh' AND consumed_at IS NULL",
+              ).bind(new Date().toISOString()).run();
+              return bound.run();
+            },
+          } as unknown as PreparedStatement;
+        },
+      } as unknown as PreparedStatement;
+    });
+
+    await expect(rotateAgentRefreshCredential(env, grant.refreshToken)).rejects.toThrow(ActorAuthenticationError);
+    // 진 쪽이 맨 401 로 끝나지 않는다 — 재사용과 같은 종결이 일어난다(S2 §2.4 L136).
+    expect(await t.db.prepare("SELECT reason FROM auth_revocations WHERE kind='actor' AND subject=?")
+      .bind(agentActorUserId(installationId)).first()).toEqual({ reason: 'pairing-revoked' });
+    expect(await t.db.prepare(
+      'SELECT count(*) AS live FROM agent_credentials WHERE installation_id=? AND revoked_at IS NULL',
+    ).bind(installationId).first()).toEqual({ live: 0 });
+  });
+
   it('refuses an expired bearer, a revoked installation and a linked row that stopped being a service principal', async () => {
     const { grant, installationId } = await pair();
     expect(await resolveAgentBearer(env, grant.bearerToken)).toEqual({
@@ -224,6 +258,11 @@ describe('E6-4 pairing credentials', () => {
       bearer: 'human-jwt-fixture', actor: adminActor,
     });
     expect(revoked.status).toBe(200);
+    // 깨진 퍼센트 인코딩은 업무 오류(400)다 — 다른 id route 와 같은 답이다.
+    const malformed = await post('/agents/%E0%A4%A/revoke', {}, {
+      bearer: 'human-jwt-fixture', actor: adminActor,
+    });
+    expect(malformed.status, await malformed.clone().text()).toBe(400);
     // Agent 자신은 이 표면에 들어오지 못한다(S2 §2.2 L83).
     expect((await post('/agents/pairing-codes', { actorUserId: service.userId }, { bearer: grant.bearerToken })).status)
       .toBe(403);

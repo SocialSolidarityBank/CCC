@@ -127,8 +127,10 @@ export async function deployEdgeFunction({
     name: functionName,
     verify_jwt: false,
   };
+  // metadata 는 OpenAPI 의 객체 필드다. Blob 으로 붙이면 filename="blob" 이 붙어 파일
+  // 파트로 분류되는 파서가 있으므로, 참조 클라이언트와 같은 평문 필드로 보낸다.
   const form = new FormData();
-  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('metadata', JSON.stringify(metadata));
   form.append('file', new Blob([bytes], { type: 'application/javascript' }), entrypointPath);
   const response = await send(
     management,

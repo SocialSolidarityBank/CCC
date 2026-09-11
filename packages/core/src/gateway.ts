@@ -12781,7 +12781,18 @@ export async function rotateAgentRefreshCredential(env: Env, refreshToken: unkno
   const consumed = await env.DB.prepare(
     'UPDATE agent_credentials SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL AND revoked_at IS NULL',
   ).bind(rotatedAt, row.id).run();
-  if (consumed.meta.changes !== 1) throw new ActorAuthenticationError();
+  if (consumed.meta.changes !== 1) {
+    // 같은 refresh 로 동시에 들어온 두 요청 중 CAS 를 놓친 쪽이다. 이긴 쪽이 방금
+    // 소비했다면 이 제시도 결국 재사용이므로(S2 §2.4 L136) 설치의 자격을 전부 닫는다.
+    const current = await env.DB.prepare(
+      'SELECT consumed_at, revoked_at FROM agent_credentials WHERE id = ?',
+    ).bind(row.id).first<DbRow>();
+    if (current !== null && nullableString(current.consumed_at) !== null
+      && nullableString(current.revoked_at) === null) {
+      await closeAgentCredentials(env, row.installationId, systemActor(agentActorUserId(row.installationId), row.orgId), now(), { reason: 'refresh_reuse' });
+    }
+    throw new ActorAuthenticationError();
+  }
   return mintAgentCredentialGrant(env, row, rotatedAt, 'refresh');
 }
 

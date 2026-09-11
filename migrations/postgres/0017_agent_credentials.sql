@@ -55,3 +55,20 @@ CREATE POLICY rls_agent_credentials ON agent_credentials FOR ALL TO ccc_api
 REVOKE ALL ON TABLE agent_credentials FROM PUBLIC;
 GRANT SELECT, INSERT, UPDATE ON TABLE agent_credentials TO ccc_api;
 ALTER TABLE agent_credentials OWNER TO ccc_schema_owner;
+
+-- 설치 폐기와 refresh 재사용은 `auth_revocations` 에 주체 `agent:<installation_id>` 를
+-- 남긴다(S2 §2.4 L136). 0006 의 actor 정책은 주체가 `users` 행일 때만 허용하므로 이
+-- 주체는 거부된다 — 그래서 자격 테이블과 같은 부모(설치) 기준 정책을 여기서 더한다.
+-- 정책은 permissive 라 OR 로 합쳐진다: users 주체 규칙은 그대로 있고 agent 주체만 열린다.
+CREATE POLICY rls_auth_revocations_agent_select ON auth_revocations FOR SELECT TO ccc_api
+  USING (kind = 'actor'
+         AND NULLIF(current_setting('app.org_id', true), '') IS NOT NULL
+         AND EXISTS (SELECT 1 FROM agent_installations AS install
+                     WHERE auth_revocations.subject = 'agent:' || install.installation_id
+                       AND install.org_id = current_setting('app.org_id', true)));
+CREATE POLICY rls_auth_revocations_agent_insert ON auth_revocations FOR INSERT TO ccc_api
+  WITH CHECK (kind = 'actor'
+              AND NULLIF(current_setting('app.org_id', true), '') IS NOT NULL
+              AND EXISTS (SELECT 1 FROM agent_installations AS install
+                          WHERE auth_revocations.subject = 'agent:' || install.installation_id
+                            AND install.org_id = current_setting('app.org_id', true)));

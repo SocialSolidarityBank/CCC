@@ -255,12 +255,16 @@ function input({ session, management, secrets = {}, staged = stagedFunction, bas
   };
 }
 
+/** 파트별 헤더까지 돌려준다 — metadata 가 파일 파트로 새지 않는지가 계약이다. */
 function multipart(request) {
   const text = request.body.toString('utf8');
-  const metadata = JSON.parse(
-    text.split('name="metadata"')[1].split('\r\n\r\n')[1].split('\r\n--')[0],
-  );
-  return { text, metadata };
+  const boundary = /boundary=(.+)$/u.exec(request.contentType)[1];
+  const parts = text.split(`--${boundary}`).slice(1, -1).map(chunk => {
+    const [headers, ...body] = chunk.replace(/^\r\n/u, '').split('\r\n\r\n');
+    return { headers, body: body.join('\r\n\r\n').replace(/\r\n$/u, '') };
+  });
+  const part = name => parts.find(entry => entry.headers.includes(`name="${name}"`));
+  return { text, part, metadata: JSON.parse(part('metadata').body) };
 }
 
 function assertNoSecretValues(session, requests) {
@@ -383,12 +387,15 @@ test('deploys the staged signer as multipart with verify_jwt false', async () =>
     'https://api.supabase.com/v1/projects/test-project/functions/deploy?slug=ccc-storage-signer',
   );
   assert.match(deployRequest.contentType, /^multipart\/form-data; boundary=/u);
-  const { text, metadata } = multipart(deployRequest);
+  const { text, part, metadata } = multipart(deployRequest);
   assert.deepEqual(metadata, {
     entrypoint_path: 'index.js',
     name: 'ccc-storage-signer',
     verify_jwt: false,
   });
+  // metadata 는 filename 도 content-type 도 없는 평문 필드여야 한다(파일 파트로 분류되면
+  // Management API 가 객체 필드를 못 읽고 배포를 거절한다).
+  assert.equal(part('metadata').headers, 'Content-Disposition: form-data; name="metadata"');
   assert.match(text, /name="file"; filename="index\.js"/u);
   assert.ok(deployRequest.body.includes(Buffer.from(signerBytes)));
 });
@@ -532,6 +539,16 @@ test('a completed edge step whose deployed function disappeared stops the instal
   await applyProviderSteps(input({ session, management: fakeManagement().management }));
   await assert.rejects(
     applyProviderSteps(input({ session, management: fakeManagement().management })),
+    error => error.code === 'RESOURCE_OWNERSHIP_MISMATCH',
+  );
+});
+
+test('a completed edge step whose function was redeployed under a new version stops the install', async () => {
+  const session = fakeSession();
+  await applyProviderSteps(input({ session, management: fakeManagement().management }));
+  const redeployed = fakeManagement({ installedFunction: { id: 'signer-function-id', version: 2 } });
+  await assert.rejects(
+    applyProviderSteps(input({ session, management: redeployed.management })),
     error => error.code === 'RESOURCE_OWNERSHIP_MISMATCH',
   );
 });

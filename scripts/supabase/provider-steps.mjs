@@ -342,7 +342,10 @@ async function edgeSecretBindingStep(context) {
     const observed = await readEdgeFunction(management);
     if (observed === null) throw failure('RESOURCE_OWNERSHIP_MISMATCH');
     const recorded = await recordedStep(context, 'edge_secret_binding', key);
-    if (!recorded.resourceIdHashes.includes(sha256(observed.id))) {
+    // id 만 같은 함수는 우리 자원이 아니다. 배포 때 기록한 `id:version` 지문까지 맞아야
+    // 같은 슬러그로 남이 다시 배포한 함수를 우리 것으로 이어받지 않는다.
+    if (!recorded.resourceIdHashes.includes(sha256(observed.id))
+      || !recorded.resourceDigests.includes(sha256(`${observed.id}:${observed.version}`))) {
       throw failure('RESOURCE_OWNERSHIP_MISMATCH');
     }
     return recorded;
