@@ -369,9 +369,58 @@ Signer에게 서명·삭제·부재 증거를 맡긴다. 호출자의 Bearer가 
 - [ ] Signer 진입점은 `CCC_INSTALL_MANIFEST`·`CCC_INSTALL_SIGNING_KEYS`를 runtime과 같은 방식으로 검증하고 `SUPABASE_SERVICE_ROLE_KEY`를 요구하며, 업무 비밀(`CCC_DATABASE_URL`, `CODEX_API_KEY`, `PII_ENC_KEY`, `SCHEDULER_SECRET`)이 있으면 기동을 거부한다. Edge Function은 `verify_jwt=false`로 배포해야 하며 RUN.md에 적는다.
 - [ ] 테스트: 어댑터 단위(각 동작의 요청 본문·principal·binding 오류·설치 ID 불일치·실패 코드 전파·body 미제공)와 종단 1건: 실제 `handleRequest` + 실제 Signer handler + 가짜 provider로 upload target 발급 → 완료 head → 동의 철회 → scheduler Bearer의 reconcile이 delete·absence를 거쳐 네 true로 terminal 전환.
 
+### Task 11: E6-4 Agent 페어링과 `agent-bearer` 신원
+
+2026-09-12 Q 순서: 스케줄러 다음. S2 §2.2 Agent 행(L64), 연결 users 행 규칙(L94), hash 결합(L96), TTL(L135-136),
+`CCC_OPEN_PILOT_PLAN.md` E6-4(10분 1회 pairing code, 회전 refresh token)를 그대로 따른다.
+
+**Files:**
+- Create: `migrations/sqlite/0061_agent_credentials.sql`, `migrations/postgres/0017_agent_credentials.sql`, parity checkpoint(`apps/api/test/support/migration-parity.ts`, `migrations/parity.yaml` 재생성), `db/schema.sql` 갱신
+- Modify: `packages/core/src/gateway.ts` (`issueAgentPairingCode`(관리자), `redeemAgentPairingCode`, `rotateAgentRefreshCredential`, `resolveAgentBearer`, `revokeAgentInstallation`)
+- Create: `packages/http-api/src/agent-identity.ts` (`createAgentBearerResolver({ env, inner })`), routes `POST /agents/pairing-codes`(관리자), `POST /agents/pair`, `POST /agents/token`, `POST /agents/:installationId/revoke`(관리자)
+- Modify: `apps/community-cloud/src/runtime.ts`, `apps/api/src/index.ts` (scheduler lane 다음, 사람 신원 앞)
+- Modify: `apps/pipeline/ccc_pipeline/api_client.py`, `config.py` (Bearer + refresh 교환, 비밀 출처는 주입 가능한 인터페이스. DPAPI backend는 E5-1b 그대로 미구현이며 합성 실행은 환경변수 backend만)
+- Create: `apps/api/test/agent-pairing.test.ts`, Python 테스트 갱신
+
+- [ ] 표 `agent_credentials(id, installation_id REFERENCES agent_installations, kind CHECK('pairing_code','refresh','bearer'), token_hash 64-hex UNIQUE, issued_at, expires_at, consumed_at, revoked_at)`. 값은 저장하지 않고 sha256 hex만 둔다. `agent_installations`에 열을 더하지 않는다.
+- [ ] pairing code: 관리자가 같은 기관의 활성 `role='service'` users 행을 고르면 `agent_installations` 행과 10분·1회 code를 만든다. `POST /agents/pair`는 code hash 대조 후 `consumed_at`을 CAS로 쓰고 refresh(30일)·bearer(900초)를 발급한다. 재사용은 401.
+- [ ] `POST /agents/token`: refresh hash 대조 → 이전 refresh를 `consumed_at`, 새 refresh와 새 bearer 발급(rotate-on-use). 소비된 refresh 재사용은 그 설치의 모든 자격을 `revoked_at`으로 닫고 `auth_revocations`에 `pairing-revoked`를 남긴다.
+- [ ] Actor: `kind='agent'`, `userId='agent:<installationId>'`, `orgId`는 설치 행, `roles=['service']`, `scopes=AGENT_SCOPES`, `authn={source:'agent-bearer', assurance:'none', sessionId:null}`. 연결 users 행이 같은 기관·활성·`service`가 아니면 403, 설치 `revoked_at`이 있으면 401. bearer는 JWT가 아니며 사람 서명 키를 쓰지 않는다.
+- [ ] 기존 legacy `cloudflare-access` service 투영은 E2-7까지 남기되, `agent-bearer` 레인이 앞에 온다. job 결합(`lease_owner`, `claim_agent_id`, memory `actor_id`)은 `actor.userId`를 그대로 쓰므로 새 형식이 일관되게 흐르는지 테스트로 증명한다.
+- [ ] 테스트: pairing 발급·교환·재사용 401, refresh 회전과 재사용 시 전면 폐기, bearer 900초 만료, 설치 폐기 뒤 401, 연결 행 불일치 403, bearer로 claim→heartbeat→`/internal/storage/authorize` agent lane 통과, 사람 JWT는 이 레인을 지나쳐 기존 신원으로 감.
+
+### Task 12: 설치 apply의 provider 단계(bucket, cron, Vault, Edge secret, Signer 배포)
+
+S11 §2.8과 설치 순서(§2 84-94)를 따른다. 지금은 `storage_bucket`·`cron_job`·`edge_secret_binding`이 이름뿐이고
+apply는 `migration` 종류 component만 받는다.
+
+**Files:**
+- Create: `scripts/supabase/provider-steps.mjs` (`applyProviderSteps({ session, authorization, management, apiBase, edgeComponents, secrets, authorize })`), `scripts/supabase/management-writes.mjs`
+- Modify: `scripts/supabase/install-journal.mjs` (필요 시 step SQL), `scripts/release/edge-component-manifest.mjs`·`build-bundle.mjs` (`functions/ccc-storage-signer/index.js` = `dist/storage-signer.js`를 `function` 종류로 포함)
+- Create: `scripts/supabase/provider-steps.test.mjs`
+
+- [ ] `storage_bucket`: 설치 연결 SQL로 `storage.buckets`에 `ccc-audio`(`public=false`, `file_size_limit=209715200`, `allowed_mime_types`=여섯 오디오 MIME)를 만든다. 이미 있으면 소유 태그(`ccc.installation_id`)와 비공개 여부를 확인해 같으면 완료 처리, 다르면 `RESOURCE_OWNERSHIP_MISMATCH`.
+- [ ] `cron_job`: `vault.create_secret(<SCHEDULER_SECRET>, 'ccc_scheduler_secret')` 뒤 `cron.schedule('ccc_scheduler_tick','* * * * *', net.http_post(url:=<apiBase>/internal/scheduler/run, headers: Authorization Bearer(vault.decrypted_secrets에서 읽음)·x-region ap-northeast-2·content-type json, body '{}'))`. secret 값은 SQL 문자열 literal이 아니라 파라미터 바인딩으로 넘기고 로그·journal에 남기지 않는다. 기존 job은 command hash 대조.
+- [ ] `edge_secret_binding`: Management API `POST /v1/projects/{ref}/secrets`로 Signer의 `CCC_INSTALL_MANIFEST`·`CCC_INSTALL_SIGNING_KEYS`·`SUPABASE_SERVICE_ROLE_KEY`(주입받은 값) 세 이름만 묶고, `POST /v1/projects/{ref}/functions/deploy?slug=ccc-storage-signer`(multipart, `verify_jwt=false`, `import_map=false`)로 staged bytes만 배포한다. 배포 응답의 함수 id·version hash를 resource digest로 기록한다. 공식 문서(`https://api.supabase.com/api/v1`)로 요청 형태를 확인하고 인용한다.
+- [ ] `requireMigrationComponents`는 `migration` N개 + `function` 1개(`functions/ccc-storage-signer/index.js`)를 정확히 요구하도록 바꾸고, 다른 종류·개수는 `EDGE_COMPONENT_SET_MISMATCH`.
+- [ ] 테스트: 가짜 Management API(bootstrap.test.mjs의 `withManagementApi` 확장)와 SQL 기록 seam으로 각 단계의 idempotency key, 소유 태그, 재실행 시 관찰·완료 처리, 소유 불일치 중단, secret 값이 어떤 출력·journal에도 없음, function deploy multipart 형식.
+
+### Task 13: 설치 health, `verifyDeploymentPrerequisites`, doctor 연동
+
+`requireHealthyInstallation`(apply.mjs 540-556)이 요구하는 증거를 실제로 만든다.
+
+**Files:**
+- Modify: `scripts/supabase/apply.mjs` (`verifyDeploymentPrerequisites`, provider step 호출 순서: migration → provider steps → health → receipt), `scripts/supabase/bootstrap.mjs` (`applyInspector.health()`), `scripts/supabase/hosted-inspector.mjs`, `scripts/supabase/plan.mjs`(doctor 출력)
+- Modify: `scripts/supabase/apply.test.mjs`, `bootstrap.test.mjs`
+
+- [ ] `verifyDeploymentPrerequisites`: edge manifest에 `function` component가 정확히 1개이고 hash가 bundle row와 맞음, 첫 설치 백업 면제(§6 2026-09-11) 또는 검증된 backup 존재, `SCHEDULER_SECRET`·`SUPABASE_SERVICE_ROLE_KEY`가 주입됨(값 미출력). 아니면 고정 코드로 거부.
+- [ ] `health()`: ① `restrictedDatabase`: 설치 연결로 `pg_roles`에서 `ccc_api`의 `rolsuper=false`·`rolbypassrls=false`를 읽고, `GET <apiBase>/readyz`가 200이면 `connected=true`(runtime 기동이 ccc_api 경계를 통과했다는 뜻. RUN.md 164-166). ② `storageSignerHealthy`: `POST <supabaseAuthOrigin>/functions/v1/ccc-storage-signer`에 body 없이 요청해 401 `{"code":"UNAUTHORIZED"}`와 `x-ccc-installation-id`가 manifest와 같으면 true. ③ `edgeRegionEvidence`: 같은 응답의 `x-sb-edge-region`을 `responseRegion`·`functionRegion`으로 읽고 `ap-northeast-2`와 대조. ④ `observedOwnerOrgIdHash`는 기존 inspector 값. 어떤 값도 URL·token을 출력하지 않는다.
+- [ ] doctor는 같은 health를 읽기 전용으로 보고한다(`report.mjs`의 고정 코드 집합에 새 코드가 있으면 추가).
+- [ ] 테스트: health 각 항목의 실패가 `HEALTH_FAILED`로 닫히고 receipt를 쓰지 않음, prerequisites 각 조건, apply 전체 순서(가짜 release·inspector·journal로 provider step이 migration 뒤·health 앞에 오는지).
+
 ## Final Review Gate
 
-열 작업이 끝나면 Tasks 1-10 전체에 전용 보안 검토를 한 번 돌린다. 검토는 자기 신뢰, 서명 도메인
+열세 작업이 끝나면 Tasks 1-13 전체에 전용 보안 검토를 한 번 돌린다. 검토는 자기 신뢰, 서명 도메인
 혼동, 출처 위조, floor 되돌리기, 시각 되돌리기, tuple 우회, Edge component 누락과 추가, 백업 면제
 조건 우회, journal 이중화, 출력 누출을 각각 판정해야 한다. 중대와 중요 지적을 모두 닫은 뒤에만
 Main이 실제 발급과 설치를 실행한다.
