@@ -57,7 +57,7 @@ function objects() {
 }
 
 function grants() {
-  return [{
+  const records = [{
     kind: 'relation',
     schema: 'auth',
     objectIdentity: 'auth.users TABLE',
@@ -65,6 +65,30 @@ function grants() {
     grantee: 'authenticated',
     privilege: 'SELECT',
     grantable: false,
+    inheritOption: null,
+    setOption: null,
+    provenance: 'supabase_managed',
+  }, {
+    kind: 'routine',
+    schema: 'auth',
+    objectIdentity: 'auth.uid() FUNCTION RETURNS uuid',
+    grantor: 'supabase_auth_admin',
+    grantee: 'authenticated',
+    privilege: 'EXECUTE',
+    grantable: false,
+    inheritOption: null,
+    setOption: null,
+    provenance: 'supabase_managed',
+  }, {
+    kind: 'type',
+    schema: 'storage',
+    objectIdentity: 'storage.bucket_type',
+    grantor: 'supabase_storage_admin',
+    grantee: 'authenticated',
+    privilege: 'USAGE',
+    grantable: false,
+    inheritOption: null,
+    setOption: null,
     provenance: 'supabase_managed',
   }, {
     kind: 'schema',
@@ -74,8 +98,14 @@ function grants() {
     grantee: 'postgres',
     privilege: 'USAGE',
     grantable: true,
+    inheritOption: null,
+    setOption: null,
     provenance: 'initial_privilege',
   }];
+  return records.sort((left, right) => Buffer.compare(
+    Buffer.from(verifier.canonicalizeJcs(left), 'utf8'),
+    Buffer.from(verifier.canonicalizeJcs(right), 'utf8'),
+  ));
 }
 
 async function inventory(overrides = {}) {
@@ -228,7 +258,7 @@ async function withFixture(run) {
   }
 }
 
-test('signs verified stable empty observations and writes owner-only verified documents', async () => {
+test('signs verified stable empty observations including routine and type grant evidence', async () => {
   await withFixture(async current => {
     const observed = await snapshot();
     const inputs = await generationInputs(current, observed, structuredClone(observed));
@@ -240,7 +270,7 @@ test('signs verified stable empty observations and writes owner-only verified do
     ]);
     assert.equal(result.baselineVersion, 'supabase-hosted-pg17-20260911-v1');
     assert.equal(result.objectCount, 2);
-    assert.equal(result.grantCount, 2);
+    assert.equal(result.grantCount, 4);
     assert.match(result.releaseTrustSha256, /^[0-9a-f]{64}$/u);
     assert.match(result.baselineSha256, /^[0-9a-f]{64}$/u);
     assert.match(result.sourceEvidenceSha256, /^[0-9a-f]{64}$/u);
@@ -261,6 +291,26 @@ test('signs verified stable empty observations and writes owner-only verified do
     });
     assert.equal(verified.releaseTrustSha256, result.releaseTrustSha256);
     assert.equal(verified.baselineSha256, result.baselineSha256);
+    assert.deepEqual(
+      verified.grants
+        .filter(grant => ['routine', 'type'].includes(grant.kind))
+        .map(({ kind, objectIdentity, privilege, inheritOption, setOption }) => (
+          { kind, objectIdentity, privilege, inheritOption, setOption }
+        )),
+      [{
+        kind: 'routine',
+        objectIdentity: 'auth.uid() FUNCTION RETURNS uuid',
+        privilege: 'EXECUTE',
+        inheritOption: null,
+        setOption: null,
+      }, {
+        kind: 'type',
+        objectIdentity: 'storage.bucket_type',
+        privilege: 'USAGE',
+        inheritOption: null,
+        setOption: null,
+      }],
+    );
   });
 });
 
@@ -289,15 +339,19 @@ test('verifies each authorization, external root, keypair and timestamp failure 
 test('rejects strict source evidence failures without partial output', async () => {
   await withFixture(async current => {
     const valid = await sourceEvidence();
+    const replaceFirst = overrides => [
+      { ...valid.records[0], ...overrides },
+      ...valid.records.slice(1),
+    ];
     const cases = [
       ['missing mapping', { ...valid, records: valid.records.slice(0, 1) }],
       ['duplicate mapping', { ...valid, records: [...valid.records, valid.records[0]] }],
-      ['non-GitHub origin', { ...valid, records: [{ ...valid.records[0], sourceUrl: 'https://example.com/supabase' }, valid.records[1]] }],
-      ['moving branch URL', { ...valid, records: [{ ...valid.records[0], sourceUrl: 'https://github.com/supabase/supabase/tree/main' }, valid.records[1]] }],
-      ['wrong source hash', { ...valid, records: [{ ...valid.records[0], sourceSha256: 'A'.repeat(64) }, valid.records[1]] }],
-      ['wrong identity hash', { ...valid, records: [{ ...valid.records[0], identitySha256: '00'.repeat(32) }, valid.records[1]] }],
-      ['nonnormal source path', { ...valid, records: [{ ...valid.records[0], sourcePath: 'schema/../schema.sql' }, valid.records[1]] }],
-      ['parent-only source path', { ...valid, records: [{ ...valid.records[0], sourcePath: '..' }, valid.records[1]] }],
+      ['non-GitHub origin', { ...valid, records: replaceFirst({ sourceUrl: 'https://example.com/supabase' }) }],
+      ['moving branch URL', { ...valid, records: replaceFirst({ sourceUrl: 'https://github.com/supabase/supabase/tree/main' }) }],
+      ['wrong source hash', { ...valid, records: replaceFirst({ sourceSha256: 'A'.repeat(64) }) }],
+      ['wrong identity hash', { ...valid, records: replaceFirst({ identitySha256: '00'.repeat(32) }) }],
+      ['nonnormal source path', { ...valid, records: replaceFirst({ sourcePath: 'schema/../schema.sql' }) }],
+      ['parent-only source path', { ...valid, records: replaceFirst({ sourcePath: '..' }) }],
       ['unknown evidence field', { ...valid, unknown: true }],
     ];
     for (const [name, evidence] of cases) {
