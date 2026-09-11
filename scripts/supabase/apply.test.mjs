@@ -283,6 +283,23 @@ test('each release verification failure happens before the lock and every databa
     });
   }
 });
+test('a missing provider capability stops under the lock before any journal write', async () => {
+  const f = fixture();
+  f.input.release.probeProviderCapabilities = async () => {
+    f.events.push('provider_probe');
+    throw Object.assign(new Error('probe'), { code: 'PROVIDER_UNREADABLE' });
+  };
+  await assert.rejects(
+    applyInstallation(f.input),
+    error => error?.code === 'PROVIDER_UNREADABLE',
+  );
+  assert.equal(f.events.includes('lock'), true);
+  assert.equal(f.events.includes('provider_probe'), true);
+  assert.equal(f.events.includes('journal_prepared'), false);
+  assert.equal(f.journal.status, 'absent');
+  assert.equal(f.journalWrites(), 0);
+  assert.equal(f.promotions(), 0);
+});
 test('receipt sequence must fit the durable integer contract before the lock', async () => {
   const f = fixture();
   const verifyBundle = f.input.release.verifyBundle;

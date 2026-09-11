@@ -444,13 +444,27 @@ async function apiCredentialStep(context) {
   return completeStep(context, 'api_credential', key, desiredDigest, []);
 }
 
-export async function applyProviderSteps(input) {
-  const context = requireContext(input);
-  const probe = await firstRow(context, EXTENSION_PROBE_QUERY, []);
+/**
+ * 첫 설치가 journal을 만들기 전에 provider 능력을 확인한다. pg_cron, pg_net, Vault, Storage 중
+ * 하나라도 없으면 어떤 쓰기도 시작하지 않는다. apply는 이 확인을 journal `prepare` 앞에서 먼저 부른다.
+ */
+export async function probeProviderCapabilities(session) {
+  let rows;
+  try {
+    rows = await session.unsafe(EXTENSION_PROBE_QUERY, []);
+  } catch {
+    throw failure('PROVIDER_UNREADABLE');
+  }
+  const probe = rows?.[0];
   if (probe?.cron_ready !== true || probe?.net_ready !== true
     || probe?.vault_ready !== true || probe?.storage_ready !== true) {
     throw failure('PROVIDER_UNREADABLE');
   }
+}
+
+export async function applyProviderSteps(input) {
+  const context = requireContext(input);
+  await probeProviderCapabilities(context.session);
   return {
     steps: [
       await storageBucketStep(context),

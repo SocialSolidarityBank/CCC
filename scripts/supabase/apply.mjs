@@ -297,6 +297,7 @@ export function createVerifiedRelease({
   apiBase,
   supabaseOrigin,
   providerSteps,
+  providerProbe,
 }) {
   let bundleRow;
   let edgeManifest;
@@ -361,6 +362,11 @@ export function createVerifiedRelease({
         backup: 'not_applicable',
         signerComponentSha256: signer.artifactSha256,
       });
+    },
+    /** Read-only capability probe, run before the journal exists so a missing extension never strands a project. */
+    async probeProviderCapabilities(session) {
+      const probe = providerProbe ?? (await import('./provider-steps.mjs')).probeProviderCapabilities;
+      await probe(session);
     },
     /** Provider resources are applied from staged bytes only, after migrations. */
     async applyProviderSteps(input) {
@@ -765,6 +771,11 @@ export async function applyInstallation({
     let prepared = false;
     let promotionStarted = false;
     try {
+      // Provider capabilities are read before any journal write: a project missing
+      // pg_cron, pg_net, Vault or Storage stays untouched instead of stranded.
+      if (typeof release.probeProviderCapabilities === 'function') {
+        await release.probeProviderCapabilities(session);
+      }
       await requireMethod(journalSession, 'prepare')(session, {
         authorization, providerBaseline, plan, bundle, manifest, edge, backup,
         idempotencyKey, now: currentTrustedTime(clock), resume: false,
