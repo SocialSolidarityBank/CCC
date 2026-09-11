@@ -195,6 +195,8 @@ signer는 bucket, opaque key 형식, caller principal, 허용 action을 모두 �
 
 **2026-09-12 Q 확정: 완료되지 않은 업로드 의도의 삭제는 generation에 묶지 않는다.** 판정 generation이 `pending:`으로 시작하면 provider 세대가 아직 없다는 뜻이므로, signer는 `versionId` 없이 그 key 자체에 DELETE와 부재 확인 세 가지를 수행하고 없는 object에 대한 provider 404도 수락으로 답한다. 이때 응답의 `generationId`는 null이며, 어댑터는 `pending:` binding에서만 그 null을 증거로 받아들인다.
 
+**2026-09-12 Q 확정: generation에 묶인 삭제의 provider 404는 지금 key에 있는 것으로 판정한다.** 전파 대기 뒤의 두 번째 주기는 같은 generation을 다시 지우므로 404가 정상이며, signer는 `versionId` 없는 새 metadata 조회 한 번으로 그 뜻을 가른다. key에 아무것도 없으면 판정 generation을 담아 수락으로 답하고 부재 증거는 이어지는 새 부재 확인이 만든다. 다른 세대가 살아 있으면 그 세대를 담아 `accepted:false`로 답해서 호출자가 새 시도를 채택하게 하고, 어댑터는 이때 예외 없이 `deleteSucceeded:false`와 그 세대를 증거로 남긴다. 같은 세대가 여전히 살아 있다고 답하면 결과를 만들지 않고 닫는다. 판정 시각은 signer 시계보다 2초까지 앞서도 신선한 판정으로 보며 5초 유효기한 자체는 그대로다.
+
 **업로드 상한 (2026-09-11 개정).** Supabase의 signed upload URL은 수명을 요청으로 정할 수 없고 배포 설정값으로 고정된다. 따라서 업로드 판정만은 `audio_objects.upload_expires_at`을 판정 유효기한 + 2시간(S8)으로 앞으로 옮기는 단 하나의 쓰기를 한다. 같은 object에 다시 판정하면 상한이 다시 앞으로 옮겨지므로 이미 발급된 token은 항상 현재 상한 안에 있다. 상한은 `retention_hard_cap_at`을 넘지 못한다. signer는 provider가 서명한 token의 실제 만료를 읽어 상한 안에 있고 `upsert`가 아니며 같은 object를 가리킬 때만 URL을 내준다. 그 밖의 판정은 감사 기록 외에 아무것도 쓰지 않는다.
 
 secret rotation은 새 값을 먼저 전용 signer binding에 주입하고 health check를 통과한 뒤 이전 값을 폐기한다. 값 자체를 fingerprint, migration, receipt, report에 넣지 않는다.

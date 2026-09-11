@@ -8,7 +8,9 @@ import type {
 import { AUDIO_CONTENT_TYPES } from '@ccc/contracts/runtime';
 import { MAX_AUDIO_BYTES, hashKey, validKey, type StorageSignerRequest } from '@ccc/contracts/audio';
 
-const FETCH_TIMEOUT_MS = 5_000;
+// The Signer spends up to 5s on the business-API callback and, for 'absence', up to three more
+// 5s provider reads, so a shorter deadline would report a failure for work it actually finished.
+const FETCH_TIMEOUT_MS = 25_000;
 const MAX_URL_BYTES = 8_192;
 
 /**
@@ -217,6 +219,27 @@ export function createSignerAudioStore(config: SignerAudioStoreConfig): AudioSto
           ? !unbound
           : typeof generationId !== 'string' || generationId.length === 0)
       ) fail('SIGNER_INVALID');
+
+      // A refused delete that names another version is a regeneration at the key: nothing was
+      // removed and nothing is absent, so the evidence carries the live version and lets the
+      // caller adopt it instead of retrying against a generation that is gone.
+      if (deleted.accepted === false && !unbound && generationId !== bound.generationId) {
+        return {
+          keyHash: hashKey(key),
+          generationId: generationId as string,
+          objectSha256: null,
+          deletionAttemptId: bound.deletionAttemptId,
+          deletionRequestedAt,
+          providerDeleteAcceptedAt,
+          deletedAt: null,
+          deleteSucceeded: false,
+          absentFromList: false,
+          absentFromMetadata: false,
+          directReadAbsent: false,
+          verificationMethod: 'authenticated-get-404',
+          verifiedAt: providerDeleteAcceptedAt,
+        } satisfies AudioDeletionEvidence;
+      }
 
       // S8 §2.3: the four booleans are one fresh absence pass after the accepted delete.
       const absence = await call('absence', key, bound);

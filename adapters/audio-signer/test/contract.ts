@@ -164,6 +164,22 @@ export function signerAudioStoreContract(): void {
       expect(await failureCode(() => bound.audio.delete(KEY, DELETION))).toBe('SIGNER_INVALID');
     });
 
+    it('adopts a refused delete that names another live version instead of throwing', async () => {
+      const { audio, calls } = store(contractReply({ delete: { accepted: false, generationId: 'generation-2' } }));
+      const evidence = await audio.delete(KEY, DELETION);
+      expect(evidence).toMatchObject({
+        generationId: 'generation-2',
+        deleteSucceeded: false,
+        deletedAt: null,
+        absentFromList: false,
+        absentFromMetadata: false,
+        directReadAbsent: false,
+        deletionAttemptId: 'attempt-1',
+      });
+      // The generation the caller asked about is gone, so there is no absence pass to run for it.
+      expect(calls.map((call) => call.body.action)).toEqual(['delete']);
+    });
+
     it('answers a missing object with null', async () => {
       const { audio } = store(() => ok({ action: 'head', exists: false, generationId: 'generation-1' }));
       expect(await audio.get(KEY, UPLOAD)).toBeNull();

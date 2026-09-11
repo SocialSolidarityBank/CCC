@@ -296,7 +296,8 @@ describe('StorageSigner online authorization boundary', () => {
     const provider = calls[1]!;
     expect(provider.url).toBe(`${STORAGE_BASE}/object/sign/ccc-audio/${OBJECT_KEY}`);
     expect(provider.init?.method).toBe('POST');
-    expect(JSON.parse(String(provider.init?.body))).toEqual({ expiresIn: 599, versionId: GENERATION_ID });
+    // One second of headroom below the decision ceiling, because the provider signs whole seconds.
+    expect(JSON.parse(String(provider.init?.body))).toEqual({ expiresIn: 598, versionId: GENERATION_ID });
     expect(headersOf(provider.init).get('authorization')).toBe(`Bearer ${SERVICE_ROLE_KEY}`);
     expect(headersOf(provider.init).get('content-type')).toBe('application/json');
   });
@@ -342,10 +343,48 @@ describe('StorageSigner online authorization boundary', () => {
     }
   });
 
-  it('keeps a provider 404 a failure for a generation-bound delete', async () => {
+  it('answers a generation-bound 404 from what is live at the key, not from the 404 alone', async () => {
+    const cases = [
+      { live: null, expected: { action: 'delete', accepted: true, generationId: GENERATION_ID } },
+      { live: 'version-9', expected: { action: 'delete', accepted: false, generationId: 'version-9' } },
+    ] as const;
+    for (const item of cases) {
+      const calls: string[] = [];
+      const handler = createStorageSignerHandler(config((async (input) => {
+        const url = String(input);
+        calls.push(url);
+        if (url === CALLBACK_URL) return callbackResponse(decision(DELETE_HASH, null));
+        if (url === UNBOUND_INFO_URL && item.live !== null) {
+          return new Response(JSON.stringify({ version: item.live, size: 128, content_type: 'audio/wav' }), {
+            status: 200, headers: { 'content-type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ message: 'Object not found' }), {
+          status: 404, headers: { 'content-type': 'application/json' },
+        });
+      }) as typeof fetch));
+
+      const response = await handler(signerRequest(DELETE_REQUEST));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual(item.expected);
+      // The second read carries no versionId, so it answers with whatever is live at the key now.
+      expect(calls).toEqual([
+        CALLBACK_URL,
+        `${STORAGE_BASE}/object/ccc-audio/${OBJECT_KEY}?versionId=${GENERATION_ID}`,
+        UNBOUND_INFO_URL,
+      ]);
+    }
+  });
+
+  it('refuses a bound delete the provider 404s while still reporting that generation live', async () => {
     const handler = createStorageSignerHandler(config((async (input) => {
       const url = String(input);
       if (url === CALLBACK_URL) return callbackResponse(decision(DELETE_HASH, null));
+      if (url === UNBOUND_INFO_URL) {
+        return new Response(JSON.stringify({ version: GENERATION_ID, size: 128, content_type: 'audio/wav' }), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        });
+      }
       return new Response(JSON.stringify({ message: 'Object not found' }), {
         status: 404, headers: { 'content-type': 'application/json' },
       });
@@ -638,5 +677,52 @@ describe('StorageSigner online authorization boundary', () => {
       absentFromMetadata: false,
       directReadAbsent: false,
     });
+  });
+
+  it('accepts a decision stamped inside the clock skew tolerance and refuses one beyond it', async () => {
+    const cases = [
+      { authorizedAt: '2026-09-11T00:00:01.000Z', status: 200 },
+      { authorizedAt: '2026-09-11T00:00:03.000Z', status: 503 },
+    ] as const;
+    for (const item of cases) {
+      let providerCalls = 0;
+      const handler = createStorageSignerHandler(config((async (input) => {
+        if (String(input) === CALLBACK_URL) {
+          return callbackResponse(decision(HEAD_HASH, null, {
+            authorizedAt: item.authorizedAt,
+            // The 5s authorization window is unchanged; only its start drifts ahead of the Signer.
+            authorizationExpiresAt: new Date(Date.parse(item.authorizedAt) + 5_000).toISOString(),
+          }));
+        }
+        providerCalls += 1;
+        return new Response(JSON.stringify({
+          version: GENERATION_ID, size: 128, content_type: 'audio/wav', etag: null, last_modified: null,
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }) as typeof fetch));
+
+      const response = await handler(signerRequest());
+      expect(response.status).toBe(item.status);
+      expect(providerCalls).toBe(item.status === 200 ? 1 : 0);
+    }
+  });
+
+  it('calls back to a bare-origin apiBase without doubling the separator', async () => {
+    const calls: string[] = [];
+    const handler = createStorageSignerHandler({
+      ...config((async (input) => {
+        calls.push(String(input));
+        if (String(input) === 'https://callback.example.test/internal/storage/authorize') {
+          return callbackResponse(decision(HEAD_HASH, null));
+        }
+        return new Response(JSON.stringify({
+          version: GENERATION_ID, size: 128, content_type: 'audio/wav', etag: null, last_modified: null,
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }) as typeof fetch),
+      apiBase: 'https://callback.example.test/',
+    });
+
+    const response = await handler(signerRequest());
+    expect(response.status).toBe(200);
+    expect(calls[0]).toBe('https://callback.example.test/internal/storage/authorize');
   });
 });

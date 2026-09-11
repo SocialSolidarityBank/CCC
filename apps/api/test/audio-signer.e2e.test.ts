@@ -200,7 +200,12 @@ async function withdrawRecordingConsent(supportCaseId: string): Promise<void> {
 }
 
 /** One consented session with a ready engine, minted down to an upload target nobody completed. */
-async function mintUploadTarget(memo: string): Promise<{ audioObjectId: string; key: string }> {
+async function mintUploadTarget(memo: string): Promise<{
+  audioObjectId: string;
+  key: string;
+  sessionId: string;
+  supportCaseId: string;
+}> {
   const participant = await createCase(env, counselor, await registrationInput(env, counselor, {
     programId: testProgramId(counselor.orgId),
   }));
@@ -226,7 +231,29 @@ async function mintUploadTarget(memo: string): Promise<{ audioObjectId: string; 
   const row = await t.db.prepare('SELECT key FROM audio_objects WHERE id=? AND org_id=?')
     .bind(target.audioObjectId, counselor.orgId).first<{ key: string }>();
   if (row === null) throw new Error('missing audio object fixture');
-  return { audioObjectId: target.audioObjectId, key: row.key };
+  return {
+    audioObjectId: target.audioObjectId,
+    key: row.key,
+    sessionId: session.id,
+    supportCaseId: scope.support_case_id,
+  };
+}
+
+/** A completed object whose recording consent was withdrawn inside its still-live upload window. */
+async function withdrawnAfterUpload(memo: string): Promise<{ audioObjectId: string; key: string }> {
+  const intent = await mintUploadTarget(memo);
+  // The client PUTs straight to the provider, then the API binds the generation on completion.
+  objects.set(intent.key, { size: CONTENT_LENGTH, contentType: 'audio/wav', version: GENERATION });
+  const completed = await humanRequest(
+    `/sessions/${intent.sessionId}/audio-upload-target/${intent.audioObjectId}/complete`, {},
+  );
+  expect(completed.status).toBe(200);
+  await withdrawRecordingConsent(intent.supportCaseId);
+  await expect(t.db.prepare('SELECT state,generation_id,deletion_reason FROM audio_objects WHERE id=?')
+    .bind(intent.audioObjectId).first()).resolves.toMatchObject({
+    state: 'deletion_pending', generation_id: GENERATION, deletion_reason: 'consent_withdrawal',
+  });
+  return intent;
 }
 
 /** S8 §2.3 for a never-completed intent: terminal, and four true against the unbound key. */
@@ -412,5 +439,63 @@ describe('Signer-backed AudioStore end to end', () => {
       .resolves.toMatchObject({ scanned: 1, deleted: 1 });
     expect(objects.size).toBe(0);
     await expectAbandonedTerminal(intent.audioObjectId);
+  });
+
+  it('defers the first deletion cycle to the upload window and terminalizes on the second', async () => {
+    const object = await withdrawnAfterUpload('Synthetic two cycle deletion fixture.');
+    const live = await t.db.prepare('SELECT upload_expires_at FROM audio_objects WHERE id=? AND org_id=?')
+      .bind(object.audioObjectId, counselor.orgId).first<{ upload_expires_at: string }>();
+    if (live === null) throw new Error('missing upload ceiling fixture');
+    expect(Date.parse(live.upload_expires_at)).toBeGreaterThan(Date.now());
+
+    const schedulerStore = audioStoreFor(`Bearer ${SCHEDULER_SECRET}`);
+    // Cycle 1 removes the bytes but proves nothing while an upload token can still land (S8 §2.2).
+    await expect(reconcileAudioObjectDeletion(env, schedulerStore, object.audioObjectId)).resolves.toBe(false);
+    expect(objects.size).toBe(0);
+    await expect(t.db.prepare('SELECT state,next_attempt_at,deleted_at FROM audio_objects WHERE id=?')
+      .bind(object.audioObjectId).first()).resolves.toMatchObject({
+      state: 'deletion_pending',
+      next_attempt_at: new Date(Date.parse(live.upload_expires_at) + 60_000).toISOString(),
+      deleted_at: null,
+    });
+
+    await t.db.prepare('UPDATE audio_objects SET upload_expires_at=? WHERE id=? AND org_id=?')
+      .bind(new Date(Date.now() - 120_000).toISOString(), object.audioObjectId, counselor.orgId).run();
+    // Cycle 2 re-deletes the same generation: the provider 404s, the key is empty, four true.
+    await expect(reconcileAudioObjectDeletion(env, schedulerStore, object.audioObjectId)).resolves.toBe(true);
+    await expect(t.db.prepare('SELECT state,generation_id,deleted_at FROM audio_objects WHERE id=?')
+      .bind(object.audioObjectId).first()).resolves.toMatchObject({
+      state: 'unprocessed_expired', generation_id: GENERATION, deleted_at: expect.any(String),
+    });
+    await expect(t.db.prepare(
+      `SELECT COUNT(*) AS proven FROM audio_deletion_attempts
+       WHERE audio_object_id=? AND phase='verification' AND generation_id=? AND delete_succeeded=1
+         AND absent_from_list=1 AND absent_from_metadata=1 AND direct_read_absent=1`,
+    ).bind(object.audioObjectId, GENERATION).first()).resolves.toMatchObject({ proven: 2 });
+  });
+
+  it('adopts a new generation when the key is repopulated between deletion cycles', async () => {
+    const object = await withdrawnAfterUpload('Synthetic regeneration fixture.');
+    const schedulerStore = audioStoreFor(`Bearer ${SCHEDULER_SECRET}`);
+    await expect(reconcileAudioObjectDeletion(env, schedulerStore, object.audioObjectId)).resolves.toBe(false);
+
+    // An upload token that was still live landed another version at the key after cycle 1.
+    objects.set(object.key, { size: CONTENT_LENGTH, contentType: 'audio/wav', version: 'provider-generation-2' });
+    await t.db.prepare('UPDATE audio_objects SET upload_expires_at=? WHERE id=? AND org_id=?')
+      .bind(new Date(Date.now() - 120_000).toISOString(), object.audioObjectId, counselor.orgId).run();
+    signerCalls = [];
+
+    await expect(reconcileAudioObjectDeletion(env, schedulerStore, object.audioObjectId)).resolves.toBe(false);
+    // The bound delete is refused, so no absence is claimed and the row adopts the live version.
+    expect(signerCalls).toEqual(['delete']);
+    expect(objects.size).toBe(1);
+    await expect(t.db.prepare(
+      'SELECT state,generation_id,retry_count,deleted_at FROM audio_objects WHERE id=?',
+    ).bind(object.audioObjectId).first()).resolves.toMatchObject({
+      state: 'deletion_pending',
+      generation_id: 'provider-generation-2',
+      retry_count: 0,
+      deleted_at: null,
+    });
   });
 });

@@ -17,6 +17,9 @@ const MAX_READ_LIFETIME_MS = 600_000;
 const MAX_UPLOAD_LIFETIME_MS = 2 * 60 * 60_000;
 const MAX_AUDIO_BYTES = 200 * 1024 * 1024;
 const MAX_LIST_ITEMS = 10;
+// API, Signer and provider run on three independently set clocks, so a decision stamped a little
+// ahead of the Signer's own clock is still a fresh decision, not a forged one.
+const MAX_CLOCK_SKEW_MS = 2_000;
 const AUDIO_CONTENT_TYPES: Record<string, true> = {
   'audio/mp4': true, 'audio/mpeg': true, 'audio/wav': true, 'audio/x-wav': true,
   'audio/webm': true, 'audio/x-m4a': true,
@@ -188,7 +191,7 @@ async function authorize(input: {
   const checkedAt = input.now();
   if (
     decision.requestSha256 !== input.requestSha256
-    || authorizedAt > checkedAt
+    || authorizedAt > checkedAt + MAX_CLOCK_SKEW_MS
     || authorizationExpiresAt <= checkedAt
     || authorizationExpiresAt <= authorizedAt
     || utf8Length(decision.generationId) < 1
@@ -227,7 +230,9 @@ async function createReadTarget(
 ): Promise<Response> {
   const checkedAt = requireLiveDecision(decision, now);
   const expiresAt = exactIsoMillis(decision.expiresAt!);
-  const expiresIn = Math.min(600, Math.floor((expiresAt - checkedAt) / 1_000));
+  // One whole second of headroom: the provider signs `exp` from its own clock and only in
+  // seconds, so the ask must land strictly inside the authorized ceiling.
+  const expiresIn = Math.min(600, Math.floor((expiresAt - checkedAt) / 1_000) - 1);
   if (expiresIn < 1) throw new SignerFailure(503, 'AUTHORIZATION_INVALID');
   const path = `/object/sign/${BUCKET}/${encodeObjectKey(request.objectKey)}`;
   const data = await providerJson(
@@ -305,6 +310,8 @@ async function createUploadTarget(
  * generation was ever bound to it. The delete then targets whatever sits at the key and a
  * key that never existed is already the absence the caller asked for; in both cases the
  * answer carries no generation, because an unbound delete cannot name the version it removed.
+ * A bound generation answers a 404 from what is live at the key right now, never from the
+ * 404 alone: the same generation is deleted twice across the S8 §2.3 propagation wait.
  */
 async function deleteObject(
   request: StorageSignerRequest,
@@ -322,12 +329,33 @@ async function deleteObject(
     method: 'DELETE',
     headers: providerHeaders(config, false),
   });
-  if (pending && response.status === 404) {
+  if (response.status === 404) {
     await discardBounded(response);
+    if (pending) {
+      return jsonResponse(200, {
+        action: 'delete',
+        accepted: true,
+        generationId: null,
+      }, config.installationId);
+    }
+    // S8 §2.3 re-deletes the same generation after the propagation wait, so a bound 404 is the
+    // ordinary second cycle. One fresh versionless read decides what it means: nothing at the key
+    // is the absence the caller asked for, and another live version is a regeneration the caller
+    // must adopt before it can prove anything about it.
+    const liveGeneration = await absenceMetadataVersion(
+      fetchImpl,
+      `${storageBase}/object/info/${BUCKET}/${encodeObjectKey(request.objectKey)}`,
+      config,
+      null,
+    );
+    if (liveGeneration === decision.generationId) {
+      // The provider refuses to delete a version it still reports live: no answer, fail closed.
+      throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
+    }
     return jsonResponse(200, {
       action: 'delete',
-      accepted: true,
-      generationId: null,
+      accepted: liveGeneration === null,
+      generationId: liveGeneration ?? decision.generationId,
     }, config.installationId);
   }
   const data = await parseProviderJson(response);
@@ -697,11 +725,12 @@ function exactApiBase(value: string): string {
       || url.password !== ''
       || url.search !== ''
       || url.hash !== ''
-      || url.pathname === '/'
-      || url.pathname.endsWith('/')
+      || (url.pathname !== '/' && url.pathname.endsWith('/'))
       || value !== `${url.origin}${url.pathname}`
     ) throw new Error('invalid');
-    return value;
+    // A bare origin is a route prefix of nothing (install-manifest.ts assertModeFields,
+    // runtime.ts routePrefix), so its trailing slash is dropped instead of doubling the separator.
+    return url.pathname === '/' ? url.origin : value;
   } catch {
     throw new Error('storage_signer_config_invalid');
   }
