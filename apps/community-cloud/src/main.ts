@@ -1,6 +1,6 @@
 import { createPostgresDatabase } from '@ccc/db-postgres';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
-import type { CoreSecretName } from '@ccc/contracts/runtime';
+import type { CoreSecretName, PlatformSecretName } from '@ccc/contracts/runtime';
 import { createCommunityCloudRuntime } from './runtime';
 import { assertApplicationCaBinding } from './application-ca.mjs';
 
@@ -16,6 +16,9 @@ const SETTING_NAMES = [
 ] as const;
 
 const BUSINESS_SECRET_NAMES = ['CODEX_API_KEY', 'PII_ENC_KEY', 'NOTIFY_WEBHOOK_URL'] as const satisfies readonly CoreSecretName[];
+// S2 §2.6: the scheduler lane compares the injected shared secret in constant time; it is
+// the only platform secret the business runtime may read, and it never reaches a response.
+const RUNTIME_PLATFORM_SECRET_NAMES = ['SCHEDULER_SECRET'] as const satisfies readonly PlatformSecretName[];
 const PRIVILEGED_BINDINGS = [
   'CCC_INSTALL_SIGNING_PRIVATE_KEY',
   'CCC_INSTALL_DATABASE_URL',
@@ -45,8 +48,8 @@ async function initialize() {
     NODE_EXTRA_CA_CERTS: Deno.env.get('NODE_EXTRA_CA_CERTS'),
     DENO_CERT: Deno.env.get('DENO_CERT'),
   });
-  const secretBindings: Partial<Record<CoreSecretName, string | undefined>> = {};
-  for (const name of BUSINESS_SECRET_NAMES) {
+  const secretBindings: Partial<Record<CoreSecretName | PlatformSecretName, string | undefined>> = {};
+  for (const name of [...BUSINESS_SECRET_NAMES, ...RUNTIME_PLATFORM_SECRET_NAMES]) {
     Object.defineProperty(secretBindings, name, { enumerable: true, get: () => Deno.env.get(name) });
   }
   // Never fall back to Supabase's owner connection. This credential must be for ccc_api.
