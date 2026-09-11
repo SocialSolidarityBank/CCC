@@ -36,6 +36,10 @@ const SOURCE_URLS = new Set([
   'https://github.com/supabase/storage',
   'https://github.com/supabase/realtime',
   'https://github.com/postgres/postgres',
+  // 2026-09-12: S11 §2.8 requires pg_cron and pg_net to be enabled before install, so the
+  // operator-prepared baseline carries the objects and grants those extensions create.
+  'https://github.com/citusdata/pg_cron',
+  'https://github.com/supabase/pg_net',
 ]);
 const SOURCE_KINDS = new Set([
   'schema', 'relation', 'routine', 'type', 'catalog', 'column', 'default', 'role',
