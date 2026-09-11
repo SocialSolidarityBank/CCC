@@ -210,8 +210,13 @@ async function withManagementApi({
   }
 }
 
-async function runCli(origin, { token = accessToken, leadingSeparator = false, managementOrigin, operation = 'plan', installManifest, signedInput } = {}) {
+async function runCli(origin, {
+  token = accessToken, leadingSeparator = false, managementOrigin, operation = 'plan',
+  installManifest, manifestUrl, signedInput, extraArgs = [],
+} = {}) {
   const args = [cliPath, ...(leadingSeparator ? ['--'] : []), operation, '--target', 'hosted', '--project-ref', 'test-project', '--format', 'json'];
+  if (manifestUrl !== undefined) args.push('--manifest-url', manifestUrl);
+  args.push(...extraArgs);
   if (installManifest !== undefined) args.push('--install-manifest', installManifest);
   const childEnv = {
     ...process.env,
@@ -814,10 +819,40 @@ test('manifest argument is recognized but malformed input cannot authorize obser
   });
 });
 
+test('manifest URL is accepted only once by apply and the strict flag whitelist remains closed', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const accepted = await runCli(origin, {
+      operation: 'apply',
+      manifestUrl: 'https://ccc-releases.account-855.workers.dev/manifests/release.json',
+    });
+    assert.equal(JSON.parse(accepted.stderr).error.code, 'OWNER_EVIDENCE_MISSING');
+
+    for (const options of [
+      { operation: 'plan', manifestUrl: 'https://ccc-releases.account-855.workers.dev/manifests/release.json' },
+      {
+        operation: 'apply',
+        manifestUrl: 'https://ccc-releases.account-855.workers.dev/manifests/release.json',
+        extraArgs: ['--manifest-url', 'https://ccc-releases.account-855.workers.dev/manifests/other.json'],
+      },
+      { operation: 'apply', extraArgs: ['--unknown-release-flag', 'value'] },
+    ]) {
+      const rejected = await runCli(origin, options);
+      assert.equal(rejected.exitCode, 2);
+      assert.equal(JSON.parse(rejected.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    assert.equal(requests.length, 0);
+  });
+});
+
 test('every installation operation requires authorization before provider access', async () => {
   await withManagementApi({}, async ({ origin, requests }) => {
     for (const operation of ['apply', 'doctor', 'rollback']) {
-      const result = await runCli(origin, { operation });
+      const result = await runCli(origin, {
+        operation,
+        ...(operation === 'apply' ? {
+          manifestUrl: 'https://ccc-releases.account-855.workers.dev/manifests/release.json',
+        } : {}),
+      });
       assert.equal(result.exitCode, 6);
       assert.equal(JSON.parse(result.stderr).error.code, 'OWNER_EVIDENCE_MISSING');
       assertNoSensitiveOutput(result, origin);

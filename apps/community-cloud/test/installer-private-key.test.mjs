@@ -11,6 +11,9 @@ const privilegedBindings = [
   'CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY',
   'CCC_PROVIDER_BASELINE',
   'CCC_BETA_RELEASE_TRUST',
+  'CCC_RELEASE_ROOT_SIGNING_PRIVATE_KEY',
+  'CCC_RELEASE_SIGNING_PRIVATE_KEY',
+  'CCC_RELEASE_TRUST_STORE',
 ];
 
 for (const [bindingIndex, binding] of privilegedBindings.entries()) {
