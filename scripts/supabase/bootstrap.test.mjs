@@ -456,6 +456,66 @@ test('per-request authorization blocks an expired baseline before another fetch'
   );
   assert.equal(fetchCalls, 1);
 });
+
+test('durable installation fingerprint covers replica identity in proved records', () => {
+  const inventory = replicaIdentity => normalizeProviderInventory({
+    objects: [{
+      object_kind: 'relation',
+      namespace_name: 'public',
+      object_identity: 'public.installation_table TABLE',
+      owner_name: 'ccc_schema_owner',
+      definition_text: JSON.stringify({ relkind: 'r', replicaIdentity }),
+      provenance: 'supabase_managed',
+    }],
+    grants: [],
+    installation_objects: [{
+      object_kind: 'relation',
+      namespace_name: 'public',
+      object_identity: 'public.installation_table TABLE',
+      owner_name: 'ccc_schema_owner',
+      definition_text: JSON.stringify({ relkind: 'r', replicaIdentity }),
+      provenance: 'supabase_managed',
+    }],
+    installation_grants: [],
+  });
+  const rows = [{ catalog_state: 'same-catalog-state-without-relreplident' }];
+  assert.notEqual(
+    hashDatabaseInstallFingerprint(rows, inventory('d')),
+    hashDatabaseInstallFingerprint(rows, inventory('f')),
+  );
+});
+
+test('durable installation fingerprint covers grantor in proved grants', () => {
+  const inventory = grantor => normalizeProviderInventory({
+    objects: [],
+    grants: [{
+      grant_kind: 'role',
+      namespace_name: '',
+      object_identity: 'ccc_schema_owner',
+      grantor_name: grantor,
+      grantee_name: 'postgres',
+      privilege: 'MEMBER',
+      is_grantable: false,
+      provenance: 'supabase_managed',
+    }],
+    installation_objects: [],
+    installation_grants: [{
+      grant_kind: 'role',
+      namespace_name: '',
+      object_identity: 'ccc_schema_owner',
+      grantor_name: grantor,
+      grantee_name: 'postgres',
+      privilege: 'MEMBER',
+      is_grantable: false,
+      provenance: 'supabase_managed',
+    }],
+  });
+  const rows = [{ catalog_state: 'same-catalog-state-without-grantor' }];
+  assert.notEqual(
+    hashDatabaseInstallFingerprint(rows, inventory('postgres')),
+    hashDatabaseInstallFingerprint(rows, inventory('supabase_admin')),
+  );
+});
 test('provider baseline mismatch is redacted and uses the fixed recovery code', async () => {
   const objectName = 'provider-object-name-must-not-escape';
   await withManagementApi({
@@ -486,14 +546,24 @@ test('provider baseline mismatch is redacted and uses the fixed recovery code', 
   });
 });
 
-test('real inspector reconciles journal-proven installation records before resumed plan comparison', async () => {
+test('real inspector reconciles journal-proven installation records before resumed plan comparison', async t => {
   const providerObject = objectRowForInspector();
   const installationObject = {
     object_kind: 'relation',
     namespace_name: 'private',
     object_identity: 'private.ccc_install_journal TABLE',
     owner_name: 'ccc_schema_owner',
-    definition_text: '{\"relkind\":\"r\"}',
+    definition_text: '{"relkind":"r","replicaIdentity":"d"}',
+    provenance: 'supabase_managed',
+  };
+  const installationGrant = {
+    grant_kind: 'role',
+    namespace_name: '',
+    object_identity: 'ccc_schema_owner',
+    grantor_name: 'postgres',
+    grantee_name: 'postgres',
+    privilege: 'MEMBER',
+    is_grantable: false,
     provenance: 'supabase_managed',
   };
   const baselineInventory = normalizeProviderInventory({
@@ -502,14 +572,15 @@ test('real inspector reconciles journal-proven installation records before resum
   });
   const rawInventory = {
     objects: [providerObject, installationObject],
-    grants: [],
+    grants: [installationGrant],
     installation_objects: [installationObject],
-    installation_grants: [],
+    installation_grants: [installationGrant],
   };
   const authorization = observationAuthorization();
-  const databaseFingerprint = hashDatabaseInstallFingerprint([{
-    catalog_state: 'synthetic-public-catalog',
-  }]);
+  const databaseFingerprint = hashDatabaseInstallFingerprint(
+    [{ catalog_state: 'synthetic-public-catalog' }],
+    normalizeProviderInventory(rawInventory),
+  );
   const installState = {
     journal: {
       installationId: authorization.installationId,
@@ -543,6 +614,8 @@ test('real inspector reconciles journal-proven installation records before resum
       unknown_object_count: 2,
       installation_unowned_object_count: 1,
       custom_schema_count: 1,
+      unexpected_grant_count: 1,
+      installation_unexpected_grant_count: 1,
     }),
     providerInventory: rawInventory,
     installState,
@@ -550,6 +623,7 @@ test('real inspector reconciles journal-proven installation records before resum
     const baseline = verifiedProviderBaseline(baselineInventory);
     const first = await hostedInspector(origin).inspect();
     assert.equal(first.providerInventory.installationObjects.length, 1);
+    assert.equal(first.providerInventory.installationGrants.length, 1);
     assert.equal(first.state.unownedObjectCount, 1);
     assert.equal(first.providerInventory.objects.length, 2);
 
@@ -607,6 +681,30 @@ test('real inspector reconciles journal-proven installation records before resum
       doctor.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'),
       false,
     );
+    await t.test('replica-identity-only installation drift fails closed', async () => {
+      installationObject.definition_text = '{"relkind":"r","replicaIdentity":"f"}';
+      const drifted = await buildSupabasePlan({
+        target: 'hosted',
+        authorization,
+        providerBaseline: baseline,
+        inspector: hostedInspector(origin),
+      });
+      assert.equal(drifted.providerBaseline.matched, false);
+      assert.ok(drifted.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'));
+      installationObject.definition_text = '{"relkind":"r","replicaIdentity":"d"}';
+    });
+    await t.test('grantor-only installation drift fails closed', async () => {
+      installationGrant.grantor_name = 'supabase_admin';
+      const drifted = await buildSupabasePlan({
+        target: 'hosted',
+        authorization,
+        providerBaseline: baseline,
+        inspector: hostedInspector(origin),
+      });
+      assert.equal(drifted.providerBaseline.matched, false);
+      assert.ok(drifted.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'));
+      installationGrant.grantor_name = 'postgres';
+    });
     installState.journal.databaseFingerprint = 'f'.repeat(64);
     const unproved = await buildSupabasePlan({
       target: 'hosted',

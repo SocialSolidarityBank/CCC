@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { canonicalizeJcs } from '../../apps/community-cloud/dist/install-manifest-verifier.js';
 import { assertAuthorizationMatches } from './manifest-preflight.mjs';
 
 const HASH = /^[0-9a-f]{64}$/u;
@@ -279,15 +280,36 @@ function redactFailure(error, fallbackCode) {
   return failure(fallbackCode);
 }
 
-export function hashDatabaseInstallFingerprint(rows) {
-  if (!Array.isArray(rows) || rows.length !== 1 || typeof rows[0]?.catalog_state !== 'string') {
+export function hashDatabaseInstallFingerprint(rows, providerInventory) {
+  if (!Array.isArray(rows) || rows.length !== 1 || typeof rows[0]?.catalog_state !== 'string'
+    || !Array.isArray(providerInventory?.objects)
+    || !Array.isArray(providerInventory?.grants)
+    || !Array.isArray(providerInventory?.installationObjects)
+    || !Array.isArray(providerInventory?.installationGrants)) {
     throw failure('INSTALL_JOURNAL_INVALID');
   }
-  return createHash('sha256').update(rows[0].catalog_state, 'utf8').digest('hex');
+  return createHash('sha256').update(canonicalizeJcs({
+    catalogState: rows[0].catalog_state,
+    providerObjects: providerInventory.objects,
+    providerGrants: providerInventory.grants,
+    installationObjects: providerInventory.installationObjects,
+    installationGrants: providerInventory.installationGrants,
+  }), 'utf8').digest('hex');
 }
 
 export async function readDatabaseInstallFingerprint(session) {
-  return hashDatabaseInstallFingerprint(await session.unsafe(DATABASE_INSTALL_FINGERPRINT_QUERY));
+  try {
+    const { normalizeProviderInventory, PROVIDER_INVENTORY_QUERY } =
+      await import('./provider-inventory.mjs');
+    const rows = await session.unsafe(DATABASE_INSTALL_FINGERPRINT_QUERY);
+    const providerRows = await session.unsafe(PROVIDER_INVENTORY_QUERY);
+    if (!Array.isArray(providerRows) || providerRows.length !== 1) {
+      throw failure('INSTALL_JOURNAL_INVALID');
+    }
+    return hashDatabaseInstallFingerprint(rows, normalizeProviderInventory(providerRows[0]));
+  } catch {
+    throw failure('INSTALL_JOURNAL_INVALID');
+  }
 }
 
 function requireHash(value, code = 'INSTALL_AUTHORIZATION_MISMATCH') {

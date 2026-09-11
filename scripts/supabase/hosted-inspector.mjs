@@ -681,7 +681,10 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
       }
       const cron = boolean(database.cron_exists)
         ? await readOnlyQuery('SELECT count(*)::integer AS count FROM cron.job') : { count: 0 };
-      const databaseFingerprint = hashDatabaseInstallFingerprint([await readOnlyQuery(DATABASE_INSTALL_FINGERPRINT_QUERY)]);
+      const databaseFingerprint = hashDatabaseInstallFingerprint(
+        [await readOnlyQuery(DATABASE_INSTALL_FINGERPRINT_QUERY)],
+        providerInventory,
+      );
       const inventoryDatabase = { ...database };
       // Installation-owned candidates are exempt only after the durable catalog
       // fingerprint proves they are the exact state recorded by this journal.
