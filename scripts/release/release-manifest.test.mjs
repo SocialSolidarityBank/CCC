@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
@@ -234,6 +237,22 @@ test('rejects an altered and re-signed manifest not indexed by the bundle digest
     document: JSON.stringify(altered), trustStore: trustStore(), now: NOW,
     expectedTuple, bundleEntry,
   }), 'ARTIFACT_NOT_INDEXED');
+});
+
+test('rejects a manifest file whose bytes redirect the parser to another file', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'ccc-release-manifest-'));
+  try {
+    const target = join(directory, 'target.json');
+    const indirect = join(directory, 'indirect.json');
+    await writeFile(target, JSON.stringify(manifest()), 'utf8');
+    await writeFile(indirect, target, 'utf8');
+    await rejectsCode(verifyReleaseManifest({
+      document: indirect, trustStore: trustStore(), now: NOW, expectedTuple,
+      bundleEntry: { ...bundleEntry, manifestSha256: sha256(target) },
+    }), 'SIGNATURE_INVALID');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('binds the signed manifest version to the artifact basename', async () => {

@@ -204,6 +204,7 @@ async function parsedDocument(document, code) {
     }
     if (bytes.byteLength === 0 || bytes.byteLength > MAX_DOCUMENT_BYTES) fail(code);
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    if (!source.trimStart().startsWith('{')) fail(code);
     return { value: await readStrictJsonDocument(source), bytes };
   } catch (error) {
     if (error instanceof ReleaseVerificationError) throw error;
