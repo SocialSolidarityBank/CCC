@@ -19,6 +19,7 @@ import { loadReleaseTrustStore } from './release-trust.mjs';
 
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const runFile = promisify(execFile);
+const NOW = new Date('2026-09-11T12:00:00.000Z');
 
 function signingFixture() {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -26,6 +27,7 @@ function signingFixture() {
   return {
     privateKey: privateKey.export({ format: 'pem', type: 'pkcs8' }).toString(),
     privateKeyObject: privateKey,
+    publicKey: publicKey.export({ format: 'jwk' }).x,
     trustJson: JSON.stringify({ keys: [{
       keyId,
       publicKey: publicKey.export({ format: 'jwk' }).x,
@@ -45,6 +47,24 @@ function resignEdge(value, privateKey) {
       Buffer.from(canonicalizeJcs(unsigned), 'utf8'),
     ]), privateKey).toString('base64url'),
   };
+}
+
+async function settleFifo(verification, path) {
+  const settled = verification.then(() => 'accepted', error => error?.code);
+  const initial = await Promise.race([
+    settled,
+    new Promise(resolve => setTimeout(() => resolve('blocked'), 100)),
+  ]);
+  if (initial === 'blocked') {
+    try {
+      const writer = await open(path, constants.O_WRONLY | constants.O_NONBLOCK);
+      await writer.close();
+    } catch (error) {
+      if (error?.code !== 'ENXIO') throw error;
+    }
+    await settled;
+  }
+  return initial;
 }
 
 async function fixture(run) {
@@ -101,6 +121,7 @@ test('builds the closed signed EdgeComponentManifestV1 in UTF-8 path order', asy
     stagedRoot: root,
     bundleRow: { edgeComponentManifestSha256: sha256(document) },
     trustStore: await loadReleaseTrustStore(signing.trustJson),
+    now: NOW,
   });
   assert.deepEqual(verified, manifest);
 }));
@@ -127,7 +148,7 @@ test('verification rejects altered, missing, extra, duplicated and unsafe compon
   await t.test('altered bytes', async () => {
     await writeFile(join(root, 'templates', 'mail.json'), '{"changed":true}');
     await assert.rejects(
-      verifyEdgeComponentManifest({ document, stagedRoot: root, bundleRow, trustStore }),
+      verifyEdgeComponentManifest({ document, stagedRoot: root, bundleRow, trustStore, now: NOW }),
       error => error?.code === 'EDGE_COMPONENT_SET_MISMATCH',
     );
     await writeFile(join(root, 'templates', 'mail.json'), '{}');
@@ -137,7 +158,7 @@ test('verification rejects altered, missing, extra, duplicated and unsafe compon
     const bytes = await readFile(path);
     await rm(path);
     await assert.rejects(
-      verifyEdgeComponentManifest({ document, stagedRoot: root, bundleRow, trustStore }),
+      verifyEdgeComponentManifest({ document, stagedRoot: root, bundleRow, trustStore, now: NOW }),
       error => error?.code === 'EDGE_COMPONENT_SET_MISMATCH',
     );
     await writeFile(path, bytes);
@@ -146,7 +167,7 @@ test('verification rejects altered, missing, extra, duplicated and unsafe compon
     const path = join(root, 'functions', 'extra.ts');
     await writeFile(path, 'extra');
     await assert.rejects(
-      verifyEdgeComponentManifest({ document, stagedRoot: root, bundleRow, trustStore }),
+      verifyEdgeComponentManifest({ document, stagedRoot: root, bundleRow, trustStore, now: NOW }),
       error => error?.code === 'EDGE_COMPONENT_SET_MISMATCH',
     );
     await rm(path);
@@ -155,7 +176,7 @@ test('verification rejects altered, missing, extra, duplicated and unsafe compon
     await assert.rejects(
       verifyEdgeComponentManifest({
         document, stagedRoot: root,
-        bundleRow: { edgeComponentManifestSha256: '00'.repeat(32) }, trustStore,
+        bundleRow: { edgeComponentManifestSha256: '00'.repeat(32) }, trustStore, now: NOW,
       }),
       error => error?.code === 'EDGE_COMPONENT_SET_MISMATCH',
     );
@@ -168,7 +189,7 @@ test('verification rejects altered, missing, extra, duplicated and unsafe compon
     await symlink(outsidePath, embeddedPath);
     try {
       await assert.rejects(
-        verifyEdgeComponentManifest({ document, stagedRoot: root, bundleRow, trustStore }),
+        verifyEdgeComponentManifest({ document, stagedRoot: root, bundleRow, trustStore, now: NOW }),
         error => error?.code === 'EDGE_COMPONENT_SET_MISMATCH',
       );
     } finally {
@@ -181,29 +202,42 @@ test('verification rejects altered, missing, extra, duplicated and unsafe compon
     const embeddedPath = join(root, 'edge-component-manifest.json');
     await rm(embeddedPath);
     await runFile('/usr/bin/mkfifo', [embeddedPath]);
-    const verification = verifyEdgeComponentManifest({
-      document, stagedRoot: root, bundleRow, trustStore,
-    }).then(() => 'accepted', error => error?.code);
-    let initial;
+    const result = await settleFifo(
+      verifyEdgeComponentManifest({ document, stagedRoot: root, bundleRow, trustStore, now: NOW }),
+      embeddedPath,
+    );
+    await rm(embeddedPath, { force: true });
+    await writeFile(embeddedPath, document);
+    assert.equal(result, 'EDGE_COMPONENT_SET_MISMATCH');
+  });
+  await t.test('non-regular document filename', async () => {
+    const documentPath = `${root}.document.json`;
+    await runFile('/usr/bin/mkfifo', [documentPath]);
     try {
-      initial = await Promise.race([
-        verification,
-        new Promise(resolve => setTimeout(() => resolve('blocked'), 100)),
-      ]);
-      if (initial === 'blocked') {
-        try {
-          const writer = await open(embeddedPath, constants.O_WRONLY | constants.O_NONBLOCK);
-          await writer.close();
-        } catch (error) {
-          if (error?.code !== 'ENXIO') throw error;
-        }
-        await verification;
-      }
+      const result = await settleFifo(
+        verifyEdgeComponentManifest({
+          document: documentPath, stagedRoot: root, bundleRow, trustStore, now: NOW,
+        }),
+        documentPath,
+      );
+      assert.equal(result, 'SIGNATURE_INVALID');
     } finally {
-      await rm(embeddedPath, { force: true });
-      await writeFile(embeddedPath, document);
+      await rm(documentPath, { force: true });
     }
-    assert.equal(initial, 'EDGE_COMPONENT_SET_MISMATCH');
+  });
+  await t.test('oversized document filename', async () => {
+    const documentPath = `${root}.oversized.json`;
+    await writeFile(documentPath, Buffer.alloc(1_048_577, 0x20));
+    try {
+      await assert.rejects(
+        verifyEdgeComponentManifest({
+          document: documentPath, stagedRoot: root, bundleRow, trustStore, now: NOW,
+        }),
+        error => error?.code === 'SIGNATURE_INVALID',
+      );
+    } finally {
+      await rm(documentPath, { force: true });
+    }
   });
   await t.test('unsupported protocol version', async () => {
     const changed = resignEdge({ ...manifest, protocolVersion: '2.0.0' }, signing.privateKeyObject);
@@ -212,7 +246,7 @@ test('verification rejects altered, missing, extra, duplicated and unsafe compon
     await assert.rejects(
       verifyEdgeComponentManifest({
         document: changedDocument, stagedRoot: root,
-        bundleRow: { edgeComponentManifestSha256: sha256(changedDocument) }, trustStore,
+        bundleRow: { edgeComponentManifestSha256: sha256(changedDocument) }, trustStore, now: NOW,
       }),
       error => error?.code === 'EDGE_COMPONENT_SET_MISMATCH',
     );
@@ -225,10 +259,35 @@ test('verification rejects altered, missing, extra, duplicated and unsafe compon
       await assert.rejects(
         verifyEdgeComponentManifest({
           document: canonicalizeJcs(changed), stagedRoot: root,
-          bundleRow: { edgeComponentManifestSha256: sha256(canonicalizeJcs(changed)) }, trustStore,
+          bundleRow: { edgeComponentManifestSha256: sha256(canonicalizeJcs(changed)) },
+          trustStore,
+          now: NOW,
         }),
         error => error?.code === 'EDGE_COMPONENT_SET_MISMATCH',
       );
     }
+  });
+  await t.test('uses caller trusted time for release-key validity', async () => {
+    const trustedNow = new Date('2035-06-01T00:00:00.000Z');
+    const futureTrustStore = await loadReleaseTrustStore(JSON.stringify({ keys: [{
+      keyId: 'release-key-test',
+      publicKey: signing.publicKey,
+      status: 'active',
+      notBefore: '2035-01-01T00:00:00.000Z',
+      notAfter: '2036-01-01T00:00:00.000Z',
+    }] }));
+    assert.deepEqual(await verifyEdgeComponentManifest({
+      document,
+      stagedRoot: root,
+      bundleRow,
+      trustStore: futureTrustStore,
+      now: trustedNow,
+    }), manifest);
+    await assert.rejects(
+      verifyEdgeComponentManifest({
+        document, stagedRoot: root, bundleRow, trustStore: futureTrustStore,
+      }),
+      error => error?.code === 'SIGNATURE_INVALID',
+    );
   });
 }));

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, link, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
 
@@ -152,6 +152,7 @@ test('builds four development files that pass the Task 1 verifiers in a real rou
   });
   assert.deepEqual(bundle.entries.map(entry => entry.family), ['community-cloud-cli']);
   assert.deepEqual(bundle.protocol.peers.map(peer => peer.name), ['cloud-cli', 'edge']);
+  assert.equal(bundle.modelManifestSha256, '0'.repeat(64));
   const bundleRow = { family: bundle.entries[0].family, ...bundle.entries[0].artifacts[0] };
   assert.equal(bundleRow.manifestUrl, `${PINNED_RELEASE_ORIGIN}/manifests/${manifestName}`);
   assert.equal(bundleRow.edgeComponentManifestSha256, summary.edgeComponentManifestSha256);
@@ -172,24 +173,39 @@ test('builds four development files that pass the Task 1 verifiers in a real rou
   await runFile('tar', ['-xzf', join(outDir, basename), '-C', stagedRoot]);
   const unicodeName = (await readdir(join(componentRoot, 'functions')))
     .find(name => name !== 'apply.ts');
-  assert.deepEqual((await readdir(stagedRoot, { recursive: true })).sort(), [
+  const archivePaths = await readdir(stagedRoot, { recursive: true });
+  for (const expected of [
     'edge-component-manifest.json',
-    'functions',
     'functions/apply.ts',
     `functions/${unicodeName}`,
-    'migrations',
     'migrations/0001.sql',
-    'templates',
     'templates/config.json',
-  ].sort());
+    'ccc-cloud.mjs',
+    'cli/scripts/supabase/bootstrap.mjs',
+    'cli/node_modules/postgres/package.json',
+  ]) assert.ok(archivePaths.includes(expected), `missing packaged path: ${expected}`);
   const edgeDocument = await readFile(join(stagedRoot, 'edge-component-manifest.json'), 'utf8');
   await verifyEdgeComponentManifest({
     document: edgeDocument,
     stagedRoot,
     bundleRow,
     trustStore: await loadReleaseTrustStore(signing.trustJson),
+    now: new Date(bundle.publishedAt),
   });
   assert.equal(sha256(edgeDocument), bundleRow.edgeComponentManifestSha256);
+
+  try {
+    await runFile(join(stagedRoot, 'ccc-cloud.mjs'), [], {
+      cwd: stagedRoot,
+      env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` },
+    });
+    assert.fail('packaged installer unexpectedly succeeded without credentials');
+  } catch (error) {
+    assert.equal(error.code, 6);
+    assert.equal(error.stdout, '');
+    assert.match(error.stderr, /^\[OWNER_EVIDENCE_MISSING\] /u);
+    assert.doesNotMatch(error.stderr, /ERR_MODULE_NOT_FOUND|Cannot find (module|package)/u);
+  }
 
   const floor = JSON.parse(floorDocument);
   assert.deepEqual(floor, {
@@ -244,4 +260,29 @@ test('never overwrites an existing destination and removes every new output on f
   assert.doesNotMatch(result.stderr, /PRIVATE KEY|BEGIN PRIVATE|release-key-test/u);
   assert.deepEqual(await readdir(outDir), [`${basename}.manifest.json`]);
   assert.equal(await readFile(manifestPath, 'utf8'), 'keep me');
+}));
+
+test('removes a partially published output set after a later exclusive link fails', async () => fixture(async ({ root, outDir }) => {
+  await mkdir(outDir);
+  const first = join(root, 'first');
+  const second = join(root, 'second');
+  await writeFile(first, 'first');
+  await writeFile(second, 'second');
+  const release = await import('./build-bundle.mjs');
+  let links = 0;
+  await assert.rejects(
+    release.publishExclusive([
+      { name: 'first.out', path: first },
+      { name: 'second.out', path: second },
+    ], outDir, {
+      linkFile: async (source, destination) => {
+        links += 1;
+        if (links === 2) throw new Error('injected publication failure');
+        await link(source, destination);
+      },
+    }),
+    error => error?.code === 'BUILD_FAILED',
+  );
+  assert.equal(links, 2);
+  assert.deepEqual(await readdir(outDir), []);
 }));

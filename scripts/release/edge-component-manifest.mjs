@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { createHash, createPrivateKey, createPublicKey, sign } from 'node:crypto';
 import { constants } from 'node:fs';
-import { lstat, open, readdir, readFile } from 'node:fs/promises';
+import { lstat, open, readdir } from 'node:fs/promises';
 import { join, posix, win32 } from 'node:path';
 
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
@@ -67,26 +67,46 @@ function componentKind(path) {
   return kind;
 }
 
-async function regularFileBytes(path) {
+async function regularFileBytes(path, {
+  maxBytes = Number.POSITIVE_INFINITY,
+  nonempty = false,
+  errorCode = 'EDGE_COMPONENT_SET_MISMATCH',
+} = {}) {
   let handle;
   try {
     handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK | (constants.O_NOFOLLOW ?? 0));
     const before = await handle.stat();
-    if (!before.isFile() || before.nlink !== 1) fail();
-    const bytes = await handle.readFile();
+    if (!before.isFile() || before.nlink !== 1 || before.size > maxBytes
+      || (nonempty && before.size === 0)) fail(errorCode);
+    let bytes;
+    if (Number.isFinite(maxBytes)) {
+      const buffer = Buffer.alloc(maxBytes + 1);
+      let length = 0;
+      while (length < buffer.length) {
+        const result = await handle.read(buffer, length, buffer.length - length, null);
+        if (result.bytesRead === 0) break;
+        length += result.bytesRead;
+      }
+      if (length > maxBytes || (nonempty && length === 0)) fail(errorCode);
+      bytes = Buffer.from(buffer.subarray(0, length));
+    } else {
+      bytes = await handle.readFile();
+    }
     const after = await handle.stat();
     if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size
-      || before.mtimeMs !== after.mtimeMs || after.nlink !== 1) fail();
+      || before.mtimeMs !== after.mtimeMs || after.nlink !== 1 || bytes.byteLength !== after.size) {
+      fail(errorCode);
+    }
     return bytes;
   } catch (error) {
     if (error instanceof EdgeComponentManifestError) throw error;
-    fail();
+    fail(errorCode);
   } finally {
     await handle?.close();
   }
 }
 
-async function collectFiles(root, { embeddedManifest = false } = {}) {
+async function collectFiles(root) {
   let rootInfo;
   try {
     rootInfo = await lstat(root);
@@ -96,7 +116,7 @@ async function collectFiles(root, { embeddedManifest = false } = {}) {
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) fail();
 
   const files = [];
-  async function visit(directory, prefix = '') {
+  async function visit(directory, prefix) {
     let entries;
     try {
       entries = await readdir(directory, { withFileTypes: true });
@@ -104,8 +124,7 @@ async function collectFiles(root, { embeddedManifest = false } = {}) {
       fail();
     }
     for (const entry of entries) {
-      const path = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
-      if (embeddedManifest && path === 'edge-component-manifest.json') continue;
+      const path = `${prefix}/${entry.name}`;
       const absolute = join(directory, entry.name);
       const info = await lstat(absolute);
       if (entry.isSymbolicLink() || info.isSymbolicLink()) fail();
@@ -114,13 +133,24 @@ async function collectFiles(root, { embeddedManifest = false } = {}) {
       else fail();
     }
   }
-  await visit(root);
+  for (const name of Object.keys(KIND_BY_ROOT)) {
+    const directory = join(root, name);
+    let info;
+    try {
+      info = await lstat(directory);
+    } catch (error) {
+      if (error?.code === 'ENOENT') continue;
+      fail();
+    }
+    if (!info.isDirectory() || info.isSymbolicLink()) fail();
+    await visit(directory, name);
+  }
   files.sort((left, right) => compareUtf8(left.path, right.path));
   return files;
 }
 
-async function componentsAt(root, options) {
-  const files = await collectFiles(root, options);
+async function componentsAt(root) {
+  const files = await collectFiles(root);
   const components = [];
   for (const file of files) {
     const kind = componentKind(file.path);
@@ -169,7 +199,11 @@ async function documentBytes(document) {
     if (typeof document === 'string' && document.trimStart().startsWith('{')) {
       bytes = Buffer.from(document, 'utf8');
     } else if (typeof document === 'string') {
-      bytes = await readFile(document);
+      bytes = await regularFileBytes(document, {
+        maxBytes: MAX_DOCUMENT_BYTES,
+        nonempty: true,
+        errorCode: 'SIGNATURE_INVALID',
+      });
     } else {
       fail('SIGNATURE_INVALID');
     }
@@ -221,7 +255,9 @@ export async function buildEdgeComponentManifest(componentRoot) {
     ed25519Signature: sign(null, signatureMessage(unsigned), identity.privateKey).toString('base64url'),
   };
 }
-export async function verifyEdgeComponentManifest({ document, stagedRoot, bundleRow, trustStore }) {
+export async function verifyEdgeComponentManifest({
+  document, stagedRoot, bundleRow, trustStore, now,
+}) {
   const parsed = await documentBytes(document);
   validateManifest(parsed.value);
   if (!boundedString(bundleRow?.edgeComponentManifestSha256)
@@ -230,11 +266,11 @@ export async function verifyEdgeComponentManifest({ document, stagedRoot, bundle
 
   const embedded = await regularFileBytes(join(stagedRoot, 'edge-component-manifest.json'));
   if (!embedded.equals(parsed.bytes)) fail();
-  const stagedComponents = await componentsAt(stagedRoot, { embeddedManifest: true });
+  const stagedComponents = await componentsAt(stagedRoot);
   if (canonicalizeJcs(stagedComponents) !== canonicalizeJcs(parsed.value.components)) fail();
 
   try {
-    const key = selectSigningKey(trustStore, parsed.value.signingKeyId, new Date());
+    const key = selectSigningKey(trustStore, parsed.value.signingKeyId, now);
     const { ed25519Signature, ...unsigned } = parsed.value;
     const valid = await verifyEd25519Bytes(
       signatureMessage(unsigned),

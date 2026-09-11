@@ -6,8 +6,9 @@ import {
   createHash, createPrivateKey, createPublicKey, sign,
 } from 'node:crypto';
 import {
-  copyFile, link, lstat, mkdir, mkdtemp, open, readdir, rm, writeFile,
+  link, lstat, mkdir, mkdtemp, open, readdir, rm, writeFile,
 } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
@@ -33,6 +34,26 @@ const BUNDLE_DOMAIN = 'CCC-RELEASE-BUNDLE-V1\0';
 const FLAGS = new Set(['--component-root', '--out-dir', '--version', '--sequence', '--channel']);
 const MAX_UINT64 = (1n << 64n) - 1n;
 const CONTRACTS_ROOT = fileURLToPath(new URL('../../packages/contracts/src/', import.meta.url));
+const REPOSITORY_ROOT = fileURLToPath(new URL('../../', import.meta.url));
+const requireFromCommunityCloud = createRequire(
+  new URL('../../apps/community-cloud/package.json', import.meta.url),
+);
+const POSTGRES_ROOT = dirname(dirname(dirname(requireFromCommunityCloud.resolve('postgres'))));
+const CLI_RUNTIME_FILES = [
+  'scripts/supabase/bootstrap.mjs',
+  'scripts/supabase/hosted-inspector.mjs',
+  'scripts/supabase/local-inspector.mjs',
+  'scripts/supabase/plan.mjs',
+  'scripts/supabase/manifest-preflight.mjs',
+  'scripts/supabase/provider-baseline.mjs',
+  'scripts/supabase/provider-inventory.mjs',
+  'scripts/supabase/installer-connection.mjs',
+  'scripts/supabase/install-journal.mjs',
+  'apps/community-cloud/src/application-ca.mjs',
+  'apps/community-cloud/dist/install-manifest-verifier.js',
+  'apps/community-cloud/package.json',
+  'migrations/parity.yaml',
+];
 const TAR_PATH = '/usr/bin/tar';
 const TAR_ENV = Object.freeze({
   COPYFILE_DISABLE: '1',
@@ -181,6 +202,57 @@ async function readFileSafe(path) {
   }
 }
 
+async function copyRuntimeFile(source, destination, mode = 0o600) {
+  await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
+  await writeFile(destination, await readFileSafe(source), { mode });
+}
+
+async function copyRuntimeTree(source, destination) {
+  const info = await lstat(source);
+  if (!info.isDirectory() || info.isSymbolicLink()) fail();
+  await mkdir(destination, { recursive: true, mode: 0o700 });
+  for (const entry of await readdir(source, { withFileTypes: true })) {
+    const sourcePath = join(source, entry.name);
+    const destinationPath = join(destination, entry.name);
+    const entryInfo = await lstat(sourcePath);
+    if (entry.isSymbolicLink() || entryInfo.isSymbolicLink()) fail();
+    if (entry.isDirectory() && entryInfo.isDirectory()) {
+      await copyRuntimeTree(sourcePath, destinationPath);
+    } else if (entry.isFile() && entryInfo.isFile()) {
+      await copyRuntimeFile(sourcePath, destinationPath);
+    } else {
+      fail();
+    }
+  }
+}
+
+async function copyInstallerRuntime(stagingRoot) {
+  for (const relative of CLI_RUNTIME_FILES) {
+    await copyRuntimeFile(
+      join(REPOSITORY_ROOT, relative),
+      join(stagingRoot, 'cli', relative),
+      relative === 'scripts/supabase/bootstrap.mjs' ? 0o700 : 0o600,
+    );
+  }
+  await copyRuntimeTree(
+    join(REPOSITORY_ROOT, 'migrations/postgres'),
+    join(stagingRoot, 'cli/migrations/postgres'),
+  );
+  await copyRuntimeFile(
+    join(POSTGRES_ROOT, 'package.json'),
+    join(stagingRoot, 'cli/node_modules/postgres/package.json'),
+  );
+  await copyRuntimeTree(
+    join(POSTGRES_ROOT, 'src'),
+    join(stagingRoot, 'cli/node_modules/postgres/src'),
+  );
+  await writeFile(
+    join(stagingRoot, 'ccc-cloud.mjs'),
+    "#!/usr/bin/env node\nimport './cli/scripts/supabase/bootstrap.mjs';\n",
+    { mode: 0o700 },
+  );
+}
+
 async function requireOutputDirectory(path) {
   await mkdir(path, { recursive: true, mode: 0o700 });
   const info = await lstat(path);
@@ -208,14 +280,14 @@ async function syncFile(path) {
   }
 }
 
-async function publishExclusive(files, outDir) {
+export async function publishExclusive(files, outDir, { linkFile = link } = {}) {
   const destinations = files.map(file => join(outDir, file.name));
   await requireAbsent(destinations);
   const created = [];
   try {
     for (let index = 0; index < files.length; index += 1) {
       await syncFile(files[index].path);
-      await link(files[index].path, destinations[index]);
+      await linkFile(files[index].path, destinations[index]);
       created.push(destinations[index]);
     }
     const directory = await open(outDir, 'r');
@@ -234,7 +306,11 @@ async function copyComponents(componentRoot, stagingRoot, components) {
   for (const component of components) {
     const destination = join(stagingRoot, ...component.path.split('/'));
     await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
-    await copyFile(join(componentRoot, ...component.path.split('/')), destination);
+    await writeFile(
+      destination,
+      await readFileSafe(join(componentRoot, ...component.path.split('/'))),
+      { mode: 0o600 },
+    );
   }
 }
 
@@ -253,8 +329,11 @@ async function build({ componentRoot, outDir, version, sequence, channel }) {
   try {
     const edgeManifest = await buildEdgeComponentManifest(componentRoot);
     const keys = await signingState(edgeManifest);
+    const publishedAt = new Date();
+    const expiresAt = new Date(publishedAt.getTime() + 7 * 24 * 60 * 60 * 1_000);
     await mkdir(stagingRoot, { mode: 0o700 });
     await copyComponents(componentRoot, stagingRoot, edgeManifest.components);
+    await copyInstallerRuntime(stagingRoot);
     const edgeDocument = document(edgeManifest);
     await writeFile(join(stagingRoot, 'edge-component-manifest.json'), edgeDocument, { mode: 0o600 });
     const edgeComponentManifestSha256 = sha256(edgeDocument);
@@ -263,6 +342,7 @@ async function build({ componentRoot, outDir, version, sequence, channel }) {
       stagedRoot: stagingRoot,
       bundleRow: { edgeComponentManifestSha256 },
       trustStore: keys.trustStore,
+      now: publishedAt,
     });
 
     await execFileAsync(TAR_PATH, ['-czf', artifactPath, '-C', stagingRoot, '.'], {
@@ -270,8 +350,6 @@ async function build({ componentRoot, outDir, version, sequence, channel }) {
     });
     const artifactBytes = await readFileSafe(artifactPath);
     const artifactSha256 = sha256(artifactBytes);
-    const publishedAt = new Date();
-    const expiresAt = new Date(publishedAt.getTime() + 7 * 24 * 60 * 60 * 1_000);
     const artifactUrl = `${PINNED_RELEASE_ORIGIN}/artifacts/${artifactName}`;
     const manifestUrl = `${PINNED_RELEASE_ORIGIN}/manifests/${manifestName}`;
     const releaseManifest = signed({
@@ -345,7 +423,7 @@ async function build({ componentRoot, outDir, version, sequence, channel }) {
         }],
       }],
       sequenceFloor,
-      modelManifestSha256: sha256(document([])),
+      modelManifestSha256: '0'.repeat(64),
     }, 'offlineRootSignature', BUNDLE_DOMAIN, keys.rootPrivateKey);
     const bundleDocument = document(releaseBundle);
     await writeFile(bundlePath, bundleDocument, { mode: 0o600 });
