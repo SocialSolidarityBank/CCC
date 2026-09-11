@@ -143,17 +143,23 @@ async function snapshot(overrides = {}) {
 }
 
 async function sourceEvidence(records = [...objects(), ...grants()].filter(record => record.provenance === 'supabase_managed')) {
+  const sourceUrls = [
+    'https://github.com/supabase/auth',
+    'https://github.com/supabase/storage',
+    'https://github.com/supabase/realtime',
+    'https://github.com/postgres/postgres',
+    'https://github.com/supabase/supabase',
+    'https://github.com/supabase/postgres',
+  ];
   return {
     schemaVersion: 1,
     provider: 'supabase',
-    sourceRevision: '55'.repeat(20),
     databaseVersion: '17.4',
     records: await Promise.all(records.map(async (record, index) => ({
       kind: record.kind,
       identitySha256: await sourceIdentity(record),
-      sourceUrl: index % 2 === 0
-        ? 'https://github.com/supabase/supabase'
-        : 'https://github.com/supabase/postgres',
+      sourceUrl: sourceUrls[index % sourceUrls.length],
+      sourceRevision: (await HASH(`revision-${index}`)).slice(0, 40),
       sourcePath: index % 2 === 0 ? 'apps/studio/schema.sql' : 'migrations/grants.sql',
       sourceSha256: await HASH(`source-${index}`),
     }))),
@@ -318,6 +324,20 @@ test('signs verified stable empty observations including routine and type grant 
   await withFixture(async current => {
     const observed = await snapshot();
     const inputs = await generationInputs(current, observed, structuredClone(observed));
+    assert.deepEqual(
+      new Set(JSON.parse(current.sourceEvidenceInput).records.map(record => record.sourceUrl)),
+      new Set([
+        'https://github.com/supabase/auth',
+        'https://github.com/supabase/storage',
+        'https://github.com/supabase/realtime',
+        'https://github.com/postgres/postgres',
+      ]),
+    );
+    assert.equal(
+      JSON.parse(current.sourceEvidenceInput).records
+        .every(record => /^[0-9a-f]{40}$/u.test(record.sourceRevision)),
+      true,
+    );
     const result = await generateProviderBaseline(inputs);
 
     assert.deepEqual(Object.keys(result), [
@@ -440,15 +460,24 @@ test('rejects strict source evidence failures without partial output', async () 
       { ...valid.records[0], ...overrides },
       ...valid.records.slice(1),
     ];
+    const omitFirst = field => {
+      const first = { ...valid.records[0] };
+      delete first[field];
+      return [first, ...valid.records.slice(1)];
+    };
     const cases = [
       ['missing mapping', { ...valid, records: valid.records.slice(0, 1) }],
       ['duplicate mapping', { ...valid, records: [...valid.records, valid.records[0]] }],
-      ['non-GitHub origin', { ...valid, records: replaceFirst({ sourceUrl: 'https://example.com/supabase' }) }],
+      ['unlisted repository', { ...valid, records: replaceFirst({ sourceUrl: 'https://github.com/example/supabase' }) }],
       ['moving branch URL', { ...valid, records: replaceFirst({ sourceUrl: 'https://github.com/supabase/supabase/tree/main' }) }],
+      ['missing record revision', { ...valid, records: omitFirst('sourceRevision') }],
+      ['moving revision', { ...valid, records: replaceFirst({ sourceRevision: 'main' }) }],
+      ['malformed revision', { ...valid, records: replaceFirst({ sourceRevision: 'A'.repeat(40) }) }],
       ['wrong source hash', { ...valid, records: replaceFirst({ sourceSha256: 'A'.repeat(64) }) }],
       ['wrong identity hash', { ...valid, records: replaceFirst({ identitySha256: '00'.repeat(32) }) }],
       ['nonnormal source path', { ...valid, records: replaceFirst({ sourcePath: 'schema/../schema.sql' }) }],
       ['parent-only source path', { ...valid, records: replaceFirst({ sourcePath: '..' }) }],
+      ['obsolete document revision', { ...valid, sourceRevision: '55'.repeat(20) }],
       ['unknown evidence field', { ...valid, unknown: true }],
     ];
     for (const [name, evidence] of cases) {

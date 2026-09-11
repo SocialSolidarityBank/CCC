@@ -32,6 +32,10 @@ const FORBIDDEN_IDENTITY = /[\p{Cc}/\\]/u;
 const SOURCE_URLS = new Set([
   'https://github.com/supabase/supabase',
   'https://github.com/supabase/postgres',
+  'https://github.com/supabase/auth',
+  'https://github.com/supabase/storage',
+  'https://github.com/supabase/realtime',
+  'https://github.com/postgres/postgres',
 ]);
 const SOURCE_KINDS = new Set([
   'schema', 'relation', 'routine', 'type', 'catalog', 'column', 'default', 'role',
@@ -42,10 +46,10 @@ const TRUST_UNSIGNED_KEYS = [
   'notBefore', 'expiresAt',
 ].sort();
 const SOURCE_EVIDENCE_KEYS = [
-  'schemaVersion', 'provider', 'sourceRevision', 'databaseVersion', 'records',
+  'schemaVersion', 'provider', 'databaseVersion', 'records',
 ].sort();
 const SOURCE_RECORD_KEYS = [
-  'kind', 'identitySha256', 'sourceUrl', 'sourcePath', 'sourceSha256',
+  'kind', 'identitySha256', 'sourceUrl', 'sourceRevision', 'sourcePath', 'sourceSha256',
 ].sort();
 const EMPTY_BUSINESS_KEYS = [
   'userTableCount', 'userRowEstimate', 'authUserCount', 'bucketCount', 'storageObjectCount',
@@ -202,8 +206,6 @@ function validateSourceEvidenceShape(value) {
   if (!hasExactKeys(value, SOURCE_EVIDENCE_KEYS)
     || value.schemaVersion !== 1
     || value.provider !== 'supabase'
-    || typeof value.sourceRevision !== 'string'
-    || !SOURCE_REVISION.test(value.sourceRevision)
     || typeof value.databaseVersion !== 'string'
     || !DATABASE_VERSION.test(value.databaseVersion)
     || !Array.isArray(value.records)) fail();
@@ -215,6 +217,8 @@ function validateSourceEvidenceShape(value) {
       || typeof record.identitySha256 !== 'string'
       || !SHA256_HEX.test(record.identitySha256)
       || !SOURCE_URLS.has(record.sourceUrl)
+      || typeof record.sourceRevision !== 'string'
+      || !SOURCE_REVISION.test(record.sourceRevision)
       || !normalizedSourcePath(record.sourcePath)
       || typeof record.sourceSha256 !== 'string'
       || !SHA256_HEX.test(record.sourceSha256)
@@ -567,7 +571,6 @@ export async function generateProviderBaseline({
     ownerOrgIdSha256: authorization.expectedOwnerOrgIdHash,
     region: 'ap-northeast-2',
     databaseVersion: sourceEvidence.databaseVersion,
-    sourceRevision: sourceEvidence.sourceRevision,
     sourceEvidenceSha256,
     emptyBusinessState,
     objects: first.providerInventory.objects,
