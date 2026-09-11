@@ -67,6 +67,25 @@ The resumed planner currently reconciles recorded `storage_bucket` resources aga
 
 Credentials continue to enter only through scoped environment injection. A working pooler connection does not replace Management API owner/control-plane checks. `CCC_INSTALL_DATABASE_URL` is used only by separately approved installer writes, never as a fallback for the ordinary runtime's `CCC_DATABASE_URL`. It must bind the already-approved project through its direct endpoint or Seoul session-pooler username and port 5432; TLS remains `verify-full`. No native keyring, browser, token file, owner discovery or authentication mechanism is added.
 
+### Beta provider baseline generation
+
+This installer-only command issues development `beta` trust. It is not S12 formal release trust and does not authorize database writes, apply, deployment, AI, or STT. Run it only after the S11 owner documents and pinned Supabase source review have been approved. The generator performs two read-only observations and stops unless both inventory hashes are identical and all business table, row, Auth user, bucket, and Storage object counters are zero.
+
+The source-evidence document must use the exact `ProviderSourceEvidenceV1` shape in `docs/superpowers/specs/2026-09-11-beta-provider-baseline-design.md`. Every record carries its own immutable 40-character lowercase hexadecimal `sourceRevision`, normalized relative `sourcePath`, and already-checked file SHA-256. `sourceUrl` is exactly one of `https://github.com/supabase/supabase`, `https://github.com/supabase/postgres`, `https://github.com/supabase/auth`, `https://github.com/supabase/storage`, `https://github.com/supabase/realtime`, or `https://github.com/postgres/postgres`. There is no document-level source revision because one evidence document may pin different commits from all six repositories. The signed baseline commits to the complete evidence document through `sourceEvidenceSha256`. The generator does not download source. Each `supabase_managed` object or grant has exactly one evidence record whose `identitySha256` is the SHA-256 of UTF-8 JCS of that normalized inventory record after removing only `provenance`. Extension objects and initial-privilege grants need no manual evidence row.
+
+Supply the existing S11 installer bindings plus `SUPABASE_ACCESS_TOKEN`, `CCC_BETA_ROOT_SIGNING_PRIVATE_KEY`, `CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY`, `CCC_BETA_TRUST_ROOT_KEYS`, and `CCC_BETA_REVOKED_ROOT_KEY_IDS`. Both private keys are canonical standard-Base64 PKCS#8 Ed25519 keys. The public root map remains the external trust root; the generator requires exactly one entry to match the root private key and rejects revoked roots. Keep these values in the installer process only and never bind them to the Community Cloud runtime.
+
+The CLI accepts only these flags:
+
+```sh
+node scripts/supabase/provider-baseline-generate.mjs \
+  --source-evidence artifacts/beta-0.9/2026-09-11-provider-source-review.json \
+  --release-trust-output /tmp/relayer-beta-release-trust-20260911.json \
+  --baseline-output /tmp/relayer-provider-baseline-20260911.json
+```
+
+Both output parents must already exist. The generator resolves them to canonical directories and checks ancestry and type before writing. Each destination is created exclusively and atomically per path from an fsynced mode `0600` no-follow temporary file, and an existing document is never overwritten. Node does not expose `openat` or `unlinkat`, so cleanup verifies each created file's device and inode and is best effort. If cleanup cannot be verified, generation fails with a fixed redacted code and never returns success. The operator must choose output directories that it controls and that no other principal can write or rename during generation. Successful stdout contains only `baselineVersion`, object and grant counts, and the three document hashes. Failure emits no document detail, URL, project ref, object or grant name, key, signature, token, connection string, or path.
+
 ### Pending executable verification
 
 Main may run these only after merging the frozen migration/checkpoint changes and approving verification. They were **not run** in this source-only checkpoint:

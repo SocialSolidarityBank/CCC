@@ -110,7 +110,7 @@ async function privateSchemaExists(session) {
   return exists;
 }
 
-async function withBlockingTransaction(sql, acquire, run) {
+async function withBlockingTransaction(sql, acquire, run, waitForOperation) {
   const blocker = await sql.reserve();
   let transactionOpen = false;
   let failSafe;
@@ -127,6 +127,7 @@ async function withBlockingTransaction(sql, acquire, run) {
     transactionOpen = true;
     await acquire(blocker);
     const operation = Promise.resolve().then(() => run(blocker));
+    if (waitForOperation) await waitForOperation(blocker, operation);
     const escaped = new Promise(resolve => {
       failSafe = setTimeout(() => resolve(true), 10_000);
     });
@@ -203,6 +204,7 @@ const fixtureCleanup = `DROP TABLE IF EXISTS
 DROP TYPE IF EXISTS
   public.ccc_install_journal_test_enum,
   public.ccc_install_journal_test_domain,
+  public.ccc_install_journal_oid_type,
   private.ccc_install_journal_test_composite,
   private.ccc_install_journal_test_range CASCADE`;
 
@@ -320,7 +322,7 @@ databaseTest('a blocked journal row times out without mutation and releases the 
   });
 });
 
-databaseTest('a blocked migration DDL times out without a receipt and releases the project lock', { timeout: 30_000 }, async () => {
+databaseTest('a blocked migration DDL times out without a receipt and releases the project lock', { timeout: 60_000 }, async () => {
   await withDatabase(async sql => {
     const setup = await sql.reserve();
     let before;
@@ -345,7 +347,7 @@ databaseTest('a blocked migration DDL times out without a receipt and releases t
       blocker => blocker.unsafe(
         'LOCK TABLE public.ccc_install_journal_test_lock_target IN ACCESS SHARE MODE',
       ),
-      async blocker => {
+      async () => {
         const attempt = withInstallLock(sql, hashes.project, async session => {
           const [{ pid }] = await session.unsafe('SELECT pg_backend_pid() AS pid');
           const [settings] = await session.unsafe(`SELECT
@@ -365,12 +367,12 @@ databaseTest('a blocked migration DDL times out without a receipt and releases t
             { authorize: authorizeFresh },
           );
         });
-        await observeBlockedMigrationRelation(blocker, attempt);
         await assert.rejects(
           attempt,
           error => error?.code === 'MIGRATION_APPLY_FAILED',
         );
       },
+      (blocker, operation) => observeBlockedMigrationRelation(blocker, operation),
     );
     const observer = await sql.reserve();
     try {
@@ -596,6 +598,32 @@ databaseTest('catalog fingerprint covers both schemas and standalone user types 
         { authorize: authorizeFresh },
       ), error => error.code === 'DRIFT_BLOCKED');
       assert.equal((await readInstallState(session, authorization().installationId)).migrations.length, 0);
+    } finally {
+      await session.release();
+    }
+  });
+});
+
+databaseTest('equivalent restored catalog keeps its fingerprint across new OIDs', async () => {
+  await withDatabase(async sql => {
+    const session = await sql.reserve();
+    try {
+      await bootstrap(session, authorization(), desired());
+      const createEquivalentCatalog = () => session.unsafe(`
+        CREATE TYPE public.ccc_install_journal_oid_type AS ENUM ('first', 'second');
+        CREATE FUNCTION public.ccc_install_journal_oid_identity(
+          value public.ccc_install_journal_oid_type
+        ) RETURNS public.ccc_install_journal_oid_type
+        LANGUAGE sql IMMUTABLE AS 'SELECT value'
+      `);
+      await createEquivalentCatalog();
+      const before = await readDatabaseInstallFingerprint(session);
+      await session.unsafe(
+        'DROP TYPE public.ccc_install_journal_oid_type CASCADE',
+      );
+      await createEquivalentCatalog();
+      const after = await readDatabaseInstallFingerprint(session);
+      assert.equal(after, before);
     } finally {
       await session.release();
     }

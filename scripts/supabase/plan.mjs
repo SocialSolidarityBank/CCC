@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
+import { isDeepStrictEqual } from 'node:util';
 import { assertAuthorizationCurrent, assertAuthorizationMatches, hashCanonical } from './manifest-preflight.mjs';
+import { compareProviderInventory } from './provider-baseline.mjs';
 
 export const expectedSupabaseResources = Object.freeze([
   { kind: 'installation-journal', name: 'private.ccc_install_journal' },
@@ -54,6 +56,9 @@ const safeFailures = Object.freeze({
   MANIFEST_VERIFIER_UNAVAILABLE: 'Community Cloud manifest 검증 모듈을 먼저 빌드해야 합니다.',
   MIGRATION_CHECKSUM_MISMATCH: '마이그레이션 파일과 정본의 파일별 체크섬이 일치하지 않습니다.',
   CA_TRUST_UNAVAILABLE: '애플리케이션 전용 CA 파일과 프로세스 신뢰 설정을 확인하지 못했습니다.',
+  BETA_TRUST_INVALID: '개발판 신뢰 문서가 유효하지 않습니다. 외부 root 설정, 서명, 폐기 상태와 만료를 확인합니다.',
+  PROVIDER_BASELINE_INVALID: '공급자 기준선이 유효하지 않습니다. 서명, 범위와 만료를 확인합니다.',
+  PROVIDER_BASELINE_MISMATCH: '공급자 기준선과 현재 프로젝트 구성이 다릅니다.',
   OWNER_MISMATCH: '관찰한 프로젝트 소유자가 서명된 설치 승인과 다릅니다.',
   INSTALL_AUTHORIZATION_MISMATCH: '재개 또는 재승인 문서가 기존 설치의 서명 결합과 다릅니다.',
   INSTALL_LOCK_BUSY: '같은 프로젝트의 다른 설치 작업이 진행 중입니다.',
@@ -100,6 +105,10 @@ const blockerDetails = Object.freeze({
     message: '현재 기관에 대해 유효한 설치 승인과 서명 결합을 확인하지 못했습니다.',
     recovery: '외부에서 구성한 기관별 trust와 두 서명 문서의 만료 및 폐기 상태를 확인합니다.',
   },
+  PROVIDER_BASELINE_MISMATCH: {
+    message: '공급자 기준선과 현재 프로젝트 구성이 다릅니다.',
+    recovery: '프로젝트를 변경하지 말고 공급자 구성과 서명된 기준선 버전을 다시 대조합니다.',
+  },
   CONNECTION_NOT_READ_ONLY: {
     message: '읽기 전용 연결을 확인하지 못했습니다.',
     recovery: 'database_read 권한과 읽기 전용 점검 경로를 확인한 뒤 다시 실행합니다.',
@@ -111,6 +120,7 @@ const blockerDetails = Object.freeze({
 });
 
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
+const LEGACY_CLEANLINESS_GRANT_KINDS = new Set(['schema', 'relation', 'column', 'default', 'role']);
 const INSTALL_PHASES = new Set(['planned', 'installing', 'installed', 'rollback_failed']);
 const INSTALL_STEPS = new Set([
   'baseline', 'platform_migration', 'auth_config', 'storage_bucket', 'cron_job',
@@ -118,28 +128,168 @@ const INSTALL_STEPS = new Set([
   'restore_provider_metadata', 'switch_release', 'verify_receipt',
 ]);
 
-function hasProvedCleanInventory(state) {
-  return ['unownedObjectCount', 'unexpectedGrantCount'].every(key =>
-    Number.isSafeInteger(state?.[key]) && state[key] === 0);
+const VERIFIED_PROVIDER_BASELINE_KEYS = [
+  'baselineVersion', 'projectRefSha256', 'ownerOrgIdSha256', 'region',
+  'databaseVersion', 'objects', 'grants', 'objectInventorySha256',
+  'grantInventorySha256', 'baselineSha256', 'releaseTrustSha256', 'expiresAt',
+].sort();
+
+function isVerifiedProviderBaseline(value, authorization) {
+  return isRecord(value)
+    && Object.keys(value).sort().join('\0') === VERIFIED_PROVIDER_BASELINE_KEYS.join('\0')
+    && typeof value.baselineVersion === 'string' && value.baselineVersion.length > 0
+    && value.projectRefSha256 === authorization?.projectRefHash
+    && value.ownerOrgIdSha256 === authorization?.expectedOwnerOrgIdHash
+    && value.region === 'ap-northeast-2'
+    && typeof value.databaseVersion === 'string' && value.databaseVersion.length > 0
+    && Array.isArray(value.objects) && Array.isArray(value.grants)
+    && SHA256_HEX.test(value.objectInventorySha256)
+    && SHA256_HEX.test(value.grantInventorySha256)
+    && SHA256_HEX.test(value.baselineSha256)
+    && SHA256_HEX.test(value.releaseTrustSha256)
+    && typeof value.expiresAt === 'string' && !Number.isNaN(Date.parse(value.expiresAt));
 }
 
-function hasUnownedProjectState(snapshot) {
+export function assertProviderBaselineCurrent(value, authorization, now = Date.now()) {
+  const currentTime = now instanceof Date ? now.getTime() : now;
+  if (!isVerifiedProviderBaseline(value, authorization)
+    || !Number.isFinite(currentTime)
+    || currentTime >= Date.parse(value.expiresAt)) {
+    throw new PlanFailure('PROVIDER_BASELINE_INVALID');
+  }
+}
+
+function inventoryKey(record, grant = false) {
+  return JSON.stringify(grant
+    ? [
+        record.kind, record.schema, record.objectIdentity, record.grantor,
+        record.grantee, record.privilege, record.grantable,
+        record.inheritOption, record.setOption,
+      ]
+    : [record.kind, record.schema, record.identity]);
+}
+
+function withoutProvedRecords(observed, proved, grant = false) {
+  const indexed = new Map(proved.map(record => [inventoryKey(record, grant), record]));
+  return observed.filter(record => {
+    const candidate = indexed.get(inventoryKey(record, grant));
+    return candidate === undefined || !isDeepStrictEqual(candidate, record);
+  });
+}
+
+async function reconciledProviderInventory(snapshot) {
+  const raw = snapshot.providerInventory;
+  const completeObjectCount = snapshot.state?.providerObjectCount;
+  const completeGrantCount = snapshot.state?.providerGrantCount;
+  if (!Array.isArray(raw?.objects) || !Array.isArray(raw?.grants)
+    || !Number.isSafeInteger(completeObjectCount) || completeObjectCount < 0
+    || !Number.isSafeInteger(completeGrantCount) || completeGrantCount < 0
+    || raw.objects.length !== completeObjectCount || raw.grants.length !== completeGrantCount) {
+    return { inventory: raw, objectCount: null, grantCount: null };
+  }
+  const installationObjects = raw.installationObjects ?? [];
+  const installationGrants = raw.installationGrants ?? [];
+  if (!Array.isArray(installationObjects) || !Array.isArray(installationGrants)
+    || installationObjects.length > completeObjectCount
+    || installationGrants.length > completeGrantCount) {
+    return { inventory: raw, objectCount: null, grantCount: null };
+  }
+  if (installationObjects.length === 0 && installationGrants.length === 0) {
+    return { inventory: raw, objectCount: completeObjectCount, grantCount: completeGrantCount };
+  }
+  const journal = snapshot.installState?.journal;
+  if (!SHA256_HEX.test(snapshot.databaseFingerprint)
+    || journal?.databaseFingerprint !== snapshot.databaseFingerprint) {
+    return { inventory: raw, objectCount: completeObjectCount, grantCount: completeGrantCount };
+  }
+  const objects = withoutProvedRecords(raw.objects, installationObjects);
+  const grants = withoutProvedRecords(raw.grants, installationGrants, true);
+  const objectCount = completeObjectCount - installationObjects.length;
+  const grantCount = completeGrantCount - installationGrants.length;
+  if (objects.length !== objectCount || grants.length !== grantCount) {
+    return { inventory: raw, objectCount: null, grantCount: null };
+  }
+  return {
+    inventory: {
+      objects,
+      grants,
+      objectInventorySha256: await hashCanonical(objects),
+      grantInventorySha256: await hashCanonical(grants),
+    },
+    objectCount,
+    grantCount,
+  };
+}
+
+function providerCleanlinessMatches(state, inventory) {
+  if (!Array.isArray(inventory?.objects) || !Array.isArray(inventory?.grants)) return false;
+  const unownedObjects = inventory.objects.filter(record => (
+    record.provenance === 'supabase_managed'
+      && !(record.kind === 'schema' && record.schema === 'public')
+  ));
+  const customSchemas = unownedObjects.filter(record => record.kind === 'schema');
+  const unexpectedGrants = inventory.grants.filter(record => (
+    LEGACY_CLEANLINESS_GRANT_KINDS.has(record.kind)
+      && record.provenance === 'supabase_managed'
+      && record.grantee !== `ROLE:${record.grantor}`
+  ));
+  return state?.unownedObjectCount === unownedObjects.length
+    && state.unknownObjectCount === unownedObjects.length
+    && state.customSchemaCount === customSchemas.length
+    && state.unexpectedGrantCount === unexpectedGrants.length;
+}
+
+async function providerBaselineComparison(snapshot, providerBaseline) {
+  const reconciled = await reconciledProviderInventory(snapshot);
+  const comparison = compareProviderInventory(providerBaseline, reconciled.inventory);
+  return {
+    ...comparison,
+    inventory: reconciled.inventory,
+    cleanlinessMatched: providerCleanlinessMatches(snapshot.state, reconciled.inventory),
+    matched: comparison.matched
+      && snapshot.project.databaseVersion === providerBaseline.databaseVersion
+      && reconciled.objectCount === comparison.expectedObjectCount
+      && reconciled.grantCount === comparison.expectedGrantCount,
+  };
+}
+
+function safeProviderBaseline(providerBaseline, comparison) {
+  return {
+    matched: comparison.matched,
+    baselineVersion: providerBaseline.baselineVersion,
+    expectedObjectCount: comparison.expectedObjectCount,
+    observedObjectCount: comparison.observedObjectCount,
+    expectedGrantCount: comparison.expectedGrantCount,
+    observedGrantCount: comparison.observedGrantCount,
+    objectInventorySha256: comparison.objectInventorySha256,
+    grantInventorySha256: comparison.grantInventorySha256,
+  };
+}
+
+function hasProvedProviderInventory(state, matched) {
+  return Number.isSafeInteger(state?.unownedObjectCount)
+    && Number.isSafeInteger(state?.unexpectedGrantCount)
+    && (matched === undefined
+      ? state.unownedObjectCount === 0 && state.unexpectedGrantCount === 0
+      : matched);
+}
+
+function hasUnownedProjectState(snapshot, providerMatched) {
   const state = snapshot.state;
-  return !hasProvedCleanInventory(state)
+  return !hasProvedProviderInventory(state, providerMatched)
     || state.userTableCount > 0 || state.userRowEstimate > 0
     || state.rlsEnabledTableCount > 0 || state.policyCount > 0
     || state.authUserCount > 0 || state.bucketCount > 0 || state.storageObjectCount > 0
-    || state.userRoutineCount > 0 || state.userTypeCount > 0 || state.customSchemaCount > 0
-    || state.unknownObjectCount > 0 || state.auxiliaryRelationCount > 0 || state.privateSchemaExists
+    || state.userRoutineCount > 0 || state.userTypeCount > 0
+    || state.auxiliaryRelationCount > 0 || state.privateSchemaExists
     || (state.privateTableNames?.length ?? 0) > 0 || (snapshot.cronJobCount ?? 0) > 0;
 }
 
-function resourcesMatchObservation(snapshot, state, installationId) {
+function resourcesMatchObservation(snapshot, state, installationId, providerMatched) {
   const ownershipTag = `ccc.installation_id=${installationId}`;
-  if (!hasProvedCleanInventory(snapshot.state)
+  if (!hasProvedProviderInventory(snapshot.state, providerMatched)
     || (snapshot.cronJobCount ?? 0) > 0
-    || snapshot.state.customSchemaCount > 0 || snapshot.state.userTypeCount > 0
-    || snapshot.state.unknownObjectCount > 0
+    || snapshot.state.userTypeCount > 0
     || !Array.isArray(snapshot.state.buckets) || !Array.isArray(state.resources)
     || snapshot.state.bucketCount !== snapshot.state.buckets.length) return false;
   if (snapshot.state.buckets.length !== state.resources.length) return false;
@@ -188,8 +338,8 @@ function isSeoulRegion(region) {
   return region === 'ap-northeast-2';
 }
 
-export async function installationStateFingerprint(snapshot) {
-  return hashCanonical({
+export async function installationStateFingerprint(snapshot, providerBaseline, providerInventory) {
+  const state = {
     region: snapshot.project.region,
     ownerOrgIdHash: snapshot.project.ownerOrgIdHash ?? null,
     database: snapshot.databaseFingerprint ?? snapshot.state.schemaFingerprint,
@@ -197,6 +347,16 @@ export async function installationStateFingerprint(snapshot) {
     buckets: snapshot.state.bucketFingerprint,
     auth: snapshot.state.authFingerprint,
     cron: snapshot.cronJobCount ?? 0,
+  };
+  if (providerBaseline === undefined) return hashCanonical(state);
+  const inventory = providerInventory
+    ?? (await reconciledProviderInventory(snapshot)).inventory;
+  return hashCanonical({
+    ...state,
+    providerBaselineVersion: providerBaseline.baselineVersion,
+    providerBaselineSha256: providerBaseline.baselineSha256,
+    providerObjectsSha256: inventory.objectInventorySha256,
+    providerGrantsSha256: inventory.grantInventorySha256,
   });
 }
 
@@ -346,22 +506,58 @@ async function doctorReceiptIssues(snapshot, state, authorization, migrations) {
 }
 
 /** Observations contain no credentials or source documents; authority is verified separately. */
-export async function buildSupabasePlan({ target, inspector, authorization, renewAuthorization = false }) {
+export async function buildSupabasePlan({
+  target,
+  inspector,
+  authorization,
+  providerBaseline,
+  renewAuthorization = false,
+  now = Date.now,
+}) {
   if (target !== 'hosted' && target !== 'local') throw new PlanFailure('TARGET_UNSUPPORTED');
-  if (target === 'hosted') assertAuthorizationCurrent(authorization);
+  if (target === 'hosted') {
+    assertAuthorizationCurrent(authorization);
+    assertProviderBaselineCurrent(providerBaseline, authorization, now());
+  }
   const migrations = postgresMigrationPlan();
-  const resourcesSha256 = await hashCanonical(expectedSupabaseResources);
   const migrationsSha256 = await hashCanonical(migrations);
   let before;
   let after;
   try {
     before = await inspector.inspect();
-    if (target === 'hosted') assertAuthorizationCurrent(authorization);
+    if (target === 'hosted') {
+      assertAuthorizationCurrent(authorization);
+      assertProviderBaselineCurrent(providerBaseline, authorization, now());
+    }
     after = await inspector.inspect();
-    if (target === 'hosted') assertAuthorizationCurrent(authorization);
+    if (target === 'hosted') {
+      assertAuthorizationCurrent(authorization);
+      assertProviderBaselineCurrent(providerBaseline, authorization, now());
+    }
   } catch (error) {
     throw new PlanFailure(error?.code ?? (target === 'local' ? 'LOCAL_SUPABASE_UNAVAILABLE' : 'PROVIDER_UNREADABLE'));
   }
+  const beforeProvider = target === 'hosted'
+    ? await providerBaselineComparison(before, providerBaseline)
+    : undefined;
+  const afterProvider = target === 'hosted'
+    ? await providerBaselineComparison(after, providerBaseline)
+    : undefined;
+  const providerMatched = target === 'hosted'
+    ? beforeProvider.matched && afterProvider.matched
+    : undefined;
+  const providerCleanlinessMatched = target === 'hosted'
+    ? providerMatched && beforeProvider.cleanlinessMatched && afterProvider.cleanlinessMatched
+    : undefined;
+  const resourcesSha256 = target === 'local'
+    ? await hashCanonical(expectedSupabaseResources)
+    : await hashCanonical({
+        resources: expectedSupabaseResources,
+        providerBaselineVersion: providerBaseline.baselineVersion,
+        providerBaselineSha256: providerBaseline.baselineSha256,
+        providerObjectsSha256: beforeProvider.inventory.objectInventorySha256,
+        providerGrantsSha256: beforeProvider.inventory.grantInventorySha256,
+      });
   const blockers = [];
   const deny = code => blockers.push({ code, ...(blockerDetails[code] ?? { message: new PlanFailure(code).message, recovery: '변경하지 말고 승인된 설치 입력과 journal을 확인합니다.' }) });
   if (![before, after].every(value => value.connection.readOnly && value.connection.databaseReadable
@@ -370,13 +566,18 @@ export async function buildSupabasePlan({ target, inspector, authorization, rene
     if (![before, after].every(value => isSeoulRegion(value.project.region))) deny('REGION_MISMATCH');
     if (![before, after].every(value => value.project.ownerOrgIdHash === authorization.expectedOwnerOrgIdHash)) deny('OWNER_MISMATCH');
   }
-  const stateFingerprint = await installationStateFingerprint(before);
-  const afterStateFingerprint = await installationStateFingerprint(after);
+  if (providerMatched === false) deny('PROVIDER_BASELINE_MISMATCH');
+  const stateFingerprint = await installationStateFingerprint(
+    before, providerBaseline, beforeProvider?.inventory,
+  );
+  const afterStateFingerprint = await installationStateFingerprint(
+    after, providerBaseline, afterProvider?.inventory,
+  );
   const state = before.installState;
   if (!state) {
     if ([before, after].some(snapshot => snapshot.state.legacyLedgerPresent
       || snapshot.installed.ledger === 'present')) deny('RESOURCE_OWNERSHIP_MISMATCH');
-    else if ([before, after].some(hasUnownedProjectState)) deny('EXISTING_PROJECT_NOT_CLEAN');
+    else if ([before, after].some(snapshot => hasUnownedProjectState(snapshot, providerCleanlinessMatched))) deny('EXISTING_PROJECT_NOT_CLEAN');
   } else {
     try {
       const changedPair = state.journal.runtimeManifestSha256 !== authorization.runtimeManifestSha256
@@ -400,7 +601,12 @@ export async function buildSupabasePlan({ target, inspector, authorization, rene
           entry.id !== migrations[index]?.id || entry.checksum !== migrations[index]?.checksum)) deny('MIGRATION_CHECKSUM_MISMATCH');
       }
       if (![before, after].every(snapshot =>
-        resourcesMatchObservation(snapshot, state, authorization.installationId))) {
+        resourcesMatchObservation(
+          snapshot,
+          state,
+          authorization.installationId,
+          providerCleanlinessMatched,
+        ))) {
         deny('RESOURCE_OWNERSHIP_MISMATCH');
       }
     } catch (error) { deny(error?.code ?? 'INSTALL_AUTHORIZATION_MISMATCH'); }
@@ -417,11 +623,22 @@ export async function buildSupabasePlan({ target, inspector, authorization, rene
     && await hashCanonical(before.installed) === await hashCanonical(after.installed)
     && installStateUnchanged;
   if (!unchanged) deny('PLAN_STATE_CHANGED');
-  const planFingerprint = await hashCanonical({
+  const planFingerprintInput = {
     stateFingerprint, resourcesSha256, migrationsSha256,
     runtimeManifestSha256: authorization?.runtimeManifestSha256 ?? null,
     approvalSha256: authorization?.approvalSha256 ?? null,
+  };
+  if (target === 'hosted') Object.assign(planFingerprintInput, {
+    providerBaselineVersion: providerBaseline.baselineVersion,
+    providerBaselineSha256: providerBaseline.baselineSha256,
+    providerObjectsSha256: beforeProvider.inventory.objectInventorySha256,
+    providerGrantsSha256: beforeProvider.inventory.grantInventorySha256,
   });
+  const planFingerprint = await hashCanonical(planFingerprintInput);
+  if (target === 'hosted') {
+    assertAuthorizationCurrent(authorization);
+    assertProviderBaselineCurrent(providerBaseline, authorization, now());
+  }
   return {
     operation: 'plan', target, readOnly: true, ready: blockers.length === 0, productionReady: false, unchanged,
     planFingerprint, stateFingerprint, resourcesSha256, migrationsSha256,
@@ -444,17 +661,29 @@ export async function buildSupabasePlan({ target, inspector, authorization, rene
       rlsEnabledTableCount: before.state.rlsEnabledTableCount, policyCount: before.state.policyCount,
       audioBucket: before.state.bucket, auth: before.auth,
     },
+    ...(target === 'hosted' ? {
+      providerBaseline: safeProviderBaseline(providerBaseline, {
+        ...beforeProvider,
+        matched: providerMatched,
+        objectInventorySha256: beforeProvider.inventory.objectInventorySha256,
+        grantInventorySha256: beforeProvider.inventory.grantInventorySha256,
+      }),
+    } : {}),
     plannedResources: expectedSupabaseResources, migrations, blockers,
     notes: target === 'local' ? ['로컬 개발 관찰이며 설치 승인이나 운영 준비 증거가 아닙니다.'] : ['서명과 소유권을 확인한 읽기 전용 계획이며 DB 변경 승인이 아닙니다.'],
   };
 }
 
 export async function buildSupabaseDoctor(options) {
-  const plan = await buildSupabasePlan(options);
+  const now = options.now ?? Date.now;
+  const plan = await buildSupabasePlan({ ...options, now });
   let snapshot;
   try {
     snapshot = await options.inspector.inspect();
-    if (options.target === 'hosted') assertAuthorizationCurrent(options.authorization);
+    if (options.target === 'hosted') {
+      assertAuthorizationCurrent(options.authorization);
+      assertProviderBaselineCurrent(options.providerBaseline, options.authorization, now());
+    }
   } catch (error) {
     throw new PlanFailure(error?.code ?? (options.target === 'local'
       ? 'LOCAL_SUPABASE_UNAVAILABLE' : 'PROVIDER_UNREADABLE'));
@@ -470,12 +699,23 @@ export async function buildSupabaseDoctor(options) {
     && snapshot.connection.authReadable && snapshot.connection.storageReadable)) {
     addIssue('CONNECTION_NOT_READ_ONLY');
   }
-  const stateFingerprint = await installationStateFingerprint(snapshot);
+  const providerComparison = options.target === 'hosted'
+    ? await providerBaselineComparison(snapshot, options.providerBaseline)
+    : undefined;
+  if (providerComparison && !providerComparison.matched) addIssue('PROVIDER_BASELINE_MISMATCH');
+  const stateFingerprint = await installationStateFingerprint(
+    snapshot, options.providerBaseline, providerComparison?.inventory,
+  );
   if (stateFingerprint !== plan.stateFingerprint) addIssue('PLAN_STATE_CHANGED');
   if (!state) {
     addIssue('INSTALL_NOT_FOUND');
   } else {
-    if (!resourcesMatchObservation(snapshot, state, options.authorization?.installationId)) {
+    if (!resourcesMatchObservation(
+      snapshot,
+      state,
+      options.authorization?.installationId,
+      providerComparison?.matched && providerComparison.cleanlinessMatched,
+    )) {
       addIssue('RESOURCE_OWNERSHIP_MISMATCH');
     }
     if (!SHA256_HEX.test(state.journal?.stateFingerprint)
@@ -484,11 +724,23 @@ export async function buildSupabaseDoctor(options) {
       snapshot, state, options.authorization, plan.migrations,
     )) addIssue(code);
   }
+  if (options.target === 'hosted') {
+    assertAuthorizationCurrent(options.authorization);
+    assertProviderBaselineCurrent(options.providerBaseline, options.authorization, now());
+  }
   return {
     operation: 'doctor', readOnly: true, ready: issues.length === 0, productionReady: false,
     installed: state ? safeInstalledSummary(state, plan.migrations) : plan.installed,
     stateFingerprint,
     completedSteps: safeCompletedSteps(state),
     blockers: issues,
+    ...(options.target === 'hosted' ? {
+      providerBaseline: safeProviderBaseline(options.providerBaseline, {
+        ...providerComparison,
+        matched: plan.providerBaseline.matched && providerComparison.matched,
+        objectInventorySha256: providerComparison.inventory.objectInventorySha256,
+        grantInventorySha256: providerComparison.inventory.grantInventorySha256,
+      }),
+    } : {}),
   };
 }

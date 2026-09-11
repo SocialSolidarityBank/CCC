@@ -27,8 +27,8 @@ export async function verifySignedInstallManifest(
   return manifest;
 }
 
-export async function verifyJcsEd25519Signature(
-  value: unknown,
+export async function verifyEd25519Bytes(
+  message: Uint8Array<ArrayBuffer>,
   signatureBase64: string,
   publicKeyBase64: string,
 ): Promise<boolean> {
@@ -39,7 +39,23 @@ export async function verifyJcsEd25519Signature(
       ED25519,
       await crypto.subtle.importKey('raw', publicKey, ED25519, false, ['verify']),
       signature,
+      message,
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function verifyJcsEd25519Signature(
+  value: unknown,
+  signatureBase64: string,
+  publicKeyBase64: string,
+): Promise<boolean> {
+  try {
+    return await verifyEd25519Bytes(
       encoder.encode(canonicalizeJcs(value)),
+      signatureBase64,
+      publicKeyBase64,
     );
   } catch {
     return false;

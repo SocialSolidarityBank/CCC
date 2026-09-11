@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { PlanFailure } from './plan.mjs';
 import { buildInstallStateQuery, DATABASE_INSTALL_FINGERPRINT_QUERY, hashDatabaseInstallFingerprint, INSTALL_METADATA_TABLES } from './install-journal.mjs';
 import { assertAuthorizationCurrent } from './manifest-preflight.mjs';
+import { normalizeProviderInventory, PROVIDER_INVENTORY_QUERY } from './provider-inventory.mjs';
 
 export const DATABASE_STATE_QUERY = `SELECT * FROM (
 WITH
@@ -157,6 +158,12 @@ WITH
           AND dependency.objid = type_value.oid
           AND dependency.refclassid = 'pg_catalog.pg_extension'::regclass
           AND dependency.deptype = 'e'
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_init_privs AS initial
+        WHERE initial.classoid = 'pg_catalog.pg_type'::regclass
+          AND initial.objoid = type_value.oid AND initial.objsubid = 0
+          AND initial.privtype IN ('i', 'e')
       )
     UNION ALL
     SELECT DISTINCT 'catalog:' || dependency.classid::text, dependency.objid
@@ -348,7 +355,13 @@ SELECT
     ) AS schema_item) AS schema_fingerprint,
   (SELECT pg_catalog.md5(COALESCE(pg_catalog.string_agg(
     pg_catalog.concat_ws(':', namespace.nspname, relation.relname, policy.polname,
-      policy.polpermissive::text, policy.polcmd::text, policy.polroles::text,
+      policy.polpermissive::text, policy.polcmd::text,
+      COALESCE((SELECT pg_catalog.string_agg(
+        CASE WHEN role_oid = 0 THEN 'PUBLIC'
+          ELSE 'ROLE:' || pg_catalog.pg_get_userbyid(role_oid) END,
+        ',' ORDER BY CASE WHEN role_oid = 0 THEN 'PUBLIC'
+          ELSE 'ROLE:' || pg_catalog.pg_get_userbyid(role_oid) END
+      ) FROM pg_catalog.unnest(policy.polroles) AS role_oid), ''),
       COALESCE(pg_catalog.pg_get_expr(policy.polqual, policy.polrelid), ''),
       COALESCE(pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid), '')),
     ',' ORDER BY namespace.nspname, relation.relname, policy.polname
@@ -418,6 +431,91 @@ SELECT
           AND dependency.objid = type_value.oid
           AND dependency.deptype = 'e'
       )) AS user_type_count,
+  (SELECT pg_catalog.count(*)::integer FROM (
+    SELECT namespace.oid, 'schema'::text AS object_kind
+    FROM non_system_namespace AS namespace
+    UNION ALL
+    SELECT relation.oid, 'relation'
+    FROM pg_catalog.pg_class AS relation
+    JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    UNION ALL
+    SELECT procedure.oid, 'routine'
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN non_system_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    UNION ALL
+    SELECT type_value.oid, 'type'
+    FROM pg_catalog.pg_type AS type_value
+    JOIN non_system_namespace AS namespace ON namespace.oid = type_value.typnamespace
+    LEFT JOIN pg_catalog.pg_class AS composite_relation ON composite_relation.oid = type_value.typrelid
+    WHERE (type_value.typrelid = 0 OR composite_relation.relkind = 'c')
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_type AS base_type WHERE base_type.typarray = type_value.oid
+      )
+    UNION ALL
+    SELECT DISTINCT dependency.objid, 'catalog:' || dependency.classid::text
+    FROM pg_catalog.pg_depend AS dependency
+    JOIN non_system_namespace AS namespace
+      ON dependency.refclassid = 'pg_catalog.pg_namespace'::regclass
+      AND dependency.refobjid = namespace.oid
+    WHERE dependency.classid NOT IN (
+      'pg_catalog.pg_class'::regclass, 'pg_catalog.pg_proc'::regclass,
+      'pg_catalog.pg_type'::regclass, 'pg_catalog.pg_namespace'::regclass,
+      'pg_catalog.pg_default_acl'::regclass, 'pg_catalog.pg_extension'::regclass
+    )
+  ) AS provider_object) AS provider_object_count,
+  (SELECT pg_catalog.count(*)::integer FROM (
+    SELECT 1
+    FROM non_system_namespace AS namespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      namespace.nspacl, pg_catalog.acldefault('n'::"char", namespace.nspowner)
+    )) AS privilege
+    UNION ALL
+    SELECT 1
+    FROM pg_catalog.pg_class AS relation
+    JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      relation.relacl,
+      pg_catalog.acldefault((CASE WHEN relation.relkind = 'S' THEN 's' ELSE 'r' END)::"char", relation.relowner)
+    )) AS privilege
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    UNION ALL
+    SELECT 1
+    FROM pg_catalog.pg_attribute AS attribute
+    JOIN pg_catalog.pg_class AS relation ON relation.oid = attribute.attrelid
+    JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      attribute.attacl, pg_catalog.acldefault('c'::"char", relation.relowner)
+    )) AS privilege
+    WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+    UNION ALL
+    SELECT 1
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN non_system_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      procedure.proacl, pg_catalog.acldefault('f'::"char", procedure.proowner)
+    )) AS privilege
+    UNION ALL
+    SELECT 1
+    FROM pg_catalog.pg_type AS type_value
+    JOIN non_system_namespace AS namespace ON namespace.oid = type_value.typnamespace
+    LEFT JOIN pg_catalog.pg_class AS composite_relation ON composite_relation.oid = type_value.typrelid
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      type_value.typacl, pg_catalog.acldefault('T'::"char", type_value.typowner)
+    )) AS privilege
+    WHERE (type_value.typrelid = 0 OR composite_relation.relkind = 'c')
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_type AS base_type WHERE base_type.typarray = type_value.oid
+      )
+    UNION ALL
+    SELECT 1
+    FROM pg_catalog.pg_default_acl AS defaults
+    LEFT JOIN non_system_namespace AS namespace ON namespace.oid = defaults.defaclnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(defaults.defaclacl) AS privilege
+    WHERE defaults.defaclnamespace = 0 OR namespace.oid IS NOT NULL
+    UNION ALL
+    SELECT 1 FROM pg_catalog.pg_auth_members AS membership
+  ) AS provider_grant) AS provider_grant_count,
   (SELECT pg_catalog.count(*)::integer FROM unowned_object) AS unknown_object_count,
   (SELECT pg_catalog.count(*)::integer FROM unowned_schema) AS custom_schema_count,
   (SELECT pg_catalog.count(*)::integer FROM unowned_object) AS unowned_object_count,
@@ -437,6 +535,7 @@ SELECT
     WHERE n.nspname='cron' AND c.relname='job') AS cron_exists,
   EXISTS(SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname='private') AS private_schema_exists,
   pg_catalog.current_setting('server_version') AS database_version,
+  pg_catalog.current_setting('server_version_num') AS database_version_num,
   (pg_catalog.current_setting('transaction_read_only') = 'on') AS read_only,
   pg_catalog.has_database_privilege(CURRENT_USER, pg_catalog.current_database(), 'CONNECT') AS database_readable,
   EXISTS(SELECT 1 FROM pg_catalog.pg_class AS relation
@@ -532,6 +631,32 @@ export function boolean(value) {
   return value === true || value === 'true' || value === 1 || value === '1';
 }
 
+function canonicalDottedVersion(value) {
+  if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > 1_024
+    || !/^\d+(?:\.\d+)*$/u.test(value)) {
+    throw new PlanFailure('PROVIDER_UNREADABLE');
+  }
+  return value.split('.').map(part => BigInt(part).toString()).join('.');
+}
+
+function databaseVersionFromServer(versionNumber, versionLabel) {
+  if (typeof versionNumber !== 'string' || !/^[1-9]\d{4,5}$/u.test(versionNumber)
+    || typeof versionLabel !== 'string' || Buffer.byteLength(versionLabel, 'utf8') > 1_024) {
+    throw new PlanFailure('PROVIDER_UNREADABLE');
+  }
+  const numeric = BigInt(versionNumber);
+  const major = numeric / 10_000n;
+  const remainder = numeric % 10_000n;
+  const canonical = major >= 10n
+    ? `${major}.${remainder}`
+    : `${major}.${remainder / 100n}.${remainder % 100n}`;
+  const prefix = /^(\d+(?:\.\d+)*)(?=$|\s|\()/u.exec(versionLabel)?.[1];
+  if (prefix === undefined || canonicalDottedVersion(prefix) !== canonical) {
+    throw new PlanFailure('PROVIDER_UNREADABLE');
+  }
+  return canonical;
+}
+
 export function normalizeDatabaseSnapshot({ database, migration, auth, authFingerprint = fingerprint(auth), institutionDataFingerprint = '' }) {
   // A legacy public ledger is never treated as an S11 installation journal.
   const ledgerExists = boolean(database.ledger_exists) || boolean(database.private_install_metadata_exists);
@@ -570,6 +695,8 @@ export function normalizeDatabaseSnapshot({ database, migration, auth, authFinge
       customSchemaCount: number(database.custom_schema_count),
       unownedObjectCount: number(database.unowned_object_count),
       unexpectedGrantCount: number(database.unexpected_grant_count),
+      providerObjectCount: number(database.provider_object_count),
+      providerGrantCount: number(database.provider_grant_count),
       auxiliaryRelationCount: number(database.user_auxiliary_relation_count),
       privateTableNames: database.private_table_names ?? [],
       privateSchemaExists: boolean(database.private_schema_exists),
@@ -646,20 +773,35 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
   return {
     async inspect() {
       const project = await projectEvidence();
-      const [authConfig, database] = await Promise.all([
+      const [authConfig, database, providerInventoryRow] = await Promise.all([
         request(`/v1/projects/${ref}/config/auth`),
         readOnlyQuery(DATABASE_STATE_QUERY),
+        readOnlyQuery(PROVIDER_INVENTORY_QUERY),
       ]);
       const auth = safeAuth(authConfig);
       for (const key of [
         'auth_user_count','bucket_count','storage_object_count','user_routine_count','user_type_count',
         'unknown_object_count','custom_schema_count','unowned_object_count','installation_unowned_object_count',
         'installation_unowned_schema_count','unexpected_grant_count','installation_unexpected_grant_count',
+        'provider_object_count','provider_grant_count',
         'user_auxiliary_relation_count','user_table_count','user_row_estimate',
       ]) {
         const value = database[key];
         if ((typeof value !== 'number' && typeof value !== 'string') || !/^\d+$/.test(String(value))
           || !Number.isSafeInteger(Number(value))) throw new PlanFailure('PROVIDER_UNREADABLE');
+      }
+      const observedDatabaseVersion = databaseVersionFromServer(
+        database.database_version_num,
+        database.database_version,
+      );
+      const controlDatabaseVersion = canonicalDottedVersion(project.database?.version);
+      if (observedDatabaseVersion.split('.')[0] !== controlDatabaseVersion.split('.')[0]) {
+        throw new PlanFailure('PROVIDER_UNREADABLE');
+      }
+      const providerInventory = normalizeProviderInventory(providerInventoryRow);
+      if (providerInventory.objects.length !== number(database.provider_object_count)
+        || providerInventory.grants.length !== number(database.provider_grant_count)) {
+        throw new PlanFailure('PROVIDER_UNREADABLE');
       }
       const metadataTables = [...INSTALL_METADATA_TABLES].sort();
       const privateTables = database.private_table_names;
@@ -674,7 +816,10 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
       }
       const cron = boolean(database.cron_exists)
         ? await readOnlyQuery('SELECT count(*)::integer AS count FROM cron.job') : { count: 0 };
-      const databaseFingerprint = hashDatabaseInstallFingerprint([await readOnlyQuery(DATABASE_INSTALL_FINGERPRINT_QUERY)]);
+      const databaseFingerprint = hashDatabaseInstallFingerprint(
+        [await readOnlyQuery(DATABASE_INSTALL_FINGERPRINT_QUERY)],
+        providerInventory,
+      );
       const inventoryDatabase = { ...database };
       // Installation-owned candidates are exempt only after the durable catalog
       // fingerprint proves they are the exact state recorded by this journal.
@@ -702,9 +847,7 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
         project: {
           region: typeof project.region === 'string' ? project.region : null,
           ownerOrgIdHash: createHash('sha256').update(project.organization_id, 'utf8').digest('hex'),
-          databaseVersion: typeof project.database?.version === 'string' && /^[0-9.]+$/u.test(project.database.version)
-            ? project.database.version
-            : null,
+          databaseVersion: observedDatabaseVersion,
           status: typeof project.status === 'string' && /^[A-Z_]+$/u.test(project.status)
             ? project.status
             : 'UNKNOWN',
@@ -716,6 +859,7 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
           authFingerprint: fingerprint(authState),
           institutionDataFingerprint: '',
         }),
+        providerInventory,
         installState,
         databaseFingerprint,
         cronJobCount: number(cron.count),

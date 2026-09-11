@@ -110,7 +110,7 @@ function parseJsonWithoutDuplicateKeys(source) {
   return parsed;
 }
 
-async function documentInput(input) {
+export async function readStrictJsonDocument(input) {
   if (typeof input !== 'string' || input.trim().length === 0) fail();
   let source;
   if (input.trimStart().startsWith('{')) {
@@ -276,8 +276,8 @@ export async function requireSignedOwnerPreflight({
   let configuredTrust;
   try {
     [manifest, approval] = await Promise.all([
-      documentInput(installManifest),
-      documentInput(installApproval),
+      readStrictJsonDocument(installManifest),
+      readStrictJsonDocument(installApproval),
     ]);
     approval = approvalInput(approval);
     configuredTrust = trustInput(trust, organizationId);
