@@ -158,6 +158,8 @@ Auth는 Supabase Auth를 사용한다. 이메일/비밀번호 로그인, invite 
 - 설치 과정에서 기관 관리자 계정이나 실사용자 계정을 자동 생성하지 않는다.
 
 Auth 설정 fingerprint가 영수증과 다르면 drift다. JWT signing secret, service role key, refresh token은 fingerprint와 출력에 포함하지 않는다.
+
+**2026-09-12 Q 확정: 첫 기관 관리자는 `bootstrap.mjs link-first-admin`이 연결한다.** 설치는 여전히 Auth 계정을 만들지 않는다. operator가 Auth 사용자를 먼저 만들고 이메일 확인을 끝낸 뒤, 그 불투명한 Auth 사용자 uuid와 이메일을 이 명령에 인자로 전달한다. `doctor`와 같은 서명된 manifest·승인·소유자 확인·읽기 전용 계획을 통과하고 설치 상태가 `installed`일 때만, 설치 잠금 안 한 transaction에서 `users` 한 행(legacy 역할 `admin`, `active=1`, `auth_subject`)과 그 행의 표준 역할 부여, `first_admin_linked` 영수증 한 건을 남긴다. 표준 역할 부여는 업무 경로와 같은 `users` insert trigger가 만든다. 업무 표는 `ccc_api`에만 정책이 있으므로 설치자는 이 transaction 안에서만 세 표의 FORCE RLS를 내리고 쓰기 뒤 되돌리며, 실패하면 ROLLBACK이 catalog까지 원래대로 돌린다. 기존 기관 관리자나 영수증, 이미 쓰인 Auth 사용자, 이미 있는 이메일은 각각 고정 code로 거부하고 아무것도 쓰지 않는다. 같은 uuid와 이메일로 다시 실행하면 영수증을 확인해 같은 해시를 돌려주고 아무것도 쓰지 않는다. 출력은 `operation`, `ready`, `userIdSha256`, `emailSha256`, `authSubjectSha256`뿐이며 이메일과 Auth 사용자 uuid는 출력하지 않는다. 연결 뒤 첫 로그인에서 그 사용자가 TOTP를 등록하고 기관 초기 설정을 진행한다(ADR-0044 D86).
 ### 2.7 시크릿 배치
 
 시크릿은 호출하는 runtime에만 둔다. 아래 표의 “브라우저” 행을 제외한 값은 browser bundle, bootstrap, receipt, log, 오류 응답에 넣지 않는다.

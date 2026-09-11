@@ -108,6 +108,36 @@ The apply order inside the install lock is fixed: journal preparation, the per-m
 
 The provider steps never enable a database extension. `cron.schedule`, `net.http_post`, `vault.create_secret` and `storage.buckets` must already exist in the project, and a missing one stops apply with `PROVIDER_UNREADABLE` before any write, so enabling pg_cron, pg_net and Vault in the Supabase dashboard is an operator prerequisite. `SUPABASE_SERVICE_ROLE_KEY` is required to be injected into the installer but is never sent to the Management API: its `CreateSecretBody` name pattern refuses `SUPABASE_`-prefixed names and Supabase injects that credential into Edge Functions itself, so `edge_secret_binding` binds only `CCC_INSTALL_MANIFEST` and `CCC_INSTALL_SIGNING_KEYS`.
 
+### First administrator
+
+ADR-0044 D86 fixes the order: install creates the institution, and the first login is the institution's initial setup. No browser form creates the first administrator, so this command is the only path from a completed installation to a usable institution administrator.
+
+The prerequisite is a Supabase Auth user. Create that account first in the Supabase dashboard or through the Auth Admin API and complete its email confirmation. This command never creates an Auth account and never handles a password, whether the operator used an invitation mail or a temporary password. Once the account exists, read its opaque Auth user uuid and link it to the directory with the command below. After linking, that person signs in and enrolls TOTP themselves; sign-in only holds at aal2, so no business screen opens before the enrollment.
+
+```sh
+sh apps/community-cloud/with-ca.sh node scripts/supabase/bootstrap.mjs link-first-admin \
+  --target hosted \
+  --auth-subject 00000000-0000-0000-0000-000000000000 \
+  --email admin@example.org \
+  --name 'Institution administrator'
+```
+
+`--auth-subject` must be the lowercase uuid. An uppercase or otherwise rewritten spelling is refused, because the receipt hash has to match the subject string the runtime sees. `--name` is optional. The inputs are the same as `doctor`: signed manifest, signed approval, institution identifier, signing keys, development beta trust, provider baseline and `SUPABASE_ACCESS_TOKEN`; the write additionally needs `CCC_INSTALL_DATABASE_URL`. Owner verification and the read-only plan run first, and a project whose installation state is not `installed` stops with `FIRST_ADMIN_NOT_INSTALLED`.
+
+The write is one transaction inside the install lock. It records one `users` row (legacy role `admin`, `active=1`, `auth_subject`), that row's canonical role assignments and exactly one `first_admin_linked` receipt. The canonical assignments come from the same `users` insert trigger the business path uses, so the installer does not write them itself. An existing institution administrator or receipt is refused with `FIRST_ADMIN_EXISTS`, an already linked Auth user with `FIRST_ADMIN_SUBJECT_TAKEN` and an existing email with `FIRST_ADMIN_EMAIL_TAKEN`; none of them writes anything. Re-running with the same `--auth-subject` and `--email` reads the receipt, returns the same hashes and writes nothing.
+
+The output is a single JSON report carrying only `operation`, `ready`, `userIdSha256`, `emailSha256` and `authSubjectSha256`. The email, the Auth user uuid and the application user identifier are never printed.
+
+The PostgreSQL scenarios for this command are `scripts/supabase/first-admin.test.mjs`. They require an explicitly injected `CCC_FIRST_ADMIN_TEST_DATABASE_URL` pointing at an empty loopback **disposable** database with a test/fixture/disposable name; missing configuration fails rather than skipping. Never supply an installation or production URL.
+
+```sh
+docker run --rm -d --name s12-first-admin-pg -e POSTGRES_PASSWORD=synthetic-test-only \
+  -e POSTGRES_DB=ccc_first_admin_test -p 127.0.0.1:55435:5432 postgres:17
+CCC_FIRST_ADMIN_TEST_DATABASE_URL='postgres://postgres:synthetic-test-only@127.0.0.1:55435/ccc_first_admin_test' \
+  node --test scripts/supabase/first-admin.test.mjs
+docker rm -f s12-first-admin-pg
+```
+
 ### Pending executable verification
 
 The installer unit suites for the apply, health and prerequisite changes were run in this checkpoint and pass:

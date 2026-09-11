@@ -34,6 +34,7 @@ import {
   loadReleaseIndexForDoctor,
 } from './apply.mjs';
 import { assertSafeOutput, buildRedactedReport, writeRedactedReport } from './report.mjs';
+import { linkFirstAdmin, parseFirstAdminIdentity } from './first-admin.mjs';
 
 const exitCodes = Object.freeze({
   CREDENTIAL_MISSING: 2,
@@ -83,16 +84,21 @@ const exitCodes = Object.freeze({
   SCHEMA_INCOMPATIBLE: 6,
   TRUSTED_TIME_ROLLBACK: 6,
   TRUSTED_TIME_UNAVAILABLE: 6,
+  FIRST_ADMIN_NOT_INSTALLED: 6,
+  FIRST_ADMIN_EXISTS: 6,
+  FIRST_ADMIN_SUBJECT_TAKEN: 6,
+  FIRST_ADMIN_EMAIL_TAKEN: 6,
 });
 
 function parseArgs(argv) {
   const normalized = argv[0] === '--' ? argv.slice(1) : argv;
   const [operation = 'plan', ...rest] = normalized;
-  if (!['plan', 'apply', 'doctor', 'report', 'rollback', 'renew-authorization'].includes(operation)) throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if (!['plan', 'apply', 'doctor', 'report', 'rollback', 'renew-authorization', 'link-first-admin'].includes(operation)) throw new PlanFailure('OPERATION_UNSUPPORTED');
   const options = {
     operation, target: 'hosted', projectRef: null, installManifest: null, installApproval: null,
     manifestUrl: null, renewAuthorization: operation === 'renew-authorization', to: null,
-    format: 'text', workdir: process.cwd(), output: null,
+    format: operation === 'link-first-admin' ? 'json' : 'text', workdir: process.cwd(), output: null,
+    authSubject: null, email: null, name: null,
   };
   const seen = new Set();
   for (let index = 0; index < rest.length; index += 1) {
@@ -111,8 +117,9 @@ function parseArgs(argv) {
     if (![
       '--target', '--project-ref', '--install-manifest', '--install-approval',
       '--manifest-url', '--format', '--workdir', '--to', '--output',
+      '--auth-subject', '--email', '--name',
     ].includes(flag) || seen.has(flag) || value === undefined
-      || (flag === '--output' && value.startsWith('--'))) {
+      || (['--output', '--auth-subject', '--email', '--name'].includes(flag) && value.startsWith('--'))) {
       throw new PlanFailure('OPERATION_UNSUPPORTED');
     }
     index += 1;
@@ -126,6 +133,9 @@ function parseArgs(argv) {
     if (flag === '--format') options.format = value;
     if (flag === '--workdir') options.workdir = value;
     if (flag === '--output') options.output = value;
+    if (flag === '--auth-subject') options.authSubject = value;
+    if (flag === '--email') options.email = value;
+    if (flag === '--name') options.name = value;
   }
   if (options.target !== 'hosted' && options.target !== 'local') throw new PlanFailure('TARGET_UNSUPPORTED');
   if (options.format !== 'text' && options.format !== 'json') throw new PlanFailure('OPERATION_UNSUPPORTED');
@@ -134,6 +144,13 @@ function parseArgs(argv) {
   if (options.manifestUrl !== null && operation !== 'apply') throw new PlanFailure('OPERATION_UNSUPPORTED');
   if (operation === 'apply' && options.manifestUrl === null) throw new PlanFailure('RELEASE_PREREQUISITES_MISSING');
   if (operation === 'report' ? !options.output : options.output !== null) throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if ([options.authSubject, options.email, options.name].some(value => value !== null)
+    && operation !== 'link-first-admin') throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if (operation === 'link-first-admin') {
+    if (options.format !== 'json') throw new PlanFailure('OPERATION_UNSUPPORTED');
+    // 값 자체는 검증하고 출력하지 않는다. 보고서에는 해시만 담긴다.
+    parseFirstAdminIdentity(options);
+  }
   return options;
 }
 
@@ -166,6 +183,18 @@ const task4Failures = Object.freeze({
   TRUSTED_TIME_ROLLBACK: '신뢰 시각이 이전 설치 기록보다 과거로 이동했습니다.',
   TRUSTED_TIME_UNAVAILABLE: '릴리스 출처의 신뢰 시각을 확인하지 못했습니다.',
 });
+
+const firstAdminFailures = Object.freeze({
+  FIRST_ADMIN_NOT_INSTALLED: '설치가 완료된 뒤에만 첫 관리자를 연결할 수 있습니다.',
+  FIRST_ADMIN_EXISTS: '이 기관에는 이미 기관 관리자 또는 첫 관리자 연결 영수증이 있습니다.',
+  FIRST_ADMIN_SUBJECT_TAKEN: '이 Supabase Auth 사용자는 이미 다른 계정에 연결되어 있습니다.',
+  FIRST_ADMIN_EMAIL_TAKEN: '이 이메일은 이미 디렉터리에 있습니다.',
+});
+
+/** 고정 code만 전달한다. safeError가 firstAdminFailures에서 안전한 문구를 찾는다. */
+function firstAdminFailure(code) {
+  return Object.assign(new Error(code), { code });
+}
 
 
 function json(value) {
@@ -205,7 +234,7 @@ function text(plan) {
 }
 
 function safeError(error, format) {
-  const task4Message = task4Failures[error?.code];
+  const task4Message = task4Failures[error?.code] ?? firstAdminFailures[error?.code];
   const failure = task4Message === undefined
     ? (error instanceof PlanFailure ? error : new PlanFailure(error?.code ?? 'PROVIDER_UNREADABLE'))
     : Object.assign(new Error(task4Message), { code: error.code });
@@ -423,6 +452,25 @@ async function main() {
       // No E6-7 verified restore catalog/executor or signed S12 rollback bundle is
       // available in this source tree. Never substitute down SQL or partial deletion.
       throw new PlanFailure('ROLLBACK_PREREQUISITES_MISSING');
+    } else if (result.ready && options.operation === 'link-first-admin') {
+      // ADR-0044 D86: 설치가 기관을 만들고 첫 로그인이 기관 초기 설정이다. 완료된 설치에만
+      // 첫 관리자를 연결하며, 브라우저 양식은 이 경로를 대신할 수 없다.
+      if (result.installed?.state !== 'installed') throw firstAdminFailure('FIRST_ADMIN_NOT_INSTALLED');
+      const linked = await withInstallerConnection(authorization, sql =>
+        withInstallLock(sql, authorization.projectRefHash, session => linkFirstAdmin(session, {
+          orgId: authorization.institutionId,
+          authSubject: options.authSubject,
+          email: options.email,
+          name: options.name,
+        })));
+      if (!linked.ok) throw firstAdminFailure(linked.code);
+      result = {
+        operation: 'link-first-admin',
+        ready: true,
+        userIdSha256: linked.userIdSha256,
+        emailSha256: linked.emailSha256,
+        authSubjectSha256: linked.authSubjectSha256,
+      };
     }
     process.stdout.write(options.format === 'json' ? json(result) : text(result));
     process.exitCode = result.ready ? 0 : 6;

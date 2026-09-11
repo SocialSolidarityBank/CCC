@@ -1649,3 +1649,59 @@ test('doctor reads the pinned release index only with an injected trust store an
     else process.env.CCC_RELEASE_TRUST_STORE = previous;
   }
 });
+
+test('link-first-admin은 잘못된 인자를 공급자 접근 전에 거부한다', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const subject = '0000000a-0000-4000-8000-00000000000b';
+    const email = 'synthetic.creator@example.invalid';
+    for (const extraArgs of [
+      [],
+      ['--auth-subject', subject],
+      ['--email', email],
+      ['--auth-subject', 'not-a-uuid', '--email', email],
+      ['--auth-subject', subject.toUpperCase(), '--email', email],
+      ['--auth-subject', subject, '--email', 'not-an-email'],
+      ['--auth-subject', subject, '--email', email, '--auth-subject', subject],
+      ['--auth-subject', subject, '--email', email, '--name', '--email'],
+      ['--auth-subject', subject, '--email', email, '--to', '0.9.0'],
+    ]) {
+      const result = await runCli(origin, { operation: 'link-first-admin', extraArgs });
+      assert.equal(result.exitCode, 2, result.stderr);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    // 다른 동작은 첫 관리자 인자를 받지 않는다.
+    for (const operation of ['plan', 'doctor', 'report']) {
+      const result = await runCli(origin, {
+        operation, extraArgs: ['--auth-subject', subject, '--email', email],
+      });
+      assert.equal(result.exitCode, 2, result.stderr);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    // 출력은 JSON 보고서로 고정한다.
+    const textFormat = await runCli(origin, {
+      operation: 'link-first-admin', format: 'text',
+      extraArgs: ['--auth-subject', subject, '--email', email],
+    });
+    assert.equal(textFormat.exitCode, 2);
+    assert.match(textFormat.stderr, /^\[OPERATION_UNSUPPORTED\]/u);
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('link-first-admin은 설치가 끝나지 않은 프로젝트에서 연결하지 않는다', async () => {
+  await withManagementApi({}, async ({ origin }) => {
+    const result = await runCli(origin, {
+      operation: 'link-first-admin',
+      signedInput: await signedCliInputs(),
+      extraArgs: [
+        '--auth-subject', '00000000-0000-4000-8000-000000000001',
+        '--email', 'synthetic.creator@example.invalid',
+      ],
+    });
+    assert.equal(result.exitCode, 6, result.stdout);
+    const error = JSON.parse(result.stderr).error;
+    assert.equal(error.code, 'FIRST_ADMIN_NOT_INSTALLED');
+    assert.equal(result.stdout, '');
+    assertNoSensitiveOutput(result, origin);
+  });
+});
