@@ -143,15 +143,37 @@ test('uses the pinned HTTPS endpoint even when environment and extra options req
       floorStore: store,
       now: NOW,
       verifyBundle: verifiedBundle,
+      monotonicNow: () => 0n,
       origin: 'https://attacker.invalid',
     });
     assert.equal(requested.url, ENDPOINT);
     assert.deepEqual(requested.options, { method: 'GET', redirect: 'error' });
-    assert.equal(result.trustedTime, '2026-09-11T12:00:00.000Z');
+    assert.equal(result.trustedTime().toISOString(), '2026-09-11T12:00:00.000Z');
   } finally {
     if (previous === undefined) delete process.env.CCC_RELEASE_ORIGIN;
     else process.env.CCC_RELEASE_ORIGIN = previous;
   }
+});
+
+test('body delay advances authenticated time and rejects expiry before a consumer can extract', async () => {
+  const store = memoryFloorStore();
+  const document = JSON.stringify(realSignedBundle());
+  let monotonic = 0n;
+  await rejectCode(fetchPinnedRelease({
+    fetchImpl: async () => {
+      const delayed = response({ body: document });
+      delayed.text = async () => {
+        monotonic += 12n * 60n * 60n * 1_000_000_000n;
+        return document;
+      };
+      return delayed;
+    },
+    floorStore: store,
+    now: NOW,
+    verifyBundle: verifyRealBundle,
+    monotonicNow: () => monotonic,
+  }), 'TRUSTED_TIME_UNAVAILABLE');
+  assert.equal(store.writes(), 0);
 });
 
 test('rejects a response that resolves to another origin without persisting it', async () => {

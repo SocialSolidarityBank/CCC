@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
+import { dirname, resolve } from 'node:path';
 import { createHostedInspector } from './hosted-inspector.mjs';
 import { createLocalInspector } from './local-inspector.mjs';
 import {
   assertProviderBaselineCurrent,
   buildSupabasePlan,
   buildSupabaseDoctor,
-  installationStateFingerprint,
   PlanFailure,
 } from './plan.mjs';
 import { configuredInstallTrust, requireSignedOwnerPreflight } from './manifest-preflight.mjs';
@@ -16,7 +16,6 @@ import { withInstallerConnection } from './installer-connection.mjs';
 import {
   ensureAuthorization,
   readInstallState,
-  updateInstallPhase,
   withInstallLock,
 } from './install-journal.mjs';
 import {
@@ -24,6 +23,7 @@ import {
   createInstallJournalSession,
   loadReleaseForApply,
 } from './apply.mjs';
+import { assertSafeOutput, buildRedactedReport, writeRedactedReport } from './report.mjs';
 
 const exitCodes = Object.freeze({
   CREDENTIAL_MISSING: 2,
@@ -77,11 +77,11 @@ const exitCodes = Object.freeze({
 function parseArgs(argv) {
   const normalized = argv[0] === '--' ? argv.slice(1) : argv;
   const [operation = 'plan', ...rest] = normalized;
-  if (!['plan', 'apply', 'doctor', 'rollback', 'renew-authorization'].includes(operation)) throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if (!['plan', 'apply', 'doctor', 'report', 'rollback', 'renew-authorization'].includes(operation)) throw new PlanFailure('OPERATION_UNSUPPORTED');
   const options = {
     operation, target: 'hosted', projectRef: null, installManifest: null, installApproval: null,
     manifestUrl: null, renewAuthorization: operation === 'renew-authorization', to: null,
-    format: 'text', workdir: process.cwd(),
+    format: 'text', workdir: process.cwd(), output: null,
   };
   const seen = new Set();
   for (let index = 0; index < rest.length; index += 1) {
@@ -91,11 +91,17 @@ function parseArgs(argv) {
       seen.add(flag);
       continue;
     }
+    if (flag === '--json' && !seen.has('--format') && ['doctor', 'report'].includes(operation)) {
+      options.format = 'json';
+      seen.add('--format');
+      continue;
+    }
     const value = rest[index + 1];
     if (![
       '--target', '--project-ref', '--install-manifest', '--install-approval',
-      '--manifest-url', '--format', '--workdir', '--to',
-    ].includes(flag) || seen.has(flag) || value === undefined) {
+      '--manifest-url', '--format', '--workdir', '--to', '--output',
+    ].includes(flag) || seen.has(flag) || value === undefined
+      || (flag === '--output' && value.startsWith('--'))) {
       throw new PlanFailure('OPERATION_UNSUPPORTED');
     }
     index += 1;
@@ -108,6 +114,7 @@ function parseArgs(argv) {
     if (flag === '--to') options.to = value;
     if (flag === '--format') options.format = value;
     if (flag === '--workdir') options.workdir = value;
+    if (flag === '--output') options.output = value;
   }
   if (options.target !== 'hosted' && options.target !== 'local') throw new PlanFailure('TARGET_UNSUPPORTED');
   if (options.format !== 'text' && options.format !== 'json') throw new PlanFailure('OPERATION_UNSUPPORTED');
@@ -115,18 +122,11 @@ function parseArgs(argv) {
   if (options.to !== null && operation !== 'rollback') throw new PlanFailure('OPERATION_UNSUPPORTED');
   if (options.manifestUrl !== null && operation !== 'apply') throw new PlanFailure('OPERATION_UNSUPPORTED');
   if (operation === 'apply' && options.manifestUrl === null) throw new PlanFailure('RELEASE_PREREQUISITES_MISSING');
+  if (operation === 'report' ? !options.output : options.output !== null) throw new PlanFailure('OPERATION_UNSUPPORTED');
   return options;
 }
 
 
-const forbiddenOutput = [
-  /https?:\/\//iu,
-  /postgres(?:ql)?:\/\//iu,
-  /\bsbp_[A-Za-z0-9_-]+\b/u,
-  /\bsb_(?:secret|service_role)_[A-Za-z0-9_-]+\b/iu,
-  /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/u,
-  /"(?:ed25519Signature|releasePublicKey|objects|grants)"\s*:/iu,
-];
 
 const task4Failures = Object.freeze({
   BACKUP_FAILED: '검증된 백업 경로가 없고 첫 설치 백업 면제 조건도 충족하지 못했습니다.',
@@ -155,11 +155,6 @@ const task4Failures = Object.freeze({
   TRUSTED_TIME_UNAVAILABLE: '릴리스 출처의 신뢰 시각을 확인하지 못했습니다.',
 });
 
-function assertSafeOutput(text) {
-  if (forbiddenOutput.some((pattern) => pattern.test(text))) {
-    throw new PlanFailure('OUTPUT_REDACTION_FAILED');
-  }
-}
 
 function json(value) {
   const rendered = `${JSON.stringify(value, null, 2)}\n`;
@@ -262,12 +257,31 @@ async function main() {
       providerBaseline,
       renewAuthorization: options.renewAuthorization,
     };
-    let result = options.operation === 'doctor'
-      ? await buildSupabaseDoctor(planOptions) : await buildSupabasePlan(planOptions);
-    const resumableDrift = options.operation === 'apply'
-      && result.installed?.state === 'installing'
-      && result.blockers?.length === 1
-      && result.blockers[0]?.code === 'DRIFT_BLOCKED';
+    let reportLedger = null;
+    const diagnosisOptions = options.operation === 'report' ? {
+      ...planOptions,
+      inspector: {
+        async inspect() {
+          const observation = await inspector.inspect();
+          reportLedger = observation.installState;
+          return observation;
+        },
+      },
+    } : planOptions;
+    let result = ['doctor', 'report'].includes(options.operation)
+      ? await buildSupabaseDoctor(diagnosisOptions) : await buildSupabasePlan(planOptions);
+    if (options.operation === 'report') {
+      const report = buildRedactedReport({ doctor: result, ledger: reportLedger });
+      await writeRedactedReport({
+        report,
+        outputPath: options.output,
+        operatorDirectory: dirname(resolve(options.output)),
+      });
+      process.stdout.write(options.format === 'json'
+        ? json(report) : '설치 진단 보고서를 저장했습니다. 미완료 항목은 보고서에서 확인합니다.\n');
+      process.exitCode = result.ready ? 0 : 6;
+      return;
+    }
     if (result.ready && options.operation === 'renew-authorization') {
       result = await withInstallerConnection(authorization, sql => withInstallLock(sql, authorization.projectRefHash, async session => {
         const fresh = await authorize();
@@ -285,7 +299,7 @@ async function main() {
           blockers: [],
         };
       }));
-    } else if ((result.ready || resumableDrift) && options.operation === 'apply') {
+    } else if (result.ready && options.operation === 'apply') {
       const loaded = await loadReleaseForApply({
         manifestUrl: options.manifestUrl,
         authorize: authorizeProviderAccess,
@@ -296,68 +310,23 @@ async function main() {
         result = await withInstallerConnection(authorization, async sql => {
           const applyInspector = {
             inspect: () => inspector.inspect(),
-            async revalidate(expected, session) {
-              const inspectPlan = async () => {
-                let observed;
-                const current = await buildSupabasePlan({
-                  ...planOptions,
-                  inspector: {
-                    inspect: async () => {
-                      observed = await inspector.inspect();
-                      return observed;
-                    },
-                  },
-                  now: () => loaded.trustedTime.getTime(),
-                });
-                return { current, observed };
-              };
-              let checked = await inspectPlan();
-              if (!checked.current.ready && resumableDrift) {
-                const journal = checked.observed?.installState?.journal;
-                if (journal?.phase !== 'installing'
-                  || journal.databaseFingerprint !== checked.observed.databaseFingerprint) {
-                  throw new PlanFailure('DRIFT_BLOCKED');
-                }
-                await updateInstallPhase(session, authorization, {
-                  phase: 'installing',
-                  currentStep: 'switch_release',
-                  stateFingerprint: await installationStateFingerprint(
-                    checked.observed,
-                    providerBaseline,
-                  ),
-                }, { authorize: authorizeProviderAccess });
-                checked = await inspectPlan();
-              }
-              if (!checked.current.ready
-                || checked.current.planFingerprint !== expected.planFingerprint) {
-                throw new PlanFailure('PLAN_STATE_CHANGED');
-              }
-              return checked.observed;
-            },
-            async health({ session, promotion }) {
-              const roles = await session.unsafe(`SELECT
-                rolcanlogin, rolsuper, rolbypassrls,
-                has_database_privilege('ccc_api', current_database(), 'CONNECT') AS can_connect
-                FROM pg_catalog.pg_roles WHERE rolname = 'ccc_api'`);
-              if (roles.length !== 1 || roles[0].rolcanlogin !== true || roles[0].rolsuper !== false
-                || roles[0].rolbypassrls !== false || roles[0].can_connect !== true) {
-                throw Object.assign(new Error('HEALTH_FAILED'), { code: 'HEALTH_FAILED' });
-              }
+            async revalidate(expected) {
+              let observed;
               const current = await buildSupabasePlan({
                 ...planOptions,
-                now: () => loaded.trustedTime.getTime(),
+                inspector: {
+                  inspect: async () => {
+                    observed = await inspector.inspect();
+                    return observed;
+                  },
+                },
+                now: () => loaded.trustedTime().getTime(),
               });
-              if (!current.ready || current.installed.state !== 'installing'
-                || promotion.responseRegion !== 'ap-northeast-2'
-                || current.stateFingerprint !== promotion.stateFingerprint
-                || current.installed.migrationHead !== result.migrations.at(-1)?.id) {
-                throw Object.assign(new Error('HEALTH_FAILED'), { code: 'HEALTH_FAILED' });
+              if (!current.ready
+                || current.planFingerprint !== expected.planFingerprint) {
+                throw new PlanFailure('PLAN_STATE_CHANGED');
               }
-              return {
-                healthy: true,
-                stateFingerprint: current.stateFingerprint,
-                observedOwnerOrgIdHash: current.project.observedOwnerOrgIdHash,
-              };
+              return observed;
             },
           };
           return applyInstallation({
@@ -385,7 +354,8 @@ async function main() {
     process.stdout.write(options.format === 'json' ? json(result) : text(result));
     process.exitCode = result.ready ? 0 : 6;
   } catch (error) {
-    const format = options?.format === 'json' || process.argv.includes('json') ? 'json' : 'text';
+    const format = options?.format === 'json'
+      || process.argv.includes('json') || process.argv.includes('--json') ? 'json' : 'text';
     try {
       const failure = safeError(error, format);
       process.stderr.write(failure.output);

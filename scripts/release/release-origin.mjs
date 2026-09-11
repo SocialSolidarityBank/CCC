@@ -17,6 +17,47 @@ function fail(code) {
   throw new ReleaseOriginError(code);
 }
 
+const TRUSTED_CLOCK = Symbol('trusted-clock');
+
+export function createTrustedClock(authenticatedTime, {
+  monotonicNow = () => process.hrtime.bigint(),
+} = {}) {
+  const base = authenticatedTime instanceof Date
+    ? authenticatedTime.getTime() : Number.NaN;
+  const started = monotonicNow();
+  if (!Number.isFinite(base) || typeof started !== 'bigint') {
+    fail('TRUSTED_TIME_UNAVAILABLE');
+  }
+  let previous = started;
+  const clock = () => {
+    const current = monotonicNow();
+    if (typeof current !== 'bigint' || current < previous || current < started) {
+      fail('TRUSTED_TIME_UNAVAILABLE');
+    }
+    previous = current;
+    const elapsed = Number((current - started) / 1_000_000n);
+    const value = base + elapsed;
+    if (!Number.isSafeInteger(value)) fail('TRUSTED_TIME_UNAVAILABLE');
+    return new Date(value);
+  };
+  Object.defineProperty(clock, TRUSTED_CLOCK, { value: true });
+  return clock;
+}
+
+export function asTrustedClock(value) {
+  if (value instanceof Date) return createTrustedClock(value);
+  if (typeof value === 'function' && value[TRUSTED_CLOCK] === true) return value;
+  fail('TRUSTED_TIME_UNAVAILABLE');
+}
+
+export function trustedTimeNow(clock) {
+  const value = clock();
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    fail('TRUSTED_TIME_UNAVAILABLE');
+  }
+  return value;
+}
+
 function instant(value) {
   if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > 4_096) return Number.NaN;
   return Date.parse(value);
@@ -47,7 +88,13 @@ async function responseDocument(response) {
   return document;
 }
 
-export async function fetchPinnedRelease({ fetchImpl, floorStore, now, verifyBundle }) {
+export async function fetchPinnedRelease({
+  fetchImpl,
+  floorStore,
+  now,
+  verifyBundle,
+  monotonicNow,
+}) {
   if (typeof fetchImpl !== 'function' || typeof verifyBundle !== 'function'
     || typeof floorStore?.read !== 'function' || typeof floorStore?.updateVerified !== 'function'
     || !(now instanceof Date) || !Number.isFinite(now.getTime())) fail('RELEASE_ORIGIN_INVALID');
@@ -70,6 +117,7 @@ export async function fetchPinnedRelease({ fetchImpl, floorStore, now, verifyBun
   const dateHeader = response.headers?.get?.('date');
   const serverTime = httpDate(dateHeader);
   if (!Number.isFinite(serverTime)) fail('TRUSTED_TIME_UNAVAILABLE');
+  const trustedTime = createTrustedClock(new Date(serverTime), { monotonicNow });
 
   let document;
   try {
@@ -80,29 +128,34 @@ export async function fetchPinnedRelease({ fetchImpl, floorStore, now, verifyBun
   }
   let bundle;
   try {
-    bundle = await verifyBundle(document, new Date(serverTime));
+    bundle = await verifyBundle(document, trustedTimeNow(trustedTime));
   } catch (error) {
     if (error?.code === 'BUNDLE_LIFETIME_INVALID') fail('TRUSTED_TIME_UNAVAILABLE');
     throw error;
   }
   const publishedAt = instant(bundle?.publishedAt);
   const expiresAt = instant(bundle?.expiresAt);
+  const currentTime = trustedTimeNow(trustedTime);
   if (!Number.isFinite(publishedAt) || !Number.isFinite(expiresAt)
-    || publishedAt > serverTime || serverTime >= expiresAt) fail('TRUSTED_TIME_UNAVAILABLE');
+    || publishedAt > currentTime.getTime() || currentTime.getTime() >= expiresAt) {
+    fail('TRUSTED_TIME_UNAVAILABLE');
+  }
 
   const existing = await floorStore.read();
   const previousTime = instant(existing?.lastTrustedTime);
   if (existing !== null && (!Number.isFinite(previousTime)
-    || serverTime < previousTime || now.getTime() < previousTime)) fail('TRUSTED_TIME_ROLLBACK');
+    || currentTime.getTime() < previousTime || now.getTime() < previousTime)) {
+    fail('TRUSTED_TIME_ROLLBACK');
+  }
 
-  const trustedTime = new Date(Math.max(publishedAt, serverTime)).toISOString();
+  const persistedTime = trustedTimeNow(trustedTime).toISOString();
   const state = await floorStore.updateVerified({
     sequenceFloor: bundle.sequenceFloor,
-    trustedTime,
+    trustedTime: persistedTime,
   });
   return {
     bundle,
-    trustedTime: state.lastTrustedTime,
+    trustedTime,
     floor: state.sequenceFloor,
   };
 }

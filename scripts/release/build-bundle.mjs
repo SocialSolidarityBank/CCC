@@ -36,12 +36,14 @@ const FLAGS = new Set(['--component-root', '--out-dir', '--version', '--sequence
 const MAX_UINT64 = (1n << 64n) - 1n;
 const CONTRACTS_ROOT = fileURLToPath(new URL('../../packages/contracts/src/', import.meta.url));
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../', import.meta.url));
+const requireFromRepository = createRequire(import.meta.url);
 const requireFromCommunityCloud = createRequire(
   new URL('../../apps/community-cloud/package.json', import.meta.url),
 );
 const POSTGRES_ROOT = dirname(dirname(dirname(requireFromCommunityCloud.resolve('postgres'))));
+const TAR_ROOT = dirname(requireFromRepository.resolve('tar/package.json'));
 const INSTALLER_ENTRY = join(REPOSITORY_ROOT, 'scripts/supabase/bootstrap.mjs');
-const VENDORED_EXTERNALS = new Set(['postgres']);
+const VENDORED_EXTERNALS = new Set(['postgres', 'tar']);
 const TAR_PATH = '/usr/bin/tar';
 const TAR_ENV = Object.freeze({
   COPYFILE_DISABLE: '1',
@@ -434,6 +436,16 @@ async function copyInstallerRuntime(stagingRoot) {
     await copyRuntimeTree(
       join(POSTGRES_ROOT, 'src'),
       join(cliRoot, 'node_modules/postgres/src'),
+    );
+  }
+  if (externals.has('tar')) {
+    await copyRuntimeFile(
+      join(TAR_ROOT, 'package.json'),
+      join(cliRoot, 'node_modules/tar/package.json'),
+    );
+    await copyRuntimeFile(
+      join(TAR_ROOT, 'dist/esm/index.min.js'),
+      join(cliRoot, 'node_modules/tar/dist/esm/index.min.js'),
     );
   }
   await writeFile(

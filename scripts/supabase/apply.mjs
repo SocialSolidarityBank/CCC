@@ -1,10 +1,8 @@
-import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
-import { mkdir, mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { promisify } from 'node:util';
 
 import {
   parseArtifactBasename,
@@ -12,16 +10,21 @@ import {
   verifyReleaseBundle,
   verifyReleaseManifest,
 } from '../release/release-manifest.mjs';
+import { extractReleaseArchive } from '../release/safe-extract.mjs';
 import { verifyEdgeComponentManifest } from '../release/edge-component-manifest.mjs';
 import { createReleaseFloorStore } from '../release/release-floor.mjs';
-import { fetchPinnedRelease, PINNED_RELEASE_ORIGIN } from '../release/release-origin.mjs';
+import {
+  asTrustedClock as trustedClock,
+  createTrustedClock,
+  fetchPinnedRelease,
+  PINNED_RELEASE_ORIGIN,
+  trustedTimeNow as currentTrustedTime,
+} from '../release/release-origin.mjs';
 import { loadReleaseTrustStore } from '../release/release-trust.mjs';
 import {
   applyJournaledMigration,
   bootstrapInstall,
   completeInstallStep,
-  ensureAuthorization,
-  readInstallState,
   recordInstallFailure,
   startInstallStep,
   withInstallLock,
@@ -32,27 +35,17 @@ import {
 } from './manifest-preflight.mjs';
 import { assertProviderBaselineCurrent, installationStateFingerprint } from './plan.mjs';
 
+export { createTrustedClock };
+
 function failure(code) {
   return Object.assign(new Error(code), { code });
 }
+
 
 function count(value) {
   return Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
-function emptyBackupEvidence() {
-  return {
-    businessTableCount: 0,
-    businessRowCount: 0,
-    authUserCount: 0,
-    bucketCount: 0,
-    storageObjectCount: 0,
-    publicRoutineCount: 0,
-    publicTypeCount: 0,
-    privateInstallerTableCount: 0,
-    installJournalCount: 0,
-  };
-}
 
 function backupEvidenceDigests(evidence) {
   const entries = Object.entries(evidence);
@@ -82,33 +75,6 @@ function firstInstallBackup(plan, observation) {
   return Object.freeze({ backup: 'not_applicable', evidence: Object.freeze(evidence) });
 }
 
-function isResumeCandidate(plan) {
-  return plan?.installed?.state === 'installing'
-    && (plan.ready === true
-      || (plan.ready === false
-        && Array.isArray(plan.blockers)
-        && plan.blockers.length === 1
-        && plan.blockers[0]?.code === 'DRIFT_BLOCKED'));
-}
-
-function resumedBackup(plan, observation, authorization) {
-  if (!isResumeCandidate(plan)
-    || observation?.installState?.journal?.phase !== 'installing') {
-    throw failure('BACKUP_FAILED');
-  }
-  const evidence = emptyBackupEvidence();
-  const expected = backupEvidenceDigests(evidence);
-  const step = observation.installState.completedSteps?.find(item => item?.step === 'prepare_backup');
-  if (step === undefined
-    || JSON.stringify(step.ownershipTags) !== JSON.stringify([
-      `ccc.installation_id=${authorization.installationId}`,
-    ])
-    || JSON.stringify(step.providerResourceIdHashes) !== JSON.stringify(expected.ids)
-    || JSON.stringify(step.providerResourceDigests) !== JSON.stringify(expected.digests)) {
-    throw failure('BACKUP_FAILED');
-  }
-  return Object.freeze({ backup: 'not_applicable', evidence: Object.freeze(evidence) });
-}
 
 function requireMethod(owner, name) {
   if (typeof owner?.[name] !== 'function') throw failure('RELEASE_PREREQUISITES_MISSING');
@@ -159,7 +125,6 @@ async function readVerifiedMigration(stagedRoot, component) {
   }
 }
 
-const runFile = promisify(execFile);
 
 async function pinnedBytes(url, maximumBytes, fetchImpl) {
   let parsed;
@@ -218,7 +183,7 @@ export async function loadReleaseForApply({
       });
     },
   });
-  const trustedTime = new Date(fetched.trustedTime);
+  const trustedTime = fetched.trustedTime;
   const target = releaseTarget();
   const entry = fetched.bundle.entries.find(candidate => candidate.family === target.family);
   const row = entry?.artifacts?.find(candidate => candidate.manifestUrl === manifestUrl);
@@ -235,7 +200,7 @@ export async function loadReleaseForApply({
   const verifiedManifest = await verifyReleaseManifest({
     document: manifestDocument,
     trustStore,
-    now: trustedTime,
+    now: currentTrustedTime(trustedTime),
     expectedTuple: target,
     bundleEntry: { family: entry.family, ...row },
   });
@@ -254,10 +219,7 @@ export async function loadReleaseForApply({
   const extractedRoot = join(stagingRoot, 'staged');
   try {
     await writeFile(artifactPath, artifactBytes, { mode: 0o600, flag: 'wx' });
-    await mkdir(extractedRoot, { mode: 0o700 });
-    await runFile('/usr/bin/tar', ['-xzf', artifactPath, '-C', extractedRoot], {
-      env: { COPYFILE_DISABLE: '1', LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8', PATH: '/usr/bin:/bin' },
-    });
+    await extractReleaseArchive({ archivePath: artifactPath, destination: extractedRoot });
     const edgeDocument = await readFile(join(extractedRoot, 'edge-component-manifest.json'), 'utf8');
     return {
       release: createVerifiedRelease({
@@ -342,17 +304,44 @@ export function createVerifiedRelease({
       });
       return edgeManifest;
     },
+    async verifyDeploymentPrerequisites() {
+      throw failure('RELEASE_PREREQUISITES_MISSING');
+    },
     async promote(input) {
       if (typeof promote === 'function') return promote(input);
       if (typeof authorize !== 'function' || typeof inspector?.inspect !== 'function'
         || edgeManifest === undefined) throw failure('RELEASE_PREREQUISITES_MISSING');
+      const now = trustedClock(input.now);
+      const authorizeMigration = async () => {
+        const fresh = await authorize();
+        assertProviderBaselineCurrent(
+          input.providerBaseline,
+          fresh,
+          currentTrustedTime(now),
+        );
+        return fresh;
+      };
       for (const [index, component] of edgeManifest.components.entries()) {
+        const at = currentTrustedTime(now);
+        await verifyReleaseBundle({
+          document: bundleDocument, trustStore, now: at, channel,
+        });
+        await verifyReleaseManifest({
+          document: manifestDocument,
+          trustStore,
+          now: at,
+          expectedTuple,
+          bundleEntry: bundleRow,
+        });
+        await verifyEdgeComponentManifest({
+          document: edgeDocument, stagedRoot, bundleRow, trustStore, now: at,
+        });
         const planned = input.plan.migrations[index];
         await applyJournaledMigration(input.session, input.authorization, {
           id: planned.id,
           checksum: planned.checksum,
           sql: await readVerifiedMigration(stagedRoot, component),
-        }, { authorize });
+        }, { authorize: authorizeMigration });
       }
       const observation = await inspector.inspect();
       return {
@@ -399,6 +388,12 @@ async function recordInstalled(session, input, authorize) {
   const schemaFingerprint = promotion?.databaseFingerprint;
   const observedOwnerOrgIdHash = health?.observedOwnerOrgIdHash;
   const migrationHead = plan.migrations?.at(-1)?.id;
+  requireHealthyInstallation(health, authorization);
+  if (receipt.releaseSequence !== installationSequence(bundle.sequence)
+    || receipt.artifactSetDigest !== (promotion?.artifactSetDigest ?? input.edge?.edgeArtifactSha256)
+    || receipt.edgeArtifactSha256 !== input.edge?.edgeArtifactSha256) {
+    throw failure('HEALTH_FAILED');
+  }
   if (!/^[a-f0-9]{64}$/u.test(stateFingerprint ?? '')
     || !/^[a-f0-9]{64}$/u.test(schemaFingerprint ?? '')
     || observedOwnerOrgIdHash !== authorization.expectedOwnerOrgIdHash
@@ -410,17 +405,14 @@ async function recordInstalled(session, input, authorize) {
   const backupDigest = createHash('sha256')
     .update(JSON.stringify(receipt.backup.evidence))
     .digest('hex');
-  const edgeRegionEvidence = JSON.stringify({
-    requestedRegion: 'ap-northeast-2',
-    responseRegion: promotion.responseRegion,
-    functionRegion: 'not_run',
-    mismatch: true,
-    profile: 'development',
-    backup: receipt.backup.backup,
-    backupEvidence: receipt.backup.evidence,
-  });
-  const providerResourceDigests = JSON.stringify(promotion?.providerResourceDigests ?? {});
-  await requireFreshAuthorization(authorization, plan, authorize, now);
+  const edgeRegionEvidence = health.edgeRegionEvidence;
+  const providerResourceDigests = promotion?.providerResourceDigests ?? {};
+  await requireFreshAuthorization(
+    authorization,
+    plan,
+    authorize,
+    currentTrustedTime(now),
+  );
   await session.unsafe('BEGIN');
   try {
     const rows = await session.unsafe(
@@ -440,7 +432,7 @@ async function recordInstalled(session, input, authorize) {
       authorization.expectedOwnerOrgIdHash,
       observedOwnerOrgIdHash,
       bundle.version,
-      bundle.sequence,
+      receipt.releaseSequence,
       receipt.manifestDigest,
       receipt.artifactSetDigest,
       migrationHead,
@@ -472,7 +464,12 @@ async function recordInstalled(session, input, authorize) {
       phase = 'installed', current_step = NULL, state_fingerprint = $2,
       last_error_code = NULL, updated_at = clock_timestamp()
       WHERE installation_id = $1`, [authorization.installationId, stateFingerprint]);
-    await requireFreshAuthorization(authorization, plan, authorize, now);
+    await requireFreshAuthorization(
+      authorization,
+      plan,
+      authorize,
+      currentTrustedTime(now),
+    );
     await session.unsafe('COMMIT');
   } catch (error) {
     await session.unsafe('ROLLBACK').catch(() => {});
@@ -485,37 +482,27 @@ export function createInstallJournalSession({ sql, authorization, authorize }) {
   return {
     withInstallLock: callback => withInstallLock(sql, authorization.projectRefHash, callback),
     async prepare(session, input) {
-      if (input.resume) {
-        const state = await readInstallState(session, authorization.installationId);
-        if (state?.journal?.phase !== 'installing') throw failure('INSTALL_JOURNAL_INVALID');
-        await ensureAuthorization(session, authorization, {
-          resourcesSha256: input.plan.resourcesSha256,
-          migrationsSha256: input.plan.migrationsSha256,
-          planFingerprint: state.journal.planFingerprint,
-        }, { authorize });
-      } else {
-        await bootstrapInstall(session, authorization, {
-          resourcesSha256: input.plan.resourcesSha256,
-          migrationsSha256: input.plan.migrationsSha256,
-          planFingerprint: input.plan.planFingerprint,
-        }, { authorize });
-        const backupEvidence = backupEvidenceDigests(input.backup.evidence);
-        const backupKey = createHash('sha256')
-          .update(JSON.stringify(input.backup))
-          .digest('hex');
-        await startInstallStep(session, authorization, {
-          step: 'prepare_backup',
-          idempotencyKey: backupKey,
-        }, { authorize });
-        await completeInstallStep(session, authorization, {
-          step: 'prepare_backup',
-          idempotencyKey: backupKey,
-          ownershipTags: [`ccc.installation_id=${authorization.installationId}`],
-          providerResourceIdHashes: backupEvidence.ids,
-          providerResourceDigests: backupEvidence.digests,
-          stateFingerprint: input.plan.stateFingerprint,
-        }, { authorize });
-      }
+      await bootstrapInstall(session, authorization, {
+        resourcesSha256: input.plan.resourcesSha256,
+        migrationsSha256: input.plan.migrationsSha256,
+        planFingerprint: input.plan.planFingerprint,
+      }, { authorize });
+      const backupEvidence = backupEvidenceDigests(input.backup.evidence);
+      const backupKey = createHash('sha256')
+        .update(JSON.stringify(input.backup))
+        .digest('hex');
+      await startInstallStep(session, authorization, {
+        step: 'prepare_backup',
+        idempotencyKey: backupKey,
+      }, { authorize });
+      await completeInstallStep(session, authorization, {
+        step: 'prepare_backup',
+        idempotencyKey: backupKey,
+        ownershipTags: [`ccc.installation_id=${authorization.installationId}`],
+        providerResourceIdHashes: backupEvidence.ids,
+        providerResourceDigests: backupEvidence.digests,
+        stateFingerprint: input.plan.stateFingerprint,
+      }, { authorize });
       await startInstallStep(session, authorization, {
         step: 'switch_release',
         idempotencyKey: input.idempotencyKey,
@@ -541,6 +528,83 @@ export function createInstallJournalSession({ sql, authorization, authorize }) {
   };
 }
 
+function installationSequence(value) {
+  if (typeof value !== 'string' || !/^[1-9][0-9]*$/u.test(value)) {
+    throw failure('BUNDLE_ENTRY_INVALID');
+  }
+  const sequence = Number(value);
+  if (!Number.isSafeInteger(sequence)) throw failure('BUNDLE_ENTRY_INVALID');
+  return sequence;
+}
+
+function requireHealthyInstallation(health, authorization) {
+  const region = health?.edgeRegionEvidence;
+  const database = health?.restrictedDatabase;
+  if (health?.healthy !== true
+    || health.observedOwnerOrgIdHash !== authorization.expectedOwnerOrgIdHash
+    || health.storageSignerHealthy !== true
+    || region?.requestedRegion !== 'ap-northeast-2'
+    || region.responseRegion !== region.requestedRegion
+    || region.functionRegion !== region.requestedRegion
+    || region.mismatch !== false
+    || database?.connected !== true
+    || database.role !== 'ccc_api'
+    || database.superuser !== false
+    || database.bypassRls !== false) {
+    throw failure('HEALTH_FAILED');
+  }
+}
+
+async function verifyCandidate({
+  authorization,
+  providerBaseline,
+  plan,
+  release,
+  clock,
+}) {
+  const bundle = await requireMethod(release, 'verifyBundle')({
+    authorization, providerBaseline, plan, now: currentTrustedTime(clock),
+  });
+  const manifest = await requireMethod(release, 'verifyManifest')({
+    bundle, authorization, plan, now: currentTrustedTime(clock),
+  });
+  await requireMethod(release, 'verifyTuple')({
+    bundle, manifest, authorization, plan, now: currentTrustedTime(clock),
+  });
+  await requireMethod(release, 'verifyArtifactHash')({
+    bundle, manifest, authorization, plan, now: currentTrustedTime(clock),
+  });
+  const edge = await requireMethod(release, 'verifyEdgeComponentSet')({
+    bundle, manifest, authorization, plan, now: currentTrustedTime(clock),
+  });
+  requireMigrationComponents(edge, plan);
+  const deployment = await requireMethod(release, 'verifyDeploymentPrerequisites')({
+    bundle, manifest, edge, authorization, providerBaseline, plan,
+    now: currentTrustedTime(clock),
+  });
+  if (deployment?.ready !== true) throw failure('RELEASE_PREREQUISITES_MISSING');
+  const currentBundle = await requireMethod(release, 'verifyBundle')({
+    authorization, providerBaseline, plan, now: currentTrustedTime(clock),
+  });
+  const currentManifest = await requireMethod(release, 'verifyManifest')({
+    bundle: currentBundle,
+    authorization,
+    plan,
+    now: currentTrustedTime(clock),
+  });
+  assertProviderBaselineCurrent(
+    providerBaseline,
+    authorization,
+    currentTrustedTime(clock),
+  );
+  return {
+    bundle: currentBundle,
+    manifest: currentManifest,
+    edge,
+    releaseSequence: installationSequence(currentBundle.sequence),
+  };
+}
+
 export async function applyInstallation({
   authorization,
   providerBaseline,
@@ -550,27 +614,29 @@ export async function applyInstallation({
   journalSession,
   now,
 }) {
-  if (!(now instanceof Date) || Number.isNaN(now.getTime())) throw failure('TRUSTED_TIME_UNAVAILABLE');
-  if (plan?.installed?.state === 'not-installed' ? plan.ready !== true : !isResumeCandidate(plan)) {
+  const clock = trustedClock(now);
+  if (plan?.ready !== true || plan?.installed?.state !== 'not-installed') {
     throw failure('BACKUP_FAILED');
   }
 
-  const bundle = await requireMethod(release, 'verifyBundle')({ authorization, providerBaseline, plan, now });
-  const manifest = await requireMethod(release, 'verifyManifest')({ bundle, authorization, plan, now });
-  await requireMethod(release, 'verifyTuple')({ bundle, manifest, authorization, plan, now });
-  await requireMethod(release, 'verifyArtifactHash')({ bundle, manifest, authorization, plan, now });
-  const edge = await requireMethod(release, 'verifyEdgeComponentSet')({ bundle, manifest, authorization, plan, now });
-  requireMigrationComponents(edge, plan);
-  assertProviderBaselineCurrent(providerBaseline, authorization, now);
-
+  let candidate = await verifyCandidate({
+    authorization, providerBaseline, plan, release, clock,
+  });
   const withInstallLock = requireMethod(journalSession, 'withInstallLock');
   return withInstallLock(async session => {
-    assertProviderBaselineCurrent(providerBaseline, authorization, now);
+    assertProviderBaselineCurrent(
+      providerBaseline,
+      authorization,
+      currentTrustedTime(clock),
+    );
     const observation = await requireMethod(inspector, 'revalidate')(plan, session);
-    const resume = plan.installed.state === 'installing';
-    const backup = resume
-      ? resumedBackup(plan, observation, authorization)
-      : firstInstallBackup(plan, observation);
+    const backup = firstInstallBackup(plan, observation);
+    candidate = await verifyCandidate({
+      authorization, providerBaseline, plan, release, clock,
+    });
+    const {
+      bundle, manifest, edge, releaseSequence,
+    } = candidate;
     const idempotencyKey = createHash('sha256')
       .update(authorization.installationId)
       .update(bundle.bundleId)
@@ -582,35 +648,45 @@ export async function applyInstallation({
     try {
       await requireMethod(journalSession, 'prepare')(session, {
         authorization, providerBaseline, plan, bundle, manifest, edge, backup,
-        idempotencyKey, now, resume,
+        idempotencyKey, now: currentTrustedTime(clock), resume: false,
       });
       prepared = true;
       promotionStarted = true;
       const promotion = await requireMethod(release, 'promote')({
-        session, authorization, providerBaseline, plan, bundle, manifest, edge, backup, now,
+        session, authorization, providerBaseline, plan, bundle, manifest, edge, backup,
+        now: clock,
       });
       await requireMethod(journalSession, 'promoted')(session, {
-        authorization, plan, bundle, manifest, edge, promotion, idempotencyKey, now,
+        authorization, plan, bundle, manifest, edge, promotion, idempotencyKey,
+        now: currentTrustedTime(clock),
       });
       const health = await requireMethod(inspector, 'health')({
-        session, authorization, providerBaseline, plan, bundle, manifest, edge, promotion, now,
+        session, authorization, providerBaseline, plan, bundle, manifest, edge, promotion,
+        now: currentTrustedTime(clock),
       });
-      if (health?.healthy !== true
-        || health.observedOwnerOrgIdHash !== authorization.expectedOwnerOrgIdHash) {
-        throw failure('HEALTH_FAILED');
+      requireHealthyInstallation(health, authorization);
+      candidate = await verifyCandidate({
+        authorization, providerBaseline, plan, release, clock,
+      });
+      if (candidate.bundle.bundleId !== bundle.bundleId
+        || candidate.manifest.artifactSha256 !== manifest.artifactSha256
+        || candidate.edge.edgeArtifactSha256 !== edge.edgeArtifactSha256
+        || candidate.releaseSequence !== releaseSequence) {
+        throw failure('BUNDLE_ENTRY_INVALID');
       }
       const receipt = {
         profile: 'development',
         bundleId: bundle.bundleId,
         releaseVersion: bundle.version,
-        releaseSequence: bundle.sequence,
+        releaseSequence,
         manifestDigest: manifest.manifestSha256 ?? manifest.artifactSha256,
         artifactSetDigest: promotion?.artifactSetDigest ?? edge.edgeArtifactSha256,
         edgeArtifactSha256: edge.edgeArtifactSha256,
         backup,
       };
       await requireMethod(journalSession, 'complete')(session, {
-        authorization, plan, bundle, manifest, edge, promotion, health, receipt, idempotencyKey, now,
+        authorization, plan, bundle, manifest, edge, promotion, health, receipt,
+        idempotencyKey, now: clock,
       });
       return {
         operation: 'apply', target: 'hosted', ready: true, readOnly: false, productionReady: false,
@@ -622,7 +698,8 @@ export async function applyInstallation({
       if (prepared) {
         try {
           await requireMethod(journalSession, 'fail')(session, {
-            authorization, step: 'switch_release', code: failureCode(error), idempotencyKey, now,
+            authorization, step: 'switch_release', code: failureCode(error), idempotencyKey,
+            now: currentTrustedTime(clock),
           });
         } catch {
           // The prepared state is already incomplete and cannot be read as installed.

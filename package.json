@@ -55,6 +55,9 @@
     "test:db-parity": "node scripts/test-suite.mjs db-parity",
     "test:security": "node scripts/test-suite.mjs security"
   },
+  "dependencies": {
+    "tar": "7.5.22"
+  },
   "devDependencies": {
     "@ccc/contracts": "workspace:*",
     "@ccc/core": "workspace:*",

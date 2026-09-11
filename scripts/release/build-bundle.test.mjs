@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { chmod, link, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import test from 'node:test';
 
@@ -187,8 +188,11 @@ test('builds four development files that pass the Task 1 verifiers in a real rou
     'migrations/0001.sql',
     'templates/config.json',
     'ccc-cloud.mjs',
+    'cli/scripts/release/safe-extract.mjs',
     'cli/scripts/supabase/bootstrap.mjs',
     'cli/node_modules/postgres/package.json',
+    'cli/node_modules/tar/package.json',
+    'cli/node_modules/tar/dist/esm/index.min.js',
     'cli/node_modules/@ccc/contracts/src/jcs.js',
   ]) assert.ok(archivePaths.includes(expected), `missing packaged path: ${expected}`);
   const edgeDocument = await readFile(join(stagedRoot, 'edge-component-manifest.json'), 'utf8');
@@ -201,9 +205,22 @@ test('builds four development files that pass the Task 1 verifiers in a real rou
   });
   assert.equal(sha256(edgeDocument), bundleRow.edgeComponentManifestSha256);
 
+  const protectedRoot = join(root, 'protected-staged');
+  const packagedExtractor = await import(pathToFileURL(
+    join(stagedRoot, 'cli/scripts/release/safe-extract.mjs'),
+  ).href);
+  await packagedExtractor.extractReleaseArchive({
+    archivePath: join(outDir, basename),
+    destination: protectedRoot,
+  });
+  assert.equal(
+    await readFile(join(protectedRoot, 'edge-component-manifest.json'), 'utf8'),
+    edgeDocument,
+  );
+
   try {
-    await runFile(join(stagedRoot, 'ccc-cloud.mjs'), [], {
-      cwd: stagedRoot,
+    await runFile(join(protectedRoot, 'ccc-cloud.mjs'), [], {
+      cwd: protectedRoot,
       env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` },
     });
     assert.fail('packaged installer unexpectedly succeeded without credentials');

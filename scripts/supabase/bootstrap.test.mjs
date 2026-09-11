@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
+import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
@@ -212,9 +214,10 @@ async function withManagementApi({
 
 async function runCli(origin, {
   token = accessToken, leadingSeparator = false, managementOrigin, operation = 'plan',
-  installManifest, manifestUrl, signedInput, extraArgs = [],
+  installManifest, manifestUrl, signedInput, extraArgs = [], format = 'json', cwd = repoRoot,
 } = {}) {
-  const args = [cliPath, ...(leadingSeparator ? ['--'] : []), operation, '--target', 'hosted', '--project-ref', 'test-project', '--format', 'json'];
+  const args = [cliPath, ...(leadingSeparator ? ['--'] : []), operation, '--target', 'hosted', '--project-ref', 'test-project'];
+  if (format !== null) args.push('--format', format);
   if (manifestUrl !== undefined) args.push('--manifest-url', manifestUrl);
   args.push(...extraArgs);
   if (installManifest !== undefined) args.push('--install-manifest', installManifest);
@@ -238,7 +241,7 @@ async function runCli(origin, {
   if (signedInput !== undefined) Object.assign(childEnv, signedInput);
   if (managementOrigin !== undefined) childEnv.CCC_SUPABASE_MANAGEMENT_ORIGIN = managementOrigin;
   const child = spawn(process.execPath, args, {
-    cwd: repoRoot,
+    cwd,
     env: childEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -396,6 +399,94 @@ async function signedCliInputs(expectedOwnerOrgId = 'test-organization', {
     CCC_PROVIDER_BASELINE: JSON.stringify(providerBaseline),
   };
 }
+
+test('report CLI writes a private read-only diagnostic and preserves an existing report', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'ccc-report-cli-'));
+  const outputPath = resolve(directory, 'diagnostic.json');
+  try {
+    await withManagementApi({}, async ({ origin, requests }) => {
+      const signedInput = await signedCliInputs();
+      const result = await runCli(origin, {
+        operation: 'report', signedInput, extraArgs: ['--output', outputPath],
+      });
+      assert.equal(result.exitCode, 6, result.stderr);
+      const saved = await readFile(outputPath, 'utf8');
+      const report = JSON.parse(saved);
+      assert.deepEqual(JSON.parse(result.stdout), report);
+      assert.ok(report.checks.some(check => check.code === 'INSTALL_NOT_FOUND' && check.status === 'NOT_RUN'));
+      assert.equal(report.installedVersion, '');
+      assert.equal(report.installedSequence, '');
+      assert.equal((await stat(outputPath)).mode & 0o777, 0o600);
+      assertNoSensitiveOutput(result, origin);
+      assert.equal(saved.includes(outputPath), false);
+      assert.equal(saved.includes('synthetic-institution'), false);
+      assert.ok(requests.every(({ method, path }) => method === 'GET'
+        || path.endsWith('/database/query/read-only')));
+      const second = await runCli(origin, {
+        operation: 'report', signedInput, extraArgs: ['--output', outputPath],
+      });
+      assert.equal(second.exitCode, 5);
+      assert.equal(JSON.parse(second.stderr).error.code, 'OUTPUT_REDACTION_FAILED');
+      assert.equal(await readFile(outputPath, 'utf8'), saved);
+      assert.deepEqual(await readdir(directory), ['diagnostic.json']);
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('report CLI rejects invalid scope and absent output before provider access', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    for (const options of [
+      { operation: 'report' },
+      { operation: 'plan', extraArgs: ['--output', '/unused/report.json'] },
+      { operation: 'report', extraArgs: ['--output', '/unused/report.json', '--output', '/unused/other.json'] },
+    ]) {
+      const result = await runCli(origin, options);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('report JSON alias preserves parser errors and rejects an option token as output before provider access', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    for (const extraArgs of [
+      ['--json'],
+      ['--json', '--unknown'],
+      ['--output', '--json'],
+    ]) {
+      const result = await runCli(origin, {
+        operation: 'report',
+        format: null,
+        extraArgs,
+      });
+      assert.equal(result.exitCode, 2, result.stderr);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('report accepts an explicitly prefixed --json output filename', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'ccc-report-option-name-'));
+  try {
+    await withManagementApi({}, async ({ origin }) => {
+      const result = await runCli(origin, {
+        operation: 'report',
+        format: null,
+        signedInput: await signedCliInputs(),
+        extraArgs: ['--json', '--output', './--json'],
+        cwd: directory,
+      });
+      assert.equal(result.exitCode, 6, result.stderr);
+      const saved = JSON.parse(await readFile(resolve(directory, '--json'), 'utf8'));
+      assert.deepEqual(JSON.parse(result.stdout), saved);
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('real CLI accepts both signed documents and observes the approved owner read-only', async () => {
   await withManagementApi({}, async ({ origin, requests }) => {

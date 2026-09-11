@@ -86,6 +86,24 @@ node scripts/supabase/provider-baseline-generate.mjs \
 
 Both output parents must already exist. The generator resolves them to canonical directories and checks ancestry and type before writing. Each destination is created exclusively and atomically per path from an fsynced mode `0600` no-follow temporary file, and an existing document is never overwritten. Node does not expose `openat` or `unlinkat`, so cleanup verifies each created file's device and inode and is best effort. If cleanup cannot be verified, generation fails with a fixed redacted code and never returns success. The operator must choose output directories that it controls and that no other principal can write or rename during generation. Successful stdout contains only `baselineVersion`, object and grant counts, and the three document hashes. Failure emits no document detail, URL, project ref, object or grant name, key, signature, token, connection string, or path.
 
+### Read-only diagnostic reports
+
+Use the same scoped S11 authorization and provider-baseline inputs as `doctor`:
+
+```sh
+sh apps/community-cloud/with-ca.sh node scripts/supabase/bootstrap.mjs report --output ./diagnostic.json --json
+```
+
+The output directory must already exist and be operator-owned, without group or world write access. Reports are published as new mode `0600` files; an existing destination is never overwritten. This writer currently fails closed on Windows because its DACL protection has not been established. A failed diagnostic can still produce a valid report: exit `6` means checks are incomplete or failed, not that installation succeeded. Missing authorization or invalid arguments produce no report.
+
+The report projects fixed codes and validated release metadata before serialization. Raw provider errors, URLs, signatures, credentials and institution identifiers are not collected into it. An absent or inconsistent installation has no invented version or artifact metadata. The current S11 receipt lacks complete signed release-artifact evidence, so the report does not manufacture those fields.
+
+### Installation recovery boundary
+
+An interrupted installation cannot reuse the empty-project backup exemption. Until verified backup and recovery exist, retry/resume fails with `BACKUP_FAILED` without updating its journal.
+
+The production apply path remains blocked before migration writes. A migration-only archive is not proof of a completed Community Cloud deployment: it does not deploy StorageSigner, provision an authenticated restricted `ccc_api` runtime connection, or establish the required provider-resource health evidence. The installation adapter must not write an `installed` receipt for that state. Local PostgreSQL tests prove migration transaction and receipt behavior, not hosted deployment, Auth/MFA, or recovery of a live institution.
+
 ### Pending executable verification
 
 Main may run these only after merging the frozen migration/checkpoint changes and approving verification. They were **not run** in this source-only checkpoint:
