@@ -23,6 +23,14 @@ function signingFixture() {
   const trustJson = JSON.stringify({ keys: [{
     keyId: releaseKeyId,
     publicKey: release.publicKey.export({ format: 'jwk' }).x,
+    role: 'release',
+    status: 'active',
+    notBefore: '2020-01-01T00:00:00.000Z',
+    notAfter: '2099-01-01T00:00:00.000Z',
+  }, {
+    keyId: 'root-key-test',
+    publicKey: root.publicKey.export({ format: 'jwk' }).x,
+    role: 'root',
     status: 'active',
     notBefore: '2020-01-01T00:00:00.000Z',
     notAfter: '2099-01-01T00:00:00.000Z',
@@ -35,7 +43,6 @@ function signingFixture() {
       CCC_RELEASE_TRUST_STORE: trustJson,
     },
     trustJson,
-    rootPublicKey: root.publicKey.export({ format: 'jwk' }).x,
   };
 }
 
@@ -145,8 +152,7 @@ test('builds four development files that pass the Task 1 verifiers in a real rou
 
   const bundle = await verifyReleaseBundle({
     document: bundleDocument,
-    rootKeys: { 'root-key-test': signing.rootPublicKey },
-    revokedRootKeyIds: [],
+    trustStore: await loadReleaseTrustStore(signing.trustJson),
     now: new Date(JSON.parse(bundleDocument).publishedAt),
     channel: 'dev',
   });
@@ -247,6 +253,19 @@ test('accepts exactly the five documented flags and reads signing material only 
       assert.deepEqual(await filesOrEmpty(failedOut), []);
     });
   }
+
+  await t.test('release key mislabeled as root', async () => {
+    const value = JSON.parse(signing.trustJson);
+    value.keys.find(key => key.role === 'release').role = 'root';
+    const failedOut = `${outDir}-release-role-root`;
+    const result = await rejectedRun(args(componentRoot, failedOut), {
+      ...signing.env,
+      CCC_RELEASE_TRUST_STORE: JSON.stringify(value),
+    });
+    assert.equal(result.stdout, '');
+    assert.equal(result.stderr, 'BUILD_FAILED\n');
+    assert.deepEqual(await filesOrEmpty(failedOut), []);
+  });
 }));
 
 test('never overwrites an existing destination and removes every new output on failure', async () => fixture(async ({ componentRoot, outDir, signing }) => {

@@ -135,20 +135,32 @@ function privateKeyFromEnvironment(name) {
   }
 }
 
-async function signingState(edgeManifest) {
+async function signingState(edgeManifest, now) {
   try {
     const trustValue = process.env.CCC_RELEASE_TRUST_STORE;
     if (typeof trustValue !== 'string' || trustValue.length === 0) fail();
     const trustStore = await loadReleaseTrustStore(trustValue);
     const releasePrivateKey = privateKeyFromEnvironment('CCC_RELEASE_SIGNING_PRIVATE_KEY');
     const releasePublicKey = createPublicKey(releasePrivateKey).export({ format: 'jwk' }).x;
-    const releaseRecord = trustStore.keys.find(record => record.publicKey === releasePublicKey);
-    if (releaseRecord === undefined || releaseRecord.keyId !== edgeManifest.signingKeyId) fail();
-    selectSigningKey(trustStore, releaseRecord.keyId, new Date());
+    const releaseMatches = trustStore.keys.filter(
+      record => record.role === 'release' && record.publicKey === releasePublicKey,
+    );
+    if (releaseMatches.length !== 1 || releaseMatches[0].keyId !== edgeManifest.signingKeyId) fail();
+    selectSigningKey(trustStore, releaseMatches[0].keyId, now, { requiredRole: 'release' });
 
     const rootPrivateKey = privateKeyFromEnvironment('CCC_RELEASE_ROOT_SIGNING_PRIVATE_KEY');
     const rootPublicKey = createPublicKey(rootPrivateKey).export({ format: 'jwk' }).x;
-    return { trustStore, releasePrivateKey, releaseKeyId: releaseRecord.keyId, rootPrivateKey, rootPublicKey };
+    const rootMatches = trustStore.keys.filter(
+      record => record.role === 'root' && record.publicKey === rootPublicKey,
+    );
+    if (rootMatches.length !== 1) fail();
+    selectSigningKey(trustStore, rootMatches[0].keyId, now, { requiredRole: 'root' });
+    return {
+      trustStore,
+      releasePrivateKey,
+      releaseKeyId: releaseMatches[0].keyId,
+      rootPrivateKey,
+    };
   } catch (error) {
     if (error instanceof BuildBundleError) throw error;
     fail();
@@ -506,8 +518,8 @@ async function build({ componentRoot, outDir, version, sequence, channel }) {
 
   try {
     const edgeManifest = await buildEdgeComponentManifest(componentRoot);
-    const keys = await signingState(edgeManifest);
     const publishedAt = new Date();
+    const keys = await signingState(edgeManifest, publishedAt);
     const expiresAt = new Date(publishedAt.getTime() + 7 * 24 * 60 * 60 * 1_000);
     await mkdir(stagingRoot, { mode: 0o700 });
     await copyComponents(componentRoot, stagingRoot, edgeManifest.components);
@@ -608,8 +620,7 @@ async function build({ componentRoot, outDir, version, sequence, channel }) {
 
     await verifyReleaseBundle({
       document: bundleDocument,
-      rootKeys: { injected: keys.rootPublicKey },
-      revokedRootKeyIds: [],
+      trustStore: keys.trustStore,
       now: publishedAt,
       channel,
     });

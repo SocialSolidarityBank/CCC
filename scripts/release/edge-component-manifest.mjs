@@ -183,9 +183,13 @@ async function signingIdentity() {
     if (privateKey.asymmetricKeyType !== 'ed25519') fail('SIGNATURE_INVALID');
     const publicKey = createPublicKey(privateKey).export({ format: 'jwk' }).x;
     const trustStore = await loadReleaseTrustStore(trustValue);
-    const matches = trustStore.keys.filter(record => record.publicKey === publicKey);
+    const matches = trustStore.keys.filter(
+      record => record.role === 'release' && record.publicKey === publicKey,
+    );
     if (matches.length !== 1) fail('SIGNATURE_INVALID');
-    selectSigningKey(trustStore, matches[0].keyId, new Date());
+    selectSigningKey(trustStore, matches[0].keyId, new Date(), {
+      requiredRole: 'release',
+    });
     return { privateKey, keyId: matches[0].keyId };
   } catch (error) {
     if (error instanceof EdgeComponentManifestError) throw error;
@@ -271,7 +275,9 @@ export async function verifyEdgeComponentManifest({
   if (canonicalizeJcs(stagedComponents) !== canonicalizeJcs(parsed.value.components)) fail();
 
   try {
-    const key = selectSigningKey(trustStore, parsed.value.signingKeyId, now);
+    const key = selectSigningKey(trustStore, parsed.value.signingKeyId, now, {
+      requiredRole: 'release',
+    });
     const { ed25519Signature, ...unsigned } = parsed.value;
     const valid = await verifyEd25519Bytes(
       signatureMessage(unsigned),

@@ -31,6 +31,7 @@ function signingFixture() {
     trustJson: JSON.stringify({ keys: [{
       keyId,
       publicKey: publicKey.export({ format: 'jwk' }).x,
+      role: 'release',
       status: 'active',
       notBefore: '2020-01-01T00:00:00.000Z',
       notAfter: '2099-01-01T00:00:00.000Z',
@@ -297,6 +298,7 @@ test('verification rejects altered, missing, extra, duplicated and unsafe compon
     const futureTrustStore = await loadReleaseTrustStore(JSON.stringify({ keys: [{
       keyId: 'release-key-test',
       publicKey: signing.publicKey,
+      role: 'release',
       status: 'active',
       notBefore: '2035-01-01T00:00:00.000Z',
       notAfter: '2036-01-01T00:00:00.000Z',
