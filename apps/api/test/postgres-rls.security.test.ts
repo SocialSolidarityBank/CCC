@@ -2,9 +2,12 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import { closeSupportCase, createBeneficiaryWithInitialSupportCase, createCounselingRecord, createOrganizationSettings, resolveDirectoryActorByPrincipal, revokeActorSessions, revokeIdentitySession, type SupportCaseCreationResult, type Env, type Actor } from '@ccc/core/gateway';
+import { getSupportCaseReport } from '@ccc/core/gateway';
 import { startPostgresHarness, type PostgresHarness } from './support/postgres';
-import type { PostgresDatabase } from '@ccc/db-postgres';
-
+import { assertPostgresIdentityBoundary, type PostgresDatabase } from '@ccc/db-postgres';
+import { canonicalizeJcs } from '@ccc/contracts/jcs';
+import { PROGRAM_ADMISSION_COPY, PROGRAM_ADMISSION_COPY_VERSION } from '@ccc/contracts/program-admission';
+import { registrationInput, seedProviderRegistry } from './support/registration';
 let harness: PostgresHarness;
 let admin: PostgresDatabase;
 let api: PostgresDatabase;
@@ -16,6 +19,10 @@ const actorA: Actor = { orgId: 'org-a', userId: 'actor-a', role: 'admin' };
 const actorB: Actor = { orgId: 'org-b', userId: 'actor-b', role: 'admin' };
 const contextA = { orgId: actorA.orgId, actorId: actorA.userId };
 const contextB = { orgId: actorB.orgId, actorId: actorB.userId };
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 
 async function applyMigrationsThrough(name: string): Promise<void> {
   const directory = new URL('../../../migrations/postgres/', import.meta.url);
@@ -56,6 +63,24 @@ beforeAll(async () => {
   for (const name of readdirSync(directory).filter(name => name.endsWith('.sql') && name >= '0006_rls_default_deny.sql').sort()) {
     await harness.applyMigration(admin, readFileSync(new URL(name, directory), 'utf8'));
   }
+  const copyHash = await sha256Hex(canonicalizeJcs(PROGRAM_ADMISSION_COPY));
+  const installationConfigHash = await sha256Hex(canonicalizeJcs({
+    deploymentMode: 'community-cloud',
+    sttMode: 'off',
+    llmMode: 'off',
+  }));
+  await admin.prepare(
+    `UPDATE programs
+     SET storage_mode = 'supabase_seoul', processing_mode = 'external_allowed',
+         admission_confirmed_by = CASE org_id WHEN 'org-a' THEN 'actor-a' ELSE 'actor-b' END,
+         admission_confirmed_at = '2026-09-08T00:00:00.000Z',
+         admission_confirmed_storage_mode = 'supabase_seoul',
+         admission_confirmed_processing_mode = 'external_allowed',
+         admission_copy_version = ?, admission_copy_hash = ?,
+         admission_installation_config_hash = ?,
+         admission_installation_policy_version = 1
+     WHERE org_id IN ('org-a', 'org-b')`,
+  ).bind(PROGRAM_ADMISSION_COPY_VERSION, copyHash, installationConfigHash).run();
   await admin.prepare(
     `INSERT INTO users(id,org_id,email,role,active,created_at)
      VALUES ('actor-a','org-a','actor-a@example.invalid','admin',1,'2026-09-08T00:00:00.000Z'),
@@ -68,15 +93,19 @@ beforeAll(async () => {
             ('actor-b-practitioner','org-b','actor-b','practitioner','manual','actor-b','2026-09-08T00:00:00.000Z')`,
   ).run();
   api = await harness.openApiDatabase(admin, 2);
+  // provider registry 는 ccc_api 에 SELECT 만 열려 있다(0007). 신뢰 연결로 심어야 등록 고지가 발급된다.
+  for (const actor of [actorA, actorB]) await seedProviderRegistry(admin, actor.orgId);
   for (const actor of [actorA, actorB]) {
     const env: Env = {
       DB: api.forActor({ orgId: actor.orgId, actorId: actor.userId }),
+      installationMode: 'community-cloud',
       secretStore: createEnvironmentSecretStore({}),
     };
-    const created = await createBeneficiaryWithInitialSupportCase(env, actor, {
-      programType: 'financial_support_v1',
+    const created = await createBeneficiaryWithInitialSupportCase(env, actor, await registrationInput(env, actor, {
+      programId: `legacy-program:${actor.orgId}`,
       initialAssigneeUserId: actor.userId,
-    }, { intakeAt: null, consentRecordingAt: null, consentTextAiAt: null });
+      intakeAt: null,
+    }));
     if (actor === actorA) caseA = created;
     else caseB = created;
     const session = await createCounselingRecord(env, actor, created.supportCaseId, {
@@ -220,6 +249,18 @@ it('scopes compatibility views and indirect child tables through protected paren
   expect((await scopedA.prepare('SELECT job_id FROM agent_job_result_acceptances').all()).results)
     .toEqual([{ job_id: 'job-a' }]);
 });
+
+it('reads a source-backed report through ccc_api without crossing the case tenant', async () => {
+  const env: Env = { DB: api.forActor(contextA), secretStore: createEnvironmentSecretStore({}) };
+  const report = await getSupportCaseReport(env, actorA, caseA.supportCaseId);
+  expect(report.supportCaseId).toBe(caseA.supportCaseId);
+  expect(report.sessions).toMatchObject([{
+    sessionNumber: 1, kind: 'regular', summary: { source: 'sessions.memo', text: 'Synthetic RLS fixture' },
+  }]);
+  expect(report.sections).toEqual({});
+  await expect(getSupportCaseReport(env, actorA, caseB.supportCaseId)).rejects.toThrow();
+});
+
 it('reaches retention helpers through a restricted close-case gateway write', async () => {
   const env: Env = { DB: api.forActor(contextA), secretStore: createEnvironmentSecretStore({}) };
   const closed = await closeSupportCase(env, actorA, caseA.supportCaseId, 'retention helper witness');
@@ -288,6 +329,26 @@ it('bounds actor revocations by tenant and permits write-only session revocation
     .toBeNull();
   await expect(scopedA.prepare("UPDATE auth_revocations SET reason='logout'").run()).rejects.toThrow();
   await expect(scopedA.prepare("DELETE FROM auth_revocations WHERE kind='actor'").run()).rejects.toThrow();
+});
+
+it('limits session revocation reads to verified transaction context and clears it before pool reuse', async () => {
+  await assertPostgresIdentityBoundary(api);
+  await expect(assertPostgresIdentityBoundary(admin)).rejects.toThrow();
+  const single = await harness.openApiDatabase(admin, 1);
+  try {
+    const current = single.forActor({ ...contextB, sessionId: 'verified-current-session' });
+    const env: Env = { DB: current, secretStore: createEnvironmentSecretStore({}) };
+    await revokeIdentitySession(env, 'verified-current-session', 'logout');
+    await revokeIdentitySession(env, 'different-session', 'logout');
+    expect((await current.prepare("SELECT subject FROM auth_revocations WHERE kind = 'session'").all()).results)
+      .toEqual([{ subject: 'verified-current-session' }]);
+    expect((await single.forActor(contextB).prepare("SELECT subject FROM auth_revocations WHERE kind = 'session'").all()).results)
+      .toEqual([]);
+    expect((await single.prepare("SELECT subject FROM auth_revocations WHERE kind = 'session'").all()).results)
+      .toEqual([]);
+  } finally {
+    await single.close();
+  }
 });
 
 it('registers different organizations without global participant reads or duplicate pseudonyms', async () => {
@@ -376,7 +437,7 @@ it.each([
   try {
     const fixture = await isolated.openDatabase();
     const directory = new URL('../../../migrations/postgres/', import.meta.url);
-    for (const name of readdirSync(directory).filter(name => name.endsWith('.sql') && !name.startsWith('0006')).sort()) {
+    for (const name of readdirSync(directory).filter(name => name.endsWith('.sql') && name < '0006').sort()) {
       await isolated.applyMigration(fixture, readFileSync(new URL(name, directory), 'utf8'));
     }
     await fixture.prepare(`CREATE ROLE ${protectedRole} ${protectedRole === 'ccc_api' ? 'LOGIN' : 'NOLOGIN'} NOINHERIT NOSUPERUSER NOBYPASSRLS NOCREATEROLE NOCREATEDB`).run();
@@ -398,7 +459,7 @@ it('rejects installation without public-schema ownership atomically', async () =
     await fixture.prepare('CREATE ROLE ccc_installer NOLOGIN NOSUPERUSER CREATEROLE INHERIT').run();
     await fixture.prepare('GRANT USAGE, CREATE ON SCHEMA public TO ccc_installer WITH GRANT OPTION').run();
     const directory = new URL('../../../migrations/postgres/', import.meta.url);
-    for (const name of readdirSync(directory).filter(name => name.endsWith('.sql') && !name.startsWith('0006')).sort()) {
+    for (const name of readdirSync(directory).filter(name => name.endsWith('.sql') && name < '0006').sort()) {
       await isolated.applyMigration(fixture, `SET LOCAL ROLE ccc_installer;\n${readFileSync(new URL(name, directory), 'utf8')}`);
     }
     await expect(isolated.applyMigration(fixture,

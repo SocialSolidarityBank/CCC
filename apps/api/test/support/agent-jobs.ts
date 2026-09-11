@@ -110,6 +110,7 @@ export async function registerFixtureRecording(
   key = `audio/${sessionId}/${crypto.randomUUID()}`,
   overrides: { clientAssertedSha256?: string | null; storageSha256?: string | null } = {},
 ): Promise<{ key: string; sha256: string; generationId: string }> {
+  if (env.audioStore === null) throw new Error('fixture audio storage unavailable');
   const scope = await env.DB.prepare(
     'SELECT support_case_id FROM sessions WHERE id=? AND org_id=?',
   ).bind(sessionId, actor.orgId).first<{ support_case_id: string }>();
@@ -262,10 +263,10 @@ export async function agentResultRequest(options: AgentResultOptions): Promise<R
  * Agent claim 이 route·engine 을 읽는 서명된 설치 사실을 env 에 붙인다. `stt: 'off'`
  * 이면 engine 이 `null` 이라 오디오 작업은 claim 되지 않는다(텍스트 전용 장비 흉내).
  */
-export async function agentManifestEnv(
-  env: ApiEnv,
+export async function agentManifestEnv<T extends ApiEnv>(
+  env: T,
   options: { mode?: DeploymentMode; stt?: 'off' | 'local' } = {},
-): Promise<ApiEnv> {
+): Promise<T> {
   const signer = await createTestSigner();
   const manifest = await signedManifest(signer, options.mode ?? 'local-single', {
     approvedSttEngineIds: SYNTHETIC_LOCAL_REGISTRY,

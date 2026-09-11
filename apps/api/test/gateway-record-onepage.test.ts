@@ -7,7 +7,8 @@ import {
   createIntakeRecord,
   listCounselingRecords,
 } from '@ccc/core/gateway';
-import { setupD1 } from './support/d1';
+import { setupD1, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 // CCC-10 정기 기록지 원페이지: 서술형 항목(record_details · 0016)이 createCounselingRecord
 // 한 번의 호출로 원자 저장되는지 검증한다. 구 목표 종료+신설(goalTransition)은 D62 §5 로
@@ -21,15 +22,14 @@ async function seedCaseWithGoals(titles: string[]) {
   await t.db.prepare(
     "INSERT INTO users (id, org_id, email, role, active, time_zone) VALUES (?, ?, 'record-onepage@example.invalid', 'counselor', 1, NULL)",
   ).bind(actor.userId, actor.orgId).run();
-  const initial = await createBeneficiaryWithInitialSupportCase(t.env, actor, {
-    programType: 'financial_support_v1',
+  const initial = await createBeneficiaryWithInitialSupportCase(t.env, actor, await registrationInput(t.env, actor, {
+    programId: testProgramId(actor.orgId),
     intakeAt: '2026-07-20T09:00:00.000Z',
-  });
+  }));
   await createIntakeRecord(t.env, actor, initial.supportCaseId, {
     submissionId: '01000000-0000-4000-8000-00000000ba01',
     heldAt: '2026-07-20T10:00:00.000Z',
     channel: 'in_person',
-    consent: { privacy: true, recordingAi: true },
     helpNarrative: { todayHelp: '월세 상담', hardestPoint: '체납', desiredChange: '안정' },
     lifeAreas: [
       { areaKey: 'economy', status: 'strained' },

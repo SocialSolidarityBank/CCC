@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./database": "./src/database.ts",
+    "./audio": "./src/audio.ts",
     "./runtime": "./src/runtime.ts",
     "./animal-slugs": "./src/animal-slugs.ts",
     "./consent-notice": "./src/consent-notice.ts",
@@ -16,6 +17,9 @@
     "./consent": "./src/consent.ts",
     "./stt-readiness": "./src/stt-readiness.ts",
     "./counseling-memory": "./src/counseling-memory.ts",
+    "./program-admission": "./src/program-admission.ts",
+    "./institution": "./src/institution.ts",
+    "./report": "./src/report.ts",
     "./sql": "./src/sql.ts"
   }
 }

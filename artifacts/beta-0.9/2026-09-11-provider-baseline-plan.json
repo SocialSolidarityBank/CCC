@@ -1,0 +1,92 @@
+{
+  "recordedAt": "2026-09-11",
+  "profile": "development",
+  "channel": "beta",
+  "provider": "supabase",
+  "region": "ap-northeast-2",
+  "scope": "개발판 provider baseline 발급과 읽기 전용 확인이며 S12 정식 릴리스 신뢰나 DB 적용 승인이 아니다.",
+  "pinnedSources": [
+    {
+      "sourceUrl": "https://github.com/supabase/supabase",
+      "sourceRevision": "8ac64a4349c9e48eeb451dd4846d91dd0a41c747"
+    },
+    {
+      "sourceUrl": "https://github.com/supabase/postgres",
+      "sourceRevision": "2f5f2c2eb01271905a0351fde1451bcc294293ae"
+    },
+    {
+      "sourceUrl": "https://github.com/supabase/auth",
+      "sourceRevision": "4eee58f296d9698a1c2c0ae14d7a0b379c7622d3"
+    },
+    {
+      "sourceUrl": "https://github.com/supabase/storage",
+      "sourceRevision": "a13e574da1ca711eaf19bec9ff0564b76b787440"
+    },
+    {
+      "sourceUrl": "https://github.com/supabase/realtime",
+      "sourceRevision": "ee315caec3a1388cafd1889930d5d01820245e45"
+    },
+    {
+      "sourceUrl": "https://github.com/postgres/postgres",
+      "sourceRevision": "5624de9904ca560c0d4473cb9e86108f4b69be38"
+    }
+  ],
+  "publicKeyFingerprints": {
+    "rootKeyId": "beta-root-257c0ba58cd5d582",
+    "rootPublicKeySha256": "257c0ba58cd5d582d13aaa125c5b0aefb595f999fa87541375ec2ade1996159a",
+    "releaseKeyId": "beta-release-9acbc80e9db397b5",
+    "releasePublicKeySha256": "9acbc80e9db397b5d8114aefbd8613bfc78518ed324d41886a3349afaab0def8",
+    "revokedRootKeyIds": []
+  },
+  "signedDocuments": {
+    "baselineVersion": "supabase-hosted-pg17-20260911-v1",
+    "sourceEvidenceSha256": "c55bd82de064787711154b097dd072afdc278c5cf6e5d613f223a0186cdcb2c6",
+    "releaseTrustSha256": "3ad6541d8761191d13d4d87c644003207751e3432306c27f67f302b783748eb2",
+    "baselineSha256": "4591deaf5d10f3de5f174792755e09f49d09b6072495d0076b36871803e657ad",
+    "storedReleaseTrustDocumentSha256": "2e0b939a1f02633e351136f586300422d8d53ba7eb145b7bb0bc4c48f65ae86a",
+    "storedBaselineDocumentSha256": "495a4180567470c1baf34530bf6d9168bbc6390091660d92bcb58ea0c9a73b32"
+  },
+  "sourceEvidence": {
+    "records": 1692,
+    "objects": 101,
+    "grants": 1591,
+    "unmapped": 0,
+    "databaseVersion": "17.6"
+  },
+  "inventory": {
+    "objectCount": 162,
+    "grantCount": 1613,
+    "objectInventorySha256": "5f9c836eb00379410e7f3ec24db99121e2b013528679be84f725c478fb6c93e1",
+    "grantInventorySha256": "34cb3f01dfc22179cc60034da686f7f3be15700922430a907ef7e3b1bf7ed776",
+    "matched": true
+  },
+  "plan": {
+    "operation": "plan",
+    "readOnly": true,
+    "ready": true,
+    "unchanged": true,
+    "productionReady": false,
+    "blockers": [],
+    "planFingerprint": "da38e3f31f535d3bf5673b96e5c2fb6c29700aa768f20618ff0f95d4ec1ac3bf",
+    "stateFingerprint": "c6ed7ace39e17987c89d188d69b4dc99477a7cf4bee7f39960baf1f22cd2fd55",
+    "resourcesSha256": "85d7ad8e17d9fb531108e727194bb89c71591085a777d3e82a2b1c63987329d5",
+    "migrationsSha256": "7e1d70404eb23270da9f0ad8ceae955675399dae76e0f3f3d75ab0085c7f0737"
+  },
+  "observedEmptyBusinessState": {
+    "source": "같은 날 실행한 읽기 전용 관찰의 상태값이며, 공개 plan 출력은 이 항목들을 싣지 않는다.",
+    "userTableCount": 0,
+    "userRowEstimate": 0,
+    "authUserCount": 0,
+    "bucketCount": 0,
+    "storageObjectCount": 0,
+    "userRoutineCount": 0,
+    "userTypeCount": 0,
+    "privateTableCount": 0
+  },
+  "databaseWrites": 0,
+  "applyGate": {
+    "command": "apply --target hosted",
+    "code": "RELEASE_PREREQUISITES_MISSING",
+    "databaseWrites": 0
+  }
+}

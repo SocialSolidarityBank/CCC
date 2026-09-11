@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import { createBeneficiaryWithInitialSupportCase, createCounselingSchedule } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 // org_demo 는 setupD1 가 Asia/Seoul(UTC+9, DST 없음)로 프로비저닝한다. 앵커 날짜 2026-07-16.
 // 창(오늘 + 향후 7일 = 8일)은 KST 07-16 00:00 ~ 07-24 00:00, 즉 UTC 로는
@@ -35,10 +36,10 @@ interface SeededWindow {
 async function seedScheduleWindow(): Promise<SeededWindow> {
   await t.reset();
 
-  const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
-    programType: 'financial_support_v1',
+  const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
+    programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
-  });
+  }));
 
   // KST 07-16 00:00 정각 = 창 시작 (오늘, 포함)
   const todaySchedule = await createCounselingSchedule(t.env, testActors.counselor, {
@@ -71,10 +72,10 @@ async function seedScheduleWindow(): Promise<SeededWindow> {
     scheduledAt: WINDOW_END_UTC,
   });
 
-  const hidden = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
-    programType: 'financial_support_v1',
+  const hidden = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, await registrationInput(t.env, testActors.unassignedCounselor, {
+    programId: testProgramId(testActors.unassignedCounselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
-  });
+  }));
   // 다른 담당 실무자의 케이스에 창 안(KST 07-16 10:00) 일정
   const hiddenSchedule = await createCounselingSchedule(t.env, testActors.unassignedCounselor, {
     beneficiaryId: hidden.beneficiaryId,

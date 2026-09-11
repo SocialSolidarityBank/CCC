@@ -8,6 +8,7 @@ import type {
 import { createR2AudioStore } from '@ccc/audio-r2';
 import { handleRequest } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
+import { fileAudioStoreContract } from '../../../adapters/audio-file/test/contract';
 
 const MAX_AUDIO_BYTES = 200 * 1024 * 1024;
 const KEY = 'audio/session_01/550e8400-e29b-41d4-a716-446655440000';
@@ -213,7 +214,7 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 // These are compile-time boundary checks. The handler environment must expose
 // the neutral port, not the provider's R2 binding, after composition is cut over.
 type HandlerEnvironment = Parameters<typeof handleRequest>[1];
-type HandlerHasAudioStore = HandlerEnvironment extends { audioStore: AudioStore } ? true : never;
+type HandlerHasAudioStore = HandlerEnvironment extends { audioStore: AudioStore | null } ? true : never;
 type HandlerHasNoRawR2 = Extract<keyof HandlerEnvironment, 'AUDIO_BUCKET'> extends never ? true : never;
 const handlerAcceptsAudioStore: HandlerHasAudioStore = true;
 const handlerHidesRawR2: HandlerHasNoRawR2 = true;
@@ -471,3 +472,5 @@ describe('R2 AudioStore contract', () => {
     await expect(store.createDownloadTarget(KEY)).resolves.toBeNull();
   });
 });
+
+fileAudioStoreContract();

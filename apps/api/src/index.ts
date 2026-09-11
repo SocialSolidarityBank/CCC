@@ -2,7 +2,7 @@ import { adaptD1Environment } from '@ccc/db-d1';
 import { createR2AudioStore } from '@ccc/audio-r2';
 import { createEnvironmentSecretStore, SECRET_NAMES } from '@ccc/secrets-env';
 import type { SecretName, ScheduledJobKind } from '@ccc/contracts/runtime';
-import { gatewayActorFromIdentity, type ApiEnv } from '@ccc/http-api/identity';
+import type { ApiEnv } from '@ccc/http-api/identity';
 import { localDevActorResolver } from './local-actor';
 import { handlePreviewUnlock, previewActorResolver } from '@ccc/http-api/preview-gate';
 import { handleRequest } from '@ccc/http-api';
@@ -59,14 +59,11 @@ export default {
       }
       return handleRequest(request, runtimeEnv, previewResolver);
     }
-    // 로컬 프리뷰(dev 이중 잠금)만 기존 환경 resolver를 쓴다. 그 외 production path는
-    // Access Identity가 canonical Actor를 만들고, gateway 앞의 E4-1 경계에서 기존 role로 투영한다.
+    // Preview keeps its isolated resolver; authenticated metadata retains the full canonical role set.
     const localResolver = localDevActorResolver(runtimeEnv);
     if (localResolver !== undefined) return handleRequest(request, runtimeEnv, localResolver);
     const identity = createAccessIdentity(runtimeEnv);
-    return handleRequest(request, runtimeEnv, async (nextRequest) => (
-      gatewayActorFromIdentity(await identity.resolve(nextRequest))
-    ));
+    return handleRequest(request, runtimeEnv, (nextRequest) => identity.resolve(nextRequest));
   },
   // Cron trigger: only exact configured expressions may enqueue D8 or D10 work.
   async scheduled(controller: ScheduledController, env: WorkerEnv, ctx: ExecutionContext): Promise<void> {
@@ -74,6 +71,7 @@ export default {
     if (kind === undefined) throw new Error('unexpected_scheduled_trigger');
     const nowIso = new Date(controller.scheduledTime ?? Date.now()).toISOString();
     const runtimeEnv = adaptWorkerEnvironment(env);
-    ctx.waitUntil(createScheduledJobRunner(runtimeEnv, () => runCounselingMemory(runtimeEnv)).run(kind, nowIso));
+    if (runtimeEnv.audioStore === null) throw new Error('scheduled_audio_store_unavailable');
+    ctx.waitUntil(createScheduledJobRunner({ ...runtimeEnv, audioStore: runtimeEnv.audioStore }, () => runCounselingMemory(runtimeEnv)).run(kind, nowIso));
   },
 } satisfies ExportedHandler<WorkerEnv>;

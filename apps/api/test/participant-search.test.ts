@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import { createBeneficiaryWithInitialSupportCase, updateParticipantPii } from '@ccc/core/gateway';
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES } from '@ccc/contracts/animal-slugs';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 // 당사자 검색(티켓 #16 · D21) HTTP 계약: 부분 일치, PII 무포함, 접근 범위.
 // 발급은 기관 내 라운드로빈이라 생성 순서로 슬러그가 결정된다(가명 ID 발급 테스트가 프라이어 아트).
@@ -61,18 +62,18 @@ interface SeededParticipants {
 // counselor 가 담당하는 두 케이스와, 다른 담당 실무자가 담당하는 한 케이스를 같은 기관에 심는다.
 async function seedParticipants(): Promise<SeededParticipants> {
   await t.reset();
-  const ownedFirst = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
-    programType: 'financial_support_v1',
+  const ownedFirst = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
+    programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
-  });
-  const ownedSecond = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
-    programType: 'financial_support_v1',
+  }));
+  const ownedSecond = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
+    programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
-  });
-  const hiddenThird = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
-    programType: 'financial_support_v1',
+  }));
+  const hiddenThird = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, await registrationInput(t.env, testActors.unassignedCounselor, {
+    programId: testProgramId(testActors.unassignedCounselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
-  });
+  }));
   return { ownedFirst, ownedSecond, hiddenThird };
 }
 

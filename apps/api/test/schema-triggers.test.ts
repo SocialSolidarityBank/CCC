@@ -19,7 +19,8 @@ import {
   reRegisterParticipantPii,
   updateParticipantPii,
 } from '@ccc/core/gateway';
-import { grantTestPractitionerRole, setupD1, SQLITE_MIGRATIONS_PATH, testActors } from './support/d1';
+import { grantTestPractitionerRole, seedHistoricalParticipant, setupD1, SQLITE_MIGRATIONS_PATH, testActors, testProgramId } from './support/d1';
+import { registrationConsentEvents, registrationInput } from './support/registration';
 
 const counselor = testActors.counselor;
 const t = setupD1();
@@ -43,10 +44,10 @@ async function seedCanonicalDirectory(): Promise<void> {
 
 async function createCanonicalParticipant(): Promise<{ beneficiaryId: string; supportCaseId: string }> {
   await seedCanonicalDirectory();
-  return createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-    programType: 'financial_support_v1',
+  return createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+    programId: testProgramId(counselor.orgId),
     intakeAt: '2026-07-14T09:00:00.000Z',
-  });
+  }));
 }
 
 interface Phase1Provenance {
@@ -116,7 +117,7 @@ async function createApprovedGeneratedProvenance(
 ): Promise<Phase1Provenance> {
   const participant = await createCanonicalParticipant();
   const sessionId = 'phase1-generated-session';
-  const consentEvidenceId = 'phase1-consent-evidence';
+  let consentEvidenceId = 'phase1-consent-evidence';
   const pilotConsentEvidenceId = 'phase1-pilot-consent-evidence';
   const providerConfigId = 'phase1-codex-config';
   const providerActivationId = 'phase1-codex-activation';
@@ -148,123 +149,28 @@ async function createApprovedGeneratedProvenance(
     CREATED_AT,
   ).run();
 
-  const canonicalLlmConsent = [
-    {
-      domain: 'personal_data_collection_use',
-      provider: 'institution',
-      providerLegalRecipient: 'Synthetic Institution',
-      providerCountry: 'KR',
-      purpose: 'case_management',
-      registrySnapshotId: 'phase1-consent-registry-institution',
-    },
-    {
-      domain: 'sensitive_information_processing',
-      provider: 'institution',
-      providerLegalRecipient: 'Synthetic Institution',
-      providerCountry: 'KR',
-      purpose: 'sensitive_case_management',
-      registrySnapshotId: 'phase1-consent-registry-institution',
-    },
-    {
-      domain: 'external_llm_cross_border_processing',
-      provider: 'openai',
-      providerLegalRecipient: 'Synthetic OpenAI Recipient',
-      providerCountry: 'US',
-      purpose: 'ai_briefing',
-      registrySnapshotId: 'phase1-consent-registry-openai',
-    },
-  ] as const;
+  // 등록이 여섯 영역 grant를 이미 기록했다(S7). 영수증은 그 실제 사건에서 읽는다.
   const consentReceiptEntries: ConsentGateReceiptEntry[] = [];
-
-  for (const [index, consent] of canonicalLlmConsent.entries()) {
-    await t.db.prepare(
-      `INSERT OR IGNORE INTO consent_provider_registry_snapshots (
-         id, org_id, provider, legal_recipient, country, approved_at
-       ) VALUES (?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      consent.registrySnapshotId,
-      counselor.orgId,
-      consent.provider,
-      consent.providerLegalRecipient,
-      consent.providerCountry,
-      CREATED_AT,
-    ).run();
-    const copyHash = await consentSha256Hex(consentCopyPreimage({
-      domain: consent.domain,
-      provider: consent.provider,
-      providerLegalRecipient: consent.providerLegalRecipient,
-      providerCountry: consent.providerCountry,
-      purpose: consent.purpose,
-      retentionDuration: null,
-    }));
-    const disclosureSnapshotId = `phase1-${consent.domain}-disclosure`;
-    const eventId = consent.domain === 'external_llm_cross_border_processing'
-      ? consentEvidenceId
-      : `phase1-${consent.domain}-consent`;
-    await t.db.prepare(
-      `INSERT INTO consent_disclosure_snapshots (
-         id, org_id, program_id, issuer_id, support_case_id, domain, full_korean_copy,
-         provider, provider_registry_snapshot_id, provider_legal_recipient, provider_country,
-         purpose, retention_profile, retention_duration, copy_version, copy_hash, issued_at, expires_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'default_temporary_d85',
-         'default_temporary_d85', ?, ?, ?, ?)`,
-    ).bind(
-      disclosureSnapshotId,
-      counselor.orgId,
-      'financial_support_v1',
-      counselor.userId,
-      participant.supportCaseId,
-      consent.domain,
-      CONSENT_COPY[consent.domain].copy,
-      consent.provider,
-      consent.registrySnapshotId,
-      consent.providerLegalRecipient,
-      consent.providerCountry,
-      consent.purpose,
-      CONSENT_COPY_VERSION,
-      copyHash,
-      CREATED_AT,
-      '2026-07-14T09:05:00.000Z',
-    ).run();
-    await t.db.prepare(
-      `INSERT INTO consent_events (
-         id, org_id, beneficiary_id, support_case_id, domain, decision, provider,
-         provider_legal_recipient, provider_country, purpose, retention_duration,
-         copy_version, copy_hash, disclosure_snapshot_id, effective_at, recorded_by,
-         recorded_at, idempotency_key, request_hash, revision, event_sequence,
-         correction_of_event_id, provider_registry_snapshot_id
-       ) VALUES (?, ?, ?, ?, ?, 'grant', ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NULL, ?)`,
-    ).bind(
-      eventId,
-      counselor.orgId,
-      participant.beneficiaryId,
-      participant.supportCaseId,
-      consent.domain,
-      consent.provider,
-      consent.providerLegalRecipient,
-      consent.providerCountry,
-      consent.purpose,
-      CONSENT_COPY_VERSION,
-      copyHash,
-      disclosureSnapshotId,
-      CREATED_AT,
-      counselor.userId,
-      CREATED_AT,
-      `phase1-${consent.domain}-grant`,
-      await consentSha256Hex(`phase1-${consent.domain}-request`),
-      index + 1,
-      consent.registrySnapshotId,
-    ).run();
+  for (const domain of [
+    'external_llm_cross_border_processing', 'personal_data_collection_use', 'sensitive_information_processing',
+  ] as const) {
+    const row = await t.db.prepare(
+      `SELECT id, event_sequence, revision, copy_hash, provider, purpose, effective_at
+       FROM consent_events WHERE org_id = ? AND support_case_id = ? AND domain = ? AND decision = 'grant'
+       ORDER BY event_sequence DESC LIMIT 1`,
+    ).bind(counselor.orgId, participant.supportCaseId, domain).first<Record<string, string | number>>();
+    if (row === null) throw new Error(`registration did not record ${domain}`);
+    if (domain === 'external_llm_cross_border_processing') consentEvidenceId = String(row.id);
     consentReceiptEntries.push({
-      domain: consent.domain,
-      eventSequence: index + 1,
-      revision: 1,
-      eventId,
-      copyHash,
+      domain,
+      eventSequence: Number(row.event_sequence),
+      revision: Number(row.revision),
+      eventId: String(row.id),
+      copyHash: String(row.copy_hash),
       decision: 'grant',
-      provider: consent.provider,
-      purpose: consent.purpose,
-      effectiveAt: CREATED_AT,
+      provider: row.provider as ConsentGateReceiptEntry['provider'],
+      purpose: row.purpose as ConsentGateReceiptEntry['purpose'],
+      effectiveAt: String(row.effective_at),
     });
   }
   const requiredConsent = [...consentReceiptEntries]
@@ -466,10 +372,10 @@ describe('schema triggers', () => {
     await t.reset();
     const first = await createCanonicalParticipant();
     const second = await createSupportCase(t.env, admin, first.beneficiaryId, {
-      consentPrivacy: true,
+      consentEvents: await registrationConsentEvents(t.env, admin, testProgramId(counselor.orgId)),
       schemaVersion: 1,
       submissionId: '91919191-9191-4191-8191-919191919191',
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
       initialAssigneeUserId: counselor.userId,
     });
@@ -1634,23 +1540,24 @@ describe('schema triggers', () => {
     ).bind('2020-01-01 00:00:00', 'program complete', counselor.userId, participant.supportCaseId).run();
     await grantTestPractitionerRole(t.db, admin);
     const unassignedSource = await createSupportCase(t.env, admin, participant.beneficiaryId, {
-      consentPrivacy: true,
+      consentEvents: await registrationConsentEvents(t.env, admin, testProgramId(admin.orgId)),
       schemaVersion: 1,
       submissionId: '77777777-7777-4777-8777-777777777777',
-      programType: 'financial_support_v1',
+      programId: testProgramId(admin.orgId),
       intakeAt: '2026-07-14T10:00:00.000Z',
       initialAssigneeUserId: admin.userId,
     });
     await expect(t.db.prepare(
       `INSERT INTO support_cases (
-         id, org_id, beneficiary_id, program_type, status, intake_at, creation_kind,
+         id, org_id, beneficiary_id, program_id, program_type, status, intake_at, creation_kind,
          creation_submission_id, creation_payload_hash, created_by_actor_id,
          source_support_case_id, initial_assignee_user_id, created_at, updated_at
-       ) VALUES (?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       'unassigned-counselor-subsequent-case',
       counselor.orgId,
       participant.beneficiaryId,
+      testProgramId(counselor.orgId),
       '2026-07-14T10:00:00.000Z',
       '88888888-8888-4888-8888-888888888888',
       SHA256,
@@ -1690,14 +1597,15 @@ describe('schema triggers', () => {
     ).run()).rejects.toThrow('participant_schema_violation');
     await expect(t.db.prepare(
       `INSERT INTO support_cases (
-         id, org_id, beneficiary_id, program_type, status, intake_at, creation_kind,
+         id, org_id, beneficiary_id, program_id, program_type, status, intake_at, creation_kind,
          creation_submission_id, creation_payload_hash, created_by_actor_id,
          source_support_case_id, initial_assignee_user_id, created_at, updated_at
-       ) VALUES (?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       'closed-source-subsequent-case',
       counselor.orgId,
       participant.beneficiaryId,
+      testProgramId(counselor.orgId),
       '2026-07-14T10:00:00.000Z',
       '66666666-6666-4666-8666-666666666666',
       SHA256,
@@ -1767,14 +1675,15 @@ describe('schema triggers', () => {
     const reRegistrationSupportCaseId = 're-registration-support-case';
     await t.db.prepare(
       `INSERT INTO support_cases (
-         id, org_id, beneficiary_id, program_type, status, intake_at, creation_kind,
+         id, org_id, beneficiary_id, program_id, program_type, status, intake_at, creation_kind,
          creation_submission_id, creation_payload_hash, created_by_actor_id,
          source_support_case_id, initial_assignee_user_id, created_at, updated_at
-       ) VALUES (?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, NULL, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, NULL, ?, ?, ?)`,
     ).bind(
       reRegistrationSupportCaseId,
       counselor.orgId,
       participant.beneficiaryId,
+      testProgramId(counselor.orgId),
       '2026-07-14T10:00:00.000Z',
       '44444444-4444-4444-8444-444444444444',
       SHA256,
@@ -1875,10 +1784,7 @@ describe('schema triggers', () => {
         `INSERT INTO users (id, org_id, email, role, active)
          VALUES (?, ?, 'migration-counselor@example.invalid', 'counselor', 1)`,
       ).bind(counselor.userId, counselor.orgId).run();
-      const participant = await createBeneficiaryWithInitialSupportCase(upgradeEnv, counselor, {
-        programType: 'financial_support_v1',
-        intakeAt: '2026-07-14T09:00:00.000Z',
-      });
+      const participant = await seedHistoricalParticipant(db, counselor, '998');
       const sessionId = 'migration-0033-session';
       const workItemId = 'migration-0033-work';
       const draftId = 'migration-0033-draft';

@@ -12,7 +12,7 @@ import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { Miniflare } from 'miniflare';
 import { createD1Database } from '@ccc/db-d1';
 import worker from './support/local-worker';
-import { SQLITE_MIGRATIONS_PATH } from './support/d1';
+import { SQLITE_MIGRATIONS_PATH, seedHistoricalParticipant, seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import {
   activateAiProviderConfiguration,
   approveGeneratedAiDraft,
@@ -31,18 +31,17 @@ import {
   getAgentJobSource,
   listSupportCasesForBeneficiary,
   recordMaskedSourceSnapshot,
-  recordPilotTextAiConsentEvidence,
   registerAiProviderConfiguration,
   setSupportCaseOverallGoal,
   updateParticipantPii,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
 import {
   claimRequest,
   seedCanonicalSttConsent,
   seedNerQualification,
   TEXT_ONLY_RUNTIME,
 } from './support/agent-jobs';
+import { registrationInput } from './support/registration';
 
 /**
  * 재료 하나(텍스트 맥락)뿐인 초안의 재료 증빙과 대조 3종 (D69 · ADR-0036).
@@ -72,22 +71,20 @@ beforeEach(async () => {
 });
 
 async function fixtureCase(): Promise<{ caseId: string; supportCaseId: string }> {
-  const caseRecord = await createCase(t.env, counselor, {});
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+    sttMode: 'local',
+    llmMode: 'openai',
+  });
+  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_LLM_MODE = 'openai';
+  const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, caseRecord.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected initial support case');
   t.env.CCC_LLM_MODE = 'openai';
   t.env.TEXT_AI_PILOT_ENABLED = '1';
+  // 텍스트 AI 권한은 canonical 6종 동의 이벤트만이 만든다(옛 파일럿 증빙 기록기는 폐지).
   await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
-  // Provider execution still carries the immutable Phase-1 evidence reference,
-  // but authorization above comes only from the canonical consent events.
-  await recordPilotTextAiConsentEvidence(t.env, counselor, caseRecord.id, {
-    noticeVersion: 'pilot-text-ai-v1',
-    noticeSha256: 'a'.repeat(64),
-    evidenceRef: `r2://pilot-evidence/${caseRecord.id}`,
-    evidenceSha256: 'f'.repeat(64),
-    effectiveAt: '2026-01-01T00:00:00.000Z',
-  });
   return { caseId: caseRecord.id, supportCaseId };
 }
 
@@ -479,10 +476,7 @@ describe('마이그레이션 0034: 텍스트 일감 큐 사유 확장 (CCC-103)'
         `INSERT INTO users (id, org_id, email, role, active)
          VALUES (?, ?, 'migration-0034@example.invalid', 'counselor', 1)`,
       ).bind(counselor.userId, counselor.orgId).run();
-      const participant = await createBeneficiaryWithInitialSupportCase(upgradeEnv, counselor, {
-        programType: 'financial_support_v1',
-        intakeAt: '2026-07-14T09:00:00.000Z',
-      });
+      const participant = await seedHistoricalParticipant(db, counselor, '997', createdAt);
 
       const sessionIds = ['migration-0034-session-a', 'migration-0034-session-b'];
       for (const [index, sessionId] of sessionIds.entries()) {

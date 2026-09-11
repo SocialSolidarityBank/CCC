@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import { createBeneficiaryWithInitialSupportCase } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 
@@ -36,10 +37,10 @@ function getCandidates(actor: { userId: string; orgId: string; role: string }): 
 describe('GET /schedules/candidates (콜드스타트 해소)', () => {
   it('includes a just-registered participant that has no schedule yet', async () => {
     await t.reset();
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
-      programType: 'financial_support_v1',
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
+    programId: testProgramId(testActors.counselor.orgId),
       intakeAt: '2026-07-16T09:00:00.000Z',
-    });
+    }));
 
     const response = await getCandidates(testActors.counselor);
     expect(response.status).toBe(200);
@@ -60,14 +61,14 @@ describe('GET /schedules/candidates (콜드스타트 해소)', () => {
 
   it('scopes counselor candidates to their own active assignments', async () => {
     await t.reset();
-    const mine = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
-      programType: 'financial_support_v1',
+    const mine = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
+      programId: testProgramId(testActors.counselor.orgId),
       intakeAt: '2026-07-16T09:00:00.000Z',
-    });
-    const others = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
-      programType: 'financial_support_v1',
+    }));
+    const others = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, await registrationInput(t.env, testActors.unassignedCounselor, {
+      programId: testProgramId(testActors.unassignedCounselor.orgId),
       intakeAt: '2026-07-16T09:00:00.000Z',
-    });
+    }));
 
     const body = await (await getCandidates(testActors.counselor)).json() as CandidatesBody;
     const ids = body.candidates.map((c) => c.beneficiaryId);
@@ -77,14 +78,14 @@ describe('GET /schedules/candidates (콜드스타트 해소)', () => {
 
   it('lets an admin see every active support case in the org', async () => {
     await t.reset();
-    const a = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
-      programType: 'financial_support_v1',
+    const a = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, await registrationInput(t.env, testActors.counselor, {
+      programId: testProgramId(testActors.counselor.orgId),
       intakeAt: '2026-07-16T09:00:00.000Z',
-    });
-    const b = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
-      programType: 'financial_support_v1',
+    }));
+    const b = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, await registrationInput(t.env, testActors.unassignedCounselor, {
+      programId: testProgramId(testActors.unassignedCounselor.orgId),
       intakeAt: '2026-07-16T09:00:00.000Z',
-    });
+    }));
 
     const body = await (await getCandidates(testActors.admin)).json() as CandidatesBody;
     const ids = body.candidates.map((c) => c.beneficiaryId);

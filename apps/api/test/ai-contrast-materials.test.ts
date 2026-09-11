@@ -30,8 +30,9 @@ import {
 } from '@ccc/ai-runtime';
 import { contrastAxisStates } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
-import { setupD1 } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testProgramId } from './support/d1';
 import { agentManifestEnv, agentResultRequest, claimOverHttp, registerFixtureRecording } from './support/agent-jobs';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 
@@ -418,17 +419,22 @@ interface RouteFixtureOptions {
 async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   await t.reset();
   const adapter = options.adapter ?? new ContrastAdapter();
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+    sttMode: 'local',
+    llmMode: 'openai',
+  });
   const env: ApiEnv = {
     ...t.env,
     TEXT_AI_PILOT_ENABLED: '1',
+    CCC_STT_MODE: 'local',
     CCC_LLM_MODE: 'openai',
     AI_PROVIDER_ADAPTER: adapter,
   };
-  const caseRecord = await createCase(t.env, counselor, {
-    consentRecordingAt: '2026-08-01T00:00:00.000Z',
-    consentTextAiAt: '2026-08-01T00:00:00.000Z',
-  });
-  const session = await createManualSession(t.env, counselor, caseRecord.id, {
+  // 텍스트 AI 권한은 등록 6종 동의만이 만든다(옛 파일럿 증빙 라우트는 폐지).
+  const caseRecord = await createCase(env, counselor, await registrationInput(env, counselor, {
+    programId: testProgramId(counselor.orgId),
+  }));
+  const session = await createManualSession(env, counselor, caseRecord.id, {
     submissionId: crypto.randomUUID(),
     heldAt: '2026-08-01T09:00:00.000Z',
     channel: 'in_person',
@@ -437,29 +443,13 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   });
   await registerFixtureRecording(t.env, counselor, service, session.id);
 
-  const consent = await worker.fetch(new Request(
-    `http://localhost/cases/${caseRecord.id}/pilot-text-ai-consent`,
-    {
-      method: 'POST',
-      headers: counselorHeaders,
-      body: JSON.stringify({
-        noticeVersion: 'contrast-notice-v1',
-        noticeHash: 'c'.repeat(64),
-        evidenceRef: 'contrast-evidence-1',
-        evidenceHash: 'd'.repeat(64),
-        effectiveAt: '2020-01-01T09:00:00.000Z',
-      }),
-    },
-  ), env);
-  expect(consent.status).toBe(201);
-
-  const providerConfig = await registerAiProviderConfiguration(t.env, admin, {
+  const providerConfig = await registerAiProviderConfiguration(env, admin, {
     adapterId: CODEX_PROVIDER_ID,
     adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION,
     configHash: options.configHash ?? await canonicalAiProviderConfigHash(ROUTE_PROVIDER_CONFIG),
     approvalRefs: ['contrast-approval-1'],
   });
-  await activateAiProviderConfiguration(t.env, admin, providerConfig.id);
+  await activateAiProviderConfiguration(env, admin, providerConfig.id);
   return { adapter, caseRecord, env, session };
 }
 

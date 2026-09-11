@@ -10,7 +10,12 @@ import { createD1Database } from '@ccc/db-d1';
 import { createR2AudioStore } from '@ccc/audio-r2';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import type { ApiEnv } from '@ccc/http-api/identity';
-const TEST_PII_KEY = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
+import type { AudioStore } from '@ccc/contracts/runtime';
+
+export type TestApiEnv = ApiEnv & { audioStore: AudioStore };
+import { canonicalizeJcs } from '@ccc/contracts/jcs';
+import { PROGRAM_ADMISSION_COPY, PROGRAM_ADMISSION_COPY_VERSION } from '@ccc/contracts/program-admission';
+export const TEST_PII_KEY = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
 
 /** 모든 API 계약 테스트가 읽는 SQLite migration SSOT(E3-1a). */
 export const SQLITE_MIGRATIONS_PATH = fileURLToPath(new URL(
@@ -19,7 +24,7 @@ export const SQLITE_MIGRATIONS_PATH = fileURLToPath(new URL(
 ));
 
 export interface D1TestContext {
-  env: ApiEnv;
+  env: TestApiEnv;
   db: D1Database;
   bucket: R2Bucket;
   dispose(): Promise<void>;
@@ -35,6 +40,156 @@ export const testActors = {
   otherOrgAdmin: { userId: 'admin.other@example.invalid', orgId: 'org_other', role: 'admin' },
   service: { userId: 'service@example.invalid', orgId: 'org_demo', role: 'service' },
 } satisfies Record<string, Actor>;
+/** 테스트에서 기관별 합성 사업을 참조할 때 쓰는 결정적 ID. */
+export function testProgramId(orgId: string): string {
+  return `test-program:${orgId}`;
+}
+
+type TestProgramRuntimeModes = {
+  deploymentMode?: 'community-cloud' | 'local-single' | 'local-office';
+  sttMode: 'off' | 'local' | 'azure';
+  llmMode: 'off' | 'openai';
+};
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function seedProgramWithRuntimeModes(
+  db: D1Database,
+  orgId: string,
+  confirmedBy: string,
+  modes: TestProgramRuntimeModes,
+  displayName: string,
+): Promise<void> {
+  const deploymentMode = modes.deploymentMode ?? 'community-cloud';
+  const storageMode = deploymentMode === 'community-cloud' ? 'supabase_seoul' : 'local_encrypted';
+  const copyHash = await sha256Hex(canonicalizeJcs(PROGRAM_ADMISSION_COPY));
+  const installationConfigHash = await sha256Hex(canonicalizeJcs({
+    deploymentMode,
+    sttMode: modes.sttMode,
+    llmMode: modes.llmMode,
+  }));
+  await db.batch([
+    db.prepare(
+      `INSERT INTO program_admission_policies (org_id, version, stt_mode, llm_mode)
+       VALUES (?, 1, ?, ?)
+       ON CONFLICT(org_id) DO UPDATE SET version = 1, stt_mode = excluded.stt_mode, llm_mode = excluded.llm_mode`,
+    ).bind(orgId, modes.sttMode, modes.llmMode),
+    db.prepare(
+      `INSERT INTO programs (
+         id, org_id, display_name, program_type, storage_mode, processing_mode,
+         version, admission_confirmed_by, admission_confirmed_at,
+         admission_confirmed_storage_mode, admission_confirmed_processing_mode,
+         admission_copy_version, admission_copy_hash,
+         admission_installation_config_hash, admission_installation_policy_version
+       ) VALUES (?, ?, ?, 'financial_support_v1', ?, 'external_allowed',
+                 1, ?, '2026-01-01T00:00:00.000Z', ?, 'external_allowed',
+                 ?, ?, ?, 1)
+       ON CONFLICT(id) DO UPDATE SET
+         org_id = excluded.org_id, display_name = excluded.display_name,
+         storage_mode = excluded.storage_mode, processing_mode = excluded.processing_mode,
+         version = excluded.version, admission_confirmed_by = excluded.admission_confirmed_by,
+         admission_confirmed_at = excluded.admission_confirmed_at,
+         admission_confirmed_storage_mode = excluded.admission_confirmed_storage_mode,
+         admission_confirmed_processing_mode = excluded.admission_confirmed_processing_mode,
+         admission_copy_version = excluded.admission_copy_version,
+         admission_copy_hash = excluded.admission_copy_hash,
+         admission_installation_config_hash = excluded.admission_installation_config_hash,
+         admission_installation_policy_version = excluded.admission_installation_policy_version`,
+    ).bind(
+      testProgramId(orgId),
+      orgId,
+      displayName,
+      storageMode,
+      confirmedBy,
+      storageMode,
+      PROGRAM_ADMISSION_COPY_VERSION,
+      copyHash,
+      installationConfigHash,
+    ),
+  ]);
+}
+
+/** 최신 스키마에서 처리 모드를 명시적으로 맞춘 테스트 전용 합성 사업 픽스처. */
+export async function seedTestProgramWithRuntimeModes(
+  db: D1Database,
+  orgId: string,
+  confirmedBy: string,
+  modes: TestProgramRuntimeModes,
+  displayName = '테스트 사업',
+): Promise<void> {
+  await seedProgramWithRuntimeModes(db, orgId, confirmedBy, modes, displayName);
+}
+
+/** 최신 스키마를 직접 준비하는 테스트 전용 합성 사업 픽스처. 기본 모드는 의도적으로 off/off 이다. */
+export async function seedTestProgram(
+  db: D1Database,
+  orgId: string,
+  confirmedBy: string,
+  displayName = '테스트 사업',
+): Promise<void> {
+  await seedTestProgramWithRuntimeModes(db, orgId, confirmedBy, { sttMode: 'off', llmMode: 'off' }, displayName);
+}
+
+/** 0054 이전 마이그레이션 업그레이드 테스트에서만 쓰는 원시 참가자 그래프. */
+export async function seedHistoricalParticipant(
+  db: D1Database,
+  actor: Actor,
+  suffix: string,
+  createdAt = '2026-07-14 09:00:00',
+): Promise<{ beneficiaryId: string; supportCaseId: string }> {
+  const beneficiaryId = `A${suffix}`;
+  const supportCaseId = `historical-support-case:${actor.orgId}:${suffix}`;
+  const assignmentId = `historical-assignment:${actor.orgId}:${suffix}`;
+  await db.batch([
+    db.prepare(
+      `INSERT INTO beneficiaries (id, org_id, initialization_state, created_at, updated_at)
+       VALUES (?, ?, 'pending', ?, ?)`,
+    ).bind(beneficiaryId, actor.orgId, createdAt, createdAt),
+    db.prepare(
+      `INSERT INTO participant_pii_vault (
+         beneficiary_id, org_id, enc_name, enc_phone, enc_account, key_version, version,
+         retention_change_kind, retention_changed_at, created_at, updated_at
+       ) VALUES (?, ?, NULL, NULL, NULL, 1, 1, 'create', ?, ?, ?)`,
+    ).bind(beneficiaryId, actor.orgId, createdAt, createdAt, createdAt),
+    db.prepare(
+      `INSERT INTO support_cases (
+         id, org_id, beneficiary_id, legacy_case_id, program_type, status,
+         intake_at, creation_kind, created_at, updated_at
+       ) VALUES (?, ?, ?, NULL, 'financial_support_v1', 'active', ?, 'initial', ?, ?)`,
+    ).bind(supportCaseId, actor.orgId, beneficiaryId, createdAt, createdAt, createdAt),
+    db.prepare(
+      `INSERT INTO support_case_assignees (
+         id, org_id, support_case_id, user_id, role, assigned_at
+       ) VALUES (?, ?, ?, ?, 'primary', ?)`,
+    ).bind(assignmentId, actor.orgId, supportCaseId, actor.userId, createdAt),
+    db.prepare(
+      `INSERT INTO audit_log (
+         org_id, actor_id, actor_role, action, target_table, target_id,
+         beneficiary_id, support_case_id, case_id, detail, created_at
+       ) VALUES (?, ?, ?, 'create', 'beneficiaries', ?, ?, NULL, NULL, ?, ?)`,
+    ).bind(actor.orgId, actor.userId, actor.role, beneficiaryId, beneficiaryId, '{"schemaVersion":1}', createdAt),
+    db.prepare(
+      `INSERT INTO audit_log (
+         org_id, actor_id, actor_role, action, target_table, target_id,
+         beneficiary_id, support_case_id, case_id, detail, created_at
+       ) VALUES (?, ?, ?, 'create', 'support_cases', ?, ?, ?, NULL, ?, ?)`,
+    ).bind(actor.orgId, actor.userId, actor.role, supportCaseId, beneficiaryId, supportCaseId, '{"schemaVersion":1}', createdAt),
+    db.prepare(
+      `INSERT INTO audit_log (
+         org_id, actor_id, actor_role, action, target_table, target_id,
+         beneficiary_id, support_case_id, case_id, detail, created_at
+       ) VALUES (?, ?, ?, 'assign', 'support_case_assignees', ?, ?, ?, NULL, ?, ?)`,
+    ).bind(actor.orgId, actor.userId, actor.role, assignmentId, beneficiaryId, supportCaseId, '{"role":"primary","initial":true}', createdAt),
+    db.prepare(
+      `UPDATE beneficiaries SET initialization_state = 'complete', updated_at = ?
+       WHERE id = ? AND org_id = ? AND initialization_state = 'pending'`,
+    ).bind(createdAt, beneficiaryId, actor.orgId),
+  ]);
+  return { beneficiaryId, supportCaseId };
+}
 
 export async function grantTestPractitionerRole(
   db: D1Database,
@@ -123,6 +278,12 @@ async function templateDir(provisionDirectory: boolean): Promise<string> {
         await db.batch(migration.queries.map((query) => db.prepare(query)));
       }
       if (provisionDirectory) {
+        const copyHash = await sha256Hex(canonicalizeJcs(PROGRAM_ADMISSION_COPY));
+        const installationConfigHash = await sha256Hex(canonicalizeJcs({
+          deploymentMode: 'community-cloud',
+          sttMode: 'off',
+          llmMode: 'off',
+        }));
         await db.batch([
           ...testOrganizationSettings.map((setting) => db.prepare(
             `INSERT INTO organization_settings (
@@ -133,6 +294,34 @@ async function templateDir(provisionDirectory: boolean): Promise<string> {
             `INSERT INTO users (id, org_id, email, role, active, time_zone)
              VALUES (?, ?, ?, ?, ?, NULL)`,
           ).bind(actor.userId, actor.orgId, actor.userId, actor.role, active ? 1 : 0)),
+          ...testOrganizationSettings.map((setting) => db.prepare(
+            `INSERT INTO program_admission_policies (org_id, version, stt_mode, llm_mode)
+             VALUES (?, 1, 'off', 'off')`,
+          ).bind(setting.orgId)),
+          ...testOrganizationSettings.map((setting) => {
+            const admin = setting.orgId === testActors.admin.orgId
+              ? testActors.admin
+              : testActors.otherOrgAdmin;
+            return db.prepare(
+              `INSERT INTO programs (
+                 id, org_id, display_name, program_type, storage_mode, processing_mode,
+                 version, admission_confirmed_by, admission_confirmed_at,
+                 admission_confirmed_storage_mode, admission_confirmed_processing_mode,
+                 admission_copy_version, admission_copy_hash,
+                 admission_installation_config_hash, admission_installation_policy_version
+               ) VALUES (?, ?, ?, 'financial_support_v1', 'supabase_seoul', 'external_allowed',
+                         1, ?, '2026-01-01T00:00:00.000Z', 'supabase_seoul', 'external_allowed',
+                         ?, ?, ?, 1)`,
+            ).bind(
+              testProgramId(setting.orgId),
+              setting.orgId,
+              '테스트 사업',
+              admin.userId,
+              PROGRAM_ADMISSION_COPY_VERSION,
+              copyHash,
+              installationConfigHash,
+            );
+          }),
         ]);
       }
     } finally {
@@ -188,6 +377,7 @@ export async function createD1TestContext(
       DB: createD1Database(db),
       secretStore: createEnvironmentSecretStore({ PII_ENC_KEY: TEST_PII_KEY }),
       audioStore: createR2AudioStore(bufferStreamPuts(bucket)),
+      installationMode: 'community-cloud',
     },
     dispose: async () => {
       await miniflare.dispose();
@@ -200,7 +390,7 @@ export async function createD1TestContext(
 export interface ManagedD1 {
   /** 새 컨텍스트를 만든다(이전 것이 있으면 정리). 각 it() 시작에서 호출한다. */
   reset(): Promise<void>;
-  readonly env: ApiEnv;
+  readonly env: TestApiEnv;
   readonly db: D1Database;
   readonly bucket: R2Bucket;
 }

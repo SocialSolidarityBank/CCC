@@ -7,7 +7,8 @@ import {
   listAssignedParticipants,
   listNewSignupBeneficiaryIds,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 // CCC-26 새 가입 배지 — 게이트웨이 파생 값의 단위 테스트.
 // 새 알림 테이블 없이 케이스 상태에서 파생한다(티켓 본문):
@@ -22,9 +23,9 @@ const t = setupD1();
 describe('new signup badge derivation (CCC-26)', () => {
   it('새로 개설된 인테이크 전 케이스는 새 가입으로 보인다', async () => {
     await t.reset();
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
 
     const newSignups = await listNewSignupBeneficiaryIds(t.env, counselor);
     expect(newSignups.has(created.beneficiaryId)).toBe(true);
@@ -36,9 +37,9 @@ describe('new signup badge derivation (CCC-26)', () => {
 
   it('인테이크 일정을 등록하면 새 가입 배지가 소멸한다', async () => {
     await t.reset();
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
     await createCounselingSchedule(t.env, counselor, {
       beneficiaryId: created.beneficiaryId,
       supportCaseId: created.supportCaseId,
@@ -51,9 +52,9 @@ describe('new signup badge derivation (CCC-26)', () => {
 
   it('허브 열람(케이스 읽기 감사) 후에는 새 가입 배지가 소멸한다', async () => {
     await t.reset();
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
     // 허브 페이지가 남기는 것과 같은 모양의 읽기 감사(D14). 앱 경계가 만든 ISO 시각을
     // 직접 bind해 행위자와 케이스가 같은 생성 이후 기록을 만든다.
     const readAt = new Date(Date.now() + 60_000).toISOString();
@@ -68,15 +69,14 @@ describe('new signup badge derivation (CCC-26)', () => {
 
   it('인테이크가 완료되면 새 가입 배지가 소멸한다', async () => {
     await t.reset();
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
       intakeAt: '2026-08-20T09:00:00.000Z',
-    });
+    }));
     await createIntakeRecord(t.env, counselor, created.supportCaseId, {
       submissionId: '01000000-0000-4000-8000-00000000cd01',
       heldAt: '2026-08-20T10:00:00.000Z',
       channel: 'in_person',
-      consent: { privacy: true, recordingAi: true },
     });
 
     const newSignups = await listNewSignupBeneficiaryIds(t.env, counselor);
@@ -85,9 +85,9 @@ describe('new signup badge derivation (CCC-26)', () => {
 
   it('담당이 아닌 실무자의 목록에는 새 가입으로 세지 않는다 (D7)', async () => {
     await t.reset();
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
 
     const newSignups = await listNewSignupBeneficiaryIds(t.env, unassignedCounselor);
     expect(newSignups.has(created.beneficiaryId)).toBe(false);
@@ -96,23 +96,25 @@ describe('new signup badge derivation (CCC-26)', () => {
 
   it('기관 관리자 범위에서는 기관 전체를 센다', async () => {
     await t.reset();
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
 
     const newSignups = await listNewSignupBeneficiaryIds(t.env, admin);
     expect(newSignups.has(created.beneficiaryId)).toBe(true);
     expect(await countNewSignups(t.env, admin)).toBe(1);
   });
+  // 100명 시드는 매 건 PII 암호화와 동의 기록까지 실제로 수행해 느린 러너에서 60초 기본값을 넘는다.
+  // 검증 대상은 목록이 D1 바인딩 상한을 넘지 않고 100건을 돌려주는 것이므로 시간만 늘린다.
   it('당사자 100명도 D1 바인딩 상한을 넘지 않고 목록에 보인다', async () => {
     await t.reset();
     for (let index = 0; index < 100; index += 1) {
-      await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-        programType: 'financial_support_v1',
-      });
+      await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+        programId: testProgramId(counselor.orgId),
+      }));
     }
 
     await expect(listAssignedParticipants(t.env, counselor)).resolves.toHaveLength(100);
-  });
+  }, 300_000);
 
 });

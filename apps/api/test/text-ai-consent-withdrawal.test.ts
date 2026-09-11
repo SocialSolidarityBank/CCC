@@ -16,13 +16,14 @@ import {
   releaseAgentJob,
   recordMaskedSourceSnapshot,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import {
   claimRequest,
   seedCanonicalSttConsent,
   seedNerQualification,
   TEXT_ONLY_RUNTIME,
 } from './support/agent-jobs';
+import { registrationInput } from './support/registration';
 
 // 픽스처가 케이스·회차·동의를 매번 새로 만든다 — text-work-materials.test.ts 와 같은 이유로 여유를 준다.
 vi.setConfig({ testTimeout: 30_000 });
@@ -50,14 +51,22 @@ async function consentHistory(supportCaseId: string): Promise<string[]> {
 
 describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
   it('철회하면 일감 목록·스냅샷 저장·초안 생성이 전부 거부되고 근거 이력은 남는다', async () => {
+    await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+      sttMode: 'local',
+      llmMode: 'openai',
+    });
+    t.env.CCC_STT_MODE = 'local';
     t.env.CCC_LLM_MODE = 'openai';
     t.env.TEXT_AI_PILOT_ENABLED = '1';
 
-    // 1) Canonical consent is established for the canonical support case by its active counselor.
+    // 1) 등록이 6종 동의를 남긴다 — 이후 STT 픽스처는 이미 grant 인 도메인을 건드리지 않는다.
     const creation = await createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: '2026-07-16T09:00:00.000Z' },
+      await registrationInput(t.env, counselor, {
+        programId: testProgramId(counselor.orgId),
+        intakeAt: '2026-07-16T09:00:00.000Z',
+      }),
     );
     await seedCanonicalSttConsent(t.env, counselor, creation.supportCaseId);
     expect(await consentHistory(creation.supportCaseId)).toEqual(['grant']);

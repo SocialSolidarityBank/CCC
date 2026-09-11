@@ -1,3 +1,4 @@
+import type { Bindable, PreparedStatement } from '@ccc/contracts/database';
 import { describe, expect, it, vi } from 'vitest';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import worker from './support/local-worker';
@@ -9,6 +10,7 @@ import {
   createGoal,
   createSupportCase,
   createManualSession,
+  getSupportCaseConsent,
   issueSupportCaseConsentDisclosures,
   listSupportCasesForBeneficiary,
   registerAiProviderConfiguration,
@@ -34,13 +36,14 @@ import {
 } from '@ccc/ai-runtime';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
-import { setupD1 } from './support/d1';
+import { seedTestProgram, seedTestProgramWithRuntimeModes, setupD1, testProgramId } from './support/d1';
 import {
   agentManifestEnv,
   claimOverHttp,
   registerFixtureRecording,
   seedCanonicalSttConsent,
 } from './support/agent-jobs';
+import { registrationConsentEvents, registrationInput, signupConsentEvents } from './support/registration';
 
 const counselorHeaders = {
   'content-type': 'application/json',
@@ -277,7 +280,18 @@ async function setupPhase1AiFixture(
     orgId: adminHeaders['X-CCC-Org-Id'],
     role: 'admin' as const,
   };
-  const caseRecord = await createCase(t.env, counselor, {});
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
+    deploymentMode: env.installationMode ?? 'community-cloud', sttMode: 'off', llmMode: 'openai',
+  });
+  // 외부 LLM 도메인은 등록에서 거절해 둔다 — 이 픽스처를 쓰는 표에는 "canonical 동의가
+  // 없으면 사업자 호출이 0건"인 줄이 있고, 그 줄은 등록이 동의를 주지 않아야 성립한다.
+  // 허가가 필요한 줄은 recordSource 가 canonical 이벤트로 직접 grant 한다.
+  const caseRecord = await createCase(t.env, counselor, await registrationInput(
+    t.env,
+    counselor,
+    { programId: testProgramId(counselor.orgId) },
+    { external_llm_cross_border_processing: 'decline' },
+  ));
   const session = await createManualSession(t.env, counselor, caseRecord.id, {
     submissionId: '02000000-0000-4000-8000-000000000001',
     heldAt: '2026-07-14T09:00:00.000Z',
@@ -295,21 +309,6 @@ async function setupPhase1AiFixture(
     await activateAiProviderConfiguration(t.env, admin, providerConfig.id);
   }
   return { adapter, admin, caseRecord, counselor, env, session };
-}
-
-/** Historical pilot evidence only; canonical consent events authorize outbound work. */
-async function recordPilotConsent(env: ApiEnv, caseId: string): Promise<Response> {
-  return worker.fetch(new Request(`http://localhost/cases/${caseId}/pilot-text-ai-consent`, {
-    method: 'POST',
-    headers: counselorHeaders,
-    body: JSON.stringify({
-      noticeVersion: 'pilot-notice-v1',
-      noticeHash: 'c'.repeat(64),
-      evidenceRef: 'pilot-evidence-1',
-      evidenceHash: 'd'.repeat(64),
-      effectiveAt: '2020-01-01T09:00:00.000Z',
-    }),
-  }), env);
 }
 
 async function canonicalSupportCaseId(env: ApiEnv, actor: Actor, caseId: string): Promise<string> {
@@ -669,6 +668,36 @@ describe('API routes', () => {
     expect(saved.status).toBe(200);
     await expect(saved.json()).resolves.toEqual({
       orgId: 'org_demo', orgName: '연대은행', programDisplayName: '금융지원 사업',
+      institution: {
+        orgId: 'org_demo',
+        orgName: '연대은행',
+        settingsState: 'present',
+        creatorLinkState: 'unlinked',
+        initialSetupState: 'complete',
+        firstProgramAdmissionState: 'not_admitted',
+        firstProgram: {
+          id: expect.any(String),
+          displayName: '금융지원 사업',
+          programType: 'financial_support_v1',
+          status: 'active',
+          version: 1,
+          admissionState: 'undecided',
+        },
+        installationState: 'available',
+        retentionPolicyStatus: 'configured',
+        consentCopy: {
+          version: 'consent-six-domains-v1',
+          status: 'provider_registry_unavailable',
+          domains: [
+            { domain: 'personal_data_collection_use', disclosureAvailable: false },
+            { domain: 'sensitive_information_processing', disclosureAvailable: false },
+            { domain: 'counseling_recording', disclosureAvailable: false },
+            { domain: 'external_stt_processing', disclosureAvailable: false },
+            { domain: 'external_llm_cross_border_processing', disclosureAvailable: false },
+            { domain: 'voice_original_retention_period', disclosureAvailable: false },
+          ],
+        },
+      },
     });
 
     // 저장한 이름이 실무자 조회에도 되비친다 — 사이드바는 모든 역할의 셸이다.
@@ -694,7 +723,7 @@ describe('API routes', () => {
     const createResponse = await worker.fetch(new Request('http://localhost/cases', {
       method: 'POST',
       headers: counselorHeaders,
-      body: JSON.stringify({ programType: 'financial_support_v1' }),
+      body: JSON.stringify(await registrationInput(t.env, routeCounselor, { programId: testProgramId('org_demo') })),
     }), env);
 
     expect(createResponse.status).toBe(201);
@@ -708,7 +737,7 @@ describe('API routes', () => {
     const caseResponse = await worker.fetch(new Request('http://localhost/cases', {
       method: 'POST',
       headers: counselorHeaders,
-      body: JSON.stringify({ programType: 'financial_support_v1' }),
+      body: JSON.stringify(await registrationInput(t.env, routeCounselor, { programId: testProgramId('org_demo') })),
     }), t.env);
     expect(caseResponse.status).toBe(201);
     const caseRecord = await caseResponse.json() as { id: string };
@@ -767,7 +796,7 @@ describe('API routes', () => {
     const caseResponse = await worker.fetch(new Request('http://localhost/cases', {
       method: 'POST',
       headers: counselorHeaders,
-      body: JSON.stringify({ programType: 'financial_support_v1' }),
+      body: JSON.stringify(await registrationInput(t.env, routeCounselor, { programId: testProgramId('org_demo') })),
     }), env);
     const caseRecord = await caseResponse.json() as { id: string };
 
@@ -833,10 +862,11 @@ describe('API routes', () => {
   it('maps local admin headers without treating them as a practitioner and rejects unsigned Access headers', async () => {
     await t.reset();
     const localEnv = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' };
+    // 본문은 계약대로 채운다 — 그러지 않으면 400 이 먼저 나서 "역할이 막았다"를 못 본다.
     const localAdminResponse = await worker.fetch(new Request('http://localhost/cases', {
       method: 'POST',
       headers: adminHeaders,
-      body: JSON.stringify({ programType: 'financial_support_v1' }),
+      body: JSON.stringify(await registrationInput(t.env, routeCounselor, { programId: testProgramId('org_demo') })),
     }), localEnv);
     expect(localAdminResponse.status).toBe(403);
     await expect(localAdminResponse.json()).resolves.toEqual({ error: 'forbidden' });
@@ -844,7 +874,7 @@ describe('API routes', () => {
     const accessAdminResponse = await worker.fetch(new Request('http://localhost/cases', {
       method: 'POST',
       headers: accessAdminHeaders,
-      body: JSON.stringify({ programType: 'financial_support_v1' }),
+      body: JSON.stringify({ programId: testProgramId('org_demo') }),
     }), t.env);
     expect(accessAdminResponse.status).toBe(401);
     await expect(accessAdminResponse.json()).resolves.toEqual({ error: 'actor_authentication_required' });
@@ -852,13 +882,21 @@ describe('API routes', () => {
 
   it('keeps R2 keys out of session responses and limits pipeline work to the service actor', async () => {
     await t.reset();
+    t.env.installationMode = 'local-single';
+    t.env.CCC_STT_MODE = 'local';
+    t.env.CCC_LLM_MODE = 'openai';
     const env = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true', TEXT_AI_PILOT_ENABLED: '1' };
     const counselor = {
       userId: counselorHeaders['X-CCC-User-Id'],
       orgId: counselorHeaders['X-CCC-Org-Id'],
       role: 'counselor' as const,
     };
-    const caseRecord = await createCase(t.env, counselor, { consentRecordingAt: '2026-01-01T00:00:00.000Z' });
+    await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+      deploymentMode: 'local-single', sttMode: 'local', llmMode: 'openai',
+    });
+    const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
     const session = await createManualSession(t.env, counselor, caseRecord.id, {
       submissionId: '02000000-0000-4000-8000-000000000002',
       heldAt: '2026-01-02T10:00:00.000Z',
@@ -866,7 +904,6 @@ describe('API routes', () => {
       memo: 'MANUAL_MEMO_DEMO',
       gasScores: [],
     });
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
     await registerFixtureRecording(t.env, counselor, {
       userId: serviceHeaders['X-CCC-User-Id'],
       orgId: serviceHeaders['X-CCC-Org-Id'],
@@ -899,12 +936,10 @@ describe('API routes', () => {
     expect(audioResponse.status).toBe(200);
     expect(audioResponse.headers.get('content-type')).toBe('audio/wav');
     expect(new Uint8Array(await audioResponse.arrayBuffer())).toHaveLength(364);
-
   });
 
   it('records a service-only immutable source snapshot and generates only from its reloaded evidence', async () => {
-    const { adapter, caseRecord, env, session } = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const { adapter, env, session } = await setupPhase1AiFixture();
 
     const receipt = await recordSourceSnapshot(env, session.id);
     expect(receipt).toEqual({
@@ -965,7 +1000,6 @@ describe('API routes', () => {
     if (supportCaseId === undefined) throw new Error('expected initial support case');
     await setSupportCaseOverallGoal(env, counselor, supportCaseId, 'RAW_GOAL_MARKER 전세 보증금 마련');
 
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
     // 스냅샷에는 일부러 목표를 싣지 않는다. 호출부가 케이스에서 직접 이어 붙이면 여기서 샌다.
     const receipt = await recordSourceSnapshot(env, session.id);
     expect((await generateDraft(env, session.id, receipt.sourceSnapshotId)).status).toBe(201);
@@ -977,8 +1011,7 @@ describe('API routes', () => {
 
   it('accepts legitimate source mentions of prohibited concepts but rejects prohibited generated output without a draft', async () => {
     const safeAdapter = new FakeAiProviderAdapter();
-    const { caseRecord, env, session } = await setupPhase1AiFixture(safeAdapter);
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const { env, session } = await setupPhase1AiFixture(safeAdapter);
     const source = await recordSourceSnapshot(env, session.id, await sourceBody('A001 mentioned GAS score: 2 during the session.'));
     expect((await generateDraft(env, session.id, source.sourceSnapshotId)).status).toBe(201);
     expect(safeAdapter.calls).toBe(1);
@@ -986,7 +1019,6 @@ describe('API routes', () => {
     const prohibitedAdapter = new FakeAiProviderAdapter();
     prohibitedAdapter.output = (request) => validProviderOutput(request, 'GAS score: 2');
     const prohibitedFixture = await setupPhase1AiFixture(prohibitedAdapter);
-    expect((await recordPilotConsent(prohibitedFixture.env, prohibitedFixture.caseRecord.id)).status).toBe(201);
     const prohibitedSource = await recordSourceSnapshot(prohibitedFixture.env, prohibitedFixture.session.id);
     const response = await generateDraft(prohibitedFixture.env, prohibitedFixture.session.id, prohibitedSource.sourceSnapshotId);
     expect(response.status).toBe(422);
@@ -995,38 +1027,38 @@ describe('API routes', () => {
     await expectNoDraft(prohibitedFixture.env, prohibitedFixture.session.id);
   });
 
-  it('rejects future and noncanonical pilot consent effective times without recording evidence', async () => {
+  it('폐지된 파일럿 증빙 기록 라우트는 404 이고 증빙 행도 남기지 않는다 (S7)', async () => {
     const fixture = await setupPhase1AiFixture();
-    const invalidEffectiveTimes = [
-      '2020-01-01T09:00:00+09:00',
-      new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-    ];
 
-    for (const effectiveAt of invalidEffectiveTimes) {
-      const response = await worker.fetch(new Request(
-        `http://localhost/cases/${fixture.caseRecord.id}/pilot-text-ai-consent`,
-        {
-          method: 'POST',
-          headers: counselorHeaders,
-          body: JSON.stringify({
-            noticeVersion: 'pilot-notice-v1',
-            noticeHash: 'c'.repeat(64),
-            evidenceRef: 'pilot-evidence-invalid-time',
-            evidenceHash: 'd'.repeat(64),
-            effectiveAt,
-          }),
-        },
-      ), fixture.env);
-      expect(response.status).toBe(400);
-      await expect(response.json()).resolves.toEqual({ error: 'invalid_request' });
-    }
+    const response = await worker.fetch(new Request(
+      `http://localhost/cases/${fixture.caseRecord.id}/pilot-text-ai-consent`,
+      {
+        method: 'POST',
+        headers: counselorHeaders,
+        body: JSON.stringify({
+          noticeVersion: 'pilot-notice-v1',
+          noticeHash: 'c'.repeat(64),
+          evidenceRef: 'pilot-evidence-retired',
+          evidenceHash: 'd'.repeat(64),
+          effectiveAt: '2020-01-01T09:00:00.000Z',
+        }),
+      },
+    ), fixture.env);
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: 'not_found' });
 
+    // 기록기는 사라졌고 표는 역사 읽기용으로만 남는다 — 새 행은 어떤 경로로도 생기지 않는다.
     await expect(t.db.prepare(
       `SELECT COUNT(*) AS count
        FROM pilot_text_ai_consent_evidence AS evidence
        JOIN support_cases AS support_case ON support_case.id = evidence.support_case_id
        WHERE support_case.legacy_case_id = ?`,
     ).bind(fixture.caseRecord.id).first<{ count: number }>()).resolves.toEqual({ count: 0 });
+
+    // 그리고 그 부재가 텍스트 AI 를 여는 일도 없다 — 권한은 canonical 동의 이벤트뿐이다.
+    const draft = await generateDraft(fixture.env, fixture.session.id, 'retired-route-snapshot');
+    expect(draft.status).toBe(409);
+    await expect(draft.json()).resolves.toEqual({ error: 'consent_not_effective' });
   });
   it('has zero provider calls for missing canonical consent, disabled pilot, and cross-case sources', async () => {
     const missing = await setupPhase1AiFixture();
@@ -1044,9 +1076,8 @@ describe('API routes', () => {
     await expectNoDraft(disabled.env, disabled.session.id);
 
     const isolated = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(isolated.env, isolated.caseRecord.id)).status).toBe(201);
     const source = await recordSourceSnapshot(isolated.env, isolated.session.id);
-    const secondCase = await createCase(t.env, isolated.counselor, {});
+    const secondCase = await createCase(t.env, isolated.counselor, await registrationInput(t.env, isolated.counselor, { programId: testProgramId(isolated.counselor.orgId) }));
     const secondSession = await createManualSession(t.env, isolated.counselor, secondCase.id, {
       submissionId: '02000000-0000-4000-8000-000000000003',
       heldAt: '2026-07-14T10:00:00.000Z',
@@ -1064,7 +1095,6 @@ describe('API routes', () => {
 
   it('isolates source snapshots to their recorded case and session before outbound work', async () => {
     const { adapter, caseRecord, counselor, env, session } = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
     const source = await recordSourceSnapshot(env, session.id);
     const secondSession = await createManualSession(t.env, counselor, caseRecord.id, {
       submissionId: '02000000-0000-4000-8000-000000000004',
@@ -1073,8 +1103,7 @@ describe('API routes', () => {
       memo: 'SECOND_SESSION_MANUAL_MEMO',
       gasScores: [],
     });
-    const secondCase = await createCase(t.env, counselor, {});
-    expect((await recordPilotConsent(env, secondCase.id)).status).toBe(201);
+    const secondCase = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
     await seedCanonicalLlmConsent(env, counselor, secondCase.id);
     const crossCaseSession = await createManualSession(t.env, counselor, secondCase.id, {
       submissionId: '02000000-0000-4000-8000-000000000005',
@@ -1095,7 +1124,6 @@ describe('API routes', () => {
 
   it('fails closed for unavailable, missing, and hash-mismatched provider runtime configuration', async () => {
     const unavailable = await setupPhase1AiFixture(new FakeAiProviderAdapter(), { activateProvider: false });
-    expect((await recordPilotConsent(unavailable.env, unavailable.caseRecord.id)).status).toBe(201);
     const unavailableSource = await recordSourceSnapshot(unavailable.env, unavailable.session.id);
     const unavailableResponse = await generateDraft(unavailable.env, unavailable.session.id, unavailableSource.sourceSnapshotId);
     expect(unavailableResponse.status).toBe(409);
@@ -1105,7 +1133,6 @@ describe('API routes', () => {
 
     const noRuntimeConfigAdapter = new FakeAiProviderAdapter();
     const noRuntimeConfig = await setupPhase1AiFixture(noRuntimeConfigAdapter, { injectAdapter: false });
-    expect((await recordPilotConsent(noRuntimeConfig.env, noRuntimeConfig.caseRecord.id)).status).toBe(201);
     const noRuntimeConfigSource = await recordSourceSnapshot(noRuntimeConfig.env, noRuntimeConfig.session.id);
     const noRuntimeConfigResponse = await generateDraft(
       noRuntimeConfig.env,
@@ -1122,7 +1149,6 @@ describe('API routes', () => {
     const mismatched = await setupPhase1AiFixture(mismatchedAdapter, {
       configHash: await canonicalAiProviderConfigHash(TEST_PROVIDER_CONFIG),
     });
-    expect((await recordPilotConsent(mismatched.env, mismatched.caseRecord.id)).status).toBe(201);
     const mismatchedSource = await recordSourceSnapshot(mismatched.env, mismatched.session.id);
     const mismatchedResponse = await generateDraft(mismatched.env, mismatched.session.id, mismatchedSource.sourceSnapshotId);
     expect(mismatchedResponse.status).toBe(503);
@@ -1131,10 +1157,43 @@ describe('API routes', () => {
     await expectNoDraft(mismatched.env, mismatched.session.id);
   });
 
+  it('stops provider egress when admission changes during historical context loading', async () => {
+    const fixture = await setupPhase1AiFixture();
+    const source = await recordSourceSnapshot(fixture.env, fixture.session.id);
+    let changed = false;
+    const wrap = (statement: PreparedStatement): PreparedStatement => new Proxy(statement, {
+      get(target, property) {
+        if (property === 'bind') return (...values: Bindable[]) => wrap(target.bind(...values));
+        if (property === 'first') return async () => {
+          if (!changed) {
+            changed = true;
+            await t.db.prepare('UPDATE program_admission_policies SET version = version + 1 WHERE org_id = ?')
+              .bind(fixture.counselor.orgId).run();
+          }
+          return target.first();
+        };
+        const value = Reflect.get(target, property);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const env: ApiEnv = { ...fixture.env, DB: {
+      prepare: (sql) => {
+        const statement = fixture.env.DB.prepare(sql);
+        return sql.startsWith('SELECT 1 AS eligible FROM counseling_memory_cases c')
+          ? wrap(statement) : statement;
+      },
+      batch: fixture.env.DB.batch.bind(fixture.env.DB),
+    } };
+    const response = await generateDraft(env, fixture.session.id, source.sourceSnapshotId);
+    expect(changed, `historical context injection; status=${response.status}`).toBe(true);
+    expect(fixture.adapter.calls).toBe(0);
+    expect(response.status).toBe(409);
+    await expectNoDraft(fixture.env, fixture.session.id);
+  });
+
   it('rejects provider output when activation changes during the outbound call', async () => {
     const adapter = new FakeAiProviderAdapter();
     const fixture = await setupPhase1AiFixture(adapter);
-    expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
     const source = await recordSourceSnapshot(fixture.env, fixture.session.id);
     const replacement = await registerAiProviderConfiguration(t.env, fixture.admin, {
       adapterId: CODEX_PROVIDER_ID,
@@ -1161,7 +1220,6 @@ describe('API routes', () => {
   it('rejects provider output when a non-LLM member of the canonical consent receipt changes', async () => {
     const adapter = new FakeAiProviderAdapter();
     const fixture = await setupPhase1AiFixture(adapter);
-    expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
     const source = await recordSourceSnapshot(fixture.env, fixture.session.id);
     const baselineRows = await phase1MutableRowCounts();
     const baselineSession = await sessionAiState(fixture.session.id);
@@ -1256,8 +1314,7 @@ describe('API routes', () => {
     ];
 
     for (const malformed of malformedSources) {
-      const { adapter, caseRecord, env, session } = await setupPhase1AiFixture();
-      expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+      const { adapter, env, session } = await setupPhase1AiFixture();
 
       const response = await recordSource(env, session.id, malformed.makeBody(await sourceBody()));
 
@@ -1275,8 +1332,7 @@ describe('API routes', () => {
     }
   });
   it('rejects duplicate snapshot spans and unsupported browser generation fields without mutation', async () => {
-    const { adapter, caseRecord, env, session } = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const { adapter, env, session } = await setupPhase1AiFixture();
     const duplicateSpanBody = await sourceBody();
     duplicateSpanBody.evidence.push({ ...duplicateSpanBody.evidence[0]!, id: 'source-evidence-2' });
     const duplicateSpanResponse = await recordSource(env, session.id, duplicateSpanBody);
@@ -1416,8 +1472,7 @@ describe('API routes', () => {
         questions: validProviderQuestions(request),
         ...(output(request) as Record<string, unknown>),
       });
-      const { caseRecord, env, session } = await setupPhase1AiFixture(adapter);
-      expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+      const { env, session } = await setupPhase1AiFixture(adapter);
       const source = await recordSourceSnapshot(env, session.id);
       const response = await generateDraft(env, session.id, source.sourceSnapshotId);
       expect(response.status).toBe(422);
@@ -1519,8 +1574,7 @@ describe('API routes', () => {
     async ({ output }) => {
       const adapter = new FakeAiProviderAdapter();
       adapter.output = output;
-      const { caseRecord, env, session } = await setupPhase1AiFixture(adapter);
-      expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+      const { env, session } = await setupPhase1AiFixture(adapter);
       const source = await recordSourceSnapshot(env, session.id);
       const response = await generateDraft(env, session.id, source.sourceSnapshotId);
 
@@ -1538,8 +1592,7 @@ describe('API routes', () => {
         { title: '공과금 납부 계획을 확인할까요?', reason: '납부 계획 확인이 필요합니다.', evidence: [{ ...firstEvidence(request) }] },
       ],
     });
-    const { caseRecord, env, session } = await setupPhase1AiFixture(adapter);
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const { env, session } = await setupPhase1AiFixture(adapter);
     const source = await recordSourceSnapshot(env, session.id);
 
     const response = await generateDraft(env, session.id, source.sourceSnapshotId);
@@ -1580,8 +1633,7 @@ describe('API routes', () => {
         questions: validProviderQuestions(request),
         ...(invalid.output(request) as Record<string, unknown>),
       });
-      const { caseRecord, env, session } = await setupPhase1AiFixture(adapter);
-      expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+      const { env, session } = await setupPhase1AiFixture(adapter);
       const source = await recordSourceSnapshot(env, session.id);
       const before = await phase1MutableRowCounts();
       expect(before).toEqual({
@@ -1607,7 +1659,6 @@ describe('API routes', () => {
     const adapter = new FakeAiProviderAdapter();
     adapter.failure = new Error(providerFailure);
     const { caseRecord, env, session } = await setupPhase1AiFixture(adapter);
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
     const source = await recordSourceSnapshot(env, session.id);
     const before = await phase1MutableRowCounts();
 
@@ -1664,8 +1715,7 @@ describe('API routes', () => {
   });
 
   it('enforces service-only generation and counselor-or-admin-only draft access without mutation', async () => {
-    const { adapter, caseRecord, env, session } = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const { adapter, env, session } = await setupPhase1AiFixture();
     const source = await recordSourceSnapshot(env, session.id);
     const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
     expect(generatedResponse.status).toBe(201);
@@ -1711,8 +1761,7 @@ describe('API routes', () => {
   });
 
   it('table-denies inapplicable actors across source, generate, read, edit, and review without mutation', async () => {
-    const { adapter, caseRecord, env, session } = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const { adapter, env, session } = await setupPhase1AiFixture();
     const source = await recordSourceSnapshot(env, session.id);
     const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
     expect(generatedResponse.status).toBe(201);
@@ -1898,8 +1947,7 @@ describe('API routes', () => {
     }
   });
   it('requires canonical draft versions and leaves terminal or stale paths unchanged', async () => {
-    const { adapter, caseRecord, env, session } = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const { adapter, env, session } = await setupPhase1AiFixture();
     const source = await recordSourceSnapshot(env, session.id);
     const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
     expect(generatedResponse.status).toBe(201);
@@ -2052,7 +2100,6 @@ describe('API routes', () => {
       const adapter = new FakeAiProviderAdapter();
       adapter.output = (request) => validProviderOutput(request, scenario.canary);
       const { caseRecord, env, session } = await setupPhase1AiFixture(adapter);
-      expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
       const source = await recordSourceSnapshot(env, session.id);
       const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
       expect(generatedResponse.status).toBe(201);
@@ -2369,14 +2416,13 @@ async function setupCanonicalParticipant(): Promise<ParticipantCreation> {
       'INSERT INTO users (id, org_id, email, role, active, time_zone) VALUES (?, ?, ?, ?, 1, ?)',
     ).bind(canonicalIds.hiddenCounselor, 'org_canonical', 'canonical.hidden@example.invalid', 'counselor', 'UTC'),
   ]);
+  await seedTestProgram(t.db, 'org_canonical', canonicalIds.admin);
   const response = await worker.fetch(new Request('http://localhost/beneficiaries', {
     method: 'POST',
     headers: canonicalCounselorHeaders,
-    body: JSON.stringify({
-      programType: 'financial_support_v1',
-      // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다.
-      consentPrivacy: true,
-    }),
+    body: JSON.stringify(await registrationInput(t.env, canonicalCounselor, {
+      programId: testProgramId('org_canonical'),
+    })),
   }), t.env);
   expect(response.status).toBe(201);
   return response.json() as Promise<ParticipantCreation>;
@@ -2389,8 +2435,7 @@ interface RouteAiDraftWithRegeneration extends RouteAiDraft {
 
 describe('검토 화면 기관 관리자 경계 (D74)', () => {
   it('담당이 아닌 기관 관리자는 초안을 읽되 근거 재선택과 승인은 할 수 없다', async () => {
-    const { caseRecord, env, session } = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const { env, session } = await setupPhase1AiFixture();
     const source = await recordSourceSnapshot(env, session.id);
     const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
     expect(generatedResponse.status).toBe(201);
@@ -2411,8 +2456,7 @@ describe('검토 화면 기관 관리자 경계 (D74)', () => {
   });
 
   it('대조 항목별 처리 없이 초안 전체를 통째 승인한다 (D71)', async () => {
-    const { caseRecord, env, session } = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const { env, session } = await setupPhase1AiFixture();
     const source = await recordSourceSnapshot(env, session.id);
     const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
     expect(generatedResponse.status).toBe(201);
@@ -2433,8 +2477,7 @@ describe('검토 화면 기관 관리자 경계 (D74)', () => {
   });
 
   it('배정 안 된 실무자는 검토 화면 세 경로에서 여전히 막힌다', async () => {
-    const { caseRecord, env, session } = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const { env, session } = await setupPhase1AiFixture();
     const source = await recordSourceSnapshot(env, session.id);
     const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
     expect(generatedResponse.status).toBe(201);
@@ -2448,8 +2491,7 @@ describe('검토 화면 기관 관리자 경계 (D74)', () => {
   });
 
   it('service 역할은 검토 화면 세 경로 모두 403 이다', async () => {
-    const { caseRecord, env, session } = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const { env, session } = await setupPhase1AiFixture();
     const source = await recordSourceSnapshot(env, session.id);
     const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
     expect(generatedResponse.status).toBe(201);
@@ -2466,7 +2508,6 @@ describe('검토 화면 기관 관리자 경계 (D74)', () => {
 describe('재생성 노출과 트리거 (D69 · ADR-0036 결정 2 · CCC-100)', () => {
   it('생성 직후에는 초안이 쓴 재료 그대로라 재생성이 노출되지 않는다', async () => {
     const fixture = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
     const receipt = await recordSourceSnapshot(fixture.env, fixture.session.id);
     expect((await generateDraft(fixture.env, fixture.session.id, receipt.sourceSnapshotId)).status).toBe(201);
 
@@ -2479,7 +2520,6 @@ describe('재생성 노출과 트리거 (D69 · ADR-0036 결정 2 · CCC-100)', 
 
   it('늦게 온 텍스트 재료가 있으면 재생성이 노출되고, 담당 실무자가 새 버전으로 재생성할 수 있다', async () => {
     const fixture = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
     const firstReceipt = await recordSourceSnapshot(fixture.env, fixture.session.id);
     const firstDraftResponse = await generateDraft(fixture.env, fixture.session.id, firstReceipt.sourceSnapshotId);
     expect(firstDraftResponse.status).toBe(201);
@@ -2520,7 +2560,6 @@ describe('재생성 노출과 트리거 (D69 · ADR-0036 결정 2 · CCC-100)', 
 
   it('배정되지 않은 실무자는 재생성을 트리거할 수 없다', async () => {
     const fixture = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
     const receipt = await recordSourceSnapshot(fixture.env, fixture.session.id);
     expect((await generateDraft(fixture.env, fixture.session.id, receipt.sourceSnapshotId)).status).toBe(201);
     const secondReceipt = await recordSourceSnapshot(
@@ -2535,7 +2574,6 @@ describe('재생성 노출과 트리거 (D69 · ADR-0036 결정 2 · CCC-100)', 
 
   it('이미 승인된 초안은 늦게 온 재료가 있어도 재생성 노출과 트리거 둘 다 막는다', async () => {
     const fixture = await setupPhase1AiFixture();
-    expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
     const receipt = await recordSourceSnapshot(fixture.env, fixture.session.id);
     const draftResponse = await generateDraft(fixture.env, fixture.session.id, receipt.sourceSnapshotId);
     expect(draftResponse.status).toBe(201);
@@ -2586,13 +2624,19 @@ describe('canonical participant API routes', () => {
       // 담당 실무자 표시 이름은 이 픽스처에서 users.name 이 없어 비어 있다(이메일 폴백 없음).
       authorized: true,
       assigneeNames: [],
-      // D44: 동의 3종의 현재 상태. G1 이후 등록은 ① 없이는 성립하지 않으므로(픽스처가 ① 을
-      // 보낸다) privacy 만 true 이고, 기록 시각은 그 등록 시점이다.
-      consent: { privacy: true, recordingAi: false },
+      // S7: 목록은 더 이상 동의 3종 불리언을 싣지 않는다. 기록 시각은 canonical
+      // consent_events.recorded_at 에서 접히므로 등록만으로도 값이 생긴다.
       consentRecordedAt: expect.any(String),
       // 허브 '최신 일정' 카드(2026-08-06 Q). 이 픽스처에는 예정 일정이 없어 null 이다.
       upcomingSchedule: null,
     }]);
+
+    // 그리고 현재 동의는 6종 이벤트에서 읽는다 — 등록 한 번이 6개 도메인을 모두 확정한다.
+    await expect(getSupportCaseConsent(t.env, canonicalCounselor, creation.supportCaseId))
+      .resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ domain: 'personal_data_collection_use', state: 'granted' }),
+        expect.objectContaining({ domain: 'counseling_recording', state: 'granted' }),
+      ]));
 
     const briefing = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
@@ -2663,6 +2707,8 @@ describe('canonical participant API routes', () => {
         supportCaseId: creation.supportCaseId,
         beneficiaryId: creation.beneficiaryId,
         scheduledAt: '2026-07-15T10:00:00.000Z',
+        allDay: false,
+        displayColor: null,
         programType: 'financial_support_v1',
         status: 'scheduled',
         sessionKind: 'regular',
@@ -2727,10 +2773,10 @@ describe('canonical participant API routes', () => {
       replayed: true,
     });
     const sibling = await createSupportCase(t.env, canonicalCounselor, creation.beneficiaryId, {
-      consentPrivacy: true,
+      consentEvents: await registrationConsentEvents(t.env, canonicalCounselor, testProgramId('org_canonical')),
       schemaVersion: 1,
       submissionId: '77777777-7777-4777-8777-777777777777',
-      programType: 'financial_support_v1',
+      programId: testProgramId('org_canonical'),
       intakeAt: '2026-07-16T09:00:00.000Z',
       sourceSupportCaseId: creation.supportCaseId,
     });
@@ -2834,6 +2880,8 @@ describe('canonical participant API routes', () => {
         beneficiaryId: creation.beneficiaryId,
         supportCaseId: creation.supportCaseId,
         scheduledAt: '2026-07-15T10:00:00.000Z',
+        allDay: false,
+        displayColor: null,
         status: 'scheduled',
         version: 1,
         completedSessionId: null,
@@ -2949,7 +2997,6 @@ describe('canonical participant API routes', () => {
       submissionId: 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1',
       heldAt: '2026-07-15T09:30:00.000Z',
       channel: 'in_person',
-      consent: { privacy: true, recordingAi: true },
       helpNarrative: {
         todayHelp: 'INTAKE_TODAY_HELP',
         hardestPoint: 'INTAKE_HARDEST',
@@ -3113,9 +3160,9 @@ describe('canonical participant API routes', () => {
     const requestBody = {
       schemaVersion: 1,
       submissionId: '99999999-9999-4999-8999-999999999999',
-      // G1: 추가 참여 사업도 ① 을 다시 받는다(D44 — 두 번째 사업은 미체크로 시작).
-      consentPrivacy: true,
-      programType: 'financial_support_v1',
+      // G1: 추가 참여 사업도 6종 동의를 다시 받는다 — 한 벌을 만들어 두고 재시도에 재사용한다.
+      consentEvents: await registrationConsentEvents(t.env, canonicalCounselor, testProgramId('org_canonical')),
+      programId: testProgramId('org_canonical'),
       sourceSupportCaseId: creation.supportCaseId,
     };
     const createdResponse = await worker.fetch(new Request(
@@ -3163,9 +3210,13 @@ describe('canonical participant API routes', () => {
               version, purge_due AS purgeDue, purged_at AS purgedAt, updated_at AS updatedAt
        FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ?`,
     ).bind(creation.beneficiaryId, canonicalCounselor.orgId).first();
-    // 감사 7건: 등록 4건(create·create·assign·record_consent) + 추가 사업 3건(create·assign·
-    // record_consent). G1 로 등록·추가 양쪽에 동의 기록 감사가 1건씩 붙었다.
-    expect(stateBeforeConflict).toEqual({ supportCaseCount: 2, assignmentCount: 2, auditCount: 7 });
+    // 감사 5건: 등록 3건(create·create·assign) + 추가 사업 2건(create·assign). 동의는
+    // audit_log 가 아니라 consent_events·consent_audit_events 에 남는다(6종 × 2사업).
+    expect(stateBeforeConflict).toEqual({ supportCaseCount: 2, assignmentCount: 2, auditCount: 5 });
+    await expect(t.db.prepare(
+      `SELECT COUNT(*) AS n FROM consent_events
+       WHERE org_id = ? AND beneficiary_id = ?`,
+    ).bind(canonicalCounselor.orgId, creation.beneficiaryId).first()).resolves.toEqual({ n: 12 });
 
     const conflict = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/support-cases`,
@@ -3173,9 +3224,14 @@ describe('canonical participant API routes', () => {
         method: 'POST',
         headers: canonicalCounselorHeaders,
         body: JSON.stringify({
-          // 같은 제출 id 로 내용만 다른 재시도 — ② 동의를 바꿔 영수증 해시를 어긋나게 한다.
+          // 같은 제출 id 로 내용만 다른 재시도 — 녹음 동의를 거절로 바꿔 영수증 해시를 어긋나게 한다.
           ...requestBody,
-          consentRecordingAi: true,
+          consentEvents: await registrationConsentEvents(
+            t.env,
+            canonicalCounselor,
+            testProgramId('org_canonical'),
+            { counseling_recording: 'decline' },
+          ),
         }),
       },
     ), t.env);
@@ -3221,6 +3277,9 @@ describe('canonical participant API routes', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       AI_PROVIDER_ADAPTER: adapter,
     };
+    await seedTestProgramWithRuntimeModes(t.db, canonicalAdmin.orgId, canonicalAdmin.userId, {
+      deploymentMode: env.installationMode ?? 'community-cloud', sttMode: 'off', llmMode: 'openai',
+    });
     const providerConfig = await registerAiProviderConfiguration(env, canonicalAdmin, {
       adapterId: CODEX_PROVIDER_ID,
       adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION,
@@ -3229,25 +3288,12 @@ describe('canonical participant API routes', () => {
     });
     await activateAiProviderConfiguration(env, canonicalAdmin, providerConfig.id);
 
-    const consent = await worker.fetch(new Request(
-      `http://localhost/cases/${creation.supportCaseId}/pilot-text-ai-consent`,
-      {
-        method: 'POST',
-        headers: canonicalCounselorHeaders,
-        body: JSON.stringify({
-          noticeVersion: 'canonical-pilot-notice-v1',
-          noticeHash: 'c'.repeat(64),
-          evidenceRef: 'canonical-pilot-evidence',
-          evidenceHash: 'd'.repeat(64),
-          effectiveAt: '2020-01-01T09:00:00.000Z',
-        }),
-      },
-    ), env);
-    expect(consent.status).toBe(201);
-    // CCC-110: 근거 기록 라우트는 이력만 남긴다 — 현재 동의 컬럼은 픽스처가 직접 세운다.
-    await t.db.prepare(
-      'UPDATE support_cases SET consent_text_ai_at = ? WHERE id = ?',
-    ).bind('2020-01-01T09:00:00.000Z', creation.supportCaseId).run();
+    // 텍스트 AI 권한은 등록이 남긴 canonical 6종 동의 이벤트에서만 나온다 — 옛 증빙
+    // 라우트도, support_cases.consent_text_ai_at 컬럼도 더는 권한이 아니다.
+    await expect(getSupportCaseConsent(env, canonicalCounselor, creation.supportCaseId))
+      .resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ domain: 'external_llm_cross_border_processing', state: 'granted' }),
+      ]));
 
     const submitManualRecord = async (
       submissionId: string,
@@ -3442,7 +3488,7 @@ describe('canonical participant API routes', () => {
       method: 'POST',
       headers: canonicalCounselorHeaders,
       body: JSON.stringify({
-        programType: 'financial_support_v1',
+        programId: testProgramId('org_canonical'),
         initialAssigneeUserId: canonicalIds.hiddenCounselor,
       }),
     }), t.env);
@@ -3457,7 +3503,7 @@ describe('canonical participant API routes', () => {
         body: JSON.stringify({
           schemaVersion: 1,
           submissionId: 'not-a-uuid',
-          programType: 'financial_support_v1',
+          programId: testProgramId('org_canonical'),
           sourceSupportCaseId: creation.supportCaseId,
           ignored: true,
         }),
@@ -3484,11 +3530,12 @@ describe('canonical participant API routes', () => {
     expect(malformedRecord.status).toBe(400);
     await expect(malformedRecord.json()).resolves.toEqual({ error: 'invalid_request' });
 
+    // 재시도(replay)는 같은 입력이어야 성립한다 — 동의 한 벌을 만들어 두고 두 번 보낸다.
     const hiddenPayload = {
       schemaVersion: 1,
       submissionId: '55555555-5555-4555-8555-555555555555',
-      consentPrivacy: true,
-      programType: 'financial_support_v1',
+      consentEvents: await registrationConsentEvents(t.env, canonicalAdmin, testProgramId('org_canonical')),
+      programId: testProgramId('org_canonical'),
       initialAssigneeUserId: canonicalIds.hiddenCounselor,
     };
     const hidden = await worker.fetch(new Request(
@@ -3597,6 +3644,8 @@ describe('canonical participant API routes', () => {
       beneficiaryId: creation.beneficiaryId,
       supportCaseId: creation.supportCaseId,
       scheduledAt: '2026-07-16T11:00:00.000Z',
+      allDay: false,
+      displayColor: null,
       status: 'scheduled',
       version: 2,
     });
@@ -3624,6 +3673,8 @@ describe('canonical participant API routes', () => {
       beneficiaryId: creation.beneficiaryId,
       supportCaseId: creation.supportCaseId,
       scheduledAt: cancellableSchedule.scheduledAt,
+      allDay: false,
+      displayColor: null,
       status: 'cancelled',
       version: 2,
     });
@@ -3644,6 +3695,8 @@ describe('canonical participant API routes', () => {
       beneficiaryId: creation.beneficiaryId,
       supportCaseId: creation.supportCaseId,
       scheduledAt: noShowSchedule.scheduledAt,
+      allDay: false,
+      displayColor: null,
       status: 'no_show',
       version: 2,
     });
@@ -3970,7 +4023,7 @@ describe('public participant signup routes (CCC-28)', () => {
 
   async function issueToken(): Promise<string> {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     return invite.token;
   }
 
@@ -3980,14 +4033,20 @@ describe('public participant signup routes (CCC-28)', () => {
     return { ...t.env, PUBLIC_SIGNUP_ENABLED: '1' };
   }
 
-  it('GET /invites/participant/:token returns programType for a valid token', async () => {
+  it('GET /invites/participant/:token returns the issued request-link details', async () => {
     const token = await issueToken();
     const res = await worker.fetch(
       new Request(`http://localhost/invites/participant/${token}`),
       signupOpenEnv(),
     );
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ programType: 'financial_support_v1' });
+    await expect(res.json()).resolves.toEqual({
+      status: 'issued',
+      programId: testProgramId(counselor.orgId),
+      programType: 'financial_support_v1',
+      orgName: null,
+      expiresAt: expect.any(String),
+    });
   });
 
   it('GET /invites/participant/:token returns 404 for unknown token', async () => {
@@ -4001,6 +4060,7 @@ describe('public participant signup routes (CCC-28)', () => {
 
   it('POST /signup/participant creates beneficiary + case and returns 201', async () => {
     const token = await issueToken();
+    const consentEvents = await signupConsentEvents(t.env, token);
     const res = await worker.fetch(
       new Request('http://localhost/signup/participant', {
         method: 'POST',
@@ -4009,7 +4069,7 @@ describe('public participant signup routes (CCC-28)', () => {
           token,
           name: '테스트 당사자',
           phone: '010-1234-5678',
-          consent: { privacy: true, recordingAi: true },
+          consentEvents,
         }),
       }),
       signupOpenEnv(),
@@ -4022,10 +4082,11 @@ describe('public participant signup routes (CCC-28)', () => {
 
   it('POST /signup/participant returns 404 for already-used token', async () => {
     const token = await issueToken();
+    const consentEvents = await signupConsentEvents(t.env, token);
     const body = {
       token,
       name: '첫 가입',
-      consent: { privacy: true, recordingAi: true },
+      consentEvents,
     };
     const first = await worker.fetch(
       new Request('http://localhost/signup/participant', {
@@ -4047,13 +4108,26 @@ describe('public participant signup routes (CCC-28)', () => {
     expect(second.status).toBe(404);
   });
 
-  it('POST /signup/participant returns 400 when consent is missing', async () => {
+  it('POST /signup/participant returns 400 when consentEvents is missing', async () => {
     const token = await issueToken();
     const res = await worker.fetch(
       new Request('http://localhost/signup/participant', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token, name: '이름만' }),
+      }),
+      signupOpenEnv(),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /signup/participant returns 400 for the retired consent object', async () => {
+    const token = await issueToken();
+    const res = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, name: '구 입력', consent: { privacy: true, recordingAi: true } }),
       }),
       signupOpenEnv(),
     );
@@ -4067,6 +4141,7 @@ describe('public participant signup routes (CCC-28)', () => {
    */
   it('스위치 미설정이면 유효 토큰이어도 공개 가입 표면 전체가 404 (fail closed)', async () => {
     const token = await issueToken();
+    const consentEvents = await signupConsentEvents(t.env, token);
     // t.env 에는 PUBLIC_SIGNUP_ENABLED 가 없다 — 미설정 = 닫힘.
     const invite = await worker.fetch(
       new Request(`http://localhost/invites/participant/${token}`),
@@ -4078,7 +4153,7 @@ describe('public participant signup routes (CCC-28)', () => {
       new Request('http://localhost/signup/participant', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ token, name: '테스트 당사자', consent: { privacy: true, recordingAi: true } }),
+        body: JSON.stringify({ token, name: '테스트 당사자', consentEvents }),
       }),
       t.env,
     );
@@ -4089,7 +4164,7 @@ describe('public participant signup routes (CCC-28)', () => {
       new Request('http://localhost/invites/participant', {
         method: 'POST',
         headers: counselorHeaders,
-        body: JSON.stringify({ programType: 'financial_support_v1' }),
+        body: JSON.stringify({ programId: testProgramId('org_demo') }),
       }),
       t.env,
     );
@@ -4100,7 +4175,7 @@ describe('public participant signup routes (CCC-28)', () => {
       new Request('http://localhost/signup/participant', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ token, name: '테스트 당사자', consent: { privacy: true, recordingAi: true } }),
+        body: JSON.stringify({ token, name: '테스트 당사자', consentEvents }),
       }),
       signupOpenEnv(),
     );
@@ -4208,9 +4283,9 @@ describe('support case closure routes (CCC-107)', () => {
         body: JSON.stringify({
           schemaVersion: 1,
           submissionId: 'aaaaaaaa-cccc-4ccc-8ccc-aaaaaaaaaaaa',
-          programType: 'financial_support_v1',
+          programId: testProgramId('org_canonical'),
           initialAssigneeUserId: canonicalIds.counselor,
-          consentPrivacy: true,
+          consentEvents: await registrationConsentEvents(t.env, canonicalAdmin, testProgramId('org_canonical')),
         }),
       },
     ), t.env);
