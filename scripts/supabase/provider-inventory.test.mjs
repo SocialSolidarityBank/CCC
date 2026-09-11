@@ -249,3 +249,42 @@ test('serializes every PG17 namespace-dependent catalog class without an identit
     objects: [objectRow({ object_kind: 'catalog', definition_text: null })], grants: [],
   }));
 });
+
+test('policy serialization distinguishes PUBLIC audience from a real role named PUBLIC', async () => {
+  // Execute the emitted scalar CASE in native SQLite with only PostgreSQL's
+  // catalog lookup replaced. No tables, writes, provider access or SQL mocks.
+  const { DatabaseSync } = await import('node:sqlite');
+  const database = new DatabaseSync(':memory:');
+  database.function('pg_get_userbyid', roleOid => {
+    assert.equal(roleOid, 42);
+    return 'PUBLIC';
+  });
+  try {
+    const roleExpressions = [...PROVIDER_INVENTORY_QUERY.matchAll(
+      /SELECT (CASE WHEN role_oid = 0[\s\S]*? END) AS role_name/gu,
+    )];
+    assert.equal(roleExpressions.length, 2, 'nested relation and standalone policy serializers');
+    for (const [, expression] of roleExpressions) {
+      const statement = database.prepare(
+        `SELECT ${expression.replaceAll('pg_catalog.pg_get_userbyid', 'pg_get_userbyid')} AS role_name
+          FROM (SELECT ? AS role_oid)`,
+      );
+      const publicAudience = statement.get(0).role_name;
+      const namedRole = statement.get(42).role_name;
+      assert.notEqual(publicAudience, namedRole);
+      const publicState = JSON.stringify({ roles: [publicAudience] });
+      const namedRoleState = JSON.stringify({ roles: [namedRole] });
+      const publicInventory = normalizeProviderInventory({
+        objects: [objectRow({ object_kind: 'relation', definition_text: publicState })], grants: [],
+      });
+      const namedRoleInventory = normalizeProviderInventory({
+        objects: [objectRow({ object_kind: 'relation', definition_text: namedRoleState })], grants: [],
+      });
+      assert.notEqual(publicInventory.objects[0].definitionSha256, namedRoleInventory.objects[0].definitionSha256);
+      assert.notEqual(publicInventory.objectInventorySha256, namedRoleInventory.objectInventorySha256);
+      assert.equal(publicInventory.grantInventorySha256, namedRoleInventory.grantInventorySha256);
+    }
+  } finally {
+    database.close();
+  }
+});

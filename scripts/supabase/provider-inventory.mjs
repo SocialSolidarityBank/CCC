@@ -257,7 +257,7 @@ WITH
               SELECT pg_catalog.jsonb_agg(policy_role.role_name ORDER BY policy_role.role_name)
               FROM (
                 SELECT CASE WHEN role_oid = 0 THEN 'PUBLIC'
-                  ELSE pg_catalog.pg_get_userbyid(role_oid) END AS role_name
+                  ELSE 'ROLE:' || pg_catalog.pg_get_userbyid(role_oid) END AS role_name
                 FROM pg_catalog.unnest(policy.polroles) AS role_oid
               ) AS policy_role
             ), '[]'::jsonb),
@@ -479,7 +479,7 @@ WITH
               SELECT pg_catalog.jsonb_agg(policy_role.role_name ORDER BY policy_role.role_name)
               FROM (
                 SELECT CASE WHEN role_oid = 0 THEN 'PUBLIC'
-                  ELSE pg_catalog.pg_get_userbyid(role_oid) END AS role_name
+                  ELSE 'ROLE:' || pg_catalog.pg_get_userbyid(role_oid) END AS role_name
                 FROM pg_catalog.unnest(value.polroles) AS role_oid
               ) AS policy_role
             ), '[]'::jsonb),
