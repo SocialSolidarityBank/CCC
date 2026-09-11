@@ -67,6 +67,25 @@ The resumed planner currently reconciles recorded `storage_bucket` resources aga
 
 Credentials continue to enter only through scoped environment injection. A working pooler connection does not replace Management API owner/control-plane checks. `CCC_INSTALL_DATABASE_URL` is used only by separately approved installer writes, never as a fallback for the ordinary runtime's `CCC_DATABASE_URL`. It must bind the already-approved project through its direct endpoint or Seoul session-pooler username and port 5432; TLS remains `verify-full`. No native keyring, browser, token file, owner discovery or authentication mechanism is added.
 
+### Beta provider baseline generation
+
+This installer-only command issues development `beta` trust. It is not S12 formal release trust and does not authorize database writes, apply, deployment, AI, or STT. Run it only after the S11 owner documents and pinned Supabase source review have been approved. The generator performs two read-only observations and stops unless both inventory hashes are identical and all business table, row, Auth user, bucket, and Storage object counters are zero.
+
+The source-evidence document must use the exact `ProviderSourceEvidenceV1` shape in `docs/superpowers/specs/2026-09-11-beta-provider-baseline-design.md`. `sourceUrl` is exactly one of the two repository roots, `sourceRevision` is an immutable 40-character commit, and each normalized relative `sourcePath` carries the already-checked file SHA-256. The generator does not download source. Each `supabase_managed` object or grant has exactly one evidence record whose `identitySha256` is the SHA-256 of UTF-8 JCS of that normalized inventory record after removing only `provenance`. Extension objects and initial-privilege grants need no manual evidence row.
+
+Supply the existing S11 installer bindings plus `SUPABASE_ACCESS_TOKEN`, `CCC_BETA_ROOT_SIGNING_PRIVATE_KEY`, `CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY`, `CCC_BETA_TRUST_ROOT_KEYS`, and `CCC_BETA_REVOKED_ROOT_KEY_IDS`. Both private keys are canonical standard-Base64 PKCS#8 Ed25519 keys. The public root map remains the external trust root; the generator requires exactly one entry to match the root private key and rejects revoked roots. Keep these values in the installer process only and never bind them to the Community Cloud runtime.
+
+The CLI accepts only these flags:
+
+```sh
+node scripts/supabase/provider-baseline-generate.mjs \
+  --source-evidence artifacts/beta-0.9/2026-09-11-provider-source-review.json \
+  --release-trust-output /tmp/relayer-beta-release-trust-20260911.json \
+  --baseline-output /tmp/relayer-provider-baseline-20260911.json
+```
+
+Both output parents must already exist and must not be symlinks. Output creation is exclusive and atomic per path, never overwrites an existing document, writes mode `0600`, and removes temporary or newly linked files if the pair cannot be completed. Successful stdout contains only `baselineVersion`, object and grant counts, and the three document hashes. Failure emits no document, URL, project ref, object or grant name, key, signature, token, or connection string.
+
 ### Pending executable verification
 
 Main may run these only after merging the frozen migration/checkpoint changes and approving verification. They were **not run** in this source-only checkpoint:
