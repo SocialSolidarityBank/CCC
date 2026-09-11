@@ -183,6 +183,7 @@ test('builds four development files that pass the Task 1 verifiers in a real rou
     'ccc-cloud.mjs',
     'cli/scripts/supabase/bootstrap.mjs',
     'cli/node_modules/postgres/package.json',
+    'cli/node_modules/@ccc/contracts/src/jcs.js',
   ]) assert.ok(archivePaths.includes(expected), `missing packaged path: ${expected}`);
   const edgeDocument = await readFile(join(stagedRoot, 'edge-component-manifest.json'), 'utf8');
   await verifyEdgeComponentManifest({
@@ -201,7 +202,7 @@ test('builds four development files that pass the Task 1 verifiers in a real rou
     });
     assert.fail('packaged installer unexpectedly succeeded without credentials');
   } catch (error) {
-    assert.equal(error.code, 6);
+    assert.equal(error.code, 6, error.stderr);
     assert.equal(error.stdout, '');
     assert.match(error.stderr, /^\[OWNER_EVIDENCE_MISSING\] /u);
     assert.doesNotMatch(error.stderr, /ERR_MODULE_NOT_FOUND|Cannot find (module|package)/u);

@@ -247,7 +247,25 @@ function containedRelativePath(sourceRoot, path) {
   return destination;
 }
 
-function resolveRuntimeSpecifier(specifier, importer, sourceRoot, externals) {
+async function workspacePackage(specifier, resolved, sourceRoot) {
+  const packageName = specifier.split('/').slice(0, 2).join('/');
+  let directory = dirname(resolved);
+  while (directory !== sourceRoot) {
+    containedRelativePath(sourceRoot, directory);
+    try {
+      const metadata = JSON.parse((await readFileSafe(join(directory, 'package.json'))).toString('utf8'));
+      if (metadata?.name === packageName) return { name: packageName, root: directory };
+    } catch (error) {
+      if (error?.code !== 'ENOENT') fail();
+    }
+    directory = dirname(directory);
+  }
+  fail();
+}
+
+async function resolveRuntimeSpecifier(
+  specifier, importer, sourceRoot, externals, workspacePackages,
+) {
   if (isBuiltin(specifier)) return null;
   if (!specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('@ccc/')) {
     if (!VENDORED_EXTERNALS.has(specifier)) fail();
@@ -261,7 +279,81 @@ function resolveRuntimeSpecifier(specifier, importer, sourceRoot, externals) {
     fail();
   }
   containedRelativePath(sourceRoot, resolved);
+  if (specifier.startsWith('@ccc/')) {
+    const packageRecord = await workspacePackage(specifier, resolved, sourceRoot);
+    workspacePackages.set(packageRecord.root, packageRecord.name);
+  }
   return resolved;
+}
+
+function runtimeDestination(sourceRoot, path, destinationRoot, workspacePackages) {
+  for (const [packageRoot, packageName] of workspacePackages) {
+    const packagePath = relative(packageRoot, path);
+    if (packagePath !== '' && packagePath !== '..' && !packagePath.startsWith('../')
+      && !packagePath.startsWith('..\\') && !isAbsolute(packagePath)) {
+      return join(destinationRoot, 'node_modules', ...packageName.split('/'), packagePath);
+    }
+  }
+  return join(destinationRoot, containedRelativePath(sourceRoot, path));
+}
+
+function compiledModulePath(path, source) {
+  if (source.endsWith('.d.ts')) fail();
+  if (source.endsWith('.mts')) return path.replace(/\.mts$/u, '.mjs');
+  if (source.endsWith('.cts')) return path.replace(/\.cts$/u, '.cjs');
+  if (source.endsWith('.ts') || source.endsWith('.tsx')) return path.replace(/\.tsx?$/u, '.js');
+  return path;
+}
+
+async function copyReachedModule(source, destination, mode) {
+  const bytes = await readFileSafe(source);
+  let output = bytes;
+  if (/\.(?:cts|mts|tsx|ts)$/u.test(source)) {
+    const result = ts.transpileModule(new TextDecoder('utf-8', { fatal: true }).decode(bytes), {
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+        rewriteRelativeImportExtensions: true,
+      },
+      fileName: source,
+      reportDiagnostics: true,
+    });
+    if (result.diagnostics?.some(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error)) fail();
+    output = Buffer.from(result.outputText, 'utf8');
+  }
+  await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
+  await writeFile(destination, output, { mode });
+}
+
+function rewritePackageExports(value) {
+  if (typeof value === 'string') {
+    return value
+      .replace(/\.mts$/u, '.mjs')
+      .replace(/\.cts$/u, '.cjs')
+      .replace(/\.tsx?$/u, '.js');
+  }
+  if (Array.isArray(value)) return value.map(rewritePackageExports);
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [
+      key, rewritePackageExports(child),
+    ]));
+  }
+  return value;
+}
+
+async function copyWorkspaceMetadata(packageRoot, packageName, destinationRoot) {
+  let metadata;
+  try {
+    metadata = JSON.parse((await readFileSafe(join(packageRoot, 'package.json'))).toString('utf8'));
+  } catch {
+    fail();
+  }
+  metadata.exports = rewritePackageExports(metadata.exports);
+  const destination = join(
+    destinationRoot, 'node_modules', ...packageName.split('/'), 'package.json',
+  );
+  await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
+  await writeFile(destination, document(metadata), { mode: 0o600 });
 }
 
 export async function copyModuleClosure({ entryPath, sourceRoot, destinationRoot }) {
@@ -273,6 +365,7 @@ export async function copyModuleClosure({ entryPath, sourceRoot, destinationRoot
   const pending = [canonicalEntry];
   const files = new Set();
   const externals = new Set();
+  const workspacePackages = new Map();
   while (pending.length > 0) {
     const path = pending.pop();
     if (files.has(path)) continue;
@@ -280,16 +373,24 @@ export async function copyModuleClosure({ entryPath, sourceRoot, destinationRoot
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     files.add(path);
     for (const specifier of staticModuleSpecifiers(source, path)) {
-      const resolved = resolveRuntimeSpecifier(specifier, path, canonicalRoot, externals);
+      const resolved = await resolveRuntimeSpecifier(
+        specifier, path, canonicalRoot, externals, workspacePackages,
+      );
       if (resolved !== null && !files.has(resolved)) pending.push(resolved);
     }
   }
   for (const path of [...files].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)))) {
-    await copyRuntimeFile(
+    const destination = runtimeDestination(
+      canonicalRoot, path, destinationRoot, workspacePackages,
+    );
+    await copyReachedModule(
       path,
-      join(destinationRoot, containedRelativePath(canonicalRoot, path)),
+      compiledModulePath(destination, path),
       path === canonicalEntry ? 0o700 : 0o600,
     );
+  }
+  for (const [packageRoot, packageName] of workspacePackages) {
+    await copyWorkspaceMetadata(packageRoot, packageName, destinationRoot);
   }
   return externals;
 }
