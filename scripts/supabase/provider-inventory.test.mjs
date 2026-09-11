@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  PROVIDER_INVENTORY_QUERY,
   normalizeProviderInventory,
   providerInventoryFingerprint,
 } from './provider-inventory.mjs';
@@ -184,5 +185,67 @@ test('enforces record string and inventory count bounds', () => {
   rejectsUnreadable(() => normalizeProviderInventory({
     objects: [],
     grants: [...grantsAtLimit, grantRow({ grantee_name: 'role_20000' })],
+  }));
+});
+
+function querySegment(start, end) {
+  const from = PROVIDER_INVENTORY_QUERY.indexOf(start);
+  const to = PROVIDER_INVENTORY_QUERY.indexOf(end, from + start.length);
+  assert.ok(from >= 0 && to > from, `missing query segment: ${start}`);
+  return PROVIDER_INVENTORY_QUERY.slice(from, to);
+}
+
+test('serializes aggregate routines without passing aggregates to pg_get_functiondef', () => {
+  const routines = querySegment(
+    "SELECT 'routine', namespace.nspname,",
+    "UNION ALL\n    SELECT 'type', namespace.nspname,",
+  );
+  assert.match(routines, /CASE WHEN procedure\.prokind = 'a' THEN \(/u);
+  assert.match(routines, /FROM pg_catalog\.pg_aggregate AS aggregate_value/u);
+  assert.match(routines, /NULLIF\(aggregate_value\.aggtransfn::oid, 0\)::regprocedure::text/u);
+  assert.match(routines, /ELSE pg_catalog\.pg_get_functiondef\(procedure\.oid\) END/u);
+});
+
+test('serializes ordered RLS policy state inside the owning relation definition', () => {
+  const relations = querySegment(
+    "SELECT 'relation', namespace.nspname,",
+    "UNION ALL\n    SELECT 'routine', namespace.nspname,",
+  );
+  assert.match(relations, /'policies', COALESCE\(\(/u);
+  assert.match(relations, /FROM pg_catalog\.pg_policy AS policy/u);
+  assert.match(relations, /ORDER BY policy\.polname/u);
+  assert.match(relations, /CASE WHEN role_oid = 0 THEN 'PUBLIC'/u);
+  assert.match(relations, /pg_catalog\.pg_get_expr\(policy\.polqual, policy\.polrelid, false\)/u);
+  assert.match(relations, /pg_catalog\.pg_get_expr\(policy\.polwithcheck, policy\.polrelid, false\)/u);
+});
+
+test('serializes every PG17 namespace-dependent catalog class without an identity-only fallback', () => {
+  const catalogs = querySegment(
+    "UNION ALL\n    SELECT 'catalog', namespace.nspname,",
+    "\n  ),\n  provider_grant_inventory AS MATERIALIZED",
+  );
+  const definitions = catalogs.slice(catalogs.indexOf('      CASE', catalogs.indexOf('      CASE') + 1));
+  for (const catalog of [
+    'pg_collation', 'pg_constraint', 'pg_conversion', 'pg_opclass', 'pg_operator',
+    'pg_opfamily', 'pg_publication_namespace', 'pg_statistic_ext', 'pg_ts_config',
+    'pg_ts_dict', 'pg_ts_parser', 'pg_ts_template', 'pg_publication_rel',
+    'pg_attrdef', 'pg_policy', 'pg_rewrite', 'pg_trigger',
+  ]) {
+    assert.ok(definitions.includes(`inventory.class_oid = 'pg_catalog.${catalog}'::regclass`),
+      `missing definition for ${catalog}`);
+  }
+  assert.match(catalogs, /config_map\.maptokentype/u);
+  assert.match(catalogs, /config_map\.mapseqno/u);
+  assert.match(catalogs, /config_map\.mapdict::regdictionary::text/u);
+  assert.doesNotMatch(catalogs, /pg_identify_object_as_address|addressNames|addressArgs/u);
+  assert.doesNotMatch(catalogs, /ELSE pg_catalog\.jsonb_build_object/u);
+  assert.match(definitions, /ELSE NULL\s+END/u);
+  const configs = definitions.slice(definitions.indexOf("WHEN inventory.class_oid = 'pg_catalog.pg_ts_config'"),
+    definitions.indexOf("WHEN inventory.class_oid = 'pg_catalog.pg_ts_dict'"));
+  assert.match(configs, /WHERE parser\.oid = value\.cfgparser/u);
+  assert.match(configs, /ORDER BY config_map\.maptokentype, config_map\.mapseqno/u);
+  assert.match(catalogs, /pg_get_userbyid\(value\.cfgowner\)/u);
+  rejectsUnreadable(() => normalizeProviderInventory({
+    objects: [objectRow({ object_kind: 'catalog', definition_text: null })], grants: [],
   }));
 });

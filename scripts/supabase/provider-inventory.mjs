@@ -248,6 +248,25 @@ WITH
           FROM pg_catalog.pg_trigger AS trigger_value
           WHERE trigger_value.tgrelid = relation.oid AND NOT trigger_value.tgisinternal
         ), '[]'::jsonb),
+        'policies', COALESCE((
+          SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+            'name', policy.polname,
+            'permissive', policy.polpermissive,
+            'command', policy.polcmd,
+            'roles', COALESCE((
+              SELECT pg_catalog.jsonb_agg(policy_role.role_name ORDER BY policy_role.role_name)
+              FROM (
+                SELECT CASE WHEN role_oid = 0 THEN 'PUBLIC'
+                  ELSE pg_catalog.pg_get_userbyid(role_oid) END AS role_name
+                FROM pg_catalog.unnest(policy.polroles) AS role_oid
+              ) AS policy_role
+            ), '[]'::jsonb),
+            'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid, false),
+            'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid, false)
+          ) ORDER BY policy.polname)
+          FROM pg_catalog.pg_policy AS policy
+          WHERE policy.polrelid = relation.oid
+        ), '[]'::jsonb),
         'viewDefinition', CASE WHEN relation.relkind IN ('v', 'm')
           THEN pg_catalog.pg_get_viewdef(relation.oid, false) ELSE NULL END,
         'sequence', CASE WHEN relation.relkind = 'S' THEN (
@@ -274,11 +293,52 @@ WITH
     WHERE inventory.object_kind = 'relation'
     UNION ALL
     SELECT 'routine', namespace.nspname,
-      pg_catalog.format('%I.%I(%s) RETURNS %s', namespace.nspname, procedure.proname,
+      pg_catalog.format('%I.%I(%s) %s RETURNS %s', namespace.nspname, procedure.proname,
         pg_catalog.pg_get_function_identity_arguments(procedure.oid),
-        pg_catalog.pg_get_function_result(procedure.oid)),
+        CASE procedure.prokind WHEN 'f' THEN 'FUNCTION' WHEN 'p' THEN 'PROCEDURE'
+          WHEN 'a' THEN 'AGGREGATE' WHEN 'w' THEN 'WINDOW' END,
+        COALESCE(pg_catalog.pg_get_function_result(procedure.oid),
+          pg_catalog.format_type(procedure.prorettype, NULL))),
       pg_catalog.pg_get_userbyid(procedure.proowner),
-      pg_catalog.pg_get_functiondef(procedure.oid),
+      -- pg_get_functiondef rejects aggregates, so aggregate state comes from pg_aggregate.
+      CASE WHEN procedure.prokind = 'a' THEN (
+        SELECT pg_catalog.jsonb_build_object(
+          'language', (SELECT language.lanname FROM pg_catalog.pg_language AS language
+            WHERE language.oid = procedure.prolang),
+          'returnType', pg_catalog.format_type(procedure.prorettype, NULL),
+          'returnsSet', procedure.proretset,
+          'strict', procedure.proisstrict,
+          'securityDefiner', procedure.prosecdef,
+          'volatility', procedure.provolatile,
+          'parallel', procedure.proparallel,
+          'config', procedure.proconfig,
+          'aggregateKind', aggregate_value.aggkind,
+          'directArgumentCount', aggregate_value.aggnumdirectargs,
+          'transitionFunction', NULLIF(aggregate_value.aggtransfn::oid, 0)::regprocedure::text,
+          'finalFunction', NULLIF(aggregate_value.aggfinalfn::oid, 0)::regprocedure::text,
+          'combineFunction', NULLIF(aggregate_value.aggcombinefn::oid, 0)::regprocedure::text,
+          'serialFunction', NULLIF(aggregate_value.aggserialfn::oid, 0)::regprocedure::text,
+          'deserialFunction', NULLIF(aggregate_value.aggdeserialfn::oid, 0)::regprocedure::text,
+          'movingTransitionFunction', NULLIF(aggregate_value.aggmtransfn::oid, 0)::regprocedure::text,
+          'movingInverseFunction', NULLIF(aggregate_value.aggminvtransfn::oid, 0)::regprocedure::text,
+          'movingFinalFunction', NULLIF(aggregate_value.aggmfinalfn::oid, 0)::regprocedure::text,
+          'finalExtraArguments', aggregate_value.aggfinalextra,
+          'movingFinalExtraArguments', aggregate_value.aggmfinalextra,
+          'finalModify', aggregate_value.aggfinalmodify,
+          'movingFinalModify', aggregate_value.aggmfinalmodify,
+          'sortOperator', NULLIF(aggregate_value.aggsortop, 0)::regoperator::text,
+          'transitionType', CASE WHEN aggregate_value.aggtranstype = 0 THEN NULL
+            ELSE pg_catalog.format_type(aggregate_value.aggtranstype, NULL) END,
+          'transitionSpace', aggregate_value.aggtransspace,
+          'movingTransitionType', CASE WHEN aggregate_value.aggmtranstype = 0 THEN NULL
+            ELSE pg_catalog.format_type(aggregate_value.aggmtranstype, NULL) END,
+          'movingTransitionSpace', aggregate_value.aggmtransspace,
+          'initialValue', aggregate_value.agginitval,
+          'movingInitialValue', aggregate_value.aggminitval
+        )::text
+        FROM pg_catalog.pg_aggregate AS aggregate_value
+        WHERE aggregate_value.aggfnoid = procedure.oid
+      ) ELSE pg_catalog.pg_get_functiondef(procedure.oid) END,
       'supabase_managed'
     FROM unowned_object AS inventory
     JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = inventory.object_oid
@@ -336,11 +396,71 @@ WITH
       pg_catalog.format('%s %s', identified.type, identified.identity),
       CASE
         WHEN inventory.class_oid = 'pg_catalog.pg_collation'::regclass
-          THEN (SELECT pg_catalog.pg_get_userbyid(value.collowner) FROM pg_catalog.pg_collation AS value WHERE value.oid = inventory.object_oid)
+          THEN (SELECT pg_catalog.pg_get_userbyid(value.collowner)
+            FROM pg_catalog.pg_collation AS value WHERE value.oid = inventory.object_oid)
         WHEN inventory.class_oid = 'pg_catalog.pg_conversion'::regclass
-          THEN (SELECT pg_catalog.pg_get_userbyid(value.conowner) FROM pg_catalog.pg_conversion AS value WHERE value.oid = inventory.object_oid)
+          THEN (SELECT pg_catalog.pg_get_userbyid(value.conowner)
+            FROM pg_catalog.pg_conversion AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_opclass'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(value.opcowner)
+            FROM pg_catalog.pg_opclass AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_operator'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(value.oprowner)
+            FROM pg_catalog.pg_operator AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_opfamily'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(value.opfowner)
+            FROM pg_catalog.pg_opfamily AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_statistic_ext'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(value.stxowner)
+            FROM pg_catalog.pg_statistic_ext AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_ts_config'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(value.cfgowner)
+            FROM pg_catalog.pg_ts_config AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_ts_dict'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(value.dictowner)
+            FROM pg_catalog.pg_ts_dict AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_publication_namespace'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(publication.pubowner)
+            FROM pg_catalog.pg_publication_namespace AS value
+            JOIN pg_catalog.pg_publication AS publication ON publication.oid = value.pnpubid
+            WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_publication_rel'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(publication.pubowner)
+            FROM pg_catalog.pg_publication_rel AS value
+            JOIN pg_catalog.pg_publication AS publication ON publication.oid = value.prpubid
+            WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_constraint'::regclass
+          THEN (SELECT COALESCE(pg_catalog.pg_get_userbyid(owning_relation.relowner),
+              pg_catalog.pg_get_userbyid(owning_type.typowner), '')
+            FROM pg_catalog.pg_constraint AS value
+            LEFT JOIN pg_catalog.pg_class AS owning_relation ON owning_relation.oid = value.conrelid
+            LEFT JOIN pg_catalog.pg_type AS owning_type ON owning_type.oid = value.contypid
+            WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_attrdef'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(owning_relation.relowner)
+            FROM pg_catalog.pg_attrdef AS value
+            JOIN pg_catalog.pg_class AS owning_relation ON owning_relation.oid = value.adrelid
+            WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_trigger'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(owning_relation.relowner)
+            FROM pg_catalog.pg_trigger AS value
+            JOIN pg_catalog.pg_class AS owning_relation ON owning_relation.oid = value.tgrelid
+            WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_rewrite'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(owning_relation.relowner)
+            FROM pg_catalog.pg_rewrite AS value
+            JOIN pg_catalog.pg_class AS owning_relation ON owning_relation.oid = value.ev_class
+            WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_policy'::regclass
+          THEN (SELECT pg_catalog.pg_get_userbyid(owning_relation.relowner)
+            FROM pg_catalog.pg_policy AS value
+            JOIN pg_catalog.pg_class AS owning_relation ON owning_relation.oid = value.polrelid
+            WHERE value.oid = inventory.object_oid)
         ELSE ''
+        -- Text-search parsers and templates have no per-object owner in PostgreSQL.
       END,
+      -- Every counted catalog class serializes actual state. An unmodeled class
+      -- yields NULL here and the normalizer rejects the observation fail-closed.
       CASE
         WHEN inventory.class_oid = 'pg_catalog.pg_constraint'::regclass
           THEN pg_catalog.pg_get_constraintdef(inventory.object_oid, false)
@@ -349,11 +469,20 @@ WITH
         WHEN inventory.class_oid = 'pg_catalog.pg_rewrite'::regclass
           THEN pg_catalog.pg_get_ruledef(inventory.object_oid, false)
         WHEN inventory.class_oid = 'pg_catalog.pg_attrdef'::regclass
-          THEN (SELECT pg_catalog.pg_get_expr(value.adbin, value.adrelid, false) FROM pg_catalog.pg_attrdef AS value WHERE value.oid = inventory.object_oid)
+          THEN (SELECT pg_catalog.pg_get_expr(value.adbin, value.adrelid, false)
+            FROM pg_catalog.pg_attrdef AS value WHERE value.oid = inventory.object_oid)
         WHEN inventory.class_oid = 'pg_catalog.pg_policy'::regclass
           THEN (SELECT pg_catalog.jsonb_build_object(
             'name', value.polname, 'permissive', value.polpermissive, 'command', value.polcmd,
-            'roles', (SELECT pg_catalog.jsonb_agg(pg_catalog.pg_get_userbyid(role_oid) ORDER BY pg_catalog.pg_get_userbyid(role_oid)) FROM pg_catalog.unnest(value.polroles) AS role_oid),
+            'relation', value.polrelid::regclass::text,
+            'roles', COALESCE((
+              SELECT pg_catalog.jsonb_agg(policy_role.role_name ORDER BY policy_role.role_name)
+              FROM (
+                SELECT CASE WHEN role_oid = 0 THEN 'PUBLIC'
+                  ELSE pg_catalog.pg_get_userbyid(role_oid) END AS role_name
+                FROM pg_catalog.unnest(value.polroles) AS role_oid
+              ) AS policy_role
+            ), '[]'::jsonb),
             'using', pg_catalog.pg_get_expr(value.polqual, value.polrelid, false),
             'check', pg_catalog.pg_get_expr(value.polwithcheck, value.polrelid, false)
           )::text FROM pg_catalog.pg_policy AS value WHERE value.oid = inventory.object_oid)
@@ -369,16 +498,144 @@ WITH
             'sourceEncoding', value.conforencoding, 'targetEncoding', value.contoencoding,
             'procedure', value.conproc::regprocedure::text, 'default', value.condefault
           )::text FROM pg_catalog.pg_conversion AS value WHERE value.oid = inventory.object_oid)
-        ELSE pg_catalog.jsonb_build_object(
-          'type', identified.type, 'identity', identified.identity,
-          'addressNames', address.object_names, 'addressArgs', address.object_args
-        )::text
+        WHEN inventory.class_oid = 'pg_catalog.pg_opclass'::regclass
+          THEN (SELECT pg_catalog.jsonb_build_object(
+            'accessMethod', (SELECT method.amname FROM pg_catalog.pg_am AS method
+              WHERE method.oid = value.opcmethod),
+            'family', (SELECT pg_catalog.format('%I.%I', family_namespace.nspname, family.opfname)
+              FROM pg_catalog.pg_opfamily AS family
+              JOIN pg_catalog.pg_namespace AS family_namespace ON family_namespace.oid = family.opfnamespace
+              WHERE family.oid = value.opcfamily),
+            'inputType', pg_catalog.format_type(value.opcintype, NULL),
+            'default', value.opcdefault,
+            'keyType', CASE WHEN value.opckeytype = 0 THEN NULL
+              ELSE pg_catalog.format_type(value.opckeytype, NULL) END
+          )::text FROM pg_catalog.pg_opclass AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_operator'::regclass
+          THEN (SELECT pg_catalog.jsonb_build_object(
+            'kind', value.oprkind, 'canMerge', value.oprcanmerge, 'canHash', value.oprcanhash,
+            'leftType', CASE WHEN value.oprleft = 0 THEN NULL
+              ELSE pg_catalog.format_type(value.oprleft, NULL) END,
+            'rightType', CASE WHEN value.oprright = 0 THEN NULL
+              ELSE pg_catalog.format_type(value.oprright, NULL) END,
+            'resultType', CASE WHEN value.oprresult = 0 THEN NULL
+              ELSE pg_catalog.format_type(value.oprresult, NULL) END,
+            'commutator', NULLIF(value.oprcom, 0)::regoperator::text,
+            'negator', NULLIF(value.oprnegate, 0)::regoperator::text,
+            'procedure', NULLIF(value.oprcode::oid, 0)::regprocedure::text,
+            'restrictionEstimator', NULLIF(value.oprrest::oid, 0)::regprocedure::text,
+            'joinEstimator', NULLIF(value.oprjoin::oid, 0)::regprocedure::text
+          )::text FROM pg_catalog.pg_operator AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_opfamily'::regclass
+          THEN (SELECT pg_catalog.jsonb_build_object(
+            'accessMethod', (SELECT method.amname FROM pg_catalog.pg_am AS method
+              WHERE method.oid = value.opfmethod),
+            'operators', COALESCE((
+              SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+                'strategy', family_operator.amopstrategy,
+                'leftType', pg_catalog.format_type(family_operator.amoplefttype, NULL),
+                'rightType', pg_catalog.format_type(family_operator.amoprighttype, NULL),
+                'operator', family_operator.amopopr::regoperator::text,
+                'purpose', family_operator.amoppurpose,
+                'sortFamily', CASE WHEN family_operator.amopsortfamily = 0 THEN NULL ELSE (
+                  SELECT pg_catalog.format('%I.%I', sort_namespace.nspname, sort_family.opfname)
+                  FROM pg_catalog.pg_opfamily AS sort_family
+                  JOIN pg_catalog.pg_namespace AS sort_namespace ON sort_namespace.oid = sort_family.opfnamespace
+                  WHERE sort_family.oid = family_operator.amopsortfamily) END
+              ) ORDER BY family_operator.amopopr::regoperator::text, family_operator.amopstrategy,
+                family_operator.amoppurpose)
+              FROM pg_catalog.pg_amop AS family_operator WHERE family_operator.amopfamily = value.oid
+            ), '[]'::jsonb),
+            'procedures', COALESCE((
+              SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+                'number', family_procedure.amprocnum,
+                'leftType', pg_catalog.format_type(family_procedure.amproclefttype, NULL),
+                'rightType', pg_catalog.format_type(family_procedure.amprocrighttype, NULL),
+                'procedure', family_procedure.amproc::regprocedure::text
+              ) ORDER BY family_procedure.amproc::regprocedure::text, family_procedure.amprocnum,
+                pg_catalog.format_type(family_procedure.amproclefttype, NULL),
+                pg_catalog.format_type(family_procedure.amprocrighttype, NULL))
+              FROM pg_catalog.pg_amproc AS family_procedure WHERE family_procedure.amprocfamily = value.oid
+            ), '[]'::jsonb)
+          )::text FROM pg_catalog.pg_opfamily AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_publication_namespace'::regclass
+          THEN (SELECT pg_catalog.jsonb_build_object(
+            'publication', publication.pubname,
+            'insert', publication.pubinsert, 'update', publication.pubupdate,
+            'delete', publication.pubdelete, 'truncate', publication.pubtruncate,
+            'allTables', publication.puballtables, 'viaRoot', publication.pubviaroot
+          )::text FROM pg_catalog.pg_publication_namespace AS value
+            JOIN pg_catalog.pg_publication AS publication ON publication.oid = value.pnpubid
+            WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_publication_rel'::regclass
+          THEN (SELECT pg_catalog.jsonb_build_object(
+            'publication', publication.pubname, 'relation', value.prrelid::regclass::text,
+            'insert', publication.pubinsert, 'update', publication.pubupdate,
+            'delete', publication.pubdelete, 'truncate', publication.pubtruncate,
+            'allTables', publication.puballtables, 'viaRoot', publication.pubviaroot,
+            'filter', pg_catalog.pg_get_expr(value.prqual, value.prrelid, false),
+            'columns', (SELECT pg_catalog.jsonb_agg(attribute.attname ORDER BY key.ordinality)
+              FROM pg_catalog.unnest(value.prattrs::int2[]) WITH ORDINALITY AS key(attnum, ordinality)
+              JOIN pg_catalog.pg_attribute AS attribute
+                ON attribute.attrelid = value.prrelid AND attribute.attnum = key.attnum)
+          )::text FROM pg_catalog.pg_publication_rel AS value
+            JOIN pg_catalog.pg_publication AS publication ON publication.oid = value.prpubid
+            WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_statistic_ext'::regclass
+          THEN (SELECT pg_catalog.jsonb_build_object(
+            'relation', value.stxrelid::regclass::text,
+            'kinds', value.stxkind,
+            'statisticsTarget', value.stxstattarget,
+            'columns', COALESCE((
+              SELECT pg_catalog.jsonb_agg(attribute.attname ORDER BY key.ordinality)
+              FROM pg_catalog.unnest(value.stxkeys::int2[]) WITH ORDINALITY AS key(attnum, ordinality)
+              JOIN pg_catalog.pg_attribute AS attribute
+                ON attribute.attrelid = value.stxrelid AND attribute.attnum = key.attnum
+            ), '[]'::jsonb),
+            'expressions', pg_catalog.pg_get_expr(value.stxexprs, value.stxrelid, false)
+          )::text FROM pg_catalog.pg_statistic_ext AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_ts_config'::regclass
+          THEN (SELECT pg_catalog.jsonb_build_object(
+            'parser', (SELECT pg_catalog.format('%I.%I', parser_namespace.nspname, parser.prsname)
+              FROM pg_catalog.pg_ts_parser AS parser
+              JOIN pg_catalog.pg_namespace AS parser_namespace ON parser_namespace.oid = parser.prsnamespace
+              WHERE parser.oid = value.cfgparser),
+            'mappings', COALESCE((
+              SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+                'tokenType', config_map.maptokentype,
+                'sequence', config_map.mapseqno,
+                'dictionary', config_map.mapdict::regdictionary::text
+              ) ORDER BY config_map.maptokentype, config_map.mapseqno)
+              FROM pg_catalog.pg_ts_config_map AS config_map WHERE config_map.mapcfg = value.oid
+            ), '[]'::jsonb)
+          )::text FROM pg_catalog.pg_ts_config AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_ts_dict'::regclass
+          THEN (SELECT pg_catalog.jsonb_build_object(
+            'template', (SELECT pg_catalog.format('%I.%I', template_namespace.nspname, template.tmplname)
+              FROM pg_catalog.pg_ts_template AS template
+              JOIN pg_catalog.pg_namespace AS template_namespace ON template_namespace.oid = template.tmplnamespace
+              WHERE template.oid = value.dicttemplate),
+            'initOption', value.dictinitoption
+          )::text FROM pg_catalog.pg_ts_dict AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_ts_parser'::regclass
+          THEN (SELECT pg_catalog.jsonb_build_object(
+            'start', NULLIF(value.prsstart::oid, 0)::regprocedure::text,
+            'token', NULLIF(value.prstoken::oid, 0)::regprocedure::text,
+            'end', NULLIF(value.prsend::oid, 0)::regprocedure::text,
+            'headline', NULLIF(value.prsheadline::oid, 0)::regprocedure::text,
+            'lexTypes', NULLIF(value.prslextype::oid, 0)::regprocedure::text
+          )::text FROM pg_catalog.pg_ts_parser AS value WHERE value.oid = inventory.object_oid)
+        WHEN inventory.class_oid = 'pg_catalog.pg_ts_template'::regclass
+          THEN (SELECT pg_catalog.jsonb_build_object(
+            'init', NULLIF(value.tmplinit::oid, 0)::regprocedure::text,
+            'lexize', NULLIF(value.tmpllexize::oid, 0)::regprocedure::text
+          )::text FROM pg_catalog.pg_ts_template AS value WHERE value.oid = inventory.object_oid)
+        ELSE NULL
       END,
       'supabase_managed'
     FROM unowned_object AS inventory
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
     CROSS JOIN LATERAL pg_catalog.pg_identify_object(inventory.class_oid, inventory.object_oid, 0) AS identified
-    CROSS JOIN LATERAL pg_catalog.pg_identify_object_as_address(inventory.class_oid, inventory.object_oid, 0) AS address
     WHERE inventory.object_kind = 'catalog'
   ),
   provider_grant_inventory AS MATERIALIZED (
