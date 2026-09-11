@@ -1,8 +1,8 @@
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import { wireStyles } from '@ccc/wire/styles';
-import { composeSharedCss, repoRoot, shellStylesPath, tokensPath } from '@ccc/wire/build/shared-styles';
+import { composeSharedCss, repoRoot } from './build/shared-styles.mjs';
 import { trialFixtures } from './build/trial-fixtures.mjs';
 import { pwaAssets } from './build/pwa.mjs';
 
@@ -82,9 +82,6 @@ export default defineConfig({
       },
       load(id) {
         if (id !== RESOLVED_SHARED_CSS_ID) return null;
-        this.addWatchFile(tokensPath);
-        this.addWatchFile(shellStylesPath);
-        this.addWatchFile(join(repoRoot, 'packages/wire/src/wire-styles.ts'));
         return composeSharedCss(wireStyles);
       },
     },
