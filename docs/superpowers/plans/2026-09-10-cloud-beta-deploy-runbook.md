@@ -54,6 +54,21 @@ DB/Auth/Storage 읽기 성공, 업무 테이블 0개를 보고했다. `productio
 `EXISTING_PROJECT_NOT_CLEAN`으로 중단했다. 이 중단까지 DB 쓰기는 0건이다. 값이 없는 증거는
 `artifacts/beta-0.9/2026-09-11-signed-plan.json`에 있다.
 
+2026-09-11 개발판 provider baseline을 발급했다. 이것은 개발판 `beta` 신뢰이며 S12 정식 릴리스
+신뢰가 아니고 DB 적용 승인도 아니다. 공식 소스 대조는 공급자가 만든 객체 101개와 권한 1,591개,
+합계 1,692건을 커밋으로 고정한 여섯 저장소의 실제 파일과 그 해시에 하나씩 연결했고 미매핑은 0건이다.
+처음에는 근거 저장소를 `supabase/supabase`와 `supabase/postgres` 두 곳으로 제한했는데 645건이
+대조되지 않았다. auth, storage, realtime은 각자 저장소가 만들고 내장 역할은 PostgreSQL이 만들기
+때문이며, Q가 여섯 저장소로 넓히기로 결정했다. 저장소마다 커밋이 다르므로 고정 커밋은 근거 한 줄마다
+두고, 서명된 baseline 자체의 문서 단위 `sourceRevision`은 없앴다. 근거 문서 전체 해시가 이미
+같은 내용을 묶는다.
+
+발급 뒤 실제 서명된 read-only `plan`은 `ready:true`, `unchanged:true`, `productionReady:false`,
+차단 0건이었고 baseline은 객체 162개와 권한 1,613개로 정확히 일치했다. 같은 조건의 `apply`는
+`RELEASE_PREREQUISITES_MISSING`으로 거부했다. 두 실행 모두 DB 쓰기는 0건이다. 값이 없는 증거는
+`artifacts/beta-0.9/2026-09-11-provider-source-review.json`과
+`artifacts/beta-0.9/2026-09-11-provider-baseline-plan.json`에 있다.
+
 ## 구현 후 실행할 순서
 
 1. S11 read-only plan에서 기관 소유권, 기존 자원, Auth, Storage, RLS, schema와 전후 지문을 확인한다.
