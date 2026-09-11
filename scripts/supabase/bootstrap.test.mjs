@@ -7,9 +7,15 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { createHostedInspector } from './hosted-inspector.mjs';
-import { buildSupabasePlan } from './plan.mjs';
+import {
+  assertProviderBaselineCurrent,
+  buildSupabasePlan,
+  buildSupabaseDoctor,
+  installationStateFingerprint,
+} from './plan.mjs';
 import { BETA_TRUST_DOMAIN, PROVIDER_BASELINE_DOMAIN } from './provider-baseline.mjs';
-import { providerInventoryFingerprint } from './provider-inventory.mjs';
+import { normalizeProviderInventory, providerInventoryFingerprint } from './provider-inventory.mjs';
+import { hashDatabaseInstallFingerprint, INSTALL_METADATA_TABLES } from './install-journal.mjs';
 import { observationAuthorization } from './fixtures/authorization.mjs';
 import { canonicalizeJcs, sha256Jcs } from '../../apps/community-cloud/dist/install-manifest-verifier.js';
 
@@ -23,18 +29,17 @@ const emptyProviderInventory = {
   grants: [],
   ...providerInventoryFingerprint({ objects: [], grants: [] }),
 };
-
-function verifiedEmptyProviderBaseline() {
+function verifiedProviderBaseline(inventory = emptyProviderInventory) {
   return {
     baselineVersion: 'supabase-hosted-pg17-20260911-v1',
     projectRefSha256: observationAuthorization().projectRefHash,
     ownerOrgIdSha256: observationAuthorization().expectedOwnerOrgIdHash,
     region: 'ap-northeast-2',
     databaseVersion: '17.4',
-    objects: [],
-    grants: [],
-    objectInventorySha256: emptyProviderInventory.objectInventorySha256,
-    grantInventorySha256: emptyProviderInventory.grantInventorySha256,
+    objects: inventory.objects,
+    grants: inventory.grants,
+    objectInventorySha256: inventory.objectInventorySha256,
+    grantInventorySha256: inventory.grantInventorySha256,
     baselineSha256: 'b'.repeat(64),
     releaseTrustSha256: 'c'.repeat(64),
     expiresAt: observationAuthorization().expiresAt,
@@ -98,6 +103,7 @@ async function withManagementApi({
   providerInventory = providerInventorySnapshot(),
   mutateAuth = false,
   mutateData = false,
+  installState = null,
 }, run) {
   const requests = [];
   let authReadCount = 0;
@@ -164,6 +170,10 @@ async function withManagementApi({
       } else {
         if (query.includes('provider_object_inventory')) {
           response.end(JSON.stringify([providerInventory]));
+          return;
+        }
+        if (query.includes(' AS install_state')) {
+          response.end(JSON.stringify([{ install_state: installState }]));
           return;
         }
         if (query.includes('catalog_state')) {
@@ -235,12 +245,15 @@ function assertNoSensitiveOutput(result, origin) {
   assert.equal(output.includes(origin), false);
 }
 
-// The observation engine is tested independently of the public CLI trust gate.
-// Signature/adversarial tests use the real two-document verifier in install-authorization.test.mjs.
-function hostedInspector(origin, token = accessToken) {
+function hostedInspector(
+  origin,
+  token = accessToken,
+  authorization = observationAuthorization(),
+) {
   return createHostedInspector({
-    accessToken: token, projectRef: 'test-project',
-    authorization: observationAuthorization(),
+    accessToken: token,
+    projectRef: 'test-project',
+    authorization,
     fetchImpl: (url, options) => {
       assert.equal(new URL(url).origin, 'https://api.supabase.com');
       return fetch(new URL(new URL(url).pathname, origin), options);
@@ -254,7 +267,7 @@ async function inspectPlan(origin, token = accessToken) {
     target: 'hosted',
     inspector: hostedInspector(origin, token),
     authorization,
-    providerBaseline: verifiedEmptyProviderBaseline(),
+    providerBaseline: verifiedProviderBaseline(),
   });
 }
 
@@ -410,6 +423,39 @@ test('beta trust and provider baseline fail before token use or provider access'
   });
 });
 
+
+test('per-request authorization blocks an expired baseline before another fetch', async () => {
+  const authorization = observationAuthorization();
+  const baseline = verifiedProviderBaseline();
+  const expiry = Date.parse(baseline.expiresAt);
+  let now = expiry - 1;
+  let fetchCalls = 0;
+  const inspector = createHostedInspector({
+    accessToken,
+    projectRef: authorization.projectRef,
+    authorization,
+    authorize: async () => {
+      assertProviderBaselineCurrent(baseline, authorization, now);
+      return authorization;
+    },
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      now = expiry;
+      return new Response(JSON.stringify({
+        id: authorization.projectRef,
+        organization_id: authorization.expectedOwnerOrgId,
+        region: 'ap-northeast-2',
+        status: 'ACTIVE_HEALTHY',
+        database: { version: '17.4' },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+  await assert.rejects(
+    inspector.inspect(),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  assert.equal(fetchCalls, 1);
+});
 test('provider baseline mismatch is redacted and uses the fixed recovery code', async () => {
   const objectName = 'provider-object-name-must-not-escape';
   await withManagementApi({
@@ -438,6 +484,137 @@ test('provider baseline mismatch is redacted and uses the fixed recovery code', 
     assert.doesNotMatch(JSON.stringify(output), new RegExp(`${objectName}|${signature}`, 'u'));
     assertNoSensitiveOutput(result, origin);
   });
+});
+
+test('real inspector reconciles journal-proven installation records before resumed plan comparison', async () => {
+  const providerObject = objectRowForInspector();
+  const installationObject = {
+    object_kind: 'relation',
+    namespace_name: 'private',
+    object_identity: 'private.ccc_install_journal TABLE',
+    owner_name: 'ccc_schema_owner',
+    definition_text: '{\"relkind\":\"r\"}',
+    provenance: 'supabase_managed',
+  };
+  const baselineInventory = normalizeProviderInventory({
+    objects: [providerObject],
+    grants: [],
+  });
+  const rawInventory = {
+    objects: [providerObject, installationObject],
+    grants: [],
+  };
+  const authorization = observationAuthorization();
+  const databaseFingerprint = hashDatabaseInstallFingerprint([{
+    catalog_state: 'synthetic-public-catalog',
+  }]);
+  const installState = {
+    journal: {
+      installationId: authorization.installationId,
+      institutionIdHash: authorization.institutionIdHash,
+      projectRefHash: authorization.projectRefHash,
+      expectedOwnerOrgIdHash: authorization.expectedOwnerOrgIdHash,
+      runtimeManifestSha256: authorization.runtimeManifestSha256,
+      approvalSha256: authorization.approvalSha256,
+      runtimeConfigurationSha256: authorization.runtimeConfigurationSha256,
+      contractVersion: authorization.contractVersion,
+      runtimeSequence: authorization.runtimeSequence,
+      expiresAt: authorization.expiresAt,
+      resourcesSha256: '0'.repeat(64),
+      migrationsSha256: '0'.repeat(64),
+      phase: 'installed',
+      databaseFingerprint,
+      stateFingerprint: '0'.repeat(64),
+    },
+    migrations: [],
+    resources: [],
+    completedSteps: [],
+    currentReceipt: null,
+    releaseHistory: [],
+  };
+  await withManagementApi({
+    database: databaseSnapshot({
+      ledger_exists: true,
+      private_table_names: [...INSTALL_METADATA_TABLES],
+      private_schema_exists: true,
+      unowned_object_count: 2,
+      unknown_object_count: 2,
+      installation_unowned_object_count: 1,
+      custom_schema_count: 1,
+    }),
+    providerInventory: rawInventory,
+    installState,
+  }, async ({ origin }) => {
+    const baseline = verifiedProviderBaseline(baselineInventory);
+    const first = await hostedInspector(origin).inspect();
+    assert.equal(first.state.unownedObjectCount, 1);
+    assert.equal(first.providerInventory.objects.length, 2);
+
+    const fresh = structuredClone(first);
+    fresh.installed = { ledger: 'absent', version: null, checksum: null };
+    fresh.installState = null;
+    fresh.providerInventory = baselineInventory;
+    fresh.state = {
+      ...fresh.state,
+      privateTableNames: [],
+      privateSchemaExists: false,
+    };
+    const desired = await buildSupabasePlan({
+      target: 'hosted',
+      authorization,
+      providerBaseline: baseline,
+      inspector: { inspect: async () => structuredClone(fresh) },
+    });
+    installState.journal.resourcesSha256 = desired.resourcesSha256;
+    installState.journal.migrationsSha256 = desired.migrationsSha256;
+    installState.journal.stateFingerprint =
+      await installationStateFingerprint(first, baseline);
+
+    const resumed = await buildSupabasePlan({
+      target: 'hosted',
+      authorization,
+      providerBaseline: baseline,
+      inspector: hostedInspector(origin),
+    });
+    assert.equal(resumed.ready, true, JSON.stringify(resumed.blockers));
+    assert.equal(resumed.providerBaseline.matched, true);
+    const renewedAuthorization = {
+      ...authorization,
+      runtimeManifestSha256: 'a'.repeat(64),
+      approvalSha256: 'b'.repeat(64),
+      runtimeSequence: authorization.runtimeSequence + 1,
+    };
+    const renewal = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: renewedAuthorization,
+      providerBaseline: baseline,
+      renewAuthorization: true,
+      inspector: hostedInspector(origin, accessToken, renewedAuthorization),
+    });
+    assert.equal(renewal.ready, true, JSON.stringify(renewal.blockers));
+    assert.equal(renewal.providerBaseline.matched, true);
+    const doctor = await buildSupabaseDoctor({
+      target: 'hosted',
+      authorization,
+      providerBaseline: baseline,
+      inspector: hostedInspector(origin),
+    });
+    assert.equal(doctor.providerBaseline.matched, true);
+    assert.equal(
+      doctor.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'),
+      false,
+    );
+    installState.journal.databaseFingerprint = 'f'.repeat(64);
+    const unproved = await buildSupabasePlan({
+      target: 'hosted',
+      authorization,
+      providerBaseline: baseline,
+      inspector: hostedInspector(origin),
+    });
+    assert.equal(unproved.ready, false);
+    assert.ok(unproved.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'));
+  });
+
 });
 
 test('signed owner mismatch stops after the project observation and before other access', async () => {

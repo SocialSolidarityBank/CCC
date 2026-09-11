@@ -327,8 +327,52 @@ test('provider baseline rejects extra or missing exact records', async () => {
       inspector: inspector(observed, observed),
     });
     assert.equal(result.ready, false);
+
     assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
   }
+});
+test('provider baseline expiry between observations stops before further access', async () => {
+  const baseline = verifiedProviderFixture();
+  let calls = 0;
+  const source = {
+    async inspect() {
+      calls += 1;
+      if (calls === 1) baseline.expiresAt = new Date(Date.now() - 1).toISOString();
+      return snapshot();
+    },
+  };
+  await assert.rejects(
+    buildPlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      providerBaseline: baseline,
+      inspector: source,
+    }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  assert.equal(calls, 1);
+});
+
+test('provider baseline expiry before doctor observation result is never matched', async () => {
+  const baseline = verifiedProviderFixture();
+  let calls = 0;
+  const source = {
+    async inspect() {
+      calls += 1;
+      if (calls === 3) baseline.expiresAt = new Date(Date.now() - 1).toISOString();
+      return snapshot();
+    },
+  };
+  await assert.rejects(
+    buildDoctor({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      providerBaseline: baseline,
+      inspector: source,
+    }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  assert.equal(calls, 3);
 });
 
 test('provider baseline detects inventory drift between observations', async () => {

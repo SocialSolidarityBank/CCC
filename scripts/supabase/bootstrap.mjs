@@ -2,7 +2,12 @@
 
 import { createHostedInspector } from './hosted-inspector.mjs';
 import { createLocalInspector } from './local-inspector.mjs';
-import { buildSupabasePlan, buildSupabaseDoctor, PlanFailure } from './plan.mjs';
+import {
+  assertProviderBaselineCurrent,
+  buildSupabasePlan,
+  buildSupabaseDoctor,
+  PlanFailure,
+} from './plan.mjs';
 import { configuredInstallTrust, requireSignedOwnerPreflight } from './manifest-preflight.mjs';
 import { requireProviderBaseline } from './provider-baseline.mjs';
 import { assertApplicationCaBinding } from '../../apps/community-cloud/src/application-ca.mjs';
@@ -160,11 +165,19 @@ async function main() {
           manifestExpiresAt: authorization.expiresAt,
         })
       : undefined;
+    if (options.target === 'hosted') {
+      assertProviderBaselineCurrent(providerBaseline, authorization);
+    }
+    const authorizeProviderAccess = async () => {
+      const fresh = await authorize();
+      assertProviderBaselineCurrent(providerBaseline, fresh);
+      return fresh;
+    };
     const inspector = options.target === 'local'
       ? createLocalInspector({ workdir: options.workdir })
       : createHostedInspector({
         accessToken: process.env.SUPABASE_ACCESS_TOKEN, projectRef: authorization.projectRef,
-        authorization, authorize,
+        authorization, authorize: authorizeProviderAccess,
       });
     const planOptions = {
       target: options.target,

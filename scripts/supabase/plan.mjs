@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
+import { isDeepStrictEqual } from 'node:util';
 import { assertAuthorizationCurrent, assertAuthorizationMatches, hashCanonical } from './manifest-preflight.mjs';
 import { compareProviderInventory } from './provider-baseline.mjs';
 
@@ -148,12 +149,60 @@ function isVerifiedProviderBaseline(value, authorization) {
     && typeof value.expiresAt === 'string' && !Number.isNaN(Date.parse(value.expiresAt));
 }
 
-function providerBaselineComparison(snapshot, providerBaseline) {
-  const comparison = compareProviderInventory(providerBaseline, snapshot.providerInventory);
+export function assertProviderBaselineCurrent(value, authorization, now = Date.now()) {
+  const currentTime = now instanceof Date ? now.getTime() : now;
+  if (!isVerifiedProviderBaseline(value, authorization)
+    || !Number.isFinite(currentTime)
+    || currentTime >= Date.parse(value.expiresAt)) {
+    throw new PlanFailure('PROVIDER_BASELINE_INVALID');
+  }
+}
+
+function inventoryKey(record, grant = false) {
+  return JSON.stringify(grant
+    ? [
+        record.kind, record.schema, record.objectIdentity, record.grantor,
+        record.grantee, record.privilege, record.grantable,
+      ]
+    : [record.kind, record.schema, record.identity]);
+}
+
+function exactBaselineRecords(expected, observed, grant = false) {
+  const indexed = new Map(observed.map(record => [inventoryKey(record, grant), record]));
+  return expected.flatMap(record => {
+    const candidate = indexed.get(inventoryKey(record, grant));
+    return candidate !== undefined && isDeepStrictEqual(candidate, record) ? [candidate] : [];
+  });
+}
+
+async function reconciledProviderInventory(snapshot, providerBaseline) {
+  const raw = snapshot.providerInventory;
+  if (!Array.isArray(raw?.objects) || !Array.isArray(raw?.grants)) return raw;
+  const removedObjects = raw.objects.length - snapshot.state.unownedObjectCount;
+  const removedGrants = raw.grants.length - snapshot.state.unexpectedGrantCount;
+  if (removedObjects < 0 || removedGrants < 0
+    || (removedObjects === 0 && removedGrants === 0)) return raw;
+  const journal = snapshot.installState?.journal;
+  if (!SHA256_HEX.test(snapshot.databaseFingerprint)
+    || journal?.databaseFingerprint !== snapshot.databaseFingerprint) return raw;
+  const objects = exactBaselineRecords(providerBaseline.objects, raw.objects);
+  const grants = exactBaselineRecords(providerBaseline.grants, raw.grants, true);
+  return {
+    objects,
+    grants,
+    objectInventorySha256: await hashCanonical(objects),
+    grantInventorySha256: await hashCanonical(grants),
+  };
+}
+
+async function providerBaselineComparison(snapshot, providerBaseline) {
+  const inventory = await reconciledProviderInventory(snapshot, providerBaseline);
+  const comparison = compareProviderInventory(providerBaseline, inventory);
   const expectedSchemaCount = providerBaseline.objects
     .filter(({ kind }) => kind === 'schema').length;
   return {
     ...comparison,
+    inventory,
     matched: comparison.matched
       && snapshot.project.databaseVersion === providerBaseline.databaseVersion
       && snapshot.state.unownedObjectCount === comparison.expectedObjectCount
@@ -248,7 +297,7 @@ function isSeoulRegion(region) {
   return region === 'ap-northeast-2';
 }
 
-export async function installationStateFingerprint(snapshot, providerBaseline) {
+export async function installationStateFingerprint(snapshot, providerBaseline, providerInventory) {
   const state = {
     region: snapshot.project.region,
     ownerOrgIdHash: snapshot.project.ownerOrgIdHash ?? null,
@@ -259,12 +308,14 @@ export async function installationStateFingerprint(snapshot, providerBaseline) {
     cron: snapshot.cronJobCount ?? 0,
   };
   if (providerBaseline === undefined) return hashCanonical(state);
+  const inventory = providerInventory
+    ?? await reconciledProviderInventory(snapshot, providerBaseline);
   return hashCanonical({
     ...state,
     providerBaselineVersion: providerBaseline.baselineVersion,
     providerBaselineSha256: providerBaseline.baselineSha256,
-    providerObjectsSha256: snapshot.providerInventory.objectInventorySha256,
-    providerGrantsSha256: snapshot.providerInventory.grantInventorySha256,
+    providerObjectsSha256: inventory.objectInventorySha256,
+    providerGrantsSha256: inventory.grantInventorySha256,
   });
 }
 
@@ -424,9 +475,7 @@ export async function buildSupabasePlan({
   if (target !== 'hosted' && target !== 'local') throw new PlanFailure('TARGET_UNSUPPORTED');
   if (target === 'hosted') {
     assertAuthorizationCurrent(authorization);
-    if (!isVerifiedProviderBaseline(providerBaseline, authorization)) {
-      throw new PlanFailure('PROVIDER_BASELINE_INVALID');
-    }
+    assertProviderBaselineCurrent(providerBaseline, authorization);
   }
   const migrations = postgresMigrationPlan();
   const migrationsSha256 = await hashCanonical(migrations);
@@ -434,17 +483,23 @@ export async function buildSupabasePlan({
   let after;
   try {
     before = await inspector.inspect();
-    if (target === 'hosted') assertAuthorizationCurrent(authorization);
+    if (target === 'hosted') {
+      assertAuthorizationCurrent(authorization);
+      assertProviderBaselineCurrent(providerBaseline, authorization);
+    }
     after = await inspector.inspect();
-    if (target === 'hosted') assertAuthorizationCurrent(authorization);
+    if (target === 'hosted') {
+      assertAuthorizationCurrent(authorization);
+      assertProviderBaselineCurrent(providerBaseline, authorization);
+    }
   } catch (error) {
     throw new PlanFailure(error?.code ?? (target === 'local' ? 'LOCAL_SUPABASE_UNAVAILABLE' : 'PROVIDER_UNREADABLE'));
   }
   const beforeProvider = target === 'hosted'
-    ? providerBaselineComparison(before, providerBaseline)
+    ? await providerBaselineComparison(before, providerBaseline)
     : undefined;
   const afterProvider = target === 'hosted'
-    ? providerBaselineComparison(after, providerBaseline)
+    ? await providerBaselineComparison(after, providerBaseline)
     : undefined;
   const providerMatched = target === 'hosted'
     ? beforeProvider.matched && afterProvider.matched
@@ -455,8 +510,8 @@ export async function buildSupabasePlan({
         resources: expectedSupabaseResources,
         providerBaselineVersion: providerBaseline.baselineVersion,
         providerBaselineSha256: providerBaseline.baselineSha256,
-        providerObjectsSha256: before.providerInventory.objectInventorySha256,
-        providerGrantsSha256: before.providerInventory.grantInventorySha256,
+        providerObjectsSha256: beforeProvider.inventory.objectInventorySha256,
+        providerGrantsSha256: beforeProvider.inventory.grantInventorySha256,
       });
   const blockers = [];
   const deny = code => blockers.push({ code, ...(blockerDetails[code] ?? { message: new PlanFailure(code).message, recovery: '변경하지 말고 승인된 설치 입력과 journal을 확인합니다.' }) });
@@ -467,8 +522,12 @@ export async function buildSupabasePlan({
     if (![before, after].every(value => value.project.ownerOrgIdHash === authorization.expectedOwnerOrgIdHash)) deny('OWNER_MISMATCH');
   }
   if (providerMatched === false) deny('PROVIDER_BASELINE_MISMATCH');
-  const stateFingerprint = await installationStateFingerprint(before, providerBaseline);
-  const afterStateFingerprint = await installationStateFingerprint(after, providerBaseline);
+  const stateFingerprint = await installationStateFingerprint(
+    before, providerBaseline, beforeProvider?.inventory,
+  );
+  const afterStateFingerprint = await installationStateFingerprint(
+    after, providerBaseline, afterProvider?.inventory,
+  );
   const state = before.installState;
   if (!state) {
     if ([before, after].some(snapshot => snapshot.state.legacyLedgerPresent
@@ -527,8 +586,8 @@ export async function buildSupabasePlan({
   if (target === 'hosted') Object.assign(planFingerprintInput, {
     providerBaselineVersion: providerBaseline.baselineVersion,
     providerBaselineSha256: providerBaseline.baselineSha256,
-    providerObjectsSha256: before.providerInventory.objectInventorySha256,
-    providerGrantsSha256: before.providerInventory.grantInventorySha256,
+    providerObjectsSha256: beforeProvider.inventory.objectInventorySha256,
+    providerGrantsSha256: beforeProvider.inventory.grantInventorySha256,
   });
   const planFingerprint = await hashCanonical(planFingerprintInput);
   return {
@@ -557,8 +616,8 @@ export async function buildSupabasePlan({
       providerBaseline: safeProviderBaseline(providerBaseline, {
         ...beforeProvider,
         matched: providerMatched,
-        objectInventorySha256: before.providerInventory.objectInventorySha256,
-        grantInventorySha256: before.providerInventory.grantInventorySha256,
+        objectInventorySha256: beforeProvider.inventory.objectInventorySha256,
+        grantInventorySha256: beforeProvider.inventory.grantInventorySha256,
       }),
     } : {}),
     plannedResources: expectedSupabaseResources, migrations, blockers,
@@ -571,7 +630,10 @@ export async function buildSupabaseDoctor(options) {
   let snapshot;
   try {
     snapshot = await options.inspector.inspect();
-    if (options.target === 'hosted') assertAuthorizationCurrent(options.authorization);
+    if (options.target === 'hosted') {
+      assertAuthorizationCurrent(options.authorization);
+      assertProviderBaselineCurrent(options.providerBaseline, options.authorization);
+    }
   } catch (error) {
     throw new PlanFailure(error?.code ?? (options.target === 'local'
       ? 'LOCAL_SUPABASE_UNAVAILABLE' : 'PROVIDER_UNREADABLE'));
@@ -588,10 +650,12 @@ export async function buildSupabaseDoctor(options) {
     addIssue('CONNECTION_NOT_READ_ONLY');
   }
   const providerComparison = options.target === 'hosted'
-    ? providerBaselineComparison(snapshot, options.providerBaseline)
+    ? await providerBaselineComparison(snapshot, options.providerBaseline)
     : undefined;
   if (providerComparison && !providerComparison.matched) addIssue('PROVIDER_BASELINE_MISMATCH');
-  const stateFingerprint = await installationStateFingerprint(snapshot, options.providerBaseline);
+  const stateFingerprint = await installationStateFingerprint(
+    snapshot, options.providerBaseline, providerComparison?.inventory,
+  );
   if (stateFingerprint !== plan.stateFingerprint) addIssue('PLAN_STATE_CHANGED');
   if (!state) {
     addIssue('INSTALL_NOT_FOUND');
@@ -620,8 +684,8 @@ export async function buildSupabaseDoctor(options) {
       providerBaseline: safeProviderBaseline(options.providerBaseline, {
         ...providerComparison,
         matched: plan.providerBaseline.matched && providerComparison.matched,
-        objectInventorySha256: snapshot.providerInventory.objectInventorySha256,
-        grantInventorySha256: snapshot.providerInventory.grantInventorySha256,
+        objectInventorySha256: providerComparison.inventory.objectInventorySha256,
+        grantInventorySha256: providerComparison.inventory.grantInventorySha256,
       }),
     } : {}),
   };
