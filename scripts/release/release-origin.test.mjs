@@ -5,6 +5,7 @@ import test from 'node:test';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 
 import { verifyReleaseBundle } from './release-manifest.mjs';
+import { loadReleaseTrustStore } from './release-trust.mjs';
 import { fetchPinnedRelease } from './release-origin.mjs';
 
 const ENDPOINT = 'https://ccc-releases.account-855.workers.dev/.well-known/ccc/release-bundle.json';
@@ -28,6 +29,14 @@ const rootKey = (() => {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
   return { privateKey, publicKey: publicKey.export({ format: 'jwk' }).x };
 })();
+const rootTrustStore = await loadReleaseTrustStore(JSON.stringify({ keys: [{
+  keyId: 'root-key-1',
+  publicKey: rootKey.publicKey,
+  role: 'root',
+  status: 'active',
+  notBefore: '2026-09-01T00:00:00.000Z',
+  notAfter: '2026-10-01T00:00:00.000Z',
+}] }));
 
 function response({ url = ENDPOINT, date = SERVER_DATE, ok = true, body = RAW_BUNDLE } = {}) {
   return {
@@ -110,8 +119,7 @@ function realSignedBundle(overrides = {}) {
 function verifyRealBundle(document, trustedDate) {
   return verifyReleaseBundle({
     document,
-    rootKeys: { 'root-key-1': rootKey.publicKey },
-    revokedRootKeyIds: [],
+    trustStore: rootTrustStore,
     now: trustedDate,
     channel: 'beta',
   });
