@@ -21,7 +21,8 @@ import {
 import { providerInventoryFingerprint } from './provider-inventory.mjs';
 
 const MAX_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
-const MAX_STRING_BYTES = 1_024;
+const MAX_TRUST_STRING_BYTES = 1_024;
+const MAX_SOURCE_RECORD_STRING_BYTES = 4_096;
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
 const SOURCE_REVISION = /^[0-9a-f]{40}$/u;
 const DATABASE_VERSION = /^[0-9]+(?:\.[0-9]+)*$/u;
@@ -77,7 +78,7 @@ function hasExactKeys(value, keys) {
 }
 
 function boundedString(value) {
-  return typeof value === 'string' && Buffer.byteLength(value, 'utf8') <= MAX_STRING_BYTES;
+  return typeof value === 'string' && Buffer.byteLength(value, 'utf8') <= MAX_TRUST_STRING_BYTES;
 }
 
 function boundedIdentity(value) {
@@ -188,7 +189,7 @@ async function verifySignedTrust(trust, rootPublicKey) {
 
 function normalizedSourcePath(value) {
   return typeof value === 'string' && value.length > 0
-    && Buffer.byteLength(value, 'utf8') <= MAX_STRING_BYTES
+    && Buffer.byteLength(value, 'utf8') <= MAX_SOURCE_RECORD_STRING_BYTES
     && !posix.isAbsolute(value)
     && !/[\\\p{Cc}]/u.test(value)
     && posix.normalize(value) === value

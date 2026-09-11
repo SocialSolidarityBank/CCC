@@ -155,9 +155,64 @@ async function sourceEvidence(records = [...objects(), ...grants()].filter(recor
         ? 'https://github.com/supabase/supabase'
         : 'https://github.com/supabase/postgres',
       sourcePath: index % 2 === 0 ? 'apps/studio/schema.sql' : 'migrations/grants.sql',
-      sourceSha256: `${index + 6}`.repeat(64),
+      sourceSha256: await HASH(`source-${index}`),
     }))),
   };
+}
+
+function canonicalSort(records) {
+  return [...records].sort((left, right) => Buffer.compare(
+    Buffer.from(verifier.canonicalizeJcs(left), 'utf8'),
+    Buffer.from(verifier.canonicalizeJcs(right), 'utf8'),
+  ));
+}
+
+function longRoutineIdentity(byteLength) {
+  const prefix = 'extensions.';
+  const suffix = '(text) FUNCTION RETURNS text';
+  return `${prefix}${'r'.repeat(byteLength - prefix.length - suffix.length)}${suffix}`;
+}
+
+function sourcePathOfLength(byteLength) {
+  const prefix = 'migrations/';
+  const suffix = '.sql';
+  return `${prefix}${'s'.repeat(byteLength - prefix.length - suffix.length)}${suffix}`;
+}
+
+async function longRoutineFixture(identityBytes, sourcePathBytes = 32) {
+  const identity = longRoutineIdentity(identityBytes);
+  const routine = {
+    kind: 'routine',
+    schema: 'extensions',
+    identity,
+    owner: 'supabase_admin',
+    definitionSha256: '88'.repeat(32),
+    provenance: 'supabase_managed',
+  };
+  const routineGrants = ['anon', 'authenticated', 'service_role'].map(grantee => ({
+    kind: 'routine',
+    schema: 'extensions',
+    objectIdentity: identity,
+    grantor: 'supabase_admin',
+    grantee,
+    privilege: 'EXECUTE',
+    grantable: false,
+    inheritOption: null,
+    setOption: null,
+    provenance: 'supabase_managed',
+  }));
+  const currentObjects = canonicalSort([...objects(), routine]);
+  const currentGrants = canonicalSort([...grants(), ...routineGrants]);
+  const providerInventory = await inventory({
+    objects: currentObjects,
+    grants: currentGrants,
+  });
+  const evidence = await sourceEvidence(
+    [...currentObjects, ...currentGrants]
+      .filter(record => record.provenance === 'supabase_managed'),
+  );
+  evidence.records[0].sourcePath = sourcePathOfLength(sourcePathBytes);
+  return { identity, providerInventory, evidence };
 }
 
 async function fixture() {
@@ -312,6 +367,47 @@ test('signs verified stable empty observations including routine and type grant 
         setOption: null,
       }],
     );
+  });
+});
+
+test('accepts 4096-byte provider identities and evidence paths but rejects larger values', async () => {
+  await withFixture(async current => {
+    const long = await longRoutineFixture(4_096, 4_096);
+    const observed = await snapshot({ providerInventory: long.providerInventory });
+    const inputs = await generationInputs(current, observed, structuredClone(observed));
+    inputs.sourceEvidenceInput = JSON.stringify(long.evidence);
+    await generateProviderBaseline(inputs);
+    const verified = await requireProviderBaseline({
+      releaseTrust: await readFile(current.outputPaths.releaseTrust, 'utf8'),
+      providerBaseline: await readFile(current.outputPaths.baseline, 'utf8'),
+      rootKeys: current.rootKeys,
+      revokedRootKeyIds: [],
+      authorization: current.authorization,
+      manifestExpiresAt: current.authorization.expiresAt,
+      now: NOW,
+      verifier,
+    });
+    assert.equal(Buffer.byteLength(long.identity, 'utf8'), 4_096);
+    assert.equal(
+      verified.grants.filter(grant => grant.objectIdentity === long.identity).length,
+      3,
+    );
+  });
+
+  await withFixture(async current => {
+    const long = await longRoutineFixture(4_097);
+    const observed = await snapshot({ providerInventory: long.providerInventory });
+    const inputs = await generationInputs(current, observed, structuredClone(observed));
+    inputs.sourceEvidenceInput = JSON.stringify(long.evidence);
+    await assertGenerationFailure(inputs);
+  });
+
+  await withFixture(async current => {
+    const long = await longRoutineFixture(1_654, 4_097);
+    const observed = await snapshot({ providerInventory: long.providerInventory });
+    const inputs = await generationInputs(current, observed, structuredClone(observed));
+    inputs.sourceEvidenceInput = JSON.stringify(long.evidence);
+    await assertGenerationFailure(inputs);
   });
 });
 
