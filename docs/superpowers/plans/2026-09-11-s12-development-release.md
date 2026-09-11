@@ -349,9 +349,29 @@ S8 §2.3의 Supabase 네 boolean 중 `absentFromList`, `absentFromMetadata`, `di
 - [ ] 응답은 `{action:'absence', generationId, absentFromList, absentFromMetadata, directReadAbsent, verifiedAt}`뿐이다. 이름, 크기, 원음 byte, provider 문구는 내보내지 않는다.
 - [ ] 테스트: 세 조회 각각 존재·부재, generation 다른 object 존재 시 list는 부재, 5xx는 실패 코드, 200 body 미소비, 허용 경로가 delete와 같은 근거(철회 뒤 유지, stale attempt 거부).
 
+### Task 10: Signer 기반 AudioStore와 Cloud runtime 배선
+
+Cloud runtime의 `audioStore`는 null이고 Signer 번들에는 진입점이 없다. 업무 API는 원음 byte를 만지지 않고
+Signer에게 서명·삭제·부재 증거를 맡긴다. 호출자의 Bearer가 그대로 Signer로 가고 Signer가 §2.7 콜백으로
+되돌아오므로, Signer 주소는 서명된 설치 manifest의 `supabaseAuthOrigin`에서만 만든다(미서명 env 주소 금지).
+
+**Files:**
+- Modify: `packages/contracts/src/runtime.ts` (`AudioStoreBinding` = `StorageSignerRequest['context']`; `get`·`delete`·`createUploadTarget`·`createDownloadTarget`에 선택 인자 `binding`; `AudioDownload.expiresAt`을 `string | null`로)
+- Modify: `packages/http-api/src/request-handler.ts`, `packages/core/src/gateway.ts` (호출 자리에 binding 전달: upload target·완료 head는 `{kind:'upload', audioObjectId}`, Agent 읽기는 `{kind:'claim', jobId, claimToken, attempt}`, reconcile 삭제는 행의 `{kind:'deletion', audioObjectId, generationId, deletionAttemptId}`)
+- Create: `adapters/audio-signer/` (`@ccc/audio-signer`, `createSignerAudioStore({ signerUrl, authorization, installationId, fetch?, now? })`)
+- Modify: `apps/community-cloud/src/runtime.ts` (요청마다 그 요청의 Authorization으로 어댑터 생성)
+- Create: `apps/community-cloud/src/storage-signer-main.ts` (Deno 진입점), Modify: `apps/community-cloud/build.mjs`, `apps/community-cloud/RUN.md`
+- Create: `adapters/audio-signer/test/*.test.ts`, `apps/api/test/audio-signer.e2e.test.ts`
+
+- [ ] 어댑터는 binding이 없거나 종류가 맞지 않으면 예외다. `put`은 항상 예외(Cloud는 byte를 받지 않는다). `get`은 Signer `head`로 metadata만 채우고 body는 읽는 즉시 오류를 내는 stream, `sha256`은 null, `expiresAt`은 null이다. `delete`는 `delete` 뒤 `absence`를 새로 호출해 네 boolean을 만들고 `verificationMethod='authenticated-get-404'`, `deletedAt`은 provider 수락 시각, `verifiedAt`은 absence 응답 시각이다. `createUploadTarget`·`createDownloadTarget`은 각각 `upload`·`agent_read`의 `{url, expiresAt}`를 그대로 돌려준다.
+- [ ] 어댑터는 Signer 응답의 `x-ccc-installation-id`가 다르거나, 키가 계약과 다르거나, 실패 코드면 예외를 던진다. 허용 결과를 만들어내지 않는다. Signer 요청에는 `Origin`을 싣지 않는다.
+- [ ] runtime은 `signerUrl = ${manifest.supabaseAuthOrigin}/functions/v1/ccc-storage-signer`, `authorization = 요청의 Authorization`으로 요청마다 어댑터를 만든다. Authorization이 없는 요청은 어댑터가 첫 호출에서 예외다.
+- [ ] Signer 진입점은 `CCC_INSTALL_MANIFEST`·`CCC_INSTALL_SIGNING_KEYS`를 runtime과 같은 방식으로 검증하고 `SUPABASE_SERVICE_ROLE_KEY`를 요구하며, 업무 비밀(`CCC_DATABASE_URL`, `CODEX_API_KEY`, `PII_ENC_KEY`, `SCHEDULER_SECRET`)이 있으면 기동을 거부한다. Edge Function은 `verify_jwt=false`로 배포해야 하며 RUN.md에 적는다.
+- [ ] 테스트: 어댑터 단위(각 동작의 요청 본문·principal·binding 오류·설치 ID 불일치·실패 코드 전파·body 미제공)와 종단 1건: 실제 `handleRequest` + 실제 Signer handler + 가짜 provider로 upload target 발급 → 완료 head → 동의 철회 → scheduler Bearer의 reconcile이 delete·absence를 거쳐 네 true로 terminal 전환.
+
 ## Final Review Gate
 
-여섯 작업이 끝나면 Tasks 1-6 전체에 전용 보안 검토를 한 번 돌린다. 검토는 자기 신뢰, 서명 도메인
+열 작업이 끝나면 Tasks 1-10 전체에 전용 보안 검토를 한 번 돌린다. 검토는 자기 신뢰, 서명 도메인
 혼동, 출처 위조, floor 되돌리기, 시각 되돌리기, tuple 우회, Edge component 누락과 추가, 백업 면제
 조건 우회, journal 이중화, 출력 누출을 각각 판정해야 한다. 중대와 중요 지적을 모두 닫은 뒤에만
 Main이 실제 발급과 설치를 실행한다.
