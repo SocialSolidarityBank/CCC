@@ -111,13 +111,15 @@ type ProviderObjectRecord = {
 };
 
 type ProviderGrantRecord = {
-  kind: 'schema' | 'relation' | 'column' | 'default' | 'role';
+  kind: 'schema' | 'relation' | 'column' | 'routine' | 'type' | 'default' | 'role';
   schema: string;
   objectIdentity: string;
   grantor: string;
   grantee: string;
   privilege: string;
   grantable: boolean;
+  inheritOption: boolean | null;
+  setOption: boolean | null;
   provenance: 'initial_privilege' | 'supabase_managed';
 };
 
@@ -131,7 +133,6 @@ type SupabaseProviderBaselineV1 = {
   ownerOrgIdSha256: string;
   region: 'ap-northeast-2';
   databaseVersion: string;
-  sourceRevision: string;
   sourceEvidenceSha256: string;
   emptyBusinessState: {
     userTableCount: 0;
@@ -167,6 +168,46 @@ identity와 grantor, grantee, privilege, grantable을 모두 비교한다.
 baseline lifetime도 최대 30일이며, `issuedAt <= now < expiresAt`이어야 한다. baseline의
 `expiresAt`은 `BetaTrustRootV1`, S2 manifest, 비공개 설치 승인서 중 가장 이른 만료를 넘을 수 없다.
 
+### 3.4 `ProviderSourceEvidenceV1`
+
+기존 두 저장소만 공식 근거로 인정한 가정은 실제 프로젝트와 맞지 않았다. 관리형 서비스 schema와
+PostgreSQL 기본 role은 Auth, Storage, Realtime 서비스 저장소 또는 PostgreSQL 공식 저장소에서 정의된다.
+
+```ts
+type ProviderSourceEvidenceRecordV1 = {
+  kind: 'schema' | 'relation' | 'routine' | 'type' | 'catalog'
+    | 'column' | 'default' | 'role';
+  identitySha256: string;
+  sourceUrl:
+    | 'https://github.com/supabase/supabase'
+    | 'https://github.com/supabase/postgres'
+    | 'https://github.com/supabase/auth'
+    | 'https://github.com/supabase/storage'
+    | 'https://github.com/supabase/realtime'
+    | 'https://github.com/postgres/postgres';
+  sourceRevision: string;
+  sourcePath: string;
+  sourceSha256: string;
+};
+
+type ProviderSourceEvidenceV1 = {
+  schemaVersion: 1;
+  provider: 'supabase';
+  databaseVersion: string;
+  records: ProviderSourceEvidenceRecordV1[];
+};
+```
+
+문서와 각 record는 닫힌 key 집합을 사용한다. `sourceRevision`은 record가 가리키는 저장소의 변경 불가능한
+40자 소문자 hexadecimal commit이며 문서 전체에는 공통 revision을 두지 않는다. `identitySha256`은
+해당 `supabase_managed` 객체 또는 grant의 provenance를 뺀 exact record를 RFC 8785 JCS로 직렬화한
+UTF-8 SHA-256이다. 모든 `supabase_managed` record는 정확히 하나의 evidence record와 일대일로
+대응하며 중복 identity를 거부한다. `extension`과 `initial_privilege` record에는 evidence row를 두지 않는다.
+
+`identitySha256`와 `sourceSha256`은 64자 소문자 hexadecimal이고, `sourcePath`는 비어 있지 않은 정규화된
+상대 경로여야 한다. record 문자열은 UTF-8 4,096바이트 이하이며 전체 문서는 1 MiB 이하이다. 생성기는
+이 문서를 검증할 뿐 source를 fetch하지 않는다.
+
 ## 4. 기준선 생성
 
 기준선 생성기는 쓰기 권한을 사용하지 않는다.
@@ -174,15 +215,15 @@ baseline lifetime도 최대 30일이며, `issuedAt <= now < expiresAt`이어야 
 1. 서명된 설치 승인서와 beta trust를 먼저 검증한다.
 2. Supabase 공식 CA와 `verify-full`로 session pooler 5432에 연결한다.
 3. `BEGIN READ ONLY` 안에서 모든 non-system schema의 schema, relation, routine, type, catalog object,
-   schema/table/column/default/role grant를 읽는다.
+   schema/table/column/routine/type/default/role grant를 읽는다.
 4. `pg_depend`의 extension membership과 `pg_init_privs`를 기계적으로 분류한다.
-5. 남은 `supabase_managed` 후보를 Supabase 공식 저장소의 고정 commit과 source evidence로 대조한다.
-   공식 소스에서 근거를 찾지 못한 객체나 grant가 하나라도 있으면 기준선을 만들지 않는다.
+5. 남은 `supabase_managed` 후보를 위 여섯 공식 저장소의 record별 고정 commit과 source evidence로
+   대조한다. 공식 소스에서 근거를 찾지 못한 객체나 grant가 하나라도 있으면 기준선을 만들지 않는다.
 6. 업무 표와 행, Auth 사용자, bucket, Storage object가 모두 0인지 다시 확인한다.
 7. 첫 관찰과 두 번째 관찰의 canonical inventory hash가 같을 때만 서명한다.
 
-`sourceEvidenceSha256`가 가리키는 증거에는 공식 저장소 URL, commit, 대조한 source path와 각 파일의
-SHA-256, live database version을 기록한다. 값, token, 연결 문자열, 사용자 자료는 넣지 않는다.
+`sourceEvidenceSha256`가 가리키는 증거에는 record별 공식 저장소 URL, 고정 commit, 대조한 source path와
+각 파일의 SHA-256, live database version을 기록한다. 값, token, 연결 문자열, 사용자 자료는 넣지 않는다.
 
 ## 5. 설치 plan 검증
 

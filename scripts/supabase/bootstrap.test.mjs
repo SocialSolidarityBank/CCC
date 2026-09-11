@@ -363,7 +363,6 @@ async function signedCliInputs(expectedOwnerOrgId = 'test-organization', {
     ownerOrgIdSha256,
     region: 'ap-northeast-2',
     databaseVersion: '17.4',
-    sourceRevision: 'a'.repeat(40),
     sourceEvidenceSha256: 'd'.repeat(64),
     emptyBusinessState: {
       userTableCount: 0,

@@ -121,7 +121,6 @@ async function signedBaselineFixture({
     ownerOrgIdSha256: OWNER_ORG_ID_SHA256,
     region: 'ap-northeast-2',
     databaseVersion: '17.4',
-    sourceRevision: '55'.repeat(20),
     sourceEvidenceSha256: '66'.repeat(32),
     emptyBusinessState: {
       userTableCount: 0,
@@ -313,6 +312,7 @@ test('baseline exact schemas, hashes, ordering, bounds, and bindings fail closed
   const longObject = { ...fixture.providerBaseline.objects[0], identity: '가'.repeat(1_366) };
   const cases = [
     ['baseline unknown field', { unknown: true }],
+    ['obsolete document-level source revision', { sourceRevision: '55'.repeat(20) }],
     ['empty business state unknown field', {
       emptyBusinessState: { ...fixture.providerBaseline.emptyBusinessState, unknown: 0 },
     }],

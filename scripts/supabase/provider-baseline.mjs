@@ -11,7 +11,6 @@ const MAX_RECORD_STRING_BYTES = 4_096;
 const MAX_OBJECTS = 5_000;
 const MAX_GRANTS = 20_000;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
-const SOURCE_REVISION = /^[a-f0-9]{40}$/u;
 const DATABASE_VERSION = /^[0-9]+(?:\.[0-9]+)*$/u;
 const PUBLIC_KEY_BASE64 = /^[A-Za-z0-9+/]{43}=$/u;
 const SIGNATURE_BASE64 = /^[A-Za-z0-9+/]{86}==$/u;
@@ -24,7 +23,7 @@ const TRUST_KEYS = [
 const BASELINE_KEYS = [
   'schemaVersion', 'profile', 'channel', 'provider', 'baselineVersion',
   'projectRefSha256', 'ownerOrgIdSha256', 'region', 'databaseVersion',
-  'sourceRevision', 'sourceEvidenceSha256', 'emptyBusinessState', 'objects',
+  'sourceEvidenceSha256', 'emptyBusinessState', 'objects',
   'grants', 'objectInventorySha256', 'grantInventorySha256', 'issuedAt',
   'expiresAt', 'signingKeyId', 'ed25519Signature',
 ].sort();
@@ -188,8 +187,6 @@ function validProviderBaseline(value, trust, authorization, manifestExpiry, now,
     && value.region === 'ap-northeast-2'
     && isBoundedString(value.databaseVersion, { nonempty: true })
     && DATABASE_VERSION.test(value.databaseVersion)
-    && typeof value.sourceRevision === 'string'
-    && SOURCE_REVISION.test(value.sourceRevision)
     && typeof value.sourceEvidenceSha256 === 'string'
     && SHA256_HEX.test(value.sourceEvidenceSha256)
     && validEmptyBusinessState(value.emptyBusinessState)
