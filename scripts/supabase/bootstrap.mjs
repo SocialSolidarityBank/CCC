@@ -35,6 +35,7 @@ import {
 } from './apply.mjs';
 import { assertSafeOutput, buildRedactedReport, writeRedactedReport } from './report.mjs';
 import { linkFirstAdmin, parseFirstAdminIdentity } from './first-admin.mjs';
+import { createInstitution, parseInstitutionSettings } from './institution.mjs';
 
 const exitCodes = Object.freeze({
   CREDENTIAL_MISSING: 2,
@@ -88,17 +89,20 @@ const exitCodes = Object.freeze({
   FIRST_ADMIN_EXISTS: 6,
   FIRST_ADMIN_SUBJECT_TAKEN: 6,
   FIRST_ADMIN_EMAIL_TAKEN: 6,
+  INSTITUTION_NOT_INSTALLED: 6,
+  INSTITUTION_STATE_INCONSISTENT: 6,
 });
 
 function parseArgs(argv) {
   const normalized = argv[0] === '--' ? argv.slice(1) : argv;
   const [operation = 'plan', ...rest] = normalized;
-  if (!['plan', 'apply', 'doctor', 'report', 'rollback', 'renew-authorization', 'link-first-admin'].includes(operation)) throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if (!['plan', 'apply', 'doctor', 'report', 'rollback', 'renew-authorization', 'create-institution', 'link-first-admin'].includes(operation)) throw new PlanFailure('OPERATION_UNSUPPORTED');
   const options = {
     operation, target: 'hosted', projectRef: null, installManifest: null, installApproval: null,
     manifestUrl: null, renewAuthorization: operation === 'renew-authorization', to: null,
-    format: operation === 'link-first-admin' ? 'json' : 'text', workdir: process.cwd(), output: null,
-    authSubject: null, email: null, name: null,
+    format: ['create-institution', 'link-first-admin'].includes(operation) ? 'json' : 'text',
+    workdir: process.cwd(), output: null,
+    authSubject: null, email: null, name: null, timeZone: null, piiPurgeGraceDays: null,
   };
   const seen = new Set();
   for (let index = 0; index < rest.length; index += 1) {
@@ -117,9 +121,10 @@ function parseArgs(argv) {
     if (![
       '--target', '--project-ref', '--install-manifest', '--install-approval',
       '--manifest-url', '--format', '--workdir', '--to', '--output',
-      '--auth-subject', '--email', '--name',
+      '--auth-subject', '--email', '--name', '--time-zone', '--pii-purge-grace-days',
     ].includes(flag) || seen.has(flag) || value === undefined
-      || (['--output', '--auth-subject', '--email', '--name'].includes(flag) && value.startsWith('--'))) {
+      || (['--output', '--auth-subject', '--email', '--name', '--time-zone', '--pii-purge-grace-days']
+        .includes(flag) && value.startsWith('--'))) {
       throw new PlanFailure('OPERATION_UNSUPPORTED');
     }
     index += 1;
@@ -136,6 +141,8 @@ function parseArgs(argv) {
     if (flag === '--auth-subject') options.authSubject = value;
     if (flag === '--email') options.email = value;
     if (flag === '--name') options.name = value;
+    if (flag === '--time-zone') options.timeZone = value;
+    if (flag === '--pii-purge-grace-days') options.piiPurgeGraceDays = value;
   }
   if (options.target !== 'hosted' && options.target !== 'local') throw new PlanFailure('TARGET_UNSUPPORTED');
   if (options.format !== 'text' && options.format !== 'json') throw new PlanFailure('OPERATION_UNSUPPORTED');
@@ -146,6 +153,13 @@ function parseArgs(argv) {
   if (operation === 'report' ? !options.output : options.output !== null) throw new PlanFailure('OPERATION_UNSUPPORTED');
   if ([options.authSubject, options.email, options.name].some(value => value !== null)
     && operation !== 'link-first-admin') throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if ([options.timeZone, options.piiPurgeGraceDays].some(value => value !== null)
+    && operation !== 'create-institution') throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if (operation === 'create-institution') {
+    if (options.format !== 'json') throw new PlanFailure('OPERATION_UNSUPPORTED');
+    // 기본값은 D32의 1년 유예와 Seoul이다. 잘못된 값은 공급자 접근 전에 거부한다.
+    parseInstitutionSettings(options);
+  }
   if (operation === 'link-first-admin') {
     if (options.format !== 'json') throw new PlanFailure('OPERATION_UNSUPPORTED');
     // 값 자체는 검증하고 출력하지 않는다. 보고서에는 해시만 담긴다.
@@ -184,15 +198,18 @@ const task4Failures = Object.freeze({
   TRUSTED_TIME_UNAVAILABLE: '릴리스 출처의 신뢰 시각을 확인하지 못했습니다.',
 });
 
-const firstAdminFailures = Object.freeze({
+// 설치 뒤의 두 연결 단계(기관 생성, 첫 관리자 연결)가 쓰는 고정 code.
+const installStepFailures = Object.freeze({
+  INSTITUTION_NOT_INSTALLED: '설치가 완료된 뒤에만 기관을 만들 수 있습니다.',
+  INSTITUTION_STATE_INCONSISTENT: '기관 설정과 사업 정책 중 한쪽만 있습니다. 반쪽 상태를 덮어쓰지 않고 멈췄습니다.',
   FIRST_ADMIN_NOT_INSTALLED: '설치가 완료된 뒤에만 첫 관리자를 연결할 수 있습니다.',
   FIRST_ADMIN_EXISTS: '이 기관에는 이미 기관 관리자 또는 첫 관리자 연결 영수증이 있습니다.',
   FIRST_ADMIN_SUBJECT_TAKEN: '이 Supabase Auth 사용자는 이미 다른 계정에 연결되어 있습니다.',
   FIRST_ADMIN_EMAIL_TAKEN: '이 이메일은 이미 디렉터리에 있습니다.',
 });
 
-/** 고정 code만 전달한다. safeError가 firstAdminFailures에서 안전한 문구를 찾는다. */
-function firstAdminFailure(code) {
+/** 고정 code만 전달한다. safeError가 installStepFailures에서 안전한 문구를 찾는다. */
+function installStepFailure(code) {
   return Object.assign(new Error(code), { code });
 }
 
@@ -234,7 +251,7 @@ function text(plan) {
 }
 
 function safeError(error, format) {
-  const task4Message = task4Failures[error?.code] ?? firstAdminFailures[error?.code];
+  const task4Message = task4Failures[error?.code] ?? installStepFailures[error?.code];
   const failure = task4Message === undefined
     ? (error instanceof PlanFailure ? error : new PlanFailure(error?.code ?? 'PROVIDER_UNREADABLE'))
     : Object.assign(new Error(task4Message), { code: error.code });
@@ -455,7 +472,7 @@ async function main() {
     } else if (result.ready && options.operation === 'link-first-admin') {
       // ADR-0044 D86: 설치가 기관을 만들고 첫 로그인이 기관 초기 설정이다. 완료된 설치에만
       // 첫 관리자를 연결하며, 브라우저 양식은 이 경로를 대신할 수 없다.
-      if (result.installed?.state !== 'installed') throw firstAdminFailure('FIRST_ADMIN_NOT_INSTALLED');
+      if (result.installed?.state !== 'installed') throw installStepFailure('FIRST_ADMIN_NOT_INSTALLED');
       const linked = await withInstallerConnection(authorization, sql =>
         withInstallLock(sql, authorization.projectRefHash, session => linkFirstAdmin(session, {
           orgId: authorization.institutionId,
@@ -463,13 +480,33 @@ async function main() {
           email: options.email,
           name: options.name,
         })));
-      if (!linked.ok) throw firstAdminFailure(linked.code);
+      if (!linked.ok) throw installStepFailure(linked.code);
       result = {
         operation: 'link-first-admin',
         ready: true,
         userIdSha256: linked.userIdSha256,
         emailSha256: linked.emailSha256,
         authSubjectSha256: linked.authSubjectSha256,
+      };
+    } else if (result.ready && options.operation === 'create-institution') {
+      // ADR-0044 D86: 설치가 기관을 만든다. 이 단계가 없으면 첫 로그인의 첫 호출인
+      // GET /capabilities가 program_admission_policies 행을 찾지 못해 409로 닫힌다.
+      if (result.installed?.state !== 'installed') throw installStepFailure('INSTITUTION_NOT_INSTALLED');
+      const created = await withInstallerConnection(authorization, sql =>
+        withInstallLock(sql, authorization.projectRefHash, session => createInstitution(session, {
+          orgId: authorization.institutionId,
+          timeZone: options.timeZone,
+          piiPurgeGraceDays: options.piiPurgeGraceDays,
+        })));
+      if (!created.ok) throw installStepFailure(created.code);
+      result = {
+        operation: 'create-institution',
+        ready: true,
+        orgIdSha256: created.orgIdSha256,
+        timeZone: created.timeZone,
+        piiPurgeGraceDays: created.piiPurgeGraceDays,
+        sttMode: created.sttMode,
+        llmMode: created.llmMode,
       };
     }
     process.stdout.write(options.format === 'json' ? json(result) : text(result));

@@ -1705,3 +1705,51 @@ test('link-first-admin은 설치가 끝나지 않은 프로젝트에서 연결�
     assertNoSensitiveOutput(result, origin);
   });
 });
+
+test('create-institution은 잘못된 인자를 공급자 접근 전에 거부한다', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    for (const extraArgs of [
+      ['--time-zone', 'Asia/Nowhere'],
+      ['--time-zone', 'Seoul'],
+      ['--time-zone', '--json'],
+      ['--pii-purge-grace-days', '0'],
+      ['--pii-purge-grace-days', '3661'],
+      ['--pii-purge-grace-days', 'all'],
+      ['--pii-purge-grace-days', '365', '--pii-purge-grace-days', '365'],
+      ['--auth-subject', '00000000-0000-4000-8000-000000000001'],
+      ['--to', '0.9.0'],
+    ]) {
+      const result = await runCli(origin, { operation: 'create-institution', extraArgs });
+      assert.equal(result.exitCode, 2, result.stderr);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    // 기관 설정 인자는 다른 동작이 받지 않는다.
+    for (const operation of ['plan', 'doctor', 'report']) {
+      const result = await runCli(origin, { operation, extraArgs: ['--time-zone', 'Asia/Seoul'] });
+      assert.equal(result.exitCode, 2, result.stderr);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    // 출력은 JSON 보고서로 고정한다.
+    const textFormat = await runCli(origin, { operation: 'create-institution', format: 'text' });
+    assert.equal(textFormat.exitCode, 2);
+    assert.match(textFormat.stderr, /^\[OPERATION_UNSUPPORTED\]/u);
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('create-institution은 설치가 끝나지 않은 프로젝트에 기관을 만들지 않는다', async () => {
+  await withManagementApi({}, async ({ origin }) => {
+    // 기본값만으로도, 명시한 값으로도 설치 상태를 먼저 확인한다.
+    for (const extraArgs of [[], ['--time-zone', 'Asia/Seoul', '--pii-purge-grace-days', '365']]) {
+      const result = await runCli(origin, {
+        operation: 'create-institution',
+        signedInput: await signedCliInputs(),
+        extraArgs,
+      });
+      assert.equal(result.exitCode, 6, result.stdout);
+      assert.equal(JSON.parse(result.stderr).error.code, 'INSTITUTION_NOT_INSTALLED');
+      assert.equal(result.stdout, '');
+      assertNoSensitiveOutput(result, origin);
+    }
+  });
+});

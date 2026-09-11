@@ -108,6 +108,35 @@ The apply order inside the install lock is fixed: journal preparation, the per-m
 
 The provider steps never enable a database extension. `cron.schedule`, `net.http_post`, `vault.create_secret` and `storage.buckets` must already exist in the project, and a missing one stops apply with `PROVIDER_UNREADABLE` before any write, so enabling pg_cron, pg_net and Vault in the Supabase dashboard is an operator prerequisite. `SUPABASE_SERVICE_ROLE_KEY` is required to be injected into the installer but is never sent to the Management API: its `CreateSecretBody` name pattern refuses `SUPABASE_`-prefixed names and Supabase injects that credential into Edge Functions itself, so `edge_secret_binding` binds only `CCC_INSTALL_MANIFEST` and `CCC_INSTALL_SIGNING_KEYS`.
 
+### Institution
+
+ADR-0044 D86 fixes the order: install creates the institution, and the first login only performs its initial setup (institution name, first program). The setup screen itself calls `GET /capabilities` first, and that call answers `409 admission_required` while `program_admission_policies` has no row for the institution. The only business writer of that row is `createOrganizationSettings`, which has no HTTP route, so this command is the only path from a completed installation to an institution a first login can set up.
+
+The full order is `apply` -> `create-institution` -> `link-first-admin` -> first login with TOTP enrollment -> the onboarding screen. The two post-install commands are independent: `link-first-admin` does not require `create-institution` and `create-institution` does not require a linked administrator, so an installation that already linked an administrator can still run this command afterwards. Only the first login needs both, because it authenticates as the linked administrator and its first call reads the admission policy.
+
+```sh
+sh apps/community-cloud/with-ca.sh node scripts/supabase/bootstrap.mjs create-institution \
+  --target hosted \
+  --time-zone Asia/Seoul \
+  --pii-purge-grace-days 365
+```
+
+Both flags are optional and default to exactly those values: D32's one-year PII purge grace period and the institution time zone Seoul. The time zone is validated with `Intl.DateTimeFormat` like `createOrganizationSettings` and must be `UTC` or an IANA region/city name; the grace period must be an integer between 1 and 3660 days. A value above `RETENTION_POLICY_MAX_DAYS` (1826) stays storable but makes the institution's readiness report `retentionPolicyStatus: review_required`, so a longer period is a deliberate decision, not a default. The inputs are the same as `doctor`: signed manifest, signed approval, institution identifier, signing keys, development beta trust, provider baseline and `SUPABASE_ACCESS_TOKEN`; the write additionally needs `CCC_INSTALL_DATABASE_URL`. Owner verification and the read-only plan run first, and a project whose installation state is not `installed` stops with `INSTITUTION_NOT_INSTALLED`.
+
+The write is one transaction inside the install lock. It records one `organization_settings` row (`version 1`, time zone, grace period), one `program_admission_policies` row (`version 1`, `stt_mode 'off'`, `llm_mode 'off'` as D77's install defaults) and one `audit_log` receipt (`actor_id = "install:institution:" + orgId`, `actor_role 'service'`, `action 'create'`, `target_table 'organization_settings'`, `target_id = orgId`). Enabling STT or LLM later is a business decision, not part of installation. Re-running when both rows exist reads the stored values, returns them and writes nothing. If only one of the two rows exists, the half state is never overwritten: the command stops with `INSTITUTION_STATE_INCONSISTENT` and writes nothing, and that institution has to be repaired deliberately.
+
+The output is a single JSON report carrying only `operation`, `ready`, `orgIdSha256`, `timeZone`, `piiPurgeGraceDays`, `sttMode` and `llmMode`. The institution identifier itself is never printed.
+
+The PostgreSQL scenarios for this command are `scripts/supabase/institution.test.mjs`. They require an explicitly injected `CCC_INSTITUTION_TEST_DATABASE_URL` pointing at an empty loopback **disposable** database with a test/fixture/disposable name; missing configuration fails rather than skipping. Never supply an installation or production URL.
+
+```sh
+docker run --rm -d --name s12-institution-pg -e POSTGRES_PASSWORD=synthetic-test-only \
+  -e POSTGRES_DB=ccc_institution_test -p 127.0.0.1:55436:5432 postgres:17
+CCC_INSTITUTION_TEST_DATABASE_URL='postgres://postgres:synthetic-test-only@127.0.0.1:55436/ccc_institution_test' \
+  node --test scripts/supabase/institution.test.mjs
+docker rm -f s12-institution-pg
+```
+
 ### First administrator
 
 ADR-0044 D86 fixes the order: install creates the institution, and the first login is the institution's initial setup. No browser form creates the first administrator, so this command is the only path from a completed installation to a usable institution administrator.
