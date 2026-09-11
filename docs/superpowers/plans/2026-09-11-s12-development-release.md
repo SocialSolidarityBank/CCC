@@ -319,6 +319,36 @@ S8 §2.2와 S11 §2.7의 2026-09-11 개정이 상한을 판정 유효기한 + 2�
 - [ ] 테스트: 상한 이동과 단조성, 보존 상한 초과 거부, head 무변경, target 상한 초과 abandon,
       provider token이 상한을 넘거나 `upsert`이거나 다른 object를 가리키면 URL 미발급.
 
+### Task 8: 스케줄러 공유 비밀 신원과 `/internal/scheduler/run`
+
+2026-09-12 Q 확정: S2 §2.6 공유 비밀이 정본이다(S11 §2.8 서명 token 폐기). Agent 페어링(E6-4)은 이 뒤다.
+
+**Files:**
+- Create: `packages/http-api/src/scheduler-identity.ts` (SecretStore의 `SCHEDULER_SECRET`과 상수 시간 비교, system Actor 생성, 아니면 안쪽 resolver로 위임)
+- Modify: `packages/http-api/src/request-handler.ts` (`POST /internal/scheduler/run`)
+- Modify: `packages/core/src/scheduled-job-runner.ts` (`dueScheduledJobKinds(nowIso)`: `audio_expiry` 5분, `counseling_memory` 2분, `pipeline_watchdog` 30분, `pii_retention` 매일 03:00 UTC 기준은 기존 `apps/api/src/cron-schedule.ts`와 같은 값)
+- Modify: `apps/community-cloud/src/runtime.ts` (identity 앞단에 scheduler 신원 합성. `audioStore`가 null이면 route는 503)
+- Create: `apps/api/test/scheduler-run.test.ts`
+
+- [ ] bearer가 비밀과 다르면 안쪽 resolver로 넘기고, 같으면 S2 §2.6 개정의 system Actor를 만든다. 비밀이 SecretStore에 없으면 scheduler lane은 존재하지 않는다(모든 요청 위임).
+- [ ] `/internal/scheduler/run`: POST, `Origin` 있으면 403, system+`scheduler-secret`+`scheduler:run` 아니면 403, body는 `{}` 또는 빈 JSON 객체만. 서버 시각으로 due kind를 정해 순서대로 runner를 부르고 kind별 JobReport 요약을 JSON으로 돌려준다. body의 시각을 믿지 않는다.
+- [ ] scheduler Actor로 다른 업무 route를 부르면 403이다(기존 인증 경계에 kind='system' 거부가 없으면 추가).
+- [ ] 테스트: 비밀 일치·불일치·부재, Origin 403, due kind 계산 경계(03:00, 5분, 30분), 업무 route 403, `/internal/storage/authorize` scheduler lane이 이 Actor로 실제 통과.
+
+### Task 9: Signer 부재 증거 `absence` 동작
+
+S8 §2.3의 Supabase 네 boolean 중 `absentFromList`, `absentFromMetadata`, `directReadAbsent`는 Signer만 만들 수 있다.
+
+**Files:**
+- Modify: `packages/contracts/src/audio.ts` (action에 `absence` 추가, deletion context 전용)
+- Modify: `packages/core/src/gateway.ts` (scheduler lane이 `absence`를 `delete`와 같은 근거로 허용, URL 만료 없음)
+- Modify: `apps/community-cloud/src/storage-signer.ts` (`verifyAbsence`)
+- Modify: `apps/api/test/storage-signer.test.ts`, `apps/api/test/storage-signer-authorization.test.ts`
+
+- [ ] 판정 뒤 세 조회를 모두 새로 한다: `POST /object/list/ccc-audio` (prefix=key의 상위 경로, search=마지막 segment, limit 소수)에 같은 이름이 없거나 있어도 head의 version이 다르면 `absentFromList`; `GET /object/info/ccc-audio/<key>?versionId=`가 404이면 `absentFromMetadata`; `GET /object/authenticated/ccc-audio/<key>?versionId=`에 `Range: bytes=0-0`으로 요청해 404이면 `directReadAbsent`. 200이 오면 body를 즉시 버리고 false다. timeout·5xx·형식 오류는 boolean이 아니라 `STORAGE_UNAVAILABLE`이다.
+- [ ] 응답은 `{action:'absence', generationId, absentFromList, absentFromMetadata, directReadAbsent, verifiedAt}`뿐이다. 이름, 크기, 원음 byte, provider 문구는 내보내지 않는다.
+- [ ] 테스트: 세 조회 각각 존재·부재, generation 다른 object 존재 시 list는 부재, 5xx는 실패 코드, 200 body 미소비, 허용 경로가 delete와 같은 근거(철회 뒤 유지, stale attempt 거부).
+
 ## Final Review Gate
 
 여섯 작업이 끝나면 Tasks 1-6 전체에 전용 보안 검토를 한 번 돌린다. 검토는 자기 신뢰, 서명 도메인
