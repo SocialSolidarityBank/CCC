@@ -1277,6 +1277,36 @@ test('observed storage identifiers and metadata remain internal to the redacted 
   });
 });
 
+test('observed bucket ownership digests reproduce the digest the installer recorded', async () => {
+  const allowedMimeTypes = [
+    'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/webm', 'audio/x-m4a', 'audio/x-wav',
+  ];
+  await withManagementApi({
+    database: databaseSnapshot({
+      bucket_count: 1,
+      bucket_exists: true,
+      bucket_public: false,
+      bucket_inventory: [{
+        id: 'ccc-audio',
+        public: false,
+        fileSizeLimit: '209715200',
+        allowedMimeTypes: [...allowedMimeTypes].reverse(),
+      }],
+    }),
+  }, async ({ origin }) => {
+    const observation = await hostedInspector(origin).inspect();
+    // apply의 storage_bucket 단계가 기록하는 digest와 같은 식이어야 doctor가 소유권을
+    // 대조할 수 있다(provider-steps.mjs bucketDigest).
+    assert.deepEqual(observation.state.buckets, [{
+      resourceType: 'storage_bucket',
+      resourceIdHash: createHash('sha256').update('ccc-audio', 'utf8').digest('hex'),
+      resourceDigest: createHash('sha256').update([
+        'ccc-audio', 'private', '209715200', allowedMimeTypes.join(','),
+      ].join('\n'), 'utf8').digest('hex'),
+    }]);
+  });
+});
+
 test('inspector credential errors retain fixed codes without provider response text', async () => {
   await withManagementApi({}, async ({ origin }) => {
     await assert.rejects(inspectPlan(origin, ''), error => error.code === 'CREDENTIAL_MISSING');

@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 import { assertAuthorizationCurrent, assertAuthorizationMatches, hashCanonical } from './manifest-preflight.mjs';
 import { compareProviderInventory } from './provider-baseline.mjs';
+import { installedDatabaseFingerprint } from './install-journal.mjs';
 
 export const expectedSupabaseResources = Object.freeze([
   { kind: 'installation-journal', name: 'private.ccc_install_journal' },
@@ -125,6 +126,14 @@ const blockerDetails = Object.freeze({
 
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
 const LEGACY_CLEANLINESS_GRANT_KINDS = new Set(['schema', 'relation', 'column', 'default', 'role']);
+// 승인된 마이그레이션이 만드는 설치 소유 역할. 이 역할의 멤버십은 공급자 기준선이 아니라
+// 설치 증거로 확인한다.
+const INSTALLATION_ROLES = new Set(['ccc_api', 'ccc_schema_owner']);
+// apply의 provider 단계가 소유를 기록하는 자원 종류. 이 목록에 없는 종류는 설치가 만든
+// 자원이 아니므로 소유권을 인정하지 않는다.
+const INSTALLATION_RESOURCE_TYPES = new Set([
+  'storage_bucket', 'cron_job', 'edge_secret_binding', 'edge_function',
+]);
 const INSTALL_PHASES = new Set(['planned', 'installing', 'installed', 'rollback_failed']);
 const INSTALL_STEPS = new Set([
   'baseline', 'platform_migration', 'auth_config', 'storage_bucket', 'cron_job',
@@ -201,55 +210,96 @@ async function reconciledProviderInventory(snapshot) {
   if (installationObjects.length === 0 && installationGrants.length === 0) {
     return { inventory: raw, objectCount: completeObjectCount, grantCount: completeGrantCount };
   }
-  const journal = snapshot.installState?.journal;
   if (!SHA256_HEX.test(snapshot.databaseFingerprint)
-    || journal?.databaseFingerprint !== snapshot.databaseFingerprint) {
+    || installedDatabaseFingerprint(snapshot.installState) !== snapshot.databaseFingerprint) {
     return { inventory: raw, objectCount: completeObjectCount, grantCount: completeGrantCount };
   }
   const objects = withoutProvedRecords(raw.objects, installationObjects);
   const grants = withoutProvedRecords(raw.grants, installationGrants, true);
-  const objectCount = completeObjectCount - installationObjects.length;
-  const grantCount = completeGrantCount - installationGrants.length;
-  if (objects.length !== objectCount || grants.length !== grantCount) {
+  if (objects.length !== completeObjectCount - installationObjects.length
+    || grants.length !== completeGrantCount - installationGrants.length) {
     return { inventory: raw, objectCount: null, grantCount: null };
   }
+  const comparableGrants = grants.filter(grant => !withinInstallationAuthority(grant));
   return {
     inventory: {
       objects,
-      grants,
+      grants: comparableGrants,
       objectInventorySha256: await hashCanonical(objects),
-      grantInventorySha256: await hashCanonical(grants),
+      grantInventorySha256: await hashCanonical(comparableGrants),
     },
-    objectCount,
-    grantCount,
+    // 청결도 대조는 설치가 만든 기록만 뺀 집합으로 센다. 권한 공간 제외는 기준선
+    // 대조에만 쓴다.
+    cleanlinessInventory: { objects, grants },
+    objectCount: objects.length,
+    grantCount: comparableGrants.length,
+    authorityScoped: true,
   };
 }
 
-function providerCleanlinessMatches(state, inventory) {
-  if (!Array.isArray(inventory?.objects) || !Array.isArray(inventory?.grants)) return false;
+function providerObjectCleanlinessMatches(state, inventory) {
+  if (!Array.isArray(inventory?.objects)) return false;
   const unownedObjects = inventory.objects.filter(record => (
     record.provenance === 'supabase_managed'
       && !(record.kind === 'schema' && record.schema === 'public')
   ));
   const customSchemas = unownedObjects.filter(record => record.kind === 'schema');
+  return state?.unownedObjectCount === unownedObjects.length
+    && state.unknownObjectCount === unownedObjects.length
+    && state.customSchemaCount === customSchemas.length;
+}
+
+/**
+ * 권한 수 대조는 설치 전 빈 프로젝트에서만 성립한다. 설치 뒤에는 SQL 집계와 목록
+ * 분류가 설치 소유 권한을 서로 다른 규칙으로 나누므로 두 수가 같아질 수 없다. 설치 뒤
+ * 권한면은 기준선 목록 대조와 영수증 카탈로그 지문이 레코드 단위로 고정한다.
+ */
+function providerGrantCleanlinessMatches(state, inventory) {
+  if (!Array.isArray(inventory?.grants)) return false;
   const unexpectedGrants = inventory.grants.filter(record => (
     LEGACY_CLEANLINESS_GRANT_KINDS.has(record.kind)
       && record.provenance === 'supabase_managed'
       && record.grantee !== `ROLE:${record.grantor}`
   ));
-  return state?.unownedObjectCount === unownedObjects.length
-    && state.unknownObjectCount === unownedObjects.length
-    && state.customSchemaCount === customSchemas.length
-    && state.unexpectedGrantCount === unexpectedGrants.length;
+  return state?.unexpectedGrantCount === unexpectedGrants.length;
+}
+
+/**
+ * 승인된 마이그레이션(0006)이 다시 쓰는 ACL 공간이다. 설치는 public 스키마의 브라우저
+ * 역할 권한과 기본권한을 회수하고 자기 역할을 만든다. 회수는 관찰만으로 복원할 수 없어
+ * 서명된 공급자 기준선으로는 증명하지 못한다. 이 공간은 설치 영수증의 카탈로그 지문이
+ * 그대로 고정하므로, 기준선 대조에서는 관찰과 기준선 양쪽에서 똑같이 뺀다.
+ */
+function withinInstallationAuthority(grant) {
+  return grant.schema === 'public'
+    || (grant.kind === 'default' && grant.grantee === `ROLE:${grant.grantor}`)
+    || (grant.kind === 'role' && INSTALLATION_ROLES.has(grant.objectIdentity));
+}
+
+async function installationAuthorityScopedBaseline(providerBaseline) {
+  const grants = providerBaseline.grants.filter(grant => !withinInstallationAuthority(grant));
+  return {
+    ...providerBaseline,
+    grants,
+    grantInventorySha256: await hashCanonical(grants),
+  };
 }
 
 async function providerBaselineComparison(snapshot, providerBaseline) {
   const reconciled = await reconciledProviderInventory(snapshot);
-  const comparison = compareProviderInventory(providerBaseline, reconciled.inventory);
+  const baseline = reconciled.authorityScoped
+    ? await installationAuthorityScopedBaseline(providerBaseline)
+    : providerBaseline;
+  const comparison = compareProviderInventory(baseline, reconciled.inventory);
   return {
     ...comparison,
     inventory: reconciled.inventory,
-    cleanlinessMatched: providerCleanlinessMatches(snapshot.state, reconciled.inventory),
+    objectCleanlinessMatched: providerObjectCleanlinessMatches(
+      snapshot.state,
+      reconciled.cleanlinessInventory ?? reconciled.inventory,
+    ),
+    cleanlinessMatched: providerObjectCleanlinessMatches(snapshot.state, reconciled.inventory)
+      && providerGrantCleanlinessMatches(snapshot.state, reconciled.inventory),
     matched: comparison.matched
       && snapshot.project.databaseVersion === providerBaseline.databaseVersion
       && reconciled.objectCount === comparison.expectedObjectCount
@@ -289,24 +339,33 @@ function hasUnownedProjectState(snapshot, providerMatched) {
     || (state.privateTableNames?.length ?? 0) > 0 || (snapshot.cronJobCount ?? 0) > 0;
 }
 
+/**
+ * 설치가 소유를 기록한 자원과 관찰을 대조한다. 설치가 끝난 프로젝트에는 자기 cron job과
+ * bucket이 있으므로, 개수를 0으로 요구하지 않고 기록한 소유 자원과 같은지를 본다.
+ * edge_function·edge_secret_binding처럼 데이터베이스 관찰에 나타나지 않는 자원은 영수증의
+ * providerResourceDigests가 고정한다.
+ */
 function resourcesMatchObservation(snapshot, state, installationId, providerMatched) {
   const ownershipTag = `ccc.installation_id=${installationId}`;
   if (!hasProvedProviderInventory(snapshot.state, providerMatched)
-    || (snapshot.cronJobCount ?? 0) > 0
     || snapshot.state.userTypeCount > 0
     || !Array.isArray(snapshot.state.buckets) || !Array.isArray(state.resources)
     || snapshot.state.bucketCount !== snapshot.state.buckets.length) return false;
-  if (snapshot.state.buckets.length !== state.resources.length) return false;
   const recorded = new Map();
   for (const resource of state.resources) {
-    if (resource?.resourceType !== 'storage_bucket'
+    const key = `${resource?.resourceType}\u0000${resource?.resourceIdHash}`;
+    if (!INSTALLATION_RESOURCE_TYPES.has(resource?.resourceType)
       || typeof resource.resourceIdHash !== 'string'
-      || recorded.has(resource.resourceIdHash)
+      || recorded.has(key)
       || resource.ownershipTag !== ownershipTag) return false;
-    recorded.set(resource.resourceIdHash, resource);
+    recorded.set(key, resource);
   }
+  const ownedOfType = type => [...recorded.values()]
+    .filter(resource => resource.resourceType === type).length;
+  if (snapshot.state.buckets.length !== ownedOfType('storage_bucket')
+    || (snapshot.cronJobCount ?? 0) !== ownedOfType('cron_job')) return false;
   return snapshot.state.buckets.every(bucket => {
-    const resource = recorded.get(bucket.resourceIdHash);
+    const resource = recorded.get(`storage_bucket\u0000${bucket.resourceIdHash}`);
     return bucket.resourceType === 'storage_bucket'
       && resource?.resourceDigest === bucket.resourceDigest;
   });
@@ -342,7 +401,11 @@ function isSeoulRegion(region) {
   return region === 'ap-northeast-2';
 }
 
-export async function installationStateFingerprint(snapshot, providerBaseline, providerInventory) {
+/**
+ * durable 상태 지문은 완전한 공급자 목록을 그대로 덮는다. 설치가 만든 객체와 권한까지
+ * 포함해야 설치 뒤의 변경도 지문에 남는다. 기준선 대조용 재조정 집합은 여기에 쓰지 않는다.
+ */
+export async function installationStateFingerprint(snapshot, providerBaseline) {
   const state = {
     region: snapshot.project.region,
     ownerOrgIdHash: snapshot.project.ownerOrgIdHash ?? null,
@@ -353,14 +416,12 @@ export async function installationStateFingerprint(snapshot, providerBaseline, p
     cron: snapshot.cronJobCount ?? 0,
   };
   if (providerBaseline === undefined) return hashCanonical(state);
-  const inventory = providerInventory
-    ?? (await reconciledProviderInventory(snapshot)).inventory;
   return hashCanonical({
     ...state,
     providerBaselineVersion: providerBaseline.baselineVersion,
     providerBaselineSha256: providerBaseline.baselineSha256,
-    providerObjectsSha256: inventory.objectInventorySha256,
-    providerGrantsSha256: inventory.grantInventorySha256,
+    providerObjectsSha256: snapshot.providerInventory?.objectInventorySha256,
+    providerGrantsSha256: snapshot.providerInventory?.grantInventorySha256,
   });
 }
 
@@ -475,11 +536,13 @@ async function doctorReceiptIssues(snapshot, state, authorization, migrations) {
     if (!receiptBindingsMatch(receipt, state, snapshot, authorization)) incomplete = true;
     if (!appliedMigrationsComplete(state, migrations)
       || receipt.migrationHead !== migrations.at(-1)?.id) incomplete = true;
+    // 설치 완료 뒤의 durable 카탈로그는 영수증의 schemaFingerprint다. journal의
+    // database_fingerprint는 마지막 마이그레이션 시점 값이므로 현재 관찰과 같을 수 없다.
     if (!SHA256_HEX.test(snapshot.databaseFingerprint)
       || !SHA256_HEX.test(state.journal?.databaseFingerprint)) {
       incomplete = true;
     } else if (receipt.schemaFingerprint !== snapshot.databaseFingerprint
-      || state.journal.databaseFingerprint !== snapshot.databaseFingerprint) {
+      || installedDatabaseFingerprint(state) !== snapshot.databaseFingerprint) {
       drift = true;
     }
     if (!providerDigestsMatch(receipt, state)) drift = true;
@@ -553,14 +616,21 @@ export async function buildSupabasePlan({
   const providerCleanlinessMatched = target === 'hosted'
     ? providerMatched && beforeProvider.cleanlinessMatched && afterProvider.cleanlinessMatched
     : undefined;
+  // 설치가 기록한 자원 소유권은 객체 청결도까지 증명된 목록에서만 인정한다.
+  const providerOwnershipMatched = target === 'hosted'
+    ? providerMatched && beforeProvider.objectCleanlinessMatched
+      && afterProvider.objectCleanlinessMatched
+    : undefined;
+  // 서명된 기준선의 목록 해시를 결합한다. 관찰이 기준선과 같아야 계획이 통과하므로 값은
+  // 첫 설치 때와 같고, 설치가 끝난 뒤 재검증에서도 journal에 적힌 값과 계속 맞는다.
   const resourcesSha256 = target === 'local'
     ? await hashCanonical(expectedSupabaseResources)
     : await hashCanonical({
         resources: expectedSupabaseResources,
         providerBaselineVersion: providerBaseline.baselineVersion,
         providerBaselineSha256: providerBaseline.baselineSha256,
-        providerObjectsSha256: beforeProvider.inventory.objectInventorySha256,
-        providerGrantsSha256: beforeProvider.inventory.grantInventorySha256,
+        providerObjectsSha256: providerBaseline.objectInventorySha256,
+        providerGrantsSha256: providerBaseline.grantInventorySha256,
       });
   const blockers = [];
   const deny = code => blockers.push({ code, ...(blockerDetails[code] ?? { message: new PlanFailure(code).message, recovery: '변경하지 말고 승인된 설치 입력과 journal을 확인합니다.' }) });
@@ -571,12 +641,8 @@ export async function buildSupabasePlan({
     if (![before, after].every(value => value.project.ownerOrgIdHash === authorization.expectedOwnerOrgIdHash)) deny('OWNER_MISMATCH');
   }
   if (providerMatched === false) deny('PROVIDER_BASELINE_MISMATCH');
-  const stateFingerprint = await installationStateFingerprint(
-    before, providerBaseline, beforeProvider?.inventory,
-  );
-  const afterStateFingerprint = await installationStateFingerprint(
-    after, providerBaseline, afterProvider?.inventory,
-  );
+  const stateFingerprint = await installationStateFingerprint(before, providerBaseline);
+  const afterStateFingerprint = await installationStateFingerprint(after, providerBaseline);
   const state = before.installState;
   if (!state) {
     if ([before, after].some(snapshot => snapshot.state.legacyLedgerPresent
@@ -593,9 +659,10 @@ export async function buildSupabasePlan({
         || !SHA256_HEX.test(state.journal.stateFingerprint)) deny('INSTALL_JOURNAL_INVALID');
       else if (state.journal.stateFingerprint !== stateFingerprint
         || state.journal.stateFingerprint !== afterStateFingerprint) deny('DRIFT_BLOCKED');
-      if (state.journal.databaseFingerprint
+      const durableFingerprint = installedDatabaseFingerprint(state);
+      if (durableFingerprint
         && ![before, after].every(snapshot =>
-          state.journal.databaseFingerprint === snapshot.databaseFingerprint)) deny('DRIFT_BLOCKED');
+          durableFingerprint === snapshot.databaseFingerprint)) deny('DRIFT_BLOCKED');
       if (!Array.isArray(state.migrations)
         || state.migrations.some(entry => typeof entry?.id !== 'string' || typeof entry?.checksum !== 'string')) {
         deny('MIGRATION_CHECKSUM_MISMATCH');
@@ -609,7 +676,7 @@ export async function buildSupabasePlan({
           snapshot,
           state,
           authorization.installationId,
-          providerCleanlinessMatched,
+          providerOwnershipMatched,
         ))) {
         deny('RESOURCE_OWNERSHIP_MISMATCH');
       }
@@ -635,8 +702,8 @@ export async function buildSupabasePlan({
   if (target === 'hosted') Object.assign(planFingerprintInput, {
     providerBaselineVersion: providerBaseline.baselineVersion,
     providerBaselineSha256: providerBaseline.baselineSha256,
-    providerObjectsSha256: beforeProvider.inventory.objectInventorySha256,
-    providerGrantsSha256: beforeProvider.inventory.grantInventorySha256,
+    providerObjectsSha256: providerBaseline.objectInventorySha256,
+    providerGrantsSha256: providerBaseline.grantInventorySha256,
   });
   const planFingerprint = await hashCanonical(planFingerprintInput);
   if (target === 'hosted') {
@@ -715,9 +782,7 @@ export async function buildSupabaseDoctor(options) {
     ? await providerBaselineComparison(snapshot, options.providerBaseline)
     : undefined;
   if (providerComparison && !providerComparison.matched) addIssue('PROVIDER_BASELINE_MISMATCH');
-  const stateFingerprint = await installationStateFingerprint(
-    snapshot, options.providerBaseline, providerComparison?.inventory,
-  );
+  const stateFingerprint = await installationStateFingerprint(snapshot, options.providerBaseline);
   if (stateFingerprint !== plan.stateFingerprint) addIssue('PLAN_STATE_CHANGED');
   if (!state) {
     addIssue('INSTALL_NOT_FOUND');
@@ -726,7 +791,7 @@ export async function buildSupabaseDoctor(options) {
       snapshot,
       state,
       options.authorization?.installationId,
-      providerComparison?.matched && providerComparison.cleanlinessMatched,
+      providerComparison?.matched && providerComparison.objectCleanlinessMatched,
     )) {
       addIssue('RESOURCE_OWNERSHIP_MISMATCH');
     }

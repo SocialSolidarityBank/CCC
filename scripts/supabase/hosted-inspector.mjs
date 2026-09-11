@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { installationStateFingerprint, PlanFailure } from './plan.mjs';
-import { buildInstallStateQuery, DATABASE_INSTALL_FINGERPRINT_QUERY, hashDatabaseInstallFingerprint, INSTALL_METADATA_TABLES } from './install-journal.mjs';
+import { buildInstallStateQuery, DATABASE_INSTALL_FINGERPRINT_QUERY, hashDatabaseInstallFingerprint, installedDatabaseFingerprint, INSTALL_METADATA_TABLES, storageBucketResourceDigest } from './install-journal.mjs';
 import { assertAuthorizationCurrent } from './manifest-preflight.mjs';
 import { normalizeProviderInventory, PROVIDER_INVENTORY_QUERY } from './provider-inventory.mjs';
 
@@ -583,10 +583,12 @@ function observedBuckets(database) {
     return {
       resourceType: 'storage_bucket',
       resourceIdHash: createHash('sha256').update(id, 'utf8').digest('hex'),
-      resourceDigest: fingerprint({
-        public: bucket.public,
+      // 설치가 기록한 소유권 digest와 같은 식이어야 doctor가 소유권을 대조할 수 있다.
+      resourceDigest: storageBucketResourceDigest({
+        id,
+        isPublic: bucket.public,
         fileSizeLimit,
-        allowedMimeTypes: allowedMimeTypes === null ? null : [...allowedMimeTypes].sort(),
+        allowedMimeTypes: allowedMimeTypes ?? [],
       }),
     };
   }).sort((left, right) => left.resourceIdHash.localeCompare(right.resourceIdHash));
@@ -824,8 +826,8 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
       );
       const inventoryDatabase = { ...database };
       // Installation-owned candidates are exempt only after the durable catalog
-      // fingerprint proves they are the exact state recorded by this journal.
-      if (installState?.journal?.databaseFingerprint === databaseFingerprint) {
+      // fingerprint proves they are the exact state this installation recorded.
+      if (installedDatabaseFingerprint(installState) === databaseFingerprint) {
         const installationObjectCount = number(database.installation_unowned_object_count);
         const installationSchemaCount = number(database.installation_unowned_schema_count);
         const installationGrantCount = number(database.installation_unexpected_grant_count);

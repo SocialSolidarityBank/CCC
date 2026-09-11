@@ -16,6 +16,7 @@ import {
   completeInstallStep,
   recordInstallResource,
   startInstallStep,
+  storageBucketResourceDigest,
 } from './install-journal.mjs';
 import {
   bindEdgeSecrets,
@@ -229,9 +230,12 @@ async function startStep(context, step, desiredDigest) {
 }
 
 function bucketDigest() {
-  return sha256([
-    BUCKET_ID, 'private', String(BUCKET_FILE_SIZE_LIMIT), BUCKET_MIME_TYPES.join(','),
-  ].join('\n'));
+  return storageBucketResourceDigest({
+    id: BUCKET_ID,
+    isPublic: false,
+    fileSizeLimit: BUCKET_FILE_SIZE_LIMIT,
+    allowedMimeTypes: BUCKET_MIME_TYPES,
+  });
 }
 
 async function readBucket(context) {

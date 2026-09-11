@@ -395,6 +395,17 @@ test('runs bucket, cron, edge and credential steps once and records only hashes'
     `storage_bucket:${sha256('ccc-audio')}`,
   ]);
   for (const resource of session.state.resources.values()) assert.equal(resource.tag, tag);
+  // 읽기 전용 관찰이 bucket 메타데이터만 보고 같은 digest를 다시 계산할 수 있어야
+  // doctor가 소유권을 대조한다(hosted-inspector의 observedBuckets와 같은 식).
+  assert.equal(
+    session.state.resources.get(`storage_bucket:${sha256('ccc-audio')}`).digest,
+    sha256([
+      'ccc-audio',
+      session.state.bucket.public ? 'public' : 'private',
+      session.state.bucket.file_size_limit,
+      [...session.state.bucket.allowed_mime_types].sort().join(','),
+    ].join('\n')),
+  );
 
   // 재실행은 완료 step을 관찰만 하고 어떤 provider 쓰기도 하지 않는다.
   const observed = fakeManagement({ installedFunction: { id: 'signer-function-id' } });

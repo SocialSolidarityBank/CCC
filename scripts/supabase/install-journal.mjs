@@ -336,6 +336,39 @@ export async function readDatabaseInstallFingerprint(session) {
   }
 }
 
+/**
+ * journal.database_fingerprint는 마이그레이션 단계에서 마지막으로 확인한 카탈로그이며,
+ * 그 뒤 설치는 bucket, cron job, edge secret, ccc_api 자격까지 만들면서 카탈로그와
+ * 권한을 더 바꾼다. 그래서 설치가 끝난 프로젝트의 durable 카탈로그 지문은 완료 시점에
+ * 기록한 영수증의 schemaFingerprint다. 설치 중(installing)에는 journal 값이 여전히
+ * 유일한 durable 기준이다.
+ */
+export function installedDatabaseFingerprint(installState) {
+  const journal = installState?.journal;
+  const receipt = installState?.currentReceipt;
+  if (journal?.phase === 'installed'
+    && receipt?.status === 'installed'
+    && typeof receipt.installationId === 'string'
+    && receipt.installationId === journal.installationId
+    && HASH.test(receipt.schemaFingerprint)) {
+    return receipt.schemaFingerprint;
+  }
+  return HASH.test(journal?.databaseFingerprint) ? journal.databaseFingerprint : null;
+}
+
+/**
+ * 소유권 영수증에 들어가는 storage bucket digest. apply의 provider 단계가 이 값을
+ * 기록하고 읽기 전용 관찰도 같은 식으로 다시 계산해야 소유권 대조가 성립한다.
+ */
+export function storageBucketResourceDigest({ id, isPublic, fileSizeLimit, allowedMimeTypes }) {
+  return createHash('sha256').update([
+    id,
+    isPublic ? 'public' : 'private',
+    String(fileSizeLimit),
+    [...allowedMimeTypes].sort().join(','),
+  ].join('\n'), 'utf8').digest('hex');
+}
+
 function requireHash(value, code = 'INSTALL_AUTHORIZATION_MISMATCH') {
   if (typeof value !== 'string' || !HASH.test(value)) throw failure(code);
   return value;
