@@ -44,6 +44,8 @@ Windows artifact는 `Setup.exe`와 설치 후 실행되는 모든 PE 파일을 A
 
 `channel`이 `stable`이면 `entries`에 서로 다른 다섯 family row가 정확히 있어야 한다. `channel`이 `dev` 또는 `beta`이면 실제로 존재하는 family만 담으며 최소 한 개, 최대 다섯 개의 서로 다른 row를 허용한다. 없는 family를 빈 값이나 가짜 hash로 채우는 것은 금지하고, row가 없는 family는 그 묶음으로 설치할 수 없다. 나머지 규칙은 채널과 무관하게 그대로다. `community-cloud-cli` row가 있으면 그 row의 `edgeComponentManifestSha256`는 non-null이고 다른 row는 null이며, `sequenceFloor`는 존재하는 모든 record의 tuple을 덮고, `protocol.peers`는 그 묶음이 실제로 설치하는 peer만 정확히 하나씩 담는다. 개발 채널 묶음으로 설치한 결과는 `development` profile로만 기록하며 정식 제출물이 될 수 없다. 근거와 첫 구현 범위는 `docs/superpowers/specs/2026-09-11-s12-development-release-design.md`에 있다.
 
+`modelManifestSha256`는 실제 `SignedModelManifestV1`의 hash를 담는 자리다. `processing-agent` row가 없는 개발 채널 묶음은 서명할 model manifest가 존재하지 않으므로, 이 자리에 임의 문서의 hash를 넣지 않고 명시적 부재 표식인 64자 `0`을 쓴다. 검증기는 두 방향을 모두 강제한다. `processing-agent` row가 없으면 부재 표식이어야 하고, 그 row가 있으면 부재 표식일 수 없다. 부재 표식이 있는 묶음으로는 어떤 model도 설치하지 않는다.
+
 ## 3. signed manifest v1과 artifact identity
 
 ### 3.1 schema와 canonical signing
