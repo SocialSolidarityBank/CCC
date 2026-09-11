@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { createHostedInspector } from './hosted-inspector.mjs';
+import { createHostedInspector, DATABASE_STATE_QUERY } from './hosted-inspector.mjs';
 import {
   assertProviderBaselineCurrent,
   buildSupabasePlan,
@@ -64,6 +64,7 @@ function databaseSnapshot(overrides = {}) {
     user_type_count: 0, unknown_object_count: 0, custom_schema_count: 0, user_auxiliary_relation_count: 0,
     unowned_object_count: 0, installation_unowned_object_count: 0, installation_unowned_schema_count: 0,
     unexpected_grant_count: 0, installation_unexpected_grant_count: 0, private_table_names: [],
+    provider_object_count: 0, provider_grant_count: 0,
     private_schema_exists: false, private_install_metadata_exists: false, cron_exists: false,
     database_version: '17.4',
     read_only: true,
@@ -91,7 +92,7 @@ function objectRowForInspector() {
 function grantRowForInspector() {
   return {
     grant_kind: 'schema', namespace_name: 'auth', object_identity: 'auth',
-    grantor_name: 'supabase_admin', grantee_name: 'authenticated', privilege: 'USAGE',
+    grantor_name: 'supabase_admin', grantee_name: 'ROLE:authenticated', privilege: 'USAGE',
     is_grantable: false, provenance: 'supabase_managed',
   };
 }
@@ -99,6 +100,7 @@ function grantRowForInspector() {
 async function withManagementApi({
   region = 'ap-northeast-2',
   status = 200,
+  controlDatabaseVersion = '17.4',
   database = databaseSnapshot(),
   providerInventory = providerInventorySnapshot(),
   mutateAuth = false,
@@ -136,7 +138,7 @@ async function withManagementApi({
         region,
         created_at: '2026-08-31T00:00:00Z',
         status: 'ACTIVE_HEALTHY',
-        database: { host: 'db.test.invalid', version: '17.4', postgres_engine: '17', release_channel: 'ga' },
+        database: { host: 'db.test.invalid', version: controlDatabaseVersion, postgres_engine: '17', release_channel: 'ga' },
       }));
       return;
     }
@@ -493,9 +495,11 @@ test('durable installation fingerprint covers grantor in proved grants', () => {
       namespace_name: '',
       object_identity: 'ccc_schema_owner',
       grantor_name: grantor,
-      grantee_name: 'postgres',
+      grantee_name: 'ROLE:postgres',
       privilege: 'MEMBER',
       is_grantable: false,
+      inherit_option: true,
+      set_option: true,
       provenance: 'supabase_managed',
     }],
     installation_objects: [],
@@ -504,9 +508,11 @@ test('durable installation fingerprint covers grantor in proved grants', () => {
       namespace_name: '',
       object_identity: 'ccc_schema_owner',
       grantor_name: grantor,
-      grantee_name: 'postgres',
+      grantee_name: 'ROLE:postgres',
       privilege: 'MEMBER',
       is_grantable: false,
+      inherit_option: true,
+      set_option: true,
       provenance: 'supabase_managed',
     }],
   });
@@ -522,6 +528,7 @@ test('provider baseline mismatch is redacted and uses the fixed recovery code', 
     database: databaseSnapshot({
       unknown_object_count: 1,
       unowned_object_count: 1,
+      provider_object_count: 1,
     }),
     providerInventory: providerInventorySnapshot({
       objects: [{
@@ -561,9 +568,11 @@ test('real inspector reconciles journal-proven installation records before resum
     namespace_name: '',
     object_identity: 'ccc_schema_owner',
     grantor_name: 'postgres',
-    grantee_name: 'postgres',
+    grantee_name: 'ROLE:postgres',
     privilege: 'MEMBER',
     is_grantable: false,
+    inherit_option: true,
+    set_option: true,
     provenance: 'supabase_managed',
   };
   const baselineInventory = normalizeProviderInventory({
@@ -616,6 +625,8 @@ test('real inspector reconciles journal-proven installation records before resum
       custom_schema_count: 1,
       unexpected_grant_count: 1,
       installation_unexpected_grant_count: 1,
+      provider_object_count: rawInventory.objects.length,
+      provider_grant_count: rawInventory.grants.length,
     }),
     providerInventory: rawInventory,
     installState,
@@ -800,6 +811,67 @@ test('read-only observations preserve region and unowned-project denials', async
   });
 });
 
+test('hosted inventory retains extension and initial-privilege records outside unowned counters', async () => {
+  const objects = [{
+    object_kind: 'routine', namespace_name: 'auth',
+    object_identity: 'auth.extension_routine() FUNCTION RETURNS void',
+    owner_name: 'supabase_admin', definition_text: 'extension routine definition',
+    provenance: 'extension',
+  }];
+  const grants = [{
+    grant_kind: 'routine', namespace_name: 'auth',
+    object_identity: 'auth.extension_routine() FUNCTION RETURNS void',
+    grantor_name: 'supabase_admin', grantee_name: 'ROLE:authenticated',
+    privilege: 'EXECUTE', is_grantable: false, inherit_option: null, set_option: null,
+    provenance: 'initial_privilege',
+  }];
+  await withManagementApi({
+    database: databaseSnapshot({
+      provider_object_count: objects.length,
+      provider_grant_count: grants.length,
+      unowned_object_count: 0,
+      unexpected_grant_count: 0,
+    }),
+    providerInventory: providerInventorySnapshot({ objects, grants }),
+  }, async ({ origin }) => {
+    const snapshot = await hostedInspector(origin).inspect();
+    assert.equal(snapshot.providerInventory.objects[0].provenance, 'extension');
+    assert.equal(snapshot.providerInventory.grants[0].provenance, 'initial_privilege');
+    assert.equal(snapshot.state.unownedObjectCount, 0);
+    assert.equal(snapshot.state.unexpectedGrantCount, 0);
+  });
+});
+
+test('SQL-observed database version is authoritative and must agree with control-plane metadata', async () => {
+  await withManagementApi({
+    controlDatabaseVersion: '017.004',
+    database: databaseSnapshot({ database_version: '17.4' }),
+  }, async ({ origin }) => {
+    assert.equal((await hostedInspector(origin).inspect()).project.databaseVersion, '17.4');
+  });
+  await withManagementApi({
+    controlDatabaseVersion: '17.5',
+    database: databaseSnapshot({ database_version: '17.4' }),
+  }, async ({ origin }) => {
+    await assert.rejects(hostedInspector(origin).inspect(), error => error.code === 'PROVIDER_UNREADABLE');
+  });
+  await withManagementApi({
+    database: databaseSnapshot({ database_version: '17.4 (volatile build suffix)' }),
+  }, async ({ origin }) => {
+    await assert.rejects(hostedInspector(origin).inspect(), error => error.code === 'PROVIDER_UNREADABLE');
+  });
+});
+
+test('database policy fingerprint uses tagged stable role names instead of role OIDs', () => {
+  const policyFingerprint = DATABASE_STATE_QUERY.slice(
+    DATABASE_STATE_QUERY.indexOf('AS policy_fingerprint') - 900,
+    DATABASE_STATE_QUERY.indexOf('AS policy_fingerprint'),
+  );
+  assert.match(policyFingerprint, /CASE WHEN role_oid = 0 THEN 'PUBLIC'/u);
+  assert.match(policyFingerprint, /ELSE 'ROLE:' \|\| pg_catalog\.pg_get_userbyid\(role_oid\)/u);
+  assert.doesNotMatch(policyFingerprint, /policy\.polroles::text/u);
+});
+
 test('hosted inventory preserves provider-looking tables, routines, and types as exact untrusted candidates', async () => {
   const objects = [
     {
@@ -820,7 +892,10 @@ test('hosted inventory preserves provider-looking tables, routines, and types as
     },
   ];
   await withManagementApi({
-    database: databaseSnapshot({ unowned_object_count: objects.length }),
+    database: databaseSnapshot({
+      unowned_object_count: objects.length,
+      provider_object_count: objects.length,
+    }),
     providerInventory: providerInventorySnapshot({ objects }),
   }, async ({ origin, requests }) => {
     const snapshot = await hostedInspector(origin).inspect();
@@ -857,17 +932,21 @@ test('hosted inventory preserves default grants and role memberships as separate
     {
       grant_kind: 'default', namespace_name: 'auth',
       object_identity: 'default privileges for role postgres in schema auth',
-      grantor_name: 'postgres', grantee_name: 'unrelated_reader_must_not_escape',
+      grantor_name: 'postgres', grantee_name: 'ROLE:unrelated_reader_must_not_escape',
       privilege: 'SELECT', is_grantable: false, provenance: 'supabase_managed',
     },
     {
       grant_kind: 'role', namespace_name: '', object_identity: 'authenticator',
-      grantor_name: 'postgres', grantee_name: 'unrelated_member_must_not_escape',
+      grantor_name: 'postgres', grantee_name: 'ROLE:unrelated_member_must_not_escape',
       privilege: 'MEMBER', is_grantable: true, provenance: 'supabase_managed',
+      inherit_option: false, set_option: true,
     },
   ];
   await withManagementApi({
-    database: databaseSnapshot({ unexpected_grant_count: grants.length }),
+    database: databaseSnapshot({
+      unexpected_grant_count: grants.length,
+      provider_grant_count: grants.length,
+    }),
     providerInventory: providerInventorySnapshot({ grants }),
   }, async ({ origin }) => {
     const snapshot = await hostedInspector(origin).inspect();
@@ -896,7 +975,7 @@ test('hosted inventory preserves default grants and role memberships as separate
 test('hosted inventory rejects an opaque object in a non-system schema', async () => {
   const objectName = 'extensions.legacy_collation';
   await withManagementApi({
-    database: databaseSnapshot({ unowned_object_count: 1 }),
+    database: databaseSnapshot({ unowned_object_count: 1, provider_object_count: 1 }),
     providerInventory: providerInventorySnapshot({
       objects: [{
         object_kind: 'catalog', namespace_name: 'extensions', object_identity: objectName,
@@ -948,6 +1027,8 @@ test('hosted inventory fails closed when object or grant counts are malformed', 
     { installation_unowned_object_count: undefined },
     { installation_unowned_schema_count: '-1' },
     { installation_unexpected_grant_count: 'invalid' },
+    { provider_object_count: undefined },
+    { provider_grant_count: '-1' },
   ]) {
     await withManagementApi({
       database: databaseSnapshot(overrides),

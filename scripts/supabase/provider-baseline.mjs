@@ -36,11 +36,11 @@ const OBJECT_KEYS = [
 ].sort();
 const GRANT_KEYS = [
   'kind', 'schema', 'objectIdentity', 'grantor', 'grantee', 'privilege',
-  'grantable', 'provenance',
+  'grantable', 'inheritOption', 'setOption', 'provenance',
 ].sort();
 const OBJECT_KINDS = new Set(['schema', 'relation', 'routine', 'type', 'catalog']);
 const OBJECT_PROVENANCE = new Set(['extension', 'initial_privilege', 'supabase_managed']);
-const GRANT_KINDS = new Set(['schema', 'relation', 'column', 'default', 'role']);
+const GRANT_KINDS = new Set(['schema', 'relation', 'column', 'routine', 'type', 'default', 'role']);
 const GRANT_PROVENANCE = new Set(['initial_privilege', 'supabase_managed']);
 
 class ProviderBaselineError extends Error {
@@ -123,6 +123,7 @@ function validObjectRecord(value) {
 }
 
 function validGrantRecord(value) {
+  const roleMembership = value?.kind === 'role';
   return hasExactKeys(value, GRANT_KEYS)
     && GRANT_KINDS.has(value.kind)
     && GRANT_PROVENANCE.has(value.provenance)
@@ -131,7 +132,10 @@ function validGrantRecord(value) {
     && isBoundedString(value.grantor)
     && isBoundedString(value.grantee)
     && isBoundedString(value.privilege)
-    && typeof value.grantable === 'boolean';
+    && typeof value.grantable === 'boolean'
+    && (roleMembership
+      ? typeof value.inheritOption === 'boolean' && typeof value.setOption === 'boolean'
+      : value.inheritOption === null && value.setOption === null);
 }
 
 function validSortedUniqueRecords(records, maximum, validate, canonicalizeJcs) {

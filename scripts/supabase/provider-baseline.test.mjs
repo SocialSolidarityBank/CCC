@@ -73,9 +73,11 @@ function validGrants() {
     schema: 'auth',
     objectIdentity: 'auth.users TABLE',
     grantor: 'supabase_auth_admin',
-    grantee: 'authenticated',
+    grantee: 'ROLE:authenticated',
     privilege: 'SELECT',
     grantable: false,
+    inheritOption: null,
+    setOption: null,
     provenance: 'supabase_managed',
   }];
 }
@@ -325,6 +327,60 @@ test('baseline exact schemas, hashes, ordering, bounds, and bindings fail closed
       const inputs = await resignBaseline(fixture, overrides);
       await rejects('PROVIDER_BASELINE_INVALID', requireProviderBaseline(inputs));
     });
+  }
+});
+
+test('signed baseline admits routine and type grants and binds role membership options', async () => {
+  const fixture = await signedBaselineFixture();
+  const grants = [
+    {
+      kind: 'routine',
+      schema: 'auth',
+      objectIdentity: 'auth.uid() FUNCTION RETURNS uuid',
+      grantor: 'supabase_auth_admin',
+      grantee: 'ROLE:a_routine',
+      privilege: 'EXECUTE',
+      grantable: false,
+      inheritOption: null,
+      setOption: null,
+      provenance: 'initial_privilege',
+    },
+    {
+      kind: 'type',
+      schema: 'storage',
+      objectIdentity: 'storage.bucket_type',
+      grantor: 'supabase_storage_admin',
+      grantee: 'ROLE:b_type',
+      privilege: 'USAGE',
+      grantable: false,
+      inheritOption: null,
+      setOption: null,
+      provenance: 'supabase_managed',
+    },
+    {
+      kind: 'role',
+      schema: '',
+      objectIdentity: 'authenticator',
+      grantor: 'postgres',
+      grantee: 'ROLE:c_role',
+      privilege: 'MEMBER',
+      grantable: false,
+      inheritOption: true,
+      setOption: false,
+      provenance: 'supabase_managed',
+    },
+  ];
+  const verified = await requireProviderBaseline(await resignBaseline(fixture, { grants }));
+  assert.deepEqual(verified.grants.map(({ kind }) => kind), ['routine', 'type', 'role']);
+
+  for (const invalidGrant of [
+    { ...grants[0], inheritOption: true },
+    { ...grants[1], setOption: false },
+    { ...grants[2], inheritOption: null },
+  ]) {
+    await rejects('PROVIDER_BASELINE_INVALID', requireProviderBaseline(
+      await resignBaseline(fixture, { grants: [invalidGrant] }),
+    ));
   }
 });
 

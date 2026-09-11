@@ -349,7 +349,13 @@ SELECT
     ) AS schema_item) AS schema_fingerprint,
   (SELECT pg_catalog.md5(COALESCE(pg_catalog.string_agg(
     pg_catalog.concat_ws(':', namespace.nspname, relation.relname, policy.polname,
-      policy.polpermissive::text, policy.polcmd::text, policy.polroles::text,
+      policy.polpermissive::text, policy.polcmd::text,
+      COALESCE((SELECT pg_catalog.string_agg(
+        CASE WHEN role_oid = 0 THEN 'PUBLIC'
+          ELSE 'ROLE:' || pg_catalog.pg_get_userbyid(role_oid) END,
+        ',' ORDER BY CASE WHEN role_oid = 0 THEN 'PUBLIC'
+          ELSE 'ROLE:' || pg_catalog.pg_get_userbyid(role_oid) END
+      ) FROM pg_catalog.unnest(policy.polroles) AS role_oid), ''),
       COALESCE(pg_catalog.pg_get_expr(policy.polqual, policy.polrelid), ''),
       COALESCE(pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid), '')),
     ',' ORDER BY namespace.nspname, relation.relname, policy.polname
@@ -419,6 +425,91 @@ SELECT
           AND dependency.objid = type_value.oid
           AND dependency.deptype = 'e'
       )) AS user_type_count,
+  (SELECT pg_catalog.count(*)::integer FROM (
+    SELECT namespace.oid, 'schema'::text AS object_kind
+    FROM non_system_namespace AS namespace
+    UNION ALL
+    SELECT relation.oid, 'relation'
+    FROM pg_catalog.pg_class AS relation
+    JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    UNION ALL
+    SELECT procedure.oid, 'routine'
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN non_system_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    UNION ALL
+    SELECT type_value.oid, 'type'
+    FROM pg_catalog.pg_type AS type_value
+    JOIN non_system_namespace AS namespace ON namespace.oid = type_value.typnamespace
+    LEFT JOIN pg_catalog.pg_class AS composite_relation ON composite_relation.oid = type_value.typrelid
+    WHERE (type_value.typrelid = 0 OR composite_relation.relkind = 'c')
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_type AS base_type WHERE base_type.typarray = type_value.oid
+      )
+    UNION ALL
+    SELECT DISTINCT dependency.objid, 'catalog:' || dependency.classid::text
+    FROM pg_catalog.pg_depend AS dependency
+    JOIN non_system_namespace AS namespace
+      ON dependency.refclassid = 'pg_catalog.pg_namespace'::regclass
+      AND dependency.refobjid = namespace.oid
+    WHERE dependency.classid NOT IN (
+      'pg_catalog.pg_class'::regclass, 'pg_catalog.pg_proc'::regclass,
+      'pg_catalog.pg_type'::regclass, 'pg_catalog.pg_namespace'::regclass,
+      'pg_catalog.pg_default_acl'::regclass, 'pg_catalog.pg_extension'::regclass
+    )
+  ) AS provider_object) AS provider_object_count,
+  (SELECT pg_catalog.count(*)::integer FROM (
+    SELECT 1
+    FROM non_system_namespace AS namespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      namespace.nspacl, pg_catalog.acldefault('n', namespace.nspowner)
+    )) AS privilege
+    UNION ALL
+    SELECT 1
+    FROM pg_catalog.pg_class AS relation
+    JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      relation.relacl,
+      pg_catalog.acldefault(CASE WHEN relation.relkind = 'S' THEN 's' ELSE 'r' END, relation.relowner)
+    )) AS privilege
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    UNION ALL
+    SELECT 1
+    FROM pg_catalog.pg_attribute AS attribute
+    JOIN pg_catalog.pg_class AS relation ON relation.oid = attribute.attrelid
+    JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      attribute.attacl, pg_catalog.acldefault('c', relation.relowner)
+    )) AS privilege
+    WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+    UNION ALL
+    SELECT 1
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN non_system_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      procedure.proacl, pg_catalog.acldefault('f', procedure.proowner)
+    )) AS privilege
+    UNION ALL
+    SELECT 1
+    FROM pg_catalog.pg_type AS type_value
+    JOIN non_system_namespace AS namespace ON namespace.oid = type_value.typnamespace
+    LEFT JOIN pg_catalog.pg_class AS composite_relation ON composite_relation.oid = type_value.typrelid
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      type_value.typacl, pg_catalog.acldefault('T', type_value.typowner)
+    )) AS privilege
+    WHERE (type_value.typrelid = 0 OR composite_relation.relkind = 'c')
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_type AS base_type WHERE base_type.typarray = type_value.oid
+      )
+    UNION ALL
+    SELECT 1
+    FROM pg_catalog.pg_default_acl AS defaults
+    LEFT JOIN non_system_namespace AS namespace ON namespace.oid = defaults.defaclnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(defaults.defaclacl) AS privilege
+    WHERE defaults.defaclnamespace = 0 OR namespace.oid IS NOT NULL
+    UNION ALL
+    SELECT 1 FROM pg_catalog.pg_auth_members AS membership
+  ) AS provider_grant) AS provider_grant_count,
   (SELECT pg_catalog.count(*)::integer FROM unowned_object) AS unknown_object_count,
   (SELECT pg_catalog.count(*)::integer FROM unowned_schema) AS custom_schema_count,
   (SELECT pg_catalog.count(*)::integer FROM unowned_object) AS unowned_object_count,
@@ -531,6 +622,14 @@ export function number(value) {
 
 export function boolean(value) {
   return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function canonicalDatabaseVersion(value) {
+  if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > 1_024
+    || !/^\d+(?:\.\d+)*$/u.test(value)) {
+    throw new PlanFailure('PROVIDER_UNREADABLE');
+  }
+  return value.split('.').map(part => BigInt(part).toString()).join('.');
 }
 
 export function normalizeDatabaseSnapshot({ database, migration, auth, authFingerprint = fingerprint(auth), institutionDataFingerprint = '' }) {
@@ -657,15 +756,21 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
         'auth_user_count','bucket_count','storage_object_count','user_routine_count','user_type_count',
         'unknown_object_count','custom_schema_count','unowned_object_count','installation_unowned_object_count',
         'installation_unowned_schema_count','unexpected_grant_count','installation_unexpected_grant_count',
+        'provider_object_count','provider_grant_count',
         'user_auxiliary_relation_count','user_table_count','user_row_estimate',
       ]) {
         const value = database[key];
         if ((typeof value !== 'number' && typeof value !== 'string') || !/^\d+$/.test(String(value))
           || !Number.isSafeInteger(Number(value))) throw new PlanFailure('PROVIDER_UNREADABLE');
       }
+      const observedDatabaseVersion = canonicalDatabaseVersion(database.database_version);
+      const controlDatabaseVersion = canonicalDatabaseVersion(project.database?.version);
+      if (observedDatabaseVersion !== controlDatabaseVersion) {
+        throw new PlanFailure('PROVIDER_UNREADABLE');
+      }
       const providerInventory = normalizeProviderInventory(providerInventoryRow);
-      if (providerInventory.objects.length !== number(database.unowned_object_count)
-        || providerInventory.grants.length !== number(database.unexpected_grant_count)) {
+      if (providerInventory.objects.length !== number(database.provider_object_count)
+        || providerInventory.grants.length !== number(database.provider_grant_count)) {
         throw new PlanFailure('PROVIDER_UNREADABLE');
       }
       const metadataTables = [...INSTALL_METADATA_TABLES].sort();
@@ -712,9 +817,7 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
         project: {
           region: typeof project.region === 'string' ? project.region : null,
           ownerOrgIdHash: createHash('sha256').update(project.organization_id, 'utf8').digest('hex'),
-          databaseVersion: typeof project.database?.version === 'string' && /^[0-9.]+$/u.test(project.database.version)
-            ? project.database.version
-            : null,
+          databaseVersion: observedDatabaseVersion,
           status: typeof project.status === 'string' && /^[A-Z_]+$/u.test(project.status)
             ? project.status
             : 'UNKNOWN',

@@ -39,28 +39,29 @@ function rawProviderRows() {
     grants: [
       {
         grant_kind: 'role', namespace_name: '', object_identity: 'authenticator',
-        grantor_name: 'postgres', grantee_name: 'e_role', privilege: 'MEMBER', is_grantable: false,
+        grantor_name: 'postgres', grantee_name: 'ROLE:e_role', privilege: 'MEMBER', is_grantable: false,
+        inherit_option: true, set_option: true,
         provenance: 'supabase_managed', role_oid: 8001,
       },
       {
         grant_kind: 'default', namespace_name: 'auth',
         object_identity: 'default privileges for role supabase_auth_admin in schema auth',
-        grantor_name: 'supabase_auth_admin', grantee_name: 'd_role', privilege: 'SELECT',
+        grantor_name: 'supabase_auth_admin', grantee_name: 'ROLE:d_role', privilege: 'SELECT',
         is_grantable: false, provenance: 'supabase_managed', object_oid: 8002,
       },
       {
         grant_kind: 'column', namespace_name: 'auth', object_identity: 'auth.users.email',
-        grantor_name: 'supabase_auth_admin', grantee_name: 'c_role', privilege: 'SELECT',
+        grantor_name: 'supabase_auth_admin', grantee_name: 'ROLE:c_role', privilege: 'SELECT',
         is_grantable: false, provenance: 'supabase_managed', object_oid: 8003,
       },
       {
         grant_kind: 'relation', namespace_name: 'auth', object_identity: 'auth.users TABLE',
-        grantor_name: 'supabase_auth_admin', grantee_name: 'b_role', privilege: 'SELECT',
+        grantor_name: 'supabase_auth_admin', grantee_name: 'ROLE:b_role', privilege: 'SELECT',
         is_grantable: false, provenance: 'supabase_managed', object_oid: 8004,
       },
       {
         grant_kind: 'schema', namespace_name: 'auth', object_identity: 'auth',
-        grantor_name: 'supabase_admin', grantee_name: 'a_role', privilege: 'USAGE',
+        grantor_name: 'supabase_admin', grantee_name: 'ROLE:a_role', privilege: 'USAGE',
         is_grantable: false, provenance: 'supabase_managed', object_oid: 8005,
         credential: 'must-not-escape',
       },
@@ -79,7 +80,7 @@ function objectRow(overrides = {}) {
 function grantRow(overrides = {}) {
   return {
     grant_kind: 'schema', namespace_name: 'auth', object_identity: 'auth',
-    grantor_name: 'supabase_admin', grantee_name: 'authenticated', privilege: 'USAGE',
+    grantor_name: 'supabase_admin', grantee_name: 'ROLE:authenticated', privilege: 'USAGE',
     is_grantable: false, provenance: 'supabase_managed', ...overrides,
   };
 }
@@ -119,18 +120,18 @@ test('normalizes exact provider records without persisting volatile fields or de
     },
   ]);
   assert.deepEqual(inventory.grants.map(({ kind, grantee }) => ({ kind, grantee })), [
-    { kind: 'schema', grantee: 'a_role' },
-    { kind: 'relation', grantee: 'b_role' },
-    { kind: 'column', grantee: 'c_role' },
-    { kind: 'default', grantee: 'd_role' },
-    { kind: 'role', grantee: 'e_role' },
+    { kind: 'schema', grantee: 'ROLE:a_role' },
+    { kind: 'relation', grantee: 'ROLE:b_role' },
+    { kind: 'column', grantee: 'ROLE:c_role' },
+    { kind: 'default', grantee: 'ROLE:d_role' },
+    { kind: 'role', grantee: 'ROLE:e_role' },
   ]);
   assert.deepEqual(providerInventoryFingerprint(inventory), {
     objectInventorySha256: '3aac25944e2a888d79e0fd2a048893dde3872b330687d2e9db565e218c6092b7',
-    grantInventorySha256: 'c12eb14b4bc480c8303c190359a053da0daacd14844f429818cbb0308054cb35',
+    grantInventorySha256: 'b29fa1fe5d2b4553c7a9285976ac0be3047c9d69811ece3ad2271f341125c558',
   });
   assert.equal(inventory.objectInventorySha256, '3aac25944e2a888d79e0fd2a048893dde3872b330687d2e9db565e218c6092b7');
-  assert.equal(inventory.grantInventorySha256, 'c12eb14b4bc480c8303c190359a053da0daacd14844f429818cbb0308054cb35');
+  assert.equal(inventory.grantInventorySha256, 'b29fa1fe5d2b4553c7a9285976ac0be3047c9d69811ece3ad2271f341125c558');
   assert.equal(JSON.stringify(inventory).includes('object_oid'), false);
   assert.doesNotMatch(JSON.stringify(inventory), /CREATE FUNCTION|must-not-escape|postgresql:\/\//u);
   assert.ok(Object.isFrozen(inventory) && Object.isFrozen(inventory.objects)
@@ -243,7 +244,7 @@ test('serializes ordered RLS policy state inside the owning relation definition'
 
 test('serializes every PG17 namespace-dependent catalog class without an identity-only fallback', () => {
   const catalogs = querySegment(
-    "UNION ALL\n    SELECT 'catalog', namespace.nspname,",
+    "UNION ALL\n    SELECT 'catalog', COALESCE(identified.schema, ''),",
     "\n  ),\n  provider_grant_inventory AS MATERIALIZED",
   );
   const definitions = catalogs.slice(catalogs.indexOf('      CASE', catalogs.indexOf('      CASE') + 1));
@@ -306,6 +307,122 @@ test('policy serialization distinguishes PUBLIC audience from a real role named 
       assert.notEqual(publicInventory.objectInventorySha256, namedRoleInventory.objectInventorySha256);
       assert.equal(publicInventory.grantInventorySha256, namedRoleInventory.grantInventorySha256);
     }
+  } finally {
+    database.close();
+  }
+});
+
+test('inventories extension and initial objects plus every effective privilege', () => {
+  assert.match(PROVIDER_INVENTORY_QUERY, /provider_object_candidate AS MATERIALIZED/u);
+  assert.match(PROVIDER_INVENTORY_QUERY, /FROM provider_object AS inventory/u);
+  assert.match(PROVIDER_INVENTORY_QUERY, /THEN 'extension'[\s\S]*THEN 'initial_privilege'/u);
+  assert.match(PROVIDER_INVENTORY_QUERY, /provider_grant AS MATERIALIZED/u);
+  assert.match(PROVIDER_INVENTORY_QUERY, /pg_catalog\.acldefault\('f', procedure\.proowner\)/u);
+  assert.match(PROVIDER_INVENTORY_QUERY, /pg_catalog\.acldefault\('T', type_value\.typowner\)/u);
+  assert.match(PROVIDER_INVENTORY_QUERY, /FROM provider_grant AS grant_record/u);
+  const inventory = normalizeProviderInventory({
+    objects: [
+      objectRow({ object_identity: 'extension_object', provenance: 'extension' }),
+      objectRow({ object_identity: 'initial_object', provenance: 'initial_privilege' }),
+    ],
+    grants: [grantRow({ provenance: 'initial_privilege' })],
+  });
+  assert.deepEqual(inventory.objects.map(({ provenance }) => provenance),
+    ['extension', 'initial_privilege']);
+  assert.equal(inventory.grants[0].provenance, 'initial_privilege');
+});
+
+test('relation definitions bind reloptions and trigger enablement', () => {
+  const relations = querySegment(
+    "SELECT 'relation', namespace.nspname,",
+    "UNION ALL\n    SELECT 'routine', namespace.nspname,",
+  );
+  assert.match(relations, /'options', COALESCE\(\([\s\S]*pg_catalog\.unnest\(relation\.reloptions\)/u);
+  assert.match(relations, /ORDER BY relation_option/u);
+  assert.match(relations, /'enabled', trigger_value\.tgenabled/u);
+});
+
+test('normalizes routine and type effective privileges as distinct grant kinds', () => {
+  const common = {
+    grantor_name: 'supabase_admin',
+    grantee_name: 'ROLE:authenticated',
+    is_grantable: false,
+    provenance: 'supabase_managed',
+    inherit_option: null,
+    set_option: null,
+  };
+  const inventory = normalizeProviderInventory({
+    objects: [],
+    grants: [
+      {
+        ...common,
+        grant_kind: 'routine',
+        namespace_name: 'auth',
+        object_identity: 'auth.uid() FUNCTION RETURNS uuid',
+        privilege: 'EXECUTE',
+      },
+      {
+        ...common,
+        grant_kind: 'type',
+        namespace_name: 'storage',
+        object_identity: 'storage.bucket_type',
+        privilege: 'USAGE',
+      },
+    ],
+  });
+  assert.deepEqual(inventory.grants.map(({ kind }) => kind), ['routine', 'type']);
+  assert.deepEqual(inventory.grants.map(({ inheritOption, setOption }) => (
+    { inheritOption, setOption }
+  )), [
+    { inheritOption: null, setOption: null },
+    { inheritOption: null, setOption: null },
+  ]);
+});
+
+test('role membership inheritance and SET options change the inventory fingerprint', () => {
+  const inventory = (inheritOption, setOption) => normalizeProviderInventory({
+    objects: [],
+    grants: [{
+      grant_kind: 'role',
+      namespace_name: '',
+      object_identity: 'authenticator',
+      grantor_name: 'postgres',
+      grantee_name: 'ROLE:authenticated',
+      privilege: 'MEMBER',
+      is_grantable: false,
+      inherit_option: inheritOption,
+      set_option: setOption,
+      provenance: 'supabase_managed',
+    }],
+  });
+  const inherited = inventory(true, false);
+  const settable = inventory(false, true);
+  assert.deepEqual(
+    { inheritOption: inherited.grants[0].inheritOption, setOption: inherited.grants[0].setOption },
+    { inheritOption: true, setOption: false },
+  );
+  assert.notEqual(inherited.grantInventorySha256, settable.grantInventorySha256);
+  assert.match(PROVIDER_INVENTORY_QUERY, /membership\.inherit_option/u);
+  assert.match(PROVIDER_INVENTORY_QUERY, /membership\.set_option/u);
+});
+
+test('grant serialization distinguishes PUBLIC grantee from a real role named PUBLIC', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const database = new DatabaseSync(':memory:');
+  database.function('pg_get_userbyid', roleOid => {
+    assert.equal(roleOid, 42);
+    return 'PUBLIC';
+  });
+  try {
+    const match = PROVIDER_INVENTORY_QUERY.match(
+      /(CASE WHEN grant_record\.grantee = 0[\s\S]*? END) AS grantee_name/u,
+    );
+    assert.ok(match);
+    const statement = database.prepare(
+      `SELECT ${match[1].replaceAll('pg_catalog.pg_get_userbyid', 'pg_get_userbyid')} AS grantee_name
+        FROM (SELECT ? AS grantee) AS grant_record`,
+    );
+    assert.notEqual(statement.get(0).grantee_name, statement.get(42).grantee_name);
   } finally {
     database.close();
   }

@@ -11,7 +11,7 @@ const MAX_GRANTS = 20_000;
 const FORBIDDEN_IDENTITY = /[\p{Cc}/\\]/u;
 const OBJECT_KINDS = new Set(['schema', 'relation', 'routine', 'type', 'catalog']);
 const OBJECT_PROVENANCE = new Set(['extension', 'initial_privilege', 'supabase_managed']);
-const GRANT_KINDS = new Set(['schema', 'relation', 'column', 'default', 'role']);
+const GRANT_KINDS = new Set(['schema', 'relation', 'column', 'routine', 'type', 'default', 'role']);
 const GRANT_PROVENANCE = new Set(['initial_privilege', 'supabase_managed']);
 
 export const PROVIDER_INVENTORY_QUERY = `SELECT * FROM (
@@ -136,6 +136,61 @@ WITH
           AND initial.privtype IN ('i', 'e')
       )
   ),
+  provider_object_candidate AS MATERIALIZED (
+    SELECT 'schema'::text AS object_kind, 'pg_catalog.pg_namespace'::regclass AS class_oid,
+      namespace.oid AS object_oid, 0::integer AS object_sub_id, namespace.oid AS namespace_oid
+    FROM non_system_namespace AS namespace
+    UNION ALL
+    SELECT 'relation', 'pg_catalog.pg_class'::regclass, relation.oid, 0, namespace.oid
+    FROM pg_catalog.pg_class AS relation
+    JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    UNION ALL
+    SELECT 'routine', 'pg_catalog.pg_proc'::regclass, procedure.oid, 0, namespace.oid
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN non_system_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    UNION ALL
+    SELECT 'type', 'pg_catalog.pg_type'::regclass, type_value.oid, 0, namespace.oid
+    FROM pg_catalog.pg_type AS type_value
+    JOIN non_system_namespace AS namespace ON namespace.oid = type_value.typnamespace
+    LEFT JOIN pg_catalog.pg_class AS composite_relation ON composite_relation.oid = type_value.typrelid
+    WHERE (type_value.typrelid = 0 OR composite_relation.relkind = 'c')
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_type AS base_type WHERE base_type.typarray = type_value.oid
+      )
+    UNION ALL
+    SELECT DISTINCT 'catalog', dependency.classid, dependency.objid, 0, 0::oid
+    FROM pg_catalog.pg_depend AS dependency
+    JOIN non_system_namespace AS namespace
+      ON dependency.refclassid = 'pg_catalog.pg_namespace'::regclass
+      AND dependency.refobjid = namespace.oid
+    WHERE dependency.classid NOT IN (
+      'pg_catalog.pg_class'::regclass, 'pg_catalog.pg_proc'::regclass,
+      'pg_catalog.pg_type'::regclass, 'pg_catalog.pg_namespace'::regclass,
+      'pg_catalog.pg_default_acl'::regclass, 'pg_catalog.pg_extension'::regclass
+    )
+  ),
+  provider_object AS MATERIALIZED (
+    SELECT candidate.*,
+      CASE
+        WHEN EXISTS (
+          SELECT 1 FROM pg_catalog.pg_depend AS dependency
+          WHERE dependency.classid = candidate.class_oid
+            AND dependency.objid = candidate.object_oid
+            AND dependency.refclassid = 'pg_catalog.pg_extension'::regclass
+            AND dependency.deptype = 'e'
+        ) THEN 'extension'
+        WHEN EXISTS (
+          SELECT 1 FROM pg_catalog.pg_init_privs AS initial
+          WHERE initial.classoid = candidate.class_oid
+            AND initial.objoid = candidate.object_oid
+            AND initial.objsubid = candidate.object_sub_id
+            AND initial.privtype IN ('i', 'e')
+        ) THEN 'initial_privilege'
+        ELSE 'supabase_managed'
+      END::text AS provenance
+    FROM provider_object_candidate AS candidate
+  ),
   actual_grant AS MATERIALIZED (
     SELECT 'schema'::text AS grant_kind, 'pg_catalog.pg_namespace'::regclass AS class_oid,
       namespace.oid AS object_oid, 0::integer AS object_sub_id,
@@ -173,6 +228,97 @@ WITH
       '', membership.roleid, membership.grantor, membership.member, 'MEMBER', membership.admin_option
     FROM pg_catalog.pg_auth_members AS membership
   ),
+  effective_grant AS MATERIALIZED (
+    SELECT 'schema'::text AS grant_kind, 'pg_catalog.pg_namespace'::regclass AS class_oid,
+      namespace.oid AS object_oid, 0::integer AS object_sub_id,
+      namespace.nspname AS schema_name, namespace.nspowner AS owner_oid,
+      privilege.grantor, privilege.grantee, privilege.privilege_type, privilege.is_grantable,
+      NULL::boolean AS inherit_option, NULL::boolean AS set_option
+    FROM non_system_namespace AS namespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      namespace.nspacl, pg_catalog.acldefault('n', namespace.nspowner)
+    )) AS privilege
+    UNION ALL
+    SELECT 'relation', 'pg_catalog.pg_class'::regclass, relation.oid, 0,
+      namespace.nspname, relation.relowner,
+      privilege.grantor, privilege.grantee, privilege.privilege_type, privilege.is_grantable,
+      NULL, NULL
+    FROM pg_catalog.pg_class AS relation
+    JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      relation.relacl,
+      pg_catalog.acldefault(CASE WHEN relation.relkind = 'S' THEN 's' ELSE 'r' END, relation.relowner)
+    )) AS privilege
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    UNION ALL
+    SELECT 'column', 'pg_catalog.pg_class'::regclass, relation.oid, attribute.attnum,
+      namespace.nspname, relation.relowner,
+      privilege.grantor, privilege.grantee, privilege.privilege_type, privilege.is_grantable,
+      NULL, NULL
+    FROM pg_catalog.pg_attribute AS attribute
+    JOIN pg_catalog.pg_class AS relation ON relation.oid = attribute.attrelid
+    JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      attribute.attacl, pg_catalog.acldefault('c', relation.relowner)
+    )) AS privilege
+    WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+    UNION ALL
+    SELECT 'routine', 'pg_catalog.pg_proc'::regclass, procedure.oid, 0,
+      namespace.nspname, procedure.proowner,
+      privilege.grantor, privilege.grantee, privilege.privilege_type, privilege.is_grantable,
+      NULL, NULL
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN non_system_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      procedure.proacl, pg_catalog.acldefault('f', procedure.proowner)
+    )) AS privilege
+    UNION ALL
+    SELECT 'type', 'pg_catalog.pg_type'::regclass, type_value.oid, 0,
+      namespace.nspname, type_value.typowner,
+      privilege.grantor, privilege.grantee, privilege.privilege_type, privilege.is_grantable,
+      NULL, NULL
+    FROM pg_catalog.pg_type AS type_value
+    JOIN non_system_namespace AS namespace ON namespace.oid = type_value.typnamespace
+    LEFT JOIN pg_catalog.pg_class AS composite_relation ON composite_relation.oid = type_value.typrelid
+    CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+      type_value.typacl, pg_catalog.acldefault('T', type_value.typowner)
+    )) AS privilege
+    WHERE (type_value.typrelid = 0 OR composite_relation.relkind = 'c')
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_type AS base_type WHERE base_type.typarray = type_value.oid
+      )
+    UNION ALL
+    SELECT 'default', 'pg_catalog.pg_default_acl'::regclass, defaults.oid, 0,
+      COALESCE(namespace.nspname, ''), defaults.defaclrole,
+      privilege.grantor, privilege.grantee, privilege.privilege_type, privilege.is_grantable,
+      NULL, NULL
+    FROM pg_catalog.pg_default_acl AS defaults
+    LEFT JOIN non_system_namespace AS namespace ON namespace.oid = defaults.defaclnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(defaults.defaclacl) AS privilege
+    WHERE defaults.defaclnamespace = 0 OR namespace.oid IS NOT NULL
+    UNION ALL
+    SELECT 'role', 'pg_catalog.pg_auth_members'::regclass, membership.roleid, 0,
+      '', membership.roleid, membership.grantor, membership.member, 'MEMBER', membership.admin_option,
+      membership.inherit_option, membership.set_option
+    FROM pg_catalog.pg_auth_members AS membership
+  ),
+  provider_grant AS MATERIALIZED (
+    SELECT grant_record.*,
+      CASE WHEN EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_init_privs AS initial
+        CROSS JOIN LATERAL pg_catalog.aclexplode(initial.initprivs) AS initial_privilege
+        WHERE initial.classoid = grant_record.class_oid
+          AND initial.objoid = grant_record.object_oid
+          AND initial.objsubid = grant_record.object_sub_id
+          AND initial.privtype IN ('i', 'e')
+          AND initial_privilege.grantor = grant_record.grantor
+          AND initial_privilege.grantee = grant_record.grantee
+          AND initial_privilege.privilege_type = grant_record.privilege_type
+          AND initial_privilege.is_grantable = grant_record.is_grantable
+      ) THEN 'initial_privilege' ELSE 'supabase_managed' END::text AS provenance
+    FROM effective_grant AS grant_record
+  ),
   unexpected_grant AS MATERIALIZED (
     SELECT grant_record.*
     FROM actual_grant AS grant_record
@@ -199,10 +345,10 @@ WITH
       pg_catalog.format('%I', namespace.nspname) AS object_identity,
       pg_catalog.pg_get_userbyid(namespace.nspowner) AS owner_name,
       pg_catalog.jsonb_build_object('name', namespace.nspname)::text AS definition_text,
-      'supabase_managed'::text AS provenance,
+      inventory.provenance,
       ((SELECT present FROM installation_evidence)
         AND namespace.nspname = 'private') AS installation_candidate
-    FROM unowned_object AS inventory
+    FROM provider_object AS inventory
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.object_oid
     WHERE inventory.object_kind = 'schema'
     UNION ALL
@@ -216,6 +362,10 @@ WITH
         'relkind', relation.relkind, 'persistence', relation.relpersistence,
         'rowSecurity', relation.relrowsecurity, 'forceRowSecurity', relation.relforcerowsecurity,
         'replicaIdentity', relation.relreplident,
+        'options', COALESCE((
+          SELECT pg_catalog.jsonb_agg(relation_option ORDER BY relation_option)
+          FROM pg_catalog.unnest(relation.reloptions) AS relation_option
+        ), '[]'::jsonb),
         'columns', COALESCE((
           SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
             'name', attribute.attname,
@@ -245,8 +395,10 @@ WITH
           WHERE index_value.indrelid = relation.oid
         ), '[]'::jsonb),
         'triggers', COALESCE((
-          SELECT pg_catalog.jsonb_agg(pg_catalog.pg_get_triggerdef(trigger_value.oid, false)
-            ORDER BY trigger_value.tgname)
+          SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+            'definition', pg_catalog.pg_get_triggerdef(trigger_value.oid, false),
+            'enabled', trigger_value.tgenabled
+          ) ORDER BY trigger_value.tgname)
           FROM pg_catalog.pg_trigger AS trigger_value
           WHERE trigger_value.tgrelid = relation.oid AND NOT trigger_value.tgisinternal
         ), '[]'::jsonb),
@@ -288,7 +440,7 @@ WITH
           WHERE foreign_table.ftrelid = relation.oid
         ) ELSE NULL END
       )::text,
-      'supabase_managed',
+      inventory.provenance,
       ((SELECT present FROM installation_evidence) AND (
         (namespace.nspname = 'public' AND relation.relowner IN (
           CURRENT_USER::regrole::oid,
@@ -297,7 +449,7 @@ WITH
         OR (namespace.nspname = 'private' AND relation.relkind IN ('r', 'p')
           AND relation.relname IN (${INSTALL_METADATA_TABLES.map(name => `'${name}'`).join(', ')}))
       ))
-    FROM unowned_object AS inventory
+    FROM provider_object AS inventory
     JOIN pg_catalog.pg_class AS relation ON relation.oid = inventory.object_oid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
     WHERE inventory.object_kind = 'relation'
@@ -349,7 +501,7 @@ WITH
         FROM pg_catalog.pg_aggregate AS aggregate_value
         WHERE aggregate_value.aggfnoid = procedure.oid
       ) ELSE pg_catalog.pg_get_functiondef(procedure.oid) END,
-      'supabase_managed',
+      inventory.provenance,
       ((SELECT present FROM installation_evidence) AND (
         (namespace.nspname = 'public' AND procedure.proowner IN (
           CURRENT_USER::regrole::oid,
@@ -360,7 +512,7 @@ WITH
           AND pg_catalog.pg_get_function_identity_arguments(procedure.oid) = ''
           AND procedure.prorettype = 'pg_catalog.trigger'::regtype)
       ))
-    FROM unowned_object AS inventory
+    FROM provider_object AS inventory
     JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = inventory.object_oid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
     WHERE inventory.object_kind = 'routine'
@@ -405,20 +557,20 @@ WITH
           ) FROM pg_catalog.pg_range AS range_value WHERE range_value.rngtypid = type_value.oid
         )
       )::text,
-      'supabase_managed',
+      inventory.provenance,
       ((SELECT present FROM installation_evidence)
         AND namespace.nspname = 'public'
         AND type_value.typowner IN (
           CURRENT_USER::regrole::oid,
           (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_schema_owner')
         ))
-    FROM unowned_object AS inventory
+    FROM provider_object AS inventory
     JOIN pg_catalog.pg_type AS type_value ON type_value.oid = inventory.object_oid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
     CROSS JOIN LATERAL pg_catalog.pg_identify_object(inventory.class_oid, inventory.object_oid, 0) AS identified
     WHERE inventory.object_kind = 'type'
     UNION ALL
-    SELECT 'catalog', namespace.nspname,
+    SELECT 'catalog', COALESCE(identified.schema, ''),
       pg_catalog.format('%s %s', identified.type, identified.identity),
       CASE
         WHEN inventory.class_oid = 'pg_catalog.pg_collation'::regclass
@@ -658,11 +810,10 @@ WITH
           )::text FROM pg_catalog.pg_ts_template AS value WHERE value.oid = inventory.object_oid)
         ELSE NULL
       END,
-      'supabase_managed',
+      inventory.provenance,
       ((SELECT present FROM installation_evidence)
-        AND namespace.nspname IN ('public', 'private'))
-    FROM unowned_object AS inventory
-    JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
+        AND COALESCE(identified.schema, '') IN ('public', 'private'))
+    FROM provider_object AS inventory
     CROSS JOIN LATERAL pg_catalog.pg_identify_object(inventory.class_oid, inventory.object_oid, 0) AS identified
     WHERE inventory.object_kind = 'catalog'
   ),
@@ -686,6 +837,23 @@ WITH
           JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
           WHERE attribute.attrelid = grant_record.object_oid AND attribute.attnum = grant_record.object_sub_id
         )
+        WHEN 'routine' THEN (
+          SELECT pg_catalog.format('%I.%I(%s) %s RETURNS %s', namespace.nspname, procedure.proname,
+            pg_catalog.pg_get_function_identity_arguments(procedure.oid),
+            CASE procedure.prokind WHEN 'f' THEN 'FUNCTION' WHEN 'p' THEN 'PROCEDURE'
+              WHEN 'a' THEN 'AGGREGATE' WHEN 'w' THEN 'WINDOW' END,
+            COALESCE(pg_catalog.pg_get_function_result(procedure.oid),
+              pg_catalog.format_type(procedure.prorettype, NULL)))
+          FROM pg_catalog.pg_proc AS procedure
+          JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+          WHERE procedure.oid = grant_record.object_oid
+        )
+        WHEN 'type' THEN (
+          SELECT identified.identity
+          FROM pg_catalog.pg_identify_object(
+            'pg_catalog.pg_type'::regclass, grant_record.object_oid, 0
+          ) AS identified
+        )
         WHEN 'default' THEN (
           SELECT pg_catalog.format('default privileges for role %I%s on %s',
             pg_catalog.pg_get_userbyid(defaults.defaclrole),
@@ -700,10 +868,12 @@ WITH
       END AS object_identity,
       pg_catalog.pg_get_userbyid(grant_record.grantor) AS grantor_name,
       CASE WHEN grant_record.grantee = 0 THEN 'PUBLIC'
-        ELSE pg_catalog.pg_get_userbyid(grant_record.grantee) END AS grantee_name,
+        ELSE 'ROLE:' || pg_catalog.pg_get_userbyid(grant_record.grantee) END AS grantee_name,
       grant_record.privilege_type AS privilege,
       grant_record.is_grantable,
-      'supabase_managed'::text AS provenance,
+      grant_record.inherit_option,
+      grant_record.set_option,
+      grant_record.provenance,
       ((SELECT present FROM installation_evidence) AND (
         (grant_record.grant_kind = 'schema'
           AND grant_record.schema_name = 'public'
@@ -738,7 +908,7 @@ WITH
           AND grant_record.grantee = CURRENT_USER::regrole::oid
           AND NOT grant_record.is_grantable)
       )) AS installation_candidate
-    FROM unexpected_grant AS grant_record
+    FROM provider_grant AS grant_record
   )
 SELECT
   COALESCE((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
@@ -750,8 +920,10 @@ SELECT
     'grant_kind', grant_kind, 'namespace_name', namespace_name,
     'object_identity', object_identity, 'grantor_name', grantor_name,
     'grantee_name', grantee_name, 'privilege', privilege,
-    'is_grantable', is_grantable, 'provenance', provenance
-  ) ORDER BY grant_kind, namespace_name, object_identity, grantor_name, grantee_name, privilege, is_grantable)
+    'is_grantable', is_grantable, 'inherit_option', inherit_option,
+    'set_option', set_option, 'provenance', provenance
+  ) ORDER BY grant_kind, namespace_name, object_identity, grantor_name, grantee_name,
+    privilege, is_grantable, inherit_option, set_option)
   FROM provider_grant_inventory), '[]'::jsonb) AS grants,
   COALESCE((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
     'object_kind', object_kind, 'namespace_name', namespace_name,
@@ -763,8 +935,10 @@ SELECT
     'grant_kind', grant_kind, 'namespace_name', namespace_name,
     'object_identity', object_identity, 'grantor_name', grantor_name,
     'grantee_name', grantee_name, 'privilege', privilege,
-    'is_grantable', is_grantable, 'provenance', provenance
-  ) ORDER BY grant_kind, namespace_name, object_identity, grantor_name, grantee_name, privilege, is_grantable)
+    'is_grantable', is_grantable, 'inherit_option', inherit_option,
+    'set_option', set_option, 'provenance', provenance
+  ) ORDER BY grant_kind, namespace_name, object_identity, grantor_name, grantee_name,
+    privilege, is_grantable, inherit_option, set_option)
   FROM provider_grant_inventory WHERE installation_candidate), '[]'::jsonb) AS installation_grants
 ) AS provider_inventory`;
 
@@ -810,6 +984,9 @@ function normalizeObject(row) {
 }
 
 function normalizeGrant(row) {
+  const roleMembership = row?.grant_kind === 'role';
+  const inheritOption = row?.inherit_option ?? null;
+  const setOption = row?.set_option ?? null;
   if (typeof row !== 'object' || row === null || Array.isArray(row)
     || !GRANT_KINDS.has(row.grant_kind)
     || !GRANT_PROVENANCE.has(row.provenance)
@@ -818,7 +995,10 @@ function normalizeGrant(row) {
     || !boundedString(row.grantor_name)
     || !boundedString(row.grantee_name)
     || !boundedString(row.privilege)
-    || typeof row.is_grantable !== 'boolean') fail();
+    || typeof row.is_grantable !== 'boolean'
+    || (roleMembership
+      ? typeof row.inherit_option !== 'boolean' || typeof row.set_option !== 'boolean'
+      : inheritOption !== null || setOption !== null)) fail();
   return {
     kind: row.grant_kind,
     schema: row.namespace_name,
@@ -827,6 +1007,8 @@ function normalizeGrant(row) {
     grantee: row.grantee_name,
     privilege: row.privilege,
     grantable: row.is_grantable,
+    inheritOption,
+    setOption,
     provenance: row.provenance,
   };
 }
@@ -869,7 +1051,7 @@ export function normalizeProviderInventory(row) {
   ));
   const grants = sortUnique(row.grants.map(normalizeGrant), record => canonicalizeJcs([
     record.kind, record.schema, record.objectIdentity, record.grantor,
-    record.grantee, record.privilege, record.grantable,
+    record.grantee, record.privilege, record.grantable, record.inheritOption, record.setOption,
   ]));
   const installationObjects = sortUnique(
     rawInstallationObjects.map(normalizeObject),
@@ -879,7 +1061,7 @@ export function normalizeProviderInventory(row) {
     rawInstallationGrants.map(normalizeGrant),
     record => canonicalizeJcs([
       record.kind, record.schema, record.objectIdentity, record.grantor,
-      record.grantee, record.privilege, record.grantable,
+      record.grantee, record.privilege, record.grantable, record.inheritOption, record.setOption,
     ]),
   );
   if (!exactSubset(installationObjects, objects)
