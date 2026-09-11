@@ -6,12 +6,13 @@ import {
   createHash, createPrivateKey, createPublicKey, sign,
 } from 'node:crypto';
 import {
-  link, lstat, mkdir, mkdtemp, open, readdir, rm, writeFile,
+  link, lstat, mkdir, mkdtemp, open, readdir, realpath, rm, writeFile,
 } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { createRequire, isBuiltin } from 'node:module';
+import { dirname, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+import ts from 'typescript';
 
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 
@@ -39,21 +40,8 @@ const requireFromCommunityCloud = createRequire(
   new URL('../../apps/community-cloud/package.json', import.meta.url),
 );
 const POSTGRES_ROOT = dirname(dirname(dirname(requireFromCommunityCloud.resolve('postgres'))));
-const CLI_RUNTIME_FILES = [
-  'scripts/supabase/bootstrap.mjs',
-  'scripts/supabase/hosted-inspector.mjs',
-  'scripts/supabase/local-inspector.mjs',
-  'scripts/supabase/plan.mjs',
-  'scripts/supabase/manifest-preflight.mjs',
-  'scripts/supabase/provider-baseline.mjs',
-  'scripts/supabase/provider-inventory.mjs',
-  'scripts/supabase/installer-connection.mjs',
-  'scripts/supabase/install-journal.mjs',
-  'apps/community-cloud/src/application-ca.mjs',
-  'apps/community-cloud/dist/install-manifest-verifier.js',
-  'apps/community-cloud/package.json',
-  'migrations/parity.yaml',
-];
+const INSTALLER_ENTRY = join(REPOSITORY_ROOT, 'scripts/supabase/bootstrap.mjs');
+const VENDORED_EXTERNALS = new Set(['postgres']);
 const TAR_PATH = '/usr/bin/tar';
 const TAR_ENV = Object.freeze({
   COPYFILE_DISABLE: '1',
@@ -226,26 +214,115 @@ async function copyRuntimeTree(source, destination) {
   }
 }
 
-async function copyInstallerRuntime(stagingRoot) {
-  for (const relative of CLI_RUNTIME_FILES) {
+function staticModuleSpecifiers(source, path) {
+  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
+  if (file.parseDiagnostics.length > 0) fail();
+  const specifiers = new Set();
+  function visit(node) {
+    if (ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly
+      && ts.isStringLiteralLike(node.moduleSpecifier)) {
+      specifiers.add(node.moduleSpecifier.text);
+    } else if (ts.isExportDeclaration(node) && !node.isTypeOnly
+      && node.moduleSpecifier !== undefined && ts.isStringLiteralLike(node.moduleSpecifier)) {
+      specifiers.add(node.moduleSpecifier.text);
+    } else if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly
+      && ts.isExternalModuleReference(node.moduleReference)
+      && node.moduleReference.expression !== undefined
+      && ts.isStringLiteralLike(node.moduleReference.expression)) {
+      specifiers.add(node.moduleReference.expression.text);
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword
+      && node.arguments.length === 1 && ts.isStringLiteralLike(node.arguments[0])) {
+      specifiers.add(node.arguments[0].text);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(file);
+  return [...specifiers].sort();
+}
+
+function containedRelativePath(sourceRoot, path) {
+  const destination = relative(sourceRoot, path);
+  if (destination === '' || destination === '..' || destination.startsWith('../')
+    || destination.startsWith('..\\') || isAbsolute(destination)) fail();
+  return destination;
+}
+
+function resolveRuntimeSpecifier(specifier, importer, sourceRoot, externals) {
+  if (isBuiltin(specifier)) return null;
+  if (!specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('@ccc/')) {
+    if (!VENDORED_EXTERNALS.has(specifier)) fail();
+    externals.add(specifier);
+    return null;
+  }
+  let resolved;
+  try {
+    resolved = createRequire(pathToFileURL(importer)).resolve(specifier);
+  } catch {
+    fail();
+  }
+  containedRelativePath(sourceRoot, resolved);
+  return resolved;
+}
+
+export async function copyModuleClosure({ entryPath, sourceRoot, destinationRoot }) {
+  const rootInfo = await lstat(sourceRoot);
+  if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) fail();
+  const canonicalRoot = await realpath(sourceRoot);
+  const canonicalEntry = await realpath(entryPath);
+  containedRelativePath(canonicalRoot, canonicalEntry);
+  const pending = [canonicalEntry];
+  const files = new Set();
+  const externals = new Set();
+  while (pending.length > 0) {
+    const path = pending.pop();
+    if (files.has(path)) continue;
+    const bytes = await readFileSafe(path);
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    files.add(path);
+    for (const specifier of staticModuleSpecifiers(source, path)) {
+      const resolved = resolveRuntimeSpecifier(specifier, path, canonicalRoot, externals);
+      if (resolved !== null && !files.has(resolved)) pending.push(resolved);
+    }
+  }
+  for (const path of [...files].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)))) {
     await copyRuntimeFile(
-      join(REPOSITORY_ROOT, relative),
-      join(stagingRoot, 'cli', relative),
-      relative === 'scripts/supabase/bootstrap.mjs' ? 0o700 : 0o600,
+      path,
+      join(destinationRoot, containedRelativePath(canonicalRoot, path)),
+      path === canonicalEntry ? 0o700 : 0o600,
     );
   }
+  return externals;
+}
+
+async function copyInstallerRuntime(stagingRoot) {
+  const cliRoot = join(stagingRoot, 'cli');
+  const externals = await copyModuleClosure({
+    entryPath: INSTALLER_ENTRY,
+    sourceRoot: REPOSITORY_ROOT,
+    destinationRoot: cliRoot,
+  });
   await copyRuntimeTree(
     join(REPOSITORY_ROOT, 'migrations/postgres'),
-    join(stagingRoot, 'cli/migrations/postgres'),
+    join(cliRoot, 'migrations/postgres'),
   );
   await copyRuntimeFile(
-    join(POSTGRES_ROOT, 'package.json'),
-    join(stagingRoot, 'cli/node_modules/postgres/package.json'),
+    join(REPOSITORY_ROOT, 'migrations/parity.yaml'),
+    join(cliRoot, 'migrations/parity.yaml'),
   );
-  await copyRuntimeTree(
-    join(POSTGRES_ROOT, 'src'),
-    join(stagingRoot, 'cli/node_modules/postgres/src'),
+  await copyRuntimeFile(
+    join(REPOSITORY_ROOT, 'apps/community-cloud/package.json'),
+    join(cliRoot, 'apps/community-cloud/package.json'),
   );
+  if (externals.has('postgres')) {
+    await copyRuntimeFile(
+      join(POSTGRES_ROOT, 'package.json'),
+      join(cliRoot, 'node_modules/postgres/package.json'),
+    );
+    await copyRuntimeTree(
+      join(POSTGRES_ROOT, 'src'),
+      join(cliRoot, 'node_modules/postgres/src'),
+    );
+  }
   await writeFile(
     join(stagingRoot, 'ccc-cloud.mjs'),
     "#!/usr/bin/env node\nimport './cli/scripts/supabase/bootstrap.mjs';\n",

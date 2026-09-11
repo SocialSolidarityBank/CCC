@@ -286,3 +286,31 @@ test('removes a partially published output set after a later exclusive link fail
   assert.equal(links, 2);
   assert.deepEqual(await readdir(outDir), []);
 }));
+
+test('derives the packaged module closure and rejects unknown bare dependencies', async () => fixture(async ({ root }) => {
+  const sourceRoot = join(root, 'runtime-source');
+  const destinationRoot = join(root, 'runtime-package');
+  await mkdir(join(sourceRoot, 'nested'), { recursive: true });
+  await writeFile(join(sourceRoot, 'entry.mjs'), "import './nested/new-runtime.mjs';\n");
+  await writeFile(join(sourceRoot, 'nested', 'new-runtime.mjs'), 'export const included = true;\n');
+  const release = await import('./build-bundle.mjs');
+  await release.copyModuleClosure({
+    entryPath: join(sourceRoot, 'entry.mjs'),
+    sourceRoot,
+    destinationRoot,
+  });
+  assert.equal(
+    await readFile(join(destinationRoot, 'nested', 'new-runtime.mjs'), 'utf8'),
+    'export const included = true;\n',
+  );
+
+  await writeFile(join(sourceRoot, 'unknown.mjs'), "import 'not-vendored';\n");
+  await assert.rejects(
+    release.copyModuleClosure({
+      entryPath: join(sourceRoot, 'unknown.mjs'),
+      sourceRoot,
+      destinationRoot: join(root, 'unknown-package'),
+    }),
+    error => error?.code === 'BUILD_FAILED',
+  );
+}));
