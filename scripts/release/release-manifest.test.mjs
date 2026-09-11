@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateKeyPairSync, sign } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import test from 'node:test';
 
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
@@ -11,6 +11,7 @@ import {
   verifyReleaseManifest,
 } from './release-manifest.mjs';
 import { loadReleaseTrustStore } from './release-trust.mjs';
+import { PINNED_RELEASE_ORIGIN } from './release-origin.mjs';
 
 const NOW = new Date('2026-09-11T12:00:00.000Z');
 const HASH_A = '11'.repeat(32);
@@ -18,6 +19,10 @@ const HASH_B = '22'.repeat(32);
 const HASH_C = '33'.repeat(32);
 const MANIFEST_DOMAIN = 'CCC-RELEASE-MANIFEST-V1\0';
 const BUNDLE_DOMAIN = 'CCC-RELEASE-BUNDLE-V1\0';
+
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
 
 function keyPair(keyId) {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -47,8 +52,8 @@ const expectedTuple = Object.freeze({
 });
 const bundleEntry = Object.freeze({
   family: expectedTuple.family,
-  manifestUrl: 'https://release.example.test/manifests/community-cloud-cli.json',
-  manifestSha256: HASH_B,
+  manifestUrl: `${PINNED_RELEASE_ORIGIN}/manifests/community-cloud-cli.json`,
+  manifestSha256: sha256(JSON.stringify(manifest())),
   edgeComponentManifestSha256: HASH_C,
   mode: expectedTuple.mode,
   platform: expectedTuple.platform,
@@ -76,7 +81,7 @@ function manifest(overrides = {}) {
     version: '1.2.3-dev.1',
     sequence: '7',
     channel: 'dev',
-    artifactUrl: 'https://release.example.test/artifacts/community-cloud-cli-community-cloud-1.2.3-dev.1-macos-arm64.tar.gz',
+    artifactUrl: `${PINNED_RELEASE_ORIGIN}/artifacts/community-cloud-cli-community-cloud-1.2.3-dev.1-macos-arm64.tar.gz`,
     artifactSha256: HASH_A,
     artifactBytes: 1234,
     minSchemaVersion: 1,
@@ -101,9 +106,10 @@ function mutateSignedManifest(change) {
 
 test('verifies the exact twelve-field signed ReleaseManifestV1', async () => {
   const value = manifest();
+  const document = JSON.stringify(Object.fromEntries(Object.entries(value).reverse()));
   const result = await verifyReleaseManifest({
-    document: JSON.stringify(Object.fromEntries(Object.entries(value).reverse())),
-    trustStore: trustStore(), now: NOW, expectedTuple, bundleEntry,
+    document, trustStore: trustStore(), now: NOW, expectedTuple,
+    bundleEntry: { ...bundleEntry, manifestSha256: sha256(document) },
   });
   assert.deepEqual(result, value);
   assert.equal(Object.keys(result).length, 12);
@@ -142,6 +148,7 @@ test('enforces manifest sequence, SemVer, channel prerelease and UTF-8 string li
     ['noncanonical sequence', value => { value.sequence = '07'; }],
     ['uint64 overflow', value => { value.sequence = '18446744073709551616'; }],
     ['invalid semver', value => { value.version = '01.2.3-dev.1'; }],
+    ['numeric prerelease leading zero', value => { value.version = '1.2.3-dev.01'; }],
     ['wrong prerelease channel', value => { value.version = '1.2.3-beta.1'; }],
     ['stable prerelease', value => { value.channel = 'stable'; value.version = '1.2.3-dev.1'; }],
     ['oversized string', value => { value.signingKeyId = '가'.repeat(1366); }],
@@ -152,6 +159,18 @@ test('enforces manifest sequence, SemVer, channel prerelease and UTF-8 string li
       expectedTuple, bundleEntry,
     }), 'SIGNATURE_INVALID'));
   }
+});
+
+test('accepts digit-leading alphanumeric SemVer prerelease identifiers', async () => {
+  const value = manifest({
+    version: '1.2.3-dev.1a',
+    artifactUrl: `${PINNED_RELEASE_ORIGIN}/artifacts/community-cloud-cli-community-cloud-1.2.3-dev.1a-macos-arm64.tar.gz`,
+  });
+  const document = JSON.stringify(value);
+  assert.deepEqual(await verifyReleaseManifest({
+    document, trustStore: trustStore(), now: NOW, expectedTuple,
+    bundleEntry: { ...bundleEntry, manifestSha256: sha256(document) },
+  }), value);
 });
 
 test('enforces publishedAt <= now < expiresAt and a maximum thirty-day lifetime', async t => {
@@ -181,15 +200,17 @@ test('rejects invalid or incompatible schema ranges', async () => {
   }), 'SCHEMA_INCOMPATIBLE');
 });
 
-test('requires HTTPS and exact manifest/artifact same-origin binding', async () => {
-  for (const artifactUrl of [
-    'http://release.example.test/artifacts/community-cloud-cli-community-cloud-1.2.3-dev.1-macos-arm64.tar.gz',
-    'https://other.example.test/artifacts/community-cloud-cli-community-cloud-1.2.3-dev.1-macos-arm64.tar.gz',
-    'https://user:secret@release.example.test/artifacts/community-cloud-cli-community-cloud-1.2.3-dev.1-macos-arm64.tar.gz',
+test('pins both manifest and artifact URLs to PINNED_RELEASE_ORIGIN', async () => {
+  const basename = 'community-cloud-cli-community-cloud-1.2.3-dev.1-macos-arm64.tar.gz';
+  for (const [artifactUrl, manifestUrl] of [
+    [`http://${new URL(PINNED_RELEASE_ORIGIN).host}/artifacts/${basename}`, bundleEntry.manifestUrl],
+    [`https://other.example.test/artifacts/${basename}`, 'https://other.example.test/manifests/cli.json'],
+    [`${PINNED_RELEASE_ORIGIN}/artifacts/${basename}`, 'https://other.example.test/manifests/cli.json'],
+    [`${PINNED_RELEASE_ORIGIN.replace('https://', 'https://user:secret@')}/artifacts/${basename}`, bundleEntry.manifestUrl],
   ]) {
     await rejectsCode(verifyReleaseManifest({
       document: JSON.stringify(manifest({ artifactUrl })), trustStore: trustStore(), now: NOW,
-      expectedTuple, bundleEntry,
+      expectedTuple, bundleEntry: { ...bundleEntry, manifestUrl },
     }), 'SIGNATURE_INVALID');
   }
 });
@@ -207,10 +228,18 @@ test('binds manifest artifact hash, bytes and schema to the selected bundle entr
   }
 });
 
+test('rejects an altered and re-signed manifest not indexed by the bundle digest', async () => {
+  const altered = manifest({ sequence: '8' });
+  await rejectsCode(verifyReleaseManifest({
+    document: JSON.stringify(altered), trustStore: trustStore(), now: NOW,
+    expectedTuple, bundleEntry,
+  }), 'ARTIFACT_NOT_INDEXED');
+});
+
 test('binds the signed manifest version to the artifact basename', async () => {
   await rejectsCode(verifyReleaseManifest({
     document: JSON.stringify(manifest({
-      artifactUrl: 'https://release.example.test/artifacts/community-cloud-cli-community-cloud-1.2.4-dev.1-macos-arm64.tar.gz',
+      artifactUrl: `${PINNED_RELEASE_ORIGIN}/artifacts/community-cloud-cli-community-cloud-1.2.4-dev.1-macos-arm64.tar.gz`,
     })),
     trustStore: trustStore(), now: NOW, expectedTuple, bundleEntry,
   }), 'ARTIFACT_IDENTITY_MISMATCH');
@@ -253,6 +282,7 @@ test('percent-decodes exactly once and uses only the last decoded path segment',
   for (const url of [
     'https://release.example.test/a/./community-cloud-cli-community-cloud-1.2.3-macos-arm64.tar.gz',
     'https://release.example.test/a/%2e%2e/community-cloud-cli-community-cloud-1.2.3-macos-arm64.tar.gz',
+    'https://release.example.test/a\\../community-cloud-cli-community-cloud-1.2.3-macos-arm64.tar.gz',
     'https://release.example.test/%252e%252e/community-cloud-cli-community-cloud-1.2.3-macos-arm64.tar.gz',
     'https://release.example.test/community-cloud-cli-community-cloud-1.2.3-macos-arm64.tar.gz?download=1',
     'https://release.example.test/community-cloud-cli-community-cloud-1.2.3-macos-arm64.tar.gz#fragment',
@@ -293,7 +323,7 @@ const familyDefaults = Object.freeze({
 
 function artifact(family, overrides = {}) {
   return {
-    manifestUrl: `https://release.example.test/manifests/${family}.json`,
+    manifestUrl: `${PINNED_RELEASE_ORIGIN}/manifests/${family}.json`,
     manifestSha256: HASH_B,
     edgeComponentManifestSha256: family === 'community-cloud-cli' ? HASH_C : null,
     ...familyDefaults[family],
@@ -378,6 +408,14 @@ test('allows one through five distinct family rows for dev and beta', async () =
   }
 });
 
+test('rejects a same-origin bundle hosted away from PINNED_RELEASE_ORIGIN', async () => {
+  const value = unsignedBundle('dev', ['community-cloud-cli']);
+  value.entries[0].artifacts[0].manifestUrl = 'https://other.example.test/manifests/cli.json';
+  await rejectsCode(verifyBundle(signed(
+    value, 'offlineRootSignature', BUNDLE_DOMAIN, rootKey.privateKey,
+  )), 'BUNDLE_ENTRY_INVALID');
+});
+
 test('rejects duplicate, empty and placeholder family rows', async t => {
   const duplicate = unsignedBundle('dev', ['community-cloud-cli']);
   duplicate.entries.push(structuredClone(duplicate.entries[0]));
@@ -453,10 +491,26 @@ test('rejects bundle unknown fields, nested unknown fields, duplicate keys and w
   }), 'BUNDLE_ENTRY_INVALID');
 });
 
-test('enforces bundle time, requested channel and fixed-domain root signature', async () => {
-  const future = signed({ ...unsignedBundle('dev', ['community-cloud-cli']), publishedAt: '2026-09-12T00:00:00.000Z' },
-    'offlineRootSignature', BUNDLE_DOMAIN, rootKey.privateKey);
-  await rejectsCode(verifyBundle(future), 'BUNDLE_ENTRY_INVALID');
+test('distinguishes authenticated bundle lifetime failure from shape and signature failure', async () => {
+  const future = signed({
+    ...unsignedBundle('dev', ['community-cloud-cli']),
+    publishedAt: '2026-09-12T00:00:00.000Z',
+  }, 'offlineRootSignature', BUNDLE_DOMAIN, rootKey.privateKey);
+  await rejectsCode(verifyBundle(future), 'BUNDLE_LIFETIME_INVALID');
+  await rejectsCode(verifyBundle(bundle('dev', ['community-cloud-cli']), {
+    now: new Date('2026-09-20T00:00:00.000Z'),
+  }), 'BUNDLE_LIFETIME_INVALID');
+  const invalidSignature = {
+    ...future,
+    offlineRootSignature: `${future.offlineRootSignature[0] === 'A' ? 'B' : 'A'}${future.offlineRootSignature.slice(1)}`,
+  };
+  await rejectsCode(verifyBundle(invalidSignature), 'BUNDLE_SIGNATURE_INVALID');
+  const reversed = signed({
+    ...unsignedBundle('dev', ['community-cloud-cli']),
+    publishedAt: '2026-09-12T00:00:00.000Z',
+    expiresAt: '2026-09-11T00:00:00.000Z',
+  }, 'offlineRootSignature', BUNDLE_DOMAIN, rootKey.privateKey);
+  await rejectsCode(verifyBundle(reversed), 'BUNDLE_ENTRY_INVALID');
   await rejectsCode(verifyBundle(bundle('dev', ['community-cloud-cli']), { channel: 'beta' }), 'BUNDLE_ENTRY_INVALID');
   const wrongDomain = signed(unsignedBundle('dev', ['community-cloud-cli']), 'offlineRootSignature', 'WRONG\0', rootKey.privateKey);
   await rejectsCode(verifyBundle(wrongDomain), 'BUNDLE_SIGNATURE_INVALID');

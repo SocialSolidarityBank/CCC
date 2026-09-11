@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { open } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
 
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
@@ -5,6 +7,7 @@ import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import { verifyEd25519Bytes } from '../../apps/community-cloud/dist/install-manifest-verifier.js';
 import { readStrictJsonDocument } from '../supabase/manifest-preflight.mjs';
 import { ReleaseVerificationError, selectSigningKey } from './release-trust.mjs';
+import { PINNED_RELEASE_ORIGIN } from './release-origin.mjs';
 
 const MANIFEST_DOMAIN = 'CCC-RELEASE-MANIFEST-V1\0';
 const BUNDLE_DOMAIN = 'CCC-RELEASE-BUNDLE-V1\0';
@@ -14,7 +17,9 @@ const SIGNATURE = /^[A-Za-z0-9_-]{86}$/u;
 const PUBLIC_KEY = /^[A-Za-z0-9_-]{43}$/u;
 const DECIMAL = /^(0|[1-9][0-9]*)$/u;
 const UTC_RFC3339 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/u;
-const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
+const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
+const MAX_DOCUMENT_BYTES = 1_048_576;
+const RAW_URL_FORBIDDEN = /[\\\u0000-\u001f\u007f]/u;
 const CHANNELS = new Set(['stable', 'beta', 'dev']);
 const FAMILIES = [
   'community-cloud-cli',
@@ -144,6 +149,20 @@ function lifetime(value, now, expiredCode) {
   if (now.getTime() >= expiresAt) fail(expiredCode);
 }
 
+function bundleLifetimeBounds(value) {
+  try {
+    const publishedAt = parseInstant(value.publishedAt);
+    const expiresAt = parseInstant(value.expiresAt);
+    if (publishedAt >= expiresAt || expiresAt - publishedAt > 30 * 24 * 60 * 60 * 1000) {
+      fail('BUNDLE_ENTRY_INVALID');
+    }
+    return { publishedAt, expiresAt };
+  } catch (error) {
+    if (error instanceof ReleaseVerificationError && error.code === 'BUNDLE_ENTRY_INVALID') throw error;
+    fail('BUNDLE_ENTRY_INVALID');
+  }
+}
+
 function platformAllowed(family, platform, arch) {
   if (family === 'community-cloud-cli') {
     return (platform === 'macos' && ARCHES.has(arch))
@@ -164,8 +183,30 @@ function validTuple({ family, mode, platform, arch }) {
 
 async function parsedDocument(document, code) {
   try {
-    return await readStrictJsonDocument(document);
-  } catch {
+    if (typeof document !== 'string' || document.trim().length === 0) fail(code);
+    let bytes;
+    if (document.trimStart().startsWith('{')) {
+      bytes = Buffer.from(document, 'utf8');
+    } else {
+      const file = await open(document, 'r');
+      try {
+        const buffer = Buffer.alloc(MAX_DOCUMENT_BYTES + 1);
+        let length = 0;
+        while (length < buffer.length) {
+          const read = await file.read(buffer, length, buffer.length - length);
+          if (read.bytesRead === 0) break;
+          length += read.bytesRead;
+        }
+        bytes = Buffer.from(buffer.subarray(0, length));
+      } finally {
+        await file.close();
+      }
+    }
+    if (bytes.byteLength === 0 || bytes.byteLength > MAX_DOCUMENT_BYTES) fail(code);
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return { value: await readStrictJsonDocument(source), bytes };
+  } catch (error) {
+    if (error instanceof ReleaseVerificationError) throw error;
     fail(code);
   }
 }
@@ -183,9 +224,8 @@ function standardBase64(base64url) {
 
 export function parseArtifactBasename(value) {
   try {
-    if (!boundedString(value, { nonempty: true }) || value.includes('?') || value.includes('#')) {
-      fail('ARTIFACT_IDENTITY_MISMATCH');
-    }
+    if (!boundedString(value, { nonempty: true }) || value.includes('?') || value.includes('#')
+      || RAW_URL_FORBIDDEN.test(value)) fail('ARTIFACT_IDENTITY_MISMATCH');
     const url = exactHttpsUrl(value);
     const authorityEnd = value.indexOf('/', value.indexOf('://') + 3);
     const rawPath = authorityEnd === -1 ? '' : value.slice(authorityEnd);
@@ -229,7 +269,7 @@ export function requireExpectedTuple(parsed, expected) {
 }
 
 export async function verifyReleaseManifest({ document, trustStore, now, expectedTuple, bundleEntry }) {
-  const value = await parsedDocument(document, 'SIGNATURE_INVALID');
+  const { value, bytes } = await parsedDocument(document, 'SIGNATURE_INVALID');
   try {
     if (!exactKeys(value, MANIFEST_KEYS) || !CHANNELS.has(value.channel)
       || !validHash(value.artifactSha256)
@@ -245,7 +285,8 @@ export async function verifyReleaseManifest({ document, trustStore, now, expecte
 
     const artifactUrl = exactHttpsUrl(value.artifactUrl);
     const manifestUrl = exactHttpsUrl(bundleEntry?.manifestUrl);
-    if (artifactUrl.origin !== manifestUrl.origin) fail();
+    if (artifactUrl.origin !== PINNED_RELEASE_ORIGIN
+      || manifestUrl.origin !== PINNED_RELEASE_ORIGIN) fail();
     const parsedArtifact = parseArtifactBasename(value.artifactUrl);
     if (parsedArtifact.version !== value.version) fail('ARTIFACT_IDENTITY_MISMATCH');
     requireExpectedTuple(parsedArtifact, expectedTuple);
@@ -267,6 +308,10 @@ export async function verifyReleaseManifest({ document, trustStore, now, expecte
       standardBase64(ed25519Signature),
       standardBase64(key.publicKey),
     )) fail();
+    if (!validHash(bundleEntry.manifestSha256)
+      || createHash('sha256').update(bytes).digest('hex') !== bundleEntry.manifestSha256) {
+      fail('ARTIFACT_NOT_INDEXED');
+    }
     return value;
   } catch (error) {
     if (error instanceof ReleaseVerificationError) throw error;
@@ -291,6 +336,7 @@ function validateArtifact(family, artifact, origins, tupleKeys, manifestUrls) {
   } catch {
     fail('BUNDLE_ENTRY_INVALID');
   }
+  if (manifestUrl.origin !== PINNED_RELEASE_ORIGIN) fail('BUNDLE_ENTRY_INVALID');
   origins.add(manifestUrl.origin);
   const key = tupleKey({ family, ...artifact });
   if (tupleKeys.has(key) || manifestUrls.has(artifact.manifestUrl)) fail('BUNDLE_ENTRY_INVALID');
@@ -317,7 +363,7 @@ function validateProtocol(protocol, families) {
   }
 }
 
-function validateBundleShape(value, now, channel) {
+function validateBundleShape(value, channel) {
   if (!exactKeys(value, BUNDLE_KEYS) || value.schemaVersion !== 1
     || !CHANNELS.has(value.channel) || value.channel !== channel
     || !boundedString(value.bundleId, { nonempty: true })
@@ -325,10 +371,10 @@ function validateBundleShape(value, now, channel) {
   try {
     semver(value.version, value.channel);
     uint64(value.sequence, { positive: true });
-    lifetime(value, now, 'BUNDLE_ENTRY_INVALID');
   } catch {
     fail('BUNDLE_ENTRY_INVALID');
   }
+  const lifetimeBounds = bundleLifetimeBounds(value);
   if (!Array.isArray(value.entries)) fail('BUNDLE_ENTRY_INVALID');
   const minimumRows = value.channel === 'stable' ? 5 : 1;
   if (value.entries.length < minimumRows || value.entries.length > 5) fail('BUNDLE_ENTRY_INVALID');
@@ -368,6 +414,7 @@ function validateBundleShape(value, now, channel) {
     }
     floorKeys.add(key);
   }
+  return lifetimeBounds;
 }
 
 function validateRootTrust(rootKeys, revokedRootKeyIds) {
@@ -384,21 +431,30 @@ function validateRootTrust(rootKeys, revokedRootKeyIds) {
 }
 
 export async function verifyReleaseBundle({ document, rootKeys, revokedRootKeyIds, now, channel }) {
-  const value = await parsedDocument(document, 'BUNDLE_ENTRY_INVALID');
-  validateBundleShape(value, now, channel);
+  const { value } = await parsedDocument(document, 'BUNDLE_ENTRY_INVALID');
+  const lifetimeBounds = validateBundleShape(value, channel);
   if (!validBase64url(value.offlineRootSignature, SIGNATURE, 64)) fail('BUNDLE_SIGNATURE_INVALID');
   validateRootTrust(rootKeys, revokedRootKeyIds);
   try {
     const { offlineRootSignature, ...unsigned } = value;
     const message = signatureMessage(BUNDLE_DOMAIN, unsigned);
+    let authenticated = false;
     for (const [keyId, publicKey] of Object.entries(rootKeys)) {
       if (!revokedRootKeyIds.includes(keyId) && await verifyEd25519Bytes(
         message,
         standardBase64(offlineRootSignature),
         standardBase64(publicKey),
-      )) return value;
+      )) {
+        authenticated = true;
+        break;
+      }
     }
-    fail('BUNDLE_SIGNATURE_INVALID');
+    if (!authenticated) fail('BUNDLE_SIGNATURE_INVALID');
+    if (!(now instanceof Date) || Number.isNaN(now.getTime())) fail('BUNDLE_ENTRY_INVALID');
+    if (now.getTime() < lifetimeBounds.publishedAt || now.getTime() >= lifetimeBounds.expiresAt) {
+      fail('BUNDLE_LIFETIME_INVALID');
+    }
+    return value;
   } catch (error) {
     if (error instanceof ReleaseVerificationError) throw error;
     fail('BUNDLE_SIGNATURE_INVALID');
