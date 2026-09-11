@@ -20,6 +20,7 @@ const NOW = new Date('2026-09-11T12:00:00.000Z');
 const HASH_A = '11'.repeat(32);
 const HASH_B = '22'.repeat(32);
 const HASH_C = '33'.repeat(32);
+const ABSENT_MODEL_MANIFEST = '0'.repeat(64);
 const MANIFEST_DOMAIN = 'CCC-RELEASE-MANIFEST-V1\0';
 const BUNDLE_DOMAIN = 'CCC-RELEASE-BUNDLE-V1\0';
 
@@ -390,7 +391,7 @@ function unsignedBundle(channel = 'stable', families = Object.keys(familyDefault
       arch: row.arch,
       minimumSequence: '7',
     }))),
-    modelManifestSha256: HASH_C,
+    modelManifestSha256: families.includes('processing-agent') ? HASH_C : ABSENT_MODEL_MANIFEST,
   };
 }
 
@@ -458,6 +459,22 @@ test('requires only community-cloud-cli artifact rows to carry an Edge component
   const extra = unsignedBundle('dev', ['local-single']);
   extra.entries[0].artifacts[0].edgeComponentManifestSha256 = HASH_C;
   await rejectsCode(verifyBundle(signed(extra, 'offlineRootSignature', BUNDLE_DOMAIN, rootKey.privateKey)), 'BUNDLE_ENTRY_INVALID');
+});
+
+test('rejects a model digest when the processing-agent family row is absent', async () => {
+  const value = unsignedBundle('dev', ['community-cloud-cli']);
+  value.modelManifestSha256 = HASH_C;
+  await rejectsCode(verifyBundle(signed(
+    value, 'offlineRootSignature', BUNDLE_DOMAIN, rootKey.privateKey,
+  )), 'BUNDLE_ENTRY_INVALID');
+});
+
+test('rejects the absent model marker when the processing-agent family row is present', async () => {
+  const value = unsignedBundle('dev', ['processing-agent']);
+  value.modelManifestSha256 = ABSENT_MODEL_MANIFEST;
+  await rejectsCode(verifyBundle(signed(
+    value, 'offlineRootSignature', BUNDLE_DOMAIN, rootKey.privateKey,
+  )), 'BUNDLE_ENTRY_INVALID');
 });
 
 test('requires exact, duplicate-free sequence floor coverage for every artifact tuple', async t => {

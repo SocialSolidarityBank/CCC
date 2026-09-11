@@ -14,6 +14,7 @@ const BUNDLE_DOMAIN = 'CCC-RELEASE-BUNDLE-V1\0';
 const MAX_UINT64 = 18_446_744_073_709_551_615n;
 const SHA256 = /^[a-f0-9]{64}$/u;
 const SIGNATURE = /^[A-Za-z0-9_-]{86}$/u;
+const ABSENT_MODEL_MANIFEST = '0'.repeat(64);
 const PUBLIC_KEY = /^[A-Za-z0-9_-]{43}$/u;
 const DECIMAL = /^(0|[1-9][0-9]*)$/u;
 const UTC_RFC3339 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/u;
@@ -395,6 +396,9 @@ function validateBundleShape(value, channel) {
   if (new Set(families).size !== families.length
     || (value.channel === 'stable' && FAMILIES.some(family => !families.includes(family)))
     || origins.size !== 1) fail('BUNDLE_ENTRY_INVALID');
+  if (families.includes('processing-agent')
+    ? value.modelManifestSha256 === ABSENT_MODEL_MANIFEST
+    : value.modelManifestSha256 !== ABSENT_MODEL_MANIFEST) fail('BUNDLE_ENTRY_INVALID');
 
   validateProtocol(value.protocol, families);
   if (!Array.isArray(value.sequenceFloor) || value.sequenceFloor.length !== tupleKeys.size) {
