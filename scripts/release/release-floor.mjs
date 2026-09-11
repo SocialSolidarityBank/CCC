@@ -283,7 +283,7 @@ function sameFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino;
 }
 
-async function acquireLock(path, security) {
+async function acquireLock(path, security, onLockBusy) {
   const directory = dirname(path);
   await ensureSafeDirectory(directory, security);
   const lockPath = `${path}.lock`;
@@ -313,9 +313,11 @@ async function acquireLock(path, security) {
       }
       let info;
       try {
+        if (onLockBusy !== undefined) await onLockBusy(lockPath);
         info = await lstat(lockPath);
         await requireSafeFile(lockPath, info, security);
       } catch (lockError) {
+        if (lockError?.code === 'ENOENT') continue;
         if (lockError instanceof ReleaseFloorError) throw lockError;
         fail('RELEASE_FLOOR_LOCK_UNAVAILABLE');
       }
@@ -342,8 +344,8 @@ async function releaseLock(lock, security) {
   }
 }
 
-async function withLock(path, security, operation) {
-  const lock = await acquireLock(path, security);
+async function withLock(path, security, operation, onLockBusy) {
+  const lock = await acquireLock(path, security, onLockBusy);
   let result;
   let operationError;
   try {
@@ -356,7 +358,7 @@ async function withLock(path, security, operation) {
   return result;
 }
 
-function floorStore(path, { beforeWrite, ...securityInput } = {}) {
+function floorStore(path, { beforeWrite, onLockBusy, ...securityInput } = {}) {
   const security = securityOptions(securityInput);
   return Object.freeze({
     path,
@@ -379,7 +381,7 @@ function floorStore(path, { beforeWrite, ...securityInput } = {}) {
         if (beforeWrite !== undefined) await beforeWrite(structuredClone(state));
         await writeState(path, state, security);
         return structuredClone(state);
-      });
+      }, onLockBusy);
     },
   });
 }

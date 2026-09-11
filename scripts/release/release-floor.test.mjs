@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdtemp, open, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, open, readFile, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -87,6 +87,27 @@ test('serializes overlapping updates from separate store instances', async () =>
     sequenceFloor: [{ ...ARM_FLOOR, minimumSequence: '9' }],
     lastTrustedTime: '2026-09-11T14:00:00.000Z',
   });
+}));
+
+test('retries when a contended lock disappears before inspection', async () => fixture(async (_store, directory) => {
+  let observedHandoff = false;
+  const store = createReleaseFloorStoreForTest(directory, {
+    onLockBusy: async lockPath => {
+      observedHandoff = true;
+      await unlink(lockPath);
+    },
+  });
+  const lockPath = `${store.path}.lock`;
+  await writeFile(lockPath, '', { mode: 0o600 });
+  const pending = store.updateVerified({
+    sequenceFloor: [ARM_FLOOR],
+    trustedTime: '2026-09-11T12:00:00.000Z',
+  });
+  await delay(50);
+  if (!observedHandoff) await unlink(lockPath);
+  const state = await pending;
+  assert.equal(observedHandoff, true);
+  assert.equal(state.sequenceFloor[0].minimumSequence, '7');
 }));
 
 test('fails closed before mutation when a Windows owner-only DACL cannot be established or verified', async () => fixture(async (_store, directory) => {
