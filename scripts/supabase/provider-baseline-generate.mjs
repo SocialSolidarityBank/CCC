@@ -326,21 +326,27 @@ async function assertKnownPath(record) {
 }
 
 async function removeKnownPath(record) {
+  let directory;
   try {
-    const directory = await lstat(record.directory);
-    if (!directory.isDirectory() || directory.isSymbolicLink()
-      || !hasIdentity(directory, record.directoryIdentity)) return false;
-    const info = await lstat(record.path);
-    if (info.isSymbolicLink() || !info.isFile() || !hasIdentity(info, record.identity)) return false;
-    await unlink(record.path);
-    try {
-      await lstat(record.path);
-      return false;
-    } catch (error) {
-      return error?.code === 'ENOENT';
-    }
+    directory = await lstat(record.directory);
   } catch {
     return false;
+  }
+  if (!directory.isDirectory() || directory.isSymbolicLink()
+    || !hasIdentity(directory, record.directoryIdentity)) return false;
+  let info;
+  try {
+    info = await lstat(record.path);
+  } catch (error) {
+    return error?.code === 'ENOENT';
+  }
+  if (info.isSymbolicLink() || !info.isFile() || !hasIdentity(info, record.identity)) return false;
+  try {
+    await unlink(record.path);
+    await lstat(record.path);
+    return false;
+  } catch (error) {
+    return error?.code === 'ENOENT';
   }
 }
 
@@ -394,13 +400,14 @@ async function writeOwnerOnlyTemp(output, contents) {
 // The output directory is an operator-controlled trust boundary. Node has no
 // openat/unlinkat API, so cleanup is identity-checked and best effort rather
 // than claiming safety against a principal concurrently renaming that directory.
-async function installOutputs(outputs, documents) {
+async function installOutputs(outputs, documents, assertPublicationCurrent) {
   await Promise.all(Object.values(outputs).map(pathMustNotExist));
   const temps = {};
   const installed = [];
   try {
     temps.releaseTrust = await writeOwnerOnlyTemp(outputs.releaseTrust, documents.releaseTrust);
     temps.baseline = await writeOwnerOnlyTemp(outputs.baseline, documents.baseline);
+    assertPublicationCurrent();
     for (const key of ['releaseTrust', 'baseline']) {
       const output = outputs[key];
       await assertKnownPath(temps[key]);
@@ -413,11 +420,13 @@ async function installOutputs(outputs, documents) {
         identity: temps[key].identity,
       };
       installed.push(installedOutput);
+      assertPublicationCurrent();
       const info = await lstat(output.path);
       if (info.isSymbolicLink() || !info.isFile() || !hasIdentity(info, installedOutput.identity)
         || (info.mode & 0o777) !== 0o600) fail();
     }
     if (!await cleanupKnownPaths(Object.values(temps))) fail('OUTPUT_CLEANUP_INCOMPLETE');
+    assertPublicationCurrent();
   } catch (error) {
     const cleaned = await cleanupKnownPaths([...installed.reverse(), ...Object.values(temps)]);
     if (!cleaned) fail('OUTPUT_CLEANUP_INCOMPLETE');
@@ -603,7 +612,10 @@ export async function generateProviderBaseline({
     authorization,
     publicationNow,
   );
-  await installOutputs(outputs, documents);
+  requireTrustCurrent(authorization, releaseTrustUnsigned, rootKeys, revokedRootKeyIds, now);
+  await installOutputs(outputs, documents, () => (
+    requireTrustCurrent(authorization, releaseTrustUnsigned, rootKeys, revokedRootKeyIds, now)
+  ));
   return {
     releaseTrustSha256: verified.releaseTrustSha256,
     baselineSha256: verified.baselineSha256,

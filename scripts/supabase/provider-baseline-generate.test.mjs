@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { registerHooks } from 'node:module';
+import { readdirSync } from 'node:fs';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -416,6 +417,54 @@ test('expiry reached after the last observation prevents baseline signing and pu
     } finally {
       sign.mock.restore();
     }
+  });
+});
+
+test('expiry reached during final verification prevents publication', async () => {
+  await withFixture(async current => {
+    let clockReads = 0;
+    const inputs = await generationInputs(current);
+    inputs.now = () => {
+      clockReads += 1;
+      return new Date(clockReads >= 11 ? current.releaseTrustUnsigned.expiresAt : NOW);
+    };
+    await assertGenerationFailure(inputs, 'BETA_TRUST_INVALID');
+    assert.equal(clockReads, 11);
+  });
+});
+
+test('expiry after temporary files exist prevents linking and removes every artifact', async () => {
+  await withFixture(async current => {
+    let observedTemporaryFiles = false;
+    const inputs = await generationInputs(current);
+    inputs.now = () => {
+      const temporaryFiles = readdirSync(current.directory)
+        .filter(name => name.endsWith('.tmp'));
+      if (temporaryFiles.length === 2) observedTemporaryFiles = true;
+      return new Date(observedTemporaryFiles ? current.releaseTrustUnsigned.expiresAt : NOW);
+    };
+    await assertGenerationFailure(inputs, 'BETA_TRUST_INVALID');
+    assert.equal(observedTemporaryFiles, true);
+    assert.deepEqual(readdirSync(current.directory), []);
+  });
+});
+
+test('expiry immediately before success removes both linked documents', async () => {
+  await withFixture(async current => {
+    let reachedCompletionBoundary = false;
+    const inputs = await generationInputs(current);
+    inputs.now = () => {
+      const names = readdirSync(current.directory);
+      const outputsLinked = names.includes('release-trust.json')
+        && names.includes('provider-baseline.json');
+      if (outputsLinked && !names.some(name => name.endsWith('.tmp'))) {
+        reachedCompletionBoundary = true;
+      }
+      return new Date(reachedCompletionBoundary ? current.releaseTrustUnsigned.expiresAt : NOW);
+    };
+    await assertGenerationFailure(inputs, 'BETA_TRUST_INVALID');
+    assert.equal(reachedCompletionBoundary, true);
+    assert.deepEqual(readdirSync(current.directory), []);
   });
 });
 
