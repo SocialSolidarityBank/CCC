@@ -300,6 +300,12 @@ async function createUploadTarget(
   }, config.installationId);
 }
 
+/**
+ * A `pending:` generation is an upload intent the client never completed, so no provider
+ * generation was ever bound to it. The delete then targets whatever sits at the key and a
+ * key that never existed is already the absence the caller asked for; in both cases the
+ * answer carries no generation, because an unbound delete cannot name the version it removed.
+ */
 async function deleteObject(
   request: StorageSignerRequest,
   decision: StorageSignerDecision,
@@ -309,19 +315,29 @@ async function deleteObject(
   now: () => number,
 ): Promise<Response> {
   requireLiveDecision(decision, now);
+  const pending = decision.generationId.startsWith('pending:');
   const url = new URL(`${storageBase}/object/${BUCKET}/${encodeObjectKey(request.objectKey)}`);
-  url.searchParams.set('versionId', decision.generationId);
-  const data = await providerJson(fetchImpl, url.href, {
+  if (!pending) url.searchParams.set('versionId', decision.generationId);
+  const response = await providerFetch(fetchImpl, url.href, {
     method: 'DELETE',
     headers: providerHeaders(config, false),
   });
+  if (pending && response.status === 404) {
+    await discardBounded(response);
+    return jsonResponse(200, {
+      action: 'delete',
+      accepted: true,
+      generationId: null,
+    }, config.installationId);
+  }
+  const data = await parseProviderJson(response);
   if (!hasExactKeys(data, ['message']) || data.message !== 'Successfully deleted') {
     throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
   }
   return jsonResponse(200, {
     action: 'delete',
     accepted: true,
-    generationId: decision.generationId,
+    generationId: pending ? null : decision.generationId,
   }, config.installationId);
 }
 
@@ -389,21 +405,25 @@ async function verifyAbsence(
   now: () => number,
 ): Promise<Response> {
   requireLiveDecision(decision, now);
+  // An unbound (`pending:`) generation asks a plainer question: is anything at all at this key.
+  const pending = decision.generationId.startsWith('pending:');
+  const versionId = pending ? null : decision.generationId;
   const separator = request.objectKey.lastIndexOf('/');
   const name = request.objectKey.slice(separator + 1);
   const prefix = separator < 0 ? '' : request.objectKey.slice(0, separator);
   const encodedKey = encodeObjectKey(request.objectKey);
 
   const listed = await listNamePresent(fetchImpl, `${storageBase}/object/list/${BUCKET}`, config, prefix, name);
-  const liveGeneration = await absenceMetadataVersion(fetchImpl, `${storageBase}/object/info/${BUCKET}/${encodedKey}`, config, decision);
-  const directReadAbsent = await absenceDirectRead(fetchImpl, `${storageBase}/object/authenticated/${BUCKET}/${encodedKey}`, config, decision);
+  const liveGeneration = await absenceMetadataVersion(fetchImpl, `${storageBase}/object/info/${BUCKET}/${encodedKey}`, config, versionId);
+  const directReadAbsent = await absenceDirectRead(fetchImpl, `${storageBase}/object/authenticated/${BUCKET}/${encodedKey}`, config, versionId);
 
-  // A listed name that carries another generation is still absence for this generation.
-  const absentFromMetadata = liveGeneration !== decision.generationId;
+  // A listed name that carries another generation is still absence for this generation,
+  // but an unbound check is absence only when nothing at all answers at the key.
+  const absentFromMetadata = pending ? liveGeneration === null : liveGeneration !== decision.generationId;
   return jsonResponse(200, {
     action: 'absence',
-    generationId: decision.generationId,
-    absentFromList: !listed || absentFromMetadata,
+    generationId: versionId,
+    absentFromList: pending ? !listed : !listed || absentFromMetadata,
     absentFromMetadata,
     directReadAbsent,
     verifiedAt: new Date(now()).toISOString(),
@@ -441,10 +461,10 @@ async function absenceMetadataVersion(
   fetchImpl: typeof fetch,
   url: string,
   config: StorageSignerConfig,
-  decision: StorageSignerDecision,
+  versionId: string | null,
 ): Promise<string | null> {
   const target = new URL(url);
-  target.searchParams.set('versionId', decision.generationId);
+  if (versionId !== null) target.searchParams.set('versionId', versionId);
   const response = await providerFetch(fetchImpl, target.href, {
     method: 'GET',
     headers: providerHeaders(config, false),
@@ -466,10 +486,10 @@ async function absenceDirectRead(
   fetchImpl: typeof fetch,
   url: string,
   config: StorageSignerConfig,
-  decision: StorageSignerDecision,
+  versionId: string | null,
 ): Promise<boolean> {
   const target = new URL(url);
-  target.searchParams.set('versionId', decision.generationId);
+  if (versionId !== null) target.searchParams.set('versionId', versionId);
   const response = await providerFetch(fetchImpl, target.href, {
     method: 'GET',
     headers: { ...providerHeaders(config, false), range: 'bytes=0-0' },

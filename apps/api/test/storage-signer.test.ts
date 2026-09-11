@@ -41,6 +41,14 @@ const ABSENCE_HASH = fixtureHash(`{"action":"absence","bucket":"ccc-audio","cont
 const LIST_URL = `${STORAGE_BASE}/object/list/ccc-audio`;
 const INFO_URL = `${STORAGE_BASE}/object/info/ccc-audio/${OBJECT_KEY}?versionId=${GENERATION_ID}`;
 const READ_URL = `${STORAGE_BASE}/object/authenticated/ccc-audio/${OBJECT_KEY}?versionId=${GENERATION_ID}`;
+const PENDING_CONTEXT = { ...HEAD_REQUEST.context, generationId: PENDING_GENERATION_ID } as const;
+const PENDING_DELETE_REQUEST = { ...DELETE_REQUEST, context: PENDING_CONTEXT } as const;
+const PENDING_ABSENCE_REQUEST = { ...ABSENCE_REQUEST, context: PENDING_CONTEXT } as const;
+const PENDING_DELETE_HASH = fixtureHash(`{"action":"delete","bucket":"ccc-audio","context":{"audioObjectId":"audio-object-1","deletionAttemptId":"delete-attempt-1","generationId":"${PENDING_GENERATION_ID}","kind":"deletion"},"objectKey":"${OBJECT_KEY}","objectSha256":"${OBJECT_SHA256}","principal":"scheduler"}`);
+const PENDING_ABSENCE_HASH = fixtureHash(`{"action":"absence","bucket":"ccc-audio","context":{"audioObjectId":"audio-object-1","deletionAttemptId":"delete-attempt-1","generationId":"${PENDING_GENERATION_ID}","kind":"deletion"},"objectKey":"${OBJECT_KEY}","objectSha256":"${OBJECT_SHA256}","principal":"scheduler"}`);
+const UNBOUND_DELETE_URL = `${STORAGE_BASE}/object/ccc-audio/${OBJECT_KEY}`;
+const UNBOUND_INFO_URL = `${STORAGE_BASE}/object/info/ccc-audio/${OBJECT_KEY}`;
+const UNBOUND_READ_URL = `${STORAGE_BASE}/object/authenticated/ccc-audio/${OBJECT_KEY}`;
 
 function fixtureHash(canonical: string): string {
   return createHash('sha256').update(canonical).digest('hex');
@@ -313,6 +321,41 @@ describe('StorageSigner online authorization boundary', () => {
     expect(provider.init?.body).toBeUndefined();
   });
 
+  it('deletes an abandoned upload intent unbound and counts a key that never existed as accepted', async () => {
+    for (const [status, body] of [[200, { message: 'Successfully deleted' }], [404, { message: 'Object not found' }]] as const) {
+      const calls: Array<{ url: string; init?: RequestInit | undefined }> = [];
+      const handler = createStorageSignerHandler(config((async (input, init) => {
+        const url = String(input);
+        calls.push({ url, init });
+        if (url === CALLBACK_URL) {
+          return callbackResponse(decision(PENDING_DELETE_HASH, null, { generationId: PENDING_GENERATION_ID }));
+        }
+        return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+      }) as typeof fetch));
+
+      const response = await handler(signerRequest(PENDING_DELETE_REQUEST));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ action: 'delete', accepted: true, generationId: null });
+      // No versionId: an upload intent that was never completed has no generation to bind to.
+      expect(calls[1]?.url).toBe(UNBOUND_DELETE_URL);
+      expect(calls[1]?.init?.method).toBe('DELETE');
+    }
+  });
+
+  it('keeps a provider 404 a failure for a generation-bound delete', async () => {
+    const handler = createStorageSignerHandler(config((async (input) => {
+      const url = String(input);
+      if (url === CALLBACK_URL) return callbackResponse(decision(DELETE_HASH, null));
+      return new Response(JSON.stringify({ message: 'Object not found' }), {
+        status: 404, headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch));
+
+    const response = await handler(signerRequest(DELETE_REQUEST));
+    expect(response.status).toBe(502);
+    expect(await fixedError(response)).toEqual({ code: 'STORAGE_UNAVAILABLE' });
+  });
+
   it('mints one signed upload without upsert and releases the expiry the provider signed', async () => {
     const token = downloadToken({
       url: `ccc-audio/${OBJECT_KEY}`,
@@ -543,5 +586,57 @@ describe('StorageSigner online authorization boundary', () => {
     const text = await response.text();
     expect(text).toBe('{"code":"STORAGE_UNAVAILABLE"}');
     expect(text).not.toContain('provider-secret');
+  });
+
+  it('proves an abandoned upload intent absent from an unbound key', async () => {
+    const calls: Array<{ url: string; init?: RequestInit | undefined }> = [];
+    const handler = createStorageSignerHandler(config((async (input, init) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url === CALLBACK_URL) {
+        return callbackResponse(decision(PENDING_ABSENCE_HASH, null, { generationId: PENDING_GENERATION_ID }));
+      }
+      if (url === LIST_URL) return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ message: 'Object not found' }), {
+        status: 404, headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch));
+
+    expect(await (await handler(signerRequest(PENDING_ABSENCE_REQUEST))).json()).toEqual({
+      action: 'absence',
+      generationId: null,
+      absentFromList: true,
+      absentFromMetadata: true,
+      directReadAbsent: true,
+      verifiedAt: AUTHORIZED_AT,
+    });
+    expect(calls.map((call) => call.url)).toEqual([CALLBACK_URL, LIST_URL, UNBOUND_INFO_URL, UNBOUND_READ_URL]);
+  });
+
+  it('refuses absence for an abandoned upload intent while any generation sits at the key', async () => {
+    const handler = createStorageSignerHandler(config((async (input) => {
+      const url = String(input);
+      if (url === CALLBACK_URL) {
+        return callbackResponse(decision(PENDING_ABSENCE_HASH, null, { generationId: PENDING_GENERATION_ID }));
+      }
+      if (url === LIST_URL) {
+        return new Response(JSON.stringify([{ name: '550e8400-e29b-41d4-a716-446655440000' }]), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url === UNBOUND_INFO_URL) {
+        return new Response(JSON.stringify({ version: 'version-9', size: 128, content_type: 'audio/wav' }), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(new Uint8Array([0x00]), { status: 206, headers: { 'content-type': 'audio/wav' } });
+    }) as typeof fetch));
+
+    expect(await (await handler(signerRequest(PENDING_ABSENCE_REQUEST))).json()).toMatchObject({
+      generationId: null,
+      absentFromList: false,
+      absentFromMetadata: false,
+      directReadAbsent: false,
+    });
   });
 });

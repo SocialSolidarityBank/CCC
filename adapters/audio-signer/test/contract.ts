@@ -11,6 +11,10 @@ const CLAIM: AudioStoreBinding = { kind: 'claim', jobId: 'job-1', claimToken: 't
 const DELETION: AudioStoreBinding = {
   kind: 'deletion', audioObjectId: 'audio-1', generationId: 'generation-1', deletionAttemptId: 'attempt-1',
 };
+/** An upload intent the client never completed: the row holds no provider generation yet. */
+const PENDING_DELETION: AudioStoreBinding = {
+  kind: 'deletion', audioObjectId: 'audio-1', generationId: 'pending:audio-1', deletionAttemptId: 'attempt-1',
+};
 const METADATA: AudioObjectMetadata = {
   contentLength: 128, contentType: 'audio/wav', expiresAt: new Date(Date.now() + 60_000).toISOString(),
 };
@@ -146,6 +150,18 @@ export function signerAudioStoreContract(): void {
       });
       expect(evidence.deletedAt).toBe(evidence.providerDeleteAcceptedAt);
       expect(Date.parse(evidence.deletionRequestedAt)).toBeLessThanOrEqual(Date.parse(evidence.deletedAt!));
+    });
+
+    it('accepts a null generation only for an unbound pending deletion', async () => {
+      const unbound = contractReply({ delete: { generationId: null }, absence: { generationId: null } });
+      const pending = store(unbound);
+      const evidence = await pending.audio.delete(KEY, PENDING_DELETION);
+      expect(evidence.generationId).toBeNull();
+      expect(evidence.deleteSucceeded).toBe(true);
+      expect(evidence.absentFromList).toBe(true);
+
+      const bound = store(unbound);
+      expect(await failureCode(() => bound.audio.delete(KEY, DELETION))).toBe('SIGNER_INVALID');
     });
 
     it('answers a missing object with null', async () => {

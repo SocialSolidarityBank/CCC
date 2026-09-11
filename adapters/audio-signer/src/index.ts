@@ -206,11 +206,16 @@ export function createSignerAudioStore(config: SignerAudioStoreConfig): AudioSto
       const deletionRequestedAt = new Date(now()).toISOString();
       const deleted = await call('delete', key, bound);
       const providerDeleteAcceptedAt = new Date(now()).toISOString();
+      // An abandoned upload intent carries no provider generation, so the Signer answers the
+      // unbound delete with a null one. Any other binding must still name the version it removed.
+      const unbound = bound.generationId.startsWith('pending:');
+      const generationId = deleted.generationId;
       if (
         !exactKeys(deleted, ['action', 'accepted', 'generationId'])
         || typeof deleted.accepted !== 'boolean'
-        || typeof deleted.generationId !== 'string'
-        || deleted.generationId.length === 0
+        || (generationId === null
+          ? !unbound
+          : typeof generationId !== 'string' || generationId.length === 0)
       ) fail('SIGNER_INVALID');
 
       // S8 §2.3: the four booleans are one fresh absence pass after the accepted delete.
@@ -228,7 +233,7 @@ export function createSignerAudioStore(config: SignerAudioStoreConfig): AudioSto
 
       return {
         keyHash: hashKey(key),
-        generationId: deleted.generationId,
+        generationId: generationId as string | null,
         objectSha256: null,
         deletionAttemptId: bound.deletionAttemptId,
         deletionRequestedAt,

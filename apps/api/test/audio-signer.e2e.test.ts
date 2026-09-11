@@ -10,6 +10,7 @@ import {
   issueSupportCaseConsentDisclosures,
   recordSttReadiness,
   reconcileAudioObjectDeletion,
+  runAudioExpiry,
 } from '@ccc/core/gateway';
 import { handleRequest, type ActorResolver } from '@ccc/http-api';
 import { createSchedulerSecretResolver } from '@ccc/http-api/scheduler-identity';
@@ -100,7 +101,7 @@ async function provider(url: URL, init: RequestInit): Promise<Response> {
   }
   if (method === 'DELETE' && path.startsWith('/object/ccc-audio/')) {
     const versionId = url.searchParams.get('versionId');
-    if (key === undefined || stored === undefined || versionId !== stored.version) {
+    if (key === undefined || stored === undefined || (versionId !== null && versionId !== stored.version)) {
       return providerJson({ error: 'not_found' }, 404);
     }
     objects.delete(key);
@@ -113,7 +114,9 @@ async function provider(url: URL, init: RequestInit): Promise<Response> {
   }
   if (method === 'GET' && path.startsWith('/object/authenticated/ccc-audio/')) {
     const versionId = url.searchParams.get('versionId');
-    if (stored === undefined || versionId !== stored.version) return providerJson({ error: 'not_found' }, 404);
+    if (stored === undefined || (versionId !== null && versionId !== stored.version)) {
+      return providerJson({ error: 'not_found' }, 404);
+    }
     return new Response(new Uint8Array([0x00]), { status: 206, headers: { 'content-type': stored.contentType } });
   }
   return providerJson({ error: 'unexpected_provider_call' }, 500);
@@ -193,6 +196,57 @@ async function withdrawRecordingConsent(supportCaseId: string): Promise<void> {
     idempotencyKey: crypto.randomUUID(),
     correctionOfEventId: null,
     expectedRevision: current.revision,
+  });
+}
+
+/** One consented session with a ready engine, minted down to an upload target nobody completed. */
+async function mintUploadTarget(memo: string): Promise<{ audioObjectId: string; key: string }> {
+  const participant = await createCase(env, counselor, await registrationInput(env, counselor, {
+    programId: testProgramId(counselor.orgId),
+  }));
+  const session = await createManualSession(env, counselor, participant.id, {
+    submissionId: crypto.randomUUID(),
+    heldAt: '2026-09-10T10:00:00.000Z',
+    channel: 'in_person',
+    memo,
+    gasScores: [],
+  });
+  const scope = await t.db.prepare('SELECT support_case_id FROM sessions WHERE id=? AND org_id=?')
+    .bind(session.id, counselor.orgId).first<{ support_case_id: string }>();
+  if (scope === null) throw new Error('missing support case fixture');
+  await seedCanonicalSttConsent(env, counselor, scope.support_case_id);
+  await recordSttReadiness(env, service, {
+    schemaVersion: 1, sttMode: 'local', sttEngineId: 'qwen3-asr', state: 'ready', capacity: 1,
+  });
+  const minted = await humanRequest(`/sessions/${session.id}/audio-upload-target`, {
+    contentLength: CONTENT_LENGTH, contentType: 'audio/wav', clientAssertedSha256: null,
+  });
+  expect(minted.status).toBe(201);
+  const target = await minted.json() as { audioObjectId: string };
+  const row = await t.db.prepare('SELECT key FROM audio_objects WHERE id=? AND org_id=?')
+    .bind(target.audioObjectId, counselor.orgId).first<{ key: string }>();
+  if (row === null) throw new Error('missing audio object fixture');
+  return { audioObjectId: target.audioObjectId, key: row.key };
+}
+
+/** S8 §2.3 for a never-completed intent: terminal, and four true against the unbound key. */
+async function expectAbandonedTerminal(audioObjectId: string): Promise<void> {
+  await expect(t.db.prepare('SELECT state,generation_id,deleted_at,deletion_reason FROM audio_objects WHERE id=?')
+    .bind(audioObjectId).first()).resolves.toMatchObject({
+    state: 'upload_abandoned',
+    generation_id: `pending:${audioObjectId}`,
+    deletion_reason: 'upload_abandoned',
+    deleted_at: expect.any(String),
+  });
+  await expect(t.db.prepare(
+    `SELECT generation_id,delete_succeeded,absent_from_list,absent_from_metadata,direct_read_absent
+     FROM audio_deletion_attempts WHERE audio_object_id=? AND phase='verification'`,
+  ).bind(audioObjectId).first()).resolves.toMatchObject({
+    generation_id: `pending:${audioObjectId}`,
+    delete_succeeded: 1,
+    absent_from_list: 1,
+    absent_from_metadata: 1,
+    direct_read_absent: 1,
   });
 }
 
@@ -332,5 +386,31 @@ describe('Signer-backed AudioStore end to end', () => {
     expect(objects.size).toBe(1);
     await expect(t.db.prepare('SELECT state FROM audio_objects WHERE id=?')
       .bind(target.audioObjectId).first()).resolves.toMatchObject({ state: 'deletion_pending' });
+  });
+
+  it('terminalizes an upload intent that never received a byte', async () => {
+    const intent = await mintUploadTarget('Synthetic abandoned upload fixture.');
+    await t.db.prepare('UPDATE audio_objects SET upload_expires_at=? WHERE id=? AND org_id=?')
+      .bind(new Date(Date.now() - 120_000).toISOString(), intent.audioObjectId, counselor.orgId).run();
+
+    const schedulerStore = audioStoreFor(`Bearer ${SCHEDULER_SECRET}`);
+    await expect(runAudioExpiry(env, schedulerStore, new Date().toISOString()))
+      .resolves.toMatchObject({ scanned: 1, deleted: 1 });
+    expect(signerCalls).toEqual(['upload', 'delete', 'absence']);
+    await expectAbandonedTerminal(intent.audioObjectId);
+  });
+
+  it('removes the bytes of an upload that was PUT but never completed', async () => {
+    const intent = await mintUploadTarget('Synthetic uncompleted upload fixture.');
+    // The client PUT straight to the provider and then walked away, so no generation was ever bound.
+    objects.set(intent.key, { size: CONTENT_LENGTH, contentType: 'audio/wav', version: GENERATION });
+    await t.db.prepare('UPDATE audio_objects SET upload_expires_at=? WHERE id=? AND org_id=?')
+      .bind(new Date(Date.now() - 120_000).toISOString(), intent.audioObjectId, counselor.orgId).run();
+
+    const schedulerStore = audioStoreFor(`Bearer ${SCHEDULER_SECRET}`);
+    await expect(runAudioExpiry(env, schedulerStore, new Date().toISOString()))
+      .resolves.toMatchObject({ scanned: 1, deleted: 1 });
+    expect(objects.size).toBe(0);
+    await expectAbandonedTerminal(intent.audioObjectId);
   });
 });
