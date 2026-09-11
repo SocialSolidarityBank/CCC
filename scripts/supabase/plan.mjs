@@ -120,6 +120,7 @@ const blockerDetails = Object.freeze({
 });
 
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
+const LEGACY_CLEANLINESS_GRANT_KINDS = new Set(['schema', 'relation', 'column', 'default', 'role']);
 const INSTALL_PHASES = new Set(['planned', 'installing', 'installed', 'rollback_failed']);
 const INSTALL_STEPS = new Set([
   'baseline', 'platform_migration', 'auth_config', 'storage_bucket', 'cron_job',
@@ -163,6 +164,7 @@ function inventoryKey(record, grant = false) {
     ? [
         record.kind, record.schema, record.objectIdentity, record.grantor,
         record.grantee, record.privilege, record.grantable,
+        record.inheritOption, record.setOption,
       ]
     : [record.kind, record.schema, record.identity]);
 }
@@ -177,41 +179,77 @@ function withoutProvedRecords(observed, proved, grant = false) {
 
 async function reconciledProviderInventory(snapshot) {
   const raw = snapshot.providerInventory;
+  const completeObjectCount = snapshot.state?.providerObjectCount;
+  const completeGrantCount = snapshot.state?.providerGrantCount;
   if (!Array.isArray(raw?.objects) || !Array.isArray(raw?.grants)
-    || !Array.isArray(raw.installationObjects) || !Array.isArray(raw.installationGrants)) return raw;
-  const removedObjects = raw.objects.length - snapshot.state.unownedObjectCount;
-  const removedGrants = raw.grants.length - snapshot.state.unexpectedGrantCount;
-  if (removedObjects < 0 || removedGrants < 0
-    || (removedObjects === 0 && removedGrants === 0)
-    || raw.installationObjects.length !== removedObjects
-    || raw.installationGrants.length !== removedGrants) return raw;
+    || !Number.isSafeInteger(completeObjectCount) || completeObjectCount < 0
+    || !Number.isSafeInteger(completeGrantCount) || completeGrantCount < 0
+    || raw.objects.length !== completeObjectCount || raw.grants.length !== completeGrantCount) {
+    return { inventory: raw, objectCount: null, grantCount: null };
+  }
+  const installationObjects = raw.installationObjects ?? [];
+  const installationGrants = raw.installationGrants ?? [];
+  if (!Array.isArray(installationObjects) || !Array.isArray(installationGrants)
+    || installationObjects.length > completeObjectCount
+    || installationGrants.length > completeGrantCount) {
+    return { inventory: raw, objectCount: null, grantCount: null };
+  }
+  if (installationObjects.length === 0 && installationGrants.length === 0) {
+    return { inventory: raw, objectCount: completeObjectCount, grantCount: completeGrantCount };
+  }
   const journal = snapshot.installState?.journal;
   if (!SHA256_HEX.test(snapshot.databaseFingerprint)
-    || journal?.databaseFingerprint !== snapshot.databaseFingerprint) return raw;
-  const objects = withoutProvedRecords(raw.objects, raw.installationObjects);
-  const grants = withoutProvedRecords(raw.grants, raw.installationGrants, true);
+    || journal?.databaseFingerprint !== snapshot.databaseFingerprint) {
+    return { inventory: raw, objectCount: completeObjectCount, grantCount: completeGrantCount };
+  }
+  const objects = withoutProvedRecords(raw.objects, installationObjects);
+  const grants = withoutProvedRecords(raw.grants, installationGrants, true);
+  const objectCount = completeObjectCount - installationObjects.length;
+  const grantCount = completeGrantCount - installationGrants.length;
+  if (objects.length !== objectCount || grants.length !== grantCount) {
+    return { inventory: raw, objectCount: null, grantCount: null };
+  }
   return {
-    objects,
-    grants,
-    objectInventorySha256: await hashCanonical(objects),
-    grantInventorySha256: await hashCanonical(grants),
+    inventory: {
+      objects,
+      grants,
+      objectInventorySha256: await hashCanonical(objects),
+      grantInventorySha256: await hashCanonical(grants),
+    },
+    objectCount,
+    grantCount,
   };
 }
 
+function providerCleanlinessMatches(state, inventory) {
+  if (!Array.isArray(inventory?.objects) || !Array.isArray(inventory?.grants)) return false;
+  const unownedObjects = inventory.objects.filter(record => (
+    record.provenance === 'supabase_managed'
+      && !(record.kind === 'schema' && record.schema === 'public')
+  ));
+  const customSchemas = unownedObjects.filter(record => record.kind === 'schema');
+  const unexpectedGrants = inventory.grants.filter(record => (
+    LEGACY_CLEANLINESS_GRANT_KINDS.has(record.kind)
+      && record.provenance === 'supabase_managed'
+      && record.grantee !== `ROLE:${record.grantor}`
+  ));
+  return state?.unownedObjectCount === unownedObjects.length
+    && state.unknownObjectCount === unownedObjects.length
+    && state.customSchemaCount === customSchemas.length
+    && state.unexpectedGrantCount === unexpectedGrants.length;
+}
+
 async function providerBaselineComparison(snapshot, providerBaseline) {
-  const inventory = await reconciledProviderInventory(snapshot);
-  const comparison = compareProviderInventory(providerBaseline, inventory);
-  const expectedSchemaCount = providerBaseline.objects
-    .filter(({ kind }) => kind === 'schema').length;
+  const reconciled = await reconciledProviderInventory(snapshot);
+  const comparison = compareProviderInventory(providerBaseline, reconciled.inventory);
   return {
     ...comparison,
-    inventory,
+    inventory: reconciled.inventory,
+    cleanlinessMatched: providerCleanlinessMatches(snapshot.state, reconciled.inventory),
     matched: comparison.matched
       && snapshot.project.databaseVersion === providerBaseline.databaseVersion
-      && snapshot.state.unownedObjectCount === comparison.expectedObjectCount
-      && snapshot.state.unknownObjectCount === comparison.expectedObjectCount
-      && snapshot.state.customSchemaCount === expectedSchemaCount
-      && snapshot.state.unexpectedGrantCount === comparison.expectedGrantCount,
+      && reconciled.objectCount === comparison.expectedObjectCount
+      && reconciled.grantCount === comparison.expectedGrantCount,
   };
 }
 
@@ -312,7 +350,7 @@ export async function installationStateFingerprint(snapshot, providerBaseline, p
   };
   if (providerBaseline === undefined) return hashCanonical(state);
   const inventory = providerInventory
-    ?? await reconciledProviderInventory(snapshot);
+    ?? (await reconciledProviderInventory(snapshot)).inventory;
   return hashCanonical({
     ...state,
     providerBaselineVersion: providerBaseline.baselineVersion,
@@ -508,6 +546,9 @@ export async function buildSupabasePlan({
   const providerMatched = target === 'hosted'
     ? beforeProvider.matched && afterProvider.matched
     : undefined;
+  const providerCleanlinessMatched = target === 'hosted'
+    ? providerMatched && beforeProvider.cleanlinessMatched && afterProvider.cleanlinessMatched
+    : undefined;
   const resourcesSha256 = target === 'local'
     ? await hashCanonical(expectedSupabaseResources)
     : await hashCanonical({
@@ -536,7 +577,7 @@ export async function buildSupabasePlan({
   if (!state) {
     if ([before, after].some(snapshot => snapshot.state.legacyLedgerPresent
       || snapshot.installed.ledger === 'present')) deny('RESOURCE_OWNERSHIP_MISMATCH');
-    else if ([before, after].some(snapshot => hasUnownedProjectState(snapshot, providerMatched))) deny('EXISTING_PROJECT_NOT_CLEAN');
+    else if ([before, after].some(snapshot => hasUnownedProjectState(snapshot, providerCleanlinessMatched))) deny('EXISTING_PROJECT_NOT_CLEAN');
   } else {
     try {
       const changedPair = state.journal.runtimeManifestSha256 !== authorization.runtimeManifestSha256
@@ -564,7 +605,7 @@ export async function buildSupabasePlan({
           snapshot,
           state,
           authorization.installationId,
-          providerMatched,
+          providerCleanlinessMatched,
         ))) {
         deny('RESOURCE_OWNERSHIP_MISMATCH');
       }
@@ -673,7 +714,7 @@ export async function buildSupabaseDoctor(options) {
       snapshot,
       state,
       options.authorization?.installationId,
-      providerComparison?.matched,
+      providerComparison?.matched && providerComparison.cleanlinessMatched,
     )) {
       addIssue('RESOURCE_OWNERSHIP_MISMATCH');
     }

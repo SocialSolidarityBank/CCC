@@ -670,6 +670,8 @@ export function normalizeDatabaseSnapshot({ database, migration, auth, authFinge
       customSchemaCount: number(database.custom_schema_count),
       unownedObjectCount: number(database.unowned_object_count),
       unexpectedGrantCount: number(database.unexpected_grant_count),
+      providerObjectCount: number(database.provider_object_count),
+      providerGrantCount: number(database.provider_grant_count),
       auxiliaryRelationCount: number(database.user_auxiliary_relation_count),
       privateTableNames: database.private_table_names ?? [],
       privateSchemaExists: boolean(database.private_schema_exists),
