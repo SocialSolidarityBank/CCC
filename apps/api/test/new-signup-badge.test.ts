@@ -104,6 +104,8 @@ describe('new signup badge derivation (CCC-26)', () => {
     expect(newSignups.has(created.beneficiaryId)).toBe(true);
     expect(await countNewSignups(t.env, admin)).toBe(1);
   });
+  // 100명 시드는 매 건 PII 암호화와 동의 기록까지 실제로 수행해 느린 러너에서 60초 기본값을 넘는다.
+  // 검증 대상은 목록이 D1 바인딩 상한을 넘지 않고 100건을 돌려주는 것이므로 시간만 늘린다.
   it('당사자 100명도 D1 바인딩 상한을 넘지 않고 목록에 보인다', async () => {
     await t.reset();
     for (let index = 0; index < 100; index += 1) {
@@ -113,6 +115,6 @@ describe('new signup badge derivation (CCC-26)', () => {
     }
 
     await expect(listAssignedParticipants(t.env, counselor)).resolves.toHaveLength(100);
-  });
+  }, 300_000);
 
 });
