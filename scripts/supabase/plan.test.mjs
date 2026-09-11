@@ -331,6 +331,52 @@ test('provider baseline rejects extra or missing exact records', async () => {
     assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
   }
 });
+
+test('provider baseline cannot hide an unproved extra behind an overlapping installation candidate', async () => {
+  const baselineInventory = providerFixture({ objectCount: 1, grantCount: 0 });
+  baselineInventory.objects[0] = {
+    ...baselineInventory.objects[0],
+    schema: 'public',
+    identity: 'overlapping-baseline-catalog-record',
+  };
+  Object.assign(baselineInventory, providerInventoryFingerprint(baselineInventory));
+  const extra = {
+    ...baselineInventory.objects[0],
+    schema: 'auth',
+    identity: 'unproved-provider-looking-record-must-not-escape',
+  };
+  const raw = {
+    objects: [baselineInventory.objects[0], extra],
+    grants: [],
+    installationObjects: [baselineInventory.objects[0]],
+    installationGrants: [],
+  };
+  Object.assign(raw, providerInventoryFingerprint(raw));
+  const observed = snapshotWithProviderInventory(raw, {
+    databaseFingerprint: 'd'.repeat(64),
+    state: {
+      unownedObjectCount: 1,
+      unknownObjectCount: 1,
+      customSchemaCount: 0,
+      unexpectedGrantCount: 0,
+    },
+    installState: {
+      journal: { databaseFingerprint: 'd'.repeat(64) },
+      migrations: [],
+      resources: [],
+    },
+  });
+  const result = await buildPlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    providerBaseline: verifiedProviderFixture(baselineInventory),
+    inspector: inspector(observed, observed),
+  });
+  assert.equal(result.providerBaseline.matched, false);
+  assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
+  assert.doesNotMatch(JSON.stringify(result), /unproved-provider-looking-record/u);
+});
+
 test('provider baseline expiry between observations stops before further access', async () => {
   const baseline = verifiedProviderFixture();
   let calls = 0;

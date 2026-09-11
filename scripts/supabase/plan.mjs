@@ -167,26 +167,29 @@ function inventoryKey(record, grant = false) {
     : [record.kind, record.schema, record.identity]);
 }
 
-function exactBaselineRecords(expected, observed, grant = false) {
-  const indexed = new Map(observed.map(record => [inventoryKey(record, grant), record]));
-  return expected.flatMap(record => {
+function withoutProvedRecords(observed, proved, grant = false) {
+  const indexed = new Map(proved.map(record => [inventoryKey(record, grant), record]));
+  return observed.filter(record => {
     const candidate = indexed.get(inventoryKey(record, grant));
-    return candidate !== undefined && isDeepStrictEqual(candidate, record) ? [candidate] : [];
+    return candidate === undefined || !isDeepStrictEqual(candidate, record);
   });
 }
 
-async function reconciledProviderInventory(snapshot, providerBaseline) {
+async function reconciledProviderInventory(snapshot) {
   const raw = snapshot.providerInventory;
-  if (!Array.isArray(raw?.objects) || !Array.isArray(raw?.grants)) return raw;
+  if (!Array.isArray(raw?.objects) || !Array.isArray(raw?.grants)
+    || !Array.isArray(raw.installationObjects) || !Array.isArray(raw.installationGrants)) return raw;
   const removedObjects = raw.objects.length - snapshot.state.unownedObjectCount;
   const removedGrants = raw.grants.length - snapshot.state.unexpectedGrantCount;
   if (removedObjects < 0 || removedGrants < 0
-    || (removedObjects === 0 && removedGrants === 0)) return raw;
+    || (removedObjects === 0 && removedGrants === 0)
+    || raw.installationObjects.length !== removedObjects
+    || raw.installationGrants.length !== removedGrants) return raw;
   const journal = snapshot.installState?.journal;
   if (!SHA256_HEX.test(snapshot.databaseFingerprint)
     || journal?.databaseFingerprint !== snapshot.databaseFingerprint) return raw;
-  const objects = exactBaselineRecords(providerBaseline.objects, raw.objects);
-  const grants = exactBaselineRecords(providerBaseline.grants, raw.grants, true);
+  const objects = withoutProvedRecords(raw.objects, raw.installationObjects);
+  const grants = withoutProvedRecords(raw.grants, raw.installationGrants, true);
   return {
     objects,
     grants,
@@ -196,7 +199,7 @@ async function reconciledProviderInventory(snapshot, providerBaseline) {
 }
 
 async function providerBaselineComparison(snapshot, providerBaseline) {
-  const inventory = await reconciledProviderInventory(snapshot, providerBaseline);
+  const inventory = await reconciledProviderInventory(snapshot);
   const comparison = compareProviderInventory(providerBaseline, inventory);
   const expectedSchemaCount = providerBaseline.objects
     .filter(({ kind }) => kind === 'schema').length;
@@ -309,7 +312,7 @@ export async function installationStateFingerprint(snapshot, providerBaseline, p
   };
   if (providerBaseline === undefined) return hashCanonical(state);
   const inventory = providerInventory
-    ?? await reconciledProviderInventory(snapshot, providerBaseline);
+    ?? await reconciledProviderInventory(snapshot);
   return hashCanonical({
     ...state,
     providerBaselineVersion: providerBaseline.baselineVersion,

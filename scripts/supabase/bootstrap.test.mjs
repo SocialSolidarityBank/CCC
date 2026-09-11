@@ -503,6 +503,8 @@ test('real inspector reconciles journal-proven installation records before resum
   const rawInventory = {
     objects: [providerObject, installationObject],
     grants: [],
+    installation_objects: [installationObject],
+    installation_grants: [],
   };
   const authorization = observationAuthorization();
   const databaseFingerprint = hashDatabaseInstallFingerprint([{
@@ -547,6 +549,7 @@ test('real inspector reconciles journal-proven installation records before resum
   }, async ({ origin }) => {
     const baseline = verifiedProviderBaseline(baselineInventory);
     const first = await hostedInspector(origin).inspect();
+    assert.equal(first.providerInventory.installationObjects.length, 1);
     assert.equal(first.state.unownedObjectCount, 1);
     assert.equal(first.providerInventory.objects.length, 2);
 

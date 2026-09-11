@@ -199,7 +199,9 @@ WITH
       pg_catalog.format('%I', namespace.nspname) AS object_identity,
       pg_catalog.pg_get_userbyid(namespace.nspowner) AS owner_name,
       pg_catalog.jsonb_build_object('name', namespace.nspname)::text AS definition_text,
-      'supabase_managed'::text AS provenance
+      'supabase_managed'::text AS provenance,
+      ((SELECT present FROM installation_evidence)
+        AND namespace.nspname = 'private') AS installation_candidate
     FROM unowned_object AS inventory
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.object_oid
     WHERE inventory.object_kind = 'schema'
@@ -286,7 +288,15 @@ WITH
           WHERE foreign_table.ftrelid = relation.oid
         ) ELSE NULL END
       )::text,
-      'supabase_managed'
+      'supabase_managed',
+      ((SELECT present FROM installation_evidence) AND (
+        (namespace.nspname = 'public' AND relation.relowner IN (
+          CURRENT_USER::regrole::oid,
+          (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_schema_owner')
+        ))
+        OR (namespace.nspname = 'private' AND relation.relkind IN ('r', 'p')
+          AND relation.relname IN (${INSTALL_METADATA_TABLES.map(name => `'${name}'`).join(', ')}))
+      ))
     FROM unowned_object AS inventory
     JOIN pg_catalog.pg_class AS relation ON relation.oid = inventory.object_oid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
@@ -339,7 +349,17 @@ WITH
         FROM pg_catalog.pg_aggregate AS aggregate_value
         WHERE aggregate_value.aggfnoid = procedure.oid
       ) ELSE pg_catalog.pg_get_functiondef(procedure.oid) END,
-      'supabase_managed'
+      'supabase_managed',
+      ((SELECT present FROM installation_evidence) AND (
+        (namespace.nspname = 'public' AND procedure.proowner IN (
+          CURRENT_USER::regrole::oid,
+          (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_schema_owner')
+        ))
+        OR (namespace.nspname = 'private'
+          AND procedure.proname = 'ccc_install_append_only'
+          AND pg_catalog.pg_get_function_identity_arguments(procedure.oid) = ''
+          AND procedure.prorettype = 'pg_catalog.trigger'::regtype)
+      ))
     FROM unowned_object AS inventory
     JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = inventory.object_oid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
@@ -385,7 +405,13 @@ WITH
           ) FROM pg_catalog.pg_range AS range_value WHERE range_value.rngtypid = type_value.oid
         )
       )::text,
-      'supabase_managed'
+      'supabase_managed',
+      ((SELECT present FROM installation_evidence)
+        AND namespace.nspname = 'public'
+        AND type_value.typowner IN (
+          CURRENT_USER::regrole::oid,
+          (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_schema_owner')
+        ))
     FROM unowned_object AS inventory
     JOIN pg_catalog.pg_type AS type_value ON type_value.oid = inventory.object_oid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
@@ -632,7 +658,9 @@ WITH
           )::text FROM pg_catalog.pg_ts_template AS value WHERE value.oid = inventory.object_oid)
         ELSE NULL
       END,
-      'supabase_managed'
+      'supabase_managed',
+      ((SELECT present FROM installation_evidence)
+        AND namespace.nspname IN ('public', 'private'))
     FROM unowned_object AS inventory
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = inventory.namespace_oid
     CROSS JOIN LATERAL pg_catalog.pg_identify_object(inventory.class_oid, inventory.object_oid, 0) AS identified
@@ -675,7 +703,41 @@ WITH
         ELSE pg_catalog.pg_get_userbyid(grant_record.grantee) END AS grantee_name,
       grant_record.privilege_type AS privilege,
       grant_record.is_grantable,
-      'supabase_managed'::text AS provenance
+      'supabase_managed'::text AS provenance,
+      ((SELECT present FROM installation_evidence) AND (
+        (grant_record.grant_kind = 'schema'
+          AND grant_record.schema_name = 'public'
+          AND (
+            (grant_record.grantee = (
+              SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_schema_owner'
+            ) AND grant_record.privilege_type IN ('USAGE', 'CREATE'))
+            OR (grant_record.grantee = (
+              SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_api'
+            ) AND grant_record.privilege_type = 'USAGE')
+          ))
+        OR (grant_record.grant_kind = 'relation'
+          AND grant_record.schema_name = 'public'
+          AND EXISTS (
+            SELECT 1
+            FROM pg_catalog.pg_class AS relation
+            WHERE relation.oid = grant_record.object_oid
+              AND relation.relkind IN ('r', 'p')
+          )
+          AND grant_record.owner_oid IN (
+            CURRENT_USER::regrole::oid,
+            (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_schema_owner')
+          )
+          AND grant_record.grantee = (
+            SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_api'
+          )
+          AND grant_record.privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE'))
+        OR (grant_record.grant_kind = 'role'
+          AND grant_record.object_oid = (
+            SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'ccc_schema_owner'
+          )
+          AND grant_record.grantee = CURRENT_USER::regrole::oid
+          AND NOT grant_record.is_grantable)
+      )) AS installation_candidate
     FROM unexpected_grant AS grant_record
   )
 SELECT
@@ -690,7 +752,20 @@ SELECT
     'grantee_name', grantee_name, 'privilege', privilege,
     'is_grantable', is_grantable, 'provenance', provenance
   ) ORDER BY grant_kind, namespace_name, object_identity, grantor_name, grantee_name, privilege, is_grantable)
-  FROM provider_grant_inventory), '[]'::jsonb) AS grants
+  FROM provider_grant_inventory), '[]'::jsonb) AS grants,
+  COALESCE((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+    'object_kind', object_kind, 'namespace_name', namespace_name,
+    'object_identity', object_identity, 'owner_name', owner_name,
+    'definition_text', definition_text, 'provenance', provenance
+  ) ORDER BY object_kind, namespace_name, object_identity)
+  FROM provider_object_inventory WHERE installation_candidate), '[]'::jsonb) AS installation_objects,
+  COALESCE((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+    'grant_kind', grant_kind, 'namespace_name', namespace_name,
+    'object_identity', object_identity, 'grantor_name', grantor_name,
+    'grantee_name', grantee_name, 'privilege', privilege,
+    'is_grantable', is_grantable, 'provenance', provenance
+  ) ORDER BY grant_kind, namespace_name, object_identity, grantor_name, grantee_name, privilege, is_grantable)
+  FROM provider_grant_inventory WHERE installation_candidate), '[]'::jsonb) AS installation_grants
 ) AS provider_inventory`;
 
 function fail() {
@@ -768,6 +843,11 @@ function sortUnique(records, identity) {
   return Object.freeze(keyed.map(({ record }) => record));
 }
 
+function exactSubset(records, inventory) {
+  const observed = new Set(inventory.map(record => canonicalizeJcs(record)));
+  return records.every(record => observed.has(canonicalizeJcs(record)));
+}
+
 export function providerInventoryFingerprint(inventory) {
   if (!Array.isArray(inventory?.objects) || !Array.isArray(inventory?.grants)) fail();
   return Object.freeze({
@@ -777,9 +857,13 @@ export function providerInventoryFingerprint(inventory) {
 }
 
 export function normalizeProviderInventory(row) {
+  const rawInstallationObjects = row?.installation_objects ?? [];
+  const rawInstallationGrants = row?.installation_grants ?? [];
   if (typeof row !== 'object' || row === null || Array.isArray(row)
     || !Array.isArray(row.objects) || row.objects.length > MAX_OBJECTS
-    || !Array.isArray(row.grants) || row.grants.length > MAX_GRANTS) fail();
+    || !Array.isArray(row.grants) || row.grants.length > MAX_GRANTS
+    || !Array.isArray(rawInstallationObjects) || rawInstallationObjects.length > MAX_OBJECTS
+    || !Array.isArray(rawInstallationGrants) || rawInstallationGrants.length > MAX_GRANTS) fail();
   const objects = sortUnique(row.objects.map(normalizeObject), record => (
     canonicalizeJcs([record.kind, record.schema, record.identity])
   ));
@@ -787,5 +871,24 @@ export function normalizeProviderInventory(row) {
     record.kind, record.schema, record.objectIdentity, record.grantor,
     record.grantee, record.privilege, record.grantable,
   ]));
-  return Object.freeze({ objects, grants, ...providerInventoryFingerprint({ objects, grants }) });
+  const installationObjects = sortUnique(
+    rawInstallationObjects.map(normalizeObject),
+    record => canonicalizeJcs([record.kind, record.schema, record.identity]),
+  );
+  const installationGrants = sortUnique(
+    rawInstallationGrants.map(normalizeGrant),
+    record => canonicalizeJcs([
+      record.kind, record.schema, record.objectIdentity, record.grantor,
+      record.grantee, record.privilege, record.grantable,
+    ]),
+  );
+  if (!exactSubset(installationObjects, objects)
+    || !exactSubset(installationGrants, grants)) fail();
+  return Object.freeze({
+    objects,
+    grants,
+    installationObjects,
+    installationGrants,
+    ...providerInventoryFingerprint({ objects, grants }),
+  });
 }

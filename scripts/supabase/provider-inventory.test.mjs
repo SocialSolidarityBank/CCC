@@ -138,6 +138,28 @@ test('normalizes exact provider records without persisting volatile fields or de
     && Object.isFrozen(inventory.grants[0]));
 });
 
+test('normalizes only individually identified installation records as an exact inventory subset', () => {
+  const rows = rawProviderRows();
+  rows.installation_objects = [rows.objects[0]];
+  rows.installation_grants = [rows.grants[0]];
+  const inventory = normalizeProviderInventory(rows);
+  assert.deepEqual(inventory.installationObjects, [inventory.objects.at(-1)]);
+  assert.deepEqual(inventory.installationGrants, [inventory.grants.at(-1)]);
+  assert.ok(Object.isFrozen(inventory.installationObjects));
+  assert.ok(Object.isFrozen(inventory.installationGrants));
+  assert.equal(JSON.stringify(inventory.installationObjects).includes('object_oid'), false);
+
+  assert.throws(
+    () => normalizeProviderInventory({
+      ...rows,
+      installation_objects: [objectRow({ object_identity: 'unobserved' })],
+    }),
+    error => error?.code === 'PROVIDER_UNREADABLE',
+  );
+  assert.match(PROVIDER_INVENTORY_QUERY, /AS installation_objects/u);
+  assert.match(PROVIDER_INVENTORY_QUERY, /AS installation_grants/u);
+});
+
 test('sorts by UTF-8 canonical JSON and rejects duplicate stable identities', () => {
   const inventory = normalizeProviderInventory({
     objects: [
