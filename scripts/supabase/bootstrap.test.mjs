@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
@@ -7,6 +8,8 @@ import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { createHostedInspector } from './hosted-inspector.mjs';
 import { buildSupabasePlan } from './plan.mjs';
+import { BETA_TRUST_DOMAIN, PROVIDER_BASELINE_DOMAIN } from './provider-baseline.mjs';
+import { providerInventoryFingerprint } from './provider-inventory.mjs';
 import { observationAuthorization } from './fixtures/authorization.mjs';
 import { canonicalizeJcs, sha256Jcs } from '../../apps/community-cloud/dist/install-manifest-verifier.js';
 
@@ -14,6 +17,29 @@ const repoRoot = resolve(import.meta.dirname, '../..');
 const cliPath = resolve(import.meta.dirname, 'bootstrap.mjs');
 const fetchShim = pathToFileURL(resolve(import.meta.dirname, 'bootstrap-fetch-shim.test.mjs')).href;
 const accessToken = 'sbp_black_box_secret_1234567890';
+
+const emptyProviderInventory = {
+  objects: [],
+  grants: [],
+  ...providerInventoryFingerprint({ objects: [], grants: [] }),
+};
+
+function verifiedEmptyProviderBaseline() {
+  return {
+    baselineVersion: 'supabase-hosted-pg17-20260911-v1',
+    projectRefSha256: observationAuthorization().projectRefHash,
+    ownerOrgIdSha256: observationAuthorization().expectedOwnerOrgIdHash,
+    region: 'ap-northeast-2',
+    databaseVersion: '17.4',
+    objects: [],
+    grants: [],
+    objectInventorySha256: emptyProviderInventory.objectInventorySha256,
+    grantInventorySha256: emptyProviderInventory.grantInventorySha256,
+    baselineSha256: 'b'.repeat(64),
+    releaseTrustSha256: 'c'.repeat(64),
+    expiresAt: observationAuthorization().expiresAt,
+  };
+}
 
 function databaseSnapshot(overrides = {}) {
   return {
@@ -179,6 +205,10 @@ async function runCli(origin, { token = accessToken, leadingSeparator = false, m
   delete childEnv.CCC_INSTALL_APPROVAL;
   delete childEnv.CCC_INSTALL_REVOKED_KEY_IDS;
   delete childEnv.CCC_ORGANIZATION_ID;
+  delete childEnv.CCC_BETA_TRUST_ROOT_KEYS;
+  delete childEnv.CCC_BETA_REVOKED_ROOT_KEY_IDS;
+  delete childEnv.CCC_BETA_RELEASE_TRUST;
+  delete childEnv.CCC_PROVIDER_BASELINE;
   if (signedInput !== undefined) Object.assign(childEnv, signedInput);
   if (managementOrigin !== undefined) childEnv.CCC_SUPABASE_MANAGEMENT_ORIGIN = managementOrigin;
   const child = spawn(process.execPath, args, {
@@ -221,7 +251,10 @@ function hostedInspector(origin, token = accessToken) {
 async function inspectPlan(origin, token = accessToken) {
   const authorization = observationAuthorization();
   return buildSupabasePlan({
-    target: 'hosted', inspector: hostedInspector(origin, token), authorization,
+    target: 'hosted',
+    inspector: hostedInspector(origin, token),
+    authorization,
+    providerBaseline: verifiedEmptyProviderBaseline(),
   });
 }
 
@@ -239,19 +272,34 @@ test('owner-aware hosted observation uses only read endpoints and produces a red
   });
 });
 
-async function signedCliInputs(expectedOwnerOrgId = 'test-organization') {
-  const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  const publicKey = Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64');
-  const sign = async value => ({
+async function signedCliInputs(expectedOwnerOrgId = 'test-organization', {
+  expiredTrust = false,
+  expiredBaseline = false,
+} = {}) {
+  const install = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  const root = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  const release = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  const publicKey = async pair =>
+    Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64');
+  const sign = async (value, pair = install, domain = '') => ({
     ...value,
-    ed25519Signature: Buffer.from(await crypto.subtle.sign('Ed25519', pair.privateKey, new TextEncoder().encode(canonicalizeJcs(value)))).toString('base64'),
+    ed25519Signature: Buffer.from(await crypto.subtle.sign(
+      'Ed25519',
+      pair.privateKey,
+      Buffer.concat([
+        Buffer.from(domain, 'ascii'),
+        Buffer.from(canonicalizeJcs(value), 'utf8'),
+      ]),
+    )).toString('base64'),
   });
+  const now = Date.now();
+  const manifestExpiresAt = new Date(now + 600_000).toISOString();
   const manifest = await sign({
     schemaVersion: 1, mode: 'community-cloud', apiBase: 'https://api.example.invalid/api',
     clientOrigin: 'https://client.example.invalid', allowedOrigins: ['https://client.example.invalid'],
     host: 'client.example.invalid', scheme: 'https', endpointDiscovery: 'static',
     installationId: 'synthetic-installation', sequence: 1,
-    publishedAt: new Date(Date.now() - 60_000).toISOString(), expiresAt: new Date(Date.now() + 600_000).toISOString(),
+    publishedAt: new Date(now - 60_000).toISOString(), expiresAt: manifestExpiresAt,
     approvedSttEngineIds: [], supabaseProjectRef: 'test-project', supabaseAuthOrigin: 'https://test-project.supabase.co',
     supabasePublishableKey: 'sb_publishable_synthetic', signingKeyId: 'synthetic-key',
   });
@@ -260,11 +308,63 @@ async function signedCliInputs(expectedOwnerOrgId = 'test-organization') {
     installationId: manifest.installationId, runtimeManifestSha256: await sha256Jcs(manifest),
     contractVersion: 'S11-install-approval-v1', expiresAt: manifest.expiresAt, signingKeyId: 'synthetic-key',
   });
+  const projectRefSha256 = createHash('sha256').update('test-project').digest('hex');
+  const ownerOrgIdSha256 = createHash('sha256').update(expectedOwnerOrgId).digest('hex');
+  const trustExpiresAt = new Date(expiredTrust ? now - 1_000 : now + 300_000).toISOString();
+  const releaseTrust = await sign({
+    schemaVersion: 1,
+    profile: 'development',
+    channel: 'beta',
+    provider: 'supabase',
+    projectRefSha256,
+    ownerOrgIdSha256,
+    region: 'ap-northeast-2',
+    rootKeyId: 'synthetic-beta-root',
+    releaseKeyId: 'synthetic-beta-release',
+    releasePublicKey: await publicKey(release),
+    notBefore: new Date(expiredTrust ? now - 120_000 : now - 60_000).toISOString(),
+    expiresAt: trustExpiresAt,
+  }, root, BETA_TRUST_DOMAIN);
+  const baselineExpiresAt = new Date(
+    expiredBaseline ? now - 1_000 : Math.min(Date.parse(trustExpiresAt), now + 240_000),
+  ).toISOString();
+  const providerBaseline = await sign({
+    schemaVersion: 1,
+    profile: 'development',
+    channel: 'beta',
+    provider: 'supabase',
+    baselineVersion: 'supabase-hosted-pg17-20260911-v1',
+    projectRefSha256,
+    ownerOrgIdSha256,
+    region: 'ap-northeast-2',
+    databaseVersion: '17.4',
+    sourceRevision: 'a'.repeat(40),
+    sourceEvidenceSha256: 'd'.repeat(64),
+    emptyBusinessState: {
+      userTableCount: 0,
+      userRowEstimate: 0,
+      authUserCount: 0,
+      bucketCount: 0,
+      storageObjectCount: 0,
+    },
+    objects: [],
+    grants: [],
+    objectInventorySha256: await sha256Jcs([]),
+    grantInventorySha256: await sha256Jcs([]),
+    issuedAt: new Date(expiredBaseline ? now - 120_000 : now - 60_000).toISOString(),
+    expiresAt: baselineExpiresAt,
+    signingKeyId: 'synthetic-beta-release',
+  }, release, PROVIDER_BASELINE_DOMAIN);
   return {
-    CCC_INSTALL_MANIFEST: JSON.stringify(manifest), CCC_INSTALL_APPROVAL: JSON.stringify(approval),
+    CCC_INSTALL_MANIFEST: JSON.stringify(manifest),
+    CCC_INSTALL_APPROVAL: JSON.stringify(approval),
     CCC_ORGANIZATION_ID: 'synthetic-institution',
-    CCC_INSTALL_SIGNING_KEYS: JSON.stringify({ 'synthetic-key': publicKey }),
+    CCC_INSTALL_SIGNING_KEYS: JSON.stringify({ 'synthetic-key': await publicKey(install) }),
     CCC_INSTALL_REVOKED_KEY_IDS: '[]',
+    CCC_BETA_TRUST_ROOT_KEYS: JSON.stringify({ 'synthetic-beta-root': await publicKey(root) }),
+    CCC_BETA_REVOKED_ROOT_KEY_IDS: '[]',
+    CCC_BETA_RELEASE_TRUST: JSON.stringify(releaseTrust),
+    CCC_PROVIDER_BASELINE: JSON.stringify(providerBaseline),
   };
 }
 
@@ -281,6 +381,62 @@ test('real CLI accepts both signed documents and observes the approved owner rea
     assertNoSensitiveOutput(result, origin);
     assert.equal(result.stdout.includes('test-organization'), false);
     assert.equal(result.stdout.includes('synthetic-institution'), false);
+  });
+});
+
+test('beta trust and provider baseline fail before token use or provider access', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const invalidTrust = await signedCliInputs();
+    invalidTrust.CCC_BETA_RELEASE_TRUST = '{invalid';
+    const invalidBaseline = await signedCliInputs();
+    const baseline = JSON.parse(invalidBaseline.CCC_PROVIDER_BASELINE);
+    baseline.ed25519Signature = `${baseline.ed25519Signature[0] === 'A' ? 'B' : 'A'}${baseline.ed25519Signature.slice(1)}`;
+    invalidBaseline.CCC_PROVIDER_BASELINE = JSON.stringify(baseline);
+    for (const [signedInput, code] of [
+      [{ ...invalidTrust, SUPABASE_ACCESS_TOKEN: '' }, 'BETA_TRUST_INVALID'],
+      [{ ...invalidBaseline, SUPABASE_ACCESS_TOKEN: '' }, 'PROVIDER_BASELINE_INVALID'],
+      [await signedCliInputs('test-organization', { expiredTrust: true }), 'BETA_TRUST_INVALID'],
+      [await signedCliInputs('test-organization', { expiredBaseline: true }), 'PROVIDER_BASELINE_INVALID'],
+    ]) {
+      const result = await runCli(origin, { token: '', signedInput });
+      assert.equal(result.exitCode, 6);
+      const error = JSON.parse(result.stderr).error;
+      assert.equal(error.code, code);
+      assert.match(error.message, /[가-힣]/u);
+      assert.doesNotMatch(error.message, /—/u);
+      assertNoSensitiveOutput(result, origin);
+    }
+    assert.equal(requests.length, 0);
+  });
+});
+
+test('provider baseline mismatch is redacted and uses the fixed recovery code', async () => {
+  const objectName = 'provider-object-name-must-not-escape';
+  await withManagementApi({
+    database: databaseSnapshot({
+      unknown_object_count: 1,
+      unowned_object_count: 1,
+    }),
+    providerInventory: providerInventorySnapshot({
+      objects: [{
+        object_kind: 'catalog',
+        namespace_name: 'auth',
+        object_identity: objectName,
+        owner_name: 'supabase_admin',
+        definition_text: '{"provider":"changed"}',
+        provenance: 'supabase_managed',
+      }],
+    }),
+  }, async ({ origin }) => {
+    const signedInput = await signedCliInputs();
+    const signature = JSON.parse(signedInput.CCC_PROVIDER_BASELINE).ed25519Signature;
+    const result = await runCli(origin, { signedInput });
+    assert.equal(result.exitCode, 6, result.stderr);
+    const output = JSON.parse(result.stdout);
+    assert.ok(output.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'));
+    assert.equal(output.providerBaseline.matched, false);
+    assert.doesNotMatch(JSON.stringify(output), new RegExp(`${objectName}|${signature}`, 'u'));
+    assertNoSensitiveOutput(result, origin);
   });
 });
 

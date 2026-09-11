@@ -3,14 +3,79 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { observationAuthorization } from './fixtures/authorization.mjs';
 import { fingerprint } from './hosted-inspector.mjs';
+import { providerInventoryFingerprint } from './provider-inventory.mjs';
 
 import {
   PlanFailure,
-  buildSupabasePlan,
-  buildSupabaseDoctor,
-  installationStateFingerprint,
+  buildSupabasePlan as buildPlan,
+  buildSupabaseDoctor as buildDoctor,
+  installationStateFingerprint as stateFingerprint,
   expectedSupabaseResources,
 } from './plan.mjs';
+
+function providerFixture({ objectCount = 101, grantCount = 903 } = {}) {
+  const objects = Array.from({ length: objectCount }, (_, index) => ({
+    kind: 'catalog',
+    schema: 'auth',
+    identity: `provider-object-must-not-escape-${String(index).padStart(3, '0')}`,
+    owner: 'supabase_admin',
+    definitionSha256: createHash('sha256').update(`object-${index}`).digest('hex'),
+    provenance: 'supabase_managed',
+  }));
+  const grants = Array.from({ length: grantCount }, (_, index) => ({
+    kind: 'role',
+    schema: '',
+    objectIdentity: `provider-role-must-not-escape-${String(index).padStart(3, '0')}`,
+    grantor: 'supabase_admin',
+    grantee: 'authenticated',
+    privilege: 'MEMBER',
+    grantable: false,
+    provenance: 'supabase_managed',
+  }));
+  return { objects, grants, ...providerInventoryFingerprint({ objects, grants }) };
+}
+
+const providerInventory = providerFixture();
+
+function verifiedProviderFixture(inventory = providerInventory, overrides = {}) {
+  return {
+    baselineVersion: 'supabase-hosted-pg17-20260911-v1',
+    projectRefSha256: observationAuthorization().projectRefHash,
+    ownerOrgIdSha256: observationAuthorization().expectedOwnerOrgIdHash,
+    region: 'ap-northeast-2',
+    databaseVersion: '17.4',
+    objects: inventory.objects,
+    grants: inventory.grants,
+    objectInventorySha256: inventory.objectInventorySha256,
+    grantInventorySha256: inventory.grantInventorySha256,
+    baselineSha256: 'b'.repeat(64),
+    releaseTrustSha256: 'c'.repeat(64),
+    expiresAt: observationAuthorization().expiresAt,
+    ...overrides,
+  };
+}
+
+function buildSupabasePlan(options) {
+  return buildPlan({
+    ...options,
+    ...(options.target === 'hosted' && !Object.hasOwn(options, 'providerBaseline')
+      ? { providerBaseline: verifiedProviderFixture() }
+      : {}),
+  });
+}
+
+function buildSupabaseDoctor(options) {
+  return buildDoctor({
+    ...options,
+    ...(options.target === 'hosted' && !Object.hasOwn(options, 'providerBaseline')
+      ? { providerBaseline: verifiedProviderFixture() }
+      : {}),
+  });
+}
+
+function installationStateFingerprint(snapshot, baseline = verifiedProviderFixture()) {
+  return stateFingerprint(snapshot, baseline);
+}
 
 const stableState = Object.freeze({
   schemaFingerprint: 'schema-empty',
@@ -27,11 +92,11 @@ const stableState = Object.freeze({
   storageObjectCount: 0,
   userRoutineCount: 0,
   userTypeCount: 0,
-  unknownObjectCount: 0,
+  unknownObjectCount: 101,
   customSchemaCount: 0,
   auxiliaryRelationCount: 0,
-  unownedObjectCount: 0,
-  unexpectedGrantCount: 0,
+  unownedObjectCount: 101,
+  unexpectedGrantCount: 903,
   privateTableNames: [],
   privateSchemaExists: false,
   legacyLedgerPresent: false,
@@ -66,6 +131,7 @@ function snapshot(overrides = {}) {
     },
     state: stableState,
     cronJobCount: 0,
+    providerInventory,
     ...overrides,
   };
 }
@@ -79,6 +145,21 @@ function inspector(...snapshots) {
       return structuredClone(value);
     },
   };
+}
+
+function snapshotWithProviderInventory(inventory, overrides = {}) {
+  return snapshot({
+    ...overrides,
+    state: {
+      ...stableState,
+      unownedObjectCount: inventory.objects.length,
+      unknownObjectCount: inventory.objects.length,
+      customSchemaCount: inventory.objects.filter(({ kind }) => kind === 'schema').length,
+      unexpectedGrantCount: inventory.grants.length,
+      ...(overrides.state ?? {}),
+    },
+    providerInventory: inventory,
+  });
 }
 
 function observedBucket(id = 'ccc-audio', metadata = {
@@ -186,6 +267,161 @@ async function installedReceiptSnapshot({ state = {}, resources = [] } = {}) {
 function blockerCodes(result) {
   return result.blockers.map(blocker => blocker.code);
 }
+
+test('exact signed provider baseline approves only managed inventory', async () => {
+  const observed = snapshotWithProviderInventory(providerInventory);
+  const result = await buildPlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    providerBaseline: verifiedProviderFixture(),
+    inspector: inspector(observed, observed),
+  });
+
+  assert.equal(result.ready, true);
+  assert.deepEqual(result.providerBaseline, {
+    matched: true,
+    baselineVersion: 'supabase-hosted-pg17-20260911-v1',
+    expectedObjectCount: 101,
+    observedObjectCount: 101,
+    expectedGrantCount: 903,
+    observedGrantCount: 903,
+    objectInventorySha256: providerInventory.objectInventorySha256,
+    grantInventorySha256: providerInventory.grantInventorySha256,
+  });
+  assert.equal(result.observed.userTableCount, 0);
+  assert.equal(result.observed.userRowEstimate, 0);
+  assert.doesNotMatch(JSON.stringify(result), /provider-(?:object|role)-must-not-escape|ed25519Signature/u);
+});
+
+test('provider baseline is required and raw signed input is rejected before observation', async () => {
+  let calls = 0;
+  const source = { inspect: async () => { calls += 1; return snapshot(); } };
+  await assert.rejects(
+    buildPlan({ target: 'hosted', authorization: observationAuthorization(), inspector: source }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  await assert.rejects(
+    buildPlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      providerBaseline: { ...verifiedProviderFixture(), ed25519Signature: 'bad-signature' },
+      inspector: source,
+    }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  assert.equal(calls, 0);
+});
+
+test('provider baseline rejects extra or missing exact records', async () => {
+  const extra = providerFixture({ objectCount: 102 });
+  const missing = {
+    objects: providerInventory.objects.slice(0, -1),
+    grants: providerInventory.grants,
+  };
+  Object.assign(missing, providerInventoryFingerprint(missing));
+  for (const inventory of [extra, missing]) {
+    const observed = snapshotWithProviderInventory(inventory);
+    const result = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      inspector: inspector(observed, observed),
+    });
+    assert.equal(result.ready, false);
+    assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
+  }
+});
+
+test('provider baseline detects inventory drift between observations', async () => {
+  const changed = providerFixture({ grantCount: 904 });
+  const result = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    inspector: inspector(
+      snapshotWithProviderInventory(providerInventory),
+      snapshotWithProviderInventory(changed),
+    ),
+  });
+  assert.equal(result.ready, false);
+  assert.equal(result.unchanged, false);
+  assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
+  assert.ok(blockerCodes(result).includes('PLAN_STATE_CHANGED'));
+});
+
+test('provider baseline requires the observed database version', async () => {
+  const observed = snapshotWithProviderInventory(providerInventory, {
+    project: {
+      region: 'ap-northeast-2',
+      databaseVersion: '17.5',
+      status: 'ACTIVE_HEALTHY',
+      ownerOrgIdHash: observationAuthorization().expectedOwnerOrgIdHash,
+    },
+  });
+  const result = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    inspector: inspector(observed, observed),
+  });
+  assert.equal(result.ready, false);
+  assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
+});
+
+test('provider baseline never exempts business tables, users, buckets or storage objects', async () => {
+  for (const state of [
+    { userTableCount: 1 },
+    { userRowEstimate: 1 },
+    { authUserCount: 1 },
+    { bucketCount: 1 },
+    { storageObjectCount: 1 },
+  ]) {
+    const observed = snapshotWithProviderInventory(providerInventory, { state });
+    const result = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      inspector: inspector(observed, observed),
+    });
+    assert.equal(result.ready, false);
+    assert.ok(blockerCodes(result).includes('EXISTING_PROJECT_NOT_CLEAN'));
+  }
+});
+
+test('provider baseline identity binds state, resources and plan fingerprints', async () => {
+  const observed = snapshotWithProviderInventory(providerInventory);
+  const first = await buildPlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    providerBaseline: verifiedProviderFixture(),
+    inspector: inspector(observed, observed),
+  });
+  const second = await buildPlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    providerBaseline: verifiedProviderFixture(providerInventory, {
+      baselineVersion: 'supabase-hosted-pg17-20260911-v2',
+      baselineSha256: 'd'.repeat(64),
+    }),
+    inspector: inspector(observed, observed),
+  });
+  assert.notEqual(first.stateFingerprint, second.stateFingerprint);
+  assert.notEqual(first.resourcesSha256, second.resourcesSha256);
+  assert.notEqual(first.planFingerprint, second.planFingerprint);
+});
+
+test('provider baseline doctor reports only redacted latest inventory evidence', async () => {
+  const changed = providerFixture({ objectCount: 102 });
+  const result = await buildSupabaseDoctor({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    inspector: inspector(
+      snapshotWithProviderInventory(providerInventory),
+      snapshotWithProviderInventory(providerInventory),
+      snapshotWithProviderInventory(changed),
+    ),
+  });
+  assert.equal(result.providerBaseline.matched, false);
+  assert.equal(result.providerBaseline.observedObjectCount, 102);
+  assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
+  assert.doesNotMatch(JSON.stringify(result), /provider-(?:object|role)-must-not-escape/u);
+});
 
 test('fresh Seoul project with verified authorization returns a full read-only owner-aware plan', async () => {
   const result = await buildSupabasePlan({
@@ -452,6 +688,12 @@ test('credential failures retain stable error codes without provider response te
 test('local plans are valid without hosted region evidence but are never production-ready', async () => {
   const local = snapshot({
     project: { region: null, databaseVersion: '17.4', status: 'LOCAL' },
+    state: {
+      ...stableState,
+      unknownObjectCount: 0,
+      unownedObjectCount: 0,
+      unexpectedGrantCount: 0,
+    },
   });
   const result = await buildSupabasePlan({
     target: 'local',
@@ -461,6 +703,24 @@ test('local plans are valid without hosted region evidence but are never product
   assert.equal(result.ready, true);
   assert.equal(result.productionReady, false);
   assert.ok(result.notes.some((note) => note.includes('로컬')));
+});
+
+test('local plans retain zero-only provider inventory cleanliness', async () => {
+  const local = snapshot({
+    project: { region: null, databaseVersion: '17.4', status: 'LOCAL' },
+    state: {
+      ...stableState,
+      unknownObjectCount: 1,
+      unownedObjectCount: 1,
+      unexpectedGrantCount: 0,
+    },
+  });
+  const result = await buildSupabasePlan({
+    target: 'local',
+    inspector: inspector(local, local),
+  });
+  assert.equal(result.ready, false);
+  assert.ok(blockerCodes(result).includes('EXISTING_PROJECT_NOT_CLEAN'));
 });
 
 test('missing or expired authorization stops before any hosted observation', async () => {

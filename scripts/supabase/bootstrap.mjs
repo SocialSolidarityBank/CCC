@@ -4,6 +4,7 @@ import { createHostedInspector } from './hosted-inspector.mjs';
 import { createLocalInspector } from './local-inspector.mjs';
 import { buildSupabasePlan, buildSupabaseDoctor, PlanFailure } from './plan.mjs';
 import { configuredInstallTrust, requireSignedOwnerPreflight } from './manifest-preflight.mjs';
+import { requireProviderBaseline } from './provider-baseline.mjs';
 import { assertApplicationCaBinding } from '../../apps/community-cloud/src/application-ca.mjs';
 import { withInstallerConnection } from './installer-connection.mjs';
 import { withInstallLock, readInstallState, ensureAuthorization } from './install-journal.mjs';
@@ -28,6 +29,9 @@ const exitCodes = Object.freeze({
   RESOURCE_OWNERSHIP_MISMATCH: 6,
   RELEASE_PREREQUISITES_MISSING: 6,
   ROLLBACK_PREREQUISITES_MISSING: 6,
+  BETA_TRUST_INVALID: 6,
+  PROVIDER_BASELINE_INVALID: 6,
+  PROVIDER_BASELINE_MISMATCH: 6,
 });
 
 function parseArgs(argv) {
@@ -73,6 +77,7 @@ const forbiddenOutput = [
   /\bsbp_[A-Za-z0-9_-]+\b/u,
   /\bsb_(?:secret|service_role)_[A-Za-z0-9_-]+\b/iu,
   /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/u,
+  /"(?:ed25519Signature|releasePublicKey|objects|grants)"\s*:/iu,
 ];
 
 function assertSafeOutput(text) {
@@ -119,6 +124,14 @@ function safeError(error, format) {
   };
 }
 
+function parseBetaConfiguration(value, fallback) {
+  try {
+    return value === undefined ? fallback : JSON.parse(value);
+  } catch {
+    throw new PlanFailure('BETA_TRUST_INVALID');
+  }
+}
+
 async function main() {
   let options;
   try {
@@ -135,15 +148,31 @@ async function main() {
       organizationId: process.env.CCC_ORGANIZATION_ID,
       projectRef: options.projectRef ?? process.env.CCC_SUPABASE_PROJECT_REF,
     });
-    // Both documents and institution-scoped trust are checked before token consumption.
+    // Owner authorization and both beta documents are verified before token consumption.
     const authorization = options.target === 'hosted' ? await authorize() : undefined;
+    const providerBaseline = options.target === 'hosted'
+      ? await requireProviderBaseline({
+          releaseTrust: process.env.CCC_BETA_RELEASE_TRUST,
+          providerBaseline: process.env.CCC_PROVIDER_BASELINE,
+          rootKeys: parseBetaConfiguration(process.env.CCC_BETA_TRUST_ROOT_KEYS),
+          revokedRootKeyIds: parseBetaConfiguration(process.env.CCC_BETA_REVOKED_ROOT_KEY_IDS, []),
+          authorization,
+          manifestExpiresAt: authorization.expiresAt,
+        })
+      : undefined;
     const inspector = options.target === 'local'
       ? createLocalInspector({ workdir: options.workdir })
       : createHostedInspector({
         accessToken: process.env.SUPABASE_ACCESS_TOKEN, projectRef: authorization.projectRef,
         authorization, authorize,
       });
-    const planOptions = { target: options.target, inspector, authorization, renewAuthorization: options.renewAuthorization };
+    const planOptions = {
+      target: options.target,
+      inspector,
+      authorization,
+      providerBaseline,
+      renewAuthorization: options.renewAuthorization,
+    };
     let result = options.operation === 'doctor'
       ? await buildSupabaseDoctor(planOptions) : await buildSupabasePlan(planOptions);
     if (result.ready && options.operation === 'renew-authorization') {
