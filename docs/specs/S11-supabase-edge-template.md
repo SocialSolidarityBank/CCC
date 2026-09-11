@@ -191,7 +191,9 @@ signer는 bucket, opaque key 형식, caller principal, 허용 action을 모두 �
 
 `upload`와 client의 `head`는 본인의 현재 담당 범위에 있는 `pending_upload` 객체만 허용한다. `agent_read`는 해당 Agent의 살아 있는 claim, attempt, generation, 동의와 처리 기한을 모두 대조한다. `delete`와 scheduler의 `head`는 같은 기관의 `deletion_pending` 객체와 정확한 삭제 시도 기록을 근거로 허용하며, 철회 후 필요한 삭제를 막지 않도록 현재 녹음 동의를 요구하지 않는다. scheduler는 기존 system 신원과 이 콜백 경로에 한정된 scope를 요구한다. 미구현 Agent 또는 scheduler Identity를 요청 본문으로 대체하지 않는다.
 
-허용 응답은 정확한 요청 본문의 JCS SHA-256, 판정 시각, 최대 5초의 판정 유효기한, generation과 서버가 계산한 URL 만료 시각만 전달한다. `claimToken`이나 원음은 되돌려 보내지 않는다. 업로드 URL은 S8의 2시간, Agent 읽기는 600초와 현재 lease·처리·보존 기한 중 가장 이른 시각을 넘지 않는다. 삭제와 metadata 조회는 URL을 만들지 않는다. 응답 부재, 만료, 형식·요청 hash 불일치는 Storage 호출 전에 거부한다. 이 5초는 허용 결과를 캐시할 수 있다는 뜻이 아니라 한 번의 네트워크 왕복을 위한 상한이다.
+허용 응답은 정확한 요청 본문의 JCS SHA-256, 판정 시각, 최대 5초의 판정 유효기한, generation과 서버가 계산한 URL 만료 시각만 전달한다. `claimToken`이나 원음은 되돌려 보내지 않는다. Agent 읽기는 600초와 현재 lease·처리·보존 기한 중 가장 이른 시각을 넘지 않는다. 삭제와 metadata 조회는 URL을 만들지 않는다. 응답 부재, 만료, 형식·요청 hash 불일치는 Storage 호출 전에 거부한다. 이 5초는 허용 결과를 캐시할 수 있다는 뜻이 아니라 한 번의 네트워크 왕복을 위한 상한이다.
+
+**업로드 상한 (2026-09-11 개정).** Supabase의 signed upload URL은 수명을 요청으로 정할 수 없고 배포 설정값으로 고정된다. 따라서 업로드 판정만은 `audio_objects.upload_expires_at`을 판정 유효기한 + 2시간(S8)으로 앞으로 옮기는 단 하나의 쓰기를 한다. 같은 object에 다시 판정하면 상한이 다시 앞으로 옮겨지므로 이미 발급된 token은 항상 현재 상한 안에 있다. 상한은 `retention_hard_cap_at`을 넘지 못한다. signer는 provider가 서명한 token의 실제 만료를 읽어 상한 안에 있고 `upsert`가 아니며 같은 object를 가리킬 때만 URL을 내준다. 그 밖의 판정은 감사 기록 외에 아무것도 쓰지 않는다.
 
 secret rotation은 새 값을 먼저 전용 signer binding에 주입하고 health check를 통과한 뒤 이전 값을 폐기한다. 값 자체를 fingerprint, migration, receipt, report에 넣지 않는다.
 ### 2.8 private Storage와 cron

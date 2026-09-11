@@ -294,6 +294,31 @@ pnpm --filter @ccc/community-cloud typecheck
 AudioStore 배선, provider 배포 및 전체 설치 성공은 그 경로가 실제로 연결되어 검증되기 전에는
 완료로 표기하지 않는다.
 
+### Task 7: 업로드 상한을 판정 시각에 고정하고 signed upload를 mint한다
+
+Task 6는 hosted Supabase의 signed upload TTL이 요청으로 정해지지 않아 업로드를 501로 닫았다.
+S8 §2.2와 S11 §2.7의 2026-09-11 개정이 상한을 판정 유효기한 + 2시간으로 옮긴다.
+
+**Files:**
+- Modify: `packages/core/src/gateway.ts` (`authorizePendingStorageUpload`: `upload` 동작만 상한 CAS)
+- Modify: `packages/http-api/src/request-handler.ts` (`handleAudioUploadTarget`: 상한 비교)
+- Modify: `apps/community-cloud/src/storage-signer.ts` (`upload` mint와 provider 만료 증명)
+- Modify: `apps/api/test/storage-signer-authorization.test.ts`, `apps/api/test/storage-signer.test.ts`
+
+- [ ] `upload` 판정은 `UPDATE audio_objects SET upload_expires_at=?,updated_at=? WHERE id=? AND org_id=?
+      AND key=? AND generation_id=? AND state='pending_upload' AND audio_delivery='protected-get'
+      AND upload_expires_at>? AND upload_expires_at<? AND retention_hard_cap_at>=?` 한 문장으로 상한을
+      `authorizationExpiresAt + 2h`로 옮기고, 변경 0행이면 거부한다. `head`는 아무것도 쓰지 않는다.
+- [ ] 판정의 `expiresAt`은 옮긴 상한이다. 같은 object를 다시 판정하면 상한이 다시 앞으로 간다.
+- [ ] `handleAudioUploadTarget`은 target의 `expiresAt`이 다시 읽은 `upload_expires_at`을 넘으면
+      abandon한다. 정확히 같아야 한다는 이전 검사는 없앤다.
+- [ ] signer는 판정의 `expiresAt - authorizationExpiresAt <= 2h`를 요구하고,
+      `POST /storage/v1/object/upload/sign/ccc-audio/<key>`로 mint한 뒤 token의 `exp`, `url`,
+      `upsert` 부재를 읽어 상한 안일 때만 같은 프로젝트의 절대 URL과 증명된 만료를 내준다.
+      공식 storage-api 소스로 claim 이름을 확인하고, 확인되지 않은 claim은 거부 조건으로 둔다.
+- [ ] 테스트: 상한 이동과 단조성, 보존 상한 초과 거부, head 무변경, target 상한 초과 abandon,
+      provider token이 상한을 넘거나 `upsert`이거나 다른 object를 가리키면 URL 미발급.
+
 ## Final Review Gate
 
 여섯 작업이 끝나면 Tasks 1-6 전체에 전용 보안 검토를 한 번 돌린다. 검토는 자기 신뢰, 서명 도메인
