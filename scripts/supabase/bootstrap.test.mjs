@@ -557,7 +557,9 @@ test('provider baseline mismatch is redacted and uses the fixed recovery code', 
     const output = JSON.parse(result.stdout);
     assert.ok(output.blockers.some(({ code }) => code === 'PROVIDER_BASELINE_MISMATCH'));
     assert.equal(output.providerBaseline.matched, false);
-    assert.doesNotMatch(JSON.stringify(output), new RegExp(`${objectName}|${signature}`, 'u'));
+    const serialized = JSON.stringify(output);
+    assert.equal(serialized.includes(objectName), false);
+    assert.equal(serialized.includes(signature), false);
     assertNoSensitiveOutput(result, origin);
   });
 });
