@@ -168,6 +168,53 @@ async function withdrawRecordingConsent(supportCaseId: string): Promise<void> {
   });
 }
 
+/**
+ * Consent withdrawal leaves a `deletion_pending` row; the scheduler's authority is that row plus
+ * its append-only requested attempt, which `delete` and `absence` share.
+ */
+async function durableDeletionIntent(action: 'delete' | 'absence'): Promise<{
+  request: StorageSignerRequest;
+  audioObjectId: string;
+  generationId: string;
+  deletionAttemptId: string;
+}> {
+  const pending = await pendingUpload();
+  await withdrawRecordingConsent(pending.supportCaseId);
+  const row = await t.db.prepare(
+    `SELECT id,key,generation_id,deletion_attempt_id,deletion_reason,object_sha256
+     FROM audio_objects WHERE id=? AND org_id=?`,
+  ).bind(pending.audioObjectId, counselor.orgId)
+    .first<{ id: string; key: string; generation_id: string; deletion_attempt_id: string; deletion_reason: string; object_sha256: string | null }>();
+  if (row === null || row.deletion_attempt_id === null) throw new Error('missing deletion intent fixture');
+  const requestedAt = new Date().toISOString();
+  await t.db.prepare(
+    `INSERT INTO audio_deletion_attempts(
+       id,deletion_attempt_id,phase,org_id,audio_object_id,generation_id,reason,requested_at,created_at
+     ) VALUES(?,?,'requested',?,?,?,?,?,?)`,
+  ).bind(
+    `${row.deletion_attempt_id}:requested`, row.deletion_attempt_id, counselor.orgId,
+    row.id, row.generation_id, row.deletion_reason, requestedAt, requestedAt,
+  ).run();
+  return {
+    request: {
+      bucket: 'ccc-audio',
+      objectKey: row.key,
+      action,
+      principal: 'scheduler',
+      objectSha256: row.object_sha256,
+      context: {
+        kind: 'deletion',
+        audioObjectId: row.id,
+        generationId: row.generation_id,
+        deletionAttemptId: row.deletion_attempt_id,
+      },
+    },
+    audioObjectId: row.id,
+    generationId: row.generation_id,
+    deletionAttemptId: row.deletion_attempt_id,
+  };
+}
+
 function resolver(actor: IdentityActor): ActorResolver {
   return async (request) => {
     if (request.headers.get('authorization') !== 'Bearer fixture-token') {
@@ -327,52 +374,56 @@ describe('StorageSigner gateway authorization', () => {
   });
 
   it('keeps exact durable deletion authorized after consent withdrawal without performing storage work', async () => {
-    const pending = await pendingUpload();
-    await withdrawRecordingConsent(pending.supportCaseId);
-    const row = await t.db.prepare(
-      `SELECT id,key,generation_id,deletion_attempt_id,deletion_reason,object_sha256
-       FROM audio_objects WHERE id=? AND org_id=?`,
-    ).bind(pending.request.context.kind === 'upload' ? pending.request.context.audioObjectId : '', counselor.orgId)
-      .first<{ id: string; key: string; generation_id: string; deletion_attempt_id: string; deletion_reason: string; object_sha256: string | null }>();
-    if (row === null || row.deletion_attempt_id === null) throw new Error('missing deletion intent fixture');
-    const requestedAt = new Date().toISOString();
-    await t.db.prepare(
-      `INSERT INTO audio_deletion_attempts(
-         id,deletion_attempt_id,phase,org_id,audio_object_id,generation_id,reason,requested_at,created_at
-       ) VALUES(?,?,'requested',?,?,?,?,?,?)`,
-    ).bind(
-      `${row.deletion_attempt_id}:requested`, row.deletion_attempt_id, counselor.orgId,
-      row.id, row.generation_id, row.deletion_reason, requestedAt, requestedAt,
-    ).run();
-    const request: StorageSignerRequest = {
-      bucket: 'ccc-audio',
-      objectKey: row.key,
-      action: 'delete',
-      principal: 'scheduler',
-      objectSha256: row.object_sha256,
-      context: {
-        kind: 'deletion',
-        audioObjectId: row.id,
-        generationId: row.generation_id,
-        deletionAttemptId: row.deletion_attempt_id,
-      },
-    };
-    await expect(authorizeStorageSignerOperation(env, schedulerActor, request)).resolves.toMatchObject({
+    const intent = await durableDeletionIntent('delete');
+    await expect(authorizeStorageSignerOperation(env, schedulerActor, intent.request)).resolves.toMatchObject({
       allowed: true,
-      generationId: row.generation_id,
+      generationId: intent.generationId,
       expiresAt: null,
     });
     const staleAttempt: StorageSignerRequest = {
-      ...request,
+      ...intent.request,
       context: {
         kind: 'deletion',
-        audioObjectId: row.id,
-        generationId: row.generation_id,
-        deletionAttemptId: `${row.deletion_attempt_id}:stale`,
+        audioObjectId: intent.audioObjectId,
+        generationId: intent.generationId,
+        deletionAttemptId: `${intent.deletionAttemptId}:stale`,
       },
     };
     await expect(authorizeStorageSignerOperation(env, schedulerActor, staleAttempt)).rejects.toThrow();
     expect((await t.bucket.list()).objects).toHaveLength(0);
+  });
+
+  it('authorizes absence evidence on the same durable intent as deletion and audits the action', async () => {
+    const intent = await durableDeletionIntent('absence');
+    await expect(authorizeStorageSignerOperation(env, schedulerActor, intent.request)).resolves.toMatchObject({
+      allowed: true,
+      generationId: intent.generationId,
+      // Absence evidence mints no URL, so there is nothing to expire.
+      expiresAt: null,
+    });
+    const audit = await t.db.prepare(
+      `SELECT detail FROM audit_log
+       WHERE org_id=? AND target_table='audio_objects' AND target_id=? ORDER BY id DESC LIMIT 1`,
+    ).bind(counselor.orgId, intent.audioObjectId).first<{ detail: string }>();
+    expect(JSON.parse(String(audit?.detail))).toEqual({ storageAction: 'absence', principal: 'scheduler' });
+
+    const staleAttempt: StorageSignerRequest = {
+      ...intent.request,
+      context: {
+        kind: 'deletion',
+        audioObjectId: intent.audioObjectId,
+        generationId: intent.generationId,
+        deletionAttemptId: `${intent.deletionAttemptId}:stale`,
+      },
+    };
+    await expect(authorizeStorageSignerOperation(env, schedulerActor, staleAttempt)).rejects.toThrow();
+    expect((await t.bucket.list()).objects).toHaveLength(0);
+  });
+
+  it('refuses absence outside the scheduler deletion lane', async () => {
+    const intent = await durableDeletionIntent('absence');
+    await expect(authorizeStorageSignerOperation(env, humanActor, intent.request)).rejects.toThrow();
+    expect(() => decodeStorageSignerRequest({ ...intent.request, principal: 'client' })).toThrow();
   });
 });
 

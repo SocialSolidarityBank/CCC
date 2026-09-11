@@ -9552,8 +9552,9 @@ async function authorizeClaimedStorageRead(
 }
 
 /**
- * Deletion and the scheduler's metadata read. Recording consent is deliberately not required:
- * withdrawal is the reason the deletion exists. The durable intent is the whole authority.
+ * Deletion, the scheduler's metadata read and its absence evidence. Recording consent is
+ * deliberately not required: withdrawal is the reason the deletion exists. The durable intent is
+ * the whole authority.
  */
 async function authorizePendingStorageDeletion(
   env: Env,
@@ -9657,7 +9658,7 @@ export async function authorizeStorageSignerOperation(
       || canonicalActor.authn.source !== 'scheduler-secret'
       || !canonicalActor.roles.includes('service')
       || !canonicalActor.scopes.includes('/internal/storage/authorize')
-      || (parsed.action !== 'delete' && parsed.action !== 'head')
+      || (parsed.action !== 'delete' && parsed.action !== 'head' && parsed.action !== 'absence')
       || parsed.context.kind !== 'deletion'
     ) throw new ForbiddenError('storage principal is not allowed');
     auditActor = { userId: canonicalActor.userId, orgId: canonicalActor.orgId, role: 'service' };

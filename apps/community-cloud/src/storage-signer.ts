@@ -16,6 +16,7 @@ const FETCH_TIMEOUT_MS = 5_000;
 const MAX_READ_LIFETIME_MS = 600_000;
 const MAX_UPLOAD_LIFETIME_MS = 2 * 60 * 60_000;
 const MAX_AUDIO_BYTES = 200 * 1024 * 1024;
+const MAX_LIST_ITEMS = 10;
 const AUDIO_CONTENT_TYPES: Record<string, true> = {
   'audio/mp4': true, 'audio/mpeg': true, 'audio/wav': true, 'audio/x-wav': true,
   'audio/webm': true, 'audio/x-m4a': true,
@@ -91,6 +92,9 @@ export function createStorageSignerHandler(config: StorageSignerConfig): (reques
       }
       if (parsedRequest.action === 'delete') {
         return await deleteObject(parsedRequest, decision, storageBase, config, fetchImpl, now);
+      }
+      if (parsedRequest.action === 'absence') {
+        return await verifyAbsence(parsedRequest, decision, storageBase, config, fetchImpl, now);
       }
       return await headObject(parsedRequest, decision, storageBase, config, fetchImpl, now);
     } catch (error) {
@@ -333,18 +337,10 @@ async function headObject(
   const url = new URL(`${storageBase}/object/info/${BUCKET}/${encodeObjectKey(request.objectKey)}`);
   if (request.context.kind === 'deletion') url.searchParams.set('versionId', decision.generationId);
 
-  let response: Response;
-  try {
-    response = await fetchImpl(url.href, {
-      method: 'GET',
-      headers: providerHeaders(config, false),
-      credentials: 'omit',
-      redirect: 'error',
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-  } catch {
-    throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
-  }
+  const response = await providerFetch(fetchImpl, url.href, {
+    method: 'GET',
+    headers: providerHeaders(config, false),
+  });
   if (response.status === 404) {
     await discardBounded(response);
     return jsonResponse(200, {
@@ -378,14 +374,133 @@ async function headObject(
   }, config.installationId);
 }
 
+/**
+ * S8 §2.3 absence evidence. Three fresh provider reads after the live decision, never a cached or
+ * reused true: a prefix list, a generation-scoped metadata read and a one-byte authenticated read.
+ * Any timeout, redirect, 5xx or malformed body is STORAGE_UNAVAILABLE, never a boolean, and no
+ * object name, size or provider text leaves this function.
+ */
+async function verifyAbsence(
+  request: StorageSignerRequest,
+  decision: StorageSignerDecision,
+  storageBase: string,
+  config: StorageSignerConfig,
+  fetchImpl: typeof fetch,
+  now: () => number,
+): Promise<Response> {
+  requireLiveDecision(decision, now);
+  const separator = request.objectKey.lastIndexOf('/');
+  const name = request.objectKey.slice(separator + 1);
+  const prefix = separator < 0 ? '' : request.objectKey.slice(0, separator);
+  const encodedKey = encodeObjectKey(request.objectKey);
+
+  const listed = await listNamePresent(fetchImpl, `${storageBase}/object/list/${BUCKET}`, config, prefix, name);
+  const liveGeneration = await absenceMetadataVersion(fetchImpl, `${storageBase}/object/info/${BUCKET}/${encodedKey}`, config, decision);
+  const directReadAbsent = await absenceDirectRead(fetchImpl, `${storageBase}/object/authenticated/${BUCKET}/${encodedKey}`, config, decision);
+
+  // A listed name that carries another generation is still absence for this generation.
+  const absentFromMetadata = liveGeneration !== decision.generationId;
+  return jsonResponse(200, {
+    action: 'absence',
+    generationId: decision.generationId,
+    absentFromList: !listed || absentFromMetadata,
+    absentFromMetadata,
+    directReadAbsent,
+    verifiedAt: new Date(now()).toISOString(),
+  }, config.installationId);
+}
+
+/**
+ * `POST /object/list/:bucket` takes `{prefix, search, limit}` and answers with an array of entries
+ * whose `name` is relative to the prefix folder (supabase/storage
+ * `src/http/routes/object/listObjects.ts`, `src/storage/schemas/object.ts` `objectListEntrySchema`,
+ * `src/storage/database/pg.ts` `searchObjects` over `storage.search`).
+ */
+async function listNamePresent(
+  fetchImpl: typeof fetch,
+  url: string,
+  config: StorageSignerConfig,
+  prefix: string,
+  name: string,
+): Promise<boolean> {
+  const response = await providerFetch(fetchImpl, url, {
+    method: 'POST',
+    headers: providerHeaders(config, true),
+    body: JSON.stringify({ prefix, search: name, limit: MAX_LIST_ITEMS }),
+  });
+  const value = await providerJsonValue(response);
+  if (!Array.isArray(value) || value.length > MAX_LIST_ITEMS) throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
+  return value.some((item) => item !== null
+    && typeof item === 'object'
+    && !Array.isArray(item)
+    && (item as Record<string, unknown>).name === name);
+}
+
+/** `GET /object/info/:bucket/*?versionId=` is the generation-scoped metadata read; 404 is absence. */
+async function absenceMetadataVersion(
+  fetchImpl: typeof fetch,
+  url: string,
+  config: StorageSignerConfig,
+  decision: StorageSignerDecision,
+): Promise<string | null> {
+  const target = new URL(url);
+  target.searchParams.set('versionId', decision.generationId);
+  const response = await providerFetch(fetchImpl, target.href, {
+    method: 'GET',
+    headers: providerHeaders(config, false),
+  });
+  if (response.status === 404) {
+    await discardBounded(response);
+    return null;
+  }
+  const data = await parseProviderJson(response);
+  const version = data.version;
+  if (typeof version !== 'string' || utf8Length(version) < 1 || utf8Length(version) > 256) {
+    throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
+  }
+  return version;
+}
+
+/** S8 §2.3 `authenticated-get-404`. A present object answers with bytes, so the body is cancelled unread. */
+async function absenceDirectRead(
+  fetchImpl: typeof fetch,
+  url: string,
+  config: StorageSignerConfig,
+  decision: StorageSignerDecision,
+): Promise<boolean> {
+  const target = new URL(url);
+  target.searchParams.set('versionId', decision.generationId);
+  const response = await providerFetch(fetchImpl, target.href, {
+    method: 'GET',
+    headers: { ...providerHeaders(config, false), range: 'bytes=0-0' },
+  });
+  if (response.status === 404) {
+    await discardBounded(response);
+    return true;
+  }
+  if (response.status === 200 || response.status === 206) {
+    await response.body?.cancel().catch(() => undefined);
+    return false;
+  }
+  await discardBounded(response);
+  throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
+}
+
 async function providerJson(
   fetchImpl: typeof fetch,
   url: string,
   init: RequestInit,
 ): Promise<Record<string, unknown>> {
-  let response: Response;
+  return parseProviderJson(await providerFetch(fetchImpl, url, init));
+}
+
+async function providerFetch(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
   try {
-    response = await fetchImpl(url, {
+    return await fetchImpl(url, {
       ...init,
       credentials: 'omit',
       redirect: 'error',
@@ -394,10 +509,17 @@ async function providerJson(
   } catch {
     throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
   }
-  return parseProviderJson(response);
 }
 
 async function parseProviderJson(response: Response): Promise<Record<string, unknown>> {
+  const value = await providerJsonValue(response);
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
+  }
+  return value as Record<string, unknown>;
+}
+
+async function providerJsonValue(response: Response): Promise<unknown> {
   if (
     response.status !== 200
     || response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json'
@@ -406,13 +528,11 @@ async function parseProviderJson(response: Response): Promise<Record<string, unk
     throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');
   }
   try {
-    const value: unknown = JSON.parse(await readBounded(
+    return JSON.parse(await readBounded(
       response.body,
       response.headers.get('content-length'),
       MAX_RESPONSE_BYTES,
     ));
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid provider response');
-    return value as Record<string, unknown>;
   } catch {
     // Every provider-side failure (oversized body, bad length, malformed JSON) is a provider failure, never a caller error.
     throw new SignerFailure(502, 'STORAGE_UNAVAILABLE');

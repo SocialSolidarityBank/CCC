@@ -195,7 +195,7 @@ export function validSha256(value: string): boolean {
 export type StorageSignerRequest = {
   bucket: 'ccc-audio';
   objectKey: string;
-  action: 'upload' | 'agent_read' | 'delete' | 'head';
+  action: 'upload' | 'agent_read' | 'delete' | 'head' | 'absence';
   principal: 'client' | 'agent' | 'scheduler';
   objectSha256: string | null;
   context:
@@ -236,7 +236,7 @@ function canonicalInstant(value: unknown): value is string {
   }
 }
 
-const STORAGE_SIGNER_ACTIONS = ['upload', 'agent_read', 'delete', 'head'] as const;
+const STORAGE_SIGNER_ACTIONS = ['upload', 'agent_read', 'delete', 'head', 'absence'] as const;
 const STORAGE_SIGNER_PRINCIPALS = ['client', 'agent', 'scheduler'] as const;
 
 export function decodeStorageSignerRequest(value: unknown): StorageSignerRequest {
@@ -253,6 +253,8 @@ export function decodeStorageSignerRequest(value: unknown): StorageSignerRequest
     || principal === undefined
     || !(value.objectSha256 === null
       || typeof value.objectSha256 === 'string' && validSha256(value.objectSha256))
+    // `absence` is deletion evidence the scheduler alone can ask for (S8 §2.3).
+    || (action === 'absence' && principal !== 'scheduler')
   ) throw new TypeError('invalid StorageSigner request');
 
   const base = {
@@ -266,11 +268,13 @@ export function decodeStorageSignerRequest(value: unknown): StorageSignerRequest
   if (
     exactRecord(context, ['kind', 'audioObjectId'])
     && context.kind === 'upload'
+    && action !== 'absence'
     && boundedString(context.audioObjectId, 256)
   ) return { ...base, context: { kind: context.kind, audioObjectId: context.audioObjectId } };
   if (
     exactRecord(context, ['kind', 'jobId', 'claimToken', 'attempt'])
     && context.kind === 'claim'
+    && action !== 'absence'
     && boundedString(context.jobId, 256)
     && boundedString(context.claimToken, 512)
     && typeof context.attempt === 'number'

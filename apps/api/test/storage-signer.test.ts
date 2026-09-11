@@ -27,6 +27,7 @@ const READ_REQUEST = {
   context: { kind: 'claim', jobId: 'job-1', claimToken: 'claim-token-1', attempt: 1 },
 } as const;
 const DELETE_REQUEST = { ...HEAD_REQUEST, action: 'delete' } as const;
+const ABSENCE_REQUEST = { ...HEAD_REQUEST, action: 'absence' } as const;
 const UPLOAD_REQUEST = {
   bucket: 'ccc-audio', objectKey: OBJECT_KEY, action: 'upload', principal: 'client', objectSha256: null,
   context: { kind: 'upload', audioObjectId: 'audio-object-1' },
@@ -36,6 +37,10 @@ const HEAD_HASH = fixtureHash(`{"action":"head","bucket":"ccc-audio","context":{
 const READ_HASH = fixtureHash(`{"action":"agent_read","bucket":"ccc-audio","context":{"attempt":1,"claimToken":"claim-token-1","jobId":"job-1","kind":"claim"},"objectKey":"${OBJECT_KEY}","objectSha256":"${OBJECT_SHA256}","principal":"agent"}`);
 const DELETE_HASH = fixtureHash(`{"action":"delete","bucket":"ccc-audio","context":{"audioObjectId":"audio-object-1","deletionAttemptId":"delete-attempt-1","generationId":"version-7","kind":"deletion"},"objectKey":"${OBJECT_KEY}","objectSha256":"${OBJECT_SHA256}","principal":"scheduler"}`);
 const UPLOAD_HASH = fixtureHash(`{"action":"upload","bucket":"ccc-audio","context":{"audioObjectId":"audio-object-1","kind":"upload"},"objectKey":"${OBJECT_KEY}","objectSha256":null,"principal":"client"}`);
+const ABSENCE_HASH = fixtureHash(`{"action":"absence","bucket":"ccc-audio","context":{"audioObjectId":"audio-object-1","deletionAttemptId":"delete-attempt-1","generationId":"version-7","kind":"deletion"},"objectKey":"${OBJECT_KEY}","objectSha256":"${OBJECT_SHA256}","principal":"scheduler"}`);
+const LIST_URL = `${STORAGE_BASE}/object/list/ccc-audio`;
+const INFO_URL = `${STORAGE_BASE}/object/info/ccc-audio/${OBJECT_KEY}?versionId=${GENERATION_ID}`;
+const READ_URL = `${STORAGE_BASE}/object/authenticated/ccc-audio/${OBJECT_KEY}?versionId=${GENERATION_ID}`;
 
 function fixtureHash(canonical: string): string {
   return createHash('sha256').update(canonical).digest('hex');
@@ -101,6 +106,25 @@ async function fixedError(response: Response): Promise<{ code: string }> {
 
 function headersOf(init: RequestInit | undefined): Headers {
   return new Headers(init?.headers);
+}
+
+/**
+ * A provider body that records every pull. `highWaterMark: 0` keeps the source demand-driven, so a
+ * single recorded pull means the signer actually consumed audio bytes.
+ */
+function countingBody(): { body: ReadableStream<Uint8Array>; reads: () => number; cancelled: () => boolean } {
+  let reads = 0;
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      reads += 1;
+      controller.enqueue(new Uint8Array([0x52, 0x49, 0x46, 0x46]));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  }, new CountQueuingStrategy({ highWaterMark: 0 }));
+  return { body, reads: () => reads, cancelled: () => cancelled };
 }
 
 describe('StorageSigner online authorization boundary', () => {
@@ -414,5 +438,110 @@ describe('StorageSigner online authorization boundary', () => {
       expect(text).not.toContain('provider-secret');
       expect(text).not.toContain('raw-audio-secret');
     }
+  });
+
+  it('proves absence from three fresh provider reads and one authorization', async () => {
+    const calls: Array<{ url: string; init?: RequestInit | undefined }> = [];
+    const handler = createStorageSignerHandler(config((async (input, init) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url === CALLBACK_URL) return callbackResponse(decision(ABSENCE_HASH, null));
+      if (url === LIST_URL) return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ message: 'Object not found' }), {
+        status: 404, headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch));
+
+    const response = await handler(signerRequest(ABSENCE_REQUEST));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      action: 'absence',
+      generationId: GENERATION_ID,
+      absentFromList: true,
+      absentFromMetadata: true,
+      directReadAbsent: true,
+      verifiedAt: AUTHORIZED_AT,
+    });
+    expect(calls.map((call) => call.url)).toEqual([CALLBACK_URL, LIST_URL, INFO_URL, READ_URL]);
+    expect(calls[1]?.init?.method).toBe('POST');
+    expect(calls[1]?.init?.body).toBe(JSON.stringify({
+      prefix: 'audio/session_01', search: '550e8400-e29b-41d4-a716-446655440000', limit: 10,
+    }));
+    expect(headersOf(calls[1]?.init).get('apikey')).toBe(SERVICE_ROLE_KEY);
+    expect(headersOf(calls[3]?.init).get('range')).toBe('bytes=0-0');
+    expect(calls[3]?.init?.redirect).toBe('error');
+  });
+
+  it('reports a live object of the same generation without reading one audio byte', async () => {
+    const stream = countingBody();
+    const handler = createStorageSignerHandler(config((async (input) => {
+      const url = String(input);
+      if (url === CALLBACK_URL) return callbackResponse(decision(ABSENCE_HASH, null));
+      if (url === LIST_URL) {
+        return new Response(JSON.stringify([{ name: '550e8400-e29b-41d4-a716-446655440000', version: GENERATION_ID }]), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url === INFO_URL) {
+        return new Response(JSON.stringify({ version: GENERATION_ID, size: 128, content_type: 'audio/wav' }), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(stream.body, { status: 206, headers: { 'content-type': 'audio/wav', 'content-range': 'bytes 0-0/128' } });
+    }) as typeof fetch));
+
+    const response = await handler(signerRequest(ABSENCE_REQUEST));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      absentFromList: false, absentFromMetadata: false, directReadAbsent: false,
+    });
+    expect(stream.reads()).toBe(0);
+    expect(stream.cancelled()).toBe(true);
+  });
+
+  it('treats a listed object of another generation as absent for this generation', async () => {
+    const handler = createStorageSignerHandler(config((async (input) => {
+      const url = String(input);
+      if (url === CALLBACK_URL) return callbackResponse(decision(ABSENCE_HASH, null));
+      if (url === LIST_URL) {
+        return new Response(JSON.stringify([{ name: '550e8400-e29b-41d4-a716-446655440000', version: 'version-9' }]), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url === INFO_URL) {
+        return new Response(JSON.stringify({ version: 'version-9', size: 128, content_type: 'audio/wav' }), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ message: 'Object not found' }), {
+        status: 404, headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch));
+
+    expect(await (await handler(signerRequest(ABSENCE_REQUEST))).json()).toEqual({
+      action: 'absence',
+      generationId: GENERATION_ID,
+      absentFromList: true,
+      absentFromMetadata: true,
+      directReadAbsent: true,
+      verifiedAt: AUTHORIZED_AT,
+    });
+  });
+
+  it('fails absence closed on a provider outage instead of answering with a boolean', async () => {
+    const handler = createStorageSignerHandler(config((async (input) => {
+      const url = String(input);
+      if (url === CALLBACK_URL) return callbackResponse(decision(ABSENCE_HASH, null));
+      if (url === LIST_URL) {
+        return new Response('provider-secret raw-audio-secret', { status: 503, headers: { 'content-type': 'text/plain' } });
+      }
+      throw new Error('absence must stop at the first unavailable read');
+    }) as typeof fetch));
+
+    const response = await handler(signerRequest(ABSENCE_REQUEST));
+    expect(response.status).toBe(502);
+    const text = await response.text();
+    expect(text).toBe('{"code":"STORAGE_UNAVAILABLE"}');
+    expect(text).not.toContain('provider-secret');
   });
 });
