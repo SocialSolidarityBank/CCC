@@ -179,6 +179,28 @@ pnpm guard:migration-parity
 
 일회용 PostgreSQL에서 실제 `ccc_api` LOGIN, 같은 기관의 정상 업무, 다른 기관 접근 거부, browser 직접 접근 거부, 부모를 통한 자식 표 범위, 보존 기한 계산, 새 함수 기본 권한과 non-superuser 설치를 확인한다. 실제 Supabase 프로젝트의 Auth/Storage 설정이나 Edge 배포는 이 검증에 포함되지 않는다.
 
+## 업무 클라이언트 정적 이미지
+
+릴레이어 작업 레인의 `apps/client/Dockerfile`은 기존 `build:release`가 만든 정적 산출물을 담는다. 이 절은 재현 가능한 빌드·실행 절차이며, 운영 배포 완료 기록이 아니다. 업무 API 이미지와 클라이언트 이미지는 별도다.
+
+1. 배포 설정에는 서명된 manifest의 경로와 **공개 검증 키**만 넣는다. 기존 `apps/client/tools/build-release.mjs`가 서명과 manifest를 검증한다. 서명 개인 키나 업무 API 자격증명을 빌드·컨테이너에 넣지 않는다.
+2. 검증된 `dist`를 만든 뒤 `apps/client`를 Docker build context로 사용한다. 일반 `vite build`만 한 산출물은 manifest·bootstrap·보안 header 정보가 부족하므로 정적 서버가 기동을 거부한다.
+3. 정적 서버는 API 이미지와 같은 고정 Deno 기반 이미지에서 비관리자 `deno`로 실행한다. 환경변수는 공개 설정인 `PORT`만 사용하며 기본값은 8080이다. 업무 API를 대행 호출하거나 상담자료를 저장하지 않는다.
+
+```sh
+# 저장소 루트. public-release-config.json은 manifestPath와 publicKeys를 가진 공개 설정이다.
+pnpm --filter @ccc/client run build:release -- --config /absolute/public-release-config.json
+docker build -f apps/client/Dockerfile -t ccc-client:local apps/client
+
+# 로컬 확인은 호스트의 loopback에만 공개한다.
+docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  -p 127.0.0.1:8080:8080 ccc-client:local
+```
+
+정적 서버는 생성된 CSP, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`를 실제 응답에 적용한다. index, manifest와 bootstrap은 `no-store`이며 해시가 붙은 정적 자산은 immutable cache를 사용한다. 깊은 화면 주소는 SPA 진입점으로 열고, 없는 자산·내부 header 파일·소스 파일은 HTML로 가장하지 않고 404로 응답한다. 위험한 경로와 GET/HEAD 외 메서드는 거부한다.
+
+배포에서는 서명된 HTTPS 주소와 실제 TLS 종료 지점이 일치해야 한다. 이 로컬 HTTP 확인이 기관 인증, 개인정보 처리, Windows 실행 또는 운영 배포 검증을 대신하지 않는다. 정적 파일은 기동할 때 메모리에 고정하므로 산출물 변경은 재빌드·재시작으로 반영하며, 메모리 사용량은 산출물 크기에 비례한다.
+
 ## 로컬 프리뷰 (dev 이중 잠금)
 
 브라우저에서 로컬 실행을 눌러 보는 경로. 신원은 API의 `local-actor.ts` 리졸버가 공급한다
