@@ -204,10 +204,11 @@ function BusinessShell() {
           })}
         </ul>
       </WireCard>
-      {updateWaiting && <WireCallout tone="info" title="새 버전이 준비됐습니다">
-        지금 쓰던 화면은 그대로 둡니다. 입력 중인 내용을 저장한 뒤 창을 다시 열면 새 버전으로 바뀝니다.
-      </WireCallout>}
+      {/* 안내는 본문 열 안에 둔다. 격자의 직접 자식이면 본문이 사이드바 열로 밀린다. */}
       <div className="settings-content">
+        {updateWaiting && <WireCallout tone="info" title="새 버전이 준비됐습니다">
+          지금 쓰던 화면은 그대로 둡니다. 입력 중인 내용을 저장한 뒤 창을 다시 열면 새 버전으로 바뀝니다.
+        </WireCallout>}
         {destination === null ? <WireCard><WireError>요청한 페이지가 없습니다.</WireError></WireCard>
           : !canOpenDestination(destination, session.me.roles)
             ? <WireCard><WireError>현재 역할에는 이 페이지를 볼 권한이 없습니다.</WireError></WireCard>
