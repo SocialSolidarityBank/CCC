@@ -1,14 +1,14 @@
 -- W03, paired with SQLite 0062_intake_versions.sql. No historical JSON is reclassified.
-ALTER TABLE programs ADD COLUMN financial_support_enabled integer NOT NULL DEFAULT 0 CHECK (financial_support_enabled IN (0, 1));
-ALTER TABLE sessions ADD COLUMN intake_schema_version integer NOT NULL DEFAULT 1 CHECK (intake_schema_version IN (1, 2));
-ALTER TABLE sessions ADD COLUMN intake_revision integer NOT NULL DEFAULT 1 CHECK (intake_revision >= 1);
+ALTER TABLE programs ADD COLUMN financial_support_enabled bigint NOT NULL DEFAULT 0 CHECK (financial_support_enabled IN (0, 1));
+ALTER TABLE sessions ADD COLUMN intake_schema_version bigint NOT NULL DEFAULT 1 CHECK (intake_schema_version IN (1, 2));
+ALTER TABLE sessions ADD COLUMN intake_revision bigint NOT NULL DEFAULT 1 CHECK (intake_revision >= 1);
 ALTER TABLE sessions ADD COLUMN intake_updated_by text;
-ALTER TABLE sessions ADD COLUMN intake_converted_from_revision integer;
+ALTER TABLE sessions ADD COLUMN intake_converted_from_revision bigint;
 CREATE TABLE intake_record_revisions (
   session_id text NOT NULL REFERENCES sessions(id), org_id text NOT NULL,
-  revision integer NOT NULL CHECK (revision >= 1), schema_version integer NOT NULL CHECK (schema_version IN (1, 2)),
+  revision bigint NOT NULL CHECK (revision >= 1), schema_version bigint NOT NULL CHECK (schema_version IN (1, 2)),
   held_at text NOT NULL, channel text NOT NULL, details text, actor_id text,
-  recorded_at text NOT NULL, converted_from_revision integer,
+  recorded_at text NOT NULL, converted_from_revision bigint,
   PRIMARY KEY (session_id, revision)
 );
 INSERT INTO intake_record_revisions
