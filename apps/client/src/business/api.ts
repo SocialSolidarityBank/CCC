@@ -11,6 +11,12 @@ export const ROLE_LABELS: Record<HumanRole, string> = {
   'institution-admin': '기관 관리자', 'technical-admin': '기관 기술 관리자',
   supervisor: '실무 책임자', worker: '실무자',
 };
+/**
+ * 기관 관리자가 계정 화면에서 직접 주고 뺄 수 있는 역할. 서버의 역할 사전과 같다.
+ *
+ * `supervisor` 는 빠져 있다. 팀 감독 지정에서 생기는 관계라 역할로 저장하지 않는다.
+ */
+export const ASSIGNABLE_ROLES = ['institution-admin', 'technical-admin', 'worker'] as const satisfies readonly HumanRole[];
 function isHumanRole(value: unknown): value is HumanRole {
   return typeof value === 'string' && Object.hasOwn(ROLE_LABELS, value);
 }
@@ -480,7 +486,7 @@ export class SettingsApi {
     userId: string, input: { roles: HumanRole[]; expectedRoles: HumanRole[] },
   ): Promise<DirectoryAccount> {
     this.requireAdmin();
-    if (!isOpaqueIdentifier(userId) || input.roles.length === 0 || input.roles.length > 3) {
+    if (!isOpaqueIdentifier(userId) || input.roles.length === 0) {
       throw new BusinessError('invalid_request', 400);
     }
     return decodeDirectoryAccount(await this.transport.request(
