@@ -13,6 +13,7 @@ import { Miniflare } from 'miniflare';
 import { createD1Database } from '@ccc/db-d1';
 import worker from './support/local-worker';
 import { SQLITE_MIGRATIONS_PATH, seedHistoricalParticipant, seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
+import { seedLegacyIntake } from './support/intake';
 import {
   activateAiProviderConfiguration,
   approveGeneratedAiDraft,
@@ -23,7 +24,6 @@ import {
   createCounselingSchedule,
   createGeneratedAiDraft,
   createGoal,
-  createIntakeRecord,
   enqueueTextWorkForGoalChange,
   enqueueTextWorkItem,
   getActiveAiProviderRuntimeMetadataForService,
@@ -215,7 +215,7 @@ describe('getAgentJobSource — AI 재료 배선 (CCC-73 · D62 §7)', () => {
   it('전체 목표를 으뜸으로, 인테이크 선택값을 기본으로 깔고 회차 텍스트를 잇는다', async () => {
     const { supportCaseId } = await fixtureCase();
     await setSupportCaseOverallGoal(t.env, counselor, supportCaseId, '전세 보증금을 마련한다');
-    await createIntakeRecord(t.env, counselor, supportCaseId, {
+    await seedLegacyIntake(t.env, counselor, supportCaseId, {
       submissionId: crypto.randomUUID(),
       heldAt: '2026-07-01T10:00:00.000Z',
       channel: 'in_person',

@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { createBeneficiaryWithInitialSupportCase, createSupportCase, createCounselingRecord, updateParticipantPii, type Actor, type DirectoryAccountsView } from '@ccc/core/gateway';
+import { assignSupportCase, closeSupportCase, createBeneficiaryWithInitialSupportCase, createSupportCase, createCounselingRecord, createIntakeRecord, updateParticipantPii, type Actor, type DirectoryAccountsView, type SupportCaseCreationResult } from '@ccc/core/gateway';
 import { handleRequest } from '@ccc/http-api';
-import { setupD1, testActors, testProgramId } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors, testProgramId } from './support/d1';
 import { registrationConsentEvents, registrationInput } from './support/registration';
 import type { ProgramListResponse, ProgramMutationResponse } from '@ccc/contracts/program-admission';
+import { intakeInput, intakeQuestionnaire } from './support/intake';
 
 const t = setupD1();
 const { counselor, unassignedCounselor: requester, admin, otherOrgAdmin } = testActors;
 const requestReason = '합성 인계 요청';
 const pii = { name: '합성 당사자', phone: '010-0000-1234', email: 'synthetic@example.invalid', birthDate: '1990-02-03', account: 'PRIVATE_ACCOUNT_CANARY' };
-function http(actor: Actor, path: string, body?: object) {
+function http(actor: Actor, path: string, body?: object, method = 'POST') {
   return handleRequest(new Request(`http://localhost${path}`, body === undefined ? {} : {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
   }), t.env, async () => actor);
 }
 async function seed() {
@@ -200,4 +201,186 @@ describe('existing administrator practitioner directory contract', () => {
     // 재시도 영수증에 걸리지 않도록 새 등록 시도로 보낸다 — 비활성 실무자 지정은 그때 막혀야 한다.
     expect((await http(admin, '/participants', { ...input, idempotencyKey: crypto.randomUUID() })).status).toBe(403);
   });
+});
+
+describe('server-authoritative intake write permission', () => {
+  it.each(['writer', 'admin-only', 'nonassigned-admin-practitioner', 'supervisor', 'closed', 'closed-program'] as const)(
+    'keeps saved intake readable with one PII audit for %s',
+    async (access) => {
+      const created = await seed();
+      const input = await intakeInput(t.env, counselor, created.supportCaseId);
+      input.questionnaire = intakeQuestionnaire(input.questionnaire.moduleSnapshot, [{ key: 'managerOpinion', response: 'answered', text: '합성 인테이크 기록' }]);
+      const saved = await createIntakeRecord(t.env, counselor, created.supportCaseId, input);
+      let reader: Actor = counselor;
+      if (access === 'admin-only' || access === 'nonassigned-admin-practitioner') {
+        reader = admin;
+        if (access === 'nonassigned-admin-practitioner') await grantTestPractitionerRole(t.db, admin);
+      } else if (access === 'supervisor') {
+        reader = requester;
+        await t.db.batch([
+          t.db.prepare('INSERT INTO teams (id, org_id, name, created_by) VALUES (?, ?, ?, ?)')
+            .bind('intake-team', admin.orgId, '합성 감독 팀', admin.userId),
+          t.db.prepare('INSERT INTO team_memberships (id, org_id, team_id, user_id, added_by) VALUES (?, ?, ?, ?, ?)')
+            .bind('intake-member', admin.orgId, 'intake-team', counselor.userId, admin.userId),
+          t.db.prepare('INSERT INTO team_supervisor_grants (id, org_id, team_id, supervisor_user_id, granted_by) VALUES (?, ?, ?, ?, ?)')
+            .bind('intake-supervisor', admin.orgId, 'intake-team', requester.userId, admin.userId),
+        ]);
+      } else if (access === 'closed') {
+        await closeSupportCase(t.env, counselor, created.supportCaseId, '합성 종결');
+      }
+      if (access === 'closed-program') {
+        const snapshot = input.questionnaire.moduleSnapshot;
+        expect((await http(admin, `/programs/${snapshot.programId}`, {
+          expectedVersion: snapshot.programVersion, status: 'closed',
+        }, 'PATCH')).status).toBe(200);
+        expect(await t.db.prepare('SELECT status FROM support_cases WHERE id = ?')
+          .bind(created.supportCaseId).first()).toEqual({ status: 'active' });
+      }
+      const path = `/support-cases/${created.supportCaseId}/records/intake`;
+      const before = await piiAuditCount();
+      const auditBefore = await t.db.prepare('SELECT COUNT(*) AS count FROM audit_log').first<{ count: number }>();
+      const response = await http(reader, path);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        canWrite: access === 'writer', hasIntake: true,
+        participant: { name: pii.name },
+        saved: { sessionId: saved.record.id, schemaVersion: 2, questionnaire: { answers: expect.arrayContaining([{ key: 'managerOpinion', response: 'answered', text: '합성 인테이크 기록' }]) } },
+      });
+      expect(await piiAuditCount()).toBe(before + 1);
+      const auditAfter = await t.db.prepare('SELECT COUNT(*) AS count FROM audit_log').first<{ count: number }>();
+      expect(auditAfter?.count).toBe(auditBefore!.count + 1);
+
+      const edit = { schemaVersion: 2, expectedRevision: 1, heldAt: saved.record.heldAt, channel: 'in_person',
+        questionnaire: intakeQuestionnaire(input.questionnaire.moduleSnapshot, [{ key: 'managerOpinion', response: 'answered', text: '합성 수정 기록' }]) };
+      const updated = await http(reader, path, edit, 'PUT');
+      const closed = access === 'closed' || access === 'closed-program';
+      expect(updated.status).toBe(access === 'writer' ? 200 : closed ? 409 : 403);
+      if (access !== 'writer') {
+        const post = await http(reader, path, { ...input, submissionId: crypto.randomUUID() });
+        expect(post.status).toBe(closed ? 409 : 403);
+        const unchanged = await t.db.prepare('SELECT intake_details FROM sessions WHERE id = ?')
+          .bind(saved.record.id).first<{ intake_details: string }>();
+        expect(JSON.parse(unchanged!.intake_details).answers).toContainEqual({ key: 'managerOpinion', response: 'answered', text: '합성 인테이크 기록' });
+      }
+    },
+  );
+
+  it('does not grant intake read access to an unassigned practitioner or a foreign administrator', async () => {
+    const created = await seed();
+    await createIntakeRecord(t.env, counselor, created.supportCaseId, await intakeInput(t.env, counselor, created.supportCaseId));
+    const before = await piiAuditCount();
+    for (const reader of [requester, otherOrgAdmin]) {
+      expect((await http(reader, `/support-cases/${created.supportCaseId}/records/intake`)).status).toBe(403);
+    }
+    expect(await piiAuditCount()).toBe(before);
+  });
+
+  it('returns writable initial and subsequent creation results for the assigned active practitioner without reading PII', async () => {
+    await t.reset();
+    const programId = testProgramId(counselor.orgId);
+    const input = await registrationInput(t.env, counselor, { programId, name: pii.name });
+    const before = await piiAuditCount();
+    const initialResponse = await http(counselor, '/participants', input);
+    expect(initialResponse.status).toBe(201);
+    const initial = await initialResponse.json() as SupportCaseCreationResult;
+    expect(initial.canWriteIntake).toBe(true);
+    const subsequentResponse = await http(counselor, `/participants/${initial.beneficiaryId}/support-cases`, {
+      schemaVersion: 1, submissionId: crypto.randomUUID(), programId,
+      sourceSupportCaseId: initial.supportCaseId,
+      consentEvents: await registrationConsentEvents(t.env, counselor, programId),
+    });
+    expect(subsequentResponse.status).toBe(201);
+    expect(await subsequentResponse.json()).toMatchObject({ canWriteIntake: true, replayed: false });
+    expect(await piiAuditCount()).toBe(before);
+
+    // The initial receipt remains replayable after assignment loss, but is not a write grant.
+    await t.db.prepare("UPDATE support_case_assignees SET status = 'ended', unassigned_at = ? WHERE support_case_id = ? AND user_id = ?")
+      .bind(new Date().toISOString(), initial.supportCaseId, counselor.userId).run();
+    const replay = await http(counselor, '/participants', input);
+    expect(replay.status).toBe(201);
+    expect(await replay.json()).toMatchObject({ supportCaseId: initial.supportCaseId, replayed: true, canWriteIntake: false });
+    expect(await piiAuditCount()).toBe(before);
+  });
+
+  it.each(['initial', 'subsequent'] as const)(
+    'keeps %s creation retries non-writable after program closure without reading PII',
+    async (kind) => {
+      await t.reset();
+      const programId = testProgramId(counselor.orgId);
+      const initialInput = await registrationInput(t.env, counselor, { programId });
+      const initial = await createBeneficiaryWithInitialSupportCase(t.env, counselor, initialInput);
+      const path = kind === 'initial' ? '/participants' : `/participants/${initial.beneficiaryId}/support-cases`;
+      const input = kind === 'initial' ? initialInput : {
+        schemaVersion: 1, submissionId: crypto.randomUUID(), programId,
+        sourceSupportCaseId: initial.supportCaseId,
+        consentEvents: await registrationConsentEvents(t.env, counselor, programId),
+      };
+      const before = await piiAuditCount();
+      const response = await http(counselor, path, input);
+      expect(response.status).toBe(201);
+      const created = await response.json() as SupportCaseCreationResult;
+      expect(created.canWriteIntake).toBe(true);
+      const snapshot = (await intakeInput(t.env, counselor, created.supportCaseId)).questionnaire.moduleSnapshot;
+      expect((await http(admin, `/programs/${programId}`, {
+        expectedVersion: snapshot.programVersion, status: 'closed',
+      }, 'PATCH')).status).toBe(200);
+      expect(await t.db.prepare('SELECT status FROM support_cases WHERE id = ?')
+        .bind(created.supportCaseId).first()).toEqual({ status: 'active' });
+      const readRegistrationRows = () => Promise.all([
+        ['support_cases', 'id'],
+        ['support_case_assignees', 'id'],
+        ['consent_events', 'id'],
+        ['participant_registration_receipts', 'idempotency_key, actor_id'],
+      ].map(async ([table, orderBy]) => (await t.db.prepare(
+        `SELECT * FROM ${table} WHERE org_id = ? ORDER BY ${orderBy}`,
+      ).bind(counselor.orgId).all()).results));
+      const rowsBefore = await readRegistrationRows();
+      const replay = await http(counselor, path, input);
+      if (kind === 'initial') {
+        expect(replay.status).toBe(201);
+        expect(await replay.json()).toEqual({ ...created, replayed: true, canWriteIntake: false });
+      } else {
+        // Subsequent registration checks current program admission before looking up its receipt.
+        expect(replay.status).toBe(409);
+        expect(await replay.json()).toEqual({ error: 'program_admission_required', reason: 'program_closed' });
+      }
+      expect(await readRegistrationRows()).toEqual(rowsBefore);
+      expect(await piiAuditCount()).toBe(before);
+    },
+  );
+
+  it.each(['initial', 'subsequent'] as const)(
+    'recomputes %s creation replay permission after assignment and independent role changes',
+    async (kind) => {
+      const initial = await seed();
+      const initialAssigneeUserId = crypto.randomUUID();
+      await t.db.prepare("INSERT INTO users(id, org_id, email, name, role, active) VALUES (?, ?, ?, ?, 'counselor', 1)")
+        .bind(initialAssigneeUserId, admin.orgId, 'synthetic-replay-worker@example.invalid', '합성 재시도 실무자').run();
+      const programId = testProgramId(admin.orgId);
+      const path = kind === 'initial' ? '/participants' : `/participants/${initial.beneficiaryId}/support-cases`;
+      const input = kind === 'initial'
+        ? await registrationInput(t.env, admin, { programId, initialAssigneeUserId })
+        : { schemaVersion: 1, submissionId: crypto.randomUUID(), programId, initialAssigneeUserId,
+          consentEvents: await registrationConsentEvents(t.env, admin, programId) };
+      const before = await piiAuditCount();
+      const response = await http(admin, path, input);
+      expect(response.status).toBe(201);
+      const created = await response.json() as SupportCaseCreationResult;
+      expect(created.canWriteIntake).toBe(false);
+
+      await grantTestPractitionerRole(t.db, admin);
+      await assignSupportCase(t.env, admin, created.supportCaseId, admin.userId);
+      const assignedReplay = await http(admin, path, input);
+      expect(assignedReplay.status).toBe(kind === 'initial' ? 201 : 200);
+      expect(await assignedReplay.json()).toEqual({ ...created, replayed: true, canWriteIntake: true });
+
+      // Keep the Actor and assignment unchanged: the database role, not cached roles, decides.
+      await t.db.prepare("UPDATE user_role_assignments SET revoked_at = ? WHERE org_id = ? AND user_id = ? AND role = 'practitioner' AND revoked_at IS NULL")
+        .bind(new Date().toISOString(), admin.orgId, admin.userId).run();
+      const revokedReplay = await http(admin, path, input);
+      expect(revokedReplay.status).toBe(kind === 'initial' ? 201 : 200);
+      expect(await revokedReplay.json()).toEqual({ ...created, replayed: true, canWriteIntake: false });
+      expect(await piiAuditCount()).toBe(before);
+    },
+  );
 });

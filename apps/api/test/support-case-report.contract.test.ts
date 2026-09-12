@@ -6,7 +6,6 @@ import {
   createBeneficiaryWithInitialSupportCase,
   createCounselingRecord,
   createGeneratedAiDraft,
-  createIntakeRecord,
   getActiveAiProviderRuntimeMetadataForService,
   listOpenActionItems,
   recordMaskedSourceSnapshot,
@@ -24,6 +23,20 @@ import {
   testProgramId,
 } from './support/d1';
 import { registrationInput } from './support/registration';
+import { seedLegacyIntake } from './support/intake';
+import { intakeInput, intakeQuestionnaire } from './support/intake';
+import { createIntakeRecord } from '@ccc/core/gateway';
+
+function withLegacyIntakeVersions(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withLegacyIntakeVersions);
+  if (value === null || typeof value !== 'object') return value;
+  const result: Record<string, unknown> = Object.fromEntries(Object.entries(value).map(([key, child]) => [key, withLegacyIntakeVersions(child)]));
+  if (result.kind === 'intake' || (typeof result.source === 'string' && (result.source.startsWith('intake_details.') || result.source.startsWith('session_life_area_snapshots.')) && result.sessionNumber === 1)) {
+    result.intakeSchemaVersion = 1;
+    result.intakeRevision = 1;
+  }
+  return result;
+}
 
 const t = setupD1();
 const { admin, counselor, otherOrgAdmin, service, unassignedCounselor } = testActors;
@@ -115,7 +128,7 @@ describe('GET /support-cases/:id/report', () => {
       phone: '010-0000-9999',
       account: 'REPORT_PII_ACCOUNT_CANARY',
     });
-    const intake = await createIntakeRecord(t.env, counselor, created.supportCaseId, {
+    const intake = await seedLegacyIntake(t.env, counselor, created.supportCaseId, {
       submissionId: '10000000-0000-4000-8000-000000000001',
       heldAt: '2026-07-01T09:00:00.000Z',
       channel: 'phone',
@@ -207,7 +220,7 @@ describe('GET /support-cases/:id/report', () => {
       source: 'intake_details.answers.need_primary',
       text: '첫 인테이크 주거 안정 계획',
     };
-    expect(body).toEqual({
+    expect(body).toEqual(withLegacyIntakeVersions({
       schemaVersion: 1,
       supportCaseId: created.supportCaseId,
       beneficiaryId: created.beneficiaryId,
@@ -409,7 +422,7 @@ describe('GET /support-cases/:id/report', () => {
           },
         ] },
       },
-    });
+    }));
     const serialized = JSON.stringify(body);
     expect(serialized).not.toContain('MUTABLE_OVERALL_GOAL_CANARY');
     expect(serialized).not.toContain('실무자 지원 제도 확인');
@@ -418,9 +431,33 @@ describe('GET /support-cases/:id/report', () => {
     expect(serialized).not.toContain('REPORT_PII_ACCOUNT_CANARY');
   });
 
+  it('keeps the nine-area intake meaning and omits retained but inapplicable responses from reports', async () => {
+    const created = await seedCase();
+    const input = await intakeInput(t.env, counselor, created.supportCaseId);
+    input.questionnaire = intakeQuestionnaire(input.questionnaire.moduleSnapshot, [
+      { key: 'difficulty_areas', response: 'answered', choices: ['physical_health', 'mental_health', 'family_relationships', 'care_parenting', 'legal_administrative'] },
+      { key: 'need_primary', response: 'answered', text: 'care_parenting' },
+      { key: 'summary_urgency', response: 'answered', text: '주의' },
+      { key: 'physical_health_detail', response: 'answered', text: '신체 건강에 관한 수기 기록' },
+      { key: 'mental_health_detail', response: 'answered', text: '심리와 정서에 관한 수기 기록' },
+      { key: 'family_relationships_detail', response: 'answered', text: '가족 관계에 관한 수기 기록' },
+      { key: 'care_parenting_detail', response: 'answered', text: '돌봄에 관한 수기 기록' },
+      { key: 'legal_administrative_detail', response: 'answered', text: '행정 서류에 관한 수기 기록' },
+      { key: 'employment_detail', response: 'answered', text: 'INAPPLICABLE_RETAINED_CANARY' },
+    ]);
+    const intake = await createIntakeRecord(t.env, counselor, created.supportCaseId, input);
+    const body = await report(counselor, created.supportCaseId);
+    expect(body.sessions).toMatchObject([{ sessionId: intake.record.id, intakeSchemaVersion: 2, intakeRevision: 1 }]);
+    expect(body.firstIntakeGoal).toMatchObject({ text: '돌봄·양육', intakeSchemaVersion: 2, intakeRevision: 1 });
+    const serialized = JSON.stringify(body);
+    for (const text of ['신체 건강에 관한 수기 기록', '심리와 정서에 관한 수기 기록', '가족 관계에 관한 수기 기록', '돌봄에 관한 수기 기록', '행정 서류에 관한 수기 기록']) expect(serialized).toContain(text);
+    expect(serialized).not.toContain('INAPPLICABLE_RETAINED_CANARY');
+    expect(body.sections.riskSignals?.entries).toContainEqual(expect.objectContaining({ text: '주의', intakeSchemaVersion: 2, intakeRevision: 1 }));
+  });
+
   it('keeps an evidence-free intake session while omitting every fabricated section and summary', async () => {
     const created = await seedCase();
-    const intake = await createIntakeRecord(t.env, counselor, created.supportCaseId, {
+    const intake = await seedLegacyIntake(t.env, counselor, created.supportCaseId, {
       submissionId: '20000000-0000-4000-8000-000000000001',
       heldAt: '2026-07-05T09:00:00.000Z',
       channel: 'in_person',
@@ -435,6 +472,8 @@ describe('GET /support-cases/:id/report', () => {
       heldAt: '2026-07-05T09:00:00.000Z',
       kind: 'intake',
       channel: 'in_person',
+      intakeSchemaVersion: 1,
+      intakeRevision: 1,
     }]);
     expect(body).not.toHaveProperty('firstIntakeGoal');
     expect(body).not.toHaveProperty('nextConfirmations');

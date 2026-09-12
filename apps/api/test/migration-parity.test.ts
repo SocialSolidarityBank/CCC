@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { startPostgresHarness, type PostgresHarness } from './support/postgres';
+import { intakeQuestionnaire } from './support/intake';
 import {
   PARITY_MANIFEST_PATH, assertFingerprint, assertLogicalParity, canonical, checkpointSources,
   collectCatalog, dialectSemantics, fingerprint, hash, identifier, openParityDatabase,
@@ -15,6 +16,68 @@ let harness: PostgresHarness;
 // From repository root: CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1
 beforeAll(async () => { harness = await startPostgresHarness(); }, 240_000);
 afterAll(async () => { await harness?.dispose(); }, 150_000);
+
+const intakeVersionProof = {
+  org: 'parity-intake-org', user: 'parity-intake-user', beneficiary: 'A908',
+  program: 'parity-intake-program', supportCase: 'parity-intake-case', session: 'parity-intake-session',
+  at: '2026-09-01T09:00:00.000Z',
+  details: JSON.stringify({ answers: [
+    { key: 'family_care_burden', response: 'answered', text: '복수 돌봄' },
+    { key: 'employment_education', response: 'answered', text: '이전 교육 기록' },
+    { key: 'summary_urgency', response: 'answered', text: '즉시 개입 필요' },
+  ], additionalItems: [{ item: '구 자료', reason: '구 확인 이유' }] }),
+};
+
+async function seedIntakeVersionSchema(fixture: ParityDatabase): Promise<void> {
+  const db = fixture.db, p = intakeVersionProof;
+  await db.batch([
+    db.prepare('INSERT INTO organization_settings (org_id,time_zone,pii_purge_grace_days) VALUES (?,?,?)').bind(p.org, 'UTC', 180),
+    db.prepare('INSERT INTO programs (id,org_id) VALUES (?,?)').bind(p.program, p.org),
+    db.prepare("INSERT INTO users (id,org_id,email,role,active,created_at) VALUES (?,?,?,'counselor',1,?)").bind(p.user, p.org, 'intake@example.invalid', p.at),
+    db.prepare("INSERT INTO beneficiaries (id,org_id,initialization_state,created_at,updated_at) VALUES (?,?,'pending',?,?)").bind(p.beneficiary, p.org, p.at, p.at),
+    db.prepare(`INSERT INTO support_cases (id,org_id,beneficiary_id,legacy_case_id,program_id,status,creation_kind,created_at,updated_at)
+      VALUES (?,?,?,?,?,'active','initial',?,?)`).bind(p.supportCase, p.org, p.beneficiary, p.beneficiary, p.program, p.at, p.at),
+    db.prepare("INSERT INTO support_case_assignees (id,org_id,support_case_id,user_id,role,status,assigned_at) VALUES (?,?,?,?,'primary','active',?)")
+      .bind('parity-intake-assignment', p.org, p.supportCase, p.user, p.at),
+    ...([
+      ['create', 'beneficiaries', p.beneficiary, null],
+      ['create', 'support_cases', p.supportCase, p.supportCase],
+      ['assign', 'support_case_assignees', 'parity-intake-assignment', p.supportCase],
+    ] as const).map(([action, table, id, supportCaseId]) => db.prepare(`INSERT INTO audit_log
+      (org_id,actor_id,actor_role,action,target_table,target_id,beneficiary_id,support_case_id,created_at)
+      VALUES (?,?,'counselor',?,?,?,?,?,?)`).bind(p.org, p.user, action, table, id, p.beneficiary, supportCaseId, p.at)),
+    db.prepare("UPDATE beneficiaries SET initialization_state='complete' WHERE id=?").bind(p.beneficiary),
+    db.prepare(`INSERT INTO sessions (id,org_id,support_case_id,counselor_id,held_at,channel,kind,intake_details,
+      submission_id,submission_hash,submitted_by,ai_status,created_at,updated_at)
+      VALUES (?,?,?,?,?,'in_person','intake',?,?,?,?,'none',?,?)`)
+      .bind(p.session, p.org, p.supportCase, p.user, p.at, p.details, 'parity-intake-submission', 'a'.repeat(64), p.user, p.at, p.at),
+  ]);
+}
+
+async function proveIntakeVersionSchema(fixture: ParityDatabase): Promise<void> {
+  const db = fixture.db, p = intakeVersionProof;
+  expect(await db.prepare('SELECT intake_schema_version,intake_revision,intake_details FROM sessions WHERE id=?').bind(p.session).first())
+    .toEqual({ intake_schema_version: 1, intake_revision: 1, intake_details: p.details });
+  expect(await db.prepare('SELECT actor_id,details FROM intake_record_revisions WHERE session_id=? AND revision=1').bind(p.session).first())
+    .toEqual({ actor_id: null, details: p.details });
+  await expect(db.prepare("UPDATE sessions SET intake_details='{}' WHERE id=?").bind(p.session).run()).rejects.toMatchObject({ kind: 'constraint' });
+  const converted = JSON.stringify(intakeQuestionnaire({ programId: p.program, programVersion: 1, financialSupportEnabled: false },
+    [{ key: 'summary_urgency', response: 'answered', text: '주의' }]));
+  await expect(db.prepare('UPDATE sessions SET intake_details=?,intake_schema_version=2,intake_revision=2,intake_updated_by=? WHERE id=?')
+    .bind(converted, p.user, p.session).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await db.prepare(`UPDATE sessions SET intake_details=?,intake_schema_version=2,intake_revision=2,
+    intake_updated_by=?,intake_converted_from_revision=1 WHERE id=?`).bind(converted, p.user, p.session).run();
+  expect((await db.prepare('SELECT revision,schema_version,details,actor_id,converted_from_revision FROM intake_record_revisions WHERE session_id=? ORDER BY revision')
+    .bind(p.session).all()).results).toEqual([
+      { revision: 1, schema_version: 1, details: p.details, actor_id: null, converted_from_revision: null },
+      { revision: 2, schema_version: 2, details: converted, actor_id: p.user, converted_from_revision: 1 },
+    ]);
+  await expect(db.prepare("UPDATE intake_record_revisions SET details='{}' WHERE session_id=?").bind(p.session).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare('DELETE FROM intake_record_revisions WHERE session_id=?').bind(p.session).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare(`INSERT INTO intake_record_revisions (session_id,org_id,revision,schema_version,held_at,channel,recorded_at)
+    VALUES (?, ?, 3, 2, ?, 'in_person', ?)`).bind(p.session, 'foreign-org', p.at, p.at).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare('UPDATE programs SET financial_support_enabled=2 WHERE id=?').bind(p.program).run()).rejects.toMatchObject({ kind: 'constraint' });
+}
 const legacy = '2026-01-01 09:00:00';
 const normalizedLegacy = '2026-01-01T09:00:00.000Z';
 const modern = '2026-01-01T09:00:00.500Z';
@@ -453,6 +516,9 @@ describe('S1 live migration parity', () => {
         if (checkpoint.id === 'preregistration-consent') {
           for (const fixture of [sqlite, postgres]) await seedPreregistrationConsentSchema(fixture.db);
         }
+        if (checkpoint.id === 'intake-versions') {
+          for (const fixture of [sqlite, postgres]) await seedIntakeVersionSchema(fixture);
+        }
         await sqlite.apply(checkpoint.sqlite);
         await postgres.apply(checkpoint.postgres);
         const left = await collectCatalog(sqlite);
@@ -481,6 +547,9 @@ describe('S1 live migration parity', () => {
         }
         if (checkpoint.id === 'agent-credentials') {
           for (const fixture of [sqlite, postgres]) await proveAgentCredentialsSchema(fixture.db);
+        }
+        if (checkpoint.id === 'intake-versions') {
+          for (const fixture of [sqlite, postgres]) await proveIntakeVersionSchema(fixture);
         }
         if (checkpoint.id === 'baseline-0045') {
           inventory = timestampInventory(left);

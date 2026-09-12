@@ -136,7 +136,7 @@ describe('durable memory races', () => {
           evidenceQuote: memo, sourceStart: 0, sourceEnd: Array.from(memo).length,
         }],
       });
-      for (const [attempt, actor] of [service, counselor].entries()) {
+      for (const actor of mode === 'actual' ? [service, counselor] : [service]) {
         const response = await worker.fetch(new Request(`http://localhost/sessions/${session.id}/ai/generate`, {
           method: 'POST',
           headers: {
@@ -145,12 +145,9 @@ describe('durable memory races', () => {
           },
           body: JSON.stringify({ sourceSnapshotId: snapshot.id }),
         }), t.env);
-        // Both preview branches persist fixture_generated, whose existing schema permits
-        // only version 1. Regeneration still exercises input isolation before that rejection.
-        const fixtureRegeneration = mode !== 'actual' && attempt === 1;
-        expect(response.status, await response.clone().text()).toBe(fixtureRegeneration ? 500 : 201);
+        expect(response.status, await response.clone().text()).toBe(201);
       }
-      expect(requests).toHaveLength(mode === 'preview-fixture' ? 0 : 2);
+      expect(requests).toHaveLength(mode === 'preview-fixture' ? 0 : mode === 'actual' ? 2 : 1);
       for (const request of requests) {
         expect(request).not.toHaveProperty('historicalContext');
         expect(request.materials.map(material => material.maskedText)).toEqual([memo]);

@@ -21,6 +21,7 @@ import type { Bindable, Database, DatabaseResult, PreparedStatement } from '@ccc
 import type { AudioDeletionEvidence, AudioStore, CoreSecretStore } from '@ccc/contracts/runtime';
 import type { InstitutionReadiness, OrganizationProfile, OrganizationOnboardingInput, OrganizationOnboardingResponse } from '@ccc/contracts/institution';
 import type { ReportEvidence, SupportCaseReport } from '@ccc/contracts/report';
+import { parseIntakeQuestionnaire, parseIntakeCreateRequest, parseIntakeUpdateRequest, requiredIntakeQuestionKeys, intakeAnswerDisplayText, IntakeContractError, type IntakeArea, type IntakeCreateRequest, type IntakeUpdateRequest, type IntakeModuleSnapshot, type IntakeSavedRecord, type IntakeRevision, type IntakeResponseCode, type IntakeDebt, type IntakeLinkedOrg } from '@ccc/contracts/intake';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import {
@@ -7469,9 +7470,9 @@ export async function enqueueTextWorkForGoalChange(
  * (무응답·모름·해당없음) 재료에 싣지 않는다. JSON 이 깨졌으면 그냥 없음으로 본다.
  * 재료 컨텍스트 때문에 마스킹 일감이 실패하면 안 된다(D8).
  */
-function intakeAnswerText(rawDetails: unknown, key: IntakeAnswerKey): string | null {
+function intakeAnswerText(rawDetails: unknown, key: string): string | null {
   if (typeof rawDetails !== 'string') return null;
-  const details = parseJson<Record<string, unknown>>(rawDetails);
+  const details = intakeReadView(rawDetails).details;
   if (details === null || !Array.isArray(details.answers)) return null;
   for (const answer of details.answers) {
     if (typeof answer !== 'object' || answer === null) continue;
@@ -7480,6 +7481,26 @@ function intakeAnswerText(rawDetails: unknown, key: IntakeAnswerKey): string | n
     if (typeof entry.text === 'string' && entry.text.trim().length > 0) return entry.text.trim();
   }
   return null;
+}
+
+/** Interpret v1 literally; v2 uses only explicitly applicable, human-entered answers. */
+function intakeReadView(raw: unknown): { schemaVersion: 1 | 2; details: Record<string, unknown> } {
+  const details = parseJson<Record<string, unknown>>(raw) ?? {};
+  if (details.schemaVersion === undefined || details.schemaVersion === 1) return { schemaVersion: 1, details };
+  const form = parseIntakeQuestionnaire(details);
+  const selection = form.answers.find(answer => answer.key === 'difficulty_areas');
+  const areas = selection?.response === 'answered' && 'choices' in selection ? selection.choices as IntakeArea[] : [];
+  const applicable = new Set(requiredIntakeQuestionKeys(areas));
+  const answers = form.answers.filter(answer => applicable.has(answer.key)).map(answer => ({
+    key: answer.key, response: answer.response, ...(answer.response === 'answered' ? { text: intakeAnswerDisplayText(answer) } : {}),
+  }));
+  return { schemaVersion: 2, details: {
+    answers,
+    debts: form.debts?.response === 'answered' ? form.debts.rows : [],
+    linkedOrgs: form.linkedOrgs.response === 'answered' ? form.linkedOrgs.rows : [],
+    additionalItems: form.additionalItems.response === 'answered' ? form.additionalItems.rows : [],
+    managerOpinion: answers.find(answer => answer.key === 'managerOpinion')?.text ?? null,
+  } };
 }
 
 /**
@@ -13613,16 +13634,36 @@ export async function assertSupportCaseAccess(env: Env, actor: Actor, supportCas
   }
 }
 
+// The permission projection shares the write gates without auditing a denied mutation.
+async function resolveSupportCaseWriteAccess(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<SupportCase> {
+  const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
+  await assertPractitioner(env, actor);
+  await assertActiveAssignment(env, actor, supportCase.id);
+  return supportCase;
+}
+
+async function canWriteIntake(env: Env, actor: Actor, supportCaseId: string): Promise<boolean> {
+  try {
+    const supportCase = await resolveSupportCaseWriteAccess(env, actor, supportCaseId);
+    return supportCase.status === 'active'
+      && (await programForOrg(env, actor.orgId, supportCase.programId)).status === 'active';
+  } catch (error) {
+    if (error instanceof ForbiddenError) return false;
+    throw error;
+  }
+}
+
 async function assertSupportCaseWriteAccess(
   env: Env,
   actor: Actor,
   supportCaseId: string,
 ): Promise<SupportCase> {
   try {
-    const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
-    await assertPractitioner(env, actor);
-    await assertActiveAssignment(env, actor, supportCase.id);
-    return supportCase;
+    return await resolveSupportCaseWriteAccess(env, actor, supportCaseId);
   } catch (error) {
     if (error instanceof ForbiddenError) {
       try {
@@ -13913,6 +13954,7 @@ function mapProgram(row: DbRow): ProgramRecord {
   return {
     id: stringValue(row.id), orgId: stringValue(row.org_id), displayName: nullableString(row.display_name),
     programType: row.program_type, status: row.status, storageMode, processingMode, version,
+    financialSupportEnabled: row.financial_support_enabled === 1,
     confirmation: confirmedBy === null ? null : {
       by: confirmedBy, at: stringValue(row.admission_confirmed_at),
       storageMode: stringValue(row.admission_confirmed_storage_mode) as ProgramStorageMode,
@@ -14166,9 +14208,10 @@ export async function listProgramOptions(env: Env, actor: Actor): Promise<Progra
 
 export async function createProgram(env: Env, actor: Actor, input: CreateProgramInput): Promise<ProgramView> {
   await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
-  const optionalKeys = (['storageMode', 'processingMode', 'confirmation', 'staff'] as const).filter((key) => input[key] !== undefined);
+  const optionalKeys = (['storageMode', 'processingMode', 'confirmation', 'staff', 'financialSupportEnabled'] as const).filter((key) => input[key] !== undefined);
   assertExactKeys(input, ['displayName', ...optionalKeys]);
   const displayName = programName(input.displayName);
+  if (input.financialSupportEnabled !== undefined && typeof input.financialSupportEnabled !== 'boolean') throw new ValidationError('financial module is invalid');
   const context = await programAdmissionContext(env, actor.orgId);
   const storageMode = programStorageChoice(context, input.storageMode);
   const processingMode = programProcessingChoice(input.processingMode);
@@ -14179,17 +14222,17 @@ export async function createProgram(env: Env, actor: Actor, input: CreateProgram
   await programPolicyBatch(env, context, [
     env.DB.prepare(
       `INSERT INTO programs (
-         id, org_id, display_name, program_type, storage_mode, processing_mode, version,
+         id, org_id, display_name, program_type, storage_mode, processing_mode, version, financial_support_enabled,
          admission_confirmed_by, admission_confirmed_at, admission_confirmed_storage_mode, admission_confirmed_processing_mode,
          admission_copy_version, admission_copy_hash, admission_installation_config_hash, admission_installation_policy_version,
          created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, actor.orgId, displayName, FINANCIAL_SUPPORT_V1, storageMode, processingMode, ...programConfirmationValues(confirmation), at, at),
+       ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, actor.orgId, displayName, FINANCIAL_SUPPORT_V1, storageMode, processingMode, input.financialSupportEnabled ? 1 : 0, ...programConfirmationValues(confirmation), at, at),
     ...programStaffStatements(env, actor.orgId, id, staff),
     canonicalAuditStatement(env, actor, {
       action: 'create', targetTable: 'programs', targetId: id, beneficiaryId: null, supportCaseId: null,
       detail: { storageMode, processingMode, storageChoiceProvided: input.storageMode !== undefined,
-        processingChoiceProvided: input.processingMode !== undefined, confirmation, staff },
+        processingChoiceProvided: input.processingMode !== undefined, confirmation, staff, financialSupportEnabled: input.financialSupportEnabled ?? false },
     }),
   ]);
   return programReadback(env, actor, id);
@@ -14197,7 +14240,7 @@ export async function createProgram(env: Env, actor: Actor, input: CreateProgram
 
 export async function updateProgram(env: Env, actor: Actor, programId: string, input: UpdateProgramInput): Promise<ProgramView> {
   await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
-  const optionalKeys = (['displayName', 'storageMode', 'processingMode', 'confirmation', 'status', 'staff'] as const).filter((key) => input[key] !== undefined);
+  const optionalKeys = (['displayName', 'storageMode', 'processingMode', 'confirmation', 'status', 'staff', 'financialSupportEnabled'] as const).filter((key) => input[key] !== undefined);
   assertExactKeys(input, ['expectedVersion', ...optionalKeys]);
   if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1 || optionalKeys.length === 0) {
     throw new ValidationError('program update is invalid');
@@ -14206,6 +14249,8 @@ export async function updateProgram(env: Env, actor: Actor, programId: string, i
     programForOrg(env, actor.orgId, programId), programAdmissionContext(env, actor.orgId),
   ]);
   if (current.version !== input.expectedVersion) throw new ConflictError('program changed');
+  if (input.financialSupportEnabled !== undefined && typeof input.financialSupportEnabled !== 'boolean') throw new ValidationError('financial module is invalid');
+  const financialSupportEnabled = input.financialSupportEnabled ?? current.financialSupportEnabled;
   const status = input.status ?? current.status;
   if (status !== 'active' && status !== 'closed') throw new ValidationError('program status is invalid');
   const previousStaff = input.staff === undefined ? [] : (await programStaffByProgram(env, actor.orgId, programId)).get(programId) ?? [];
@@ -14220,15 +14265,15 @@ export async function updateProgram(env: Env, actor: Actor, programId: string, i
   try {
     await programPolicyBatch(env, context, [
       env.DB.prepare(
-        `UPDATE programs SET display_name = ?, status = ?, storage_mode = ?, processing_mode = ?, version = version + 1,
+        `UPDATE programs SET display_name = ?, status = ?, storage_mode = ?, processing_mode = ?, financial_support_enabled = ?, version = version + 1,
            admission_confirmed_by = ?, admission_confirmed_at = ?, admission_confirmed_storage_mode = ?, admission_confirmed_processing_mode = ?,
            admission_copy_version = ?, admission_copy_hash = ?, admission_installation_config_hash = ?, admission_installation_policy_version = ?,
            updated_at = ? WHERE org_id = ? AND id = ? AND version = ?`,
-      ).bind(displayName, status, storageMode, processingMode, ...programConfirmationValues(confirmation), now(), actor.orgId, programId, current.version),
+      ).bind(displayName, status, storageMode, processingMode, financialSupportEnabled ? 1 : 0, ...programConfirmationValues(confirmation), now(), actor.orgId, programId, current.version),
       ...(staff === undefined ? [] : programStaffStatements(env, actor.orgId, programId, staff)),
       canonicalAuditStatement(env, actor, {
         action: 'update', targetTable: 'programs', targetId: programId, beneficiaryId: null, supportCaseId: null,
-        detail: { storageMode, processingMode, status, previousStatus: current.status, staff, version: current.version + 1, choicesChanged,
+        detail: { storageMode, processingMode, status, previousStatus: current.status, staff, version: current.version + 1, choicesChanged, financialSupportEnabled,
           storageChoiceProvided: input.storageMode !== undefined, processingChoiceProvided: input.processingMode !== undefined, confirmation },
       }),
     ], current);
@@ -14333,6 +14378,7 @@ export interface SupportCaseCreationResult {
   supportCaseId: string;
   assignmentRole: 'primary';
   replayed: boolean;
+  canWriteIntake: boolean;
 }
 
 export interface OrganizationSettings {
@@ -14463,6 +14509,7 @@ export async function getInstitutionReadiness(env: Env, actor: Actor | IdentityA
   const firstProgram: InstitutionReadiness['firstProgram'] = program === null ? null : {
     id: program.id, displayName: program.displayName, programType: program.programType,
     status: program.status, version: program.version,
+    financialSupportEnabled: program.financialSupportEnabled,
     admissionState: context === null ? 'installation_unavailable' : programAdmissionState(program, context),
   };
   let creatorLinkState: InstitutionReadiness['creatorLinkState'] = 'unlinked';
@@ -14582,7 +14629,8 @@ export async function completeOrganizationOnboarding(
   input: OrganizationOnboardingInput,
 ): Promise<OrganizationOnboardingResponse> {
   await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
-  assertExactKeys(input, ['orgName', 'programDisplayName']);
+  assertExactKeys(input, ['orgName', 'programDisplayName', ...(input.financialSupportEnabled === undefined ? [] : ['financialSupportEnabled'])]);
+  if (input.financialSupportEnabled !== undefined && typeof input.financialSupportEnabled !== 'boolean') throw new ValidationError('financial module is invalid');
   assertNonBlankText(input.orgName, 'organization name');
   const orgName = input.orgName.trim();
   if (orgName.length > 80) throw new ValidationError('organization name is invalid');
@@ -14598,6 +14646,7 @@ export async function completeOrganizationOnboarding(
   const initialProgramId = nullableString(settings.initial_program_id);
   const current = initialProgramId === null ? null : await programForOrg(env, actor.orgId, initialProgramId);
   const programId = current?.id ?? newId();
+  const financialSupportEnabled = input.financialSupportEnabled ?? current?.financialSupportEnabled ?? false;
   const updatedAt = now();
   const setupGuardId = newId();
   try {
@@ -14609,20 +14658,20 @@ export async function completeOrganizationOnboarding(
          ) THEN 1 ELSE 0 END)`,
       ).bind(setupGuardId, actor.orgId, actor.orgId, version),
       current === null ? env.DB.prepare(
-        `INSERT INTO programs (id, org_id, display_name, program_type, storage_mode, processing_mode, version, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'undecided', 1, ?, ?)`,
+        `INSERT INTO programs (id, org_id, display_name, program_type, storage_mode, processing_mode, version, financial_support_enabled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'undecided', 1, ?, ?, ?)`,
       ).bind(programId, actor.orgId, displayName, FINANCIAL_SUPPORT_V1,
-        context.deploymentMode === 'community-cloud' ? 'undecided' : 'local_encrypted', updatedAt, updatedAt)
+        context.deploymentMode === 'community-cloud' ? 'undecided' : 'local_encrypted', financialSupportEnabled ? 1 : 0, updatedAt, updatedAt)
         : env.DB.prepare(
-          'UPDATE programs SET display_name = ?, version = version + 1, updated_at = ? WHERE org_id = ? AND id = ? AND version = ?',
-        ).bind(displayName, updatedAt, actor.orgId, current.id, current.version),
+          'UPDATE programs SET display_name = ?, financial_support_enabled = ?, version = version + 1, updated_at = ? WHERE org_id = ? AND id = ? AND version = ?',
+        ).bind(displayName, financialSupportEnabled ? 1 : 0, updatedAt, actor.orgId, current.id, current.version),
       env.DB.prepare(
         `UPDATE organization_settings SET org_name = ?, initial_program_id = ?, version = version + 1, updated_at = ?
          WHERE org_id = ? AND version = ? AND org_name IS NULL`,
       ).bind(orgName, programId, updatedAt, actor.orgId, version),
       canonicalAuditStatement(env, actor, {
         action: current === null ? 'create' : 'update', targetTable: 'programs', targetId: programId,
-        beneficiaryId: null, supportCaseId: null, detail: { onboarding: true },
+        beneficiaryId: null, supportCaseId: null, detail: { onboarding: true, financialSupportEnabled },
       }),
       canonicalAuditStatement(env, actor, {
         action: 'update', targetTable: 'organization_settings', targetId: actor.orgId,
@@ -14683,6 +14732,7 @@ async function supportCaseReceiptReplay(
     supportCaseId: supportCase.id,
     assignmentRole: 'primary',
     replayed: true,
+    canWriteIntake: await canWriteIntake(env, actor, supportCase.id),
   };
 }
 
@@ -14883,6 +14933,7 @@ detail: { role: 'primary', initial: true },
         supportCaseId,
         assignmentRole: 'primary',
         replayed: false,
+        canWriteIntake: await canWriteIntake(env, actor, supportCaseId),
       };
     } catch (error) {
       finalError = error;
@@ -14905,7 +14956,8 @@ async function registrationReceiptReplay(
   if (receipt === null) return null;
   if (receipt.request_hash !== requestHash) throw new ConsentContractError('idempotency_conflict');
   return { beneficiaryId: receipt.beneficiary_id, supportCaseId: receipt.support_case_id,
-    assignmentRole: 'primary', replayed: true };
+    assignmentRole: 'primary', replayed: true,
+    canWriteIntake: await canWriteIntake(env, actor, receipt.support_case_id) };
 }
 
 
@@ -15314,6 +15366,7 @@ export async function createSupportCase(
     supportCaseId,
     assignmentRole: 'primary',
     replayed: false,
+    canWriteIntake: await canWriteIntake(env, actor, supportCaseId),
   };
 }
 
@@ -19029,117 +19082,27 @@ export async function createCounselingRecord(
 }
 
 // ============================================================================
-// 인테이크 기록 (createIntakeRecord) — CCC-7 · 티켓 #54 · 인테이크 설계 v0.3
-// 첫 상담 기준선(동의·원하는 도움 3문·6영역·목표+GAS 기준·다음 행동)을 한 번의 호출로
-// 원자 저장한다. 정기 기록(createCounselingRecord)과 분리된 함수다 — 인테이크는 목표를
-// 신설하고(정기는 기존 목표에 GAS만), 6영역을 직접 입력하며('변화 없음' 개념 없음),
-// 동의를 기록하고, 케이스당 1회로 제한된다.
+// 버전이 명시된 인테이크 수기 기록. 케이스당 하나이며, 수정본과 이전 원문을 함께 보존한다.
+// 질문과 적용 조건은 contracts/intake가 소유한다. 개인정보, 동의, 목표, 액션은 이 경로에서 쓰지 않는다.
 // ============================================================================
 
-/** 원하는 도움 3문(P1, 코어의 심장). intake_details JSON 에 격리 저장 — 브리핑·통계 제외. */
-export interface IntakeHelpNarrativeInput {
+/** Old three-question narrative, retained only to interpret stored version 1 records. */
+interface LegacyIntakeHelpNarrative {
   todayHelp: string;      // 오늘 어떤 도움을 받고 싶어서 오셨나요?
   hardestPoint: string;   // 지금 가장 힘든 점 / 먼저 해결하고 싶은 것은?
   desiredChange: string;  // 상황이 어떻게 달라지면 좋겠나요?
 }
 
-/** 인테이크 6영역 기준선(P1). 정기와 달리 6영역 전부 상태를 직접 입력한다(복사 개념 없음). */
-export interface IntakeLifeAreaInput {
-  areaKey: LifeAreaKey;
-  status: LifeAreaStatus;
-  note?: string;
-}
-
-/** 인테이크 목표(P1 → goals, D12·D6). scaleCriteria 는 GAS 기준(-2~+2 정의) 자유 JSON. */
-export interface IntakeGoalInput {
-  title: string;
-  scaleCriteria?: unknown;
-}
-
-export interface IntakeActionItemInput {
-  description: string;
-  owner: 'counselor' | 'beneficiary' | 'org';
-  dueDate?: string;
-}
-
-
-// --------------------------------------------------------------------------
-// P3·P4 서술형 답변 (CCC-9) — 하나의 어휘로 통일
-// 설계 v0.3 은 "모든 질문에 답변거부/모름/해당없음 허용"을 요구한다(§0-5). 질문마다
-// 다른 필드를 만들면 5개 층(게이트웨이·핸들러·api·액션·위저드)에 같은 분기가 23번
-// 복제된다. 대신 질문 키를 고정 어휘로 두고 답변 1건을 {key, response, text} 로 통일해,
-// 검증기·파서·컴포넌트를 각각 하나만 둔다. 빈 문자열과 '답변거부'가 저장에서 구분된다.
-// 저장 위치는 sessions.intake_details JSON(확장 슬롯 격리 — 브리핑·통계 제외).
-// --------------------------------------------------------------------------
-
-/**
- * 서술형·선택형 답변 키 고정 어휘. 화면 문구·선택값 목록은 위저드가 갖고, 저장은 이 키로 한다.
- *
- * 2026-07-28 D41·D42: 인테이크 정본 질문지(`PRD/intake-questionnaire-v1.md`) 4부의 항목을
- * 이 어휘로 전부 덮는다. 선택형도 같은 {key,response,text} 로 저장한다 — 선택값 문자열이
- * text 로 들어가고, '무응답'·'해당 없음'은 text 대신 response 코드로 남는다(빈칸과 구분).
- * 구 6단계 위저드가 쓰던 키는 지우지 않는다(기존 기록의 해석 어휘라 삭제하면 과거 JSON 이
- * 읽히지 않는다). 화면에서 안 쓰는 키는 그냥 오지 않을 뿐이다.
- */
-export const INTAKE_ANSWER_KEYS = [
-  // ── 구 6단계 위저드 어휘(기존 기록 해석용, 화면에서는 일부만 계속 쓴다) ──
-  'referral_path', 'referral_org', 'referral_reason',
-  'more_since', 'more_trigger', 'more_focus',
-  'life_detail_economy', 'life_detail_housing', 'life_detail_employment',
-  'life_detail_health', 'life_detail_mental_health', 'life_detail_family',
-  'crisis_immediate_risk', 'crisis_needed_connection', 'crisis_safety_status', 'crisis_emergency_contact',
-  'strength_personal', 'strength_relational', 'strength_past_coping', 'strength_resources',
-  'participation_availability', 'participation_transport', 'participation_constraint',
-  // ── 1. 상담 신청 및 기본정보 ──
-  // 1-2 공적급여·수급자 여부
-  'welfare_basic_livelihood', 'welfare_benefit_type', 'welfare_near_poverty', 'welfare_other',
-  // 1-3 상담 운영정보(상담일=heldAt·실무자=작성자·회차=컨텍스트는 답변이 아니라 자동값)
-  'counsel_method', 'contact_time', 'contact_caution',
-  // 1-4 상담 신청 사유
-  'application_reason', 'application_reason_detail',
-  // ── 2. 현재 생활상황 ──
-  'difficulty_areas',
-  'economy_income_type', 'economy_monthly_income', 'economy_monthly_expense',
-  'economy_arrears', 'economy_debt_types',
-  'employment_status', 'employment_income_stability', 'employment_detail',
-  'housing_type', 'housing_instability', 'housing_detail',
-  'health_physical', 'health_care_barrier', 'health_stress', 'health_daily_impact', 'health_detail',
-  'family_household_type', 'family_care_burden', 'family_detail',
-  // ── 3. 필요한 도움과 활용 가능한 자원 ──
-  'need_primary', 'need_secondary', 'need_detail',
-  'previous_support_detail',
-  'strength_detail',
-  // ── 4. 상담 정리와 후속관리 ──
-  'participation_barrier', 'participation_preferred_method', 'participation_detail',
-  // 4-3 긴급도·주요 지원방향은 실무자가 직접 고른다 — AI 제안·자동값 없음(D41 ③ · R5).
-  'summary_urgency', 'summary_direction',
-] as const;
-export type IntakeAnswerKey = (typeof INTAKE_ANSWER_KEYS)[number];
-
-/** 답변 종류. 'answered' 만 text 를 갖고, 나머지 3종은 text 를 두지 않는다. */
-export const INTAKE_ANSWER_RESPONSES = ['answered', 'declined', 'unknown', 'not_applicable'] as const;
-export type IntakeAnswerResponse = (typeof INTAKE_ANSWER_RESPONSES)[number];
-
-export interface IntakeAnswerInput {
-  key: IntakeAnswerKey;
-  response: IntakeAnswerResponse;
+interface IntakeReadAnswer {
+  key: string;
+  response: IntakeResponseCode;
   text?: string;
 }
 
-/**
- * ① 시작 "기본정보 더 적기"(P4)의 추가 개인정보. 금고(participant_pii_vault)에 기존
- * AES-GCM 헬퍼로 암호화 저장한다(D3, 마이그레이션 0015). 실명·연락처·계좌·이메일은
- * 이 경로로 쓰지 않는다 — 그쪽은 admin 전용 updateParticipantPii 가 계속 유일한 관문이다.
- */
+/** Existing encrypted identity fields are read-only on the intake surface. */
 export const INTAKE_EXTENDED_PII_FIELDS = ['birthDate', 'region', 'emergencyContact', 'gender'] as const;
 export type IntakeExtendedPiiField = (typeof INTAKE_EXTENDED_PII_FIELDS)[number];
 
-export interface IntakeExtendedPiiInput {
-  birthDate?: string;        // YYYY-MM-DD (달력 또는 직접 입력)
-  region?: string;           // 거주 지역
-  emergencyContact?: string; // 긴급 연락처
-  gender?: string;           // 성별(자유 입력 — 고정 목록으로 좁히지 않는다, §0-4)
-}
 
 export type IntakeExtendedPii = Record<IntakeExtendedPiiField, string | null>;
 
@@ -19149,7 +19112,7 @@ export type IntakeExtendedPii = Record<IntakeExtendedPiiField, string | null>;
  * reason·method·dueNote 를 덧붙였다. dueNote 는 '다음 상담 전' 같은 서술을 허용하려고
  * 날짜형 dueDate 와 따로 둔다 — 정본 예시가 날짜가 아니다.
  */
-export interface IntakeAdditionalItemInput {
+interface LegacyIntakeAdditionalItem {
   item: string;
   owner?: string;
   dueDate?: string;
@@ -19158,62 +19121,13 @@ export interface IntakeAdditionalItemInput {
   dueNote?: string;
 }
 
-/** 2-1 대출·부채 현황 반복 행. 채무가 없으면 첫 행에 '해당 없음'을 적는다(정본 참고). */
-export interface IntakeDebtEntryInput {
-  creditor: string;
-  kind?: string;
-  balance?: string;
-  monthlyPayment?: string;
 
-  arrearsStatus?: string;
-}
-
-/** 3-3 현재 연계된 기관·서비스 반복 행. 연계 자원이 없으면 첫 행에 '해당 없음'. */
-export interface IntakeLinkedOrgInput {
-  orgName: string;
-  serviceName?: string;
-  supportDetail?: string;
-  usagePeriod?: string;
-  progressStatus?: string;
-}
-
-/** ⑤ 다음 만남(P3). 저장 후 상담 일정 등록 화면으로 이어 붙인다(schedules, D28). */
-export interface IntakeNextMeetingInput {
-  heldAt: string;
-  channel: Session['channel'];
-}
-
-/**
- * 인테이크 저장 입력.
- *
- * `red` 2026-07-28 D42: consent·helpNarrative·lifeAreas·goals·actionItems 5종은 **선택**이다.
- * 정본 질문지(D41)에 대응하는 항목이 없기 때문이다 — 동의 입력은 당사자 등록 화면으로
- * 옮겼고(D42 ②), 목표 입력은 통째로 빠졌으며(D42 ③ · D43), 원하는 도움 3문·6영역 상태·
- * 다음 행동은 정본에 없다. 값을 지어내 채우는 대신 안 보내는 쪽을 택했다. 주면 예전과
- * 똑같이 검증·저장하므로 기존 호출부·기록은 그대로 산다.
- */
-export interface CreateIntakeRecordInput {
-  submissionId: string;
-  heldAt: string;
-  channel: Session['channel'];
-  helpNarrative?: IntakeHelpNarrativeInput;
-  lifeAreas?: IntakeLifeAreaInput[];
-  goals?: IntakeGoalInput[];
-  actionItems?: IntakeActionItemInput[];
-  answers?: IntakeAnswerInput[];
-  extendedPii?: IntakeExtendedPiiInput;
-  additionalItems?: IntakeAdditionalItemInput[];
-  debts?: IntakeDebtEntryInput[];
-  linkedOrgs?: IntakeLinkedOrgInput[];
-  nextMeeting?: IntakeNextMeetingInput;
-  managerOpinion?: string;
-  scheduleId?: string;
-  expectedScheduleVersion?: number;
-}
 
 export interface IntakeRecordResult {
   record: CounselingRecord;
   replayed: boolean;
+  schemaVersion: 2;
+  revision: number;
 }
 
 /** 인테이크 작성 컨텍스트(회차 자동값·당사자 표시·기존 인테이크 여부). */
@@ -19226,6 +19140,10 @@ export interface IntakeRecordContext {
   sessionSequence: number;
   // 케이스에 이미 인테이크(kind='intake')가 있으면 재작성 불가(1회 규칙).
   hasIntake: boolean;
+  // Current mutation authority, independent of whether a saved intake is readable.
+  canWrite: boolean;
+  writeSchemaVersion: 2;
+  moduleSnapshot: IntakeModuleSnapshot;
   // 1-1 기본정보 표시용 금고 값(D42 ① — 인테이크 화면은 읽기만 한다). 감사는 화면 조회 1건에 합산.
   extendedPii: IntakeExtendedPii;
   // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫이라 여기서는 기록 여부만 읽는다.
@@ -19246,243 +19164,6 @@ export interface IntakeRecordContext {
   schedule: CounselingSchedule | null;
 }
 
-/**
- * 저장된 인테이크의 위저드 소유분(2026-08-08 Q "확인/수정"). intake_details JSON 중
- * 현행 위저드가 쓰고 고칠 수 있는 것만 꺼낸다. 구 6단계 위저드의 유산 키
- * (helpNarrative·nextMeeting)는 화면에 없으므로 싣지 않는다 — 수정 저장에서도 보존만 한다.
- */
-export interface IntakeSavedRecord {
-  sessionId: string;
-  heldAt: string;
-  channel: Session['channel'];
-  answers: IntakeAnswerInput[];
-  debts: IntakeDebtEntryInput[];
-  linkedOrgs: IntakeLinkedOrgInput[];
-  additionalItems: IntakeAdditionalItemInput[];
-  managerOpinion: string | null;
-}
-
-function assertIntakeLifeAreaInputs(lifeAreas: IntakeLifeAreaInput[]): void {
-  assertBoundedArray(lifeAreas, 'life areas', LIFE_AREA_KEYS.length);
-  const seen = new Set<string>();
-  for (const area of lifeAreas) {
-    if (typeof area !== 'object' || area === null) {
-      throw new ValidationError('life area is invalid');
-    }
-    assertExactKeys(area, area.note === undefined ? ['areaKey', 'status'] : ['areaKey', 'status', 'note']);
-    if (!(LIFE_AREA_KEYS as readonly string[]).includes(area.areaKey)) {
-      throw new ValidationError('life area key is invalid');
-    }
-    if (seen.has(area.areaKey)) {
-      throw new ValidationError('life area is duplicated');
-    }
-    seen.add(area.areaKey);
-    if (!(LIFE_AREA_STATUSES as readonly string[]).includes(area.status)) {
-      throw new ValidationError('life area status is invalid');
-    }
-    if (area.note !== undefined) assertNonBlankText(area.note, 'life area note');
-  }
-  if (seen.size !== LIFE_AREA_KEYS.length) {
-    throw new ValidationError('life areas must cover all six areas');
-  }
-}
-
-/** 서술형 답변(P3·P4) 공통 검증 — 키는 고정 어휘, 중복 금지, text 는 'answered' 에만. */
-function assertIntakeAnswerInputs(answers: IntakeAnswerInput[]): void {
-  assertBoundedArray(answers, 'intake answers', INTAKE_ANSWER_KEYS.length);
-  const seen = new Set<string>();
-  for (const answer of answers) {
-    if (typeof answer !== 'object' || answer === null) {
-      throw new ValidationError('intake answer is invalid');
-    }
-    assertExactKeys(answer, answer.text === undefined ? ['key', 'response'] : ['key', 'response', 'text']);
-    if (!(INTAKE_ANSWER_KEYS as readonly string[]).includes(answer.key)) {
-      throw new ValidationError('intake answer key is invalid');
-    }
-    if (seen.has(answer.key)) {
-      throw new ValidationError('intake answer is duplicated');
-    }
-    seen.add(answer.key);
-    if (!(INTAKE_ANSWER_RESPONSES as readonly string[]).includes(answer.response)) {
-      throw new ValidationError('intake answer response is invalid');
-    }
-    // 답변거부·모름·해당없음은 본문을 갖지 않는다 — 빈 문자열과 구분되게 저장한다.
-    if (answer.response === 'answered') {
-      assertNonBlankText(answer.text, 'intake answer text');
-    } else if (answer.text !== undefined) {
-      throw new ValidationError('intake answer text is invalid');
-    }
-  }
-}
-
-/** 추가 개인정보(P4). 준 필드만 갱신하고, 빈 패치는 거부한다. */
-function assertIntakeExtendedPiiInput(input: IntakeExtendedPiiInput): void {
-  const present = INTAKE_EXTENDED_PII_FIELDS.filter((field) => input[field] !== undefined);
-  assertExactKeys(input, present);
-  if (present.length === 0) {
-    throw new ValidationError('extended PII patch is empty');
-  }
-  for (const field of present) {
-    assertNonBlankText(input[field], `participant ${field}`);
-  }
-  if (input.birthDate !== undefined) {
-    assertDateOnly(input.birthDate);
-  }
-}
-
-function assertIntakeAdditionalItemInputs(items: IntakeAdditionalItemInput[]): void {
-  assertBoundedArray(items, 'additional items', 20);
-  for (const entry of items) {
-    if (typeof entry !== 'object' || entry === null) {
-      throw new ValidationError('additional item is invalid');
-    }
-    const expected = ['item'];
-    if (entry.owner !== undefined) expected.push('owner');
-    if (entry.dueDate !== undefined) expected.push('dueDate');
-    if (entry.reason !== undefined) expected.push('reason');
-    if (entry.method !== undefined) expected.push('method');
-    if (entry.dueNote !== undefined) expected.push('dueNote');
-    assertExactKeys(entry, expected);
-    assertNonBlankText(entry.item, 'additional item');
-    if (entry.owner !== undefined) assertNonBlankText(entry.owner, 'additional item owner');
-    if (entry.dueDate !== undefined) assertDateOnly(entry.dueDate);
-    if (entry.reason !== undefined) assertNonBlankText(entry.reason, 'additional item reason');
-    if (entry.method !== undefined) assertNonBlankText(entry.method, 'additional item method');
-    if (entry.dueNote !== undefined) assertNonBlankText(entry.dueNote, 'additional item due note');
-  }
-}
-
-/**
- * 반복 행 표 공통 검증(2-1 부채·3-3 연계 기관). 첫 열만 필수이고 나머지는 준 것만 검사한다 —
- * assertIntakeAdditionalItemInputs 와 같은 모양을 유지해 표가 늘어도 분기가 복제되지 않는다.
- */
-function assertIntakeTableRows(
-  rows: Array<Record<string, unknown>>,
-  label: string,
-  requiredKey: string,
-  optionalKeys: readonly string[],
-): void {
-  assertBoundedArray(rows, label, 20);
-  for (const row of rows) {
-    if (typeof row !== 'object' || row === null) {
-      throw new ValidationError(`${label} row is invalid`);
-    }
-    const expected = [requiredKey, ...optionalKeys.filter((key) => row[key] !== undefined)];
-    assertExactKeys(row, expected);
-    for (const key of expected) {
-      assertNonBlankText(row[key], `${label} ${key}`);
-    }
-  }
-}
-
-const INTAKE_DEBT_OPTIONAL_KEYS = ['kind', 'balance', 'monthlyPayment', 'arrearsStatus'] as const;
-const INTAKE_LINKED_ORG_OPTIONAL_KEYS = ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus'] as const;
-
-function assertIntakeRecordInput(input: CreateIntakeRecordInput): void {
-  const hasSchedule = input.scheduleId !== undefined || input.expectedScheduleVersion !== undefined;
-  const hasManagerOpinion = input.managerOpinion !== undefined;
-  const expectedKeys = ['submissionId', 'heldAt', 'channel'];
-  if (input.helpNarrative !== undefined) expectedKeys.push('helpNarrative');
-  if (input.lifeAreas !== undefined) expectedKeys.push('lifeAreas');
-  if (input.goals !== undefined) expectedKeys.push('goals');
-  if (input.actionItems !== undefined) expectedKeys.push('actionItems');
-  if (input.answers !== undefined) expectedKeys.push('answers');
-  if (input.extendedPii !== undefined) expectedKeys.push('extendedPii');
-  if (input.additionalItems !== undefined) expectedKeys.push('additionalItems');
-  if (input.debts !== undefined) expectedKeys.push('debts');
-  if (input.linkedOrgs !== undefined) expectedKeys.push('linkedOrgs');
-  if (input.nextMeeting !== undefined) expectedKeys.push('nextMeeting');
-  if (hasManagerOpinion) expectedKeys.push('managerOpinion');
-  if (hasSchedule) expectedKeys.push('scheduleId', 'expectedScheduleVersion');
-  assertExactKeys(input, expectedKeys);
-  assertCanonicalSubmissionId(input.submissionId);
-  canonicalUtcInstant(input.heldAt, 'record time');
-  if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
-    throw new ValidationError('record channel is invalid');
-  }
-
-
-  // 원하는 도움 3문 — 주면 전부 비어있지 않은 문자열.
-  if (input.helpNarrative !== undefined) {
-    assertExactKeys(input.helpNarrative, ['todayHelp', 'hardestPoint', 'desiredChange']);
-    assertNonBlankText(input.helpNarrative.todayHelp, 'help narrative todayHelp');
-    assertNonBlankText(input.helpNarrative.hardestPoint, 'help narrative hardestPoint');
-    assertNonBlankText(input.helpNarrative.desiredChange, 'help narrative desiredChange');
-  }
-
-  // 6영역 기준선 — 주면 6영역 전부.
-  if (input.lifeAreas !== undefined) assertIntakeLifeAreaInputs(input.lifeAreas);
-
-  // 목표 1~3(D12·D6). GAS 기준(scaleCriteria)은 자유 JSON. 인테이크 화면은 더 이상 보내지
-  // 않지만(D42 ③ · D43) 다른 호출부가 주면 예전 계약대로 검증한다.
-  if (input.goals !== undefined) {
-    assertBoundedArray(input.goals, 'goals', MAX_ACTIVE_GOALS);
-    if (input.goals.length < 1) throw new ValidationError('at least one goal is required');
-    for (const goal of input.goals) {
-      assertExactKeys(goal, goal.scaleCriteria === undefined ? ['title'] : ['title', 'scaleCriteria']);
-      assertNonBlankText(goal.title, 'goal title');
-    }
-  }
-
-  // 다음 행동 — 주면 1건 이상(→ action_items).
-  if (input.actionItems !== undefined) {
-  assertBoundedArray(input.actionItems, 'action items', 20);
-  if (input.actionItems.length < 1) throw new ValidationError('at least one action item is required');
-  for (const action of input.actionItems) {
-    assertExactKeys(action, action.dueDate === undefined ? ['description', 'owner'] : ['description', 'owner', 'dueDate']);
-    assertNonBlankText(action.description, 'action description');
-    if (action.owner !== 'counselor' && action.owner !== 'beneficiary' && action.owner !== 'org') {
-      throw new ValidationError('action owner is invalid');
-    }
-    if (action.dueDate !== undefined) assertDateOnly(action.dueDate);
-  }
-  }
-
-  // 나머지는 전부 선택. 있으면 형식만 강제한다(비면 인테이크 성립에 영향 없음).
-  if (input.answers !== undefined) assertIntakeAnswerInputs(input.answers);
-  if (input.extendedPii !== undefined) assertIntakeExtendedPiiInput(input.extendedPii);
-  if (input.additionalItems !== undefined) assertIntakeAdditionalItemInputs(input.additionalItems);
-  if (input.debts !== undefined) {
-    assertIntakeTableRows(
-      input.debts as unknown as Array<Record<string, unknown>>,
-      'debts',
-      'creditor',
-      INTAKE_DEBT_OPTIONAL_KEYS,
-    );
-  }
-  if (input.linkedOrgs !== undefined) {
-    assertIntakeTableRows(
-      input.linkedOrgs as unknown as Array<Record<string, unknown>>,
-      'linked orgs',
-      'orgName',
-      INTAKE_LINKED_ORG_OPTIONAL_KEYS,
-    );
-  }
-  if (input.nextMeeting !== undefined) {
-    assertExactKeys(input.nextMeeting, ['heldAt', 'channel']);
-    canonicalUtcInstant(input.nextMeeting.heldAt, 'next meeting time');
-    if (
-      input.nextMeeting.channel !== 'in_person'
-      && input.nextMeeting.channel !== 'phone'
-      && input.nextMeeting.channel !== 'video'
-    ) {
-      throw new ValidationError('next meeting channel is invalid');
-    }
-  }
-
-  if (hasManagerOpinion) assertNonBlankText(input.managerOpinion, 'manager opinion');
-
-  if (hasSchedule) {
-    assertOpaqueIdentifier(input.scheduleId, 'schedule id');
-    if (
-      typeof input.expectedScheduleVersion !== 'number'
-      || !Number.isInteger(input.expectedScheduleVersion)
-      || input.expectedScheduleVersion < 1
-    ) {
-      throw new ValidationError('schedule version is invalid');
-    }
-  }
-}
 
 async function intakeRecordReplay(
   env: Env,
@@ -19498,10 +19179,10 @@ async function intakeRecordReplay(
      LIMIT 1`,
   ).bind(actor.orgId, supportCaseId, submissionId).first<DbRow>();
   if (row === null) return null;
-  if (row.submitted_by !== actor.userId || row.submission_hash !== submissionHash) {
+  if (row.kind !== 'intake' || row.intake_schema_version !== 2 || row.submitted_by !== actor.userId || row.submission_hash !== submissionHash) {
     throw new ConflictError('submission conflicts with an existing official operation');
   }
-  return { record: mapCounselingRecord(row), replayed: true };
+  return { record: mapCounselingRecord(row), replayed: true, schemaVersion: 2, revision: Number(row.intake_revision) };
 }
 
 /**
@@ -19590,26 +19271,32 @@ export async function getIntakeRecordContext(
   let saved: IntakeSavedRecord | null = null;
   if (hasIntake) {
     const intakeRow = await env.DB.prepare(
-      `SELECT id, held_at, channel, intake_details FROM sessions
+      `SELECT id, held_at, channel, intake_details, intake_schema_version, intake_revision FROM sessions
        WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
-    ).bind(actor.orgId, supportCaseId).first<{ id: string; held_at: string; channel: string; intake_details: string | null }>();
+    ).bind(actor.orgId, supportCaseId).first<{ id: string; held_at: string; channel: Session['channel']; intake_details: string | null; intake_schema_version: 1 | 2; intake_revision: number }>();
     if (intakeRow !== null) {
-      const details = parseJson<Record<string, unknown>>(intakeRow.intake_details) ?? {};
-      saved = {
-        sessionId: intakeRow.id,
-        heldAt: intakeRow.held_at,
-        channel: intakeRow.channel as Session['channel'],
-        answers: Array.isArray(details.answers) ? details.answers as IntakeAnswerInput[] : [],
-        debts: Array.isArray(details.debts) ? details.debts as IntakeDebtEntryInput[] : [],
-        linkedOrgs: Array.isArray(details.linkedOrgs) ? details.linkedOrgs as IntakeLinkedOrgInput[] : [],
-        additionalItems: Array.isArray(details.additionalItems) ? details.additionalItems as IntakeAdditionalItemInput[] : [],
-        managerOpinion: typeof details.managerOpinion === 'string' ? details.managerOpinion : null,
-      };
+      const revisions = await env.DB.prepare(
+        'SELECT * FROM intake_record_revisions WHERE session_id = ? AND org_id = ? AND revision < ? ORDER BY revision',
+      ).bind(intakeRow.id, actor.orgId, intakeRow.intake_revision).all<DbRow>();
+      const history: IntakeRevision[] = revisions.results.map(row => ({
+        revision: Number(row.revision), schemaVersion: Number(row.schema_version) as 1 | 2,
+        heldAt: stringValue(row.held_at), channel: stringValue(row.channel) as Session['channel'],
+        actorId: nullableString(row.actor_id), recordedAt: stringValue(row.recorded_at),
+        convertedFromRevision: integerValue(row.converted_from_revision), detailsJson: nullableString(row.details),
+      }));
+      const common = { sessionId: intakeRow.id, heldAt: intakeRow.held_at, channel: intakeRow.channel, revision: intakeRow.intake_revision, history };
+      saved = intakeRow.intake_schema_version === 1
+        ? { ...common, schemaVersion: 1, questionnaire: null, legacyDetailsJson: intakeRow.intake_details }
+        : { ...common, schemaVersion: 2, questionnaire: parseIntakeQuestionnaire(parseJson(intakeRow.intake_details)), legacyDetailsJson: null };
     }
   }
+  const program = await programForOrg(env, actor.orgId, supportCase.programId);
   return {
     beneficiaryId: supportCase.beneficiaryId,
     supportCaseId,
+    canWrite: await canWriteIntake(env, actor, supportCaseId),
+    writeSchemaVersion: 2,
+    moduleSnapshot: { programId: program.id, programVersion: program.version, financialSupportEnabled: program.financialSupportEnabled },
     participant: {
       name: contact?.name ?? null,
       phone: contact?.phone ?? null,
@@ -19625,564 +19312,157 @@ export async function getIntakeRecordContext(
   };
 }
 
-/**
- * 인테이크 기록을 한 번의 원자 배치로 저장한다: 세션(kind=intake) + 목표 1~3 + 액션 +
- * 6영역 스냅샷 + 동의 기록. 재현(replay)은 인테이크 1회 규칙보다 먼저 판정한다 —
- * 정당한 네트워크 재시도(같은 submissionId)가 중복으로 거부되지 않게 한다. 1회 규칙은
- * 사전 조회와 세션 INSERT 의 WHERE 가드로 이중 강제한다.
- */
+async function assertIntakeModuleSnapshot(env: Env, actor: Actor, supportCase: SupportCase, snapshot: IntakeModuleSnapshot): Promise<void> {
+  const program = await programForOrg(env, actor.orgId, supportCase.programId);
+  if (snapshot.programId !== program.id || snapshot.programVersion !== program.version
+    || snapshot.financialSupportEnabled !== program.financialSupportEnabled || program.status !== 'active') {
+    throw new ConflictError('intake program settings changed');
+  }
+}
+
+function intakeWriteGuard(actor: Actor, supportCaseId: string, snapshot: IntakeModuleSnapshot): { sql: string; bindings: Bindable[] } {
+  return {
+    sql: `EXISTS (
+      SELECT 1 FROM support_cases AS sc
+      JOIN programs AS p ON p.id = sc.program_id AND p.org_id = sc.org_id
+      JOIN support_case_assignees AS a ON a.support_case_id = sc.id AND a.org_id = sc.org_id
+      JOIN user_role_assignments AS r ON r.user_id = a.user_id AND r.org_id = a.org_id
+      WHERE sc.id = ? AND sc.org_id = ? AND sc.status = 'active'
+        AND p.id = ? AND p.version = ? AND p.financial_support_enabled = ? AND p.status = 'active'
+        AND a.user_id = ? AND a.status = 'active' AND a.unassigned_at IS NULL
+        AND r.role = 'practitioner' AND r.revoked_at IS NULL
+    )`,
+    bindings: [supportCaseId, actor.orgId, snapshot.programId, snapshot.programVersion, snapshot.financialSupportEnabled ? 1 : 0, actor.userId],
+  };
+}
+
+function intakeProgramLock(env: Env, actor: Actor, snapshot: IntakeModuleSnapshot): PreparedStatement {
+  // Serialize module changes with this batch on PostgreSQL as well as SQLite.
+  return env.DB.prepare('UPDATE programs SET version = version WHERE id = ? AND org_id = ?')
+    .bind(snapshot.programId, actor.orgId);
+}
+
+/** Versioned manual intake. Goal editing remains the dedicated audited goal operation. */
 export async function createIntakeRecord(
-  env: Env,
-  actor: Actor,
-  supportCaseId: string,
-  input: CreateIntakeRecordInput,
+  env: Env, actor: Actor, supportCaseId: string, input: IntakeCreateRequest,
 ): Promise<IntakeRecordResult> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
-  assertIntakeRecordInput(input);
-  const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
-  if (supportCase.status !== 'active') {
-    throw new ConflictError('support case is unavailable');
+  try { parseIntakeCreateRequest(input); } catch (error) {
+    if (error instanceof IntakeContractError) throw new ValidationError(error.message);
+    throw error;
   }
-
-  // 제출 해시는 저장되는 모든 입력을 덮어야 한다 — 빠뜨린 필드는 "서로 다른 제출"을
-  // 같은 해시로 만들고, 두 번째 제출이 재현(replay)으로 조용히 버려진다(CCC-9).
-  const submissionHash = await canonicalSha256({
-    actionItems: input.actionItems ?? null,
-    actorId: actor.userId,
-    additionalItems: input.additionalItems ?? null,
-    answers: input.answers ?? null,
-    channel: input.channel,
-    debts: input.debts ?? null,
-    extendedPii: input.extendedPii ?? null,
-    goals: (input.goals ?? []).map((goal) => ({ title: goal.title, scaleCriteria: goal.scaleCriteria ?? null })),
-    heldAt: input.heldAt,
-    helpNarrative: input.helpNarrative ?? null,
-    lifeAreas: input.lifeAreas ?? null,
-    linkedOrgs: input.linkedOrgs ?? null,
-    managerOpinion: input.managerOpinion ?? null,
-    nextMeeting: input.nextMeeting ?? null,
-    orgId: actor.orgId,
-    scheduleId: input.scheduleId ?? null,
-    scheduleVersion: input.expectedScheduleVersion ?? null,
-    supportCaseId,
-  });
-
-  // 재현 우선(정당한 재시도 보호) → 그다음 1회 규칙.
+  assertCanonicalSubmissionId(input.submissionId);
+  const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
+  if (supportCase.status !== 'active') throw new ConflictError('support case is unavailable');
+  const submissionHash = await canonicalSha256({ input, actorId: actor.userId, orgId: actor.orgId, supportCaseId });
   const replay = await intakeRecordReplay(env, actor, supportCaseId, input.submissionId, submissionHash);
   if (replay !== null) return replay;
-
-  const existingIntake = await env.DB.prepare(
-    `SELECT 1 FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
-  ).bind(actor.orgId, supportCaseId).first<{ 1: number }>();
-  if (existingIntake !== null) {
-    throw new ConflictError('intake record already exists for this support case');
-  }
-
-  // 목표 상한(D12): 기존 활성 목표 + 신규 목표 ≤ 3.
-  const goalInputs = input.goals ?? [];
-  if (goalInputs.length > 0) {
-    const active = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM goals WHERE org_id = ? AND support_case_id = ? AND status = 'active'",
-    ).bind(actor.orgId, supportCaseId).first<{ count: number }>();
-    if ((Number(active?.count ?? 0)) + goalInputs.length > MAX_ACTIVE_GOALS) {
-      throw new ValidationError(`a case can have at most ${MAX_ACTIVE_GOALS} active goals`);
-    }
-  }
-
+  await assertIntakeModuleSnapshot(env, actor, supportCase, input.questionnaire.moduleSnapshot);
   let schedule: CounselingSchedule | null = null;
   if (input.scheduleId !== undefined) {
+    assertOpaqueIdentifier(input.scheduleId, 'schedule id');
     schedule = await getCounselingScheduleForOrg(env, actor.orgId, input.scheduleId);
     await assertScheduleMutationAccess(env, actor, schedule);
-    if (
-      schedule.beneficiaryId !== supportCase.beneficiaryId
-      || schedule.supportCaseId !== supportCaseId
-      || schedule.status !== 'scheduled'
-      || schedule.version !== input.expectedScheduleVersion
-    ) {
-      throw new ConflictError('counseling schedule is unavailable');
-    }
+    if (schedule.beneficiaryId !== supportCase.beneficiaryId || schedule.supportCaseId !== supportCaseId
+      || schedule.status !== 'scheduled' || schedule.version !== input.expectedScheduleVersion) throw new ConflictError('counseling schedule is unavailable');
   }
-
-  // 추가 개인정보를 쓰려면 금고 행이 살아 있어야 한다. 없거나 파기됐으면 배치의 UPDATE 가
-  // 0행으로 조용히 지나가므로(세션만 저장되고 PII 는 사라짐) 여기서 먼저 막는다.
-  if (input.extendedPii !== undefined) {
-    const vault = await env.DB.prepare(
-      'SELECT 1 AS present FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ? AND purged_at IS NULL',
-    ).bind(supportCase.beneficiaryId, actor.orgId).first<{ present: number }>();
-    if (vault === null) {
-      throw new ConflictError('participant data is unavailable');
-    }
-  }
-
   const id = newId();
   const createdAt = now();
-  const intakeDetails = stringifyJson({
-    helpNarrative: input.helpNarrative ?? null,
-    managerOpinion: input.managerOpinion ?? null,
-    // 질문지 답변·반복 행 표는 확장 슬롯 성격의 JSON 으로 격리한다(브리핑·통계 제외, 3층 구조).
-    answers: input.answers ?? [],
-    additionalItems: input.additionalItems ?? [],
-    debts: input.debts ?? [],
-    linkedOrgs: input.linkedOrgs ?? [],
-    nextMeeting: input.nextMeeting ?? null,
-  });
-  const activeSupportCaseGuard = `EXISTS (
-    SELECT 1 FROM support_cases
-    WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND status = 'active'
+  const guard = intakeWriteGuard(actor, supportCaseId, input.questionnaire.moduleSnapshot);
+  const scheduleGuard = schedule === null ? '' : `AND EXISTS (
+    SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND support_case_id = ? AND status = 'scheduled' AND version = ?
   )`;
-  const activeSupportCaseBindings = [supportCaseId, actor.orgId, supportCase.beneficiaryId];
-  const noExistingIntakeGuard = `NOT EXISTS (
-    SELECT 1 FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake'
-  )`;
-  const noExistingIntakeBindings = [actor.orgId, supportCaseId];
-  const sessionExistsClause = `EXISTS (
-    SELECT 1 FROM sessions
-    WHERE id = ? AND org_id = ? AND support_case_id = ?
-  )`;
-  const sessionExistsBindings = [id, actor.orgId, supportCaseId];
-
-  const sessionStatement = schedule === null
-    ? env.DB.prepare(
-      `INSERT INTO sessions (
-         id, org_id, support_case_id, counselor_id, held_at, channel, memo,
-         kind, intake_details, submission_id, submission_hash, submitted_by,
-         ai_status, created_at, updated_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, NULL, 'intake', ?, ?, ?, ?, 'none', ?, ?
-       WHERE ${activeSupportCaseGuard} AND ${noExistingIntakeGuard}`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-      input.heldAt,
-      input.channel,
-      intakeDetails,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-      createdAt,
-      createdAt,
-      ...activeSupportCaseBindings,
-      ...noExistingIntakeBindings,
-    )
-    : env.DB.prepare(
-      `INSERT INTO sessions (
-         id, org_id, support_case_id, counselor_id, held_at, channel, memo,
-         kind, intake_details, submission_id, submission_hash, submitted_by,
-         ai_status, created_at, updated_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, NULL, 'intake', ?, ?, ?, ?, 'none', ?, ?
-       WHERE EXISTS (
-         SELECT 1 FROM counseling_schedules
-         WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND support_case_id = ?
-           AND status = 'scheduled' AND version = ?
-       )
-       AND ${activeSupportCaseGuard} AND ${noExistingIntakeGuard}`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-      input.heldAt,
-      input.channel,
-      intakeDetails,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-      createdAt,
-      createdAt,
-      schedule.id,
-      actor.orgId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      input.expectedScheduleVersion ?? null,
-      ...activeSupportCaseBindings,
-      ...noExistingIntakeBindings,
-    );
-
-  const statements: PreparedStatement[] = [sessionStatement];
-
-  // 인테이크 완료 시각(CCC-56): 등록은 더 이상 intake_at 을 채우지 않으므로, 인테이크
-  // 기록 저장이 곧 유일한 채움 지점이다. 값은 이 세션의 상담일(held_at)이다 — 위저드
-  // 기본 유형·1회 규칙 안내가 읽는 신호(ScheduleCandidate.intakeAt)와 기록 존재가 여기서
-  // 처음으로 같은 사실이 된다. 세션 INSERT 가 가드에 막히면 이 UPDATE 도 0행이다.
-  statements.push(env.DB.prepare(
-    `UPDATE support_cases
-     SET intake_at = ?, updated_at = ?
-     WHERE id = ? AND org_id = ? AND ${sessionExistsClause}`,
-  ).bind(
-    input.heldAt,
-    createdAt,
-    supportCaseId,
-    actor.orgId,
-    ...sessionExistsBindings,
-  ));
-
-  // 목표(신설) + 각 목표 생성 감사(세션 트리거는 세션 행만 감사하므로 goals 는 명시 감사 — D14).
-  for (const goal of goalInputs) {
-    const goalId = newId();
-    statements.push(env.DB.prepare(
-      `INSERT INTO goals (id, org_id, support_case_id, title, scale_criteria, status, created_at)
-       SELECT ?, ?, ?, ?, ?, 'active', ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      goalId,
-      actor.orgId,
-      supportCaseId,
-      goal.title.trim(),
-      goal.scaleCriteria === undefined || goal.scaleCriteria === null ? null : stringifyJson(goal.scaleCriteria),
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-    statements.push(conditionalCanonicalAuditStatement(env, actor, {
-      action: 'create',
-      targetTable: 'goals',
-      targetId: goalId,
-      beneficiaryId: supportCase.beneficiaryId,
-      supportCaseId,
-      detail: { kind: 'intake' },
-    }, {
-      sql: 'SELECT 1 FROM goals WHERE id = ? AND org_id = ?',
-      bindings: [goalId, actor.orgId],
-    }, createdAt));
-  }
-
-  for (const action of input.actionItems ?? []) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO action_items (
-         id, org_id, support_case_id, session_id, description, owner, due_date, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      supportCaseId,
-      id,
-      action.description,
-      action.owner,
-      action.dueDate ?? null,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-  }
-
-  for (const area of input.lifeAreas ?? []) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO session_life_area_snapshots (
-         id, org_id, session_id, area_key, status, note, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      id,
-      area.areaKey,
-      area.status,
-      area.note ?? null,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-  }
-
-  // 추가 개인정보(0015) — 세션과 같은 원자 배치 안에서 금고에만 저장한다(D3).
-  // SET 목록은 새 4개 컬럼으로 한정한다: 실명·연락처·계좌·이메일은 이 경로로 절대 쓰지
-  // 않는다(그쪽은 admin 전용 updateParticipantPii 가 유일한 관문). 준 필드만 바꾸도록
-  // COALESCE(?, 기존값) 을 쓰고, key_version 은 updateParticipantPii 와 똑같이 건드리지
-  // 않는다. 파기된 금고는 WHERE purged_at IS NULL 로 되살아나지 않는다.
-  if (input.extendedPii !== undefined) {
-    const patch = input.extendedPii;
-    const [encBirthDate, encRegion, encEmergencyContact, encGender] = await Promise.all([
-      encryptPii(env, patch.birthDate ?? null),
-      encryptPii(env, patch.region ?? null),
-      encryptPii(env, patch.emergencyContact ?? null),
-      encryptPii(env, patch.gender ?? null),
-    ]);
-    const operationMarker = newId();
-    statements.push(env.DB.prepare(
-      `UPDATE participant_pii_vault
-       SET enc_birth_date = COALESCE(?, enc_birth_date),
-           enc_region = COALESCE(?, enc_region),
-           enc_emergency_contact = COALESCE(?, enc_emergency_contact),
-           enc_gender = COALESCE(?, enc_gender),
-           version = version + 1, updated_at = ?, operation_marker = ?
-       WHERE beneficiary_id = ? AND org_id = ? AND purged_at IS NULL
-         AND ${sessionExistsClause}`,
-    ).bind(
-      encBirthDate,
-      encRegion,
-      encEmergencyContact,
-      encGender,
-      createdAt,
-      operationMarker,
-      supportCase.beneficiaryId,
-      actor.orgId,
-      ...sessionExistsBindings,
-    ));
-    statements.push(conditionalCanonicalAuditStatement(env, actor, {
-      action: 'update',
-      targetTable: 'participant_pii_vault',
-      targetId: supportCase.beneficiaryId,
-      beneficiaryId: supportCase.beneficiaryId,
-      supportCaseId,
-      detail: {
-        fields: INTAKE_EXTENDED_PII_FIELDS.filter((field) => patch[field] !== undefined),
-        kind: 'intake',
-      },
-    }, {
-      sql: 'SELECT 1 FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ? AND operation_marker = ?',
-      bindings: [supportCase.beneficiaryId, actor.orgId, operationMarker],
-    }, createdAt));
-  }
-
-
-  if (schedule !== null) {
-    statements.push(env.DB.prepare(
-      `UPDATE counseling_schedules
-       SET status = 'completed', completed_session_id = ?, completed_by_actor_id = ?,
-           completed_at = ?, updated_by_actor_id = ?, version = version + 1, updated_at = ?
-       WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND support_case_id = ?
-         AND status = 'scheduled' AND version = ?
-         AND ${sessionExistsClause}`,
-    ).bind(
-      id,
-      actor.userId,
-      createdAt,
-      actor.userId,
-      createdAt,
-      schedule.id,
-      actor.orgId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      input.expectedScheduleVersion ?? null,
-      ...sessionExistsBindings,
-    ));
-  }
-
+  const scheduleBindings = schedule === null ? [] : [schedule.id, actor.orgId, supportCaseId, input.expectedScheduleVersion ?? null];
+  const exists = 'EXISTS (SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND support_case_id = ?)';
+  const existsBindings = [id, actor.orgId, supportCaseId];
+  const statements = [
+    intakeProgramLock(env, actor, input.questionnaire.moduleSnapshot),
+    env.DB.prepare(
+      `INSERT INTO sessions (id, org_id, support_case_id, counselor_id, held_at, channel, memo, kind,
+        intake_details, intake_schema_version, intake_revision, intake_updated_by, submission_id, submission_hash, submitted_by,
+        ai_status, created_at, updated_at)
+      SELECT ?, ?, ?, ?, ?, ?, NULL, 'intake', ?, 2, 1, ?, ?, ?, ?, 'none', ?, ?
+      WHERE ${guard.sql} ${scheduleGuard}
+        AND NOT EXISTS (SELECT 1 FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake')`,
+    ).bind(id, actor.orgId, supportCaseId, actor.userId, input.heldAt, input.channel, stringifyJson(input.questionnaire),
+      actor.userId, input.submissionId, submissionHash, actor.userId, createdAt, createdAt,
+      ...guard.bindings, ...scheduleBindings, actor.orgId, supportCaseId),
+    env.DB.prepare(`UPDATE support_cases SET intake_at = ?, updated_at = ? WHERE id = ? AND org_id = ? AND ${exists}`)
+      .bind(input.heldAt, createdAt, supportCaseId, actor.orgId, ...existsBindings),
+  ];
+  if (schedule !== null) statements.push(env.DB.prepare(
+    `UPDATE counseling_schedules SET status = 'completed', completed_session_id = ?, completed_by_actor_id = ?,
+      completed_at = ?, updated_by_actor_id = ?, version = version + 1, updated_at = ?
+     WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND ${exists}`,
+  ).bind(id, actor.userId, createdAt, actor.userId, createdAt, schedule.id, actor.orgId, input.expectedScheduleVersion ?? null, ...existsBindings));
   try {
     await env.DB.batch(statements);
-    const persisted = await env.DB.prepare(
-      `SELECT id FROM sessions
-       WHERE id = ? AND org_id = ? AND support_case_id = ?
-         AND submission_id = ? AND submission_hash = ? AND submitted_by = ?
-       LIMIT 1`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-    ).first<{ id: string }>();
-    if (persisted === null) {
-      // WHERE 가드(1회 규칙 등)로 세션이 안 들어갔거나 경합에서 밀렸다.
-      const matched = await intakeRecordReplay(env, actor, supportCaseId, input.submissionId, submissionHash);
-      if (matched !== null) return matched;
-      throw new ConflictError('intake record already exists for this support case');
-    }
   } catch (error) {
     if (!isUniqueConstraintError(error)) throw error;
     const matched = await intakeRecordReplay(env, actor, supportCaseId, input.submissionId, submissionHash);
     if (matched !== null) return matched;
-    throw error;
+    throw new ConflictError('intake record already exists');
   }
-
-  return {
-    record: {
-      id,
-      supportCaseId,
-      counselorId: actor.userId,
-      heldAt: input.heldAt,
-      channel: input.channel,
-      memo: '',
-      kind: 'intake',
-      aiSummary: null,
-      approvedAt: null,
-      createdAt,
-    },
-    replayed: false,
-  };
+  const result = await intakeRecordReplay(env, actor, supportCaseId, input.submissionId, submissionHash);
+  if (result === null) throw new ConflictError('intake record or program settings changed');
+  return { ...result, replayed: result.record.id !== id };
 }
 
-/**
- * 인테이크 수정 입력(2026-08-08 Q "확인/수정"). 현행 위저드가 소유한 필드만 받는다.
- * 동의·기본정보(금고)·목표·다음 행동은 각자의 화면·수명 규칙이 있어 이 경로로 손대지
- * 않는다 — 그 다섯은 CreateIntakeRecordInput 에만 남는다.
- */
-export interface UpdateIntakeRecordInput {
-  heldAt: string;
-  channel: Session['channel'];
-  answers?: IntakeAnswerInput[];
-  debts?: IntakeDebtEntryInput[];
-  linkedOrgs?: IntakeLinkedOrgInput[];
-  additionalItems?: IntakeAdditionalItemInput[];
-  managerOpinion?: string;
-}
-
-function assertUpdateIntakeRecordInput(input: UpdateIntakeRecordInput): void {
-  const expectedKeys = ['heldAt', 'channel'];
-  if (input.answers !== undefined) expectedKeys.push('answers');
-  if (input.debts !== undefined) expectedKeys.push('debts');
-  if (input.linkedOrgs !== undefined) expectedKeys.push('linkedOrgs');
-  if (input.additionalItems !== undefined) expectedKeys.push('additionalItems');
-  if (input.managerOpinion !== undefined) expectedKeys.push('managerOpinion');
-  assertExactKeys(input, expectedKeys);
-  canonicalUtcInstant(input.heldAt, 'record time');
-  if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
-    throw new ValidationError('record channel is invalid');
-  }
-  if (input.answers !== undefined) assertIntakeAnswerInputs(input.answers);
-  if (input.additionalItems !== undefined) assertIntakeAdditionalItemInputs(input.additionalItems);
-  if (input.debts !== undefined) {
-    assertIntakeTableRows(
-      input.debts as unknown as Array<Record<string, unknown>>,
-      'debts',
-      'creditor',
-      INTAKE_DEBT_OPTIONAL_KEYS,
-    );
-  }
-  if (input.linkedOrgs !== undefined) {
-    assertIntakeTableRows(
-      input.linkedOrgs as unknown as Array<Record<string, unknown>>,
-      'linked orgs',
-      'orgName',
-      INTAKE_LINKED_ORG_OPTIONAL_KEYS,
-    );
-  }
-  if (input.managerOpinion !== undefined) assertNonBlankText(input.managerOpinion, 'manager opinion');
-}
-
-/**
- * 인테이크 수정(2026-08-08 Q "확인/수정"). 위저드 소유분(intake_details 의
- * answers·debts·linkedOrgs·additionalItems·managerOpinion + held_at·channel)만 덮어쓴다.
- * 구 위저드의 유산 키(helpNarrative·nextMeeting)는 화면이 편집하지 않으므로 보존한다 —
- * 지우면 과거 기록의 해석 재료가 사라진다. 세션 INSERT 감사 트리거는 UPDATE 를 덮지
- * 않으므로 감사는 명시로 남긴다(D14). 승인 개념이 없는 회차라(ai_status 'none')
- * R2 승인 게이트와 무관하다.
- */
+/** A revision is appended on every edit. Legacy conversion requires the exact source revision. */
 export async function updateIntakeRecord(
-  env: Env,
-  actor: Actor,
-  supportCaseId: string,
-  input: UpdateIntakeRecordInput,
+  env: Env, actor: Actor, supportCaseId: string, input: IntakeUpdateRequest,
 ): Promise<IntakeRecordResult> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
-  assertUpdateIntakeRecordInput(input);
+  try { parseIntakeUpdateRequest(input); } catch (error) {
+    if (error instanceof IntakeContractError) throw new ValidationError(error.message);
+    throw error;
+  }
   const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
-  if (supportCase.status !== 'active') {
-    throw new ConflictError('support case is unavailable');
-  }
+  if (supportCase.status !== 'active') throw new ConflictError('support case is unavailable');
+  await assertIntakeModuleSnapshot(env, actor, supportCase, input.questionnaire.moduleSnapshot);
   const intakeRow = await env.DB.prepare(
-    `SELECT id, intake_details, created_at FROM sessions
-     WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
-  ).bind(actor.orgId, supportCaseId).first<{ id: string; intake_details: string | null; created_at: string }>();
-  if (intakeRow === null) {
-    throw new ConflictError('intake record does not exist for this support case');
+    `SELECT * FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
+  ).bind(actor.orgId, supportCaseId).first<DbRow>();
+  if (intakeRow === null) throw new ConflictError('intake record does not exist');
+  const revision = integerValue(intakeRow.intake_revision);
+  if (revision !== input.expectedRevision) throw new ConflictError('intake revision changed');
+  const legacy = intakeRow.intake_schema_version === 1;
+  if (legacy ? input.conversion?.confirmed !== true || input.conversion.sourceRevision !== revision : input.conversion !== undefined) {
+    throw new ConflictError('intake conversion confirmation is required only for a legacy source');
   }
-  const existing = parseJson<Record<string, unknown>>(intakeRow.intake_details) ?? {};
-  const intakeDetails = stringifyJson({
-    helpNarrative: existing.helpNarrative ?? null,
-    managerOpinion: input.managerOpinion ?? null,
-    answers: input.answers ?? [],
-    additionalItems: input.additionalItems ?? [],
-    debts: input.debts ?? [],
-    linkedOrgs: input.linkedOrgs ?? [],
-    nextMeeting: existing.nextMeeting ?? null,
-  });
+  const id = stringValue(intakeRow.id);
   const updatedAt = now();
   const operationMarker = newId();
-  // 권한을 변경 배치의 WHERE 에서 반복한다. 사전 검사만으로는 이후 상태 변화를 승인하지
-  // 못한다. 감사는 이 요청의 operation marker가 post-state에 남았을 때만 함께 기록한다.
+  const guard = intakeWriteGuard(actor, supportCaseId, input.questionnaire.moduleSnapshot);
   const results = await env.DB.batch([
+    intakeProgramLock(env, actor, input.questionnaire.moduleSnapshot),
     env.DB.prepare(
-      `UPDATE sessions
-       SET held_at = ?, channel = ?, intake_details = ?, updated_at = ?, operation_marker = ?
-       WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake'
-         AND EXISTS (
-           SELECT 1 FROM support_cases AS support_case
-           WHERE support_case.id = sessions.support_case_id
-             AND support_case.org_id = sessions.org_id
-             AND support_case.status = 'active'
-         )
-         AND EXISTS (
-           SELECT 1
-           FROM support_case_assignees AS assignment
-           JOIN user_role_assignments AS practitioner_role
-             ON practitioner_role.org_id = assignment.org_id
-            AND practitioner_role.user_id = assignment.user_id
-            AND practitioner_role.role = 'practitioner'
-            AND practitioner_role.revoked_at IS NULL
-           WHERE assignment.org_id = sessions.org_id
-             AND assignment.support_case_id = sessions.support_case_id
-             AND assignment.user_id = ?
-             AND assignment.unassigned_at IS NULL
-             AND assignment.status = 'active'
-         )`,
-    ).bind(
-      input.heldAt,
-      input.channel,
-      intakeDetails,
-      updatedAt,
-      operationMarker,
-      intakeRow.id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-    ),
+      `UPDATE sessions SET held_at = ?, channel = ?, intake_details = ?, updated_at = ?, operation_marker = ?,
+        intake_schema_version = 2, intake_revision = intake_revision + 1, intake_updated_by = ?, intake_converted_from_revision = ?
+       WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake' AND intake_revision = ?
+         AND intake_schema_version = ? AND ${guard.sql}`,
+    ).bind(input.heldAt, input.channel, stringifyJson(input.questionnaire), updatedAt, operationMarker, actor.userId,
+      legacy ? revision : null, id, actor.orgId, supportCaseId, revision, legacy ? 1 : 2, ...guard.bindings),
     conditionalCanonicalAuditStatement(env, actor, {
-      action: 'update',
-      targetTable: 'sessions',
-      targetId: intakeRow.id,
-      beneficiaryId: supportCase.beneficiaryId,
-      supportCaseId,
-      detail: { kind: 'intake' },
+      action: 'update', targetTable: 'sessions', targetId: id, beneficiaryId: supportCase.beneficiaryId, supportCaseId,
+      detail: { kind: 'intake', schemaVersion: 2, revision: revision + 1, convertedFromRevision: legacy ? revision : null },
     }, {
       sql: 'SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND operation_marker = ?',
-      bindings: [intakeRow.id, actor.orgId, operationMarker],
+      bindings: [id, actor.orgId, operationMarker],
     }, updatedAt),
-    // 인테이크 완료 시각 동기(CCC-56): 상담일(held_at)이 바뀌면 intake_at 도 따라간다.
-    // 앞 UPDATE 가 권한·상태 가드에 막혀 0행이면 여기도 0행이어야 하므로, 이 호출이 방금
-    // 쓴 값(held_at = ?, updated_at = ?)이 실제로 앉았는지를 조건으로 삼는다.
     env.DB.prepare(
-      `UPDATE support_cases
-       SET intake_at = ?, updated_at = ?
-       WHERE id = ? AND org_id = ? AND EXISTS (
-         SELECT 1 FROM sessions
-         WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake'
-           AND held_at = ? AND updated_at = ?
-       )`,
-    ).bind(
-      input.heldAt,
-      updatedAt,
-      supportCaseId,
-      actor.orgId,
-      intakeRow.id,
-      actor.orgId,
-      supportCaseId,
-      input.heldAt,
-      updatedAt,
-    ),
+      `UPDATE support_cases SET intake_at = ?, updated_at = ? WHERE id = ? AND org_id = ? AND EXISTS (
+        SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND operation_marker = ?
+      )`,
+    ).bind(input.heldAt, updatedAt, supportCaseId, actor.orgId, id, actor.orgId, operationMarker),
   ]);
-  const updated = results[0] as unknown as { meta?: { changes?: number } };
-  if ((updated.meta?.changes ?? 0) < 1) {
-    throw new ConflictError('intake record is no longer editable');
-  }
+  const updated = results[1] as unknown as { meta?: { changes?: number } };
+  if ((updated.meta?.changes ?? 0) < 1) throw new ConflictError('intake revision or program settings changed');
   return {
-    record: {
-      id: intakeRow.id,
-      supportCaseId,
-      counselorId: actor.userId,
-      heldAt: input.heldAt,
-      channel: input.channel,
-      memo: '',
-      kind: 'intake',
-      aiSummary: null,
-      approvedAt: null,
-      createdAt: intakeRow.created_at,
-    },
+    record: { ...mapCounselingRecord(intakeRow), heldAt: input.heldAt, channel: input.channel },
     replayed: false,
+    schemaVersion: 2,
+    revision: revision + 1,
   };
 }
 
@@ -20393,10 +19673,12 @@ export async function listCounselingRecords(
 
 /** Preserve stored wording and attach a source field to every report value. */
 function reportEvidence(
-  record: CounselingRecord, sessionNumber: number, source: string, text: unknown,
+  record: CounselingRecord & { intakeSchemaVersion?: 1 | 2; intakeRevision?: number }, sessionNumber: number, source: string, text: unknown,
 ): ReportEvidence | undefined {
   return typeof text === 'string' && text.trim() !== ''
-    ? { sessionId: record.id, sessionNumber, heldAt: record.heldAt, source, text }
+    ? { sessionId: record.id, sessionNumber, heldAt: record.heldAt, source, text,
+      ...(source.startsWith('intake_details.') ? { intakeSchemaVersion: record.intakeSchemaVersion, intakeRevision: record.intakeRevision }
+        : record.kind === 'intake' && source.startsWith('session_life_area_snapshots.') ? { intakeSchemaVersion: 1 as const, intakeRevision: 1 } : {}) }
     : undefined;
 }
 
@@ -20407,7 +19689,7 @@ export async function getSupportCaseReport(
   const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
   const [records, detailRows, actionRows, program] = await Promise.all([
     listCounselingRecords(env, actor, supportCaseId),
-    env.DB.prepare(`SELECT id, record_details, intake_details FROM sessions
+    env.DB.prepare(`SELECT id, record_details, intake_details, intake_schema_version, intake_revision FROM sessions
       WHERE org_id=? AND support_case_id=?`).bind(actor.orgId, supportCaseId).all<DbRow>(),
     env.DB.prepare(`SELECT id, session_id, description, due_date, resolved_at,
         resolution_status, resolution_note, resolution_session_id
@@ -20426,13 +19708,15 @@ export async function getSupportCaseReport(
   const nextConfirmations: NonNullable<SupportCaseReport['nextConfirmations']> = [];
   let firstIntakeGoal: ReportEvidence | undefined;
   let intakeSeen = false;
-  for (const [index, record] of records.entries()) {
+  for (const [index, originalRecord] of records.entries()) {
     const number = index + 1;
-    const row = detailsById.get(record.id);
+    const row = detailsById.get(originalRecord.id);
+    const record = { ...originalRecord, ...(originalRecord.kind === 'intake'
+      ? { intakeSchemaVersion: Number(row?.intake_schema_version ?? 1) as 1 | 2, intakeRevision: Number(row?.intake_revision ?? 1) } : {}) };
     const details = parseJson<Record<string, unknown>>(row?.record_details) ?? {};
-    const intake = parseJson<Record<string, unknown>>(row?.intake_details) ?? {};
-    const answers = Array.isArray(intake.answers) ? intake.answers as IntakeAnswerInput[] : [];
-    const answer = (key: IntakeAnswerKey) => answers.find((item) => item?.key === key && item.response === 'answered')?.text;
+    const intake = intakeReadView(row?.intake_details).details;
+    const answers = Array.isArray(intake.answers) ? intake.answers as IntakeReadAnswer[] : [];
+    const answer = (key: string) => answers.find((item) => item?.key === key && item.response === 'answered')?.text;
     if (record.kind === 'intake' && !intakeSeen) {
       intakeSeen = true;
       // One explicit plan, in questionnaire order. Never use the mutable overall_goal
@@ -20440,7 +19724,7 @@ export async function getSupportCaseReport(
       firstIntakeGoal = reportEvidence(record, number, 'intake_details.answers.need_primary', answer('need_primary'))
         ?? reportEvidence(record, number, 'intake_details.answers.summary_direction', answer('summary_direction'))
         ?? reportEvidence(record, number, 'intake_details.helpNarrative.desiredChange',
-          (intake.helpNarrative as IntakeHelpNarrativeInput | null)?.desiredChange);
+          (intake.helpNarrative as LegacyIntakeHelpNarrative | null)?.desiredChange);
     }
     let summary = reportEvidence(record, number, 'approved_ai_briefing_v1.one_liner', record.aiOneLiner)
       ?? reportEvidence(record, number, 'approved_ai_briefing_v1.summary_text', sessionMemoExcerpt(record.aiSummary))
@@ -20454,6 +19738,7 @@ export async function getSupportCaseReport(
     sessions.push({
       sessionId: record.id, sessionNumber: number, heldAt: record.heldAt, kind: record.kind,
       channel: record.channel, ...(summary === undefined ? {} : { summary }),
+      ...(record.kind === 'intake' ? { intakeSchemaVersion: record.intakeSchemaVersion, intakeRevision: record.intakeRevision } : {}),
     });
     const change = reportEvidence(record, number, 'record_details.changeSinceLast', details.changeSinceLast);
     if (change !== undefined) situations.push(change);
@@ -20464,14 +19749,14 @@ export async function getSupportCaseReport(
       if (entry !== undefined) situations.push(entry);
     }
     for (const item of answers) {
-      if (item?.response !== 'answered' || !/^(economy_|employment_|housing_|health_|family_|life_detail_)/.test(item.key)) continue;
+      if (item?.response !== 'answered' || !/^(economy_|employment_|housing_|health_|family_|physical_health_|mental_health_|care_|legal_|other_detail|life_detail_)/.test(item.key)) continue;
       const entry = reportEvidence(record, number, `intake_details.answers.${item.key}`, item.text);
       if (entry !== undefined) situations.push(entry);
     }
     if (record.kind === 'intake' && Array.isArray(intake.debts)) {
-      for (const [debtIndex, debt] of (intake.debts as IntakeDebtEntryInput[]).entries()) {
-        // The questionnaire uses the same explicit sentinel for no debt.
-        if (debt?.creditor?.trim() === '해당 없음') continue;
+      for (const [debtIndex, debt] of (intake.debts as IntakeDebt[]).entries()) {
+        // Only legacy records used literal text as an unanswered sentinel.
+        if (record.intakeSchemaVersion !== 2 && debt?.creditor?.trim() === '해당 없음') continue;
         for (const field of ['creditor', 'kind', 'balance', 'monthlyPayment', 'arrearsStatus'] as const) {
           const entry = reportEvidence(record, number, `intake_details.debts.${debtIndex}.${field}`, debt?.[field]);
           if (entry !== undefined) situations.push(entry);
@@ -20479,7 +19764,7 @@ export async function getSupportCaseReport(
       }
     }
     if (record.kind === 'intake' && Array.isArray(intake.additionalItems)) {
-      for (const [itemIndex, item] of (intake.additionalItems as IntakeAdditionalItemInput[]).entries()) {
+      for (const [itemIndex, item] of (intake.additionalItems as LegacyIntakeAdditionalItem[]).entries()) {
         const evidence = reportEvidence(record, number, `intake_details.additionalItems.${itemIndex}.item`, item?.item);
         if (evidence === undefined) continue;
         const entry: typeof nextConfirmations[number] = { item: item.item, evidence };
@@ -20502,9 +19787,9 @@ export async function getSupportCaseReport(
       if (entry !== undefined) risks.push(entry);
     }
     if (record.kind === 'intake' && Array.isArray(intake.linkedOrgs)) {
-      for (const [orgIndex, linked] of (intake.linkedOrgs as IntakeLinkedOrgInput[]).entries()) {
-        // D41's required no-resource row is an answer, not an institution.
-        if (linked?.orgName?.trim() === '해당 없음') continue;
+      for (const [orgIndex, linked] of (intake.linkedOrgs as IntakeLinkedOrg[]).entries()) {
+        // Only version 1 used a literal no-resource row.
+        if (record.intakeSchemaVersion !== 2 && linked?.orgName?.trim() === '해당 없음') continue;
         const evidence = reportEvidence(record, number, `intake_details.linkedOrgs.${orgIndex}`, linked?.orgName);
         if (evidence === undefined) continue;
         const entry: typeof resources[number] = { orgName: linked.orgName, evidence };

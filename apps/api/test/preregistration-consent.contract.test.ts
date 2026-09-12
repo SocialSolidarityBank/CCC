@@ -262,6 +262,7 @@ describe('POST /participants 등록과 6종 동의 원자 기록 (S7)', () => {
       supportCaseId: expect.any(String),
       assignmentRole: 'primary',
       replayed: false,
+      canWriteIntake: true,
     });
 
     const events = await t.db.prepare(
@@ -414,6 +415,7 @@ describe('POST /participants 등록과 6종 동의 원자 기록 (S7)', () => {
       supportCaseId: created.supportCaseId,
       assignmentRole: 'primary',
       replayed: true,
+      canWriteIntake: true,
     });
     expect(await countRows('beneficiaries')).toBe(1);
     expect(await countRows('consent_events')).toBe(CONSENT_DOMAINS.length);
