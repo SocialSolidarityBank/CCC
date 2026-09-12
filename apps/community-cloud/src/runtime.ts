@@ -56,6 +56,7 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
     ...config.settings,
     ...installation,
     installationMode: manifest.mode,
+    installationOrgId: config.organizationId,
     DB: config.database.forActor({ orgId: config.organizationId, actorId: 'identity-directory' }),
     secretStore: config.secretStore,
     audioStore: null,
@@ -68,6 +69,8 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
       orgId: config.organizationId, actorId: subject, sessionId,
     }),
   });
+  // D80 첫 로그인 연결은 사람 신원 해석 앞단에서 이 포트만 쓴다(MFA 관문·디렉터리 조회 없음).
+  baseEnvironment.verifyIdentityLinkClaims = (linkRequest) => identity.verifyLinkClaims(linkRequest);
   const resolveBusinessActor = createAgentBearerResolver({
     inner: (credentialRequest) => identity.resolve(credentialRequest),
   });

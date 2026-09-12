@@ -116,6 +116,7 @@ describe('independent Community Cloud runtime', () => {
       const input = `${encode({ alg: 'ES256', kid: jwk.kid, typ: 'JWT' })}.${encode({
         iss: issuer, aud: 'authenticated', sub: 'synthetic-subject', session_id: 'synthetic-session',
         role: 'authenticated', is_anonymous: false, aal: 'aal1', iat: now, exp: now + 3600,
+        email: 'synthetic@example.invalid', email_verified: true,
       })}`;
       const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, pair.privateKey, new TextEncoder().encode(input));
       return `${input}.${Buffer.from(signature).toString('base64url')}`;
