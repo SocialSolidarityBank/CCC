@@ -12480,60 +12480,6 @@ function installationOrgId(env: Env): string {
   return orgId;
 }
 
-/** 연결 후보는 설치 기관의 활성 사람 행 하나뿐이다. email 전역 unique 라 0 또는 1건이다. */
-async function linkableUserRow(env: Env, orgId: string, email: string): Promise<DbRow | null> {
-  return env.DB.prepare(
-    `SELECT id, role, auth_subject FROM users
-     WHERE org_id = ? AND lower(trim(email)) = ? AND active = 1 AND role <> 'service'
-     LIMIT 1`,
-  ).bind(orgId, email).first<DbRow>();
-}
-
-/**
- * 첫 로그인 신원 연결(D80). 초대로 등재됐지만 auth_subject 가 빈 행 하나에만 검증된
- * subject 를 채운다. org 는 설치 기관, email·subject 는 검증된 claim 에서만 오며 이미
- * 다른 subject 가 잡은 이메일은 연결하지 않는다. 성공은 감사 한 줄과 같은 배치다.
- */
-export async function linkAuthenticatedIdentity(
-  env: Env,
-  claims: AuthenticatedIdentityClaims,
-): Promise<{ linked: true }> {
-  assertExactKeys(claims, ['subject', 'email', 'issuedAt']);
-  assertOpaqueIdentifier(claims.subject, 'auth subject');
-  assertNonBlankText(claims.issuedAt, 'credential issue time');
-  const email = normalizedStaffEmail(claims.email);
-  const orgId = installationOrgId(env);
-  const candidate = await linkableUserRow(env, orgId, email);
-  if (candidate === null) throw new ForbiddenError('identity is not invited');
-  // 같은 subject 면 이미 끝난 일이다. 쓰지 않고 그대로 성공으로 답한다.
-  if (nullableString(candidate.auth_subject) === claims.subject) return { linked: true };
-  const userId = stringValue(candidate.id);
-  const detail = stringifyJson({
-    schemaVersion: 1,
-    via: 'first_login',
-    emailSha256: await sha256Hex(email),
-    authSubjectSha256: await sha256Hex(claims.subject),
-  });
-  const results = await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE users SET auth_subject = ?
-       WHERE id = ? AND org_id = ? AND lower(trim(email)) = ?
-         AND active = 1 AND role <> 'service' AND auth_subject IS NULL`,
-    ).bind(claims.subject, userId, orgId, email),
-    env.DB.prepare(
-      `INSERT INTO audit_log (org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at)
-       SELECT ?, ?, ?, 'identity_link', 'users', ?, NULL, ?, ?
-       WHERE EXISTS (SELECT 1 FROM users WHERE id = ? AND org_id = ? AND auth_subject = ?)`,
-    ).bind(orgId, userId, toRole(candidate.role), userId, detail, now(), userId, orgId, claims.subject),
-  ]);
-  if ((results[0]?.meta.changes ?? 0) === 1) return { linked: true };
-  // 0건은 경합이거나 다른 subject 가 이미 잡은 이메일이다. 상태를 다시 읽어 가른다.
-  const current = await linkableUserRow(env, orgId, email);
-  const linkedSubject = current === null ? null : nullableString(current.auth_subject);
-  if (linkedSubject === claims.subject) return { linked: true };
-  if (linkedSubject !== null) throw new ConflictError('identity is already linked');
-  throw new ForbiddenError('identity is not invited');
-}
 
 async function resolveDirectoryActorByKey(
   env: Env,
@@ -22465,13 +22411,19 @@ export interface StaffInviteAcceptResult {
 /**
  * 초대 수락(원자). 토큰 소비, users 등재, 초대에 적힌 역할 부여, legacy 자동 부여 역할 회수를
  * 한 배치에 묶는다. 이메일이 초대와 다르면 소비하지 않고 미존재와 같은 ForbiddenError다.
+ *
+ * 계정 결속(D90): 수락자가 이미 만든 Auth 계정의 검증된 `subject` 를 등재와 같은 배치에서 채운다.
+ * 초대 토큰은 한 번만 쓰는 비밀이고 subject 는 서명으로 검증된 값이라, 연결 근거가 이메일 claim 이
+ * 아니라 이 둘이다. 연결되지 않은 users 행을 남기지 않으므로 나중에 가로챌 자리도 없다.
  */
 export async function acceptStaffInvite(
   env: Env,
   input: { token: string; name: string; email: string },
+  authSubject: string | null = null,
 ): Promise<StaffInviteAcceptResult> {
   assertExactKeys(input, ['token', 'name', 'email']);
   assertNonBlankText(input.name, 'name');
+  if (authSubject !== null) assertOpaqueIdentifier(authSubject, 'auth subject');
   const name = input.name.trim();
   const email = normalizedStaffEmail(input.email);
   const row = await liveStaffInviteByToken(env, input.token);
@@ -22497,9 +22449,9 @@ export async function acceptStaffInvite(
          WHERE id = ? AND status = 'issued' AND expires_at > ?`,
       ).bind(createdAt, userId, consumptionId, invite.id, createdAt),
       env.DB.prepare(
-        `INSERT INTO users (id, org_id, email, role, active, name, created_at)
-         SELECT ?, ?, ?, ?, 1, ?, ? WHERE ${consumed}`,
-      ).bind(userId, orgId, email, storedRole, name, createdAt, invite.id, consumptionId),
+        `INSERT INTO users (id, org_id, email, role, active, name, created_at, auth_subject)
+         SELECT ?, ?, ?, ?, 1, ?, ?, ? WHERE ${consumed}`,
+      ).bind(userId, orgId, email, storedRole, name, createdAt, authSubject, invite.id, consumptionId),
       // users 등재 트리거가 심는 legacy 역할은 초대 계약이 아니므로 같은 배치에서 회수한다.
       env.DB.prepare(
         `UPDATE user_role_assignments SET revoked_at = ?

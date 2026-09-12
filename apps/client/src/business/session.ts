@@ -40,5 +40,4 @@ export interface PublicSession {
   /** 초대 수락 뒤 계정 생성. 비밀번호는 인자로만 흐르고 세션은 SDK 메모리에만 남는다. */
   signUp: (email: string, password: string) => Promise<{ accessToken: string | null }>;
   /** 첫 로그인 신원 연결(`POST /identity/link`). 본문은 비어 있다. */
-  linkIdentity: (accessToken: string) => Promise<void>;
 }

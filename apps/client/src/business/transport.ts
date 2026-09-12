@@ -11,43 +11,12 @@ const MONTH_QUERY_KEYS = ['month'];
 /** 기록 목록은 공식 기록만 고른다. 승인 전 초안을 주소로 불러올 길을 열지 않는다. */
 const OFFICIAL_QUERY_KEYS = ['official'];
 
-/**
- * 첫 로그인 신원 연결(`POST /identity/link`). 초대를 수락한 행에는 `auth_subject` 가 없어
- * 디렉터리 조회가 403 forbidden 으로 떨어지고, 서버가 토큰의 검증된 이메일로 그 행을 찾아
- * 연결한다. 본문은 비어 있다. 이메일, subject, 기관은 이 요청으로 보내지 않는다.
- *
- * 토큰은 인자로만 받고 어디에도 보관하지 않는다. MFA 전(aal1)에도 부를 수 있는 유일한 경로다.
- */
-export async function linkIdentity(
-  installation: VerifiedInstallation,
-  token: string,
-  fetcher: typeof fetch = globalThis.fetch.bind(globalThis),
-): Promise<void> {
-  assertInstallationCurrent(installation);
-  try {
-    const response = await fetcher(`${installation.apiBase.replace(/\/$/, '')}/identity/link`, {
-      method: 'POST', credentials: 'omit', cache: 'no-store', redirect: 'error',
-      signal: AbortSignal.timeout(30_000),
-      headers: { Accept: 'application/json', Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: '{}',
-    });
-    if (response.redirected) throw new BusinessError('invalid_response');
-    const value: unknown = await response.json().catch(() => null);
-    if (!response.ok) throw httpError(response.status, value);
-    if (typeof value !== 'object' || value === null || !('linked' in value) || value.linked !== true) {
-      throw new BusinessError('invalid_response');
-    }
-  } catch (error) {
-    throw safeError(error);
-  }
-}
 
 /** 한 인증 상태에만 속한다. refresh, 계정 변경, 로그아웃 때 버리고 다시 검증한다. */
 export class BusinessTransport {
   private readonly lifetime = new AbortController();
   private capabilityToken: string | null = null;
-  /** 연결은 이 인증 상태에서 한 번만 시도한다. 거절이면 원래 오류를 그대로 올린다. */
-  private identityLinkTried = false;
+
 
   constructor(
     private readonly installation: VerifiedInstallation,
@@ -119,30 +88,10 @@ export class BusinessTransport {
     }
   }
 
-  /**
-   * 초대를 수락했지만 아직 `auth_subject` 가 없는 첫 로그인만 여기서 복구한다. 한 번 연결하고
-   * 원래 요청을 한 번 다시 부른다. 이때 첫 호출은 신원 자체가 서지 않아 아무것도 바꾸지 못했다.
-   */
-  private async withIdentityLink<T>(token: string, call: () => Promise<T>): Promise<T> {
-    try {
-      return await call();
-    } catch (error) {
-      if (this.identityLinkTried || !(error instanceof BusinessError) || error.code !== 'forbidden') throw error;
-      this.identityLinkTried = true;
-      try {
-        await linkIdentity(this.installation, token, this.fetcher);
-      } catch {
-        throw error;
-      }
-      return call();
-    }
-  }
-
   async initialize(): Promise<CapabilityManifest> {
     this.capabilityToken = null;
     const token = this.currentToken();
-    const { response, value } = await this.withIdentityLink(token,
-      () => this.exchange('/capabilities', 'GET', undefined, token));
+    const { response, value } = await this.exchange('/capabilities', 'GET', undefined, token);
     if (response.headers.get('X-CCC-Installation-Id') !== this.installation.manifest.installationId) {
       throw new BusinessError('installation_mismatch');
     }
@@ -167,7 +116,7 @@ export class BusinessTransport {
     this.target(path);
     const token = this.currentToken();
     if (this.capabilityToken !== token) throw new BusinessError('capabilities_required');
-    const { value } = await this.withIdentityLink(token, () => this.exchange(path, method, body, token));
+    const { value } = await this.exchange(path, method, body, token);
     return value;
   }
 }
@@ -190,7 +139,8 @@ export class PublicTransport {
     private readonly fetcher: typeof fetch = globalThis.fetch.bind(globalThis),
   ) {}
 
-  async request(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<unknown> {
+  /** `token` 은 방금 만든 자기 계정의 접근 토큰이다. 인자로만 받고 보관하지 않는다(D90). */
+  async request(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown, token?: string): Promise<unknown> {
     assertInstallationCurrent(this.installation);
     if (!PUBLIC_PATHS.some((pattern) => pattern.test(path))) throw new BusinessError('invalid_api_path');
     const target = `${this.installation.apiBase.replace(/\/$/, '')}${path}`;
@@ -198,7 +148,11 @@ export class PublicTransport {
       const response = await this.fetcher(target, {
         method, credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
         signal: AbortSignal.timeout(30_000),
-        headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+        headers: {
+          Accept: 'application/json',
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+          ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
+        },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (response.redirected) throw new BusinessError('invalid_response');

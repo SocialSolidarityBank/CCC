@@ -69,7 +69,7 @@ roles의 업무 의미는 lossless하게 유지한다. `institution-admin`은 �
 
 Community Cloud의 human role은 `Actor.authn.assurance`가 `aal1` 또는 `aal2`인 세션을 받는다(2026-09-12 Q 결정, D89). MFA는 선택이며 로그인이 인증 앱 등록을 강요하지 않는다. 인증 앱을 등록한 사람은 다음 로그인부터 여섯 자리 확인을 거치고 그 세션은 `aal2`로 기록된다. 실제 assurance는 그대로 Actor에 남아 감사에 쓰인다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.
 
-**2026-09-12 Q 확정.** 첫 로그인 신원 연결(`POST /identity/link`, D80)은 초대로 등재된 `users` 행의 `auth_subject`가 비어 있을 때만 검증된 `sub`를 채우며, 그 행을 찾는 키는 access token의 `email` claim(정규화 후 설치 기관·`active=1`·`role<>'service'` 범위)이다. 이 claim을 신뢰하는 근거는 token이 아니라 설치다 - Supabase access token에는 `email_verified` claim이 없고 `user_metadata`는 본인이 고치므로 어느 쪽도 읽지 않는다. 대신 설치가 Auth의 이메일 확인을 반드시 요구해야 하고(autoconfirm 해제), 이 조건은 `scripts/supabase` plan·doctor가 `AUTH_CONFIRMATION_DISABLED` 차단 사유로 강제한다.
+**2026-09-12 Q 확정(D90).** 초대받은 실무자의 계정 결속은 초대 수락 한 번에 끝난다. 수락자는 먼저 자기 Auth 계정을 만들고 그 access token으로 `POST /staff-invites/token/:token/accept`를 부르며, 서버는 서명을 검증한 `sub`를 `users` 등재와 같은 배치에서 `auth_subject`에 채운다. 연결 근거는 일회용 초대 토큰과 검증된 `sub` 두 가지이고, `email` claim은 초대 이메일과 같은지 대조하는 데만 쓴다. 다르면 결속하지 않고 등재만 한다. 결속되지 않은 행을 남기지 않으므로 나중에 다른 계정이 그 행을 가로챌 자리가 없다. 이 설계는 이메일 claim으로 행을 찾던 `POST /identity/link`(구 D80 경로)를 대체하며 그 route는 제거했다. 수락 직후 세션이 서야 하므로 설치는 Auth의 가입 확인 메일을 요구하지 않아야 하고(autoconfirm), 이 조건은 `scripts/supabase` plan·doctor가 `AUTH_CONFIRMATION_REQUIRED` 차단 사유로 강제한다.
 
 Agent service Actor의 scope는 정확히 다음 여섯 개다.
 

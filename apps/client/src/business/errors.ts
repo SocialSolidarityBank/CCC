@@ -29,8 +29,6 @@ const messages = {
   invalid_credentials: '이메일 또는 비밀번호를 확인해 주세요.',
   email_not_confirmed: '이메일 확인이 필요합니다. 받은 초대나 확인 메일을 확인해 주세요.',
   password_mismatch: '비밀번호와 확인 값이 다릅니다. 두 칸에 같은 비밀번호를 입력해 주세요.',
-  identity_not_invited: '초대받은 실무자 목록에서 이 이메일을 찾을 수 없습니다. 기관 관리자에게 초대를 다시 요청해 주세요.',
-  identity_already_linked: '이 이메일은 이미 다른 로그인 계정에 연결돼 있습니다. 기관 관리자에게 문의해 주세요.',
   mfa_invalid: '인증 번호가 맞지 않거나 시간이 지났습니다. 새 번호를 입력해 주세요.',
   mfa_unsupported: '이 계정에 등록된 추가 인증 방식은 이 화면에서 지원하지 않습니다. 기관 관리자에게 문의해 주세요.',
   mfa_enrollment_failed: '인증 앱 등록을 완료하지 못했습니다. 다시 시도하거나 기관 관리자에게 문의해 주세요.',
@@ -59,14 +57,12 @@ export function httpError(status: number, value: unknown): BusinessError {
     const code = typeof value === 'object' && value !== null && 'error' in value ? value.error : undefined;
     if (code === 'mfa_required') return new BusinessError('mfa_required', status);
     // 초대 명부에 없는 이메일로 신원을 연결하려 한 경우다. 역할 부족과 할 일이 다르다.
-    if (code === 'identity_not_invited') return new BusinessError('identity_not_invited', status);
     return new BusinessError('forbidden', status);
   }
   if (status === 409) {
     const code = typeof value === 'object' && value !== null && 'error' in value ? value.error : undefined;
     if (code === 'purge_disabled') return new BusinessError('purge_disabled', status);
     if (code === 'program_admission_required') return new BusinessError('program_admission_required', status);
-    if (code === 'identity_already_linked') return new BusinessError('identity_already_linked', status);
     // 동의 계약 위반은 낙관 잠금 충돌이 아니다. 같은 409 라도 사람이 할 일이 다르다.
     if (code === 'provider_scope_mismatch' || code === 'consent_disclosure_mismatch') {
       return new BusinessError('consent_scope_mismatch', status);
