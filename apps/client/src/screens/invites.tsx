@@ -9,7 +9,7 @@ import type { ProgramOption } from '../business/participants';
 import {
   ConsentDecisionList, allDomainsDecided, consentEventsFrom, type ConsentDecisions,
 } from '../business/consent-decisions';
-import { type BusinessError, safeError } from '../business/errors';
+import { BusinessError, safeError } from '../business/errors';
 import {
   INVITE_ROLE_BY_HUMAN, INVITE_ROLE_LABELS, INVITE_STATUS_LABELS,
   type InviteStoredRole, type RequestLinkInfo, type StaffInvite, type StaffInvitePublicInfo,
@@ -220,14 +220,22 @@ function useFragmentToken(): { token: string | null; nonce: number } {
   return state;
 }
 
-/** 실무자 초대 수락(공개). 업무 셸도 Bearer 도 쓰지 않는다. */
+/**
+ * 실무자 초대 수락과 첫 계정 생성(공개). 업무 셸도 업무 Bearer 도 쓰지 않는다.
+ *
+ * 초대 수락만으로는 로그인할 수 없다. 디렉터리 행에는 아직 `auth_subject` 가 없으므로 여기서
+ * 계정을 만들고 `POST /identity/link` 로 그 행과 연결한다. 이메일 확인을 요구하는 프로젝트는
+ * 세션 없이 끝나므로 연결은 다음 로그인이 맡는다(전송기의 한 번짜리 연결 복구).
+ *
+ * 비밀번호는 제출 순간의 폼 값으로만 읽고 상태나 저장소에 두지 않는다.
+ */
 export function StaffJoinScreen() {
   const session = useOutletContext<PublicSession>();
   const { token, nonce } = useFragmentToken();
   const [info, setInfo] = useState<StaffInvitePublicInfo | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [done, setDone] = useState<{ roleWaiting: boolean } | null>(null);
+  const [done, setDone] = useState<{ roleWaiting: boolean; confirmEmail: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
 
@@ -242,12 +250,16 @@ export function StaffJoinScreen() {
     return <WireCard title="실무자 초대"><WireEmpty>초대 링크가 아닙니다.</WireEmpty></WireCard>;
   }
   if (done !== null) {
-    return <WireCard title="가입 완료">
-      <WireCallout tone="info" title={done.roleWaiting ? '역할 배정을 기다립니다' : '가입이 끝났습니다'}>
-        {done.roleWaiting
-          ? '기관 관리자가 업무 역할을 정하기 전까지 업무 화면은 열리지 않습니다.'
-          : '이제 기관 계정으로 로그인할 수 있습니다.'}
-      </WireCallout>
+    return <WireCard title={done.confirmEmail ? '이메일 확인 필요' : '가입 완료'}>
+      {done.confirmEmail
+        ? <WireCallout tone="info" title="이메일 확인을 먼저 마쳐 주세요">
+          가입 확인 메일의 링크를 누른 뒤 기관 계정으로 로그인해 주세요. 첫 로그인에서 초대받은 계정과 연결합니다.
+        </WireCallout>
+        : <WireCallout tone="info" title={done.roleWaiting ? '역할 배정을 기다립니다' : '가입이 끝났습니다'}>
+          {done.roleWaiting
+            ? '기관 관리자가 업무 역할을 정하기 전까지 업무 화면은 열리지 않습니다.'
+            : '이제 기관 계정으로 로그인할 수 있습니다.'}
+        </WireCallout>}
       <div className="business-actions"><WireButton variant="primary" href="/settings">로그인하기</WireButton></div>
     </WireCard>;
   }
@@ -264,10 +276,21 @@ export function StaffJoinScreen() {
       <form className="business-form" onSubmit={(event) => {
         event.preventDefault();
         if (busy) return;
+        const values = new FormData(event.currentTarget);
+        const password = values.get('password');
+        if (typeof password !== 'string' || password !== values.get('passwordConfirm')) {
+          setError(new BusinessError('password_mismatch', 400));
+          return;
+        }
         setBusy(true);
         setError(null);
-        void session.publicJoin.acceptStaffInvite(token, { name, email })
-          .then((result) => setDone({ roleWaiting: result.roleWaiting }))
+        void (async () => {
+          // 수락이 먼저다. 초대를 쓰지 못하는 이메일로 계정을 먼저 만들지 않는다.
+          const accepted = await session.publicJoin.acceptStaffInvite(token, { name, email });
+          const { accessToken } = await session.signUp(accepted.email, password);
+          if (accessToken !== null) await session.linkIdentity(accessToken);
+          return { roleWaiting: accepted.roleWaiting, confirmEmail: accessToken === null };
+        })().then(setDone)
           .catch((cause: unknown) => setError(safeError(cause)))
           .finally(() => setBusy(false));
       }}>
@@ -278,6 +301,14 @@ export function StaffJoinScreen() {
         <WireFormField label="이메일" htmlFor="staff-join-email" required hint="초대받은 이메일과 같아야 합니다">
           <input id="staff-join-email" type="email" value={email} required disabled={busy}
             onChange={(event) => setEmail(event.target.value)} />
+        </WireFormField>
+        <WireFormField label="비밀번호" htmlFor="staff-join-password" required hint="여덟 자 이상으로 정해 주세요">
+          <input id="staff-join-password" name="password" type="password" autoComplete="new-password"
+            minLength={8} required disabled={busy} />
+        </WireFormField>
+        <WireFormField label="비밀번호 확인" htmlFor="staff-join-password-confirm" required>
+          <input id="staff-join-password-confirm" name="passwordConfirm" type="password" autoComplete="new-password"
+            minLength={8} required disabled={busy} />
         </WireFormField>
         <div className="business-actions">
           <WireButton type="submit" variant="primary"

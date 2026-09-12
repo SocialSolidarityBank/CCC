@@ -37,7 +37,7 @@ import { registerShellWorker } from './business/service-worker';
 import { BusinessError, safeError } from './business/errors';
 import { loadInstallation, type VerifiedInstallation } from './business/installation';
 import { canOpenDestination, destinationAt, visibleDestinations } from './business/navigation';
-import { BusinessTransport, PublicTransport } from './business/transport';
+import { BusinessTransport, linkIdentity, PublicTransport } from './business/transport';
 import { SttTrialPage } from './stt-trial/stt-trial-page';
 
 interface Runtime { installation: VerifiedInstallation; auth: CloudAuth }
@@ -244,10 +244,11 @@ function PublicScreen({ kind }: { kind: 'welcome' | 'join' | 'institution' | 'mi
 /** 공개 토큰 화면의 경계. 설치 정보만 확인하고 로그인은 요구하지 않는다. */
 function PublicJoinBoundary() {
   const runtime = useOutletContext<Runtime>();
-  const session = useMemo<PublicSession>(
-    () => ({ publicJoin: new PublicJoinApi(new PublicTransport(runtime.installation)) }),
-    [runtime.installation],
-  );
+  const session = useMemo<PublicSession>(() => ({
+    publicJoin: new PublicJoinApi(new PublicTransport(runtime.installation)),
+    signUp: (email, password) => runtime.auth.signUpWithPassword(email, password),
+    linkIdentity: (accessToken) => linkIdentity(runtime.installation, accessToken),
+  }), [runtime.installation, runtime.auth]);
   return <GridContainer as="main" className="page-content">
     <PageTitle>초대</PageTitle>
     <Outlet context={session} />

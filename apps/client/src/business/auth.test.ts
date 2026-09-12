@@ -21,7 +21,7 @@ async function waitForPhase(auth: CloudAuth, phase: AuthSnapshot['phase']): Prom
 }
 
 // 실제 SDK와 메모리 세션을 사용하고 네트워크 경계만 합성 Auth 서버로 바꾼다.
-async function authServer(options: { enrolled?: boolean; revokeFails?: boolean } = {}) {
+async function authServer(options: { enrolled?: boolean; revokeFails?: boolean; confirmEmail?: boolean } = {}) {
   const verified = await installation();
   const requests: Request[] = [];
   let enrolled = options.enrolled ?? true;
@@ -50,6 +50,14 @@ async function authServer(options: { enrolled?: boolean; revokeFails?: boolean }
     requests.push(request);
     const url = new URL(request.url);
     if (url.pathname === '/auth/v1/token') return json(session());
+    if (url.pathname === '/auth/v1/signup') {
+      const body: unknown = await request.clone().json();
+      if (typeof body === 'object' && body !== null && 'password' in body && String(body.password).length < 8) {
+        return json({ code: 'weak_password', error_code: 'weak_password', msg: 'provider-private-detail' }, 422);
+      }
+      // 이메일 확인이 켜진 프로젝트의 응답에는 access_token 이 없다(SDK는 세션 없음으로 읽는다).
+      return json(options.confirmEmail ? user() : session());
+    }
     if (url.pathname === '/auth/v1/user') return json(user());
     if (url.pathname === '/auth/v1/factors' && request.method === 'POST') {
       pendingEnrollment = true;
@@ -171,5 +179,36 @@ describe('first TOTP enrollment completion', () => {
     await waitForPhase(auth, 'ready');
     expect(auth.getSnapshot().enrollment).toBeNull();
     expect(auth.getToken()).not.toBeNull();
+  });
+});
+
+describe('초대 수락 뒤 첫 계정 생성', () => {
+  it('같은 설치 클라이언트로 계정을 만들고 연결용 접근 토큰만 돌려준다', async () => {
+    const { auth, requests } = await authServer({ enrolled: false });
+    const { accessToken } = await auth.signUpWithPassword('invited@example.invalid', 'synthetic-passphrase');
+    expect(accessToken).not.toBeNull();
+    const signup = requests.filter((request) => new URL(request.url).pathname === '/auth/v1/signup');
+    expect(signup.length).toBe(1);
+    expect(await signup[0]?.clone().json()).toMatchObject({ email: 'invited@example.invalid', password: 'synthetic-passphrase' });
+    // 비밀번호는 가입 요청 본문에만 실린다. 나머지 경계에는 남지 않는다.
+    for (const request of requests.filter((candidate) => candidate !== signup[0])) {
+      expect(await request.clone().text()).not.toContain('synthetic-passphrase');
+    }
+    expect(JSON.stringify(auth.getSnapshot())).not.toContain('synthetic-passphrase');
+    expect(JSON.stringify(auth.getSnapshot())).not.toContain(accessToken);
+  });
+
+  it('이메일 확인이 필요한 프로젝트에서는 연결할 토큰이 없다고 알린다', async () => {
+    const { auth } = await authServer({ enrolled: false, confirmEmail: true });
+    await expect(auth.signUpWithPassword('invited@example.invalid', 'synthetic-passphrase'))
+      .resolves.toEqual({ accessToken: null });
+  });
+
+  it('공급자 거절은 고정된 인증 오류로 바꿔 올린다', async () => {
+    const { auth } = await authServer({ enrolled: false });
+    const failure = await auth.signUpWithPassword('invited@example.invalid', 'short').catch((cause: unknown) => cause);
+    expect(failure).toMatchObject({ code: 'auth_failed', status: 422 });
+    expect(JSON.stringify(failure)).not.toContain('provider-private-detail');
+    expect((failure as Error).message).not.toContain('provider-private-detail');
   });
 });
