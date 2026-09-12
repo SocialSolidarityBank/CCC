@@ -1273,3 +1273,449 @@ test('internally consistent receipt and history remain incomplete without S12 re
   assert.equal(result.ready, false);
   assert.deepEqual(blockerCodes(result), ['RELEASE_PREREQUISITES_MISSING']);
 });
+
+// bootstrap이 고정 원본에서 받아 서명과 trust를 확인한 뒤 넘기는 모양 그대로다.
+function verifiedReleaseIndex(receipt, {
+  bundleId = 'ccc-dev-1.0.0-1-abcdef123456',
+  version = receipt.releaseVersion,
+  sequence = String(receipt.releaseSequence),
+  manifestSha256 = receipt.manifestDigest,
+} = {}) {
+  return {
+    bundle: { bundleId, version, sequence },
+    rows: [{
+      family: 'community-cloud-cli',
+      manifestSha256,
+      edgeComponentManifestSha256: createHash('sha256').update('edge-manifest').digest('hex'),
+      mode: 'community-cloud',
+      platform: 'macos',
+      arch: 'arm64',
+    }],
+  };
+}
+
+test('doctor clears the release blocker only when the receipt matches the verified pinned bundle', async () => {
+  const doctor = async index => {
+    const fixture = await installedReceiptSnapshot();
+    return buildSupabaseDoctor({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+      ...(index === undefined
+        ? {}
+        : { release: index(fixture.observed.installState.currentReceipt) }),
+    });
+  };
+
+  // ① 영수증의 manifest digest, 판과 순번이 서명된 묶음과 같으면 차단 사유가 없다.
+  const exact = await doctor(receipt => verifiedReleaseIndex(receipt));
+  assert.deepEqual(blockerCodes(exact), []);
+  assert.deepEqual(exact.notices, []);
+  assert.equal(exact.ready, true);
+
+  // ② trust store가 없으면 index도 없고 차단 사유가 그대로 남는다.
+  const absent = await doctor();
+  assert.deepEqual(blockerCodes(absent), ['RELEASE_PREREQUISITES_MISSING']);
+  assert.equal(absent.ready, false);
+
+  // ③ 영수증의 digest가 묶음 색인에 없으면 릴리스 승인이 아니다.
+  const unindexed = await doctor(receipt =>
+    verifiedReleaseIndex(receipt, { manifestSha256: 'f'.repeat(64) }));
+  assert.deepEqual(blockerCodes(unindexed), ['RELEASE_PREREQUISITES_MISSING']);
+  assert.equal(unindexed.ready, false);
+
+  // ④ 원본이 더 나아갔어도 설치된 digest가 여전히 색인되어 있으면 안내뿐이다.
+  const superseded = await doctor(receipt => verifiedReleaseIndex(receipt, {
+    bundleId: 'ccc-dev-1.1.0-2-abcdef123456',
+    version: '1.1.0',
+    sequence: '2',
+  }));
+  assert.deepEqual(blockerCodes(superseded), []);
+  assert.deepEqual(superseded.notices.map(({ code }) => code), ['RELEASE_SUPERSEDED']);
+  assert.match(superseded.notices[0].message, /ccc-dev-1\.1\.0-2-abcdef123456/u);
+  assert.equal(superseded.ready, true);
+
+  // ⑤ 같은 순번의 다른 판이나 과거로의 이동은 안내가 아니라 차단이다.
+  const sideways = await doctor(receipt => verifiedReleaseIndex(receipt, { version: '1.0.1' }));
+  assert.deepEqual(blockerCodes(sideways), ['RELEASE_PREREQUISITES_MISSING']);
+});
+
+test('doctor separates installed health from runtime readiness', async () => {
+  const evidence = ({ installedHealthy, runtimeReady }) => async () => ({
+    healthy: installedHealthy && runtimeReady,
+    installedHealthy,
+    runtimeReady,
+    storageSignerHealthy: installedHealthy,
+    edgeRegionEvidence: {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'ap-northeast-2',
+      functionRegion: 'ap-northeast-2',
+      mismatch: false,
+    },
+    restrictedDatabase: {
+      connected: true, role: 'ccc_api', superuser: false, bypassRls: false,
+    },
+  });
+  const doctor = async health => {
+    const fixture = await installedReceiptSnapshot();
+    return buildSupabaseDoctor({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+      ...(health === undefined ? {} : { health }),
+    });
+  };
+  const baseline = await doctor();
+
+  // ① 설치 health 실패는 지금처럼 차단 사유다.
+  const failed = await doctor(evidence({ installedHealthy: false, runtimeReady: false }));
+  assert.ok(blockerCodes(failed).includes('HEALTH_FAILED'));
+  assert.deepEqual(failed.notices.map(({ code }) => code), ['RUNTIME_NOT_READY']);
+  assert.equal(failed.health.installedHealthy, false);
+  assert.equal(failed.productionReady, false);
+
+  // ② runtime 미준비는 안내뿐이고 ready를 바꾸지 않는다.
+  const notReady = await doctor(evidence({ installedHealthy: true, runtimeReady: false }));
+  assert.equal(blockerCodes(notReady).includes('HEALTH_FAILED'), false);
+  assert.deepEqual(blockerCodes(notReady), blockerCodes(baseline));
+  assert.equal(notReady.ready, baseline.ready);
+  assert.deepEqual(notReady.notices.map(({ code }) => code), ['RUNTIME_NOT_READY']);
+  assert.equal(notReady.health.runtimeReady, false);
+  assert.equal(notReady.productionReady, false);
+
+  // ③ 두 단계 모두 통과하면 남은 차단 사유만이 productionReady를 막는다.
+  const both = await doctor(evidence({ installedHealthy: true, runtimeReady: true }));
+  assert.equal(blockerCodes(both).includes('HEALTH_FAILED'), false);
+  assert.deepEqual(both.notices, []);
+  assert.deepEqual(blockerCodes(both), ['RELEASE_PREREQUISITES_MISSING']);
+  assert.equal(both.productionReady, false);
+  assert.equal(both.health.installedHealthy && both.health.runtimeReady, true);
+});
+
+// 실제 첫 설치가 남긴 모양으로 만든 관찰이다. 설치는 자기 객체와 권한을 더하고,
+// 승인된 0006 마이그레이션이 public 스키마의 브라우저 권한과 기본권한을 회수하며,
+// journal의 database_fingerprint는 마지막 마이그레이션 시점에 멈춘다.
+const AUDIO_MIME_TYPES = Object.freeze([
+  'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/webm', 'audio/x-m4a', 'audio/x-wav',
+]);
+
+function recordedBucketDigest(metadata = {
+  isPublic: false, fileSizeLimit: '209715200', allowedMimeTypes: AUDIO_MIME_TYPES,
+}) {
+  return createHash('sha256').update([
+    'ccc-audio',
+    metadata.isPublic ? 'public' : 'private',
+    metadata.fileSizeLimit,
+    [...metadata.allowedMimeTypes].sort().join(','),
+  ].join('\n'), 'utf8').digest('hex');
+}
+
+function providerGrant(overrides) {
+  return {
+    kind: 'relation',
+    schema: 'storage',
+    objectIdentity: 'storage.objects TABLE',
+    grantor: 'supabase_admin',
+    grantee: 'ROLE:anon',
+    privilege: 'SELECT',
+    grantable: false,
+    inheritOption: null,
+    setOption: null,
+    provenance: 'initial_privilege',
+    ...overrides,
+  };
+}
+
+function canonicallySorted(records) {
+  return [...records].sort((left, right) => Buffer.compare(
+    Buffer.from(verifier.canonicalizeJcs(left)),
+    Buffer.from(verifier.canonicalizeJcs(right)),
+  ));
+}
+
+function installedInventories() {
+  const providerObjects = ['auth.users TABLE', 'storage.buckets TABLE'].map(identity => ({
+    kind: 'relation',
+    schema: identity.split('.')[0],
+    identity,
+    owner: 'supabase_admin',
+    definitionSha256: createHash('sha256').update(identity).digest('hex'),
+    provenance: 'initial_privilege',
+  }));
+  const comparedGrants = [
+    providerGrant({}),
+    providerGrant({
+      kind: 'role', schema: '', objectIdentity: 'anon', grantee: 'ROLE:authenticator',
+      privilege: 'MEMBER', inheritOption: false, setOption: true, provenance: 'supabase_managed',
+    }),
+  ];
+  // 설치가 회수한 기준선 권한. 관찰에는 더 이상 없다.
+  const revokedGrants = [
+    providerGrant({
+      kind: 'schema', schema: 'public', objectIdentity: 'public',
+      grantor: 'pg_database_owner', grantee: 'ROLE:anon', privilege: 'USAGE',
+      provenance: 'supabase_managed',
+    }),
+    providerGrant({
+      kind: 'default', schema: 'public',
+      objectIdentity: 'default privileges for role postgres in schema public on TABLES',
+      grantor: 'postgres', grantee: 'ROLE:authenticated', privilege: 'SELECT',
+      provenance: 'supabase_managed',
+    }),
+  ];
+  // 양쪽에 있는 자기 기본권한 기록.
+  const selfDefaultGrant = providerGrant({
+    kind: 'default', schema: '',
+    objectIdentity: 'default privileges for role postgres on FUNCTIONS',
+    grantor: 'postgres', grantee: 'ROLE:postgres', privilege: 'EXECUTE',
+    provenance: 'supabase_managed',
+  });
+  const installationObjects = [
+    {
+      kind: 'relation', schema: 'public', identity: 'public.consent_events TABLE',
+      owner: 'ccc_schema_owner',
+      definitionSha256: createHash('sha256').update('public.consent_events').digest('hex'),
+      provenance: 'supabase_managed',
+    },
+    {
+      kind: 'schema', schema: 'private', identity: 'private', owner: 'postgres',
+      definitionSha256: createHash('sha256').update('private').digest('hex'),
+      provenance: 'supabase_managed',
+    },
+  ];
+  const installationGrants = [
+    providerGrant({
+      schema: 'public', objectIdentity: 'public.consent_events TABLE',
+      grantor: 'ccc_schema_owner', grantee: 'ROLE:ccc_api', privilege: 'SELECT',
+      provenance: 'supabase_managed',
+    }),
+    providerGrant({
+      kind: 'schema', schema: 'public', objectIdentity: 'public',
+      grantor: 'pg_database_owner', grantee: 'ROLE:ccc_schema_owner', privilege: 'USAGE',
+      provenance: 'supabase_managed',
+    }),
+  ];
+  // 설치가 만들었지만 목록 분류가 설치 소유로 잡지 못하는 기록.
+  const unclassifiedInstallationGrants = [
+    providerGrant({
+      kind: 'default', schema: '',
+      objectIdentity: 'default privileges for role ccc_schema_owner on FUNCTIONS',
+      grantor: 'ccc_schema_owner', grantee: 'ROLE:ccc_schema_owner', privilege: 'EXECUTE',
+      provenance: 'supabase_managed',
+    }),
+    providerGrant({
+      kind: 'role', schema: '', objectIdentity: 'ccc_schema_owner',
+      grantor: 'supabase_admin', grantee: 'ROLE:postgres', privilege: 'MEMBER',
+      inheritOption: false, setOption: false, provenance: 'supabase_managed',
+    }),
+  ];
+  const baseline = {
+    objects: canonicallySorted(providerObjects),
+    grants: canonicallySorted([...comparedGrants, ...revokedGrants, selfDefaultGrant]),
+  };
+  const observed = {
+    objects: canonicallySorted([...providerObjects, ...installationObjects]),
+    grants: canonicallySorted([
+      ...comparedGrants, selfDefaultGrant,
+      ...installationGrants, ...unclassifiedInstallationGrants,
+    ]),
+    installationObjects: canonicallySorted(installationObjects),
+    installationGrants: canonicallySorted(installationGrants),
+  };
+  return {
+    baseline: { ...baseline, ...providerInventoryFingerprint(baseline) },
+    observed: { ...observed, ...providerInventoryFingerprint(observed) },
+  };
+}
+
+async function firstInstallFixture() {
+  const authorization = observationAuthorization();
+  const inventories = installedInventories();
+  const providerBaseline = verifiedProviderFixture(inventories.baseline);
+  const cleanObservation = snapshotWithProviderInventory(inventories.baseline, {
+    state: {
+      unownedObjectCount: 0, unknownObjectCount: 0, customSchemaCount: 0,
+      unexpectedGrantCount: 3, providerObjectCount: inventories.baseline.objects.length,
+      providerGrantCount: inventories.baseline.grants.length,
+    },
+  });
+  const desired = await buildPlan({
+    target: 'hosted',
+    authorization,
+    providerBaseline,
+    inspector: inspector(cleanObservation, cleanObservation),
+  });
+  assert.deepEqual(blockerCodes(desired), []);
+
+  const bucket = {
+    resourceType: 'storage_bucket',
+    resourceIdHash: createHash('sha256').update('ccc-audio', 'utf8').digest('hex'),
+    resourceDigest: recordedBucketDigest(),
+  };
+  const resources = [
+    { ...bucket, ownershipTag: `ccc.installation_id=${authorization.installationId}` },
+    {
+      resourceType: 'cron_job',
+      resourceIdHash: createHash('sha256').update('ccc_scheduler_tick', 'utf8').digest('hex'),
+      resourceDigest: createHash('sha256').update('cron-desired').digest('hex'),
+      ownershipTag: `ccc.installation_id=${authorization.installationId}`,
+    },
+    {
+      resourceType: 'edge_function',
+      resourceIdHash: createHash('sha256').update('ccc-storage-signer', 'utf8').digest('hex'),
+      resourceDigest: createHash('sha256').update('signer-version').digest('hex'),
+      ownershipTag: `ccc.installation_id=${authorization.installationId}`,
+    },
+  ];
+  const observed = snapshotWithProviderInventory(inventories.observed, {
+    cronJobCount: 1,
+    state: {
+      // 설치 소유 기록을 뺀 집계. inspector가 durable 지문을 확인한 뒤 내려준다.
+      unownedObjectCount: 0, unknownObjectCount: 0, customSchemaCount: 0,
+      unexpectedGrantCount: 2,
+      providerObjectCount: inventories.observed.objects.length,
+      providerGrantCount: inventories.observed.grants.length,
+      userTableCount: 78, rlsEnabledTableCount: 78, policyCount: 86,
+      bucketCount: 1, buckets: [bucket], bucket: { exists: true, public: false },
+      privateSchemaExists: true, privateTableNames: ['ccc_install_journal'],
+    },
+  });
+  observed.databaseFingerprint = createHash('sha256').update('installed-catalog').digest('hex');
+  const receipt = {
+    contract: 'S11',
+    contractVersion: '0.3',
+    installationId: authorization.installationId,
+    institutionIdHash: authorization.institutionIdHash,
+    rollbackTarget: null,
+    expectedOwnerOrgIdHash: authorization.expectedOwnerOrgIdHash,
+    observedOwnerOrgIdHash: authorization.expectedOwnerOrgIdHash,
+    releaseVersion: '0.9.0-dev.2',
+    releaseSequence: 2,
+    manifestDigest: createHash('sha256').update('release-manifest').digest('hex'),
+    artifactSetDigest: createHash('sha256').update('artifact-set').digest('hex'),
+    migrationHead: desired.migrations.at(-1).id,
+    schemaFingerprint: observed.databaseFingerprint,
+    edgeRegionEvidence: {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'ap-northeast-2',
+      functionRegion: 'ap-northeast-2',
+      mismatch: false,
+    },
+    providerResourceDigests: Object.fromEntries(
+      resources.map(resource => [resource.resourceIdHash, resource.resourceDigest]),
+    ),
+    backupId: 'not_applicable',
+    backupDigest: createHash('sha256').update('backup-evidence').digest('hex'),
+    priorReceiptDigest: null,
+    recordedAt: '2026-09-11T19:19:08.927+00:00',
+    status: 'installed',
+  };
+  observed.installState = {
+    journal: {
+      installationId: authorization.installationId,
+      institutionIdHash: authorization.institutionIdHash,
+      projectRefHash: authorization.projectRefHash,
+      expectedOwnerOrgIdHash: authorization.expectedOwnerOrgIdHash,
+      runtimeManifestSha256: authorization.runtimeManifestSha256,
+      approvalSha256: authorization.approvalSha256,
+      runtimeConfigurationSha256: authorization.runtimeConfigurationSha256,
+      contractVersion: authorization.contractVersion,
+      runtimeSequence: authorization.runtimeSequence,
+      expiresAt: authorization.expiresAt,
+      resourcesSha256: desired.resourcesSha256,
+      migrationsSha256: desired.migrationsSha256,
+      phase: 'installed',
+      // 마지막 마이그레이션 시점 값이며 설치가 끝난 카탈로그와 다르다.
+      databaseFingerprint: createHash('sha256').update('migration-phase-catalog').digest('hex'),
+      stateFingerprint: null,
+    },
+    migrations: structuredClone(desired.migrations),
+    resources,
+    completedSteps: [],
+    currentReceipt: receipt,
+    releaseHistory: [structuredClone(receipt)],
+  };
+  // 설치가 완료 시점에 적은 값이다. 완전한 공급자 목록 해시로 계산하므로 설치 뒤
+  // 재검증에서도 같은 값이 나와야 한다.
+  observed.installState.journal.stateFingerprint = await verifier.sha256Jcs({
+    region: observed.project.region,
+    ownerOrgIdHash: observed.project.ownerOrgIdHash,
+    database: observed.databaseFingerprint,
+    policies: observed.state.policyFingerprint,
+    buckets: observed.state.bucketFingerprint,
+    auth: observed.state.authFingerprint,
+    cron: observed.cronJobCount,
+    providerBaselineVersion: providerBaseline.baselineVersion,
+    providerBaselineSha256: providerBaseline.baselineSha256,
+    providerObjectsSha256: observed.providerInventory.objectInventorySha256,
+    providerGrantsSha256: observed.providerInventory.grantInventorySha256,
+  });
+  return { authorization, providerBaseline, desired, observed };
+}
+
+function firstInstallDoctor(fixture, mutate = () => {}) {
+  const observed = structuredClone(fixture.observed);
+  mutate(observed);
+  return buildDoctor({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    providerBaseline: fixture.providerBaseline,
+    inspector: inspector(observed, observed, observed),
+  });
+}
+
+test('doctor verifies a completed first install against the receipt catalog and signed baseline', async () => {
+  const fixture = await firstInstallFixture();
+  const result = await firstInstallDoctor(fixture);
+
+  // 설치가 만든 목록과 승인된 마이그레이션이 회수한 권한을 양쪽에서 빼고 기준선과 대조한다.
+  assert.deepEqual(blockerCodes(result), ['RELEASE_PREREQUISITES_MISSING']);
+  assert.equal(result.providerBaseline.matched, true);
+  assert.equal(result.providerBaseline.observedObjectCount, 2);
+  assert.equal(result.providerBaseline.expectedObjectCount, 2);
+  assert.equal(result.providerBaseline.observedGrantCount, 2);
+  assert.equal(result.providerBaseline.expectedGrantCount, 2);
+  // durable 상태 지문은 완전한 목록으로 계산해 journal에 적힌 값과 계속 같다.
+  assert.equal(result.stateFingerprint, fixture.observed.installState.journal.stateFingerprint);
+  assert.equal(fixture.desired.resourcesSha256, fixture.observed.installState.journal.resourcesSha256);
+  assert.equal(result.installed.state, 'installed');
+});
+
+test('installed reconciliation still blocks provider, catalog and ownership drift', async () => {
+  const fixture = await firstInstallFixture();
+  for (const [name, code, mutate] of [
+    ['공급자 스키마 권한 변경', 'PROVIDER_BASELINE_MISMATCH', observed => {
+      const target = observed.providerInventory.grants
+        .find(grant => grant.schema === 'storage');
+      target.grantee = 'ROLE:service_role';
+      Object.assign(observed.providerInventory, providerInventoryFingerprint(observed.providerInventory));
+    }],
+    ['설치 소유로 주장한 남의 객체', 'PROVIDER_BASELINE_MISMATCH', observed => {
+      observed.providerInventory.objects.push({
+        kind: 'schema', schema: 'foreign', identity: 'foreign', owner: 'postgres',
+        definitionSha256: createHash('sha256').update('foreign').digest('hex'),
+        provenance: 'supabase_managed',
+      });
+      observed.state = { ...observed.state, providerObjectCount: observed.providerInventory.objects.length };
+      Object.assign(observed.providerInventory, providerInventoryFingerprint(observed.providerInventory));
+    }],
+    ['영수증 카탈로그와 다른 관찰', 'DRIFT_DETECTED', observed => {
+      observed.installState.currentReceipt.schemaFingerprint = 'f'.repeat(64);
+      observed.installState.releaseHistory[0].schemaFingerprint = 'f'.repeat(64);
+    }],
+    ['bucket 메타데이터 변경', 'RESOURCE_OWNERSHIP_MISMATCH', observed => {
+      observed.state.buckets[0].resourceDigest = recordedBucketDigest({
+        isPublic: true, fileSizeLimit: '209715200', allowedMimeTypes: AUDIO_MIME_TYPES,
+      });
+    }],
+    ['소유 기록이 없는 cron job', 'RESOURCE_OWNERSHIP_MISMATCH', observed => {
+      observed.cronJobCount = 2;
+    }],
+    ['설치가 만들지 않은 자원 종류', 'RESOURCE_OWNERSHIP_MISMATCH', observed => {
+      observed.installState.resources[1].resourceType = 'foreign_provider_resource';
+    }],
+  ]) {
+    const result = await firstInstallDoctor(fixture, mutate);
+    assert.ok(blockerCodes(result).includes(code), `${name}: ${blockerCodes(result).join(',')}`);
+  }
+});

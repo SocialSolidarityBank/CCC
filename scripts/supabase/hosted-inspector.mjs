@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
-import { PlanFailure } from './plan.mjs';
-import { buildInstallStateQuery, DATABASE_INSTALL_FINGERPRINT_QUERY, hashDatabaseInstallFingerprint, INSTALL_METADATA_TABLES } from './install-journal.mjs';
+import { installationStateFingerprint, PlanFailure } from './plan.mjs';
+import { buildInstallStateQuery, DATABASE_INSTALL_FINGERPRINT_QUERY, hashDatabaseInstallFingerprint, installedDatabaseFingerprint, INSTALL_METADATA_TABLES, storageBucketResourceDigest } from './install-journal.mjs';
 import { assertAuthorizationCurrent } from './manifest-preflight.mjs';
 import { normalizeProviderInventory, PROVIDER_INVENTORY_QUERY } from './provider-inventory.mjs';
 
@@ -583,10 +583,12 @@ function observedBuckets(database) {
     return {
       resourceType: 'storage_bucket',
       resourceIdHash: createHash('sha256').update(id, 'utf8').digest('hex'),
-      resourceDigest: fingerprint({
-        public: bucket.public,
+      // 설치가 기록한 소유권 digest와 같은 식이어야 doctor가 소유권을 대조할 수 있다.
+      resourceDigest: storageBucketResourceDigest({
+        id,
+        isPublic: bucket.public,
         fileSizeLimit,
-        allowedMimeTypes: allowedMimeTypes === null ? null : [...allowedMimeTypes].sort(),
+        allowedMimeTypes: allowedMimeTypes ?? [],
       }),
     };
   }).sort((left, right) => left.resourceIdHash.localeCompare(right.resourceIdHash));
@@ -771,6 +773,8 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
   }
 
   return {
+    /** Read-only role evidence for doctor, which has no installer connection. */
+    restrictedRole: () => readOnlyQuery(RESTRICTED_ROLE_QUERY),
     async inspect() {
       const project = await projectEvidence();
       const [authConfig, database, providerInventoryRow] = await Promise.all([
@@ -822,8 +826,8 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
       );
       const inventoryDatabase = { ...database };
       // Installation-owned candidates are exempt only after the durable catalog
-      // fingerprint proves they are the exact state recorded by this journal.
-      if (installState?.journal?.databaseFingerprint === databaseFingerprint) {
+      // fingerprint proves they are the exact state this installation recorded.
+      if (installedDatabaseFingerprint(installState) === databaseFingerprint) {
         const installationObjectCount = number(database.installation_unowned_object_count);
         const installationSchemaCount = number(database.installation_unowned_schema_count);
         const installationGrantCount = number(database.installation_unexpected_grant_count);
@@ -865,5 +869,132 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
         cronJobCount: number(cron.count),
       };
     },
+  };
+}
+
+/**
+ * Post-promotion health evidence (S11 §2.8, S12 §6.5). Every probe is read
+ * only, bounded, and silent: no URL, token, header or provider body ever
+ * reaches a caller, a report or a journal row.
+ */
+export const RESTRICTED_ROLE_QUERY =
+  "SELECT rolsuper, rolbypassrls FROM pg_catalog.pg_roles WHERE rolname = 'ccc_api'";
+const SIGNER_FUNCTION_PATH = '/functions/v1/ccc-storage-signer';
+const SEOUL_REGION = 'ap-northeast-2';
+const HEALTH_TIMEOUT_MS = 5_000;
+const REGION_NOT_OBSERVED = 'not_run';
+
+export async function readRestrictedRoleFromSession(session) {
+  const rows = await session.unsafe(RESTRICTED_ROLE_QUERY);
+  return rows?.[0] ?? null;
+}
+
+async function healthProbe(fetchImpl, url, method) {
+  try {
+    return await fetchImpl(url, {
+      method,
+      redirect: 'error',
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+    });
+  } catch {
+    return null;
+  }
+}
+
+// Readiness proves the runtime completed startup behind the restricted ccc_api
+// identity boundary (RUN.md). It is transport evidence, not a data read.
+async function readyEvidence(fetchImpl, url) {
+  const response = await healthProbe(fetchImpl, url, 'GET');
+  if (response?.status !== 200) return false;
+  try {
+    return (await response.json())?.status === 'ready';
+  } catch {
+    return false;
+  }
+}
+
+// The signer must refuse an unauthenticated call and still identify the
+// installation it was deployed for; a different installation is not this one.
+async function signerEvidence(fetchImpl, url, installationId) {
+  const response = await healthProbe(fetchImpl, url, 'POST');
+  const observed = response?.headers.get('x-sb-edge-region');
+  const region = typeof observed === 'string' && /^[a-z0-9-]{1,32}$/u.test(observed)
+    ? observed
+    : REGION_NOT_OBSERVED;
+  let healthy = false;
+  if (response?.status === 401
+    && response.headers.get('x-ccc-installation-id') === installationId) {
+    try {
+      healthy = (await response.json())?.code === 'UNAUTHORIZED';
+    } catch {
+      healthy = false;
+    }
+  }
+  return {
+    storageSignerHealthy: healthy,
+    edgeRegionEvidence: Object.freeze({
+      requestedRegion: SEOUL_REGION,
+      responseRegion: region,
+      functionRegion: region,
+      mismatch: region !== SEOUL_REGION,
+    }),
+  };
+}
+
+export function createInstallationHealth({
+  apiBase,
+  supabaseAuthOrigin,
+  installationId,
+  fetchImpl = fetch,
+  readRestrictedRole = input => readRestrictedRoleFromSession(input.session),
+}) {
+  if (typeof installationId !== 'string' || installationId.length === 0) {
+    throw new PlanFailure('OWNER_EVIDENCE_MISSING');
+  }
+  let readyUrl;
+  let signerUrl;
+  try {
+    // /readyz is reserved outside the signed business API prefix (RUN.md).
+    readyUrl = new URL('/readyz', apiBase).toString();
+    signerUrl = new URL(SIGNER_FUNCTION_PATH, supabaseAuthOrigin).toString();
+  } catch {
+    throw new PlanFailure('OWNER_EVIDENCE_MISSING');
+  }
+  return async function health(input = {}) {
+    const [runtimeReady, signer, role] = await Promise.all([
+      readyEvidence(fetchImpl, readyUrl),
+      signerEvidence(fetchImpl, signerUrl, installationId),
+      (async () => readRestrictedRole(input))().catch(() => null),
+    ]);
+    // An unreadable role is never read as a restricted role. `connected` is the
+    // install connection's own read of the role, so it stays true while the
+    // business runtime is still absent (S11 §2 2026-09-12).
+    const restrictedDatabase = Object.freeze({
+      connected: role !== null && role !== undefined,
+      role: role === null || role === undefined ? null : 'ccc_api',
+      superuser: typeof role?.rolsuper === 'boolean' ? role.rolsuper : true,
+      bypassRls: typeof role?.rolbypassrls === 'boolean' ? role.rolbypassrls : true,
+    });
+    // The installation itself: signer refusal for this installation, Seoul edge
+    // region and a restricted ccc_api role. `/readyz` is the separate runtime
+    // stage, because the runtime logs in as ccc_api only after apply set it.
+    const installedHealthy = restrictedDatabase.connected
+      && restrictedDatabase.superuser === false
+      && restrictedDatabase.bypassRls === false
+      && signer.storageSignerHealthy === true
+      && signer.edgeRegionEvidence.mismatch === false;
+    const observation = input.observation;
+    return Object.freeze({
+      healthy: installedHealthy && runtimeReady === true,
+      installedHealthy,
+      runtimeReady: runtimeReady === true,
+      stateFingerprint: observation === undefined
+        ? null
+        : await installationStateFingerprint(observation, input.providerBaseline),
+      observedOwnerOrgIdHash: observation?.project?.ownerOrgIdHash ?? null,
+      storageSignerHealthy: signer.storageSignerHealthy,
+      edgeRegionEvidence: signer.edgeRegionEvidence,
+      restrictedDatabase,
+    });
   };
 }

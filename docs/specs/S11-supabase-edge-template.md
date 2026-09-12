@@ -65,6 +65,7 @@ type InstallStep =
   | 'storage_bucket'
   | 'cron_job'
   | 'edge_secret_binding'
+  | 'api_credential'
   | 'receipt';
 
 type InstallJournal = {
@@ -92,6 +93,8 @@ type InstallJournal = {
 7. 모든 step의 최종 지문이 일치할 때만 release receipt를 기록하고 journal을 `installed`로 바꾼다.
 
 step 전후에 같은 provider API를 다시 읽어 desired digest와 ownership tag를 비교한다. 부분 생성이 발견되면 같은 idempotency key로 완료 처리하거나 보정하고, 다른 소유 자원이 발견되면 변경 없이 `RESOURCE_OWNERSHIP_MISMATCH`로 끝낸다. `DROP`과 광범위한 보상 삭제는 하지 않는다.
+
+**2026-09-12 Q 확정: provider step의 마지막은 `api_credential`이다.** 업무 runtime이 로그인할 `ccc_api`의 비밀번호를 주입받은 값으로 설정하되, 값은 bind 파라미터로만 보내고 SQL 문자열, journal, receipt, 출력에 남기지 않는다. desired digest는 값과 무관한 `SHA-256('ccc_api:' + installationId)`이고, 완료된 step은 다시 설정하지 않고 `pg_roles`에서 `rolcanlogin`과 `rolvaliduntil IS NULL`, 비특권 여부만 관찰한다. 이 단계가 있기 전에는 runtime이 뜰 수 없으므로, 첫 설치의 health는 설치 자체(Signer의 설치 ID 포함 401, 서울 region, 비특권 `ccc_api`)만 요구하고 `/readyz`는 요구하지 않는다.
 
 ### 2.4 PostgreSQL baseline과 forward migration
 
@@ -155,6 +158,11 @@ Auth는 Supabase Auth를 사용한다. 이메일/비밀번호 로그인, invite 
 - 설치 과정에서 기관 관리자 계정이나 실사용자 계정을 자동 생성하지 않는다.
 
 Auth 설정 fingerprint가 영수증과 다르면 drift다. JWT signing secret, service role key, refresh token은 fingerprint와 출력에 포함하지 않는다.
+
+**2026-09-12 Q 확정: 첫 기관 관리자는 `bootstrap.mjs link-first-admin`이 연결한다.** 설치는 여전히 Auth 계정을 만들지 않는다. operator가 Auth 사용자를 먼저 만들고 이메일 확인을 끝낸 뒤, 그 불투명한 Auth 사용자 uuid와 이메일을 이 명령에 인자로 전달한다. `doctor`와 같은 서명된 manifest·승인·소유자 확인·읽기 전용 계획을 통과하고 설치 상태가 `installed`일 때만, 설치 잠금 안 한 transaction에서 `users` 한 행(legacy 역할 `admin`, `active=1`, `auth_subject`)과 그 행의 표준 역할 부여, `first_admin_linked` 영수증 한 건을 남긴다. 표준 역할 부여는 업무 경로와 같은 `users` insert trigger가 만든다. 업무 표는 `ccc_api`에만 정책이 있으므로 설치자는 이 transaction 안에서만 세 표의 FORCE RLS를 내리고 쓰기 뒤 되돌리며, 실패하면 ROLLBACK이 catalog까지 원래대로 돌린다. 기존 기관 관리자나 영수증, 이미 쓰인 Auth 사용자, 이미 있는 이메일은 각각 고정 code로 거부하고 아무것도 쓰지 않는다. 같은 uuid와 이메일로 다시 실행하면 영수증을 확인해 같은 해시를 돌려주고 아무것도 쓰지 않는다. 출력은 `operation`, `ready`, `userIdSha256`, `emailSha256`, `authSubjectSha256`뿐이며 이메일과 Auth 사용자 uuid는 출력하지 않는다. 연결 뒤 첫 로그인에서 그 사용자가 TOTP를 등록하고 기관 초기 설정을 진행한다(ADR-0044 D86).
+
+**2026-09-12 Q 확정: 기관 자체는 `bootstrap.mjs create-institution`이 만든다.** ADR-0044 D86대로 설치가 기관을 만들고 첫 로그인은 초기 설정(기관 표시 이름, 첫 사업)만 한다. 그 초기 설정 화면도 `GET /capabilities`를 먼저 부르므로, `program_admission_policies` 행이 없으면 gateway가 409 `admission_required`로 닫아 첫 로그인이 아무것도 시작할 수 없다. 그 행을 쓰는 업무 경로는 `createOrganizationSettings` 뿐이고 거기에는 HTTP route가 없다. 이 명령은 `link-first-admin`과 같은 서명된 manifest·승인·소유자 확인·읽기 전용 계획을 통과하고 설치 상태가 `installed`일 때만, 설치 잠금 안 한 transaction에서 `organization_settings` 한 행(`version 1`, 시간대, 보관 유예)과 `program_admission_policies` 한 행(`version 1`, D77 설치 기본값 `stt_mode 'off'`, `llm_mode 'off'`), `actor_id = "install:institution:" + orgId`인 `audit_log` 영수증 한 건을 남긴다. 기본값은 D32의 365일과 `Asia/Seoul`이며, 시간대는 `createOrganizationSettings`와 같이 `Intl`로, 보관 유예는 1..3660일로 확인한다. `RETENTION_POLICY_MAX_DAYS`(1826)를 넘는 값은 저장은 되지만 준비 상태에서 `review_required`로 표시되므로 기본값이 되지 않는다. 업무 표는 `ccc_api`에만 정책이 있으므로 설치자는 이 transaction 안에서만 세 표의 FORCE RLS를 내리고 쓰기 뒤 되돌린다. 두 행이 모두 있으면 저장된 값을 돌려주고 아무것도 쓰지 않으며, 한쪽만 있으면 반쪽 상태를 덮어쓰지 않고 `INSTITUTION_STATE_INCONSISTENT`로 멈춘다. 두 설치 후속 명령의 순서는 서로 독립이다: `link-first-admin`은 이 명령을 요구하지 않고 이 명령도 연결된 관리자를 요구하지 않는다. 출력은 `operation`, `ready`, `orgIdSha256`, `timeZone`, `piiPurgeGraceDays`, `sttMode`, `llmMode`뿐이며 기관 식별자 자체는 찍지 않는다.
+
 ### 2.7 시크릿 배치
 
 시크릿은 호출하는 runtime에만 둔다. 아래 표의 “브라우저” 행을 제외한 값은 browser bundle, bootstrap, receipt, log, 오류 응답에 넣지 않는다.
@@ -178,10 +186,26 @@ type StorageSignerRequest = {
   action: 'upload' | 'agent_read' | 'delete' | 'head';
   principal: 'client' | 'agent' | 'scheduler';
   objectSha256: string | null;
+  context:
+    | { kind: 'upload'; audioObjectId: string }
+    | { kind: 'claim'; jobId: string; claimToken: string; attempt: number }
+    | { kind: 'deletion'; audioObjectId: string; generationId: string; deletionAttemptId: string };
 };
 ```
 
 signer는 bucket, opaque key 형식, caller principal, 허용 action을 모두 검사하고 만료 시각을 S8 lifetime에서 서버가 계산한다. caller가 만료 시각이나 signed URL을 지정하지 않는다. 임의 bucket, table, SQL, URL, key, action을 받지 않으며 signer function 외 runtime에는 service role key가 존재하지 않는다.
+
+**2026-09-11 Q 확정: 매 요청 온라인 권한 확인.** Signer는 작업마다 설치 설정으로 고정한 업무 API의 `POST /internal/storage/authorize`에 원래 호출자의 Bearer와 위 요청을 전달한다. API의 기존 Identity가 신원을 다시 검증하고 gateway가 현재 기관, 담당, 사업 도입 확인, 동의, claim 및 삭제 의도를 확인한다. 요청의 `principal`은 신원 증거가 아니며 검증된 신원과 다르면 거부한다. 콜백 주소는 요청에서 받지 않고, redirect·응답 캐시·이전 허용 결과 재사용·장애 시 허용은 금지한다. Signer의 관리자 Storage 키를 업무 API로 전달하지 않는다.
+
+`upload`와 client의 `head`는 본인의 현재 담당 범위에 있는 `pending_upload` 객체만 허용한다. `agent_read`는 해당 Agent의 살아 있는 claim, attempt, generation, 동의와 처리 기한을 모두 대조한다. `delete`와 scheduler의 `head`는 같은 기관의 `deletion_pending` 객체와 정확한 삭제 시도 기록을 근거로 허용하며, 철회 후 필요한 삭제를 막지 않도록 현재 녹음 동의를 요구하지 않는다. scheduler는 기존 system 신원과 이 콜백 경로에 한정된 scope를 요구한다. 미구현 Agent 또는 scheduler Identity를 요청 본문으로 대체하지 않는다.
+
+허용 응답은 정확한 요청 본문의 JCS SHA-256, 판정 시각, 최대 5초의 판정 유효기한, generation과 서버가 계산한 URL 만료 시각만 전달한다. `claimToken`이나 원음은 되돌려 보내지 않는다. Agent 읽기는 600초와 현재 lease·처리·보존 기한 중 가장 이른 시각을 넘지 않는다. 삭제와 metadata 조회는 URL을 만들지 않는다. 응답 부재, 만료, 형식·요청 hash 불일치는 Storage 호출 전에 거부한다. 이 5초는 허용 결과를 캐시할 수 있다는 뜻이 아니라 한 번의 네트워크 왕복을 위한 상한이다.
+
+**2026-09-12 Q 확정: 완료되지 않은 업로드 의도의 삭제는 generation에 묶지 않는다.** 판정 generation이 `pending:`으로 시작하면 provider 세대가 아직 없다는 뜻이므로, signer는 `versionId` 없이 그 key 자체에 DELETE와 부재 확인 세 가지를 수행하고 없는 object에 대한 provider 404도 수락으로 답한다. 이때 응답의 `generationId`는 null이며, 어댑터는 `pending:` binding에서만 그 null을 증거로 받아들인다.
+
+**2026-09-12 Q 확정: generation에 묶인 삭제의 provider 404는 지금 key에 있는 것으로 판정한다.** 전파 대기 뒤의 두 번째 주기는 같은 generation을 다시 지우므로 404가 정상이며, signer는 `versionId` 없는 새 metadata 조회 한 번으로 그 뜻을 가른다. key에 아무것도 없으면 판정 generation을 담아 수락으로 답하고 부재 증거는 이어지는 새 부재 확인이 만든다. 다른 세대가 살아 있으면 그 세대를 담아 `accepted:false`로 답해서 호출자가 새 시도를 채택하게 하고, 어댑터는 이때 예외 없이 `deleteSucceeded:false`와 그 세대를 증거로 남긴다. 같은 세대가 여전히 살아 있다고 답하면 결과를 만들지 않고 닫는다. 판정 시각은 signer 시계보다 2초까지 앞서도 신선한 판정으로 보며 5초 유효기한 자체는 그대로다.
+
+**업로드 상한 (2026-09-11 개정).** Supabase의 signed upload URL은 수명을 요청으로 정할 수 없고 배포 설정값으로 고정된다. 따라서 업로드 판정만은 `audio_objects.upload_expires_at`을 판정 유효기한 + 2시간(S8)으로 앞으로 옮기는 단 하나의 쓰기를 한다. 같은 object에 다시 판정하면 상한이 다시 앞으로 옮겨지므로 이미 발급된 token은 항상 현재 상한 안에 있다. 상한은 `retention_hard_cap_at`을 넘지 못한다. signer는 provider가 서명한 token의 실제 만료를 읽어 상한 안에 있고 `upsert`가 아니며 같은 object를 가리킬 때만 URL을 내준다. 그 밖의 판정은 감사 기록 외에 아무것도 쓰지 않는다.
 
 secret rotation은 새 값을 먼저 전용 signer binding에 주입하고 health check를 통과한 뒤 이전 값을 폐기한다. 값 자체를 fingerprint, migration, receipt, report에 넣지 않는다.
 ### 2.8 private Storage와 cron
@@ -190,9 +214,9 @@ bucket 이름은 `ccc-audio`로 고정하고 `public = false`로 만든다. obje
 
 오디오 byte는 Edge Function, Cloudflare Worker, API gateway를 통과하지 않는다. browser는 StorageSigner가 반환한 짧은 signed upload 권한으로 Supabase Storage에 직접 업로드하고, Agent는 claim 응답의 짧은 signed GET으로 Storage에서 직접 받는다. Edge에는 object key/hash와 JSON metadata만 전달한다. Edge route가 audio MIME, `multipart/*`, `audio/*` 또는 audio byte body를 받으면 `AUDIO_BODY_FORBIDDEN`으로 거부하고 Storage로 전달하지 않는다.
 
-Supabase `pg_cron`과 `pg_net`은 `ccc_scheduler_tick`이라는 단일 job으로 등록한다. schedule은 `* * * * *`이며, job은 S2 Scheduler service credential adapter가 Vault에서 읽은 signing key로 매 tick 발급한 짧은 token을 사용해 내부 Edge scheduler endpoint에 JSON tick만 POST한다. Vault secret과 token은 SQL, migration log, job payload, receipt에 넣지 않는다.
+Supabase `pg_cron`과 `pg_net`은 `ccc_scheduler_tick`이라는 단일 job으로 등록한다. schedule은 `* * * * *`이며, job은 Vault에서 읽은 `SCHEDULER_SECRET`을 `Authorization: Bearer`로 실어 업무 API의 `POST /internal/scheduler/run`에 JSON tick만 POST한다. Vault secret은 SQL, migration log, job payload, receipt에 넣지 않는다.
 
-Scheduler token은 S2의 service principal을 사용하고 `sub=ccc_scheduler`, scheduler audience, route scope `/internal/scheduler/tick`, `iat`, `exp`(발급 후 300초 이내), `jti` nonce를 포함한다. Edge는 issuer, signature, audience, subject, route scope, `iat/exp`와 replay store의 미사용 `jti`를 검증하고 성공한 nonce를 만료 시각까지 기록한다. token 없음/서명·만료·nonce 오류는 401, 유효하지만 audience·subject·route scope가 틀리거나 business route에 사용하면 403이다. internal scheduler route는 `Origin`이 없는 server-to-server 요청만 허용하며, browser Origin이 있으면 403이다. 일반 업무 route는 exact-origin CORS 규칙을 따른다.
+**2026-09-12 Q 확정: 스케줄러 자격은 S2 §2.6의 공유 비밀이다.** 이 문단의 이전 서명 token·`jti` nonce·`/internal/scheduler/tick` 설계는 폐기한다. API는 bearer를 `SecretStore`의 `SCHEDULER_SECRET`과 상수 시간으로 비교하고, 맞으면 `kind='system'`, `userId='system:scheduler'`, `orgId`=설치 기관, `roles=['service']`, `scopes=['scheduler:run','/internal/storage/authorize']`, `authn.source='scheduler-secret'`인 Actor로만 바꾼다. 이 Actor는 `/internal/scheduler/run`과 §2.7 콜백의 scheduler lane 두 route에서만 받고, 그 밖의 route는 403이다. 비밀 없음·불일치는 401, `Origin`이 있으면 403이다. `/internal/scheduler/run`은 `scheduled-job-runner`만 호출하며 그 안의 원음 삭제가 같은 bearer로 Signer를 부른다. 일반 업무 route는 exact-origin CORS 규칙을 따른다.
 
 job 중복 등록, 공개 HTTP endpoint, browser origin 호출, service role key를 scheduler credential로 재사용하는 구현은 금지한다. 처리 기회, claim 우선순위, purge 시각은 S8/E5-6의 AudioStore 계약이 소유하며 cron은 같은 `Scheduler.run` 포트만 호출한다.
 ## 3. Edge Function 계약

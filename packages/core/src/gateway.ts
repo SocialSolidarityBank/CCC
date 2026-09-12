@@ -23,6 +23,11 @@ import type { InstitutionReadiness, OrganizationProfile, OrganizationOnboardingI
 import type { ReportEvidence, SupportCaseReport } from '@ccc/contracts/report';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
+import {
+  decodeStorageSignerRequest,
+  type StorageSignerDecision,
+  type StorageSignerRequest,
+} from '@ccc/contracts/audio';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import {
   CONSENT_COPY,
@@ -50,7 +55,7 @@ import {
   type ProgramRecord, type ProgramView, type CreateProgramInput, type UpdateProgramInput,
   type ProgramListResponse, type ProgramOption,
 } from '@ccc/contracts/program-admission';
-import { AGENT_SCOPES, IdentityStoreUnavailableError, type Actor as IdentityActor, type ActorRole, type AgentStatus, type RevocationReason, type DeploymentMode } from '@ccc/contracts/runtime';
+import { AGENT_SCOPES, ActorAuthenticationError, IdentityStoreUnavailableError, type Actor as IdentityActor, type ActorRole, type AgentStatus, type RevocationReason, type DeploymentMode } from '@ccc/contracts/runtime';
 import {
   AGENT_JOB_ERROR_CODES,
   AGENT_JOB_MAX_ATTEMPTS,
@@ -9381,6 +9386,317 @@ export async function getAgentJobAudioDelivery(
   return { audioR2Key: audio.key, caseId: audio.support_case_id, generationId: audio.generation_id };
 }
 
+type StorageSignerContext = StorageSignerRequest['context'];
+type StorageUploadContext = Extract<StorageSignerContext, { kind: 'upload' }>;
+type StorageClaimContext = Extract<StorageSignerContext, { kind: 'claim' }>;
+type StorageDeletionContext = Extract<StorageSignerContext, { kind: 'deletion' }>;
+
+/** S8 §2.2: an upload decision owns the ceiling for its own authorization window plus two hours. */
+const STORAGE_UPLOAD_CEILING_MS = 2 * 60 * 60_000;
+
+interface PendingStorageUploadTarget {
+  audioObjectId: string;
+  objectKey: string;
+  generationId: string;
+  supportCaseId: string;
+  admission: ProgramAdmissionGrant;
+}
+
+/** Upload and the client's own metadata read: current pending_upload row plus every live gate. */
+async function authorizePendingStorageUpload(
+  env: Env,
+  actor: Actor,
+  objectKey: string,
+  objectSha256: string | null,
+  context: StorageUploadContext,
+): Promise<PendingStorageUploadTarget> {
+  const row = await env.DB.prepare(
+    `SELECT audio.session_id,audio.support_case_id,audio.key,audio.generation_id,
+            audio.stt_route,audio.stt_engine_id,audio.audio_delivery,audio.client_asserted_sha256,
+            audio.consent_gate_receipt_revision,audio.consent_gate_receipt_json,
+            audio.upload_expires_at
+     FROM audio_objects AS audio
+     JOIN sessions AS session ON session.id=audio.session_id AND session.org_id=audio.org_id
+       AND session.support_case_id=audio.support_case_id
+       AND session.approved_at IS NULL AND session.channel='in_person'
+     WHERE audio.id=? AND audio.org_id=? AND audio.state='pending_upload'`,
+  ).bind(context.audioObjectId, actor.orgId).first<DbRow>();
+  const at = now();
+  const sttMode = row === null ? null : stringValue(row.stt_route);
+  const sttEngineId = row === null ? null : stringValue(row.stt_engine_id);
+  if (
+    row === null
+    || stringValue(row.key) !== objectKey
+    // The caller's hash is an assertion, never provider evidence: absent, or exactly this row's.
+    || (objectSha256 !== null && nullableString(row.client_asserted_sha256) !== objectSha256)
+    || stringValue(row.audio_delivery) !== 'protected-get'
+    || stringValue(row.upload_expires_at) <= at
+    || (sttMode !== 'local' && sttMode !== 'azure')
+    || (sttEngineId !== 'qwen3-asr' && sttEngineId !== 'azure-speech-koreacentral')
+  ) throw new ForbiddenError('storage upload is unavailable');
+
+  // Current role, assignment and D87 admission come from the existing write-path gates.
+  const session = await assertSessionWriteAccess(env, actor, stringValue(row.session_id));
+  const admission = await assertRecordingUploadAllowedForSession(env, actor, session);
+  await assertRecordingResultNotCommitted(env, actor, session);
+  if (
+    admission.context.sttMode !== sttMode
+    || await getSttReadiness(env, actor.orgId, sttMode, sttEngineId) === null
+  ) throw new ForbiddenError('storage upload is unavailable');
+
+  const receipt = parseJson<ConsentGateReceipt>(nullableString(row.consent_gate_receipt_json));
+  if (
+    receipt === null
+    || receipt.consentRevision !== stringValue(row.consent_gate_receipt_revision)
+  ) throw new ForbiddenError('storage upload is unavailable');
+  const supportCaseId = stringValue(row.support_case_id);
+  const current = await assertConsentGate(
+    env, actor.orgId, supportCaseId, receipt.required.map((entry) => entry.domain),
+  ).catch(() => { throw new ForbiddenError('storage upload is unavailable'); });
+  if (
+    current.consentRevision !== receipt.consentRevision
+    || canonicalizeJcs(current.required) !== canonicalizeJcs(receipt.required)
+  ) throw new ForbiddenError('storage upload is unavailable');
+  return {
+    audioObjectId: context.audioObjectId,
+    objectKey,
+    generationId: stringValue(row.generation_id),
+    supportCaseId,
+    admission,
+  };
+}
+
+/**
+ * S8 §2.2 and S11 §2.7 (2026-09-11 개정): hosted Supabase fixes the signed upload lifetime by
+ * deployment setting, so the upload decision itself moves `audio_objects.upload_expires_at` forward
+ * to its authorization expiry + 2h in exactly one guarded write. The ceiling only moves forward and
+ * never past `retention_hard_cap_at`; 0 changed rows is a denial, never a silent allow.
+ */
+async function moveStorageUploadCeiling(
+  env: Env,
+  actor: Actor,
+  target: PendingStorageUploadTarget,
+  ceiling: string,
+): Promise<string> {
+  const at = now();
+  const [moved] = await programPolicyBatch(env, target.admission.context, [env.DB.prepare(
+    `UPDATE audio_objects SET upload_expires_at=?,updated_at=?
+     WHERE id=? AND org_id=? AND key=? AND generation_id=? AND state='pending_upload'
+       AND audio_delivery='protected-get' AND upload_expires_at>? AND upload_expires_at<?
+       AND retention_hard_cap_at>=?`,
+  ).bind(
+    ceiling, at, target.audioObjectId, actor.orgId, target.objectKey, target.generationId,
+    at, ceiling, ceiling,
+  )], target.admission.program);
+  if ((moved?.meta?.changes ?? 0) === 0) throw new ForbiddenError('storage upload is unavailable');
+  return ceiling;
+}
+
+/**
+ * Agent read: the live claim decides. Unlike `getAgentJobAudioDelivery` this never mutates job
+ * lifecycle when the row is gone — an authorization callback must not close somebody's job.
+ */
+async function authorizeClaimedStorageRead(
+  env: Env,
+  actor: Actor,
+  objectKey: string,
+  objectSha256: string | null,
+  context: StorageClaimContext,
+): Promise<{ generationId: string; expiresAt: string; supportCaseId: string }> {
+  const job = await loadClaimedAgentJob(env, actor, context.jobId, context.claimToken, context.attempt);
+  if (
+    job.kind !== 'audio'
+    || job.audioObjectId === null
+    || job.audioGenerationId === null
+    || (job.sttEngine !== 'local' && job.sttEngine !== 'azure')
+    || job.sttEngineId === null
+    || job.leaseExpiresAt === null
+    || job.processingDeadlineAt === null
+    || job.retentionHardCapAt === null
+  ) throw new AgentJobContractError('route_mismatch', job.id);
+  await requireAgentJobProgramAdmission(env, actor.orgId, job);
+  if (await getSttReadiness(env, actor.orgId, job.sttEngine, job.sttEngineId, actor.userId) === null) {
+    throw new AgentJobContractError('engine_unavailable', job.id);
+  }
+  await agentJobConsentRevision(env, actor.orgId, job);
+  const at = now();
+  const audio = await env.DB.prepare(
+    `SELECT key,generation_id,object_sha256,storage_sha256,support_case_id,
+            processing_deadline_at,retention_hard_cap_at
+     FROM audio_objects
+     WHERE id=? AND org_id=? AND generation_id=? AND state IN ('claimed','processing')
+       AND claim_id=? AND claim_agent_id=? AND retention_hard_cap_at>? AND processing_deadline_at>?`,
+  ).bind(
+    job.audioObjectId, actor.orgId, job.audioGenerationId, job.id, actor.userId, at, at,
+  ).first<DbRow>();
+  if (
+    audio === null
+    || stringValue(audio.key) !== objectKey
+    || (objectSha256 !== null
+      && nullableString(audio.object_sha256) !== objectSha256
+      && nullableString(audio.storage_sha256) !== objectSha256)
+  ) throw new AgentJobContractError('audio_object_missing', job.id);
+  return {
+    generationId: stringValue(audio.generation_id),
+    // 600 seconds, the live lease, the processing deadline and the S8 hard cap — earliest wins.
+    expiresAt: [
+      new Date(parseUtcTimestamp(at) + 600_000).toISOString(),
+      job.leaseExpiresAt,
+      job.processingDeadlineAt,
+      job.retentionHardCapAt,
+      stringValue(audio.processing_deadline_at),
+      stringValue(audio.retention_hard_cap_at),
+    ].reduce((earliest, value) => value < earliest ? value : earliest),
+    supportCaseId: stringValue(audio.support_case_id),
+  };
+}
+
+/**
+ * Deletion, the scheduler's metadata read and its absence evidence. Recording consent is
+ * deliberately not required: withdrawal is the reason the deletion exists. The durable intent is
+ * the whole authority.
+ */
+async function authorizePendingStorageDeletion(
+  env: Env,
+  orgId: string,
+  objectKey: string,
+  objectSha256: string | null,
+  context: StorageDeletionContext,
+): Promise<{ generationId: string; supportCaseId: string }> {
+  const audio = await env.DB.prepare(
+    `SELECT key,generation_id,object_sha256,storage_sha256,support_case_id,
+            deletion_reason,deletion_attempt_id
+     FROM audio_objects WHERE id=? AND org_id=? AND state='deletion_pending'`,
+  ).bind(context.audioObjectId, orgId).first<DbRow>();
+  if (
+    audio === null
+    || stringValue(audio.key) !== objectKey
+    || stringValue(audio.generation_id) !== context.generationId
+    || nullableString(audio.deletion_attempt_id) !== context.deletionAttemptId
+    || (objectSha256 !== null
+      && nullableString(audio.object_sha256) !== objectSha256
+      && nullableString(audio.storage_sha256) !== objectSha256)
+  ) throw new ForbiddenError('storage deletion is unavailable');
+  const journal = await env.DB.prepare(
+    `SELECT 1 AS present FROM audio_deletion_attempts
+     WHERE id=? AND deletion_attempt_id=? AND phase='requested' AND org_id=?
+       AND audio_object_id=? AND generation_id=? AND reason=?`,
+  ).bind(
+    `${context.deletionAttemptId}:requested`,
+    context.deletionAttemptId,
+    orgId,
+    context.audioObjectId,
+    context.generationId,
+    stringValue(audio.deletion_reason),
+  ).first<{ present: number }>();
+  if (journal === null) throw new ForbiddenError('storage deletion is unavailable');
+  return {
+    generationId: stringValue(audio.generation_id),
+    supportCaseId: stringValue(audio.support_case_id),
+  };
+}
+
+/**
+ * S11 §2.7: every StorageSigner operation is authorized from current business state. The caller is
+ * the canonical identity re-resolved from the original Bearer; `principal` is only a claimed lane
+ * and never identity evidence. No allow is cached, minted or retried here, and no storage is touched.
+ */
+export async function authorizeStorageSignerOperation(
+  env: Env,
+  canonicalActor: IdentityActor,
+  request: StorageSignerRequest,
+): Promise<StorageSignerDecision> {
+  const parsed = decodeStorageSignerRequest(request);
+  let generationId: string;
+  let expiresAt: string | null = null;
+  let supportCaseId: string;
+  let auditActor: Actor;
+  let auditTargetId: string;
+  let uploadCeilingTarget: PendingStorageUploadTarget | null = null;
+  if (parsed.principal === 'client') {
+    if (
+      canonicalActor.kind !== 'human'
+      || canonicalActor.orgId === null
+      || canonicalActor.authn.source !== 'supabase-jwt'
+      || canonicalActor.authn.assurance !== 'aal2'
+      || canonicalActor.authn.sessionId === null
+      || !canonicalActor.roles.includes('worker')
+      || (parsed.action !== 'upload' && parsed.action !== 'head')
+      || parsed.context.kind !== 'upload'
+    ) throw new ForbiddenError('storage principal is not allowed');
+    auditActor = { userId: canonicalActor.userId, orgId: canonicalActor.orgId, role: 'counselor' };
+    auditTargetId = parsed.context.audioObjectId;
+    const target = await authorizePendingStorageUpload(
+      env, auditActor, parsed.objectKey, parsed.objectSha256, parsed.context,
+    );
+    generationId = target.generationId;
+    supportCaseId = target.supportCaseId;
+    // Only a target mint owns a ceiling; a metadata read creates no URL and writes nothing.
+    if (parsed.action === 'upload') uploadCeilingTarget = target;
+  } else if (parsed.principal === 'agent') {
+    if (
+      canonicalActor.kind !== 'agent'
+      || canonicalActor.orgId === null
+      || canonicalActor.authn.source !== 'agent-bearer'
+      || !canonicalActor.roles.includes('service')
+      || !canonicalActor.scopes.includes('audio:read')
+      || parsed.action !== 'agent_read'
+      || parsed.context.kind !== 'claim'
+    ) throw new ForbiddenError('storage principal is not allowed');
+    auditActor = { userId: canonicalActor.userId, orgId: canonicalActor.orgId, role: 'service' };
+    auditTargetId = parsed.context.jobId;
+    const target = await authorizeClaimedStorageRead(
+      env, auditActor, parsed.objectKey, parsed.objectSha256, parsed.context,
+    );
+    generationId = target.generationId;
+    expiresAt = target.expiresAt;
+    supportCaseId = target.supportCaseId;
+  } else {
+    if (
+      canonicalActor.kind !== 'system'
+      || canonicalActor.orgId === null
+      || canonicalActor.authn.source !== 'scheduler-secret'
+      || !canonicalActor.roles.includes('service')
+      || !canonicalActor.scopes.includes('/internal/storage/authorize')
+      || (parsed.action !== 'delete' && parsed.action !== 'head' && parsed.action !== 'absence')
+      || parsed.context.kind !== 'deletion'
+    ) throw new ForbiddenError('storage principal is not allowed');
+    auditActor = { userId: canonicalActor.userId, orgId: canonicalActor.orgId, role: 'service' };
+    auditTargetId = parsed.context.audioObjectId;
+    const target = await authorizePendingStorageDeletion(
+      env, canonicalActor.orgId, parsed.objectKey, parsed.objectSha256, parsed.context,
+    );
+    generationId = target.generationId;
+    supportCaseId = target.supportCaseId;
+  }
+  const authorizedAt = now();
+  const authorizationExpiresAt = new Date(parseUtcTimestamp(authorizedAt) + 5_000).toISOString();
+  if (uploadCeilingTarget !== null) {
+    expiresAt = await moveStorageUploadCeiling(
+      env,
+      auditActor,
+      uploadCeilingTarget,
+      new Date(parseUtcTimestamp(authorizationExpiresAt) + STORAGE_UPLOAD_CEILING_MS).toISOString(),
+    );
+  }
+  await writeAudit(env, auditActor, {
+    action: parsed.action === 'agent_read' ? 'download_audio' : 'read',
+    targetTable: 'audio_objects',
+    targetId: auditTargetId,
+    caseId: supportCaseId,
+    detail: { storageAction: parsed.action, principal: parsed.principal },
+  });
+  return {
+    allowed: true,
+    requestSha256: await sha256Hex(canonicalizeJcs(parsed)),
+    generationId,
+    authorizedAt,
+    // One network round trip, not a cache window (S11 §2.7).
+    authorizationExpiresAt,
+    expiresAt,
+  };
+}
+
 export interface AgentAudioTargetMint {
   mintId: string;
   key: string;
@@ -10300,7 +10616,12 @@ export async function reconcileAudioObjectDeletion(
 
   let evidence: AudioDeletionEvidence;
   try {
-    evidence = await audioStore.delete(row.key);
+    evidence = await audioStore.delete(row.key, {
+      kind: 'deletion',
+      audioObjectId: row.id,
+      generationId: row.generation_id,
+      deletionAttemptId: row.deletion_attempt_id,
+    });
   } catch {
     const failedAt = now();
     const retryCount = Number(row.retry_count) + 1;
@@ -12238,6 +12559,292 @@ export async function revokeActorSessions(env: Env, userId: string, reason: Revo
 
 export async function revokeIdentitySession(env: Env, sessionId: string, reason: RevocationReason): Promise<void> {
   await appendAuthRevocation(env, 'session', sessionId, reason);
+}
+
+// ── E6-4 Agent 페어링과 agent-bearer 신원 ───────────────────────────────────
+//
+// S2 §2.2 L64·L94·L96, §2.4 L135-136 과 CCC_OPEN_PILOT_PLAN E6-4 를 그대로 따른다.
+// 서버에 남는 것은 sha256 hex 와 설치 결합뿐이고(agent_credentials), 평문 값은 발급
+// 응답에만 존재한다. bearer 는 JWT 가 아니며 사람용 서명 키를 쓰지 않는다.
+//
+// 실패는 전부 같은 401 로 뭉친다 — 모르는 값인지, 만료인지, 이미 쓴 값인지 구분해
+// 주면 그 자체가 열거 단서다. 유일한 예외는 연결 users 행 불일치(S2 L94)로, 자격은
+// 맞았지만 설치가 요구하는 service principal 이 더는 없다는 뜻이라 403 이다.
+
+const AGENT_PAIRING_CODE_TTL_MS = 10 * 60_000;
+const AGENT_BEARER_TTL_MS = 900_000;
+const AGENT_REFRESH_TTL_MS = 30 * 24 * 60 * 60_000;
+type AgentCredentialKind = 'pairing_code' | 'refresh' | 'bearer';
+
+/**
+ * Agent Actor 의 userId 형식(S2 §2.2 L64). job 결합(`lease_owner`, `claim_agent_id`)과
+ * 상담 맥락 `actor_id` 가 이 값을 그대로 쓰므로 발급과 대조가 한 함수를 공유한다.
+ */
+export function agentActorUserId(installationId: string): string {
+  return `agent:${installationId}`;
+}
+
+export interface AgentPairingCodeIssue {
+  installationId: string;
+  actorUserId: string;
+  /** 평문 code. 이 응답에만 존재하며 서버에는 hash 만 남는다. */
+  pairingCode: string;
+  expiresAt: string;
+}
+
+export interface AgentCredentialGrant {
+  installationId: string;
+  bearerToken: string;
+  bearerExpiresAt: string;
+  refreshToken: string;
+  refreshExpiresAt: string;
+}
+
+interface AgentCredentialRow {
+  id: string;
+  installationId: string;
+  orgId: string;
+  actorUserId: string;
+  expiresAt: string;
+  consumedAt: string | null;
+  revokedAt: string | null;
+  installationRevokedAt: string | null;
+}
+
+/** 32바이트 CSPRNG base64url. 의미 정보가 없어야 추측·열거가 막힌다(D20 과 같은 태도). */
+function newAgentTokenValue(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** 제시된 값의 hash 로 자격 1건과 그 설치 행을 함께 읽는다. 종류가 다르면 맞지 않는다. */
+async function agentCredentialByToken(
+  env: Env,
+  kind: AgentCredentialKind,
+  token: unknown,
+): Promise<AgentCredentialRow | null> {
+  if (typeof token !== 'string' || token.length === 0 || token.length > 512) return null;
+  const row = await env.DB.prepare(
+    `SELECT credential.id, credential.installation_id, credential.expires_at, credential.consumed_at,
+            credential.revoked_at, install.org_id, install.actor_user_id,
+            install.revoked_at AS installation_revoked_at
+     FROM agent_credentials AS credential
+     JOIN agent_installations AS install
+       ON install.installation_id = credential.installation_id
+     WHERE credential.token_hash = ? AND credential.kind = ?`,
+  ).bind(await sha256Hex(token), kind).first<DbRow>();
+  if (row === null) return null;
+  return {
+    id: stringValue(row.id),
+    installationId: stringValue(row.installation_id),
+    orgId: stringValue(row.org_id),
+    actorUserId: stringValue(row.actor_user_id),
+    expiresAt: stringValue(row.expires_at),
+    consumedAt: nullableString(row.consumed_at),
+    revokedAt: nullableString(row.revoked_at),
+    installationRevokedAt: nullableString(row.installation_revoked_at),
+  };
+}
+
+/** 살아 있는 자격: 소비·폐기·만료가 없고 설치도 열려 있다. 전부 같은 ISO 문자열 비교다. */
+function agentCredentialLive(row: AgentCredentialRow, nowIso: string): boolean {
+  return row.consumedAt === null && row.revokedAt === null
+    && row.installationRevokedAt === null && row.expiresAt > nowIso;
+}
+
+/**
+ * refresh(30일)와 bearer(900초)를 한 배치로 발급한다. 평문은 반환값에만 있고 감사에는
+ * 설치 ID 와 만료만 남는다.
+ */
+async function mintAgentCredentialGrant(
+  env: Env,
+  row: Pick<AgentCredentialRow, 'installationId' | 'orgId'>,
+  issuedAt: string,
+  via: 'pairing_code' | 'refresh',
+): Promise<AgentCredentialGrant> {
+  const refreshToken = newAgentTokenValue();
+  const bearerToken = newAgentTokenValue();
+  const refreshExpiresAt = new Date(parseUtcTimestamp(issuedAt) + AGENT_REFRESH_TTL_MS).toISOString();
+  const bearerExpiresAt = new Date(parseUtcTimestamp(issuedAt) + AGENT_BEARER_TTL_MS).toISOString();
+  const insert = env.DB.prepare(
+    `INSERT INTO agent_credentials (id, installation_id, kind, token_hash, issued_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  await env.DB.batch([
+    insert.bind(newId(), row.installationId, 'refresh', await sha256Hex(refreshToken), issuedAt, refreshExpiresAt),
+    insert.bind(newId(), row.installationId, 'bearer', await sha256Hex(bearerToken), issuedAt, bearerExpiresAt),
+    canonicalAuditStatement(env, systemActor(agentActorUserId(row.installationId), row.orgId), {
+      action: 'agent_credential_issue', targetTable: 'agent_credentials', targetId: row.installationId,
+      beneficiaryId: null, supportCaseId: null, detail: { via, bearerExpiresAt, refreshExpiresAt },
+    }),
+  ]);
+  return { installationId: row.installationId, bearerToken, bearerExpiresAt, refreshToken, refreshExpiresAt };
+}
+
+/**
+ * 설치의 살아 있는 자격 전부를 닫고 `auth_revocations` 에 `pairing-revoked` 를 남긴다
+ * (S2 §2.4 L135-136). 다음 요청부터 bearer 와 그 bearer 로 잡은 claim 이 함께 끊긴다.
+ */
+async function closeAgentCredentials(
+  env: Env,
+  installationId: string,
+  auditActor: Actor,
+  revokedAt: string,
+  detail: Record<string, unknown>,
+): Promise<void> {
+  await env.DB.batch([
+    env.DB.prepare(
+      'UPDATE agent_credentials SET revoked_at = ? WHERE installation_id = ? AND revoked_at IS NULL',
+    ).bind(revokedAt, installationId),
+    canonicalAuditStatement(env, auditActor, {
+      action: 'agent_pairing_revoke', targetTable: 'agent_credentials', targetId: installationId,
+      beneficiaryId: null, supportCaseId: null, detail,
+    }),
+  ]);
+  await appendAuthRevocation(env, 'actor', agentActorUserId(installationId), 'pairing-revoked');
+}
+
+/**
+ * 페어링 code 발급(관리자). 같은 기관의 활성 `role='service'` users 행을 골라
+ * `agent_installations` 행과 10분·1회 code 를 만든다. 권한: admin 전용, 자기 기관만.
+ */
+export async function issueAgentPairingCode(
+  env: Env,
+  actor: Actor,
+  input: { actorUserId: string },
+): Promise<AgentPairingCodeIssue> {
+  assertAdmin(actor);
+  assertExactKeys(input, ['actorUserId']);
+  assertOpaqueIdentifier(input.actorUserId, 'agent service user id');
+  // 0045 의 insert guard 와 같은 조건을 먼저 본다 — 트리거 abort 대신 업무 오류로 답한다.
+  const linked = await env.DB.prepare(
+    `SELECT id FROM users WHERE id = ? AND org_id = ? AND active = 1 AND role = 'service' LIMIT 1`,
+  ).bind(input.actorUserId, actor.orgId).first<DbRow>();
+  if (linked === null) {
+    throw new ForbiddenError('agent pairing requires an active same-organization service user');
+  }
+  const installationId = newId();
+  const pairingCode = newAgentTokenValue();
+  const issuedAt = now();
+  const expiresAt = new Date(parseUtcTimestamp(issuedAt) + AGENT_PAIRING_CODE_TTL_MS).toISOString();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO agent_installations (installation_id, org_id, actor_user_id, paired_at)
+       VALUES (?, ?, ?, ?)`,
+    ).bind(installationId, actor.orgId, input.actorUserId, issuedAt),
+    env.DB.prepare(
+      `INSERT INTO agent_credentials (id, installation_id, kind, token_hash, issued_at, expires_at)
+       VALUES (?, ?, 'pairing_code', ?, ?, ?)`,
+    ).bind(newId(), installationId, await sha256Hex(pairingCode), issuedAt, expiresAt),
+    canonicalAuditStatement(env, actor, {
+      action: 'agent_pairing_issue', targetTable: 'agent_installations', targetId: installationId,
+      beneficiaryId: null, supportCaseId: null, detail: { actorUserId: input.actorUserId, expiresAt },
+    }),
+  ]);
+  return { installationId, actorUserId: input.actorUserId, pairingCode, expiresAt };
+}
+
+/**
+ * 페어링 code 교환(Actor 없음 — code 가 자격이다). `consumed_at` 을 CAS 로 써서 1회성을
+ * 강제하고 refresh·bearer 를 발급한다. 재사용은 401 이다.
+ */
+export async function redeemAgentPairingCode(env: Env, pairingCode: unknown): Promise<AgentCredentialGrant> {
+  const row = await agentCredentialByToken(env, 'pairing_code', pairingCode);
+  const consumedAt = now();
+  if (row === null || !agentCredentialLive(row, consumedAt)) throw new ActorAuthenticationError();
+  const consumed = await env.DB.prepare(
+    'UPDATE agent_credentials SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL AND revoked_at IS NULL',
+  ).bind(consumedAt, row.id).run();
+  // 같은 code 로 동시에 들어온 두 요청 중 하나만 이 CAS 를 통과한다.
+  if (consumed.meta.changes !== 1) throw new ActorAuthenticationError();
+  return mintAgentCredentialGrant(env, row, consumedAt, 'pairing_code');
+}
+
+/**
+ * refresh 회전(Actor 없음 — refresh 가 자격이다). 이전 값을 `consumed_at` 으로 닫고 새
+ * refresh·bearer 를 발급한다. **이미 소비된 값의 재사용은 그 설치의 모든 자격을 닫고**
+ * `auth_revocations` 에 `pairing-revoked` 를 남긴다(S2 §2.4 L136).
+ */
+export async function rotateAgentRefreshCredential(env: Env, refreshToken: unknown): Promise<AgentCredentialGrant> {
+  const row = await agentCredentialByToken(env, 'refresh', refreshToken);
+  if (row === null) throw new ActorAuthenticationError();
+  const rotatedAt = now();
+  if (row.consumedAt !== null) {
+    if (row.revokedAt === null) {
+      await closeAgentCredentials(env, row.installationId, systemActor(agentActorUserId(row.installationId), row.orgId), rotatedAt, { reason: 'refresh_reuse' });
+    }
+    throw new ActorAuthenticationError();
+  }
+  if (!agentCredentialLive(row, rotatedAt)) throw new ActorAuthenticationError();
+  const consumed = await env.DB.prepare(
+    'UPDATE agent_credentials SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL AND revoked_at IS NULL',
+  ).bind(rotatedAt, row.id).run();
+  if (consumed.meta.changes !== 1) {
+    // 같은 refresh 로 동시에 들어온 두 요청 중 CAS 를 놓친 쪽이다. 이긴 쪽이 방금
+    // 소비했다면 이 제시도 결국 재사용이므로(S2 §2.4 L136) 설치의 자격을 전부 닫는다.
+    const current = await env.DB.prepare(
+      'SELECT consumed_at, revoked_at FROM agent_credentials WHERE id = ?',
+    ).bind(row.id).first<DbRow>();
+    if (current !== null && nullableString(current.consumed_at) !== null
+      && nullableString(current.revoked_at) === null) {
+      await closeAgentCredentials(env, row.installationId, systemActor(agentActorUserId(row.installationId), row.orgId), now(), { reason: 'refresh_reuse' });
+    }
+    throw new ActorAuthenticationError();
+  }
+  return mintAgentCredentialGrant(env, row, rotatedAt, 'refresh');
+}
+
+/**
+ * agent-bearer 신원(S2 §2.2 L64·L94). 이 hash 가 bearer 자격에 없으면 `null` 을 돌려
+ * 사람 신원 레인으로 흘려보낸다(사람 JWT 도 Bearer 다). 있으면 이 레인이 결론이다 —
+ * 만료·소비·폐기와 설치 폐기는 401, 연결 users 행이 같은 기관·활성·service 가
+ * 아니면 403 이다.
+ */
+export async function resolveAgentBearer(env: Env, token: unknown): Promise<IdentityActor | null> {
+  const row = await agentCredentialByToken(env, 'bearer', token);
+  if (row === null) return null;
+  if (!agentCredentialLive(row, now())) throw new ActorAuthenticationError();
+  const linked = await env.DB.prepare(
+    `SELECT id FROM users WHERE id = ? AND org_id = ? AND active = 1 AND role = 'service' LIMIT 1`,
+  ).bind(row.actorUserId, row.orgId).first<DbRow>();
+  if (linked === null) throw new ForbiddenError('agent installation has no active service principal');
+  return {
+    kind: 'agent',
+    userId: agentActorUserId(row.installationId),
+    orgId: row.orgId,
+    roles: ['service'],
+    scopes: [...AGENT_SCOPES],
+    authn: { source: 'agent-bearer', assurance: 'none', sessionId: null },
+  };
+}
+
+/**
+ * 설치 폐기(관리자). 설치 행의 `revoked_at`(단방향)과 살아 있는 자격 전부를 닫는다.
+ * 권한: admin 전용, 자기 기관만. 감사: agent_pairing_revoke.
+ */
+export async function revokeAgentInstallation(
+  env: Env,
+  actor: Actor,
+  installationId: string,
+): Promise<{ installationId: string; revokedAt: string }> {
+  assertAdmin(actor);
+  assertOpaqueIdentifier(installationId, 'installation id');
+  const row = await env.DB.prepare(
+    'SELECT revoked_at FROM agent_installations WHERE installation_id = ? AND org_id = ?',
+  ).bind(installationId, actor.orgId).first<DbRow>();
+  if (row === null) throw new ForbiddenError('agent installation is unavailable');
+  const alreadyRevokedAt = nullableString(row.revoked_at);
+  const revokedAt = alreadyRevokedAt ?? now();
+  // 폐기는 단방향이다(0045 revocation_guard). 이미 닫힌 설치는 자격만 다시 훑는다.
+  if (alreadyRevokedAt === null) {
+    await env.DB.prepare(
+      'UPDATE agent_installations SET revoked_at = ? WHERE installation_id = ? AND revoked_at IS NULL',
+    ).bind(revokedAt, installationId).run();
+  }
+  await closeAgentCredentials(env, installationId, actor, revokedAt, { installationRevoked: true });
+  return { installationId, revokedAt };
 }
 
 /** 사용자 디렉터리 목록. 권한: admin 전용, 자기 기관만. 감사: read(users). */

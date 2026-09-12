@@ -10,6 +10,10 @@ patchedDependencies:
 importers:
 
   .:
+    dependencies:
+      tar:
+        specifier: 7.5.22
+        version: 7.5.22
     devDependencies:
       '@ccc/contracts':
         specifier: workspace:*
@@ -67,6 +71,12 @@ importers:
         version: link:../../packages/contracts
 
   adapters/audio-r2:
+    dependencies:
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
+  adapters/audio-signer:
     dependencies:
       '@ccc/contracts':
         specifier: workspace:*
@@ -206,6 +216,9 @@ importers:
 
   apps/community-cloud:
     dependencies:
+      '@ccc/audio-signer':
+        specifier: workspace:*
+        version: link:../../adapters/audio-signer
       '@ccc/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

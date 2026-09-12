@@ -1,3 +1,4 @@
+import { createSignerAudioStore } from '@ccc/audio-signer';
 import { assertPostgresIdentityBoundary, type PostgresDatabase } from '@ccc/db-postgres';
 import { createSupabaseIdentity } from '@ccc/identity-supabase';
 import type { SecretStore } from '@ccc/contracts/runtime';
@@ -5,6 +6,8 @@ import { ForbiddenError } from '@ccc/core/gateway';
 import { handleRequest } from '@ccc/http-api';
 import { verifiedInstallManifest } from '@ccc/http-api/capabilities';
 import type { ApiEnv } from '@ccc/http-api/identity';
+import { createSchedulerSecretResolver } from '@ccc/http-api/scheduler-identity';
+import { createAgentBearerResolver } from '@ccc/http-api/agent-identity';
 
 export interface CommunityCloudRuntimeConfig {
   database: PostgresDatabase;
@@ -46,6 +49,8 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
   const prefixWithSlash = routePrefix.endsWith('/') ? routePrefix : `${routePrefix}/`;
   const expiresAt = Date.parse(manifest.expiresAt);
   const allowedOrigins = new Set(manifest.allowedOrigins);
+  // S11 §2.7: the Signer address comes from the signed manifest alone, never from unsigned env.
+  const signerUrl = `${manifest.supabaseAuthOrigin}/functions/v1/ccc-storage-signer`;
   await assertPostgresIdentityBoundary(config.database);
   const baseEnvironment: ApiEnv = {
     ...config.settings,
@@ -62,6 +67,9 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
     databaseForSession: (subject, sessionId) => config.database.forActor({
       orgId: config.organizationId, actorId: subject, sessionId,
     }),
+  });
+  const resolveBusinessActor = createAgentBearerResolver({
+    inner: (credentialRequest) => identity.resolve(credentialRequest),
   });
 
   return async (request) => {
@@ -120,16 +128,33 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
       await request.body?.cancel().catch(() => undefined);
       return failure(415, 'AUDIO_BODY_FORBIDDEN');
     }
-    const environment = { ...baseEnvironment };
-    const response = await handleRequest(new Request(url, request), environment, async (credentialRequest) => {
-      const actor = await identity.resolve(credentialRequest);
-      if (actor.orgId !== config.organizationId) throw new ForbiddenError('identity is outside this installation');
-      environment.DB = config.database.forActor({
-        orgId: actor.orgId, actorId: actor.userId,
-        ...(actor.authn.sessionId === null ? {} : { sessionId: actor.authn.sessionId }),
-      });
-      return actor;
-    });
+    // S11 §2.7: the caller's own Bearer travels to the Signer, which asks this API back.
+    const environment: ApiEnv = {
+      ...baseEnvironment,
+      audioStore: createSignerAudioStore({
+        signerUrl,
+        authorization: request.headers.get('authorization'),
+        installationId: manifest.installationId,
+        ...(config.fetch === undefined ? {} : { fetch: config.fetch }),
+      }),
+    };
+    // S2 §2.6 scheduler lane 은 사람 신원 앞단에 온다. 비밀이 없거나 다르면 그대로 아래로 흐른다.
+    // 그 다음이 S2 §2.2 L64 의 agent-bearer 레인이고, 사람 신원은 마지막이다. 세 레인이
+    // 같은 자리에서 요청별 DB 범위를 정하므로 Agent 도 사람과 같은 경계를 지난다.
+    const response = await handleRequest(new Request(url, request), environment, createSchedulerSecretResolver({
+      secretStore: config.secretStore,
+      organizationId: config.organizationId,
+      inner: async (credentialRequest, credentialEnv) => {
+        const actor = await resolveBusinessActor(credentialRequest, credentialEnv);
+        if (actor.orgId !== config.organizationId) throw new ForbiddenError('identity is outside this installation');
+        const sessionId = 'kind' in actor ? actor.authn.sessionId : null;
+        environment.DB = config.database.forActor({
+          orgId: config.organizationId, actorId: actor.userId,
+          ...(sessionId === null ? {} : { sessionId }),
+        });
+        return actor;
+      },
+    }));
     for (const [name, value] of headers) response.headers.set(name, value);
     return response;
   };

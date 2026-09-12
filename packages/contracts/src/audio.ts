@@ -191,3 +191,150 @@ export function checkedBody(
 export function validSha256(value: string): boolean {
   return /^[0-9a-f]{64}$/.test(value);
 }
+
+export type StorageSignerRequest = {
+  bucket: 'ccc-audio';
+  objectKey: string;
+  action: 'upload' | 'agent_read' | 'delete' | 'head' | 'absence';
+  principal: 'client' | 'agent' | 'scheduler';
+  objectSha256: string | null;
+  context:
+    | { kind: 'upload'; audioObjectId: string }
+    | { kind: 'claim'; jobId: string; claimToken: string; attempt: number }
+    | { kind: 'deletion'; audioObjectId: string; generationId: string; deletionAttemptId: string };
+};
+
+export type StorageSignerDecision = {
+  allowed: true;
+  requestSha256: string;
+  generationId: string;
+  authorizedAt: string;
+  authorizationExpiresAt: string;
+  expiresAt: string | null;
+};
+
+function exactRecord(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.keys(value).length === keys.length
+    && keys.every((key) => Object.hasOwn(value, key));
+}
+
+function boundedString(value: unknown, maxBytes: number): value is string {
+  return typeof value === 'string'
+    && value.length > 0
+    && new TextEncoder().encode(value).byteLength <= maxBytes;
+}
+
+function canonicalInstant(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    return new Date(value).toISOString() === value;
+  } catch {
+    return false;
+  }
+}
+
+const STORAGE_SIGNER_ACTIONS = ['upload', 'agent_read', 'delete', 'head', 'absence'] as const;
+const STORAGE_SIGNER_PRINCIPALS = ['client', 'agent', 'scheduler'] as const;
+
+export function decodeStorageSignerRequest(value: unknown): StorageSignerRequest {
+  if (!exactRecord(value, ['bucket', 'objectKey', 'action', 'principal', 'objectSha256', 'context'])) {
+    throw new TypeError('invalid StorageSigner request');
+  }
+  const action = STORAGE_SIGNER_ACTIONS.find((candidate) => candidate === value.action);
+  const principal = STORAGE_SIGNER_PRINCIPALS.find((candidate) => candidate === value.principal);
+  if (
+    value.bucket !== 'ccc-audio'
+    || typeof value.objectKey !== 'string'
+    || !validKey(value.objectKey)
+    || action === undefined
+    || principal === undefined
+    || !(value.objectSha256 === null
+      || typeof value.objectSha256 === 'string' && validSha256(value.objectSha256))
+    // `absence` is deletion evidence the scheduler alone can ask for (S8 §2.3).
+    || (action === 'absence' && principal !== 'scheduler')
+  ) throw new TypeError('invalid StorageSigner request');
+
+  const base = {
+    bucket: 'ccc-audio',
+    objectKey: value.objectKey,
+    action,
+    principal,
+    objectSha256: value.objectSha256,
+  } as const;
+  const context = value.context;
+  if (
+    exactRecord(context, ['kind', 'audioObjectId'])
+    && context.kind === 'upload'
+    && action !== 'absence'
+    && boundedString(context.audioObjectId, 256)
+  ) return { ...base, context: { kind: context.kind, audioObjectId: context.audioObjectId } };
+  if (
+    exactRecord(context, ['kind', 'jobId', 'claimToken', 'attempt'])
+    && context.kind === 'claim'
+    && action !== 'absence'
+    && boundedString(context.jobId, 256)
+    && boundedString(context.claimToken, 512)
+    && typeof context.attempt === 'number'
+    && Number.isInteger(context.attempt)
+    && context.attempt >= 1
+    && context.attempt <= 3
+  ) {
+    return {
+      ...base,
+      context: {
+        kind: context.kind,
+        jobId: context.jobId,
+        claimToken: context.claimToken,
+        attempt: context.attempt,
+      },
+    };
+  }
+  if (
+    exactRecord(context, ['kind', 'audioObjectId', 'generationId', 'deletionAttemptId'])
+    && context.kind === 'deletion'
+    && boundedString(context.audioObjectId, 256)
+    && boundedString(context.generationId, 256)
+    && boundedString(context.deletionAttemptId, 256)
+  ) {
+    return {
+      ...base,
+      context: {
+        kind: context.kind,
+        audioObjectId: context.audioObjectId,
+        generationId: context.generationId,
+        deletionAttemptId: context.deletionAttemptId,
+      },
+    };
+  }
+  throw new TypeError('invalid StorageSigner request');
+}
+
+export function decodeStorageSignerDecision(value: unknown): StorageSignerDecision {
+  if (
+    !exactRecord(value, [
+      'allowed', 'requestSha256', 'generationId', 'authorizedAt',
+      'authorizationExpiresAt', 'expiresAt',
+    ])
+    || value.allowed !== true
+    || typeof value.requestSha256 !== 'string'
+    || !validSha256(value.requestSha256)
+    || !boundedString(value.generationId, 256)
+    || !canonicalInstant(value.authorizedAt)
+    || !canonicalInstant(value.authorizationExpiresAt)
+    || Date.parse(value.authorizationExpiresAt) < Date.parse(value.authorizedAt)
+    || Date.parse(value.authorizationExpiresAt) - Date.parse(value.authorizedAt) > 5_000
+    || !(value.expiresAt === null || canonicalInstant(value.expiresAt))
+    || (value.expiresAt !== null && Date.parse(value.expiresAt) <= Date.parse(value.authorizedAt))
+  ) throw new TypeError('invalid StorageSigner decision');
+  return {
+    allowed: value.allowed,
+    requestSha256: value.requestSha256,
+    generationId: value.generationId,
+    authorizedAt: value.authorizedAt,
+    authorizationExpiresAt: value.authorizationExpiresAt,
+    expiresAt: value.expiresAt,
+  };
+}

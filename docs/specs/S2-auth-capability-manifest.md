@@ -147,6 +147,7 @@ Supabase logout, password reset, MFA 변경, 관리자 계정 비활성화는 re
 ### 2.6 Cloud scheduler 경계
 
 Supabase `pg_cron → Edge HTTP` 호출은 사람 Actor가 아니다. `SCHEDULER_SECRET`은 rotating platform secret으로 Supabase Vault와 Edge secret에 같은 active version으로 저장하고, constant-time 비교한다. `POST /internal/scheduler/run`에서만 받고 `Origin`이 없어야 하며 browser Origin이 있으면 403이다. 성공한 호출은 내부 `SchedulerContext { actorId: 'system:scheduler'; scopes: ['scheduler:run'] }`로 바꾸어 `scheduled-job-runner`만 호출하고 canonical human Actor로 투영하지 않는다. `/internal/scheduler/run` 외 route와 업무 DB read/write에는 사용할 수 없다. Local Single/Office는 HTTP credential 없이 같은 runner를 in-process 호출한다.
+**2026-09-12 Q 확정 개정.** 이 공유 비밀 설계가 정본이며 S11 §2.8의 이전 서명 token 설계는 폐기했다. 성공한 호출은 `kind='system'`, `userId='system:scheduler'`, `orgId`=설치 기관, `roles=['service']`, `scopes=['scheduler:run','/internal/storage/authorize']`, `authn.source='scheduler-secret'`인 Actor다. 받는 route는 `/internal/scheduler/run`과 S11 §2.7 StorageSigner 콜백 `/internal/storage/authorize`의 scheduler lane 둘뿐이며, 후자는 스케줄러 자신의 원음 삭제 작업이 `deletion_pending` 행과 삭제 시도 기록을 대조하는 읽기만 한다. 그 밖의 업무 route와 DB 쓰기에는 쓸 수 없다.
 소유: Cloud Edge HTTP와 CORS response는 E6-2, Agent pairing은 E6-4, local scheduler와 Electron 연결은 E7/E8이 구현한다.
 
 ### 2.7 signed bootstrap과 설치 신뢰 경계

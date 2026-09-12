@@ -1,3 +1,5 @@
+import type { StorageSignerRequest } from './audio';
+
 export type AudioContentType =
   | 'audio/mp4'
   | 'audio/mpeg'
@@ -21,7 +23,9 @@ export interface AudioObjectMetadata {
   expiresAt: string;
 }
 
-export type AudioDownload = AudioObjectMetadata & {
+export type AudioDownload = Omit<AudioObjectMetadata, 'expiresAt'> & {
+  /** A signer-backed store reads metadata only, so an object can carry no retention instant. */
+  expiresAt: string | null;
   body: ReadableStream<Uint8Array>;
   sha256: string | null;
   generationId: string;
@@ -49,21 +53,26 @@ export interface AudioDeletionEvidence {
   verifiedAt: string;
 }
 
+/** S11 §2.7 caller authority. A signer-backed store needs it; local stores ignore it. */
+export type AudioStoreBinding = StorageSignerRequest['context'];
+
 export interface AudioStore {
   put(
     key: string,
     body: ReadableStream<Uint8Array>,
     metadata: AudioObjectMetadata,
   ): Promise<{ sha256: string; generationId: string }>;
-  get(key: string): Promise<AudioDownload | null>;
-  delete(key: string): Promise<AudioDeletionEvidence>;
+  get(key: string, binding?: AudioStoreBinding): Promise<AudioDownload | null>;
+  delete(key: string, binding?: AudioStoreBinding): Promise<AudioDeletionEvidence>;
   createUploadTarget(
     key: string,
     metadata: AudioObjectMetadata,
+    binding?: AudioStoreBinding,
   ): Promise<{ url: string; expiresAt: string } | null>;
   createDownloadTarget(
     key: string,
     expiresInSeconds?: number,
+    binding?: AudioStoreBinding,
   ): Promise<{ url: string; expiresAt: string } | null>;
 }
 

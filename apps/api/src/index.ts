@@ -9,6 +9,7 @@ import { handleRequest } from '@ccc/http-api';
 import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
 import { createScheduledJobRunner } from '@ccc/core/scheduled-job-runner';
 import { createAccessIdentity } from '@ccc/identity-access';
+import { createAgentBearerResolver } from '@ccc/http-api/agent-identity';
 
 import { AUDIO_EXPIRY_CRON, MEMORY_CRON, PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
 
@@ -62,8 +63,12 @@ export default {
     // Preview keeps its isolated resolver; authenticated metadata retains the full canonical role set.
     const localResolver = localDevActorResolver(runtimeEnv);
     if (localResolver !== undefined) return handleRequest(request, runtimeEnv, localResolver);
+    // S2 §2.2 L64: agent-bearer 레인이 사람 신원(E2-7 까지 Access) 앞에 온다. bearer 가
+    // Agent 자격이 아니면 그대로 아래로 흐르므로 사람 경로 동작은 바뀌지 않는다.
     const identity = createAccessIdentity(runtimeEnv);
-    return handleRequest(request, runtimeEnv, (nextRequest) => identity.resolve(nextRequest));
+    return handleRequest(request, runtimeEnv, createAgentBearerResolver({
+      inner: (nextRequest) => identity.resolve(nextRequest),
+    }));
   },
   // Cron trigger: only exact configured expressions may enqueue D8 or D10 work.
   async scheduled(controller: ScheduledController, env: WorkerEnv, ctx: ExecutionContext): Promise<void> {

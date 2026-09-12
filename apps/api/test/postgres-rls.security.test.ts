@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
-import { closeSupportCase, createBeneficiaryWithInitialSupportCase, createCounselingRecord, createOrganizationSettings, resolveDirectoryActorByPrincipal, revokeActorSessions, revokeIdentitySession, type SupportCaseCreationResult, type Env, type Actor } from '@ccc/core/gateway';
+import { agentActorUserId, closeSupportCase, createBeneficiaryWithInitialSupportCase, createCounselingRecord, createOrganizationSettings, issueAgentPairingCode, resolveDirectoryActorByPrincipal, revokeActorSessions, revokeAgentInstallation, revokeIdentitySession, type SupportCaseCreationResult, type Env, type Actor } from '@ccc/core/gateway';
 import { getSupportCaseReport } from '@ccc/core/gateway';
 import { startPostgresHarness, type PostgresHarness } from './support/postgres';
 import { assertPostgresIdentityBoundary, type PostgresDatabase } from '@ccc/db-postgres';
@@ -329,6 +329,40 @@ it('bounds actor revocations by tenant and permits write-only session revocation
     .toBeNull();
   await expect(scopedA.prepare("UPDATE auth_revocations SET reason='logout'").run()).rejects.toThrow();
   await expect(scopedA.prepare("DELETE FROM auth_revocations WHERE kind='actor'").run()).rejects.toThrow();
+});
+
+it('admits the agent installation revocation subject only inside its own tenant', async () => {
+  // 설치 폐기 기록의 주체는 users 행이 아니라 `agent:<installation_id>` 다(S2 §2.4 L136).
+  // 0006 의 users 기반 actor 정책만 있으면 ccc_api 의 이 INSERT 가 막혀 폐기·재사용
+  // 경로가 500 으로 끝난다. 여기서는 실제 Postgres 에서 그 행이 남는지를 본다.
+  await admin.prepare(
+    `INSERT INTO users(id,org_id,email,role,active,created_at)
+     VALUES ('service-a','org-a','service-a@example.invalid','service',1,'2026-09-08T00:00:00.000Z'),
+            ('service-b','org-b','service-b@example.invalid','service',1,'2026-09-08T00:00:00.000Z')`,
+  ).run();
+  const envA: Env = { DB: api.forActor(contextA), secretStore: createEnvironmentSecretStore({}) };
+  const envB: Env = { DB: api.forActor(contextB), secretStore: createEnvironmentSecretStore({}) };
+  const installA = await issueAgentPairingCode(envA, actorA, { actorUserId: 'service-a' });
+  const installB = await issueAgentPairingCode(envB, actorB, { actorUserId: 'service-b' });
+
+  const revoked = await revokeAgentInstallation(envA, actorA, installA.installationId);
+  expect(revoked.installationId).toBe(installA.installationId);
+  expect((await api.forActor(contextA).prepare(
+    "SELECT subject,reason FROM auth_revocations WHERE kind='actor' AND subject LIKE 'agent:%'",
+  ).all()).results).toEqual([
+    { subject: agentActorUserId(installA.installationId), reason: 'pairing-revoked' },
+  ]);
+  expect((await api.forActor(contextB).prepare(
+    "SELECT subject FROM auth_revocations WHERE kind='actor' AND subject LIKE 'agent:%'",
+  ).all()).results).toEqual([]);
+
+  // 다른 기관의 설치 주체와 존재하지 않는 설치 주체는 이 연결로 쓸 수 없다.
+  for (const subject of [agentActorUserId(installB.installationId), 'agent:missing-installation']) {
+    await expect(api.forActor(contextA).prepare(
+      `INSERT INTO auth_revocations(id,kind,subject,revoked_at,reason)
+       VALUES (?,'actor',?,'2026-09-08T00:00:00.000Z','pairing-revoked')`,
+    ).bind(`cross-org-agent-${subject}`, subject).run()).rejects.toThrow();
+  }
 });
 
 it('limits session revocation reads to verified transaction context and clears it before pool reuse', async () => {

@@ -40,6 +40,12 @@ Community Cloud 명령은 `ccc cloud` 하나의 실행 파일로 제공한다. �
 
 Windows artifact는 `Setup.exe`와 설치 후 실행되는 모든 PE 파일을 Authenticode로 서명해야 한다. 파일명 확장자가 `.exe` 또는 `.dll`이 아니어도 PE header가 발견되면 서명 대상이다. macOS/Linux/Cloud archive는 OS 패키지 서명과 별개로 manifest와 ReleaseBundle Ed25519를 반드시 통과해야 한다. `development` artifact는 `dev` 또는 `beta` channel에서만 사용하며 정식(`formal`) release와 동일한 적용 검증을 통과해도 제출·운영 정식 artifact가 될 수 없다.
 
+### 2.3 개발 채널 묶음 형태 (2026-09-11 Q 결정)
+
+`channel`이 `stable`이면 `entries`에 서로 다른 다섯 family row가 정확히 있어야 한다. `channel`이 `dev` 또는 `beta`이면 실제로 존재하는 family만 담으며 최소 한 개, 최대 다섯 개의 서로 다른 row를 허용한다. 없는 family를 빈 값이나 가짜 hash로 채우는 것은 금지하고, row가 없는 family는 그 묶음으로 설치할 수 없다. 나머지 규칙은 채널과 무관하게 그대로다. `community-cloud-cli` row가 있으면 그 row의 `edgeComponentManifestSha256`는 non-null이고 다른 row는 null이며, `sequenceFloor`는 존재하는 모든 record의 tuple을 덮고, `protocol.peers`는 그 묶음이 실제로 설치하는 peer만 정확히 하나씩 담는다. 개발 채널 묶음으로 설치한 결과는 `development` profile로만 기록하며 정식 제출물이 될 수 없다. 근거와 첫 구현 범위는 `docs/superpowers/specs/2026-09-11-s12-development-release-design.md`에 있다.
+
+`modelManifestSha256`는 실제 `SignedModelManifestV1`의 hash를 담는 자리다. `processing-agent` row가 없는 개발 채널 묶음은 서명할 model manifest가 존재하지 않으므로, 이 자리에 임의 문서의 hash를 넣지 않고 명시적 부재 표식인 64자 `0`을 쓴다. 검증기는 두 방향을 모두 강제한다. `processing-agent` row가 없으면 부재 표식이어야 하고, 그 row가 있으면 부재 표식일 수 없다. 부재 표식이 있는 묶음으로는 어떤 model도 설치하지 않는다.
+
 ## 3. signed manifest v1과 artifact identity
 
 ### 3.1 schema와 canonical signing
@@ -269,6 +275,10 @@ interface MaintenanceBarrier {
 6. 성공한 bundle만 `known-good`와 ledger에 기록하고 journal을 완료한 뒤 barrier를 해제한다. barrier 해제 뒤 새 write를 받는다.
 
 health는 최대 120초, 2초 간격으로 확인한다. health 실패·peer mismatch·journal 오류가 나면 barrier를 유지한 채 pre-update journal, 정확히 검증된 known-good cache와 SG10 backup을 coordinated restore하고 모든 peer rollback health를 다시 협상한다. rollback까지 PASS하면 이전 bundle만 known-good로 남긴다. rollback health도 실패하면 `ROLLBACK_FAILED`를 기록하고 Cloud/Office를 fail-closed recovery mode로 두며 write를 재개하지 않는다. 외부 manifest에서 구버전을 다시 받아 적용하는 경로는 없고, rollback은 이전에 검증된 bundle/cache/backup의 내부 recovery다.
+
+3번의 예외는 하나뿐이다(2026-09-11 Q 결정). D84 read-only plan이 `ready`이고, 관찰된 업무 표와 행, Auth 사용자, bucket, Storage 객체, 공개 routine과 type, private 설치 표가 모두 0이며, 설치 journal이 없는 **첫 설치**는 백업 대상이 없으므로 backup을 면제한다. 면제는 journal과 진단에 `backup: not_applicable`과 그 근거 수치로 남기며 조용히 건너뛰지 않는다. 두 번째 설치, 재개, 모든 업데이트와 rollback은 면제 대상이 아니며 검증된 backup 없이 진행하지 않는다.
+
+5번 health의 예외도 하나뿐이다(2026-09-12 Q 결정). 업무 runtime은 apply의 `api_credential` 단계가 `ccc_api` 비밀번호를 세운 뒤에야 뜨므로, **첫 설치**의 health는 설치 증거(`installedHealth`: Signer의 설치 ID 포함 401, 서울 edge region, 비특권 `ccc_api`)만 요구하고 `/readyz`는 요구하지 않는다. 이때 receipt는 `installed`로 쓰되 결과와 journal에 `productionReady:false`와 `runtimeReady:false`를 남긴다. `doctor`는 두 단계를 나눠 보고하며 `productionReady = installedHealth && runtimeReady && drift 없음`이고, `runtimeReady=false`는 `HEALTH_FAILED`가 아니라 `ready`를 바꾸지 않는 `RUNTIME_NOT_READY` 안내다. 재개와 모든 업데이트는 `/readyz`를 포함한 전체 health를 그대로 요구한다.
 
 ## 7. 정식 release 증거, 진단과 redaction
 

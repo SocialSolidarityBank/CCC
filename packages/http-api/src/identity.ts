@@ -74,7 +74,9 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv, NotifyEnv {
  * legacy role. Remove this projection when gateway authorization moves to canonical multi-role Actor.
  */
 export function gatewayActorFromIdentity(actor: IdentityActor): GatewayActor {
-  if (actor.orgId === null) throw new ForbiddenError('system actor is not allowed on business routes');
+  if (actor.kind === 'system' || actor.orgId === null) {
+    throw new ForbiddenError('system actor is not allowed on business routes');
+  }
   if (actor.roles.includes('service')) return { userId: actor.userId, orgId: actor.orgId, role: 'service' };
   if (actor.roles.includes('institution-admin')) return { userId: actor.userId, orgId: actor.orgId, role: 'admin' };
   if (actor.roles.includes('worker') || actor.roles.includes('supervisor')) {

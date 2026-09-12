@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 
-import { createHostedInspector } from './hosted-inspector.mjs';
+import { dirname, resolve } from 'node:path';
+import {
+  createHostedInspector,
+  createInstallationHealth,
+  readRestrictedRoleFromSession,
+} from './hosted-inspector.mjs';
 import { createLocalInspector } from './local-inspector.mjs';
 import {
   assertProviderBaselineCurrent,
@@ -8,11 +13,29 @@ import {
   buildSupabaseDoctor,
   PlanFailure,
 } from './plan.mjs';
-import { configuredInstallTrust, requireSignedOwnerPreflight } from './manifest-preflight.mjs';
+import {
+  configuredInstallTrust,
+  hashCanonical,
+  readStrictJsonDocument,
+  requireSignedOwnerPreflight,
+} from './manifest-preflight.mjs';
 import { requireProviderBaseline } from './provider-baseline.mjs';
 import { assertApplicationCaBinding } from '../../apps/community-cloud/src/application-ca.mjs';
 import { withInstallerConnection } from './installer-connection.mjs';
-import { withInstallLock, readInstallState, ensureAuthorization } from './install-journal.mjs';
+import {
+  ensureAuthorization,
+  readInstallState,
+  withInstallLock,
+} from './install-journal.mjs';
+import {
+  applyInstallation,
+  createInstallJournalSession,
+  loadReleaseForApply,
+  loadReleaseIndexForDoctor,
+} from './apply.mjs';
+import { assertSafeOutput, buildRedactedReport, writeRedactedReport } from './report.mjs';
+import { linkFirstAdmin, parseFirstAdminIdentity } from './first-admin.mjs';
+import { createInstitution, parseInstitutionSettings } from './institution.mjs';
 
 const exitCodes = Object.freeze({
   CREDENTIAL_MISSING: 2,
@@ -37,14 +60,50 @@ const exitCodes = Object.freeze({
   BETA_TRUST_INVALID: 6,
   PROVIDER_BASELINE_INVALID: 6,
   PROVIDER_BASELINE_MISMATCH: 6,
+  BACKUP_FAILED: 6,
+  ARTIFACT_IDENTITY_MISMATCH: 6,
+  ARTIFACT_NOT_INDEXED: 6,
+  BUNDLE_ENTRY_INVALID: 6,
+  BUNDLE_SIGNATURE_INVALID: 6,
+  BUNDLE_LIFETIME_INVALID: 6,
+  EDGE_COMPONENT_DEPLOYER_UNAVAILABLE: 6,
+  EDGE_COMPONENT_SET_MISMATCH: 6,
+  EDGE_BUNDLE_LIMIT: 6,
+  HASH_MISMATCH: 6,
+  HEALTH_FAILED: 6,
+  INSTALL_POST_PROMOTION_FAILED: 6,
+  MANIFEST_EXPIRED: 6,
+  RELEASE_ORIGIN_INVALID: 6,
+  RELEASE_FLOOR_INVALID: 6,
+  RELEASE_FLOOR_LOCK_UNAVAILABLE: 6,
+  RELEASE_FLOOR_PERMISSIONS_INVALID: 6,
+  RELEASE_FLOOR_STATE_INVALID: 6,
+  ROLLBACK_FAILED: 6,
+  SIGNATURE_INVALID: 6,
+  SIGNING_KEY_REVOKED: 6,
+  SIGNING_KEY_UNKNOWN: 6,
+  SCHEMA_INCOMPATIBLE: 6,
+  TRUSTED_TIME_ROLLBACK: 6,
+  TRUSTED_TIME_UNAVAILABLE: 6,
+  FIRST_ADMIN_NOT_INSTALLED: 6,
+  FIRST_ADMIN_EXISTS: 6,
+  FIRST_ADMIN_SUBJECT_TAKEN: 6,
+  FIRST_ADMIN_EMAIL_TAKEN: 6,
+  INSTITUTION_NOT_INSTALLED: 6,
+  INSTITUTION_STATE_INCONSISTENT: 6,
 });
 
 function parseArgs(argv) {
   const normalized = argv[0] === '--' ? argv.slice(1) : argv;
   const [operation = 'plan', ...rest] = normalized;
-  if (!['plan', 'apply', 'doctor', 'rollback', 'renew-authorization'].includes(operation)) throw new PlanFailure('OPERATION_UNSUPPORTED');
-  const options = { operation, target: 'hosted', projectRef: null, installManifest: null, installApproval: null,
-    renewAuthorization: operation === 'renew-authorization', to: null, format: 'text', workdir: process.cwd() };
+  if (!['plan', 'apply', 'doctor', 'report', 'rollback', 'renew-authorization', 'create-institution', 'link-first-admin'].includes(operation)) throw new PlanFailure('OPERATION_UNSUPPORTED');
+  const options = {
+    operation, target: 'hosted', projectRef: null, installManifest: null, installApproval: null,
+    manifestUrl: null, renewAuthorization: operation === 'renew-authorization', to: null,
+    format: ['create-institution', 'link-first-admin'].includes(operation) ? 'json' : 'text',
+    workdir: process.cwd(), output: null,
+    authSubject: null, email: null, name: null, timeZone: null, piiPurgeGraceDays: null,
+  };
   const seen = new Set();
   for (let index = 0; index < rest.length; index += 1) {
     const flag = rest[index];
@@ -53,9 +112,19 @@ function parseArgs(argv) {
       seen.add(flag);
       continue;
     }
+    if (flag === '--json' && !seen.has('--format') && ['doctor', 'report'].includes(operation)) {
+      options.format = 'json';
+      seen.add('--format');
+      continue;
+    }
     const value = rest[index + 1];
-    if (!['--target', '--project-ref', '--install-manifest', '--install-approval', '--format', '--workdir', '--to'].includes(flag)
-      || seen.has(flag) || value === undefined) {
+    if (![
+      '--target', '--project-ref', '--install-manifest', '--install-approval',
+      '--manifest-url', '--format', '--workdir', '--to', '--output',
+      '--auth-subject', '--email', '--name', '--time-zone', '--pii-purge-grace-days',
+    ].includes(flag) || seen.has(flag) || value === undefined
+      || (['--output', '--auth-subject', '--email', '--name', '--time-zone', '--pii-purge-grace-days']
+        .includes(flag) && value.startsWith('--'))) {
       throw new PlanFailure('OPERATION_UNSUPPORTED');
     }
     index += 1;
@@ -64,32 +133,86 @@ function parseArgs(argv) {
     if (flag === '--project-ref') options.projectRef = value;
     if (flag === '--install-manifest') options.installManifest = value;
     if (flag === '--install-approval') options.installApproval = value;
+    if (flag === '--manifest-url') options.manifestUrl = value;
     if (flag === '--to') options.to = value;
     if (flag === '--format') options.format = value;
     if (flag === '--workdir') options.workdir = value;
+    if (flag === '--output') options.output = value;
+    if (flag === '--auth-subject') options.authSubject = value;
+    if (flag === '--email') options.email = value;
+    if (flag === '--name') options.name = value;
+    if (flag === '--time-zone') options.timeZone = value;
+    if (flag === '--pii-purge-grace-days') options.piiPurgeGraceDays = value;
   }
   if (options.target !== 'hosted' && options.target !== 'local') throw new PlanFailure('TARGET_UNSUPPORTED');
   if (options.format !== 'text' && options.format !== 'json') throw new PlanFailure('OPERATION_UNSUPPORTED');
   if (options.target === 'local' && operation !== 'plan') throw new PlanFailure('TARGET_UNSUPPORTED');
   if (options.to !== null && operation !== 'rollback') throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if (options.manifestUrl !== null && operation !== 'apply') throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if (operation === 'apply' && options.manifestUrl === null) throw new PlanFailure('RELEASE_PREREQUISITES_MISSING');
+  if (operation === 'report' ? !options.output : options.output !== null) throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if ([options.authSubject, options.email, options.name].some(value => value !== null)
+    && operation !== 'link-first-admin') throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if ([options.timeZone, options.piiPurgeGraceDays].some(value => value !== null)
+    && operation !== 'create-institution') throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if (operation === 'create-institution') {
+    if (options.format !== 'json') throw new PlanFailure('OPERATION_UNSUPPORTED');
+    // 기본값은 D32의 1년 유예와 Seoul이다. 잘못된 값은 공급자 접근 전에 거부한다.
+    parseInstitutionSettings(options);
+  }
+  if (operation === 'link-first-admin') {
+    if (options.format !== 'json') throw new PlanFailure('OPERATION_UNSUPPORTED');
+    // 값 자체는 검증하고 출력하지 않는다. 보고서에는 해시만 담긴다.
+    parseFirstAdminIdentity(options);
+  }
   return options;
 }
 
 
-const forbiddenOutput = [
-  /https?:\/\//iu,
-  /postgres(?:ql)?:\/\//iu,
-  /\bsbp_[A-Za-z0-9_-]+\b/u,
-  /\bsb_(?:secret|service_role)_[A-Za-z0-9_-]+\b/iu,
-  /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/u,
-  /"(?:ed25519Signature|releasePublicKey|objects|grants)"\s*:/iu,
-];
 
-function assertSafeOutput(text) {
-  if (forbiddenOutput.some((pattern) => pattern.test(text))) {
-    throw new PlanFailure('OUTPUT_REDACTION_FAILED');
-  }
+const task4Failures = Object.freeze({
+  BACKUP_FAILED: '검증된 백업 경로가 없고 첫 설치 백업 면제 조건도 충족하지 못했습니다.',
+  ARTIFACT_IDENTITY_MISMATCH: '릴리스 artifact가 이 설치기의 대상 tuple과 다릅니다.',
+  ARTIFACT_NOT_INDEXED: '릴리스 묶음에 없는 artifact 또는 manifest입니다.',
+  BUNDLE_ENTRY_INVALID: '릴리스 묶음의 구조나 대상 항목이 유효하지 않습니다.',
+  BUNDLE_SIGNATURE_INVALID: '릴리스 묶음 서명을 확인하지 못했습니다.',
+  BUNDLE_LIFETIME_INVALID: '릴리스 묶음의 유효 기간을 확인하지 못했습니다.',
+  EDGE_COMPONENT_DEPLOYER_UNAVAILABLE: '이 설치기가 적용할 수 없는 Edge component가 포함되어 있습니다.',
+  EDGE_COMPONENT_SET_MISMATCH: '검증된 Edge component 집합과 적용 대상이 다릅니다.',
+  EDGE_BUNDLE_LIMIT: 'Edge 함수 묶음이 배포 한도를 넘었습니다.',
+  HASH_MISMATCH: '다운로드한 artifact의 확인값이 manifest와 다릅니다.',
+  HEALTH_FAILED: '승격한 설치 상태의 읽기 전용 확인을 통과하지 못했습니다.',
+  INSTALL_POST_PROMOTION_FAILED: '마이그레이션 승격 뒤 확인이 실패해 설치를 완료하지 않았습니다. journal에서 재개 상태를 확인합니다.',
+  RELEASE_ORIGIN_INVALID: '승인된 고정 릴리스 출처를 확인하지 못했습니다.',
+  MANIFEST_EXPIRED: '릴리스 manifest의 유효 기간이 끝났습니다.',
+  ROLLBACK_FAILED: '실패한 승격을 안전하게 되돌리지 못했습니다.',
+  RELEASE_FLOOR_INVALID: '검증된 릴리스 floor를 기록하지 못했습니다.',
+  RELEASE_FLOOR_LOCK_UNAVAILABLE: '릴리스 floor 잠금을 획득하지 못했습니다.',
+  RELEASE_FLOOR_PERMISSIONS_INVALID: '릴리스 floor 저장소의 권한이 안전하지 않습니다.',
+  RELEASE_FLOOR_STATE_INVALID: '릴리스 floor 저장 상태가 유효하지 않습니다.',
+  SIGNATURE_INVALID: '릴리스 manifest 서명을 확인하지 못했습니다.',
+  SIGNING_KEY_REVOKED: '폐기된 릴리스 키는 사용할 수 없습니다.',
+  SIGNING_KEY_UNKNOWN: '신뢰 목록에 없는 릴리스 키입니다.',
+  SCHEMA_INCOMPATIBLE: '릴리스와 현재 데이터베이스 schema 범위가 맞지 않습니다.',
+  TRUSTED_TIME_ROLLBACK: '신뢰 시각이 이전 설치 기록보다 과거로 이동했습니다.',
+  TRUSTED_TIME_UNAVAILABLE: '릴리스 출처의 신뢰 시각을 확인하지 못했습니다.',
+});
+
+// 설치 뒤의 두 연결 단계(기관 생성, 첫 관리자 연결)가 쓰는 고정 code.
+const installStepFailures = Object.freeze({
+  INSTITUTION_NOT_INSTALLED: '설치가 완료된 뒤에만 기관을 만들 수 있습니다.',
+  INSTITUTION_STATE_INCONSISTENT: '기관 설정과 사업 정책 중 한쪽만 있습니다. 반쪽 상태를 덮어쓰지 않고 멈췄습니다.',
+  FIRST_ADMIN_NOT_INSTALLED: '설치가 완료된 뒤에만 첫 관리자를 연결할 수 있습니다.',
+  FIRST_ADMIN_EXISTS: '이 기관에는 이미 기관 관리자 또는 첫 관리자 연결 영수증이 있습니다.',
+  FIRST_ADMIN_SUBJECT_TAKEN: '이 Supabase Auth 사용자는 이미 다른 계정에 연결되어 있습니다.',
+  FIRST_ADMIN_EMAIL_TAKEN: '이 이메일은 이미 디렉터리에 있습니다.',
+});
+
+/** 고정 code만 전달한다. safeError가 installStepFailures에서 안전한 문구를 찾는다. */
+function installStepFailure(code) {
+  return Object.assign(new Error(code), { code });
 }
+
 
 function json(value) {
   const rendered = `${JSON.stringify(value, null, 2)}\n`;
@@ -113,7 +236,14 @@ function text(plan) {
       lines.push(`- [${item.code}] ${item.message}`, ...(item.recovery ? [`  다음 행동: ${item.recovery}`] : []));
     }
   } else {
-    lines.push('', plan.readOnly ? '이 명령은 프로젝트를 변경하지 않았습니다.' : '설치 승인 이력만 갱신했으며 완료된 자원 단계는 재실행하지 않았습니다.');
+    const success = plan.operation === 'apply'
+      ? '검증된 개발판 마이그레이션을 적용하고 설치 영수증을 기록했습니다.'
+      : '설치 승인 이력만 갱신했으며 완료된 자원 단계는 재실행하지 않았습니다.';
+    lines.push('', plan.readOnly ? '이 명령은 프로젝트를 변경하지 않았습니다.' : success);
+  }
+  if ((plan.notices ?? []).length > 0) {
+    lines.push('', '안내(차단 아님):');
+    for (const item of plan.notices) lines.push(`- [${item.code}] ${item.message}`);
   }
   const rendered = `${lines.join('\n')}\n`;
   assertSafeOutput(rendered);
@@ -121,7 +251,10 @@ function text(plan) {
 }
 
 function safeError(error, format) {
-  const failure = error instanceof PlanFailure ? error : new PlanFailure(error?.code ?? 'PROVIDER_UNREADABLE');
+  const task4Message = task4Failures[error?.code] ?? installStepFailures[error?.code];
+  const failure = task4Message === undefined
+    ? (error instanceof PlanFailure ? error : new PlanFailure(error?.code ?? 'PROVIDER_UNREADABLE'))
+    : Object.assign(new Error(task4Message), { code: error.code });
   const payload = { error: { code: failure.code, message: failure.message } };
   return {
     exitCode: exitCodes[failure.code] ?? 5,
@@ -135,6 +268,21 @@ function parseBetaConfiguration(value, fallback) {
   } catch {
     throw new PlanFailure('BETA_TRUST_INVALID');
   }
+}
+
+/**
+ * The already-verified installation manifest, re-read only for the addresses
+ * the health probes and the signer bindings need. Its JCS digest must be the
+ * one the signed approval bound, so no unsigned value can redirect a probe.
+ */
+async function verifiedInstallManifest(document, authorization) {
+  const manifest = await readStrictJsonDocument(document);
+  if (await hashCanonical(manifest) !== authorization.runtimeManifestSha256
+    || typeof manifest.apiBase !== 'string' || manifest.apiBase.length === 0
+    || typeof manifest.supabaseAuthOrigin !== 'string' || manifest.supabaseAuthOrigin.length === 0) {
+    throw new PlanFailure('OWNER_EVIDENCE_MISSING');
+  }
+  return manifest;
 }
 
 async function main() {
@@ -179,15 +327,61 @@ async function main() {
         accessToken: process.env.SUPABASE_ACCESS_TOKEN, projectRef: authorization.projectRef,
         authorization, authorize: authorizeProviderAccess,
       });
+    const installManifest = options.installManifest ?? process.env.CCC_INSTALL_MANIFEST;
+    const signedManifest = options.target === 'hosted'
+      ? await verifiedInstallManifest(installManifest, authorization)
+      : undefined;
+    // One probe set for both lanes: doctor has no installer connection and
+    // reads the restricted role through the read-only Management query.
+    const installationHealth = options.target === 'hosted'
+      ? createInstallationHealth({
+        apiBase: signedManifest.apiBase,
+        supabaseAuthOrigin: signedManifest.supabaseAuthOrigin,
+        installationId: authorization.installationId,
+        readRestrictedRole: input => (input.session === undefined
+          ? inspector.restrictedRole()
+          : readRestrictedRoleFromSession(input.session)),
+      })
+      : undefined;
     const planOptions = {
       target: options.target,
       inspector,
       authorization,
       providerBaseline,
       renewAuthorization: options.renewAuthorization,
+      health: installationHealth,
     };
-    let result = options.operation === 'doctor'
-      ? await buildSupabaseDoctor(planOptions) : await buildSupabasePlan(planOptions);
+    let reportLedger = null;
+    const diagnosisOptions = options.operation === 'report' ? {
+      ...planOptions,
+      inspector: {
+        async inspect() {
+          const observation = await inspector.inspect();
+          reportLedger = observation.installState;
+          return observation;
+        },
+      },
+    } : planOptions;
+    // doctor와 report는 고정 원본의 서명된 묶음을 읽어 영수증을 대조한다.
+    // trust store가 없으면 index도 없고 릴리스 차단 사유가 그대로 남는다.
+    let result = ['doctor', 'report'].includes(options.operation)
+      ? await buildSupabaseDoctor({
+        ...diagnosisOptions,
+        release: await loadReleaseIndexForDoctor({ now: new Date() }),
+      })
+      : await buildSupabasePlan(planOptions);
+    if (options.operation === 'report') {
+      const report = buildRedactedReport({ doctor: result, ledger: reportLedger });
+      await writeRedactedReport({
+        report,
+        outputPath: options.output,
+        operatorDirectory: dirname(resolve(options.output)),
+      });
+      process.stdout.write(options.format === 'json'
+        ? json(report) : '설치 진단 보고서를 저장했습니다. 미완료 항목은 보고서에서 확인합니다.\n');
+      process.exitCode = result.ready ? 0 : 6;
+      return;
+    }
     if (result.ready && options.operation === 'renew-authorization') {
       result = await withInstallerConnection(authorization, sql => withInstallLock(sql, authorization.projectRefHash, async session => {
         const fresh = await authorize();
@@ -206,19 +400,120 @@ async function main() {
         };
       }));
     } else if (result.ready && options.operation === 'apply') {
-      // S11 approval is not S12 release authorization. No approved embedded release
-      // origin/offline-root/factory-floor or signed platform artifact set exists yet.
-      // Do not run checkout SQL or emit an installed receipt in place of those inputs.
-      throw new PlanFailure('RELEASE_PREREQUISITES_MISSING');
+      const loaded = await loadReleaseForApply({
+        manifestUrl: options.manifestUrl,
+        authorize: authorizeProviderAccess,
+        inspector,
+        // Written provider access is the Management API with the same scoped
+        // token; the value stays in this object and is never printed.
+        management: { fetch, accessToken: process.env.SUPABASE_ACCESS_TOKEN },
+        secrets: {
+          schedulerSecret: process.env.SCHEDULER_SECRET,
+          serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          installManifestJson: JSON.stringify(signedManifest),
+          signingKeysJson: process.env.CCC_INSTALL_SIGNING_KEYS,
+          // 업무 runtime의 ccc_api 로그인 비밀번호. apply의 api_credential 단계만 쓴다.
+          apiDatabasePassword: process.env.CCC_API_DATABASE_PASSWORD,
+        },
+        apiBase: signedManifest.apiBase,
+        supabaseOrigin: signedManifest.supabaseAuthOrigin,
+        localNow: new Date(),
+      });
+      try {
+        result = await withInstallerConnection(authorization, async sql => {
+          const applyInspector = {
+            inspect: () => inspector.inspect(),
+            async revalidate(expected) {
+              let observed;
+              const current = await buildSupabasePlan({
+                ...planOptions,
+                inspector: {
+                  inspect: async () => {
+                    observed = await inspector.inspect();
+                    return observed;
+                  },
+                },
+                now: () => loaded.trustedTime().getTime(),
+              });
+              if (!current.ready
+                || current.planFingerprint !== expected.planFingerprint) {
+                throw new PlanFailure('PLAN_STATE_CHANGED');
+              }
+              return observed;
+            },
+            // Health reads the promoted installation once more, read only.
+            health: async input => installationHealth({
+              session: input.session,
+              observation: await inspector.inspect(),
+              providerBaseline,
+            }),
+          };
+          return applyInstallation({
+            authorization,
+            providerBaseline,
+            plan: result,
+            release: loaded.release,
+            inspector: applyInspector,
+            journalSession: createInstallJournalSession({
+              sql,
+              authorization,
+              authorize: authorizeProviderAccess,
+            }),
+            now: loaded.trustedTime,
+          });
+        });
+      } finally {
+        await loaded.cleanup();
+      }
     } else if (result.ready && options.operation === 'rollback') {
       // No E6-7 verified restore catalog/executor or signed S12 rollback bundle is
       // available in this source tree. Never substitute down SQL or partial deletion.
       throw new PlanFailure('ROLLBACK_PREREQUISITES_MISSING');
+    } else if (result.ready && options.operation === 'link-first-admin') {
+      // ADR-0044 D86: 설치가 기관을 만들고 첫 로그인이 기관 초기 설정이다. 완료된 설치에만
+      // 첫 관리자를 연결하며, 브라우저 양식은 이 경로를 대신할 수 없다.
+      if (result.installed?.state !== 'installed') throw installStepFailure('FIRST_ADMIN_NOT_INSTALLED');
+      const linked = await withInstallerConnection(authorization, sql =>
+        withInstallLock(sql, authorization.projectRefHash, session => linkFirstAdmin(session, {
+          orgId: authorization.institutionId,
+          authSubject: options.authSubject,
+          email: options.email,
+          name: options.name,
+        })));
+      if (!linked.ok) throw installStepFailure(linked.code);
+      result = {
+        operation: 'link-first-admin',
+        ready: true,
+        userIdSha256: linked.userIdSha256,
+        emailSha256: linked.emailSha256,
+        authSubjectSha256: linked.authSubjectSha256,
+      };
+    } else if (result.ready && options.operation === 'create-institution') {
+      // ADR-0044 D86: 설치가 기관을 만든다. 이 단계가 없으면 첫 로그인의 첫 호출인
+      // GET /capabilities가 program_admission_policies 행을 찾지 못해 409로 닫힌다.
+      if (result.installed?.state !== 'installed') throw installStepFailure('INSTITUTION_NOT_INSTALLED');
+      const created = await withInstallerConnection(authorization, sql =>
+        withInstallLock(sql, authorization.projectRefHash, session => createInstitution(session, {
+          orgId: authorization.institutionId,
+          timeZone: options.timeZone,
+          piiPurgeGraceDays: options.piiPurgeGraceDays,
+        })));
+      if (!created.ok) throw installStepFailure(created.code);
+      result = {
+        operation: 'create-institution',
+        ready: true,
+        orgIdSha256: created.orgIdSha256,
+        timeZone: created.timeZone,
+        piiPurgeGraceDays: created.piiPurgeGraceDays,
+        sttMode: created.sttMode,
+        llmMode: created.llmMode,
+      };
     }
     process.stdout.write(options.format === 'json' ? json(result) : text(result));
     process.exitCode = result.ready ? 0 : 6;
   } catch (error) {
-    const format = options?.format === 'json' || process.argv.includes('json') ? 'json' : 'text';
+    const format = options?.format === 'json'
+      || process.argv.includes('json') || process.argv.includes('--json') ? 'json' : 'text';
     try {
       const failure = safeError(error, format);
       process.stderr.write(failure.output);

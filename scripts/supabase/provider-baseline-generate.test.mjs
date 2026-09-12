@@ -150,6 +150,8 @@ async function sourceEvidence(records = [...objects(), ...grants()].filter(recor
     'https://github.com/postgres/postgres',
     'https://github.com/supabase/supabase',
     'https://github.com/supabase/postgres',
+    'https://github.com/citusdata/pg_cron',
+    'https://github.com/supabase/pg_net',
   ];
   return {
     schemaVersion: 1,

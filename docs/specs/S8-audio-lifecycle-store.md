@@ -87,7 +87,7 @@ export interface AudioStore {
 
 | 동작 | Community Cloud | Local Single / Local Office | 사람·browser 권한 |
 |---|---|---|---|
-| upload target | 기관 소유 Supabase **private** Storage, 수명 정확히 2시간, `upsert: false` | `null`; 인증 API가 `put` stream을 직접 전달 | 로그인한 업무 client의 현재 session upload만 허용 |
+| upload target | 기관 소유 Supabase **private** Storage, 수명 정확히 2시간, `upsert: false`. **2026-09-11 개정**: 2시간은 signer가 mint한 시각부터이며, `audio_objects.upload_expires_at`은 S11 §2.7 온라인 권한 판정의 유효기한 + 2시간으로 판정 때마다 앞으로만 옮긴다. 발급된 모든 token의 만료는 현재 `upload_expires_at`을 넘지 않고, provider가 서명한 실제 만료가 그 상한을 넘으면 URL을 내주지 않는다 | `null`; 인증 API가 `put` stream을 직접 전달 | 로그인한 업무 client의 현재 session upload만 허용 |
 | download target | live claim 확인 뒤 발급하는 Agent 전용 signed GET, 최대 600초(10분), 발급 시각·Agent 주체·만료를 `audio_objects`에 기록 | `null`; Agent가 인증 API의 streamed `get` 사용 | 사람과 browser에는 signed GET 및 human `get`을 발급하지 않음 |
 | body 경로 | client·Agent와 private Storage 사이 직접 stream; Edge Function에 본문 없음 | local-service가 backpressure stream으로 전달 | public URL, 장기 URL, 익명 GET 모두 금지 |
 

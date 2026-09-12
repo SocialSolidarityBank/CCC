@@ -1,12 +1,19 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
+import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { createHostedInspector, DATABASE_STATE_QUERY } from './hosted-inspector.mjs';
+import {
+  createHostedInspector,
+  createInstallationHealth,
+  DATABASE_STATE_QUERY,
+  RESTRICTED_ROLE_QUERY,
+} from './hosted-inspector.mjs';
 import {
   assertProviderBaselineCurrent,
   buildSupabasePlan,
@@ -24,6 +31,8 @@ import {
   PROVIDER_INVENTORY_QUERY,
 } from './provider-inventory.mjs';
 import { hashDatabaseInstallFingerprint, INSTALL_METADATA_TABLES } from './install-journal.mjs';
+import { loadReleaseIndexForDoctor } from './apply.mjs';
+import { PINNED_RELEASE_ORIGIN } from '../release/release-origin.mjs';
 import { observationAuthorization } from './fixtures/authorization.mjs';
 import { canonicalizeJcs, sha256Jcs } from '../../apps/community-cloud/dist/install-manifest-verifier.js';
 
@@ -210,8 +219,14 @@ async function withManagementApi({
   }
 }
 
-async function runCli(origin, { token = accessToken, leadingSeparator = false, managementOrigin, operation = 'plan', installManifest, signedInput } = {}) {
-  const args = [cliPath, ...(leadingSeparator ? ['--'] : []), operation, '--target', 'hosted', '--project-ref', 'test-project', '--format', 'json'];
+async function runCli(origin, {
+  token = accessToken, leadingSeparator = false, managementOrigin, operation = 'plan',
+  installManifest, manifestUrl, signedInput, extraArgs = [], format = 'json', cwd = repoRoot,
+} = {}) {
+  const args = [cliPath, ...(leadingSeparator ? ['--'] : []), operation, '--target', 'hosted', '--project-ref', 'test-project'];
+  if (format !== null) args.push('--format', format);
+  if (manifestUrl !== undefined) args.push('--manifest-url', manifestUrl);
+  args.push(...extraArgs);
   if (installManifest !== undefined) args.push('--install-manifest', installManifest);
   const childEnv = {
     ...process.env,
@@ -230,10 +245,11 @@ async function runCli(origin, { token = accessToken, leadingSeparator = false, m
   delete childEnv.CCC_BETA_REVOKED_ROOT_KEY_IDS;
   delete childEnv.CCC_BETA_RELEASE_TRUST;
   delete childEnv.CCC_PROVIDER_BASELINE;
+  delete childEnv.CCC_RELEASE_TRUST_STORE;
   if (signedInput !== undefined) Object.assign(childEnv, signedInput);
   if (managementOrigin !== undefined) childEnv.CCC_SUPABASE_MANAGEMENT_ORIGIN = managementOrigin;
   const child = spawn(process.execPath, args, {
-    cwd: repoRoot,
+    cwd,
     env: childEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -391,6 +407,94 @@ async function signedCliInputs(expectedOwnerOrgId = 'test-organization', {
     CCC_PROVIDER_BASELINE: JSON.stringify(providerBaseline),
   };
 }
+
+test('report CLI writes a private read-only diagnostic and preserves an existing report', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'ccc-report-cli-'));
+  const outputPath = resolve(directory, 'diagnostic.json');
+  try {
+    await withManagementApi({}, async ({ origin, requests }) => {
+      const signedInput = await signedCliInputs();
+      const result = await runCli(origin, {
+        operation: 'report', signedInput, extraArgs: ['--output', outputPath],
+      });
+      assert.equal(result.exitCode, 6, result.stderr);
+      const saved = await readFile(outputPath, 'utf8');
+      const report = JSON.parse(saved);
+      assert.deepEqual(JSON.parse(result.stdout), report);
+      assert.ok(report.checks.some(check => check.code === 'INSTALL_NOT_FOUND' && check.status === 'NOT_RUN'));
+      assert.equal(report.installedVersion, '');
+      assert.equal(report.installedSequence, '');
+      assert.equal((await stat(outputPath)).mode & 0o777, 0o600);
+      assertNoSensitiveOutput(result, origin);
+      assert.equal(saved.includes(outputPath), false);
+      assert.equal(saved.includes('synthetic-institution'), false);
+      assert.ok(requests.every(({ method, path }) => method === 'GET'
+        || path.endsWith('/database/query/read-only')));
+      const second = await runCli(origin, {
+        operation: 'report', signedInput, extraArgs: ['--output', outputPath],
+      });
+      assert.equal(second.exitCode, 5);
+      assert.equal(JSON.parse(second.stderr).error.code, 'OUTPUT_REDACTION_FAILED');
+      assert.equal(await readFile(outputPath, 'utf8'), saved);
+      assert.deepEqual(await readdir(directory), ['diagnostic.json']);
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('report CLI rejects invalid scope and absent output before provider access', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    for (const options of [
+      { operation: 'report' },
+      { operation: 'plan', extraArgs: ['--output', '/unused/report.json'] },
+      { operation: 'report', extraArgs: ['--output', '/unused/report.json', '--output', '/unused/other.json'] },
+    ]) {
+      const result = await runCli(origin, options);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('report JSON alias preserves parser errors and rejects an option token as output before provider access', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    for (const extraArgs of [
+      ['--json'],
+      ['--json', '--unknown'],
+      ['--output', '--json'],
+    ]) {
+      const result = await runCli(origin, {
+        operation: 'report',
+        format: null,
+        extraArgs,
+      });
+      assert.equal(result.exitCode, 2, result.stderr);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('report accepts an explicitly prefixed --json output filename', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'ccc-report-option-name-'));
+  try {
+    await withManagementApi({}, async ({ origin }) => {
+      const result = await runCli(origin, {
+        operation: 'report',
+        format: null,
+        signedInput: await signedCliInputs(),
+        extraArgs: ['--json', '--output', './--json'],
+        cwd: directory,
+      });
+      assert.equal(result.exitCode, 6, result.stderr);
+      const saved = JSON.parse(await readFile(resolve(directory, '--json'), 'utf8'));
+      assert.deepEqual(JSON.parse(result.stdout), saved);
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('real CLI accepts both signed documents and observes the approved owner read-only', async () => {
   await withManagementApi({}, async ({ origin, requests }) => {
@@ -814,10 +918,40 @@ test('manifest argument is recognized but malformed input cannot authorize obser
   });
 });
 
+test('manifest URL is accepted only once by apply and the strict flag whitelist remains closed', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const accepted = await runCli(origin, {
+      operation: 'apply',
+      manifestUrl: 'https://ccc-releases.account-855.workers.dev/manifests/release.json',
+    });
+    assert.equal(JSON.parse(accepted.stderr).error.code, 'OWNER_EVIDENCE_MISSING');
+
+    for (const options of [
+      { operation: 'plan', manifestUrl: 'https://ccc-releases.account-855.workers.dev/manifests/release.json' },
+      {
+        operation: 'apply',
+        manifestUrl: 'https://ccc-releases.account-855.workers.dev/manifests/release.json',
+        extraArgs: ['--manifest-url', 'https://ccc-releases.account-855.workers.dev/manifests/other.json'],
+      },
+      { operation: 'apply', extraArgs: ['--unknown-release-flag', 'value'] },
+    ]) {
+      const rejected = await runCli(origin, options);
+      assert.equal(rejected.exitCode, 2);
+      assert.equal(JSON.parse(rejected.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    assert.equal(requests.length, 0);
+  });
+});
+
 test('every installation operation requires authorization before provider access', async () => {
   await withManagementApi({}, async ({ origin, requests }) => {
     for (const operation of ['apply', 'doctor', 'rollback']) {
-      const result = await runCli(origin, { operation });
+      const result = await runCli(origin, {
+        operation,
+        ...(operation === 'apply' ? {
+          manifestUrl: 'https://ccc-releases.account-855.workers.dev/manifests/release.json',
+        } : {}),
+      });
       assert.equal(result.exitCode, 6);
       assert.equal(JSON.parse(result.stderr).error.code, 'OWNER_EVIDENCE_MISSING');
       assertNoSensitiveOutput(result, origin);
@@ -1146,6 +1280,36 @@ test('observed storage identifiers and metadata remain internal to the redacted 
   });
 });
 
+test('observed bucket ownership digests reproduce the digest the installer recorded', async () => {
+  const allowedMimeTypes = [
+    'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/webm', 'audio/x-m4a', 'audio/x-wav',
+  ];
+  await withManagementApi({
+    database: databaseSnapshot({
+      bucket_count: 1,
+      bucket_exists: true,
+      bucket_public: false,
+      bucket_inventory: [{
+        id: 'ccc-audio',
+        public: false,
+        fileSizeLimit: '209715200',
+        allowedMimeTypes: [...allowedMimeTypes].reverse(),
+      }],
+    }),
+  }, async ({ origin }) => {
+    const observation = await hostedInspector(origin).inspect();
+    // apply의 storage_bucket 단계가 기록하는 digest와 같은 식이어야 doctor가 소유권을
+    // 대조할 수 있다(provider-steps.mjs bucketDigest).
+    assert.deepEqual(observation.state.buckets, [{
+      resourceType: 'storage_bucket',
+      resourceIdHash: createHash('sha256').update('ccc-audio', 'utf8').digest('hex'),
+      resourceDigest: createHash('sha256').update([
+        'ccc-audio', 'private', '209715200', allowedMimeTypes.join(','),
+      ].join('\n'), 'utf8').digest('hex'),
+    }]);
+  });
+});
+
 test('inspector credential errors retain fixed codes without provider response text', async () => {
   await withManagementApi({}, async ({ origin }) => {
     await assert.rejects(inspectPlan(origin, ''), error => error.code === 'CREDENTIAL_MISSING');
@@ -1159,4 +1323,433 @@ test('inspector credential errors retain fixed codes without provider response t
       });
     });
   }
+});
+
+const installationId = 'synthetic-installation';
+
+/**
+ * Stands in for the promoted deployment: the runtime readiness route and the
+ * StorageSigner Edge Function, on one loopback origin per lane.
+ */
+async function withDeployment({
+  ready = { status: 200, body: { status: 'ready' } },
+  signer = {
+    status: 401,
+    body: { code: 'UNAUTHORIZED' },
+    installationId,
+    region: 'ap-northeast-2',
+  },
+}, run) {
+  const requests = [];
+  const server = createServer(async (request, response) => {
+    let body = '';
+    for await (const chunk of request) body += chunk;
+    requests.push({ method: request.method, path: request.url, body });
+    if (request.url === '/readyz') {
+      response.writeHead(ready.status, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(ready.body));
+      return;
+    }
+    if (request.url === '/functions/v1/ccc-storage-signer') {
+      response.writeHead(signer.status, {
+        'content-type': 'application/json',
+        ...(signer.installationId === null
+          ? {} : { 'x-ccc-installation-id': signer.installationId }),
+        ...(signer.region === null ? {} : { 'x-sb-edge-region': signer.region }),
+      });
+      response.end(JSON.stringify(signer.body));
+      return;
+    }
+    response.writeHead(404, { 'content-type': 'application/json' });
+    response.end('{}');
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  try {
+    await run({ origin: `http://127.0.0.1:${address.port}`, requests });
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+}
+
+function health(origin, {
+  role = { rolsuper: false, rolbypassrls: false },
+  readRestrictedRole,
+} = {}) {
+  return createInstallationHealth({
+    apiBase: `${origin}/api`,
+    supabaseAuthOrigin: origin,
+    installationId,
+    readRestrictedRole: readRestrictedRole ?? (async () => role),
+  });
+}
+
+test('health evidence comes only from the readiness route, the signer refusal and the restricted role', async () => {
+  await withDeployment({}, async ({ origin, requests }) => {
+    const evidence = await health(origin)({});
+    assert.equal(evidence.healthy, true);
+    assert.equal(evidence.installedHealthy, true);
+    assert.equal(evidence.runtimeReady, true);
+    assert.equal(evidence.storageSignerHealthy, true);
+    assert.deepEqual(evidence.edgeRegionEvidence, {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'ap-northeast-2',
+      functionRegion: 'ap-northeast-2',
+      mismatch: false,
+    });
+    assert.deepEqual(evidence.restrictedDatabase, {
+      connected: true,
+      role: 'ccc_api',
+      superuser: false,
+      bypassRls: false,
+    });
+    assert.equal(evidence.stateFingerprint, null);
+    assert.deepEqual(requests, [
+      { method: 'GET', path: '/readyz', body: '' },
+      { method: 'POST', path: '/functions/v1/ccc-storage-signer', body: '' },
+    ]);
+    assertNoSensitiveOutput({ stdout: JSON.stringify(evidence), stderr: '' }, origin);
+  });
+});
+
+test('a signer answering for another installation is never read as healthy', async () => {
+  await withDeployment({
+    signer: {
+      status: 401,
+      body: { code: 'UNAUTHORIZED' },
+      installationId: 'other-installation',
+      region: 'ap-northeast-2',
+    },
+  }, async ({ origin }) => {
+    const evidence = await health(origin)({});
+    assert.equal(evidence.storageSignerHealthy, false);
+    assert.equal(evidence.healthy, false);
+  });
+});
+
+test('each absent health dimension fails closed without inventing evidence', async t => {
+  const cases = [
+    ['signer identity header absent', {
+      signer: { status: 401, body: { code: 'UNAUTHORIZED' }, installationId: null, region: 'ap-northeast-2' },
+    }, {}, evidence => assert.equal(evidence.storageSignerHealthy, false)],
+    ['signer accepts an unauthenticated call', {
+      signer: { status: 200, body: { url: 'https://must-not-escape.test' }, installationId, region: 'ap-northeast-2' },
+    }, {}, evidence => assert.equal(evidence.storageSignerHealthy, false)],
+    ['signer failure code is not the refusal contract', {
+      signer: { status: 401, body: { code: 'INSTALLATION_UNAVAILABLE' }, installationId, region: 'ap-northeast-2' },
+    }, {}, evidence => assert.equal(evidence.storageSignerHealthy, false)],
+    ['edge region absent', {
+      signer: { status: 401, body: { code: 'UNAUTHORIZED' }, installationId, region: null },
+    }, {}, evidence => assert.deepEqual(evidence.edgeRegionEvidence, {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'not_run',
+      functionRegion: 'not_run',
+      mismatch: true,
+    })],
+    ['edge region outside Seoul', {
+      signer: { status: 401, body: { code: 'UNAUTHORIZED' }, installationId, region: 'us-east-1' },
+    }, {}, evidence => assert.equal(evidence.edgeRegionEvidence.mismatch, true)],
+    // 설치 증거는 그대로 서 있고 runtime 기동만 아직 없는 경우다.
+    ['runtime not ready', { ready: { status: 503, body: { status: 'unavailable' } } }, {},
+      evidence => {
+        assert.equal(evidence.runtimeReady, false);
+        assert.equal(evidence.installedHealthy, true);
+        assert.equal(evidence.restrictedDatabase.connected, true);
+      }],
+    ['restricted role unreadable', {}, {
+      readRestrictedRole: async () => { throw new Error('unreadable'); },
+    }, evidence => assert.deepEqual(evidence.restrictedDatabase, {
+      connected: false, role: null, superuser: true, bypassRls: true,
+    })],
+    ['runtime role is a superuser', {}, { role: { rolsuper: true, rolbypassrls: false } },
+      evidence => assert.equal(evidence.restrictedDatabase.superuser, true)],
+    ['runtime role bypasses RLS', {}, { role: { rolsuper: false, rolbypassrls: true } },
+      evidence => assert.equal(evidence.restrictedDatabase.bypassRls, true)],
+  ];
+  for (const [name, deployment, options, check] of cases) {
+    await t.test(name, async () => {
+      await withDeployment(deployment, async ({ origin }) => {
+        const evidence = await health(origin, options)({});
+        assert.equal(evidence.healthy, false);
+        check(evidence);
+        assertNoSensitiveOutput({ stdout: JSON.stringify(evidence), stderr: '' }, origin);
+      });
+    });
+  }
+});
+
+test('health reads the restricted role from the installer session it is given', async () => {
+  await withDeployment({}, async ({ origin }) => {
+    const queries = [];
+    const session = {
+      unsafe: async query => {
+        queries.push(query);
+        return [{ rolsuper: false, rolbypassrls: false }];
+      },
+    };
+    const evidence = await createInstallationHealth({
+      apiBase: `${origin}/api`,
+      supabaseAuthOrigin: origin,
+      installationId,
+    })({ session });
+    assert.equal(evidence.healthy, true);
+    assert.deepEqual(queries, [RESTRICTED_ROLE_QUERY]);
+    assert.match(queries[0], /^SELECT rolsuper, rolbypassrls FROM pg_catalog\.pg_roles/u);
+  });
+});
+
+test('doctor reports the same health read-only and blocks on its failure', async () => {
+  await withManagementApi({}, async ({ origin: managementOrigin }) => {
+    await withDeployment({
+      signer: {
+        status: 401,
+        body: { code: 'UNAUTHORIZED' },
+        installationId: 'other-installation',
+        region: 'ap-northeast-2',
+      },
+    }, async ({ origin }) => {
+      const doctor = await buildSupabaseDoctor({
+        target: 'hosted',
+        inspector: hostedInspector(managementOrigin),
+        authorization: observationAuthorization(),
+        providerBaseline: verifiedProviderBaseline(),
+        health: health(origin),
+      });
+      assert.equal(doctor.readOnly, true);
+      assert.equal(doctor.health.installedHealthy, false);
+      assert.equal(doctor.health.runtimeReady, true);
+      assert.equal(doctor.health.storageSignerHealthy, false);
+      assert.ok(doctor.blockers.some(({ code }) => code === 'HEALTH_FAILED'));
+      assertNoSensitiveOutput({ stdout: JSON.stringify(doctor), stderr: '' }, origin);
+    });
+  });
+});
+
+// 고정 원본을 흉내 내는 서명된 묶음이다. doctor는 이 index만 받고 trust store는 받지 않는다.
+function pinnedOriginFixture({ sequence = '7', version = '0.9.0-dev.1' } = {}) {
+  const rootKeys = generateKeyPairSync('ed25519');
+  const trustDocument = JSON.stringify({ keys: [{
+    keyId: 'root-key-doctor',
+    publicKey: rootKeys.publicKey.export({ format: 'jwk' }).x,
+    role: 'root',
+    status: 'active',
+    notBefore: '2026-09-01T00:00:00.000Z',
+    notAfter: '2026-10-01T00:00:00.000Z',
+  }] });
+  const contractsSha256 = 'e'.repeat(64);
+  const unsigned = {
+    schemaVersion: 1,
+    bundleId: 'bundle-dev-7',
+    version,
+    sequence,
+    channel: 'dev',
+    publishedAt: '2026-09-11T00:00:00.000Z',
+    expiresAt: '2026-09-20T00:00:00.000Z',
+    protocol: {
+      apiName: 'ccc-http-api',
+      apiVersion: '1.0.0',
+      contractsSha256,
+      peers: ['cloud-cli', 'edge'].map(name => ({
+        name, protocolVersion: '1.0.0', contractsSha256,
+      })),
+    },
+    entries: [{
+      family: 'community-cloud-cli',
+      artifacts: [{
+        manifestUrl: `${PINNED_RELEASE_ORIGIN}/manifests/community-cloud-cli.json`,
+        manifestSha256: 'a'.repeat(64),
+        edgeComponentManifestSha256: 'b'.repeat(64),
+        mode: 'community-cloud',
+        platform: 'macos',
+        arch: 'arm64',
+        artifactSha256: 'c'.repeat(64),
+        artifactBytes: 1234,
+        minSchemaVersion: 0,
+        maxSchemaVersion: 0,
+      }],
+    }],
+    sequenceFloor: [{
+      family: 'community-cloud-cli',
+      mode: 'community-cloud',
+      platform: 'macos',
+      arch: 'arm64',
+      minimumSequence: sequence,
+    }],
+    modelManifestSha256: '0'.repeat(64),
+  };
+  const document = JSON.stringify({
+    ...unsigned,
+    offlineRootSignature: sign(null, Buffer.concat([
+      Buffer.from('CCC-RELEASE-BUNDLE-V1\0', 'ascii'),
+      Buffer.from(canonicalizeJcs(unsigned), 'utf8'),
+    ]), rootKeys.privateKey).toString('base64url'),
+  });
+  const requested = [];
+  let stored = null;
+  return {
+    trustDocument,
+    requested,
+    options: {
+      now: new Date('2026-09-11T12:00:01.000Z'),
+      fetchImpl: async url => {
+        requested.push(url);
+        return {
+          url,
+          ok: true,
+          headers: new Headers({ date: 'Fri, 11 Sep 2026 12:00:00 GMT' }),
+          text: async () => document,
+        };
+      },
+      floorStore: {
+        read: async () => structuredClone(stored),
+        updateVerified: async ({ sequenceFloor, trustedTime }) => {
+          stored = { schemaVersion: 1, sequenceFloor, lastTrustedTime: trustedTime };
+          return structuredClone(stored);
+        },
+      },
+    },
+  };
+}
+
+test('doctor reads the pinned release index only with an injected trust store and never exposes it', async () => {
+  const previous = process.env.CCC_RELEASE_TRUST_STORE;
+  const fixture = pinnedOriginFixture();
+  try {
+    // ① trust store가 없으면 고정 원본을 부르지도 않는다.
+    delete process.env.CCC_RELEASE_TRUST_STORE;
+    assert.equal(await loadReleaseIndexForDoctor(fixture.options), undefined);
+    assert.deepEqual(fixture.requested, []);
+
+    // ② trust store가 있으면 서명된 묶음과 색인된 행만 돌려준다.
+    process.env.CCC_RELEASE_TRUST_STORE = fixture.trustDocument;
+    const index = await loadReleaseIndexForDoctor(fixture.options);
+    assert.deepEqual(fixture.requested, [
+      `${PINNED_RELEASE_ORIGIN}/.well-known/ccc/release-bundle.json`,
+    ]);
+    assert.deepEqual(Object.keys(index).sort(), ['bundle', 'rows']);
+    assert.equal(index.bundle.bundleId, 'bundle-dev-7');
+    assert.equal(index.bundle.sequence, '7');
+    assert.deepEqual(index.rows.map(row => row.family), ['community-cloud-cli']);
+    assert.equal(index.rows[0].manifestSha256, 'a'.repeat(64));
+    assert.equal(index.rows[0].edgeComponentManifestSha256, 'b'.repeat(64));
+    const rendered = JSON.stringify(index);
+    assert.equal(rendered.includes(JSON.parse(fixture.trustDocument).keys[0].publicKey), false);
+    assert.doesNotMatch(rendered, /trustStore|publicKey|privateKey/u);
+
+    // ③ 원본을 읽지 못하면 doctor는 실패하지 않고 릴리스 차단 사유를 그대로 남긴다.
+    assert.equal(await loadReleaseIndexForDoctor({
+      ...fixture.options,
+      fetchImpl: async () => { throw new Error('offline'); },
+    }), undefined);
+  } finally {
+    if (previous === undefined) delete process.env.CCC_RELEASE_TRUST_STORE;
+    else process.env.CCC_RELEASE_TRUST_STORE = previous;
+  }
+});
+
+test('link-first-admin은 잘못된 인자를 공급자 접근 전에 거부한다', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const subject = '0000000a-0000-4000-8000-00000000000b';
+    const email = 'synthetic.creator@example.invalid';
+    for (const extraArgs of [
+      [],
+      ['--auth-subject', subject],
+      ['--email', email],
+      ['--auth-subject', 'not-a-uuid', '--email', email],
+      ['--auth-subject', subject.toUpperCase(), '--email', email],
+      ['--auth-subject', subject, '--email', 'not-an-email'],
+      ['--auth-subject', subject, '--email', email, '--auth-subject', subject],
+      ['--auth-subject', subject, '--email', email, '--name', '--email'],
+      ['--auth-subject', subject, '--email', email, '--to', '0.9.0'],
+    ]) {
+      const result = await runCli(origin, { operation: 'link-first-admin', extraArgs });
+      assert.equal(result.exitCode, 2, result.stderr);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    // 다른 동작은 첫 관리자 인자를 받지 않는다.
+    for (const operation of ['plan', 'doctor', 'report']) {
+      const result = await runCli(origin, {
+        operation, extraArgs: ['--auth-subject', subject, '--email', email],
+      });
+      assert.equal(result.exitCode, 2, result.stderr);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    // 출력은 JSON 보고서로 고정한다.
+    const textFormat = await runCli(origin, {
+      operation: 'link-first-admin', format: 'text',
+      extraArgs: ['--auth-subject', subject, '--email', email],
+    });
+    assert.equal(textFormat.exitCode, 2);
+    assert.match(textFormat.stderr, /^\[OPERATION_UNSUPPORTED\]/u);
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('link-first-admin은 설치가 끝나지 않은 프로젝트에서 연결하지 않는다', async () => {
+  await withManagementApi({}, async ({ origin }) => {
+    const result = await runCli(origin, {
+      operation: 'link-first-admin',
+      signedInput: await signedCliInputs(),
+      extraArgs: [
+        '--auth-subject', '00000000-0000-4000-8000-000000000001',
+        '--email', 'synthetic.creator@example.invalid',
+      ],
+    });
+    assert.equal(result.exitCode, 6, result.stdout);
+    const error = JSON.parse(result.stderr).error;
+    assert.equal(error.code, 'FIRST_ADMIN_NOT_INSTALLED');
+    assert.equal(result.stdout, '');
+    assertNoSensitiveOutput(result, origin);
+  });
+});
+
+test('create-institution은 잘못된 인자를 공급자 접근 전에 거부한다', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    for (const extraArgs of [
+      ['--time-zone', 'Asia/Nowhere'],
+      ['--time-zone', 'Seoul'],
+      ['--time-zone', '--json'],
+      ['--pii-purge-grace-days', '0'],
+      ['--pii-purge-grace-days', '3661'],
+      ['--pii-purge-grace-days', 'all'],
+      ['--pii-purge-grace-days', '365', '--pii-purge-grace-days', '365'],
+      ['--auth-subject', '00000000-0000-4000-8000-000000000001'],
+      ['--to', '0.9.0'],
+    ]) {
+      const result = await runCli(origin, { operation: 'create-institution', extraArgs });
+      assert.equal(result.exitCode, 2, result.stderr);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    // 기관 설정 인자는 다른 동작이 받지 않는다.
+    for (const operation of ['plan', 'doctor', 'report']) {
+      const result = await runCli(origin, { operation, extraArgs: ['--time-zone', 'Asia/Seoul'] });
+      assert.equal(result.exitCode, 2, result.stderr);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    }
+    // 출력은 JSON 보고서로 고정한다.
+    const textFormat = await runCli(origin, { operation: 'create-institution', format: 'text' });
+    assert.equal(textFormat.exitCode, 2);
+    assert.match(textFormat.stderr, /^\[OPERATION_UNSUPPORTED\]/u);
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('create-institution은 설치가 끝나지 않은 프로젝트에 기관을 만들지 않는다', async () => {
+  await withManagementApi({}, async ({ origin }) => {
+    // 기본값만으로도, 명시한 값으로도 설치 상태를 먼저 확인한다.
+    for (const extraArgs of [[], ['--time-zone', 'Asia/Seoul', '--pii-purge-grace-days', '365']]) {
+      const result = await runCli(origin, {
+        operation: 'create-institution',
+        signedInput: await signedCliInputs(),
+        extraArgs,
+      });
+      assert.equal(result.exitCode, 6, result.stdout);
+      assert.equal(JSON.parse(result.stderr).error.code, 'INSTITUTION_NOT_INSTALLED');
+      assert.equal(result.stdout, '');
+      assertNoSensitiveOutput(result, origin);
+    }
+  });
 });

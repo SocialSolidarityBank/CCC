@@ -59,6 +59,7 @@ import {
   beginRecordingUploadIntent,
   abandonRecordingUpload,
   authorizeRecordingUploadTarget,
+  authorizeStorageSignerOperation,
   authorizeRecordingUploadStream,
   beginAgentJobAudioTargetMint,
   completeAgentJobAudioTargetMint,
@@ -96,6 +97,10 @@ import {
   acceptStaffInvite,
   getParticipantRequestLinkInfo,
   issueParticipantRequestLinkDisclosures,
+  issueAgentPairingCode,
+  redeemAgentPairingCode,
+  rotateAgentRefreshCredential,
+  revokeAgentInstallation,
   getIntakeRecordContext,
   createCounselingSchedule,
   listScheduleCandidates,
@@ -263,8 +268,10 @@ import { isSttReadinessReport } from '@ccc/contracts/stt-readiness';
 // preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
 import { previewModeEnabled } from './preview-gate';
 import { memoryTrialEnabled, memoryTrialReadiness } from './counseling-memory-trial';
-import { runCounselingMemoryTrial } from './counseling-memory-runner';
-import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, MfaRequiredError, type Actor as IdentityActor, type AudioContentType, type AudioObjectMetadata } from '@ccc/contracts/runtime';
+import { runCounselingMemory, runCounselingMemoryTrial } from './counseling-memory-runner';
+import { createScheduledJobRunner, dueScheduledJobKinds } from '@ccc/core/scheduled-job-runner';
+import { decodeStorageSignerRequest, type StorageSignerRequest } from '@ccc/contracts/audio';
+import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, MfaRequiredError, type Actor as IdentityActor, type AudioContentType, type AudioObjectMetadata, type JobReport } from '@ccc/contracts/runtime';
 
 type JsonObject = Record<string, unknown>;
 function normalizeAudioContentType(header: string | null): AudioContentType | null {
@@ -303,6 +310,26 @@ async function requestBody(request: Request): Promise<JsonObject> {
   } catch (error) {
     if (error instanceof ValidationError) throw error;
     throw new ValidationError('request body must be valid JSON');
+  }
+}
+
+const STORAGE_AUTHORIZATION_BODY_BYTES = 1024 * 1024;
+async function storageAuthorizationBody(request: Request): Promise<StorageSignerRequest> {
+  const contentType = request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
+  const declaredLength = request.headers.get('content-length');
+  if (
+    contentType !== 'application/json'
+    || (declaredLength !== null
+      && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > STORAGE_AUTHORIZATION_BODY_BYTES))
+  ) throw new ValidationError('storage authorization body is invalid');
+  const text = await request.text();
+  if (new TextEncoder().encode(text).byteLength > STORAGE_AUTHORIZATION_BODY_BYTES) {
+    throw new ValidationError('storage authorization body is invalid');
+  }
+  try {
+    return decodeStorageSignerRequest(JSON.parse(text));
+  } catch {
+    throw new ValidationError('storage authorization body is invalid');
   }
 }
 
@@ -2467,16 +2494,30 @@ async function handleAudioUploadTarget(
     { contentLength, contentType, clientAssertedSha256, storageSha256: null, uploadExpiresAt },
   );
   let target: { url: string; expiresAt: string } | null;
+  let ceiling: number;
   try {
     target = await env.audioStore.createUploadTarget(intent.key, {
       contentLength, contentType, expiresAt: uploadExpiresAt,
-    });
+    }, { kind: 'upload', audioObjectId: intent.audioObjectId });
+    // S8 §2.2 (2026-09-11 개정): the online upload decision moves `upload_expires_at` forward, so
+    // the minted target is compared against the ceiling that is durable now, not against the value
+    // this request asked for. Both sides are canonical UTC ISO instants; parse anyway so a
+    // non-canonical provider string fails closed instead of comparing as a smaller string.
+    ceiling = Date.parse(
+      (await getPendingRecordingUpload(env, actor, sessionId, intent.audioObjectId)).uploadExpiresAt,
+    );
   } catch (error) {
     await abandonRecordingUpload(env, actor, intent.audioObjectId, 'upload_abandoned');
     await reconcileAudioObjectDeletion(env, env.audioStore, intent.audioObjectId);
     throw error;
   }
-  if (target === null || target.expiresAt !== uploadExpiresAt) {
+  const mintedExpiresAt = target === null ? Number.NaN : Date.parse(target.expiresAt);
+  if (
+    target === null
+    || !Number.isFinite(mintedExpiresAt)
+    || !Number.isFinite(ceiling)
+    || mintedExpiresAt > ceiling
+  ) {
     await abandonRecordingUpload(env, actor, intent.audioObjectId, 'upload_abandoned');
     await reconcileAudioObjectDeletion(env, env.audioStore, intent.audioObjectId);
     throw new CapabilitiesUnavailableError('audio upload target unavailable');
@@ -2504,7 +2545,7 @@ async function handleAudioUploadCompletion(
   if (runtime.audioDelivery !== 'protected-get') throw new ValidationError('upload targets are cloud-only');
   const admission = await admitRecordingUpload(env, actor, sessionId, runtime);
   const pending = await getPendingRecordingUpload(env, actor, sessionId, audioObjectId);
-  const object = await env.audioStore.get(pending.key);
+  const object = await env.audioStore.get(pending.key, { kind: 'upload', audioObjectId });
   if (
     object === null || object.contentLength !== pending.contentLength
     || object.contentType !== pending.contentType
@@ -2677,8 +2718,80 @@ export async function handleRequest(
         throw e;
       }
     }
+    // ── E6-4 Agent 자격 교환: 제시한 code·refresh 자체가 자격이라 신원 해석 앞에 온다.
+    // 사람 신원이 없는 요청이므로 Actor 로 투영하지 않고, 실패는 모두 401 이다.
+    if (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'agents'
+      && (pubParts[1] === 'pair' || pubParts[1] === 'token')) {
+      requestQuery(url, []);
+      const body = await requestBody(request);
+      if (pubParts[1] === 'pair') {
+        requireOnlyKeys(body, ['pairingCode']);
+        return json(await redeemAgentPairingCode(env, body.pairingCode), 201, { 'cache-control': 'no-store' });
+      }
+      requireOnlyKeys(body, ['refreshToken']);
+      return json(await rotateAgentRefreshCredential(env, body.refreshToken), 201, { 'cache-control': 'no-store' });
+    }
     const resolvedActor = await resolveActor(request, env);
     const parts = url.pathname.split('/').filter((part) => part.length > 0);
+    // S2 §2.6: system Actor 는 내부 두 경로에서만 받는다. 업무 route 는 신원을 사람 역할로
+    // 투영하기 전에 여기서 끊는다 — /me·/capabilities 처럼 투영을 건너뛰는 route 도 포함이다.
+    if ('kind' in resolvedActor && resolvedActor.kind === 'system'
+      && url.pathname !== '/internal/storage/authorize' && url.pathname !== '/internal/scheduler/run') {
+      return json({ error: 'forbidden' }, 403);
+    }
+    if (url.pathname === '/internal/scheduler/run') {
+      // S11 §2.8 cron tick. 자격은 공유 비밀 하나이고, 무엇을 돌릴지는 서버 시각이 정한다.
+      if (request.method !== 'POST') return json({ error: 'not_found' }, 404);
+      if (request.headers.has('origin')) return json({ error: 'forbidden' }, 403);
+      requestQuery(url, []);
+      if (!('kind' in resolvedActor) || resolvedActor.kind !== 'system'
+        || resolvedActor.authn.source !== 'scheduler-secret'
+        || !resolvedActor.scopes.includes('scheduler:run')) return json({ error: 'forbidden' }, 403);
+      const text = (await request.text()).trim();
+      if (text.length > 0) {
+        let body: unknown;
+        try { body = JSON.parse(text); } catch { throw new ValidationError('request body must be valid JSON'); }
+        requireOnlyKeys(asObject(body), []);
+      }
+      const audioStore = env.audioStore;
+      if (audioStore === null) return json({ error: 'service_unavailable' }, 503);
+      const ranAt = new Date().toISOString();
+      const runtimeEnv = env;
+      const runner = createScheduledJobRunner({ ...runtimeEnv, audioStore }, () => runCounselingMemory(runtimeEnv));
+      const jobs: JobReport[] = [];
+      for (const kind of dueScheduledJobKinds(ranAt)) jobs.push(await runner.run(kind, ranAt));
+      return json({ ranAt, jobs }, 200, { 'cache-control': 'no-store' });
+    }
+    if (url.pathname === '/internal/storage/authorize') {
+      if (request.method !== 'POST') return json({ error: 'not_found' }, 404);
+      if (request.headers.has('origin')) return json({ error: 'forbidden' }, 403);
+      const authorization = request.headers.get('authorization');
+      if (authorization === null || !/^Bearer [^\s,]+$/.test(authorization)) {
+        throw new ActorAuthenticationError();
+      }
+      requestQuery(url, []);
+      const installation = await verifiedInstallManifest(env);
+      if (installation.mode !== 'community-cloud' || !('kind' in resolvedActor)) {
+        return json({ error: 'forbidden' }, 403);
+      }
+      const body = await storageAuthorizationBody(request);
+      try {
+        return json(
+          await authorizeStorageSignerOperation(env, resolvedActor, body),
+          200,
+          { 'cache-control': 'no-store', 'x-ccc-installation-id': installation.installationId },
+        );
+      } catch (error) {
+        if (
+          error instanceof ForbiddenError
+          || error instanceof ConflictError
+          || error instanceof ProgramAdmissionRequiredError
+          || error instanceof ConsentContractError
+          || error instanceof AgentJobContractError
+        ) return json({ error: 'forbidden' }, 403);
+        throw error;
+      }
+    }
     if (request.method === 'POST' && parts.length === 2 && parts[0] === 'auth' && parts[1] === 'logout') {
       requestQuery(url, []);
       requireOnlyKeys(await requestBody(request), []);
@@ -3693,7 +3806,12 @@ export async function handleRequest(
             );
             let target: { url: string; expiresAt: string } | null;
             try {
-              target = await env.audioStore.createDownloadTarget(mint.key, 600);
+              target = await env.audioStore.createDownloadTarget(mint.key, 600, {
+                kind: 'claim',
+                jobId,
+                claimToken: credentials.claimToken,
+                attempt: credentials.attempt,
+              });
             } catch (error) {
               await failAgentJobAudioTargetMint(env, actor, mint.mintId);
               throw error;
@@ -3870,6 +3988,27 @@ export async function handleRequest(
       const supportCaseId = requireRouteUuid(parts[3] ?? '', 'support case id');
       const assignees = await listSupportCaseAssignees(env, actor, supportCaseId, { includeRequested: true });
       return json({ assignees: assignees.map(supportCaseAssigneeResponse) });
+    }
+    if (parts[0] === 'agents') {
+      // E6-4 관리자 표면 — 설치 발급과 폐기 둘뿐이다(gateway 가 admin 을 강제한다).
+      // 자격 평문은 발급 응답에만 나가므로 두 경로 모두 캐시하지 않는다.
+      requestQuery(url, []);
+      if (request.method === 'POST' && parts.length === 2 && parts[1] === 'pairing-codes') {
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['actorUserId']);
+        return json(await issueAgentPairingCode(env, actor, {
+          actorUserId: requiredString(body, 'actorUserId'),
+        }), 201, { 'cache-control': 'no-store' });
+      }
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'revoke' && parts[1] !== undefined) {
+        requireOnlyKeys(await requestBody(request), []);
+        let installationId: string;
+        try { installationId = decodeURIComponent(parts[1]); }
+        catch { throw new ValidationError('installation id is invalid'); }
+        return json(await revokeAgentInstallation(env, actor, installationId), 200, {
+          'cache-control': 'no-store',
+        });
+      }
     }
     if (parts[0] === 'users') {
       // 사용자 디렉터리 관리 — 관리자 전용(gateway 내부에서 강제). 자기 기관만.

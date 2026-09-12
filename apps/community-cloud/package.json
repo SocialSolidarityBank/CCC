@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ccc/audio-signer": "workspace:*",
     "@ccc/contracts": "workspace:*",
     "@ccc/core": "workspace:*",
     "@ccc/db-postgres": "workspace:*",

@@ -6,7 +6,7 @@ import argparse
 import logging
 import sys
 
-from .api_client import ApiClient
+from .api_client import ApiClient, EnvAgentCredentialSource
 from .config import ConfigError, load_config
 from .worker import run_checked_once, run_forever
 
@@ -25,6 +25,8 @@ def main() -> int:
         return 2
 
 
+    # E6-4: 페어링 자격이 주입된 설치는 Bearer 레인으로 뜬다. 값은 출처만 읽고
+    # 프로세스 밖으로 나가지 않는다. 아니면 E2-7 까지의 Access 자격 그대로다.
     client = ApiClient(
         config.api_base_url,
         config.client_id,
@@ -32,6 +34,7 @@ def main() -> int:
         runtime_environment=config.runtime_environment,
         preview_access_code=config.preview_access_code,
         audio_download_origin=config.audio_download_origin,
+        agent_credentials=EnvAgentCredentialSource() if config.agent_bearer_auth else None,
     )
     if args.once:
         try:

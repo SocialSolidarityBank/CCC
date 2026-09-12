@@ -184,7 +184,9 @@ type ProviderSourceEvidenceRecordV1 = {
     | 'https://github.com/supabase/auth'
     | 'https://github.com/supabase/storage'
     | 'https://github.com/supabase/realtime'
-    | 'https://github.com/postgres/postgres';
+    | 'https://github.com/postgres/postgres'
+    | 'https://github.com/citusdata/pg_cron'
+    | 'https://github.com/supabase/pg_net';
   sourceRevision: string;
   sourcePath: string;
   sourceSha256: string;
