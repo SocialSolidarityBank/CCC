@@ -3,11 +3,11 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Outlet, RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CONSENT_DOMAINS, type ConsentDisclosureSnapshot } from '@ccc/contracts/consent';
+import { CONSENT_COPY, CONSENT_DOMAINS, type ConsentDisclosureSnapshot, type CurrentConsentState } from '@ccc/contracts/consent';
 import { ParticipantRegisterScreen } from './participants';
 import { IntakeScreen } from './intake';
 import { ParticipantsApi } from '../business/participants';
-import { SchedulesApi } from '../business/schedules';
+import { IntakeApi } from '../business/intake';
 import { BusinessError } from '../business/errors';
 import type { HumanRole } from '../business/api';
 import type { Session } from '../business/session';
@@ -16,7 +16,26 @@ import { readiness } from '../business/test-support';
 const CASE_ID = '2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10';
 const beneficiaryId = 'swallow-003';
 const intakePath = `/participants/${beneficiaryId}/programs/${CASE_ID}/records/intake`;
+const contextPath = `/support-cases/${CASE_ID}/records/intake`;
 const roots = new Set<{ root: Root; container: HTMLElement }>();
+const consent: CurrentConsentState[] = CONSENT_DOMAINS.map((domain) => ({
+  domain, state: 'unconfirmed',
+  provider: CONSENT_COPY[domain].provider, providerLegalRecipient: null, providerCountry: null,
+  purpose: CONSENT_COPY[domain].purpose,
+  retentionDuration: domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null,
+  effectiveAt: null, eventId: null, revision: null, eventSequence: null,
+}));
+const savedIntake = {
+  sessionId: 'intake-1', heldAt: '2026-09-01T01:00:00.000Z',
+  answers: [
+    { key: 'application_reason_detail', response: 'answered', text: '합성 신청 배경\n다음 줄도 보존' },
+    { key: 'welfare_other', response: 'unknown' },
+  ],
+  debts: [{ creditor: '합성 채권자', balance: '120만 원' }],
+  linkedOrgs: [{ orgName: '합성 연계기관', serviceName: '연계 서비스' }],
+  additionalItems: [{ item: '합성 추가 질문', reason: '확인이 필요한 이유' }],
+  managerOpinion: '합성 실무자 의견',
+};
 
 afterEach(async () => {
   for (const { root, container } of roots) {
@@ -28,14 +47,14 @@ afterEach(async () => {
 });
 
 async function harness(options: {
-  roles?: HumanRole[]; assigned?: boolean; closed?: boolean; admissionReady?: boolean;
-  permissionFailure?: boolean; registrationFailure?: boolean; direct?: boolean;
+  roles?: HumanRole[]; canWriteIntake?: boolean; canWrite?: unknown; admissionReady?: boolean;
+  contextFailure?: boolean; registrationFailure?: boolean; replayed?: boolean; direct?: boolean; saved?: boolean;
+  routeBeneficiaryId?: string;
 } = {}) {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const calls: string[] = [];
   const roles = options.roles ?? ['worker'];
-  let permissionFailure = options.permissionFailure === true;
-  let assigned = options.assigned !== false;
+  let contextFailure = options.contextFailure === true;
   const disclosures: ConsentDisclosureSnapshot[] = CONSENT_DOMAINS.map((domain) => ({
     snapshotId: `disclosure-${domain}`,
     scopeBinding: { orgId: 'org-1', programId: 'program-1', issuerId: 'user-1', supportCaseId: null },
@@ -52,36 +71,23 @@ async function harness(options: {
       email: null, active: true, roles: ['worker'] }], nextCursor: null };
     if (path === '/participants' && method === 'POST') {
       if (options.registrationFailure) throw new BusinessError('forbidden', 403);
-      return { beneficiaryId, supportCaseId: CASE_ID, assignmentRole: 'primary', replayed: false };
+      return { beneficiaryId, supportCaseId: CASE_ID, assignmentRole: 'primary',
+        replayed: options.replayed === true, canWriteIntake: options.canWriteIntake ?? true };
     }
-    if (permissionFailure) throw new BusinessError('unavailable', 503);
-    if (path.endsWith('/hub')) return {
-      beneficiaryId, restricted: false, participantName: null, participantPhone: null, participantEmail: null,
-      participantBirthDate: null, status: 'active', closedAt: null, sessionCount: 0, lastSessionAt: null,
-      programs: [{ id: CASE_ID, beneficiaryId, programId: 'program-1', programName: '합성 사업',
-        programType: 'financial_support_v1', status: options.closed ? 'closed' : 'active', intakeAt: null,
-        creationKind: 'initial', sourceSupportCase: null, participantName: null, participantPhone: null,
-        authorized: true, assigneeNames: [], consentRecordedAt: null, closedAt: null, upcomingSchedule: null }],
-    };
-    if (path.endsWith('/briefing')) return {
-      beneficiaryId, focusSupportCaseId: CASE_ID, overallGoal: null, canEditOverallGoal: assigned,
-      activeGoals: [], participant: { name: null, phone: null }, focusUpcomingSchedule: null,
-      sections: [{ sourceSupportCase: { id: CASE_ID }, aiSuggestions: [], sessionRows: [],
-        discrepancies: [], openActionItems: [], flags: [], pendingReviewSessionIds: [] }],
-    };
+    if (path === contextPath && method === 'GET') {
+      if (contextFailure) throw new BusinessError('unavailable', 503);
+      return { beneficiaryId, supportCaseId: CASE_ID, participant: { name: null, phone: null, email: null },
+        sessionSequence: 1, hasIntake: options.saved === true,
+        canWrite: Object.hasOwn(options, 'canWrite') ? options.canWrite : true,
+        extendedPii: {}, consent, overallGoal: null, schedule: null, saved: options.saved ? savedIntake : null };
+    }
     throw new Error(`Unexpected request: ${method} ${path}`);
   } };
   const session = {
-    participants: new ParticipantsApi(transport as never), schedules: new SchedulesApi(transport as never),
+    participants: new ParticipantsApi(transport as never), intake: new IntakeApi(transport as never),
     me: { roles, institution: readiness('org-1', { initialSetupState: 'complete' }) },
     consent: { registrationDisclosures: async () => disclosures },
     auth: { signOut: vi.fn(), recheck: vi.fn() },
-    intake: { context: async () => {
-      calls.push('intake.context');
-      return { beneficiaryId, supportCaseId: CASE_ID, participant: { name: null, phone: null, email: null },
-        sessionSequence: 1, hasIntake: false, extendedPii: {}, consent: [], overallGoal: null,
-        schedule: null, saved: null };
-    } },
   } as unknown as Session;
   const container = document.createElement('div');
   document.body.append(container);
@@ -93,7 +99,9 @@ async function harness(options: {
       { path: '/participants/new', element: createElement(ParticipantRegisterScreen) },
       { path: '/participants/:beneficiaryId/programs/:supportCaseId/records/intake', element: createElement(IntakeScreen) },
     ],
-  }], { initialEntries: [options.direct ? intakePath : '/participants/new'] });
+  }], { initialEntries: [options.direct
+    ? `/participants/${options.routeBeneficiaryId ?? beneficiaryId}/programs/${CASE_ID}/records/intake`
+    : '/participants/new'] });
   await act(async () => { root.render(createElement(RouterProvider, { router })); });
   const select = async (id: string, value: string) => act(async () => {
     const input = container.querySelector<HTMLSelectElement>(`#${id}`)!;
@@ -104,63 +112,102 @@ async function harness(options: {
     await select('register-program', 'program-1');
     if (roles.includes('institution-admin')) await select('register-assignee', 'worker-1');
     for (const domain of CONSENT_DOMAINS) {
-      await act(async () => {
-        container.querySelector<HTMLInputElement>(`#consent-${domain}-grant`)!.click();
-      });
+      await act(async () => { container.querySelector<HTMLInputElement>(`#consent-${domain}-grant`)!.click(); });
     }
     await act(async () => { container.querySelector('form')!.requestSubmit(); });
   };
-  return { container, calls, register, router,
-    recover: () => { permissionFailure = false; }, revoke: () => { assigned = false; } };
+  return { container, calls, register, router, recover: () => { contextFailure = false; } };
 }
 
 describe('registration to first intake', () => {
-  it('offers the returned person and case route and opens the intake form', async () => {
-    const { container, register, router } = await harness();
+  it('uses the returned permission and IDs without a permission fetch, then reads context once', async () => {
+    const { container, calls, register, router } = await harness();
     await register();
     expect(container.querySelector(`a[href="${intakePath}"]`)).not.toBeNull();
     expect(container.querySelector('#register-program')).toBeNull();
+    expect(calls).toEqual(['GET /program-options', 'POST /participants']);
     await act(async () => { await router.navigate(intakePath); });
+    expect(calls).toEqual(['GET /program-options', 'POST /participants', `GET ${contextPath}`]);
     expect(container.querySelector('label[for="intake-held-at"]')).not.toBeNull();
+    expect(container.querySelector<HTMLTextAreaElement>('#intake-application_reason_detail')?.disabled).toBe(false);
     expect(container.querySelector('button[type="submit"]')).not.toBeNull();
   });
 
-  it.each([
-    { roles: ['institution-admin'] as HumanRole[], assigned: true },
-    { roles: ['institution-admin', 'worker'] as HumanRole[], assigned: false },
-    { roles: ['worker'] as HumanRole[], assigned: true, closed: true },
-  ])('does not turn registration or read authority into write authority: %j', async (options) => {
-    const { container, register } = await harness(options);
+  it('does not infer writing from a worker role or replayed primary assignment', async () => {
+    const { container, calls, register } = await harness({ canWriteIntake: false, replayed: true });
     await register();
     expect(container.querySelector(`a[href="${intakePath}"]`)).toBeNull();
     expect(container.querySelector(`a[href="/participants/${beneficiaryId}"]`)).not.toBeNull();
+    expect(container.querySelector('form')).toBeNull();
+    expect(calls).toEqual(['GET /program-options', 'POST /participants']);
   });
 
-  it('retries only the permission read after successful registration', async () => {
-    const { container, calls, register, recover } = await harness({ permissionFailure: true });
+  it('retries context after entry failure without creating the participant again', async () => {
+    const { container, calls, register, router, recover } = await harness({ contextFailure: true });
     await register();
+    await act(async () => { await router.navigate(intakePath); });
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
-    expect(container.querySelector(`a[href="${intakePath}"]`)).toBeNull();
-    expect(container.querySelector('form')).toBeNull();
+    expect(container.querySelector('button[type="submit"]')).toBeNull();
     recover();
     await act(async () => { container.querySelector<HTMLButtonElement>('button')!.click(); });
     expect(calls.filter((call) => call === 'POST /participants')).toHaveLength(1);
-    expect(container.querySelector(`a[href="${intakePath}"]`)).not.toBeNull();
+    expect(calls.filter((call) => call === `GET ${contextPath}`)).toHaveLength(2);
+    expect(container.querySelector('button[type="submit"]')).not.toBeNull();
   });
 
-  it('rechecks assignment when entering intake instead of trusting the earlier action', async () => {
-    const { container, register, router, revoke } = await harness();
+  it('rechecks context instead of trusting the registration CTA', async () => {
+    const { container, register, router } = await harness({ canWrite: false, saved: true });
     await register();
-    revoke();
+    expect(container.querySelector(`a[href="${intakePath}"]`)).not.toBeNull();
     await act(async () => { await router.navigate(intakePath); });
-    expect(container.querySelector('form')).toBeNull();
+    expect(container.textContent).toContain(savedIntake.answers[0]!.text);
     expect(container.querySelector('button[type="submit"]')).toBeNull();
-    expect(container.querySelector(`a[href="/participants/${beneficiaryId}"]`)).not.toBeNull();
   });
 
-  it('does not show a writing form for a direct read-only entry', async () => {
-    const { container } = await harness({ roles: ['supervisor'], direct: true });
-    expect(container.querySelector('form')).toBeNull();
+  it.each([
+    ['institution admin', ['institution-admin']],
+    ['supervisor', ['supervisor']],
+    ['worker reading a closed case', ['worker']],
+  ] as const)('preserves saved questionnaire and tables for %s without editing', async (_label, roles) => {
+    const { container, calls } = await harness({ roles: [...roles], canWrite: false, saved: true, direct: true });
+    expect(container.textContent).toContain(savedIntake.answers[0]!.text);
+    expect(container.textContent).toContain(savedIntake.heldAt);
+    expect(container.querySelector('input, select, textarea, button[type="submit"]')).toBeNull();
+    for (const expected of ['합성 채권자', '합성 연계기관', '합성 추가 질문']) {
+      await act(async () => {
+        [...container.querySelectorAll('button')].find((button) => button.textContent === '다음 단계')!.click();
+      });
+      expect(container.textContent).toContain(expected);
+      expect(container.querySelector('input, select, textarea, button[type="submit"]')).toBeNull();
+    }
+    expect(container.textContent).toContain(savedIntake.managerOpinion);
+    await act(async () => { container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
+    expect(calls).toEqual([`GET ${contextPath}`]);
+  });
+
+  it.each([true, false])('rejects a mixed-person/case route before rendering saved data (canWrite=%s)', async (canWrite) => {
+    const { container, calls, router } = await harness({
+      canWrite, saved: true, direct: true, routeBeneficiaryId: 'otter-011',
+    });
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    expect(container.querySelector('form, input, select, textarea, button[type="submit"]')).toBeNull();
+    expect(container.textContent).not.toContain(savedIntake.answers[0]!.text);
+    expect(container.textContent).not.toContain(savedIntake.managerOpinion);
+    expect(calls).toEqual([`GET ${contextPath}`]);
+    await act(async () => { await router.navigate(intakePath); });
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    if (canWrite) {
+      expect(container.querySelector<HTMLTextAreaElement>('#intake-application_reason_detail')?.value)
+        .toBe(savedIntake.answers[0]!.text);
+    } else {
+      expect(container.textContent).toContain(savedIntake.answers[0]!.text);
+      expect(container.querySelector('input, select, textarea, button[type="submit"]')).toBeNull();
+    }
+  });
+
+  it.each([undefined, null, 'true', 1])('rejects invalid context write permission %s', async (canWrite) => {
+    const { container } = await harness({ canWrite, direct: true });
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
     expect(container.querySelector('button[type="submit"]')).toBeNull();
   });
 

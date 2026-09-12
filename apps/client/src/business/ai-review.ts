@@ -11,10 +11,18 @@ export const CLAIM_SECTION_LABELS: Record<string, string> = {
   other_topics: '목표 밖 주요 내용',
   next_session_commitments: '다음 회차까지의 약속',
 };
-export const CONTRAST_AXIS_LABELS: Record<string, string> = {
-  missing_in_memo: '메모에 없는 내용',
-  missing_in_audio: '음성에 없는 내용',
-  undiscussed_goals: '미논의 목표',
+export const CONTRAST_AXES = ['missing_from_memo', 'missing_from_transcript', 'undiscussed_session_goal'] as const;
+export type ContrastAxis = (typeof CONTRAST_AXES)[number];
+export const CONTRAST_STATUSES = ['applied', 'no_transcript', 'no_text', 'no_session_goal'] as const;
+export type ContrastStatus = (typeof CONTRAST_STATUSES)[number];
+export const CONTRAST_AXIS_LABELS = {
+  missing_from_memo: '메모에서 누락된 것',
+  undiscussed_session_goal: '다루지 않은 목표',
+} as const;
+export const CONTRAST_UNAVAILABLE_LABELS: Record<Exclude<ContrastStatus, 'applied'>, string> = {
+  no_transcript: '전사 기록 재료가 없어 대조하지 못했어요.',
+  no_text: '수기 메모와 목표의 텍스트 재료가 없어 대조하지 못했어요.',
+  no_session_goal: '이번 상담 목표가 없어 목표 대조를 적용하지 않았어요.',
 };
 
 export interface AiDraft {
@@ -31,9 +39,9 @@ export interface AiDraft {
   questions: Array<{ title: string; reason: string | null }>;
   evidence: Array<{ id: string; claimKey: string; quote: string }>;
   contrast: Array<{
-    axis: string;
-    status: string;
-    findings: Array<{ description: string; materialKind: string; quote: string | null }>;
+    axis: ContrastAxis;
+    status: ContrastStatus;
+    findings: Array<{ description: string; materialKind: 'transcript' | 'text_context'; quote: string }>;
   }>;
 }
 
@@ -75,15 +83,20 @@ export function decodeAiDraft(value: unknown): AiDraft {
     }),
     contrast: row.contrast.map((entry) => {
       const axis = record(entry);
-      if (typeof axis.axis !== 'string' || typeof axis.status !== 'string' || !Array.isArray(axis.findings)) {
+      if (!(CONTRAST_AXES as readonly unknown[]).includes(axis.axis)
+        || !(CONTRAST_STATUSES as readonly unknown[]).includes(axis.status)
+        || !Array.isArray(axis.findings) || (axis.status !== 'applied' && axis.findings.length !== 0)) {
         throw new BusinessError('invalid_response');
       }
       return {
-        axis: axis.axis, status: axis.status,
+        axis: axis.axis as ContrastAxis, status: axis.status as ContrastStatus,
         findings: axis.findings.map((value) => {
           const finding = record(value);
-          if (typeof finding.description !== 'string' || typeof finding.materialKind !== 'string'
-            || !isNullableString(finding.quote)) throw new BusinessError('invalid_response');
+          if (typeof finding.description !== 'string'
+            || (finding.materialKind !== 'transcript' && finding.materialKind !== 'text_context')
+            || typeof finding.quote !== 'string') {
+            throw new BusinessError('invalid_response');
+          }
           return { description: finding.description, materialKind: finding.materialKind, quote: finding.quote };
         }),
       };

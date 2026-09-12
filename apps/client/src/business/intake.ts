@@ -7,21 +7,6 @@ import { decodeConsentStates } from './consent';
 import { BusinessError } from './errors';
 import { INTAKE_RESPONSES, type IntakeResponse, type IntakeTableName } from './intake-form';
 import type { BusinessTransport } from './transport';
-import type { Session } from './session';
-
-/** 쓰기는 서버가 확인한 담당 배정, 실무자 역할과 진행 중인 사례를 모두 요구한다. */
-export async function loadIntakeWriteAccess(
-  session: Session, beneficiaryId: string, supportCaseId: string,
-): Promise<boolean> {
-  if (!session.me.roles.includes('worker')) return false;
-  const [hub, briefing] = await Promise.all([
-    session.participants.hub(beneficiaryId),
-    session.schedules.briefing(beneficiaryId, supportCaseId),
-  ]);
-  const program = hub.programs.find((entry) => entry.id === supportCaseId);
-  return program?.beneficiaryId === beneficiaryId && program.authorized && program.status === 'active'
-    && briefing.beneficiaryId === beneficiaryId && briefing.canEditOverallGoal;
-}
 
 export interface IntakeAnswer { key: string; response: IntakeResponse; text?: string }
 export type IntakeTableRow = Record<string, string>;
@@ -32,6 +17,7 @@ export interface IntakeContext {
   participant: { name: string | null; phone: string | null; email: string | null };
   sessionSequence: number;
   hasIntake: boolean;
+  canWrite: boolean;
   extendedPii: { birthDate: string | null; region: string | null; emergencyContact: string | null; gender: string | null };
   /** 여섯 영역 현재 상태(S7). 인테이크 화면은 읽기만 하고 여기서 동의를 바꾸지 않는다. */
   consent: CurrentConsentState[];
@@ -84,7 +70,7 @@ export function decodeIntakeContext(value: unknown, supportCaseId: string): Inta
   const saved = row.saved === null || row.saved === undefined ? null : record(row.saved);
   if (row.supportCaseId !== supportCaseId || !isOpaqueIdentifier(row.beneficiaryId)
     || typeof row.sessionSequence !== 'number' || !Number.isSafeInteger(row.sessionSequence)
-    || typeof row.hasIntake !== 'boolean' || !isNullableString(row.overallGoal)
+    || typeof row.hasIntake !== 'boolean' || typeof row.canWrite !== 'boolean' || !isNullableString(row.overallGoal)
     || !isNullableString(participant.name) || !isNullableString(participant.phone)
     || !isNullableString(participant.email)) throw new BusinessError('invalid_response');
   const pii = (key: string): string | null => {
@@ -96,7 +82,7 @@ export function decodeIntakeContext(value: unknown, supportCaseId: string): Inta
   return {
     beneficiaryId: row.beneficiaryId, supportCaseId,
     participant: { name: participant.name, phone: participant.phone, email: participant.email },
-    sessionSequence: row.sessionSequence, hasIntake: row.hasIntake,
+    sessionSequence: row.sessionSequence, hasIntake: row.hasIntake, canWrite: row.canWrite,
     extendedPii: {
       birthDate: pii('birthDate'), region: pii('region'),
       emergencyContact: pii('emergencyContact'), gender: pii('gender'),

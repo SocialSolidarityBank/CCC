@@ -4,7 +4,7 @@ import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireChoice, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireFormField, WireItem,
 } from '@ccc/wire';
-import { CLAIM_SECTION_LABELS, CONTRAST_AXIS_LABELS, type AiDraft } from '../business/ai-review';
+import { CLAIM_SECTION_LABELS, CONTRAST_AXIS_LABELS, CONTRAST_UNAVAILABLE_LABELS, type AiDraft } from '../business/ai-review';
 import { type BusinessError, safeError } from '../business/errors';
 import {
   ACTION_OWNER_LABELS, FLAG_LABELS, FLAG_TYPES, GOAL_CLOSE_LABELS, GOAL_CLOSE_REASONS,
@@ -399,7 +399,7 @@ export function RecordCreateScreen() {
               position === index ? { ...entry, dueDate: event.target.value } : entry)))} />
         </WireFormField>
       </WireCardSection>)}
-        <p className="wire-section-value">약속한 일 중 업무로 관리할 것을 등록해요. 담당과 기한은 실무자가 정해요.</p>
+      <p className="record-writing-help">약속한 일 중 업무로 관리할 것을 등록해요. 담당과 기한은 실무자가 정해요.</p>
       <div className="business-actions">
         <WireButton variant="neutral" disabled={busy}
           onClick={() => setActions([...actions, { description: '', owner: 'counselor', dueDate: '' }])}>
@@ -407,7 +407,7 @@ export function RecordCreateScreen() {
         </WireButton>
       </div>
       <WireCardSection title="위험 신호 표시">
-        <p className="wire-section-value">실무자가 직접 표시해요. 수기 메모만 있는 회차에는 AI가 위험 신호를 제안하지 않아요.</p>
+        <p className="record-writing-help">실무자가 직접 표시해요. 수기 메모만 있는 회차에는 AI가 위험 신호를 제안하지 않아요.</p>
         {FLAG_TYPES.map((flagType) => <WireChoice key={flagType} type="checkbox" label={FLAG_LABELS[flagType]}
           checked={flags.includes(flagType)} disabled={busy}
           onChange={(checked) => setFlags(checked ? [...flags, flagType] : flags.filter((entry) => entry !== flagType))} />)}
@@ -576,13 +576,14 @@ export function RecordReviewScreen() {
         </WireCallout>}
       </WireCardSection>
       <WireCardSection title="대조">
-        {draft.contrast.length === 0 && <WireEmpty>대조 결과가 없습니다.</WireEmpty>}
-        {draft.contrast.map((axis) => <WireItem key={axis.axis}
-          title={CONTRAST_AXIS_LABELS[axis.axis] ?? axis.axis}
-          description={axis.findings.length === 0
-            ? `재료 없음 또는 처리 안 함 (${axis.status})`
-            : axis.findings.map((finding) => finding.quote === null
-              ? finding.description : `${finding.description}: ${finding.quote}`).join(' / ')} />)}
+        {(['missing_from_memo', 'undiscussed_session_goal'] as const).map((key) => {
+          const axis = draft.contrast.find((entry) => entry.axis === key);
+          return <WireItem key={key} title={CONTRAST_AXIS_LABELS[key]}
+            description={axis === undefined ? '이 초안의 대조 상태를 받지 못했어요.'
+              : axis.status !== 'applied' ? CONTRAST_UNAVAILABLE_LABELS[axis.status]
+                : axis.findings.length === 0 ? '이 초안에 표시할 대조 항목이 없어요.'
+                  : axis.findings.map((finding) => `${finding.description}: ${finding.quote}`).join(' / ')} />;
+        })}
       </WireCardSection>
       <WireCardSection title="확인할 질문">
         {draft.questions.length === 0 && <WireEmpty>제안된 질문이 없습니다.</WireEmpty>}

@@ -12,7 +12,6 @@ import {
   ConsentDecisionList, allDomainsDecided, consentEventsFrom, type ConsentDecisions,
 } from '../business/consent-decisions';
 import { type BusinessError, safeError } from '../business/errors';
-import { loadIntakeWriteAccess } from '../business/intake';
 import {
   BASIC_INFO_FIELDS, type BasicInfoField, type ParticipantBasicInfo, type ParticipantHub,
   type ParticipantCreationResult, type ParticipantListItem, type ParticipantProgram, type ProgramOption,
@@ -145,13 +144,7 @@ function registrationBlock(session: Session, options: ProgramOption[] | null, as
 
 interface WorkerOption { id: string; name: string | null; email: string | null }
 
-function RegistrationNextStep({ session, created }: { session: Session; created: ParticipantCreationResult }) {
-  const onFailure = useSessionFailure(session);
-  const load = useCallback(
-    () => loadIntakeWriteAccess(session, created.beneficiaryId, created.supportCaseId),
-    [session, created.beneficiaryId, created.supportCaseId],
-  );
-  const { value: canWrite, error, reload } = useLoaded(load, onFailure);
+function RegistrationNextStep({ created }: { created: ParticipantCreationResult }) {
   const participantPath = `/participants/${encodeURIComponent(created.beneficiaryId)}`;
 
   return <WireCard title="당사자 등록 완료">
@@ -159,14 +152,11 @@ function RegistrationNextStep({ session, created }: { session: Session; created:
       {created.replayed ? '이미 등록된 당사자와 사례를 불러왔어요. 새로 등록하지 않았어요.'
         : '당사자와 참여 사례를 등록했어요.'}
     </WireCallout>
-    {error && <><WireError>{error.message}</WireError>
-      <div className="business-actions"><WireButton variant="neutral" onClick={reload}>권한 다시 확인</WireButton></div></>}
-    {canWrite === null && error === null && <WireEmpty live reserve>첫 상담 기록을 작성할 권한을 확인하고 있어요.</WireEmpty>}
-    {canWrite === false && <WireCallout tone="info" title="첫 상담 기록을 작성할 수 없어요">
+    {!created.canWriteIntake && <WireCallout tone="info" title="첫 상담 기록을 작성할 수 없어요">
       진행 중인 사례의 담당 실무자만 작성할 수 있어요. 당사자 정보에서 참여 사업과 담당을 확인해 주세요.
     </WireCallout>}
     <div className="business-actions">
-      {canWrite === true && <WireButton variant="primary"
+      {created.canWriteIntake && <WireButton variant="primary"
         href={`${participantPath}/programs/${encodeURIComponent(created.supportCaseId)}/records/intake`}>
         첫 상담 기록 시작하기
       </WireButton>}
@@ -252,7 +242,7 @@ export function ParticipantRegisterScreen() {
     }
   };
 
-  if (created !== null) return <RegistrationNextStep session={session} created={created} />;
+  if (created !== null) return <RegistrationNextStep created={created} />;
 
   return <WireCard title="당사자 등록">
     {loadError && <WireError>{loadError.message}</WireError>}
