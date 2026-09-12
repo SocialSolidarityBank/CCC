@@ -122,7 +122,7 @@ async function withManagementApi({
   database = databaseSnapshot(),
   providerInventory = providerInventorySnapshot(),
   mutateAuth = false,
-  autoconfirm = false,
+  autoconfirm = true,
   mutateData = false,
   installState = null,
 }, run) {
@@ -167,7 +167,7 @@ async function withManagementApi({
         disable_signup: true,
         external_email_enabled: true,
         jwt_exp: 3600,
-        mailer_autoconfirm: autoconfirm || (mutateAuth === 'mailer_autoconfirm' && authReadCount > 1),
+        mailer_autoconfirm: mutateAuth === 'mailer_autoconfirm' && authReadCount > 1 ? !autoconfirm : autoconfirm,
         mfa_max_enrolled_factors: mutateAuth === 'mfa_max_enrolled_factors' && authReadCount > 1 ? 9 : 10,
         mfa_totp_enroll_enabled: true,
         mfa_totp_verify_enabled: true,
@@ -313,21 +313,21 @@ test('owner-aware hosted observation uses only read endpoints and produces a red
   });
 });
 
-// D80: 첫 로그인 신원 연결이 이메일 claim 을 믿는 근거는 설치가 이메일 확인을 요구한다는
-// 사실 하나다. autoconfirm 이 켜져 있으면 그 근거가 없으므로 설치를 막는다(S2 §2.2).
-test('hosted observation blocks an installation whose Auth does not require email confirmation', async () => {
-  await withManagementApi({ autoconfirm: true }, async ({ origin }) => {
+// D90: 초대 수락이 계정을 결속하려면 가입 직후 세션이 서야 한다. 확인 메일을 요구하는
+// 설치는 그 세션이 없으므로 설치를 막는다(S2 §2.2).
+test('hosted observation blocks an installation whose Auth demands a confirmation mail', async () => {
+  await withManagementApi({ autoconfirm: false }, async ({ origin }) => {
     const output = await inspectPlan(origin);
-    assert.equal(output.observed.auth.emailConfirmationRequired, false);
+    assert.equal(output.observed.auth.emailConfirmationRequired, true);
     assert.equal(output.ready, false);
-    const blocker = output.blockers.find(({ code }) => code === 'AUTH_CONFIRMATION_DISABLED');
+    const blocker = output.blockers.find(({ code }) => code === 'AUTH_CONFIRMATION_REQUIRED');
     assert.ok(blocker !== undefined);
     assert.ok(blocker.recovery.length > 0);
     assertNoSensitiveOutput({ stdout: JSON.stringify(output), stderr: '' }, origin);
   });
   await withManagementApi({}, async ({ origin }) => {
     const output = await inspectPlan(origin);
-    assert.equal(output.observed.auth.emailConfirmationRequired, true);
+    assert.equal(output.observed.auth.emailConfirmationRequired, false);
     assert.deepEqual(output.blockers, []);
   });
 });

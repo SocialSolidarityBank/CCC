@@ -123,10 +123,12 @@ export class PublicJoinApi {
     return { orgName: row.orgName, roles: row.roles as InviteStoredRole[], expiresAt: row.expiresAt };
   }
 
-  async acceptStaffInvite(token: string, input: { name: string; email: string }): Promise<StaffInviteAccepted> {
+  async acceptStaffInvite(
+    token: string, input: { name: string; email: string }, accessToken?: string,
+  ): Promise<StaffInviteAccepted> {
     const row = record(await this.transport.request(
       `/staff-invites/token/${encodeURIComponent(token)}/accept`, 'POST',
-      { name: input.name.trim(), email: input.email.trim() },
+      { name: input.name.trim(), email: input.email.trim() }, accessToken,
     ));
     if (typeof row.userId !== 'string' || typeof row.email !== 'string' || typeof row.roleWaiting !== 'boolean') {
       throw new BusinessError('invalid_response');

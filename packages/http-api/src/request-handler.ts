@@ -95,7 +95,6 @@ import {
   revokeStaffInvite,
   getStaffInvitePublicInfo,
   acceptStaffInvite,
-  linkAuthenticatedIdentity,
   getParticipantRequestLinkInfo,
   issueParticipantRequestLinkDisclosures,
   issueAgentPairingCode,
@@ -2710,10 +2709,19 @@ export async function handleRequest(
       requestQuery(url, []);
       const body = await requestBody(request);
       requireOnlyKeys(body, ['name', 'email']);
+      const email = requiredString(body, 'email');
+      // D90: 수락자는 자기 Auth 계정으로 부른다. 서명으로 검증한 subject 만 등재 행에 결속하고,
+      // 토큰 이메일이 초대 이메일과 다르면 결속하지 않는다. 자격이 없으면 결속 없이 등재만 한다.
+      let authSubject: string | null = null;
+      const verifyLinkClaims = env.verifyIdentityLinkClaims;
+      if (verifyLinkClaims !== undefined && request.headers.get('authorization') !== null) {
+        const claims = await verifyLinkClaims(request);
+        if (claims.email.trim().toLowerCase() === email.trim().toLowerCase()) authSubject = claims.subject;
+      }
       try {
         return json(await acceptStaffInvite(env, {
-          token: pubParts[2] ?? '', name: requiredString(body, 'name'), email: requiredString(body, 'email'),
-        }), 201);
+          token: pubParts[2] ?? '', name: requiredString(body, 'name'), email,
+        }, authSubject), 201);
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
@@ -2731,31 +2739,6 @@ export async function handleRequest(
       }
       requireOnlyKeys(body, ['refreshToken']);
       return json(await rotateAgentRefreshCredential(env, body.refreshToken), 201, { 'cache-control': 'no-store' });
-    }
-    // ── D80 첫 로그인 신원 연결: 초대로 등재된 행에 검증된 subject 를 채운다. MFA 등록 전
-    // (aal1)에도 지나야 하고 아직 디렉터리에 붙지 않은 자격이라, 신원 해석(resolveActor)
-    // **앞**에 온다 — 해석은 이미 연결된 행만 찾으므로 여기서는 항상 실패한다.
-    // 업무 route 와 같은 origin·CORS 취급이다(런타임이 허용 origin 을 이미 걸렀다).
-    if (url.pathname === '/identity/link') {
-      if (request.method !== 'POST') return json({ error: 'not_found' }, 404);
-      const verifyLinkClaims = env.verifyIdentityLinkClaims;
-      if (verifyLinkClaims === undefined) return json({ error: 'not_found' }, 404);
-      requestQuery(url, []);
-      const text = (await request.text()).trim();
-      if (text.length > 0) {
-        let body: unknown;
-        try { body = JSON.parse(text); } catch { throw new ValidationError('request body must be valid JSON'); }
-        requireOnlyKeys(asObject(body), []);
-      }
-      const claims = await verifyLinkClaims(request);
-      try {
-        return json(await linkAuthenticatedIdentity(env, claims), 200, { 'cache-control': 'no-store' });
-      } catch (error) {
-        // 연결 실패는 두 가지뿐이다: 남이 이미 잡은 이메일(409)이거나 초대가 없다(403).
-        if (error instanceof ConflictError) return json({ error: 'identity_already_linked' }, 409);
-        if (error instanceof ForbiddenError) return json({ error: 'identity_not_invited' }, 403);
-        throw error;
-      }
     }
     const resolvedActor = await resolveActor(request, env);
     const parts = url.pathname.split('/').filter((part) => part.length > 0);

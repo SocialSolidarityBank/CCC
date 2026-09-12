@@ -54,7 +54,7 @@ const safeFailures = Object.freeze({
   OPERATION_UNSUPPORTED: '지원하지 않는 설치 동작 또는 인자입니다.',
   TARGET_UNSUPPORTED: 'target은 local 또는 hosted여야 합니다.',
   OWNER_EVIDENCE_MISSING: '서명된 기관 소유 승인과 프로젝트 연결 증거가 없습니다.',
-  AUTH_CONFIRMATION_DISABLED: 'Auth 가 이메일 확인을 요구하지 않습니다. 첫 로그인 신원 연결은 확인된 이메일만 신뢰합니다.',
+  AUTH_CONFIRMATION_REQUIRED: 'Auth 가 가입 확인 메일을 요구합니다. 초대 수락이 계정을 바로 결속하려면 확인을 꺼야 합니다.',
   MANIFEST_VERIFIER_UNAVAILABLE: 'Community Cloud manifest 검증 모듈을 먼저 빌드해야 합니다.',
   MIGRATION_CHECKSUM_MISMATCH: '마이그레이션 파일과 정본의 파일별 체크섬이 일치하지 않습니다.',
   CA_TRUST_UNAVAILABLE: '애플리케이션 전용 CA 파일과 프로세스 신뢰 설정을 확인하지 못했습니다.',
@@ -112,9 +112,9 @@ const blockerDetails = Object.freeze({
     message: '현재 기관에 대해 유효한 설치 승인과 서명 결합을 확인하지 못했습니다.',
     recovery: '외부에서 구성한 기관별 trust와 두 서명 문서의 만료 및 폐기 상태를 확인합니다.',
   },
-  AUTH_CONFIRMATION_DISABLED: {
-    message: 'Auth 가 이메일 확인을 요구하지 않아 첫 로그인 신원 연결을 신뢰할 수 없습니다.',
-    recovery: 'Supabase Auth 에서 이메일 확인(mailer autoconfirm 해제)을 켠 뒤 다시 실행합니다. 공개 가입을 열어둔 설치라면 함께 검토합니다.',
+  AUTH_CONFIRMATION_REQUIRED: {
+    message: 'Auth 가 가입 확인 메일을 요구해 초대 수락이 계정을 결속하지 못합니다.',
+    recovery: 'Supabase Auth 에서 가입 확인(mailer autoconfirm)을 켜 확인 메일 없이 세션이 서게 한 뒤 다시 실행합니다. 초대 토큰과 검증된 subject 가 연결 근거입니다(D90).',
   },
   PROVIDER_BASELINE_MISMATCH: {
     message: '공급자 기준선과 현재 프로젝트 구성이 다릅니다.',
@@ -676,10 +676,10 @@ export async function buildSupabasePlan({
   if (target === 'hosted') {
     if (![before, after].every(value => isSeoulRegion(value.project.region))) deny('REGION_MISMATCH');
     if (![before, after].every(value => value.project.ownerOrgIdHash === authorization.expectedOwnerOrgIdHash)) deny('OWNER_MISMATCH');
-    // D80 첫 로그인 신원 연결은 이메일 claim 을 디렉터리 대조 키로 쓴다. 확인을 요구하지
-    // 않는 설치에서는 그 claim 이 통제 증거가 못 되므로 설치 자체를 막는다(S2 §2.2).
-    if (![before, after].every(value => value.auth?.emailConfirmationRequired === true)) {
-      deny('AUTH_CONFIRMATION_DISABLED');
+    // D90 초대 결속은 수락자가 방금 만든 세션으로 자기 subject 를 증명한다. 확인 메일을
+    // 요구하는 설치는 세션이 서지 않아 결속이 불가능하므로 설치 자체를 막는다(S2 §2.2).
+    if (![before, after].every(value => value.auth?.emailConfirmationRequired === false)) {
+      deny('AUTH_CONFIRMATION_REQUIRED');
     }
   }
   if (providerMatched === false) deny('PROVIDER_BASELINE_MISMATCH');
@@ -827,8 +827,8 @@ export async function buildSupabaseDoctor(options) {
     addIssue('CONNECTION_NOT_READ_ONLY');
   }
   // plan 이후 Auth 설정이 되돌아갔을 수 있으므로 새 관찰에서 다시 본다.
-  if (options.target === 'hosted' && snapshot.auth?.emailConfirmationRequired !== true) {
-    addIssue('AUTH_CONFIRMATION_DISABLED');
+  if (options.target === 'hosted' && snapshot.auth?.emailConfirmationRequired !== false) {
+    addIssue('AUTH_CONFIRMATION_REQUIRED');
   }
   const providerComparison = options.target === 'hosted'
     ? await providerBaselineComparison(snapshot, options.providerBaseline)

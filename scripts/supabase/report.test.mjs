@@ -261,14 +261,14 @@ test('preserves current incomplete and drift blockers instead of collapsing them
 test('reports the email confirmation blocker as a fixed code, never as a generic health failure', () => {
   const report = buildRedactedReport({
     doctor: doctor({
-      blockers: [{ code: 'AUTH_CONFIRMATION_DISABLED', message: SECRET, recovery: 'https://private.example.test' }],
+      blockers: [{ code: 'AUTH_CONFIRMATION_REQUIRED', message: SECRET, recovery: 'https://private.example.test' }],
     }),
     ledger: ledger(),
     nonce: Buffer.alloc(32, 14),
   });
   assert.deepEqual(report.checks, [
     { name: 'installation', status: 'PASS', code: null },
-    { name: 'AUTH_CONFIRMATION_DISABLED', status: 'FAIL', code: 'AUTH_CONFIRMATION_DISABLED' },
+    { name: 'AUTH_CONFIRMATION_REQUIRED', status: 'FAIL', code: 'AUTH_CONFIRMATION_REQUIRED' },
   ]);
   assert.doesNotMatch(JSON.stringify(report), /provider-secret|private\.example|https?:/u);
 });

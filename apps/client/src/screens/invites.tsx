@@ -223,9 +223,8 @@ function useFragmentToken(): { token: string | null; nonce: number } {
 /**
  * 실무자 초대 수락과 첫 계정 생성(공개). 업무 셸도 업무 Bearer 도 쓰지 않는다.
  *
- * 초대 수락만으로는 로그인할 수 없다. 디렉터리 행에는 아직 `auth_subject` 가 없으므로 여기서
- * 계정을 만들고 `POST /identity/link` 로 그 행과 연결한다. 이메일 확인을 요구하는 프로젝트는
- * 세션 없이 끝나므로 연결은 다음 로그인이 맡는다(전송기의 한 번짜리 연결 복구).
+ * 계정을 먼저 만들고, 그 자격으로 초대를 수락한다(D90). 서버가 등재와 같은 배치에서 검증된
+ * subject 를 결속하므로 연결되지 않은 행이 남지 않고, 수락이 끝나면 이미 로그인 상태다.
  *
  * 비밀번호는 제출 순간의 폼 값으로만 읽고 상태나 저장소에 두지 않는다.
  */
@@ -235,7 +234,7 @@ export function StaffJoinScreen() {
   const [info, setInfo] = useState<StaffInvitePublicInfo | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [done, setDone] = useState<{ roleWaiting: boolean; confirmEmail: boolean } | null>(null);
+  const [done, setDone] = useState<{ roleWaiting: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
 
@@ -250,17 +249,13 @@ export function StaffJoinScreen() {
     return <WireCard title="실무자 초대"><WireEmpty>초대 링크가 아닙니다.</WireEmpty></WireCard>;
   }
   if (done !== null) {
-    return <WireCard title={done.confirmEmail ? '이메일 확인 필요' : '가입 완료'}>
-      {done.confirmEmail
-        ? <WireCallout tone="info" title="이메일 확인을 먼저 마쳐 주세요">
-          가입 확인 메일의 링크를 누른 뒤 기관 계정으로 로그인해 주세요. 첫 로그인에서 초대받은 계정과 연결합니다.
-        </WireCallout>
-        : <WireCallout tone="info" title={done.roleWaiting ? '역할 배정을 기다립니다' : '가입이 끝났습니다'}>
-          {done.roleWaiting
-            ? '기관 관리자가 업무 역할을 정하기 전까지 업무 화면은 열리지 않습니다.'
-            : '이제 기관 계정으로 로그인할 수 있습니다.'}
-        </WireCallout>}
-      <div className="business-actions"><WireButton variant="primary" href="/settings">로그인하기</WireButton></div>
+    return <WireCard title="가입 완료">
+      <WireCallout tone="info" title={done.roleWaiting ? '역할 배정을 기다립니다' : '가입이 끝났습니다'}>
+        {done.roleWaiting
+          ? '기관 관리자가 업무 역할을 정하기 전까지 업무 화면은 열리지 않습니다.'
+          : '이미 로그인된 상태입니다. 바로 업무 화면으로 들어갈 수 있습니다.'}
+      </WireCallout>
+      <div className="business-actions"><WireButton variant="primary" href="/settings">업무 화면으로</WireButton></div>
     </WireCard>;
   }
   return <WireCard title="실무자 초대">
@@ -285,11 +280,12 @@ export function StaffJoinScreen() {
         setBusy(true);
         setError(null);
         void (async () => {
-          // 수락이 먼저다. 초대를 쓰지 못하는 이메일로 계정을 먼저 만들지 않는다.
-          const accepted = await session.publicJoin.acceptStaffInvite(token, { name, email });
-          const { accessToken } = await session.signUp(accepted.email, password);
-          if (accessToken !== null) await session.linkIdentity(accessToken);
-          return { roleWaiting: accepted.roleWaiting, confirmEmail: accessToken === null };
+          // 계정을 먼저 만들고 그 자격으로 수락한다. 서버가 같은 배치에서 subject 를 결속한다.
+          const { accessToken } = await session.signUp(email, password);
+          const accepted = await session.publicJoin.acceptStaffInvite(
+            token, { name, email }, accessToken ?? undefined,
+          );
+          return { roleWaiting: accepted.roleWaiting };
         })().then(setDone)
           .catch((cause: unknown) => setError(safeError(cause)))
           .finally(() => setBusy(false));

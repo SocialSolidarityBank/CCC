@@ -208,7 +208,7 @@ function snapshot(overrides = {}) {
     auth: {
       emailEnabled: true,
       openSignupDisabled: true,
-      emailConfirmationRequired: true,
+      emailConfirmationRequired: false,
       totpEnabled: true,
       refreshTokenRotationEnabled: true,
     },
@@ -763,10 +763,10 @@ test('hosted project with missing or non-Seoul region evidence is blocked before
 
 // D80: 이메일 확인을 요구하지 않는 hosted 설치는 첫 로그인 신원 연결을 신뢰할 수 없으므로
 // plan 과 doctor 둘 다 막는다. 로컬 개발 관찰은 설치 승인이 아니라 차단 대상이 아니다.
-test('hosted Auth without required email confirmation blocks plan and doctor', async () => {
+test('hosted Auth demanding a confirmation mail blocks plan and doctor', async () => {
   const unconfirmed = snapshot({
     auth: {
-      emailEnabled: true, openSignupDisabled: true, emailConfirmationRequired: false,
+      emailEnabled: true, openSignupDisabled: true, emailConfirmationRequired: true,
       totpEnabled: true, refreshTokenRotationEnabled: true,
     },
   });
@@ -776,9 +776,9 @@ test('hosted Auth without required email confirmation blocks plan and doctor', a
     inspector: inspector(unconfirmed, unconfirmed),
   });
   assert.equal(plan.ready, false);
-  const blocker = plan.blockers.find(({ code }) => code === 'AUTH_CONFIRMATION_DISABLED');
+  const blocker = plan.blockers.find(({ code }) => code === 'AUTH_CONFIRMATION_REQUIRED');
   assert.ok(blocker !== undefined);
-  assert.match(blocker.recovery, /이메일 확인/u);
+  assert.match(blocker.recovery, /가입 확인/u);
 
   const doctorResult = await buildSupabaseDoctor({
     target: 'hosted',
@@ -786,9 +786,9 @@ test('hosted Auth without required email confirmation blocks plan and doctor', a
     inspector: inspector(unconfirmed, unconfirmed, unconfirmed),
   });
   assert.equal(doctorResult.ready, false);
-  assert.ok(blockerCodes(doctorResult).includes('AUTH_CONFIRMATION_DISABLED'));
+  assert.ok(blockerCodes(doctorResult).includes('AUTH_CONFIRMATION_REQUIRED'));
   assert.equal(
-    blockerCodes(doctorResult).filter(code => code === 'AUTH_CONFIRMATION_DISABLED').length,
+    blockerCodes(doctorResult).filter(code => code === 'AUTH_CONFIRMATION_REQUIRED').length,
     1,
   );
 
