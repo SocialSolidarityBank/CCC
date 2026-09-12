@@ -3,6 +3,8 @@
 // ③ 라우트 훅(수기 저장 시 검출 실행, 실패해도 저장은 성공 — D8) 을 검증한다.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
+  activateAiProviderConfiguration,
+  registerAiProviderConfiguration,
   collectDiscrepancyDetectionSources,
   createCase,
   createManualSession,
@@ -23,6 +25,7 @@ import {
   AiProviderProhibitedOutputError,
   AiProviderUnavailableError,
   CodexProviderAdapter,
+  canonicalAiProviderConfigHash,
   DISCREPANCY_PROMPT_VERSION,
   validateDiscrepancyDetectionOutput,
   validateDiscrepancyDetectionRequest,
@@ -51,6 +54,7 @@ vi.setConfig({ testTimeout: 30_000 });
 
 const { counselor, admin, service } = testActors;
 const t = setupD1();
+let detectionConfigurationId: string | undefined;
 
 async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -101,6 +105,7 @@ async function runDeviceTextJobs(mask: (text: string) => string = (text) => text
 // 테스트마다 독립 D1 — setupD1 계약상 reset() 이 컨텍스트를 만든다.
 beforeEach(async () => {
   await t.reset();
+  detectionConfigurationId = undefined;
 });
 
 // 제출 ID 는 케이스가 달라도 재사용하면 재생(replay)·유일성에 걸린다 — 매번 새로 발급.
@@ -147,6 +152,16 @@ async function createCaseWithSessions(memos: string[], withSnapshots = false): P
   // 저장·처리만 보는 테스트에는 필요 없어서 기본값은 끔 — 매 픽스처가 느려진다.
   if (withSnapshots) {
     await enableTextAiConsent(supportCaseId);
+    if (detectionConfigurationId === undefined) {
+      const config = await registerAiProviderConfiguration(t.env, admin, {
+        adapterId: fakeProviderConfig.providerId,
+        adapterVersion: fakeProviderConfig.adapterVersion,
+        configHash: await canonicalAiProviderConfigHash(fakeProviderConfig),
+        approvalRefs: ['synthetic-discrepancy-approval'],
+      });
+      detectionConfigurationId = config.id;
+      await activateAiProviderConfiguration(t.env, admin, config.id);
+    }
     for (const [index, sessionId] of sessionIds.entries()) {
       await seedMaskedSnapshot(sessionId, memos[index] ?? '');
     }
@@ -239,6 +254,44 @@ describe('validateDiscrepancyDetectionOutput — 인용 원문 강제·판단 �
         verdict: 'left is wrong',
       }],
     }, request)).toThrowError(AiProviderProhibitedOutputError);
+  });
+});
+
+describe('G2 grounded-pair structural boundary (semantic accuracy unmeasured)', () => {
+  it.each([
+    {
+      name: 'same rent and time, paid versus unpaid',
+      left: '팔월 월세는 구월 첫 상담 시점에 미납이다.',
+      right: '팔월 월세는 구월 첫 상담 시점에 납부 완료다.',
+    },
+    {
+      name: 'same debt and time, incompatible numeric amounts',
+      left: '구월 첫 상담 시점 은행 대출 잔액은 300만 원이다.',
+      right: '구월 첫 상담 시점 은행 대출 잔액은 500만 원이다.',
+    },
+  ])('preserves contextual contradiction quotes without banning numbers: $name', ({ left, right }) => {
+    const request = validateDiscrepancyDetectionRequest({
+      triggerRef: 'session-current',
+      sources: [{ sourceRef: 'session-current', text: `전사: ${left}\n수기: ${right}` }],
+    });
+    const pair = {
+      kind: 'within_session', leftRef: 'session-current', leftQuote: left,
+      rightRef: 'session-current', rightQuote: right,
+    };
+    expect(validateDiscrepancyDetectionOutput({ discrepancies: [pair] }, request)).toEqual({ discrepancies: [pair] });
+  });
+
+  it('rejects identical quoted statements even when their source sessions differ', () => {
+    const quote = '이번 달 월세 납부를 마쳤다.';
+    const request = validateDiscrepancyDetectionRequest({
+      triggerRef: 'current',
+      sources: [{ sourceRef: 'prior', text: quote }, { sourceRef: 'current', text: quote }],
+    });
+    expect(() => validateDiscrepancyDetectionOutput({
+      discrepancies: [{
+        kind: 'cross_session', leftRef: 'prior', leftQuote: quote, rightRef: 'current', rightQuote: quote,
+      }],
+    }, request)).toThrow(AiProviderProhibitedOutputError);
   });
 });
 
@@ -803,8 +856,57 @@ async function enableTextAiConsent(supportCaseId: string): Promise<void> {
 }
 
 describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기준)', () => {
-  it('수기 메모 저장 → 장비 마스킹 → 검출 결과가 브리핑에 나타난다', async () => {
-    const fixture = await createCaseWithSessions(['첫 상담에서 채무는 은행 대출뿐이라고 말함'], true);
+  it.each([
+    ['normal numeric evolution', '팔월 부채 잔액은 500만 원이다.', '구월에 상환한 뒤 부채 잔액은 300만 원이다.'],
+    ['valid paraphrase', '이번 달 월세를 모두 냈다.', '이번 달 월세 납부를 마쳤다.'],
+    ['explicit correction', '팔월 월세를 납부했다고 적었다.', '앞 기록을 정정함. 팔월 월세는 미납으로 확인함.'],
+    ['ambiguous context', '잔액은 300만 원이다.', '잔액은 500만 원이다.'],
+  ])('does not manufacture conflicts after an empty provider comparison: %s', async (_name, prior, current) => {
+    const fixture = await createCaseWithSessions([prior], true);
+    const inputs: DiscrepancyDetectionRequest[] = [];
+    // Canned output tests orchestration only, not whether a model can identify these exclusions.
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async request => {
+      inputs.push(request);
+      return { discrepancies: [] };
+    });
+    expect((await postManualRecord(fixture.supportCaseId, current, 2)).status).toBe(201);
+    await runDeviceTextJobs();
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]?.sources.map(source => source.text).join('\n')).toContain(prior);
+    expect(inputs[0]?.sources.map(source => source.text).join('\n')).toContain(current);
+    const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
+    expect(briefing.discrepancies).toEqual([]);
+    const records = await t.db.prepare('SELECT memo FROM sessions WHERE support_case_id=? ORDER BY held_at')
+      .bind(fixture.supportCaseId).all<{ memo: string }>();
+    expect(records.results.map(record => record.memo)).toEqual([prior, current]);
+  });
+
+  it('blocks discrepancy egress on a stale policy hash until explicit reactivation', async () => {
+    const fixture = await createCaseWithSessions(['팔월 월세는 구월 첫 상담 시점에 미납이다.'], true);
+    const stale = await registerAiProviderConfiguration(t.env, admin, {
+      adapterId: fakeProviderConfig.providerId, adapterVersion: fakeProviderConfig.adapterVersion,
+      configHash: 'b'.repeat(64), approvalRefs: ['synthetic-old-policy'],
+    });
+    await activateAiProviderConfiguration(t.env, admin, stale.id);
+    let calls = 0;
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => {
+      calls += 1;
+      return { discrepancies: [] };
+    });
+    expect((await postManualRecord(fixture.supportCaseId, '팔월 월세는 구월 첫 상담 시점에 납부 완료다.', 2)).status).toBe(201);
+    await runDeviceTextJobs();
+    expect(calls).toBe(0);
+    if (detectionConfigurationId === undefined) throw new Error('expected the registered current configuration');
+    await activateAiProviderConfiguration(t.env, admin, detectionConfigurationId);
+    expect((await postManualRecord(fixture.supportCaseId, '팔월 월세 납부 여부를 다시 확인함.', 3)).status).toBe(201);
+    await runDeviceTextJobs();
+    expect(calls).toBe(1);
+  });
+  it.each([
+    ['rent status', '팔월 월세는 구월 첫 상담 시점에 미납이다.', '팔월 월세는 구월 첫 상담 시점에 납부 완료다.'],
+    ['numeric contradiction', '구월 첫 상담 시점 은행 대출 잔액은 300만 원이다.', '구월 첫 상담 시점 은행 대출 잔액은 500만 원이다.'],
+  ])('preserves grounded contextual contradictions through masking and briefing: %s', async (_name, left, right) => {
+    const fixture = await createCaseWithSessions([left], true);
     t.env.CCC_LLM_MODE = 'openai';
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => {
       const priorRef = request.sources[0]?.sourceRef ?? '';
@@ -821,7 +923,7 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
       };
     });
 
-    const response = await postManualRecord(fixture.supportCaseId, '지인 채무 상환이 밀려 있다고 말함', 2);
+    const response = await postManualRecord(fixture.supportCaseId, right, 2);
     expect(response.status).toBe(201);
     // 저장 시점에는 스냅샷이 없어 검출이 스킵된다 — 장비가 마스킹을 마쳐야 돈다(ADR-0027).
     expect(await runDeviceTextJobs()).toBe(1);
@@ -829,8 +931,11 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
     const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
     expect(briefing.discrepancies).toHaveLength(1);
     expect(briefing.discrepancies[0]?.kind).toBe('cross_session');
-    expect(briefing.discrepancies[0]?.left.quote).toContain('은행 대출뿐');
-    expect(briefing.discrepancies[0]?.right.quote).toContain('지인 채무 상환');
+    expect(briefing.discrepancies[0]?.left.quote).toContain(left);
+    expect(briefing.discrepancies[0]?.right.quote).toContain(right);
+    const records = await t.db.prepare('SELECT memo FROM sessions WHERE support_case_id=? ORDER BY held_at')
+      .bind(fixture.supportCaseId).all<{ memo: string }>();
+    expect(records.results.map(record => record.memo)).toEqual([left, right]);
     // 검출 경로 PII 미유입(R3) — 프로바이더에 간 텍스트는 가명 처리본이라 인용도 실명이 없다.
     expect(JSON.stringify(briefing.discrepancies)).not.toContain('홍길동');
   });

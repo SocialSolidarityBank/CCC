@@ -46,7 +46,6 @@ function currentRequest() {
       evidence: [{ evidenceId: 'transcript-evidence', sourceRef: 'transcript-span', sourceSha256: 'c'.repeat(64),
         evidenceQuote: text, sourceStart: 0, sourceEnd: Array.from(text).length }] }],
     contrastAxes: { missing_from_memo: 'applied', missing_from_transcript: 'applied', undiscussed_session_goal: 'no_session_goal' },
-    historicalContext: { supportCaseId: 'case-a', revision: 2, materials: [material()] },
   });
 }
 
@@ -141,12 +140,19 @@ describe('counseling memory provider safety', () => {
       quote: material().maskedText, sourceRef: 'material-a' }] }, req)).toThrow(AiProviderProhibitedOutputError);
   });
 
-  it('rejects historical material IDs that collide with current evidence identities', () => {
-    const req = currentRequest();
-    const historical = { ...req.historicalContext!, materials: [
-      { ...material(), id: req.materials[0]!.evidence[0]!.sourceRef },
-    ] };
-    expect(() => validateAiProviderRequest({ ...req, historicalContext: historical })).toThrow(AiProviderInputError);
+  it('rejects historical memory at the product generation boundary before any egress', async () => {
+    const req = {
+      ...currentRequest(),
+      historicalContext: { supportCaseId: 'case-a', revision: 2, materials: [material()] },
+    };
+    let calls = 0;
+    const adapter = new CodexProviderAdapter(config, 'synthetic-key', async () => {
+      calls += 1;
+      throw new Error('Historical memory must never reach product generation');
+    });
+    expect(() => validateAiProviderRequest(req)).toThrow(AiProviderInputError);
+    await expect(adapter.generate(req)).rejects.toBeInstanceOf(AiProviderInputError);
+    expect(calls).toBe(0);
   });
 
   it('does not recreate a corrected item under a fresh ID from the protected old evidence', () => {
@@ -194,7 +200,7 @@ describe('counseling memory provider safety', () => {
     expect(await canonicalAiProviderConfigHash(config)).not.toBe(oldHash);
   });
 
-  it('uses the real Responses transport with strict schema and store false, and a separate historical payload', async () => {
+  it('keeps memory generation on its own transport and product generation current-session only', async () => {
     const calls: Array<{ url: unknown; body: { store: boolean; input: string; text: { format: unknown } } }> = [];
     const fetcher: typeof fetch = async (url, init) => {
       const body = JSON.parse(String(init?.body)); calls.push({ url, body });
@@ -208,7 +214,7 @@ describe('counseling memory provider safety', () => {
     expect(calls[0]!.body.text.format).toMatchObject({ type: 'json_schema', strict: true,
       schema: { additionalProperties: false, required: ['updates', 'summary'] } });
     const payload = JSON.parse(calls[1]!.body.input);
-    expect(payload.historicalContext).toEqual(currentRequest().historicalContext);
+    expect(payload).not.toHaveProperty('historicalContext');
     expect(payload.materials).toEqual(currentRequest().materials);
   });
 

@@ -19,7 +19,6 @@ import {
   correctCounselingMemory,
   getCounselingMemory,
   getCounselingMemorySettings,
-  loadCounselingMemoryContext,
   setCounselingMemorySettings,
   acceptCounselingMemorySource,
   claimCounselingMemorySources,
@@ -1998,6 +1997,21 @@ const CONFIGURATION_REASONS: ReadonlySet<AiProviderUnavailableReason> = new Set(
   'adapter_invalid',
 ]);
 
+/** Share the existing activation check across product generation and discrepancy egress. */
+async function resolveActiveSessionAiProvider(env: ApiEnv, actor: Actor, sessionId: string) {
+  const { adapter, config } = await resolveAiProviderAdapter(env);
+  const runtimeConfigHash = await canonicalAiProviderConfigHash(config);
+  const activeProvider = await getActiveAiProviderRuntimeMetadataForService(env, actor, sessionId);
+  if (
+    activeProvider.adapterId !== adapter.providerId
+    || activeProvider.adapterVersion !== adapter.adapterVersion
+    || activeProvider.configHash !== runtimeConfigHash
+  ) {
+    throw new AiProviderUnavailableError();
+  }
+  return { adapter, config, activeProvider };
+}
+
 async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: string): Promise<void> {
   // CCC-47 — 어떻게 끝났든 사실 한 줄을 남긴다. 이 값들은 전부 분류·숫자·설정값이고
   // 상담 내용은 하나도 들어가지 않는다(R3). 관측이 없으면 아래 스킵 경로들이 "정상적으로
@@ -2042,7 +2056,7 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
         rawOutput = await adapter.detectDiscrepancies(providerRequest);
       }
     } else {
-      const { adapter, config } = (await resolveAiProviderAdapter(env));
+      const { adapter, config } = await resolveActiveSessionAiProvider(env, actor, sessionId);
       model = config.model;
       if (adapter.detectDiscrepancies === undefined) {
         outcome = 'skipped_unsupported';
@@ -2269,14 +2283,11 @@ async function generateAiDraft(
     const materialRefs = draftMaterialRefs(materialSet.materials);
 
     if (previewModeEnabled(env)) {
-      const historicalContext = await loadCounselingMemoryContext(env, actor, sessionId);
-      const generationRequest = historicalContext === null
-        ? providerRequest
-        : validateAiProviderRequest({ ...providerRequest, historicalContext });
+      await authorizeSessionTextAiEgress(env, actor, sessionId);
       const rawOutput = env.AI_PROVIDER_ADAPTER === undefined
-        ? generatePreviewFixtureAiDraft(generationRequest)
-        : await (await resolveAiProviderAdapter(env)).adapter.generate(generationRequest);
-      const output = validateAiProviderOutput(rawOutput, generationRequest);
+        ? generatePreviewFixtureAiDraft(providerRequest)
+        : await (await resolveAiProviderAdapter(env)).adapter.generate(providerRequest);
+      const output = validateAiProviderOutput(rawOutput, providerRequest);
       const draft = await createFixtureGeneratedAiDraftForService(env, actor, sessionId, {
         origin: 'fixture_generated',
         creationMode: 'fixture_generated',
@@ -2299,13 +2310,6 @@ async function generateAiDraft(
         questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
         evidence: providerEvidenceLinks(output),
         materials: materialRefs,
-        ...(historicalContext === null ? {} : {
-          memoryContext: {
-            supportCaseId: historicalContext.supportCaseId,
-            revision: historicalContext.revision,
-            materialSnapshotIds: historicalContext.materials.map((material) => material.snapshotId),
-          },
-        }),
         contrast: draftContrastAxes(output, providerRequest.contrastAxes),
       });
       outcome = 'stored';
@@ -2314,26 +2318,10 @@ async function generateAiDraft(
 
     // 주입형 testOnly adapter는 기존 테스트 seam이다. Preview 전용 내장 fixture 선택과
     // 구분하며, 실제 provider와 같은 활성 설정·동의·스냅샷 검증을 그대로 거친다.
-    const { adapter, config } = (await resolveAiProviderAdapter(env));
+    const { adapter, config, activeProvider } = await resolveActiveSessionAiProvider(env, actor, sessionId);
     model = config.model;
-    const runtimeConfigHash = await canonicalAiProviderConfigHash(config);
-
-    // Check the active provider, then reload verified historical context at the outbound boundary.
-    const activeProvider = await getActiveAiProviderRuntimeMetadataForService(env, actor, sessionId);
-    if (
-      activeProvider.adapterId !== adapter.providerId
-      || activeProvider.adapterVersion !== adapter.adapterVersion
-      || activeProvider.configHash !== runtimeConfigHash
-    ) {
-      throw new AiProviderUnavailableError();
-    }
-
-    const historicalContext = await loadCounselingMemoryContext(env, actor, sessionId);
-    const generationRequest = historicalContext === null
-      ? providerRequest
-      : validateAiProviderRequest({ ...providerRequest, historicalContext });
     await authorizeSessionTextAiEgress(env, actor, sessionId);
-    const output = validateAiProviderOutput(await adapter.generate(generationRequest), generationRequest);
+    const output = validateAiProviderOutput(await adapter.generate(providerRequest), providerRequest);
     const draft = await createGeneratedAiDraftForService(env, actor, sessionId, {
       summaryText: validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n')),
       claims: output.claims.map((claim) => ({
@@ -2359,13 +2347,6 @@ async function generateAiDraft(
       questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
       evidence: providerEvidenceLinks(output),
       materials: materialRefs,
-      ...(historicalContext === null ? {} : {
-        memoryContext: {
-          supportCaseId: historicalContext.supportCaseId,
-          revision: historicalContext.revision,
-          materialSnapshotIds: historicalContext.materials.map((material) => material.snapshotId),
-        },
-      }),
       contrast: draftContrastAxes(output, providerRequest.contrastAxes),
     });
     outcome = 'stored';

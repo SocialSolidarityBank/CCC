@@ -5,9 +5,10 @@ import type { MemoryMaskJob } from '@ccc/contracts/agent-jobs';
 import worker from './support/local-worker';
 import { agentManifestEnv, AGENT_SERVICE_HEADERS } from './support/agent-jobs';
 import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
-import { AI_PROVIDER_REGISTRY_VERSION, CODEX_PROVIDER_ID, CODEX_PROVIDER_ADAPTER_VERSION, canonicalAiProviderConfigHash, type AiProviderTestAdapter } from '@ccc/ai-runtime';
+import { AI_PROVIDER_REGISTRY_VERSION, CODEX_PROVIDER_ID, CODEX_PROVIDER_ADAPTER_VERSION, canonicalAiProviderConfigHash, generatePreviewFixtureAiDraft, type AiProviderRequest, type AiProviderTestAdapter } from '@ccc/ai-runtime';
 import { activateAiProviderConfiguration, appendSupportCaseConsentEvent, beginCounselingMemoryEgress, claimCounselingMemorySources, commitCounselingMemoryWork, correctCounselingMemory, createActionItem, createCase, createManualSession, getCounselingMemory, getCounselingMemorySource, getSupportCaseConsent, issueSupportCaseConsentDisclosures, listSupportCasesForBeneficiary, loadCounselingMemoryContext, prepareCounselingMemoryWork, registerAiProviderConfiguration, resolveActionItem, acceptCounselingMemorySource, type ActionItem } from '@ccc/core/gateway';
 import { ProgramAdmissionRequiredError, releaseCounselingMemorySource } from '@ccc/core/gateway';
+import { recordMaskedSourceSnapshot } from '@ccc/core/gateway';
 import { registrationInput } from './support/registration';
 vi.setConfig({ testTimeout: 30000 });
 const t = setupD1();
@@ -86,6 +87,89 @@ async function materialize(f: MemoryFixture) {
   return { work, output };
 }
 describe('durable memory races', () => {
+  it.each(['actual', 'preview-adapter', 'preview-fixture'] as const)(
+    'isolates shadow memory from generate and regenerate requests (%s)',
+    async (mode) => {
+      const f = await fixture();
+      const first = await materialize(f);
+      await commitCounselingMemoryWork(t.env, first.work, first.output);
+      const memo = '이번 상담에서 새 일정을 확인했습니다.';
+      const session = await createManualSession(t.env, counselor, f.action.caseId, {
+        submissionId: crypto.randomUUID(), heldAt: '2026-09-08T09:00:00.000Z',
+        channel: 'in_person', memo, gasScores: [],
+      });
+      await maskPending(f);
+      // A relevant, independently masked historical item really exists. Empty memory
+      // would let a route that still loads historicalContext pass this regression.
+      const context = await loadCounselingMemoryContext(t.env, counselor, session.id);
+      expect(context?.materials.map(material => material.maskedText).join('\n')).toContain('서류 준비 예정');
+      const memoryBefore = await getCounselingMemory(t.env, counselor, f.id);
+      const requests: AiProviderRequest[] = [];
+      const adapter: AiProviderTestAdapter = {
+        providerId: CODEX_PROVIDER_ID, adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION, testOnly: true,
+        config: {
+          registryVersion: AI_PROVIDER_REGISTRY_VERSION, providerId: CODEX_PROVIDER_ID,
+          adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION, configVersion: 'shadow-memory-test', model: 'test-model',
+        },
+        async generate(request) {
+          requests.push(request);
+          return generatePreviewFixtureAiDraft(request);
+        },
+      };
+      const config = await registerAiProviderConfiguration(t.env, admin, {
+        adapterId: adapter.providerId, adapterVersion: adapter.adapterVersion,
+        configHash: await canonicalAiProviderConfigHash(adapter.config), approvalRefs: ['synthetic-shadow-approval'],
+      });
+      await activateAiProviderConfiguration(t.env, admin, config.id);
+      t.env.AI_PROVIDER_ADAPTER = adapter;
+      if (mode !== 'actual') {
+        t.env.PREVIEW_MODE = 'true';
+        t.env.PREVIEW_ACCESS_CODE = 'synthetic-shadow-preview';
+      }
+      if (mode === 'preview-fixture') delete t.env.AI_PROVIDER_ADAPTER;
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(memo));
+      const sha256 = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+      const snapshot = await recordMaskedSourceSnapshot(t.env, service, session.id, {
+        maskedText: memo, sha256, maskingPipelineVersion: 'local-ner-v1',
+        evidence: [{
+          id: crypto.randomUUID(), sourceRef: 'memo:shadow-current', sourceSha256: sha256,
+          evidenceQuote: memo, sourceStart: 0, sourceEnd: Array.from(memo).length,
+        }],
+      });
+      for (const [attempt, actor] of [service, counselor].entries()) {
+        const response = await worker.fetch(new Request(`http://localhost/sessions/${session.id}/ai/generate`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json', 'X-CCC-User-Id': actor.userId,
+            'X-CCC-Org-Id': actor.orgId, 'X-CCC-Role': actor.role,
+          },
+          body: JSON.stringify({ sourceSnapshotId: snapshot.id }),
+        }), t.env);
+        // Both preview branches persist fixture_generated, whose existing schema permits
+        // only version 1. Regeneration still exercises input isolation before that rejection.
+        const fixtureRegeneration = mode !== 'actual' && attempt === 1;
+        expect(response.status, await response.clone().text()).toBe(fixtureRegeneration ? 500 : 201);
+      }
+      expect(requests).toHaveLength(mode === 'preview-fixture' ? 0 : 2);
+      for (const request of requests) {
+        expect(request).not.toHaveProperty('historicalContext');
+        expect(request.materials.map(material => material.maskedText)).toEqual([memo]);
+      }
+      const drafts = await t.db.prepare(`SELECT draft.version FROM ai_draft_versions AS draft
+        JOIN ai_work_items AS work ON work.id=draft.work_item_id
+        WHERE work.session_id=? ORDER BY draft.version`)
+        .bind(session.id).all<{ version: number }>();
+      expect(drafts.results.map(draft => draft.version)).toEqual(mode === 'actual' ? [1, 2] : [1]);
+      const usage = await t.db.prepare(`SELECT context.draft_id FROM counseling_memory_draft_context AS context
+        JOIN ai_draft_versions AS draft ON draft.id=context.draft_id
+        JOIN ai_work_items AS work ON work.id=draft.work_item_id WHERE work.session_id=?`)
+        .bind(session.id).all();
+      expect(usage.results).toEqual([]);
+      const memoryAfter = await getCounselingMemory(t.env, counselor, f.id);
+      expect(memoryAfter.items).toEqual(memoryBefore.items);
+      expect(memoryAfter.summary).toEqual(memoryBefore.summary);
+    },
+  );
   it('keeps Agent source work separate and publishes memory only after attested masking', async () => {
     const f = await fixture(false);
     // This valid UUID contains a numeric run resembling an account number.

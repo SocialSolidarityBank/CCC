@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  AI_DRAFT_PROMPT_VERSION,
-  AI_DRAFT_SCHEMA_VERSION,
   AiProviderProhibitedOutputError,
   validateAiProviderOutput,
   validateAiProviderRequest,
@@ -107,11 +105,6 @@ function validOutput() {
 }
 
 describe('호출 ① v4 요약 구획과 리스크 플래그 제안 (D70, D72)', () => {
-  it('프롬프트와 스키마 버전이 v4 로 올라간다', () => {
-    expect(AI_DRAFT_PROMPT_VERSION).toBe('phase1.grounded.v4');
-    expect(AI_DRAFT_SCHEMA_VERSION).toBe('phase1.grounded-draft.v4');
-  });
-
   it('구획 라벨과 전사 인용 플래그 제안을 검증한다', () => {
     const { request, output } = validOutput();
     const validated = validateAiProviderOutput(output, request);

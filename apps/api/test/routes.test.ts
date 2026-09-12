@@ -1,4 +1,3 @@
-import type { Bindable, PreparedStatement } from '@ccc/contracts/database';
 import { describe, expect, it, vi } from 'vitest';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import worker from './support/local-worker';
@@ -1157,35 +1156,12 @@ describe('API routes', () => {
     await expectNoDraft(mismatched.env, mismatched.session.id);
   });
 
-  it('stops provider egress when admission changes during historical context loading', async () => {
+  it('blocks provider egress when program admission becomes stale after the source was recorded', async () => {
     const fixture = await setupPhase1AiFixture();
     const source = await recordSourceSnapshot(fixture.env, fixture.session.id);
-    let changed = false;
-    const wrap = (statement: PreparedStatement): PreparedStatement => new Proxy(statement, {
-      get(target, property) {
-        if (property === 'bind') return (...values: Bindable[]) => wrap(target.bind(...values));
-        if (property === 'first') return async () => {
-          if (!changed) {
-            changed = true;
-            await t.db.prepare('UPDATE program_admission_policies SET version = version + 1 WHERE org_id = ?')
-              .bind(fixture.counselor.orgId).run();
-          }
-          return target.first();
-        };
-        const value = Reflect.get(target, property);
-        return typeof value === 'function' ? value.bind(target) : value;
-      },
-    });
-    const env: ApiEnv = { ...fixture.env, DB: {
-      prepare: (sql) => {
-        const statement = fixture.env.DB.prepare(sql);
-        return sql.startsWith('SELECT 1 AS eligible FROM counseling_memory_cases c')
-          ? wrap(statement) : statement;
-      },
-      batch: fixture.env.DB.batch.bind(fixture.env.DB),
-    } };
-    const response = await generateDraft(env, fixture.session.id, source.sourceSnapshotId);
-    expect(changed, `historical context injection; status=${response.status}`).toBe(true);
+    await t.db.prepare('UPDATE program_admission_policies SET version = version + 1 WHERE org_id = ?')
+      .bind(fixture.counselor.orgId).run();
+    const response = await generateDraft(fixture.env, fixture.session.id, source.sourceSnapshotId);
     expect(fixture.adapter.calls).toBe(0);
     expect(response.status).toBe(409);
     await expectNoDraft(fixture.env, fixture.session.id);
