@@ -1,4 +1,6 @@
-import { WireCallout, WireCardSection, WireChoice, WireDataRow, WireDataRows, WireEmpty } from '@ccc/wire';
+import {
+  WireButton, WireCallout, WireCardSection, WireChoice, WireDataRow, WireDataRows, WireEmpty,
+} from '@ccc/wire';
 import type { ConsentDisclosureSnapshot, ConsentDomain } from '@ccc/contracts/consent';
 import { CONSENT_DOMAIN_LABELS, consentEventFrom } from './consent';
 
@@ -31,10 +33,21 @@ export function ConsentDecisionList({ disclosures, decisions, disabled, onChange
   if (disclosures.length === 0) {
     return <WireEmpty live reserve>동의 문안을 불러오고 있습니다.</WireEmpty>;
   }
+  const allGranted = disclosures.every((entry) => decisions[entry.domain] === 'grant');
+  const grantAll = () => onChange({
+    ...decisions,
+    ...Object.fromEntries(disclosures.map((entry) => [entry.domain, 'grant' as const])),
+  });
   return <>
     <WireCallout tone="info" title="여섯 영역을 각각 고릅니다">
       아래 문안은 서버가 발행한 그대로입니다. 고른 결과는 문안 버전과 확인값까지 함께 기록됩니다.
+      모두 동의한 뒤에도 영역마다 다시 고를 수 있습니다.
     </WireCallout>
+    <div className="business-actions">
+      <WireButton type="button" variant="neutral" disabled={disabled || allGranted} onClick={grantAll}>
+        모두 동의
+      </WireButton>
+    </div>
     {disclosures.map((entry) => <WireCardSection key={entry.domain} title={CONSENT_DOMAIN_LABELS[entry.domain]}>
       <p className="wire-section-value">{entry.fullKoreanCopy}</p>
       <WireDataRows>
