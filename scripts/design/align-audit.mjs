@@ -29,7 +29,7 @@ import { dirname, join, relative } from 'node:path';
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TARGETS = [
   join(repoRoot, 'apps/web/app/layout.tsx'),
-  join(repoRoot, 'apps/web/app/components/wire/wire-styles.ts'),
+  join(repoRoot, 'packages/wire/src/wire-styles.ts'),
 ];
 
 // 검사에서 면제하는 선택자. 넣는 것은 결정이다 — 사유 없이 넣지 않는다.
