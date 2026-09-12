@@ -7832,7 +7832,6 @@ export async function installConsentProviderRegistry(
   await database.batch(statements);
   return { orgId: input.orgId, approvedAt, snapshotIds, replayed: false };
 }
-
 async function issueConsentDisclosures(
   env: Env,
   actor: Actor,

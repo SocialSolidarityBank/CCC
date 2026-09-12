@@ -13,5 +13,8 @@
     "test/**/*.ts",
     "../../packages/*/src/**/*.ts",
     "../../adapters/*/src/**/*.ts"
+  ],
+  "exclude": [
+    "../../packages/wire/**"
   ]
 }

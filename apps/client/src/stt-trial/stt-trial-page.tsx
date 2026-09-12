@@ -12,7 +12,7 @@ import {
   WireDataRows,
   WireEmpty,
   WireError,
-} from '@ccc/web/wire';
+} from '@ccc/wire';
 import { deleteTrial, fetchStatus, fetchTranscript, fetchTrial, submitTrial, SttApiError } from './api';
 import type { EngineId, StatusResponse, TranscriptResponse, TrialResponse } from './contract';
 import {

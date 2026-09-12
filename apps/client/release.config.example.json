@@ -1,0 +1,9 @@
+{
+  "_note": "배포 설정 예시. 실제 값은 레포 밖 파일로 두고 이 파일을 복사해 채운다. 비밀값은 넣지 않는다.",
+  "_manifestPath": "배포 담당이 서명한 install manifest 파일 경로. 이 명령은 서명하지 않고 검증만 한다.",
+  "manifestPath": "../../../ccc-release/ccc-install-manifest.json",
+  "_publicKeys": "signingKeyId -> Ed25519 공개 키(base64 32바이트). 공개 키라 비밀이 아니지만 레포에 두지 않는다.",
+  "publicKeys": {
+    "<signingKeyId>": "<base64-ed25519-public-key>"
+  }
+}

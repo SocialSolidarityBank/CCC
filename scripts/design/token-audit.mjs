@@ -20,15 +20,19 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TOKENS = join(repoRoot, 'design/tokens.css');
 const TARGETS = [
   join(repoRoot, 'apps/web/app/layout.tsx'),
-  join(repoRoot, 'apps/web/app/components/wire/wire-styles.ts'),
+  join(repoRoot, 'packages/wire/src/wire-styles.ts'),
+  // 업무 클라이언트 전용 CSS. 파일 전체가 CSS 라 아래 수집이 리터럴 대신 본문을 읽는다.
+  join(repoRoot, 'apps/client/src/business/business.css'),
 ];
 
 // 이 감사에서 허용하는 계단. tokens.css 와 어긋나면 아래 assertScale 이 먼저 잡는다.
 const TEXT_STEPS = ['--text-2xl', '--text-xl', '--text-lg', '--text-md', '--text-sm'];
 const SCOPED_TEXT_TOKENS = new Map([
   // 입력칸 도움말은 2026-09-04 Q 로 13 이 됐다(DESIGN-RULES §5 하한 예외 셋째 자리).
-  ['--text-detail', ['.record-rail-subgoal', '.record-open-action-meta', '.wire-form-hint']],
-  ['--text-badge', ['.wire-badge', '.consent-detail[data-inline="true"]>.consent-detail-summary', '.record-writing-help']],
+  // D88 ①: 월간 격자의 +N건 오버플로 링크는 셀 안 12px 콘텐츠에 인접해 13px를 쓴다(2026-09-10).
+  ['--text-detail', ['.record-rail-subgoal', '.record-open-action-meta', '.wire-form-hint', '.month-overflow-link']],
+  // D88 ⑥: 월간 격자 셀의 날짜 숫자와 일정 이름 12px 예외(2026-09-10).
+  ['--text-badge', ['.wire-badge', '.consent-detail[data-inline="true"]>.consent-detail-summary', '.record-writing-help', '.month-date', '.calendar-event-title']],
 ]);
 // 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림(400·600).
 // 2026-08-04 Q: 사이드바 기본 굵기로 500 신설 — 강조(활성·선택·기관명)만 600, 본문 400 유지.
@@ -177,6 +181,10 @@ const UNUSED_BUT_CONTRACTED = new Set([
   'motion-flow',
   'motion-press',
   'motion-rise',
+  // D88 ② 월간 격자 이벤트 색 5종(2026-09-10). WireMonthCalendarEventColor 계약의 일부.
+  // 마크업은 `calendar-event--${event.color}` 템플릿으로 동적 생성되어 정적 스캔에 잡히지 않는다.
+  // mint·lavender·coral 은 테스트 렌더가 감지하지만 cyan·light-magenta 는 테스트 미사용.
+  'calendar-event--cyan', 'calendar-event--light-magenta',
 ]);
 
 // 마크업 스캔 대상: 공용 wire 클래스를 쓰는 화면 전부다. apps/client 는 공개 엔트리로 같은
@@ -198,9 +206,10 @@ walkMarkup(join(repoRoot, 'apps/client/src'));
 const declaredClasses = new Map();
 for (const file of TARGETS) {
   const raw = readFileSync(file, 'utf8');
-  // CSS 는 템플릿 리터럴(역따옴표 문자열) 안에만 있다 — 바깥 JS 에서 경로의 .css·.ts 가 잡힌다.
-  for (const lit of raw.matchAll(/`([\s\S]*?)`/g)) {
-    const css = lit[1].replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/url\("[^"]*"\)/g, ' ');
+  // CSS 는 템플릿 리터럴(역따옴표 문자열) 안에 있거나, .css 파일이면 본문 전체다.
+  const sources = file.endsWith('.css') ? [raw] : [...raw.matchAll(/`([\s\S]*?)`/g)].map((lit) => lit[1]);
+  for (const source of sources) {
+    const css = source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/url\("[^"]*"\)/g, ' ');
     if (!/\{[^}]*:/.test(css)) continue; // 규칙이 없으면 CSS 리터럴이 아니다
     for (const m of css.matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)(?=[\s,{:[>.]|$)/gm)) {
       const name = m[1];
@@ -261,6 +270,8 @@ const MARKUP_HOOKS = new Set([
   'briefing-more',          // HERO '전체 상담 기록' 버튼 식별 훅(테스트 앵커 — 구 CSS 는 2026-08-06 폐지)
   'schedule-day-accordion', // 지난 날짜(.schedule-past-day)와 가르는 상태 훅 — 옷은 WireCardDetails 기본
   'schedule-day-heading',   // 날짜 제목 조각 — 옷은 .schedule-day-summary-title 상속, 테스트 앵커
+  'month-grid',     // D88 월간 격자 <tbody> 식별 훅 — 옷은 네이티브 <tbody> 기본, 테스트 앵커
+  'month-week-row', // D88 월간 격자 <tr> 식별 훅 — 옷은 네이티브 <tr> 기본, 테스트 앵커
 ]);
 
 const usedClasses = new Map(); // name -> { file, line } 첫 등장
