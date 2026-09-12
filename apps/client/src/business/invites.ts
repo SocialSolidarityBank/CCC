@@ -11,12 +11,16 @@ import type { BusinessTransport, PublicTransport } from './transport';
 
 /** 서버가 저장하는 역할 이름. 화면 역할 이름과 철자가 다르다. */
 export type InviteStoredRole = 'institution_admin' | 'institution_technical_admin' | 'supervisor' | 'practitioner';
-export const INVITE_ROLE_BY_HUMAN: Record<HumanRole, InviteStoredRole> = {
+/**
+ * 초대로 줄 수 있는 역할(2026-09-12 Q 결정). 기관 관리자와 실무자 둘만 고른다.
+ *
+ * 기술 관리자는 가입 뒤 `계정 관리`에서 준다. 실무 책임자는 애초에 초대로 줄 수 없다 -
+ * 팀 감독 지정(`team_supervisor_grants`)에서 생기는 관계라 서버의 초대 역할 사전에 없다.
+ */
+export const INVITE_ROLE_BY_HUMAN = {
   'institution-admin': 'institution_admin',
-  'technical-admin': 'institution_technical_admin',
-  supervisor: 'supervisor',
   worker: 'practitioner',
-};
+} as const satisfies Partial<Record<HumanRole, InviteStoredRole>>;
 export const INVITE_ROLE_LABELS: Record<InviteStoredRole, string> = {
   institution_admin: '기관 관리자',
   institution_technical_admin: '기관 기술 관리자',

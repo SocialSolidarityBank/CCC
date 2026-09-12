@@ -4062,7 +4062,7 @@ export async function handleRequest(
 
 function requestDirectoryRoles(body: Record<string, unknown>, key: string): DirectoryRole[] {
   const values = body[key];
-  if (!Array.isArray(values) || values.length > 3) throw new ValidationError('account roles are invalid');
+  if (!Array.isArray(values)) throw new ValidationError('account roles are invalid');
   return values.map((role) => {
     if (role !== 'institution-admin' && role !== 'technical-admin' && role !== 'worker') {
       throw new ValidationError('account role is invalid');

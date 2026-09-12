@@ -183,6 +183,49 @@ describe('POST /staff-invites (기관 관리자 발급)', () => {
     expect(row?.n).toBe(0);
   });
 
+  it('역할 개수에 상한이 없다 — 줄 수 있는 역할 셋을 한 번에 주는 초대도 발급된다', async () => {
+    await t.reset();
+    const res = await worker.fetch(
+      postJson('/staff-invites', adminHeaders, {
+        email: 'every.role@example.invalid',
+        roles: ['institution_admin', 'institution_technical_admin', 'practitioner'],
+      }),
+      t.env,
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json() as { invite: { roles: string[] } };
+    expect([...body.invite.roles].sort()).toEqual(
+      ['institution_admin', 'institution_technical_admin', 'practitioner'],
+    );
+  });
+
+  it('실무 책임자는 초대로 줄 수 없다 — 팀 감독 지정에서만 생긴다', async () => {
+    await t.reset();
+    const res = await worker.fetch(
+      postJson('/staff-invites', adminHeaders, {
+        email: 'supervisor.invite@example.invalid', roles: ['supervisor'],
+      }),
+      t.env,
+    );
+    expect(res.status).toBe(400);
+    const row = await t.db.prepare('SELECT COUNT(*) AS n FROM staff_invites').first<{ n: number }>();
+    expect(row?.n).toBe(0);
+  });
+
+  it('같은 역할을 두 번 적으면 거절한다 — 상한을 없앤 뒤에도 중복은 막는다', async () => {
+    await t.reset();
+    const res = await worker.fetch(
+      postJson('/staff-invites', adminHeaders, {
+        email: 'duplicate.role@example.invalid',
+        roles: ['practitioner', 'practitioner'],
+      }),
+      t.env,
+    );
+    expect(res.status).toBe(400);
+    const row = await t.db.prepare('SELECT COUNT(*) AS n FROM staff_invites').first<{ n: number }>();
+    expect(row?.n).toBe(0);
+  });
+
   it('실무자는 발급할 수 없다(403)', async () => {
     await t.reset();
     const res = await worker.fetch(

@@ -22327,7 +22327,8 @@ export async function createStaffInvite(
   if (!isInstitutionAdmin && !issuerRoles.includes('technical-admin')) {
     throw new ForbiddenError('staff invites require an administrator role');
   }
-  if (!Array.isArray(input.roles) || input.roles.length > 3) throw new ValidationError('invite roles are invalid');
+  // 개수는 세지 않는다. 허용된 역할인지와 중복 없는지만 본다(2026-09-12 Q 결정).
+  if (!Array.isArray(input.roles)) throw new ValidationError('invite roles are invalid');
   const roles = [...new Set(input.roles)].sort();
   if (roles.some((role) => !Object.hasOwn(DIRECTORY_ROLE_MAP, role)) || roles.length !== input.roles.length) {
     throw new ValidationError('invite roles are invalid');
@@ -23551,7 +23552,8 @@ async function readDirectoryAccount(env: Env, actor: Actor, userId: string): Pro
   return account;
 }
 function normalizedDirectRoles(input: readonly DirectoryRole[]): DirectoryStoredRole[] {
-  if (!Array.isArray(input) || input.length > 3) throw new ValidationError('account roles are invalid');
+  // 개수 상한 없음. 아래 반복이 허용 역할과 중복을 가른다(2026-09-12 Q 결정).
+  if (!Array.isArray(input)) throw new ValidationError('account roles are invalid');
   const result: DirectoryStoredRole[] = [];
   for (const role of input) {
     if (!Object.hasOwn(DIRECTORY_STORED_ROLE_BY_PUBLIC, role)) throw new ValidationError('account role is invalid');

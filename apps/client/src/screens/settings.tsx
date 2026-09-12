@@ -5,7 +5,7 @@ import {
   WireChoice, WireEmpty, WireError, WireFormField, WireItem, ParticipantName,
 } from '@ccc/wire';
 import {
-  ROLE_LABELS, type AssignmentCasePage, type AuditLogItem, type DirectoryAccountsPage, type HumanRole,
+  ASSIGNABLE_ROLES, ROLE_LABELS, type AssignmentCasePage, type AuditLogItem, type DirectoryAccountsPage, type HumanRole,
   type RetentionPolicy, type RetentionReview, type RetentionReasonKind, type SupportCaseAssignee,
 } from '../business/api';
 import { type BusinessError, safeError } from '../business/errors';
@@ -234,7 +234,8 @@ function AccountsModule({ session }: { session: Session }) {
           <WireDataRow label="감독 팀" value={account.supervisedTeamIds.length === 0 ? '없음' : account.supervisedTeamIds.join(', ')} />
         </WireDataRows>
         {page?.permissions.canManageRoles === true && account.active && <>
-          {(Object.keys(ROLE_LABELS) as HumanRole[]).map((role) => (
+          {/* 실무 책임자는 팀 감독 지정에서 생기는 관계라 서버가 역할로 받지 않는다. */}
+          {ASSIGNABLE_ROLES.map((role) => (
             <WireChoice key={role} type="checkbox" label={ROLE_LABELS[role]} checked={draft.includes(role)}
               disabled={busy}
               onChange={(checked) => setDrafts({
