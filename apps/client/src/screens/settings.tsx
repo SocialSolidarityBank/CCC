@@ -463,5 +463,15 @@ export function SettingsScreen() {
   if (destination?.id === 'assignments') return <AssignmentsModule session={session} />;
   if (destination?.id === 'retention-policy') return <RetentionPolicyModule session={session} />;
   if (destination?.id === 'retention') return <RetentionModule session={session} />;
-  return <AccountModule me={session.me} api={session.api} onFailure={onFailure} />;
+  return <>
+    <AccountModule me={session.me} api={session.api} onFailure={onFailure} />
+    <WireCard title="추가 인증">
+      <p className="wire-section-value">
+        인증 앱의 여섯 자리 번호를 로그인에 더합니다. 선택입니다. 한 번 등록하면 다음 로그인부터 번호를 묻습니다.
+      </p>
+      <div className="business-actions">
+        <WireButton variant="neutral" onClick={() => session.auth.recheck(true)}>인증 앱 설정</WireButton>
+      </div>
+    </WireCard>
+  </>;
 }

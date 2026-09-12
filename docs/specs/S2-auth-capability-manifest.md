@@ -67,9 +67,9 @@ adapter 내부 context의 인증 원천 literal은 `supabase-jwt | cloudflare-ac
 
 roles의 업무 의미는 lossless하게 유지한다. `institution-admin`은 기관 업무와 허용된 PII 업무를 수행하고, `technical-admin`은 설치·진단·업데이트만 수행하며 케이스·상담·PII business route에는 403이다. `supervisor`는 지정 팀의 읽기 전용 감독 범위, `worker`는 활성 담당 케이스 쓰기 범위를 가진다. `service`는 아래 Agent route만 가진다. 복수 role은 합집합으로 권한을 계산하며 `roles=[]`인 human은 business route에서 403이다.
 
-Community Cloud의 모든 human role(`institution-admin`, `technical-admin`, `supervisor`, `worker`)은 `Actor.authn.assurance='aal2'`인 세션만 허용한다. `aal1` 또는 다른 assurance는 human Actor를 만들지 않고 403 `mfa_required`다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.
+Community Cloud의 human role은 `Actor.authn.assurance`가 `aal1` 또는 `aal2`인 세션을 받는다(2026-09-12 Q 결정, D89). MFA는 선택이며 로그인이 인증 앱 등록을 강요하지 않는다. 인증 앱을 등록한 사람은 다음 로그인부터 여섯 자리 확인을 거치고 그 세션은 `aal2`로 기록된다. 실제 assurance는 그대로 Actor에 남아 감사에 쓰인다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.
 
-**2026-09-12 Q 확정.** 첫 로그인 신원 연결(`POST /identity/link`, D80)은 초대로 등재된 `users` 행의 `auth_subject`가 비어 있을 때만 검증된 `sub`를 채우며, 그 행을 찾는 키는 access token의 `email` claim(정규화 후 설치 기관·`active=1`·`role<>'service'` 범위)이다. 이 claim을 신뢰하는 근거는 token이 아니라 설치다 — Supabase access token에는 `email_verified` claim이 없고 `user_metadata`는 본인이 고치므로 어느 쪽도 읽지 않는다. 대신 설치가 Auth의 이메일 확인을 반드시 요구해야 하고(autoconfirm 해제), 이 조건은 `scripts/supabase` plan·doctor가 `AUTH_CONFIRMATION_DISABLED` 차단 사유로 강제한다. 이 route는 MFA 등록 전 `aal1` 세션도 받는 유일한 업무 경로이며, 연결된 뒤의 모든 업무 route는 그대로 `aal2`를 요구한다.
+**2026-09-12 Q 확정.** 첫 로그인 신원 연결(`POST /identity/link`, D80)은 초대로 등재된 `users` 행의 `auth_subject`가 비어 있을 때만 검증된 `sub`를 채우며, 그 행을 찾는 키는 access token의 `email` claim(정규화 후 설치 기관·`active=1`·`role<>'service'` 범위)이다. 이 claim을 신뢰하는 근거는 token이 아니라 설치다 - Supabase access token에는 `email_verified` claim이 없고 `user_metadata`는 본인이 고치므로 어느 쪽도 읽지 않는다. 대신 설치가 Auth의 이메일 확인을 반드시 요구해야 하고(autoconfirm 해제), 이 조건은 `scripts/supabase` plan·doctor가 `AUTH_CONFIRMATION_DISABLED` 차단 사유로 강제한다.
 
 Agent service Actor의 scope는 정확히 다음 여섯 개다.
 
@@ -308,7 +308,7 @@ E2-5c가 legacy token-path route를 이 계약으로 cutover한다. 초대 token
 |---|---|---|---|
 | client origin | signed exact HTTPS origin | registered `ccc://app` | 기관 CA HTTPS origin |
 | API origin | signed Supabase/Edge HTTPS | DPAPI endpoint record가 정한 loopback random port | 내부망 HTTPS |
-| human auth | Supabase JWT + all human roles require `aal2` | OS user + Argon2id app lock + stableUserId | Argon2id local account + privileged session MFA |
+| human auth | Supabase JWT, MFA 선택(`aal1` 또는 `aal2`) | OS user + Argon2id app lock + stableUserId | Argon2id local account + privileged session MFA |
 | Actor source | `auth_subject → users.id` | stableUserId | local users.id |
 | Agent source | SG5 service principal + agent_installations | paired local Agent + agent_installations | paired server Agent + agent_installations |
 | revocation | Supabase session + `auth_revocations` | in-memory/token hash + install revoke | session rows + account revoke |

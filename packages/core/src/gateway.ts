@@ -9619,7 +9619,7 @@ export async function authorizeStorageSignerOperation(
       canonicalActor.kind !== 'human'
       || canonicalActor.orgId === null
       || canonicalActor.authn.source !== 'supabase-jwt'
-      || canonicalActor.authn.assurance !== 'aal2'
+      || (canonicalActor.authn.assurance !== 'aal1' && canonicalActor.authn.assurance !== 'aal2')
       || canonicalActor.authn.sessionId === null
       || !canonicalActor.roles.includes('worker')
       || (parsed.action !== 'upload' && parsed.action !== 'head')
@@ -12454,7 +12454,8 @@ export async function resolveDirectoryActorByAuthSubject(
   authn: IdentityActor['authn'],
   credentialIssuedAt: string,
 ): Promise<IdentityActor | null> {
-  if (authn.source !== 'supabase-jwt' || authn.assurance !== 'aal2' || authn.sessionId === null) return null;
+  const assured = authn.assurance === 'aal1' || authn.assurance === 'aal2';
+  if (authn.source !== 'supabase-jwt' || !assured || authn.sessionId === null) return null;
   const actor = await resolveDirectoryActorByKey(env, 'auth_subject', subject, authn, credentialIssuedAt);
   return actor?.kind === 'human' ? actor : null;
 }

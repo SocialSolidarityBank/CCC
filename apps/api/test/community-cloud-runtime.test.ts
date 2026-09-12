@@ -128,7 +128,8 @@ describe('independent Community Cloud runtime', () => {
     };
     const handler = await createCommunityCloudRuntime(configuration);
     const request = (value: string) => new Request(`${apiOrigin}/api/me`, { headers: { authorization: `Bearer ${value}` } });
-    await expectFailure(await handler(request(await token(`${authOrigin}/auth/v1`))), 403, 'mfa_required');
+    // 신뢰하는 발급자의 토큰은 서명 검사를 지나 디렉터리까지 간다. 이 런타임에는 디렉터리가 없어 503 이다.
+    await expectFailure(await handler(request(await token(`${authOrigin}/auth/v1`))), 503, 'service_unavailable');
     await expectFailure(await handler(request(await token(`${apiOrigin}/auth/v1`))), 401, 'actor_authentication_required');
   });
 
