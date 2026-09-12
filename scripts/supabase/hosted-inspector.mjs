@@ -556,6 +556,9 @@ function safeAuth(auth) {
   return {
     emailEnabled: auth.external_email_enabled === true,
     openSignupDisabled: auth.disable_signup === true,
+    // D80 첫 로그인 신원 연결은 확인된 메일함만 신뢰한다. autoconfirm 이면 아무나 남의
+    // 주소로 세션을 얻어 연결을 위조할 수 있다(2026-09-12, S2 §2.2).
+    emailConfirmationRequired: auth.mailer_autoconfirm === false,
     totpEnabled: auth.mfa_totp_enroll_enabled === true && auth.mfa_totp_verify_enabled === true,
     refreshTokenRotationEnabled: auth.refresh_token_rotation_enabled === true,
   };

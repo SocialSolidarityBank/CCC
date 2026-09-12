@@ -68,12 +68,11 @@ export function createSupabaseIdentity(env: GatewayEnv, config: SupabaseIdentity
       }
       return actor;
     },
-    // 첫 로그인 연결은 MFA 등록 전(aal1)에 일어나므로 MFA 관문을 지나지 않는다. 확인되지 않은
-    // 이메일을 주장하는 자격은 연결 자격이 아니라서 인증 실패와 같게 답한다.
+    // 첫 로그인 연결은 MFA 등록 전(aal1)에 일어나므로 MFA 관문을 지나지 않는다. 이메일 통제는
+    // 토큰이 아니라 설치가 증명한다 — Auth 가 이메일 확인을 요구해야 하고 doctor 가 이를 막는다.
     async verifyLinkClaims(request) {
       const claims = await verify(bearerToken(request));
-      if (!claims.emailVerified) throw new ActorAuthenticationError('a verified email is required');
-      return { subject: claims.sub, email: claims.email, emailVerified: true, issuedAt: claims.issuedAt };
+      return { subject: claims.sub, email: claims.email, issuedAt: claims.issuedAt };
     },
     revokeAll(userId, reason) {
       return directoryOperation(() => revokeActorSessions(env, userId, reason));

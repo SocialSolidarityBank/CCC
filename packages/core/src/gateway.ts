@@ -12459,11 +12459,14 @@ export async function resolveDirectoryActorByAuthSubject(
   return actor?.kind === 'human' ? actor : null;
 }
 
-/** 검증된 credential 이 주장하는 값 전부. 요청 body 에서 오는 값은 하나도 없다. */
+/**
+ * 검증된 credential 이 주장하는 값 전부. 요청 body 에서 오는 값은 하나도 없다.
+ * 이메일 통제는 토큰이 아니라 설치가 보장한다 — Auth 가 이메일 확인을 요구해야 하고,
+ * 그 조건은 doctor 가 차단 사유로 지킨다(2026-09-12 Q 확정, S2 §2.2).
+ */
 export interface AuthenticatedIdentityClaims {
   subject: string;
   email: string;
-  emailVerified: boolean;
   issuedAt: string;
 }
 
@@ -12494,10 +12497,9 @@ export async function linkAuthenticatedIdentity(
   env: Env,
   claims: AuthenticatedIdentityClaims,
 ): Promise<{ linked: true }> {
-  assertExactKeys(claims, ['subject', 'email', 'emailVerified', 'issuedAt']);
+  assertExactKeys(claims, ['subject', 'email', 'issuedAt']);
   assertOpaqueIdentifier(claims.subject, 'auth subject');
   assertNonBlankText(claims.issuedAt, 'credential issue time');
-  if (claims.emailVerified !== true) throw new ForbiddenError('identity email is not verified');
   const email = normalizedStaffEmail(claims.email);
   const orgId = installationOrgId(env);
   const candidate = await linkableUserRow(env, orgId, email);

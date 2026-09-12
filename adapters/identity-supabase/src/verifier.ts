@@ -9,8 +9,11 @@ type Algorithm = 'ES256' | 'RS256';
 interface CachedKey { key: CryptoKey; alg: Algorithm; expiresAt: number }
 interface VerifiedClaims {
   sub: string; sessionId: string; issuedAt: string; aal: unknown;
-  /** Directory-facing claims. `email_verified` is absent unless the installation adds it, so absence is "not verified". */
-  email: string; emailVerified: boolean;
+  /**
+   * 디렉터리 대조용 이메일 claim. 이 주소를 통제하는 사람인지는 토큰이 증명하지 않고
+   * 설치가 증명한다 — Auth 가 이메일 확인을 요구하도록 doctor 가 강제한다(2026-09-12).
+   */
+  email: string;
 }
 
 function invalid(): never {
@@ -193,14 +196,13 @@ export function createVerifier(config: SupabaseIdentityConfig): (token: string) 
         || claims.is_anonymous !== false || !identifier(claims.sub) || !identifier(claims.session_id)
         || (claims.aal !== 'aal1' && claims.aal !== 'aal2')
         || !emailClaim(claims.email)
-        || (claims.email_verified !== undefined && typeof claims.email_verified !== 'boolean')
         || typeof iat !== 'number' || !Number.isSafeInteger(iat) || iat < 0
         || typeof exp !== 'number' || !Number.isSafeInteger(exp) || exp <= iat || exp - iat > 3600
         || iat > timestamp + 60 || exp <= timestamp - 60
         || (nbf !== undefined && (typeof nbf !== 'number' || !Number.isSafeInteger(nbf) || nbf > timestamp + 60 || nbf >= exp))) invalid();
       return {
         sub: claims.sub, sessionId: claims.session_id, issuedAt: new Date(iat * 1000).toISOString(),
-        aal: claims.aal, email: claims.email, emailVerified: claims.email_verified === true,
+        aal: claims.aal, email: claims.email,
       };
     } catch (error) {
       if (error instanceof IdentityStoreUnavailableError) throw error;

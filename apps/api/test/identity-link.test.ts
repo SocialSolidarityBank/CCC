@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { handleRequest } from '@ccc/http-api';
-import { ForbiddenError, linkAuthenticatedIdentity } from '@ccc/core/gateway';
+import { ForbiddenError, linkAuthenticatedIdentity, ValidationError } from '@ccc/core/gateway';
 import { IdentityStoreUnavailableError } from '@ccc/contracts/runtime';
 import { createSupabaseIdentity, type SupabaseIdentity } from '../../../adapters/identity-supabase/src/index';
 import { setupD1, testActors, type TestApiEnv } from './support/d1';
@@ -8,6 +8,8 @@ import { setupD1, testActors, type TestApiEnv } from './support/d1';
 /**
  * D80 첫 로그인 신원 연결. 초대로 등재됐지만 auth_subject 가 빈 행에만 검증된 subject 를
  * 붙인다. 자격은 Supabase access token 하나이고 요청 body 에는 이메일·subject·org 가 없다.
+ * 이메일 claim 을 대조 키로 쓰는 근거는 설치가 이메일 확인을 요구한다는 사실이며(S2 §2.2,
+ * 2026-09-12), 그 조건은 설치 doctor 가 AUTH_CONFIRMATION_DISABLED 로 막는다.
  */
 const t = setupD1();
 const issuer = 'https://abcdefghijklmnopqrst.supabase.co/auth/v1';
@@ -32,7 +34,7 @@ function encoded(value: unknown): string {
 async function token(claims: Record<string, unknown> = {}): Promise<string> {
   const input = `${encoded({ alg: 'ES256', kid: ec.jwk.kid, typ: 'JWT' })}.${encoded({
     iss: issuer, aud: 'authenticated', sub: subject, session_id: 'session-one', role: 'authenticated',
-    is_anonymous: false, aal: 'aal1', email: invitedEmail, email_verified: true,
+    is_anonymous: false, aal: 'aal1', email: invitedEmail,
     iat: epoch, exp: epoch + 3600, ...claims,
   })}`;
   const signature = await crypto.subtle.sign(
@@ -141,17 +143,28 @@ describe('POST /identity/link', () => {
     expect(await auditRows()).toEqual([]);
   });
 
+  // 이메일 claim 이 없거나 이메일 모양이 아니면 대조 키가 없다. 검증 실패와 같은 401 이다.
   it.each([
-    { email_verified: false },
-    { email_verified: 'true' },
     { email: undefined },
     { email: '' },
-  ])('rejects a credential that does not assert a verified email: %j', async (claims) => {
+    { email: 'with space@example.invalid' },
+    { email: `${'a'.repeat(310)}@example.invalid` },
+  ])('rejects a credential without a usable email claim: %j', async (claims) => {
     const f = fixture(await provision());
     const response = await link(f.env, linkRequest(await token(claims)));
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: 'actor_authentication_required' });
     expect(await linkedSubject()).toBeNull();
+  });
+
+  // 확인 여부를 주장하는 claim 은 읽지 않는다. 이메일 통제는 설치가 보장한다(doctor 차단).
+  it('ignores any self-asserted email_verified claim in either direction', async () => {
+    for (const claims of [{ email_verified: false }, { user_metadata: { email_verified: false } }]) {
+      const f = fixture(await provision());
+      const response = await link(f.env, linkRequest(await token(claims)));
+      expect(response.status).toBe(200);
+      expect(await linkedSubject()).toBe(subject);
+    }
   });
 
   it('never links a service-role row and never links an inactive row', async () => {
@@ -213,12 +226,13 @@ describe('POST /identity/link', () => {
 
   it('fails closed in the gateway when the installation organization or the claim set is wrong', async () => {
     const env = await provision();
-    const claims = { subject, email: invitedEmail, emailVerified: true, issuedAt: new Date(epoch * 1000).toISOString() };
+    const claims = { subject, email: invitedEmail, issuedAt: new Date(epoch * 1000).toISOString() };
     const { installationOrgId: _unconfigured, ...withoutOrg } = env;
     await expect(linkAuthenticatedIdentity(withoutOrg, claims))
       .rejects.toBeInstanceOf(IdentityStoreUnavailableError);
-    await expect(linkAuthenticatedIdentity(env, { ...claims, emailVerified: false }))
-      .rejects.toBeInstanceOf(ForbiddenError);
+    // 계약 밖의 값을 실어 보내는 호출은 연결이 아니라 잘못된 입력이다.
+    await expect(linkAuthenticatedIdentity(env, { ...claims, orgId: 'org_other' } as typeof claims))
+      .rejects.toBeInstanceOf(ValidationError);
     // 다른 기관의 설치는 이 행을 보지 못한다.
     await expect(linkAuthenticatedIdentity({ ...env, installationOrgId: testActors.otherOrgAdmin.orgId }, claims))
       .rejects.toBeInstanceOf(ForbiddenError);

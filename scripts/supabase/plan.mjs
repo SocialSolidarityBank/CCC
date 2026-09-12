@@ -54,6 +54,7 @@ const safeFailures = Object.freeze({
   OPERATION_UNSUPPORTED: '지원하지 않는 설치 동작 또는 인자입니다.',
   TARGET_UNSUPPORTED: 'target은 local 또는 hosted여야 합니다.',
   OWNER_EVIDENCE_MISSING: '서명된 기관 소유 승인과 프로젝트 연결 증거가 없습니다.',
+  AUTH_CONFIRMATION_DISABLED: 'Auth 가 이메일 확인을 요구하지 않습니다. 첫 로그인 신원 연결은 확인된 이메일만 신뢰합니다.',
   MANIFEST_VERIFIER_UNAVAILABLE: 'Community Cloud manifest 검증 모듈을 먼저 빌드해야 합니다.',
   MIGRATION_CHECKSUM_MISMATCH: '마이그레이션 파일과 정본의 파일별 체크섬이 일치하지 않습니다.',
   CA_TRUST_UNAVAILABLE: '애플리케이션 전용 CA 파일과 프로세스 신뢰 설정을 확인하지 못했습니다.',
@@ -110,6 +111,10 @@ const blockerDetails = Object.freeze({
   OWNER_EVIDENCE_MISSING: {
     message: '현재 기관에 대해 유효한 설치 승인과 서명 결합을 확인하지 못했습니다.',
     recovery: '외부에서 구성한 기관별 trust와 두 서명 문서의 만료 및 폐기 상태를 확인합니다.',
+  },
+  AUTH_CONFIRMATION_DISABLED: {
+    message: 'Auth 가 이메일 확인을 요구하지 않아 첫 로그인 신원 연결을 신뢰할 수 없습니다.',
+    recovery: 'Supabase Auth 에서 이메일 확인(mailer autoconfirm 해제)을 켠 뒤 다시 실행합니다. 공개 가입을 열어둔 설치라면 함께 검토합니다.',
   },
   PROVIDER_BASELINE_MISMATCH: {
     message: '공급자 기준선과 현재 프로젝트 구성이 다릅니다.',
@@ -671,6 +676,11 @@ export async function buildSupabasePlan({
   if (target === 'hosted') {
     if (![before, after].every(value => isSeoulRegion(value.project.region))) deny('REGION_MISMATCH');
     if (![before, after].every(value => value.project.ownerOrgIdHash === authorization.expectedOwnerOrgIdHash)) deny('OWNER_MISMATCH');
+    // D80 첫 로그인 신원 연결은 이메일 claim 을 디렉터리 대조 키로 쓴다. 확인을 요구하지
+    // 않는 설치에서는 그 claim 이 통제 증거가 못 되므로 설치 자체를 막는다(S2 §2.2).
+    if (![before, after].every(value => value.auth?.emailConfirmationRequired === true)) {
+      deny('AUTH_CONFIRMATION_DISABLED');
+    }
   }
   if (providerMatched === false) deny('PROVIDER_BASELINE_MISMATCH');
   const stateFingerprint = await installationStateFingerprint(before, providerBaseline);
@@ -815,6 +825,10 @@ export async function buildSupabaseDoctor(options) {
   if (!(snapshot.connection.readOnly && snapshot.connection.databaseReadable
     && snapshot.connection.authReadable && snapshot.connection.storageReadable)) {
     addIssue('CONNECTION_NOT_READ_ONLY');
+  }
+  // plan 이후 Auth 설정이 되돌아갔을 수 있으므로 새 관찰에서 다시 본다.
+  if (options.target === 'hosted' && snapshot.auth?.emailConfirmationRequired !== true) {
+    addIssue('AUTH_CONFIRMATION_DISABLED');
   }
   const providerComparison = options.target === 'hosted'
     ? await providerBaselineComparison(snapshot, options.providerBaseline)
