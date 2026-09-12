@@ -54,13 +54,13 @@ export function createSupabaseIdentity(env: GatewayEnv, config: SupabaseIdentity
   return {
     async resolve(request) {
       const claims = await verify(bearerToken(request));
-      if (claims.aal !== 'aal2') throw new MfaRequiredError('MFA is required');
+      // MFA 는 선택이다(D89). aal1 세션도 업무를 본다. 실제 보증 수준은 그대로 기록한다.
       const actor = await directoryOperation(() => {
         const directoryEnv = config.databaseForSession === undefined
           ? env
           : { ...env, DB: config.databaseForSession(claims.sub, claims.sessionId) };
         return resolveDirectoryActorByAuthSubject(directoryEnv, claims.sub, {
-          source: 'supabase-jwt', assurance: 'aal2', sessionId: claims.sessionId,
+          source: 'supabase-jwt', assurance: claims.aal, sessionId: claims.sessionId,
         }, claims.issuedAt);
       });
       if (actor === null || actor.kind !== 'human' || actor.orgId === null) {

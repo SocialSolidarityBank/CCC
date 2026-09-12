@@ -153,6 +153,11 @@ export class CloudAuth {
       if (factors.error) throw factors.error;
       if (!this.isCurrent(sdk, revision)) return;
       const totp = factors.data.totp.filter((factor) => factor.status === 'verified');
+      // 인증 앱이 없으면 등록을 강요하지 않는다(D89). 등록은 내 정보에서 스스로 켠다.
+      if (totp.length === 0 && !forceMfa) {
+        this.publish({ phase: 'ready', working: false, factors: [], enrollment: null, error: null });
+        return;
+      }
       if (totp.length === 0 && factors.data.all.some((factor) => factor.status === 'verified')) {
         throw new BusinessError('mfa_unsupported');
       }

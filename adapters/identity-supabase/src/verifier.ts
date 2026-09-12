@@ -8,7 +8,7 @@ const MAX_NEGATIVE_KEYS = 256;
 type Algorithm = 'ES256' | 'RS256';
 interface CachedKey { key: CryptoKey; alg: Algorithm; expiresAt: number }
 interface VerifiedClaims {
-  sub: string; sessionId: string; issuedAt: string; aal: unknown;
+  sub: string; sessionId: string; issuedAt: string; aal: 'aal1' | 'aal2';
   /**
    * 디렉터리 대조용 이메일 claim. 이 주소를 통제하는 사람인지는 토큰이 증명하지 않고
    * 설치가 증명한다 — Auth 가 이메일 확인을 요구하도록 doctor 가 강제한다(2026-09-12).
@@ -202,7 +202,7 @@ export function createVerifier(config: SupabaseIdentityConfig): (token: string) 
         || (nbf !== undefined && (typeof nbf !== 'number' || !Number.isSafeInteger(nbf) || nbf > timestamp + 60 || nbf >= exp))) invalid();
       return {
         sub: claims.sub, sessionId: claims.session_id, issuedAt: new Date(iat * 1000).toISOString(),
-        aal: claims.aal, email: claims.email,
+        aal: claims.aal as 'aal1' | 'aal2', email: claims.email,
       };
     } catch (error) {
       if (error instanceof IdentityStoreUnavailableError) throw error;

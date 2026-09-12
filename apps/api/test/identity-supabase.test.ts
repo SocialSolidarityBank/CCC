@@ -80,12 +80,12 @@ describe('Supabase identity trust boundary', () => {
     await expect(f.identity.resolve(request(await token()))).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it('verifies the signature before reporting MFA or touching an unavailable directory', async () => {
+  it('verifies the signature before touching an unavailable directory, and admits aal1 sessions', async () => {
     await provision();
     const broken: Env = { ...t.env, DB: { prepare() { throw new Error('private directory failure'); }, batch() { throw new Error('private directory failure'); } } };
     const f = fixture(broken);
     const aal1 = await token(ec, { aal: 'aal1' });
-    await expect(f.identity.resolve(request(aal1))).rejects.toBeInstanceOf(MfaRequiredError);
+    await expect(f.identity.resolve(request(aal1))).rejects.toBeInstanceOf(IdentityStoreUnavailableError);
     const forged = await token(rotated, { aal: 'aal1' }, { kid: ec.jwk.kid });
     await expect(f.identity.resolve(request(forged))).rejects.toBeInstanceOf(ActorAuthenticationError);
     await expect(f.identity.resolve(request(await token()))).rejects.toBeInstanceOf(IdentityStoreUnavailableError);

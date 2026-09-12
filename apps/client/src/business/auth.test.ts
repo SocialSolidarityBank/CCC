@@ -112,9 +112,18 @@ describe('official Supabase password and MFA lifecycle', () => {
     expect(JSON.stringify(auth.getSnapshot())).not.toContain('synthetic-refresh-token');
   });
 
+  it('signs in without an authenticator because MFA is optional', async () => {
+    const { auth } = await authServer({ enrolled: false });
+    await auth.signIn('synthetic@example.invalid', 'synthetic-password');
+    await waitForPhase(auth, 'ready');
+    expect(auth.getToken()).not.toBeNull();
+  });
+
   it('clears first-enrollment material when the user cancels', async () => {
     const { auth, requests } = await authServer({ enrolled: false });
     await auth.signIn('synthetic@example.invalid', 'synthetic-password');
+    await waitForPhase(auth, 'ready');
+    await auth.recheck(true);
     await waitForPhase(auth, 'mfa');
     await auth.enroll();
     expect(auth.getSnapshot().enrollment?.id).toBe('new-totp');
@@ -173,6 +182,8 @@ describe('first TOTP enrollment completion', () => {
   it('replaces enrollment material with the SDK-normalized authenticated session', async () => {
     const { auth } = await authServer({ enrolled: false });
     await auth.signIn('synthetic@example.invalid', 'synthetic-password');
+    await waitForPhase(auth, 'ready');
+    await auth.recheck(true);
     await waitForPhase(auth, 'mfa');
     await auth.enroll();
     await auth.verify('new-totp', '123456');
