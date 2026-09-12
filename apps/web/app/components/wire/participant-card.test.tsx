@@ -139,7 +139,7 @@ describe('ParticipantCard', () => {
   // 767 이하에서 일정 카드의 유형·상태 배지는 정보 전체 아래로 내려간다(2026-09-08 Q).
   // 렌더 위치는 브라우저 실측(align-assertions)이 보고, 여기서는 계약이 CSS 에 살아 있는지 잠근다.
   it('일정 카드 배지는 767 이하에서 정보 아래 줄로 내려간다', () => {
-    const source = readFileSync(resolve(process.cwd(), 'app/components/wire/wire-styles.ts'), 'utf8');
+    const source = readFileSync(resolve(process.cwd(), '../../packages/wire/src/wire-styles.ts'), 'utf8');
     const mobile = source.slice(source.indexOf('@media(max-width:767px)'));
     expect(mobile).toContain('.participant-card[data-variant="schedule"] .participant-card-header{display:contents}');
     expect(mobile).toContain('.participant-card[data-variant="schedule"] .participant-card-badges{order:1');

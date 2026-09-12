@@ -16,7 +16,7 @@ afterEach(cleanup);
 // 계산이 필요한 계약은 CSS 원문을 읽어 잠근다(wire-badge-palette 와 같은 방법).
 
 const layoutSource = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
-const wireSource = readFileSync(resolve(process.cwd(), 'app/components/wire/wire-styles.ts'), 'utf8');
+const wireSource = readFileSync(resolve(process.cwd(), '../../packages/wire/src/wire-styles.ts'), 'utf8');
 
 /**
  * 일정 CSS 는 layout.tsx 안의 `scheduleStyles` 템플릿 리터럴 하나에 모여 있다. layout.tsx
