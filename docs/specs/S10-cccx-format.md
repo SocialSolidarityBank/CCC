@@ -10,6 +10,14 @@
 
 `.cccx` 하나로 Community Cloud, Local Single, Local Office 사이의 백업·복구와 모드 이전을 수행한다. 암호화된 결정론적 payload, 스키마·행·첨부 hash, 대상 설치 금고 키로의 재암호화를 한 계약으로 묶어 잘못된 암호·변조·호환 불가·디스크 장애가 있어도 원본을 지킨다. `확정`은 계약과 fixture·검증 명령을 닫는 상태이며 구현 완료를 뜻하지 않는다.
 
+### 1.1 업무 반출물과의 경계
+
+2026-09-13 Q는 민감정보 규칙 R8의 내보내기 범위를 **복구·이전용과 업무 제출용으로 구분하는 안**으로 확정했다. 백업과 설치 이전에 사용하는 복구·이전 파일은 항상 암호화한다. 반면 경과 리포트처럼 사람이 읽어 외부 업무에 제출하는 업무 반출물은 기존 접근 권한을 확인하고, 필요한 정보만 포함하며, 반출 감사 기록을 남기는 것을 전제로 별도 파일 암호 없이 내려받을 수 있다.
+
+이때 일반 파일은 내려받은 파일 자체에 별도 암호가 없다는 뜻이며 전송 구간의 암호화를 해제한다는 뜻이 아니다. 내려받은 파일의 보관과 전달 책임은 사용기관에 있다. 이 결정은 기존 아카이브의 반출 제한을 풀거나 원음·키·미승인 AI 초안 등에 새로운 반출 권한을 부여하지 않는다.
+
+CCCX와 S9 Recovery Kit의 암호화 형식, 키 분리, 권한과 감사 계약은 그대로다. 업무 반출물을 CCCX로 대체하지 않으며, 이 목적 구분은 새 다운로드 기능이 구현됐다는 뜻도 아니다.
+
 ## 2. 외부 envelope와 암호 규칙
 
 ### 2.1 바이트 형식
@@ -91,7 +99,7 @@ innerPayloadSha256[32] || deterministicZip[*]
 - `schemaVersion`은 target의 지원 범위 및 migration parity 안에 있어야 한다. target이 모르는 table/column/type, PK 정의 불일치, non-null 누락, duplicate PK, migration mismatch는 staging 전에 `SCHEMA_INCOMPATIBLE`다. 자동 migration·열 무시·unknown table 삭제를 하지 않는다.
 - schema registry의 모든 portable table은 `tables`에 있어야 한다. secret/session/lease/ephemeral table은 `exclusions`에 이름과 고정 reason을 명시해야 하며 암묵적 누락은 `MANIFEST_INCOMPLETE`다. user data table은 exclusion할 수 없다.
 - JSONL table은 zero row이면 정확히 zero bytes이고, row가 하나 이상이면 한 row당 JCS object 한 줄과 LF(`0a`)를 둔다. blank line은 없다. row 순서는 **nonempty typed** primary-key tuple(각 값은 schema의 canonical SQL logical type으로 normalize)을 JCS로 serialize한 raw bytes의 사전순이고 같은 tuple은 금지한다. 빈 tuple은 허용하지 않는다.
-- `memberSha256`은 JSONL 전체 bytes, `logicalSha256`은 source identity/FK ID로 canonicalize한 logical row bytes(각 row의 LF 포함)를 hash한 값이다. target physical ID와 vault ciphertext는 logical hash domain에 들어가지 않는다. target mapping 뒤에는 별도로 physical row hash를 계산하며 source logical hash와 혼동하지 않는다. row count, source PK set, logical hash, member hash는 import 후 재계산해 모두 일치해야 한다.
+- `memberSha256`은 JSONL 전체 bytes, `logicalSha256`은 source identity/FK ID로 canonicalize한 logical row bytes(각 row의 LF 포함)를 hash한 값이다. target physical ID와 vault ciphertext는 logical hash domain에 들어가지 않는다. target mapping 뒤에는 별도로 physical row hash를 계산하며 source logical hash와 혼동하지 않는다. row count, source PK set, logical hash, member hash는 import 후 재계산해 모두 일치해야 한다. 최신 파기 내역을 반영하는 복원에서는 §6.1에 따라 원본 무결성 검증과 파기 반영 후의 정합성 검증을 구별한다.
 
 ### 3.2 첨부 content addressing
 
@@ -103,7 +111,7 @@ CCCX에는 source key, target key, provider key, password, DPAPI blob, JWT, sign
 
 - table column metadata가 `pii=true`인 값은 authenticated plaintext payload 안에서만 logical value로 존재한다. PII 값은 journal·progress·error에 복사하지 않는다.
 - importer는 target `SecretStore`에서 `PII_ENC_KEY`와 `PII_KEY_VERSION`을 읽고 S9가 정한 target vault envelope로 각 PII 값을 메모리에서 즉시 재암호화한다. source PII key를 요구하거나 export하지 않으며 target key가 없으면 `TARGET_KEY_UNAVAILABLE`로 중단한다.
-- import 후 re-export의 source logical row hash, table member hash, attachment plaintext SHA/bytes는 source와 같아야 한다. target physical row hash·identity mapping·vault ciphertext/nonce는 별도 값이며 target ciphertext bytes를 비교하지 않는다.
+- import 후 re-export의 source logical row hash, table member hash, attachment plaintext SHA/bytes는 source와 같아야 한다. target physical row hash·identity mapping·vault ciphertext/nonce는 별도 값이며 target ciphertext bytes를 비교하지 않는다. §6.1의 파기 내역을 적용한 경우에는 원본 검증을 먼저 완료하고, 허가된 파기 차이와 나머지 자료의 보존을 별도로 검증한다.
 - manifest/data의 `secret=true` field 또는 금지된 secret/session/provider credential은 `FORBIDDEN_SECRET_DATA`다. importer는 비밀을 추측해 마스킹하지 않고 거부한다.
 
 Import target은 **비어 있는 isolated shadow namespace**여야 한다. 기존 active namespace를 직접 mutate하거나 populated shadow namespace에 merge하지 않는다. import namespace는 normal application query, normal audit, user-visible trigger의 대상이 아니며 pending row를 visible query로 읽거나 일반 audit event/trigger를 발생시키면 안 된다.
@@ -134,7 +142,7 @@ Journal phase는 `created → validated → staged → db_prepared → files_pro
 
 ## 6. crash recovery와 실패 규칙
 
-재기동 시 process-exclusive DB lease/fencing token을 확보하고 frame checksum/sequence, DB pending marker, shadow rows, final files/objects를 전부 검사한다. **complete marker·manifest hash·active pointer가 있는 경우에는 mutable active row/file hash를 다시 검사하거나 rollback하지 않는다.** 그것은 이후의 정상 write가 반영된 상태일 수 있다. journal에 final frame이 없으면 DB complete marker에서 `complete` frame만 append/finalize한다. 그 밖의 상태는 immutable shadow/staged content의 hash/provenance를 검사해 resume 또는 rollback하며 원본 active namespace를 직접 변경하지 않는다.
+재기동 시 process-exclusive DB lease/fencing token을 확보하고 frame checksum/sequence, DB pending marker, shadow rows, final files/objects를 전부 검사한다. 이 절과 아래 장애표의 complete marker는 원본 검증과 §6.1의 파기 반영·결과 검증·업무 노출 전환 시점 최신성 확인이 모두 성공한 경우에만 기록한다. 완료 근거를 확인할 수 없으면 `RECOVERY_BLOCKED`로 업무 개방과 완료 보고를 금지한다. **그 완료 근거와 complete marker·manifest hash·active pointer가 있으면 mutable active row/file hash를 다시 검사하거나 rollback하지 않는다.** 그것은 이후의 정상 write가 반영된 상태일 수 있다. journal에 final frame이 없으면 검증된 완료 근거로 `complete` frame만 append/finalize한다. 그 밖의 상태는 immutable shadow/staged content의 hash/provenance를 검사해 resume 또는 rollback하며 원본 active namespace를 직접 변경하지 않는다. 파기 반영 뒤의 crash recovery도 검증된 파기 차이를 반영한 기대 결과와 잔존 자료·참조를 검사한다.
 
 | 장애 지점 | 재시작 동작 | 허용 최종 상태 |
 |---|---|---|
@@ -147,9 +155,27 @@ Journal phase는 `created → validated → staged → db_prepared → files_pro
 
 DB/파일 storage 간 OS-level atomicity를 가장하지 않는다. immutable shadow namespace, single visibility pointer+complete marker transaction, durable journal, per-file provenance가 함께 같은 visible invariant를 보장한다. journal 또는 cleanup 손상으로 plaintext 부재를 증명할 수 없으면 `RECOVERY_BLOCKED`로 중지한다. encrypted orphan quarantine는 허용하지만 plaintext residue는 0이어야 하며, plaintext가 발견되면 import 성공을 금지하고 안전한 운영 복구를 요구한다.
 
-완료 전 `rowCount`, source PK set, source logical row hash, member hash, attachment plaintext SHA/size가 하나라도 다르면 `ROW_LOSS_DETECTED`로 shadow/pending state를 rollback한다. pointer+complete+manifest hash transaction은 irreversible commit point이고 그 전까지 모든 import hash는 immutable shadow/staged content와 대조한다. complete marker를 본 recovery는 mutable active rows/files의 이후 hash 차이를 정상 write로 간주해 rollback하지 않는다. 같은 payload의 재시도는 exact active state(전체 row/file/manifest hash와 pointer 일치)인 경우에만 no-op이다. active state가 diverged/deleted/corrupt하면 `IMPORT_CONFLICT`로 partial merge하지 않고 package에서 fresh empty shadow를 다시 만들어 atomic cutover하며 explicit repair audit를 남긴다.
+원본 백업의 `rowCount`, source PK set, source logical row hash, member hash, attachment plaintext SHA/size는 §6.1의 파기 반영 전에 예외 없이 검증한다. 파기 반영 후와 그 상태의 crash recovery에서는 검증된 파기 차이만 허용하고, 이를 반영한 기대 결과의 hash/provenance 및 잔존 자료·참조 보존을 검증한다. 설명되지 않는 차이는 `ROW_LOSS_DETECTED`로 shadow/pending state를 rollback한다.
+
+pointer+complete+manifest hash transaction은 irreversible commit point이며, 위 완료 근거가 있는 recovery는 mutable active rows/files의 이후 hash 차이를 정상 write로 간주해 rollback하지 않는다. 같은 payload의 no-op 판정도 §6.1에 따라 최신 파기를 반영·검증한 기대 상태와 exact active state의 전체 row/file/manifest hash 및 pointer가 일치할 때만 허용한다. 검증된 파기 차이 자체는 `IMPORT_CONFLICT`가 아니다. 그 밖의 active state가 diverged/deleted/corrupt하면 `IMPORT_CONFLICT`로 partial merge하지 않고 package에서 fresh empty shadow를 만드는 repair를 수행하되, §6.1 전체를 다시 적용한 뒤에만 atomic cutover하고 explicit repair audit를 남긴다.
 
 오류 code는 `INVALID_HEADER`, `UNSUPPORTED_FORMAT`, `PASSPHRASE_TOO_SHORT`, `DECRYPTION_FAILED`, `INVALID_ZIP`, `ZIP_LIMIT_EXCEEDED`, `MANIFEST_INCOMPLETE`, `SCHEMA_INCOMPATIBLE`, `ATTACHMENT_INVALID`, `TARGET_KEY_UNAVAILABLE`, `FORBIDDEN_SECRET_DATA`, `IDENTITY_MAPPING_REQUIRED`, `REFERENCE_MAPPING_INVALID`, `ROW_LOSS_DETECTED`, `IMPORT_CONFLICT`, `RECOVERY_BLOCKED`로 고정한다. 오류 응답·운영 log에는 random importId, code, phase, timestamp만 남긴다. hash, payload name, password, key, PII, row body, URL을 log에 남기지 않는다.
+
+### 6.1 최신 파기 내역을 반영하는 복원
+
+2026-09-13 Q는 **오래된 백업도 사용하되 최신 파기 내역을 먼저 반영하는 안**을 확정했다. 과거 백업에 이미 파기한 자료가 들어 있더라도, 그 자료를 제거하고 결과를 검증하기 전에는 업무 화면을 열거나 복구 완료로 보고하지 않는다. 최신 파기 내역은 데이터 백업과 별도로 보호해 보존하며, 오래된 백업 안에 든 내역만으로 최신 상태를 판단하지 않는다.
+
+원본 백업과 삭제 반영 결과의 검증을 다음처럼 분리한다.
+
+1. 기존 header, 인증 암호문, manifest, schema, row/member/attachment hash와 참조 무결성을 먼저 검증한다. 파기 대상이라는 이유로 손상된 원본이나 누락된 행을 정상 백업으로 인정하지 않는다.
+2. 복원 대상 기관과 범위에 맞는 최신 파기 내역을 확보하고 진위·최신성·대상 대응을 확인한다. 확보하지 못했거나 확인이 불명확하면 기존 `RECOVERY_BLOCKED` 경계로 중지하며 업무를 개방하지 않는다.
+3. 아직 일반 조회에 보이지 않는 복원 자료에 원문과 연결 가능한 파생자료의 파기를 반영한다. G7 대응표도 기존 개인정보 파기 절차와 연결해 이미 파기한 표가 복원되거나 늦은 결과로 되살아나지 않게 한다.
+4. 원본 백업 대비 변경이 확인된 파기 범위에만 해당하는지, 남길 나머지 자료와 참조가 보존됐는지, 삭제 대상 본문·파생자료·임시 생성물이 남지 않았는지 검증한다. §3.1·§4·§6의 원본 동일성 검사는 1번 단계에 계속 적용하며, 3번 뒤의 허가된 삭제 차이는 원인 불명의 행 유실과 구별한다.
+5. 최신성은 마지막 조회 시점이 아니라 §5의 pointer/complete 전환으로 업무에 노출하는 시점을 기준으로 보장한다. 확인과 전환 사이에 새 파기가 발생하면 추가로 반영하고 재검증한다. 전환 시점의 최신성을 보장할 수 없으면 `RECOVERY_BLOCKED`로 업무를 개방하지 않는다. 원본 복원과 파기 반영 중 하나만 성공한 상태를 복구 완료로 보고하지 않는다.
+
+**정책 수용 기준:** 오래된 정상 백업과 최신 파기 내역을 주면 파기 대상은 보이지 않고 나머지 자료는 유지된다. 최신 내역 누락·변조·다른 기관의 내역·모호한 대상 대응은 업무 재개를 막는다. 원본 hash 오류는 파기 내역으로 면제하지 않으며, 파기 반영 중 중단·재시도와 늦은 작업 결과가 자료를 되살리지 않아야 한다.
+
+이 절은 복구 후 재등장 방지 정책의 확정이며 실제 구현·복원 검증 완료가 아니다. 내역의 보관·최신성 증거, 구체 포맷과 S9 복원 검사/성공 상태의 연결은 해당 코어·설치·복구 소유 레인이 이 조건대로 구체화하고 검증한다. CCCX/Recovery Kit의 암호화 형식이나 G7 기술 대응 정책을 이 문서에서 다시 설계하지 않는다. 공급자 백업의 보존기간·물리적 삭제와 이미 내려받은 업무 반출물은 별도 운영·법률 확인 대상이다.
 
 ## 7. 세 모드와 방향
 
