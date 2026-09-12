@@ -16,14 +16,14 @@ export const FLAG_LABELS: Record<FlagType, string> = {
   contact_loss_risk: '연락 두절 위험',
   housing_livelihood_shock: '주거, 생계, 건강 급변',
   debt_deterioration: '부채 악화',
-  repeated_noncompliance: '약속 불이행 반복',
+  repeated_noncompliance: '약속 불이행',
   violence_exploitation: '폭력, 착취 피해',
 };
 
 export const RECORD_DETAIL_KEYS = ['sessionGoalNote', 'changeSinceLast', 'safetyNote', 'counselorOpinion'] as const;
 export type RecordDetailKey = (typeof RECORD_DETAIL_KEYS)[number];
 export const RECORD_DETAIL_LABELS: Record<RecordDetailKey, string> = {
-  sessionGoalNote: '이번 상담의 목표',
+  sessionGoalNote: '이번 상담 목표',
   changeSinceLast: '지난 회차 이후 달라진 점',
   safetyNote: '안전과 위기 관련 메모',
   counselorOpinion: '담당 실무자 의견',

@@ -7,6 +7,21 @@ import { decodeConsentStates } from './consent';
 import { BusinessError } from './errors';
 import { INTAKE_RESPONSES, type IntakeResponse, type IntakeTableName } from './intake-form';
 import type { BusinessTransport } from './transport';
+import type { Session } from './session';
+
+/** 쓰기는 서버가 확인한 담당 배정, 실무자 역할과 진행 중인 사례를 모두 요구한다. */
+export async function loadIntakeWriteAccess(
+  session: Session, beneficiaryId: string, supportCaseId: string,
+): Promise<boolean> {
+  if (!session.me.roles.includes('worker')) return false;
+  const [hub, briefing] = await Promise.all([
+    session.participants.hub(beneficiaryId),
+    session.schedules.briefing(beneficiaryId, supportCaseId),
+  ]);
+  const program = hub.programs.find((entry) => entry.id === supportCaseId);
+  return program?.beneficiaryId === beneficiaryId && program.authorized && program.status === 'active'
+    && briefing.beneficiaryId === beneficiaryId && briefing.canEditOverallGoal;
+}
 
 export interface IntakeAnswer { key: string; response: IntakeResponse; text?: string }
 export type IntakeTableRow = Record<string, string>;

@@ -389,8 +389,8 @@ function AssignmentsModule({ session }: { session: Session }) {
       실무자가 보낸 요청을 여기서 결정합니다. 승인 전에는 상담 내용과 개인정보가 그 실무자에게 열리지 않습니다.
     </WireCallout>
     {error && <WireError>{error.message}</WireError>}
-    {page === null && error === null && <WireEmpty live reserve>케이스 목록을 불러오고 있습니다.</WireEmpty>}
-    {page !== null && page.items.length === 0 && <WireEmpty>기관에 등록된 케이스가 없습니다.</WireEmpty>}
+    {page === null && error === null && <WireEmpty live reserve>사례 목록을 불러오고 있어요.</WireEmpty>}
+    {page !== null && page.items.length === 0 && <WireEmpty>기관에 등록된 사례가 없어요.</WireEmpty>}
     {(page?.items ?? []).map((item) => <WireCardSection key={item.supportCaseId}
       title={<ParticipantName name={item.name} beneficiaryId={item.beneficiaryId} />}
       action={<WireButton variant="neutral" disabled={busy}
@@ -443,7 +443,7 @@ export function SettingsScreen() {
     return <WireCard title="서버가 확인한 연결 상태">
       <WireDataRows>
         <WireDataRow label="설치 방식" value={cap.mode} />
-        <WireDataRow label="음성 인식" value={cap.sttMode === 'off' ? '꺼짐' : cap.sttMode} />
+        <WireDataRow label="STT(녹취록 작성)" value={cap.sttMode === 'off' ? '꺼짐' : cap.sttMode} />
         <WireDataRow label="지정된 엔진" value={cap.sttEngine ?? '승인된 엔진 없음'} />
         <WireDataRow label="AI 처리" value={cap.llmMode === 'off' ? '꺼짐' : cap.llmMode} />
         <WireDataRow label="처리 장비" value={cap.agentStatus} />

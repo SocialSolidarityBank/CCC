@@ -10,7 +10,7 @@ import {
   INTAKE_RESPONSES, INTAKE_RESPONSE_LABELS, INTAKE_STEPS, INTAKE_TABLES,
   type IntakeQuestion, type IntakeResponse, type IntakeTableName,
 } from '../business/intake-form';
-import type { IntakeContext, IntakeTableRow } from '../business/intake';
+import { loadIntakeWriteAccess, type IntakeContext, type IntakeTableRow } from '../business/intake';
 import type { Session } from '../business/session';
 
 type AnswerDraft = Record<string, { response: IntakeResponse; text: string }>;
@@ -96,6 +96,7 @@ export function IntakeScreen() {
   const navigate = useNavigate();
   const { beneficiaryId = '', supportCaseId = '' } = useParams();
   const [context, setContext] = useState<IntakeContext | null>(null);
+  const [canWrite, setCanWrite] = useState<boolean | null>(null);
   const [step, setStep] = useState(0);
   const [heldAt, setHeldAt] = useState('');
   const [answers, setAnswers] = useState<AnswerDraft>({});
@@ -112,8 +113,14 @@ export function IntakeScreen() {
   const load = useCallback(() => {
     const own = ++generation.current;
     setError(null);
-    void session.intake.context(supportCaseId).then((value) => {
+    setContext(null);
+    setCanWrite(null);
+    void loadIntakeWriteAccess(session, beneficiaryId, supportCaseId).then(async (allowed) => {
       if (own !== generation.current) return;
+      if (!allowed) { setCanWrite(false); return; }
+      const value = await session.intake.context(supportCaseId);
+      if (own !== generation.current) return;
+      setCanWrite(true);
       setContext(value);
       setAnswers((current) => {
         if (Object.keys(current).length > 0) return current;
@@ -136,7 +143,7 @@ export function IntakeScreen() {
       setError(safe);
       if (safe.status === 401) void session.auth.signOut(safe);
     });
-  }, [session.intake, session.auth, supportCaseId]);
+  }, [session, beneficiaryId, supportCaseId]);
 
   useEffect(() => {
     load();
@@ -146,7 +153,7 @@ export function IntakeScreen() {
   const answerOf = (key: string) => answers[key] ?? { response: 'answered' as IntakeResponse, text: '' };
 
   const submit = async () => {
-    if (busy || context === null || heldAt === '') return;
+    if (busy || canWrite !== true || context === null || heldAt === '') return;
     setBusy(true);
     setError(null);
     setSaved(null);
@@ -181,23 +188,32 @@ export function IntakeScreen() {
     }
   };
 
-  if (error !== null && context === null) {
+  if (error !== null && (context === null || canWrite !== true)) {
     return <WireCard>
       <WireError>{error.message}</WireError>
       <div className="business-actions"><WireButton variant="neutral" onClick={load}>다시 불러오기</WireButton></div>
     </WireCard>;
   }
-  if (context === null) return <WireCard><WireEmpty live reserve>인테이크 화면을 불러오고 있습니다.</WireEmpty></WireCard>;
+  if (canWrite === false) return <WireCard title="첫 상담 기록">
+    <WireCallout tone="info" title="지금은 작성할 수 없어요">
+      진행 중인 사례의 담당 실무자만 작성할 수 있어요. 당사자 정보에서 참여 사업과 담당을 확인해 주세요.
+    </WireCallout>
+    <div className="business-actions">
+      <WireButton variant="neutral" href={`/participants/${encodeURIComponent(beneficiaryId)}`}>당사자 정보</WireButton>
+    </div>
+  </WireCard>;
+  if (context === null || canWrite === null) return <WireCard><WireEmpty live reserve>첫 상담 기록을 불러오고 있어요.</WireEmpty></WireCard>;
 
   const current = INTAKE_STEPS[step]!;
   const base = `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
 
-  return <WireCard title={context.hasIntake ? '인테이크 확인과 수정' : '인테이크 기록'}>
+  return <WireCard title={context.hasIntake ? '첫 상담 기록 수정' : '첫 상담 기록'}>
+    <p className="wire-section-value">첫 상담 기록(인테이크)은 당사자의 상황과 필요한 도움을 처음 함께 정리하는 기록이에요.</p>
     {error && <WireError>{error.message}</WireError>}
-    {saved !== null && <WireCallout tone="info" title={saved === 'updated' ? '수정했습니다' : '저장했습니다'}>
+    {saved !== null && <WireCallout tone="info" title={saved === 'updated' ? '수정했어요' : '저장했어요'}>
       {saved === 'replayed'
-        ? '같은 제출을 다시 보냈고 서버가 기존 인테이크를 그대로 돌려줬습니다. 회차가 두 번 생기지 않았습니다.'
-        : '저장 즉시 공식 기록입니다. AI 정리는 이 기록을 대신하지 않습니다.'}
+        ? '같은 제출을 다시 보내 기존 첫 상담 기록을 불러왔어요. 회차가 두 번 생기지 않았어요.'
+        : '저장 즉시 공식 기록이에요. AI 정리는 이 기록을 대신하지 않아요.'}
     </WireCallout>}
     <WireDataRows>
       <WireDataRow label="당사자" value={context.participant.name ?? context.beneficiaryId} />
@@ -206,7 +222,7 @@ export function IntakeScreen() {
       <WireDataRow label="상담 회차" value={`${context.sessionSequence}회차`} />
       <WireDataRow label="동의"
         value={context.consent.map((entry) => `${CONSENT_DOMAIN_LABELS[entry.domain]} ${CONSENT_STATE_LABELS[entry.state]}`).join(', ')} />
-      <WireDataRow label="전체 목표" value={context.overallGoal ?? '설정 전'} />
+      <WireDataRow label="장기목표" value={context.overallGoal ?? '설정 전'} />
     </WireDataRows>
     <div className="business-actions">
       {INTAKE_STEPS.map((entry, index) => <WireButton key={entry.part} variant="neutral" disabled={busy}
@@ -254,7 +270,7 @@ export function IntakeScreen() {
         {step < INTAKE_STEPS.length - 1
           && <WireButton variant="neutral" disabled={busy} onClick={() => setStep(step + 1)}>다음 단계</WireButton>}
         <WireButton type="submit" variant="primary" disabled={busy || heldAt === ''}>
-          {context.hasIntake ? '인테이크 수정 저장' : '인테이크 저장'}
+          {context.hasIntake ? '수정 저장' : '저장'}
         </WireButton>
       </div>
     </form>
@@ -262,8 +278,8 @@ export function IntakeScreen() {
       {`저장하면 ${context.schedule.scheduledAt} 일정을 이 회차로 넘깁니다.`}
     </WireCallout>}
     <div className="business-actions">
-      <WireButton variant="neutral" href={`${base}/records`}>상담 기록 확인하기</WireButton>
-      <WireButton variant="neutral" onClick={() => { void navigate(`${base}/briefing`); }}>15초 페이지</WireButton>
+      <WireButton variant="neutral" href={`${base}/records`}>상담 기록</WireButton>
+      <WireButton variant="neutral" onClick={() => { void navigate(`${base}/briefing`); }}>상담 전 톺아보기</WireButton>
     </div>
   </WireCard>;
 }

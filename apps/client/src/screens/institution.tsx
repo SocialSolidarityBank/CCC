@@ -19,7 +19,7 @@ const CONSENT_DOMAIN_LABELS: Record<string, string> = {
   counseling_recording: '상담 녹음',
   external_stt_processing: '외부 음성 인식',
   external_llm_cross_border_processing: '외부 AI 국외 처리',
-  voice_original_retention_period: '원음 보관 기간',
+  voice_original_retention_period: '녹음 파일 보관 기간',
 };
 
 function readinessRows(readiness: InstitutionReadiness) {

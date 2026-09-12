@@ -11,7 +11,7 @@ import type { BusinessTransport } from './transport';
 export const REPORT_SECTION_LABELS = {
   situationChanges: '상황 변화',
   goalChanges: '목표와 방향',
-  actionItems: '약속과 할 일',
+  actionItems: '할 일',
   resourceConnections: '연계 자원',
   riskSignals: '위험 신호',
 } as const;

@@ -7,7 +7,7 @@ import { BusinessError } from './errors';
 import type { BusinessTransport } from './transport';
 
 export const CLAIM_SECTION_LABELS: Record<string, string> = {
-  session_goal_discussion: '회기 목표별 논의',
+  session_goal_discussion: '이번 상담 목표별 논의',
   other_topics: '목표 밖 주요 내용',
   next_session_commitments: '다음 회차까지의 약속',
 };
