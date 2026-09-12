@@ -26,7 +26,8 @@ function encoded(value: unknown): string {
 async function token(signing = ec, claims: Record<string, unknown> = {}, header: Record<string, unknown> = {}): Promise<string> {
   const input = `${encoded({ alg: signing.alg, kid: signing.jwk.kid, typ: 'JWT', ...header })}.${encoded({
     iss: issuer, aud: 'authenticated', sub: subject, session_id: 'session-one', role: 'authenticated',
-    is_anonymous: false, aal: 'aal2', iat: epoch, exp: epoch + 3600, ...claims,
+    is_anonymous: false, aal: 'aal2', email: testActors.counselor.userId,
+    iat: epoch, exp: epoch + 3600, ...claims,
   })}`;
   const signature = await crypto.subtle.sign(signing.alg === 'ES256'
     ? { name: 'ECDSA', hash: 'SHA-256' } : { name: 'RSASSA-PKCS1-v1_5' }, signing.pair.privateKey, new TextEncoder().encode(input));
@@ -95,6 +96,8 @@ describe('Supabase identity trust boundary', () => {
     { is_anonymous: true }, { session_id: '' }, { sub: '' }, { exp: epoch - 60 },
     { iat: epoch + 61 }, { nbf: epoch + 61 }, { nbf: 'tomorrow' },
     { exp: epoch + 3601 }, { iat: null }, { exp: epoch }, { aal: null },
+    { email: undefined }, { email: '' }, { email: `${'a'.repeat(310)}@example.invalid` },
+    { email: 'with space@example.invalid' },
   ])('rejects invalid claims without admitting a business actor: %j', async (claims) => {
     await provision();
     await expect(fixture().identity.resolve(request(await token(ec, claims)))).rejects.toBeInstanceOf(ActorAuthenticationError);

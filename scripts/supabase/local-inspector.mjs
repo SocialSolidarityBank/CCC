@@ -94,6 +94,8 @@ function parseRelevantAuthConfig(content) {
   const auth = {
     emailEnabled: values.get('auth.email.enable_signup') === true,
     openSignupDisabled: values.get('auth.enable_signup') === false,
+    // 관찰만 맞춘다. 로컬 개발 설정은 hosted 설치와 달리 차단 사유가 아니다(2026-09-12).
+    emailConfirmationRequired: values.get('auth.email.enable_confirmations') === true,
     totpEnabled: values.get('auth.mfa.totp.enroll_enabled') === true
       && values.get('auth.mfa.totp.verify_enabled') === true,
     refreshTokenRotationEnabled: values.get('auth.enable_refresh_token_rotation') === true,

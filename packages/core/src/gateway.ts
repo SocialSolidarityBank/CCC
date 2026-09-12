@@ -100,6 +100,8 @@ export interface Env {
   DB: Database;
   /** Set by the composition root after verifying the installation manifest. */
   installationMode?: DeploymentMode;
+  /** Set by the composition root from trusted installation configuration; never from a request. */
+  installationOrgId?: string;
   CCC_STT_MODE?: string;
   /** Runtime-owned read port; raw key bindings never enter the core environment. */
   secretStore: CoreSecretStore;
@@ -12455,6 +12457,81 @@ export async function resolveDirectoryActorByAuthSubject(
   if (authn.source !== 'supabase-jwt' || authn.assurance !== 'aal2' || authn.sessionId === null) return null;
   const actor = await resolveDirectoryActorByKey(env, 'auth_subject', subject, authn, credentialIssuedAt);
   return actor?.kind === 'human' ? actor : null;
+}
+
+/**
+ * 검증된 credential 이 주장하는 값 전부. 요청 body 에서 오는 값은 하나도 없다.
+ * 이메일 통제는 토큰이 아니라 설치가 보장한다 — Auth 가 이메일 확인을 요구해야 하고,
+ * 그 조건은 doctor 가 차단 사유로 지킨다(2026-09-12 Q 확정, S2 §2.2).
+ */
+export interface AuthenticatedIdentityClaims {
+  subject: string;
+  email: string;
+  issuedAt: string;
+}
+
+function installationOrgId(env: Env): string {
+  const orgId = env.installationOrgId;
+  // 설치 기관을 모르는 런타임에는 첫 로그인 연결 표면이 없다(fail closed).
+  if (orgId === undefined || orgId.trim().length === 0) {
+    throw new IdentityStoreUnavailableError('installation organization is not configured');
+  }
+  return orgId;
+}
+
+/** 연결 후보는 설치 기관의 활성 사람 행 하나뿐이다. email 전역 unique 라 0 또는 1건이다. */
+async function linkableUserRow(env: Env, orgId: string, email: string): Promise<DbRow | null> {
+  return env.DB.prepare(
+    `SELECT id, role, auth_subject FROM users
+     WHERE org_id = ? AND lower(trim(email)) = ? AND active = 1 AND role <> 'service'
+     LIMIT 1`,
+  ).bind(orgId, email).first<DbRow>();
+}
+
+/**
+ * 첫 로그인 신원 연결(D80). 초대로 등재됐지만 auth_subject 가 빈 행 하나에만 검증된
+ * subject 를 채운다. org 는 설치 기관, email·subject 는 검증된 claim 에서만 오며 이미
+ * 다른 subject 가 잡은 이메일은 연결하지 않는다. 성공은 감사 한 줄과 같은 배치다.
+ */
+export async function linkAuthenticatedIdentity(
+  env: Env,
+  claims: AuthenticatedIdentityClaims,
+): Promise<{ linked: true }> {
+  assertExactKeys(claims, ['subject', 'email', 'issuedAt']);
+  assertOpaqueIdentifier(claims.subject, 'auth subject');
+  assertNonBlankText(claims.issuedAt, 'credential issue time');
+  const email = normalizedStaffEmail(claims.email);
+  const orgId = installationOrgId(env);
+  const candidate = await linkableUserRow(env, orgId, email);
+  if (candidate === null) throw new ForbiddenError('identity is not invited');
+  // 같은 subject 면 이미 끝난 일이다. 쓰지 않고 그대로 성공으로 답한다.
+  if (nullableString(candidate.auth_subject) === claims.subject) return { linked: true };
+  const userId = stringValue(candidate.id);
+  const detail = stringifyJson({
+    schemaVersion: 1,
+    via: 'first_login',
+    emailSha256: await sha256Hex(email),
+    authSubjectSha256: await sha256Hex(claims.subject),
+  });
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE users SET auth_subject = ?
+       WHERE id = ? AND org_id = ? AND lower(trim(email)) = ?
+         AND active = 1 AND role <> 'service' AND auth_subject IS NULL`,
+    ).bind(claims.subject, userId, orgId, email),
+    env.DB.prepare(
+      `INSERT INTO audit_log (org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at)
+       SELECT ?, ?, ?, 'identity_link', 'users', ?, NULL, ?, ?
+       WHERE EXISTS (SELECT 1 FROM users WHERE id = ? AND org_id = ? AND auth_subject = ?)`,
+    ).bind(orgId, userId, toRole(candidate.role), userId, detail, now(), userId, orgId, claims.subject),
+  ]);
+  if ((results[0]?.meta.changes ?? 0) === 1) return { linked: true };
+  // 0건은 경합이거나 다른 subject 가 이미 잡은 이메일이다. 상태를 다시 읽어 가른다.
+  const current = await linkableUserRow(env, orgId, email);
+  const linkedSubject = current === null ? null : nullableString(current.auth_subject);
+  if (linkedSubject === claims.subject) return { linked: true };
+  if (linkedSubject !== null) throw new ConflictError('identity is already linked');
+  throw new ForbiddenError('identity is not invited');
 }
 
 async function resolveDirectoryActorByKey(

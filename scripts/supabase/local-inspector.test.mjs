@@ -18,6 +18,7 @@ enable_refresh_token_rotation = true
 
 [auth.email]
 enable_signup = true
+enable_confirmations = true
 
 [auth.mfa.totp]
 enroll_enabled = true
@@ -65,6 +66,7 @@ test('local inspector reads CLI status, database, Auth, and Storage without retu
     assert.deepEqual(observed.auth, {
       emailEnabled: true,
       openSignupDisabled: true,
+      emailConfirmationRequired: true,
       totpEnabled: true,
       refreshTokenRotationEnabled: true,
     });

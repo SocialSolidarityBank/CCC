@@ -7,7 +7,14 @@ const MAX_KEYS = 64;
 const MAX_NEGATIVE_KEYS = 256;
 type Algorithm = 'ES256' | 'RS256';
 interface CachedKey { key: CryptoKey; alg: Algorithm; expiresAt: number }
-interface VerifiedClaims { sub: string; sessionId: string; issuedAt: string; aal: unknown }
+interface VerifiedClaims {
+  sub: string; sessionId: string; issuedAt: string; aal: unknown;
+  /**
+   * 디렉터리 대조용 이메일 claim. 이 주소를 통제하는 사람인지는 토큰이 증명하지 않고
+   * 설치가 증명한다 — Auth 가 이메일 확인을 요구하도록 doctor 가 강제한다(2026-09-12).
+   */
+  email: string;
+}
 
 function invalid(): never {
   throw new ActorAuthenticationError('Supabase credential is invalid');
@@ -17,6 +24,12 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 function identifier(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[\s\u0000-\u001f\u007f-\u009f]/.test(value);
+}
+/** RFC 5321 caps an address at 320 bytes; whitespace and control characters are never part of one. */
+function emailClaim(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
+    && !/[\s\u0000-\u001f\u007f-\u009f]/.test(value)
+    && new TextEncoder().encode(value).length <= 320;
 }
 function bytes(segment: string): ArrayBuffer {
   if (!/^[A-Za-z0-9_-]+$/.test(segment) || segment.length % 4 === 1) invalid();
@@ -182,11 +195,15 @@ export function createVerifier(config: SupabaseIdentityConfig): (token: string) 
       if (claims.iss !== issuer || claims.aud !== 'authenticated' || claims.role !== 'authenticated'
         || claims.is_anonymous !== false || !identifier(claims.sub) || !identifier(claims.session_id)
         || (claims.aal !== 'aal1' && claims.aal !== 'aal2')
+        || !emailClaim(claims.email)
         || typeof iat !== 'number' || !Number.isSafeInteger(iat) || iat < 0
         || typeof exp !== 'number' || !Number.isSafeInteger(exp) || exp <= iat || exp - iat > 3600
         || iat > timestamp + 60 || exp <= timestamp - 60
         || (nbf !== undefined && (typeof nbf !== 'number' || !Number.isSafeInteger(nbf) || nbf > timestamp + 60 || nbf >= exp))) invalid();
-      return { sub: claims.sub, sessionId: claims.session_id, issuedAt: new Date(iat * 1000).toISOString(), aal: claims.aal };
+      return {
+        sub: claims.sub, sessionId: claims.session_id, issuedAt: new Date(iat * 1000).toISOString(),
+        aal: claims.aal, email: claims.email,
+      };
     } catch (error) {
       if (error instanceof IdentityStoreUnavailableError) throw error;
       return invalid();

@@ -1,4 +1,4 @@
-import { ForbiddenError, type Actor as GatewayActor, type Env as GatewayEnv } from '@ccc/core/gateway';
+import { ForbiddenError, type Actor as GatewayActor, type AuthenticatedIdentityClaims, type Env as GatewayEnv } from '@ccc/core/gateway';
 import type { AiProviderRuntimeEnv } from '@ccc/ai-runtime';
 import type { Actor as IdentityActor, AudioStore } from '@ccc/contracts/runtime';
 import type { NotifyEnv } from '@ccc/core/notify';
@@ -6,6 +6,11 @@ import type { NotifyEnv } from '@ccc/core/notify';
 export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv, NotifyEnv {
   /** Null means this runtime cannot handle original audio; no fallback adapter is supplied. */
   audioStore: AudioStore | null;
+  /**
+   * 첫 로그인 신원 연결(D80) 전용 자격 검증 포트. 서명·claim 만 보고 MFA 관문도 디렉터리
+   * 조회도 하지 않는다. 없는 런타임에는 `POST /identity/link` 표면 자체가 없다(404).
+   */
+  verifyIdentityLinkClaims?: (request: Request) => Promise<AuthenticatedIdentityClaims>;
   /**
    * Cloudflare Access adapter와 preview/local 이중 잠금이 읽는 공개 설정.
    * 검증 구현은 `adapters/identity-access`; http-api는 값만 전달한다.

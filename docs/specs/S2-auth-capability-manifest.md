@@ -69,6 +69,8 @@ roles의 업무 의미는 lossless하게 유지한다. `institution-admin`은 �
 
 Community Cloud의 모든 human role(`institution-admin`, `technical-admin`, `supervisor`, `worker`)은 `Actor.authn.assurance='aal2'`인 세션만 허용한다. `aal1` 또는 다른 assurance는 human Actor를 만들지 않고 403 `mfa_required`다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.
 
+**2026-09-12 Q 확정.** 첫 로그인 신원 연결(`POST /identity/link`, D80)은 초대로 등재된 `users` 행의 `auth_subject`가 비어 있을 때만 검증된 `sub`를 채우며, 그 행을 찾는 키는 access token의 `email` claim(정규화 후 설치 기관·`active=1`·`role<>'service'` 범위)이다. 이 claim을 신뢰하는 근거는 token이 아니라 설치다 — Supabase access token에는 `email_verified` claim이 없고 `user_metadata`는 본인이 고치므로 어느 쪽도 읽지 않는다. 대신 설치가 Auth의 이메일 확인을 반드시 요구해야 하고(autoconfirm 해제), 이 조건은 `scripts/supabase` plan·doctor가 `AUTH_CONFIRMATION_DISABLED` 차단 사유로 강제한다. 이 route는 MFA 등록 전 `aal1` 세션도 받는 유일한 업무 경로이며, 연결된 뒤의 모든 업무 route는 그대로 `aal2`를 요구한다.
+
 Agent service Actor의 scope는 정확히 다음 여섯 개다.
 
 | scope | 허용 route와 전달 방식 |

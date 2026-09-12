@@ -31,7 +31,14 @@ export interface Session {
   reloadIdentity: () => void;
 }
 
-/** 토큰만 갖고 도는 공개 화면의 입력. 업무 세션과 섞지 않는다. */
+/**
+ * 토큰만 갖고 도는 공개 화면의 입력. 업무 세션과 섞지 않는다. 실무자 가입은 계정 생성과
+ * 신원 연결이 필요해 그 두 동작만 좁게 받는다. 업무 API 도 CloudAuth 전체도 여기 들어오지 않는다.
+ */
 export interface PublicSession {
   publicJoin: PublicJoinApi;
+  /** 초대 수락 뒤 계정 생성. 비밀번호는 인자로만 흐르고 세션은 SDK 메모리에만 남는다. */
+  signUp: (email: string, password: string) => Promise<{ accessToken: string | null }>;
+  /** 첫 로그인 신원 연결(`POST /identity/link`). 본문은 비어 있다. */
+  linkIdentity: (accessToken: string) => Promise<void>;
 }
