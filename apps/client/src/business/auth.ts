@@ -180,6 +180,21 @@ export class CloudAuth {
     }
   }
 
+  /**
+   * 초대 수락 뒤 첫 계정 생성(공개 가입 화면). 같은 설치 SDK 클라이언트를 쓰므로 두 번째
+   * Supabase 클라이언트는 만들지 않고, 세션은 SDK 메모리에만 남는다. 신원 연결에 쓸 접근
+   * 토큰만 반환값으로 나가고, 프로젝트가 이메일 확인을 요구하면 세션이 없어 `null` 이다.
+   */
+  async signUpWithPassword(email: string, password: string): Promise<{ accessToken: string | null }> {
+    try {
+      const result = await this.client().sdk.auth.signUp({ email, password });
+      if (result.error) throw result.error;
+      return { accessToken: result.data.session?.access_token ?? null };
+    } catch (error) {
+      throw authError(error);
+    }
+  }
+
   recheck(forceMfa = false): void {
     if (!this.active || !this.session || this.snapshot.working || this.snapshot.phase === 'signing-out') return;
     const revision = this.snapshot.revision + 1;
