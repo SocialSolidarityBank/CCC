@@ -5,7 +5,7 @@ import {
   WireEmpty, WireError, WireFormField,
 } from '@ccc/wire';
 import { CONSENT_DOMAIN_LABELS, CONSENT_STATE_LABELS } from '../business/consent';
-import { type BusinessError, safeError } from '../business/errors';
+import { BusinessError, safeError } from '../business/errors';
 import {
   INTAKE_RESPONSES, INTAKE_RESPONSE_LABELS, INTAKE_STEPS, INTAKE_TABLES,
   type IntakeQuestion, type IntakeResponse, type IntakeTableName,
@@ -16,7 +16,6 @@ import type { Session } from '../business/session';
 type AnswerDraft = Record<string, { response: IntakeResponse; text: string }>;
 type TableDraft = Record<IntakeTableName, IntakeTableRow[]>;
 
-const TABLE_NAMES: readonly IntakeTableName[] = ['debts', 'linkedOrgs', 'additionalItems'];
 const EXTENDED_PII_LABELS: Record<'birthDate' | 'region' | 'emergencyContact' | 'gender', string> = {
   birthDate: '생년월일', region: '주소 또는 거주지역', emergencyContact: '긴급 연락처', gender: '성별',
 };
@@ -25,13 +24,18 @@ function emptyTables(): TableDraft {
   return { debts: [], linkedOrgs: [], additionalItems: [] };
 }
 
-function QuestionField({ question, draft, disabled, onChange }: {
+function QuestionField({ question, draft, disabled, readOnly, onChange }: {
   question: IntakeQuestion;
   draft: { response: IntakeResponse; text: string };
   disabled: boolean;
+  readOnly: boolean;
   onChange: (next: { response: IntakeResponse; text: string }) => void;
 }) {
   const answerId = `intake-${question.key}`;
+  if (readOnly) return <WireDataRows>
+    <WireDataRow label={question.label}
+      value={draft.response === 'answered' ? draft.text || '기록 없음' : INTAKE_RESPONSE_LABELS[draft.response]} />
+  </WireDataRows>;
   return <>
     {question.options === undefined
       ? <WireFormField label={question.label} htmlFor={answerId} hint={question.hint}
@@ -64,11 +68,18 @@ function QuestionField({ question, draft, disabled, onChange }: {
   </>;
 }
 
-function TableEditor({ name, rows, disabled, onChange }: {
-  name: IntakeTableName; rows: IntakeTableRow[]; disabled: boolean; onChange: (next: IntakeTableRow[]) => void;
+function TableEditor({ name, rows, disabled, readOnly, onChange }: {
+  name: IntakeTableName; rows: IntakeTableRow[]; disabled: boolean; readOnly: boolean; onChange: (next: IntakeTableRow[]) => void;
 }) {
   const table = INTAKE_TABLES[name];
   const columns = [table.required, ...table.optional];
+  if (readOnly) return <WireCardSection title={table.title}>
+    {rows.length === 0 && <WireEmpty>기록이 없어요.</WireEmpty>}
+    {rows.map((row, index) => <WireDataRows key={`${name}-${index}`}>
+      {columns.map((column) => <WireDataRow key={column.key} label={column.label}
+        value={row[column.key] || '기록 없음'} />)}
+    </WireDataRows>)}
+  </WireCardSection>;
   return <WireCardSection title={table.title}>
     <p className="wire-section-value">{table.hint}</p>
     {rows.length === 0 && <WireEmpty>적을 내용이 없으면 비워 둡니다.</WireEmpty>}
@@ -92,9 +103,13 @@ function TableEditor({ name, rows, disabled, onChange }: {
 }
 
 export function IntakeScreen() {
+  const { beneficiaryId = '', supportCaseId = '' } = useParams();
+  return <IntakeForm key={`${beneficiaryId}/${supportCaseId}`} beneficiaryId={beneficiaryId} supportCaseId={supportCaseId} />;
+}
+
+function IntakeForm({ beneficiaryId, supportCaseId }: { beneficiaryId: string; supportCaseId: string }) {
   const session = useOutletContext<Session>();
   const navigate = useNavigate();
-  const { beneficiaryId = '', supportCaseId = '' } = useParams();
   const [context, setContext] = useState<IntakeContext | null>(null);
   const [step, setStep] = useState(0);
   const [heldAt, setHeldAt] = useState('');
@@ -112,8 +127,10 @@ export function IntakeScreen() {
   const load = useCallback(() => {
     const own = ++generation.current;
     setError(null);
+    setContext(null);
     void session.intake.context(supportCaseId).then((value) => {
       if (own !== generation.current) return;
+      if (value.beneficiaryId !== beneficiaryId) throw new BusinessError('invalid_response');
       setContext(value);
       setAnswers((current) => {
         if (Object.keys(current).length > 0) return current;
@@ -136,7 +153,7 @@ export function IntakeScreen() {
       setError(safe);
       if (safe.status === 401) void session.auth.signOut(safe);
     });
-  }, [session.intake, session.auth, supportCaseId]);
+  }, [session, beneficiaryId, supportCaseId]);
 
   useEffect(() => {
     load();
@@ -146,7 +163,7 @@ export function IntakeScreen() {
   const answerOf = (key: string) => answers[key] ?? { response: 'answered' as IntakeResponse, text: '' };
 
   const submit = async () => {
-    if (busy || context === null || heldAt === '') return;
+    if (busy || context?.canWrite !== true || heldAt === '') return;
     setBusy(true);
     setError(null);
     setSaved(null);
@@ -187,17 +204,22 @@ export function IntakeScreen() {
       <div className="business-actions"><WireButton variant="neutral" onClick={load}>다시 불러오기</WireButton></div>
     </WireCard>;
   }
-  if (context === null) return <WireCard><WireEmpty live reserve>인테이크 화면을 불러오고 있습니다.</WireEmpty></WireCard>;
+  if (context === null) return <WireCard><WireEmpty live reserve>첫 상담 기록을 불러오고 있어요.</WireEmpty></WireCard>;
 
   const current = INTAKE_STEPS[step]!;
   const base = `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
 
-  return <WireCard title={context.hasIntake ? '인테이크 확인과 수정' : '인테이크 기록'}>
+  const readOnly = !context.canWrite;
+  return <WireCard title={context.hasIntake && !readOnly ? '첫 상담 기록 수정' : '첫 상담 기록'}>
+    <p className="wire-section-value">첫 상담 기록(인테이크)은 당사자의 상황과 필요한 도움을 처음 함께 정리하는 기록이에요.</p>
     {error && <WireError>{error.message}</WireError>}
-    {saved !== null && <WireCallout tone="info" title={saved === 'updated' ? '수정했습니다' : '저장했습니다'}>
+    {readOnly && <WireCallout tone="info" title="읽기 전용이에요">
+      저장된 첫 상담 기록을 읽을 수 있어요. 수정은 진행 중인 사례의 담당 실무자만 할 수 있어요.
+    </WireCallout>}
+    {saved !== null && <WireCallout tone="info" title={saved === 'updated' ? '수정했어요' : '저장했어요'}>
       {saved === 'replayed'
-        ? '같은 제출을 다시 보냈고 서버가 기존 인테이크를 그대로 돌려줬습니다. 회차가 두 번 생기지 않았습니다.'
-        : '저장 즉시 공식 기록입니다. AI 정리는 이 기록을 대신하지 않습니다.'}
+        ? '같은 제출을 다시 보내 기존 첫 상담 기록을 불러왔어요. 회차가 두 번 생기지 않았어요.'
+        : '저장 즉시 공식 기록이에요. AI 정리는 이 기록을 대신하지 않아요.'}
     </WireCallout>}
     <WireDataRows>
       <WireDataRow label="당사자" value={context.participant.name ?? context.beneficiaryId} />
@@ -206,7 +228,7 @@ export function IntakeScreen() {
       <WireDataRow label="상담 회차" value={`${context.sessionSequence}회차`} />
       <WireDataRow label="동의"
         value={context.consent.map((entry) => `${CONSENT_DOMAIN_LABELS[entry.domain]} ${CONSENT_STATE_LABELS[entry.state]}`).join(', ')} />
-      <WireDataRow label="전체 목표" value={context.overallGoal ?? '설정 전'} />
+      <WireDataRow label="장기목표" value={context.overallGoal ?? '설정 전'} />
     </WireDataRows>
     <div className="business-actions">
       {INTAKE_STEPS.map((entry, index) => <WireButton key={entry.part} variant="neutral" disabled={busy}
@@ -220,50 +242,58 @@ export function IntakeScreen() {
         <p className="wire-section-value">{current.description}</p>
       </WireCardSection>
       {current.part === 1 && <WireCardSection title="1-1. 당사자 기본정보">
-        <p className="wire-section-value">이름과 연락처는 당사자 등록 화면에서 관리합니다. 여기서는 금고에 저장할 추가 정보만 적습니다.</p>
+        <p className="wire-section-value">{readOnly
+          ? '당사자에게 등록된 기본정보예요.'
+          : '이름과 연락처는 당사자 등록 화면에서 관리해요. 여기서는 금고에 저장할 추가 정보만 적어요.'}</p>
         {(Object.keys(EXTENDED_PII_LABELS) as Array<keyof typeof EXTENDED_PII_LABELS>).map((field) => (
-          <WireFormField key={field} label={EXTENDED_PII_LABELS[field]} htmlFor={`intake-pii-${field}`}
+          readOnly ? <WireDataRows key={field}>
+            <WireDataRow label={EXTENDED_PII_LABELS[field]} value={context.extendedPii[field] ?? '등록되지 않음'} />
+          </WireDataRows> : <WireFormField key={field} label={EXTENDED_PII_LABELS[field]} htmlFor={`intake-pii-${field}`}
             hint={context.extendedPii[field] === null ? undefined : `현재 값: ${context.extendedPii[field]}`}>
             <input id={`intake-pii-${field}`} value={extendedPii[field] ?? ''} disabled={busy || context.hasIntake}
               onChange={(event) => setExtendedPii({ ...extendedPii, [field]: event.target.value })} />
           </WireFormField>
         ))}
       </WireCardSection>}
-      {current.part === 1 && <WireFormField label="상담일시" htmlFor="intake-held-at" required
+      {current.part === 1 && (readOnly ? <WireDataRows>
+        <WireDataRow label="상담일시" value={context.saved?.heldAt ?? '기록 없음'} />
+      </WireDataRows> : <WireFormField label="상담일시" htmlFor="intake-held-at" required
         hint="이 기기의 시간대로 입력합니다">
         <input id="intake-held-at" type="datetime-local" value={heldAt} required disabled={busy}
           onChange={(event) => setHeldAt(event.target.value)} />
-      </WireFormField>}
+      </WireFormField>)}
       {current.sections.map((section) => <WireCardSection key={section.id} title={section.title}>
         {section.questions.map((question) => <QuestionField key={question.key} question={question}
-          draft={answerOf(question.key)} disabled={busy}
+          draft={answerOf(question.key)} disabled={busy} readOnly={readOnly}
           onChange={(next) => setAnswers({ ...answers, [question.key]: next })} />)}
       </WireCardSection>)}
-      {current.part === 2 && <TableEditor name="debts" rows={tables.debts} disabled={busy}
+      {current.part === 2 && <TableEditor name="debts" rows={tables.debts} disabled={busy} readOnly={readOnly}
         onChange={(rows) => setTables({ ...tables, debts: rows })} />}
-      {current.part === 3 && <TableEditor name="linkedOrgs" rows={tables.linkedOrgs} disabled={busy}
+      {current.part === 3 && <TableEditor name="linkedOrgs" rows={tables.linkedOrgs} disabled={busy} readOnly={readOnly}
         onChange={(rows) => setTables({ ...tables, linkedOrgs: rows })} />}
-      {current.part === 4 && <TableEditor name="additionalItems" rows={tables.additionalItems} disabled={busy}
+      {current.part === 4 && <TableEditor name="additionalItems" rows={tables.additionalItems} disabled={busy} readOnly={readOnly}
         onChange={(rows) => setTables({ ...tables, additionalItems: rows })} />}
-      {current.part === 4 && <WireFormField label="담당 실무자 종합의견" htmlFor="intake-manager-opinion" control="textarea">
+      {current.part === 4 && (readOnly ? <WireDataRows>
+        <WireDataRow label="담당 실무자 종합의견" value={managerOpinion || '기록 없음'} />
+      </WireDataRows> : <WireFormField label="담당 실무자 종합의견" htmlFor="intake-manager-opinion" control="textarea">
         <textarea id="intake-manager-opinion" rows={4} value={managerOpinion} disabled={busy}
           onChange={(event) => setManagerOpinion(event.target.value)} />
-      </WireFormField>}
+      </WireFormField>)}
       <div className="business-actions">
         {step > 0 && <WireButton variant="neutral" disabled={busy} onClick={() => setStep(step - 1)}>이전 단계</WireButton>}
         {step < INTAKE_STEPS.length - 1
           && <WireButton variant="neutral" disabled={busy} onClick={() => setStep(step + 1)}>다음 단계</WireButton>}
-        <WireButton type="submit" variant="primary" disabled={busy || heldAt === ''}>
-          {context.hasIntake ? '인테이크 수정 저장' : '인테이크 저장'}
-        </WireButton>
+        {!readOnly && <WireButton type="submit" variant="primary" disabled={busy || heldAt === ''}>
+          {context.hasIntake ? '수정 저장' : '저장'}
+        </WireButton>}
       </div>
     </form>
-    {context.schedule !== null && <WireCallout tone="info" title="예정된 일정에 연결합니다">
+    {!readOnly && context.schedule !== null && <WireCallout tone="info" title="예정된 일정에 연결합니다">
       {`저장하면 ${context.schedule.scheduledAt} 일정을 이 회차로 넘깁니다.`}
     </WireCallout>}
     <div className="business-actions">
-      <WireButton variant="neutral" href={`${base}/records`}>상담 기록 확인하기</WireButton>
-      <WireButton variant="neutral" onClick={() => { void navigate(`${base}/briefing`); }}>15초 페이지</WireButton>
+      <WireButton variant="neutral" href={`${base}/records`}>상담 기록</WireButton>
+      <WireButton variant="neutral" onClick={() => { void navigate(`${base}/briefing`); }}>상담 전 톺아보기</WireButton>
     </div>
   </WireCard>;
 }

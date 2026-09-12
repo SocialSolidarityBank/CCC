@@ -210,6 +210,10 @@ export function decodeBriefing(value: unknown, focusSupportCaseId: string): Brie
   };
   const upcoming = row.focusUpcomingSchedule === null || row.focusUpcomingSchedule === undefined
     ? null : record(row.focusUpcomingSchedule);
+  if (upcoming !== null && (!Array.isArray(upcoming.customQuestions)
+    || !upcoming.customQuestions.every((entry) => typeof entry === 'string'))) {
+    throw new BusinessError('invalid_response');
+  }
   return {
     beneficiaryId: row.beneficiaryId,
     focusSupportCaseId,
@@ -282,11 +286,7 @@ export function decodeBriefing(value: unknown, focusSupportCaseId: string): Brie
         }
         return { body: goal.body, caseGoalTitle: goal.caseGoalTitle };
       }),
-      customQuestions: (Array.isArray(upcoming.customQuestions) ? upcoming.customQuestions : []).map((entry) => {
-        const question = record(entry);
-        if (typeof question.body !== 'string') throw new BusinessError('invalid_response');
-        return question.body;
-      }),
+      customQuestions: upcoming.customQuestions as string[],
     },
   };
 }

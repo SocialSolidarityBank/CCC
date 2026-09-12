@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SchedulesApi } from './schedules';
+import { decodeBriefing, SchedulesApi } from './schedules';
 
 const CASE_ID = '2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10';
 
@@ -46,5 +46,26 @@ describe('상담 일정 등록 본문', () => {
       scheduledAt: '2026-09-20T01:00:00.000Z', sessionKind: 'intake', goals: ['', '   '],
     });
     expect(sent[0]!.body.caseGoals).toEqual([]);
+  });
+});
+
+describe('briefing custom question contract', () => {
+  const briefing = (customQuestions: unknown) => ({
+    beneficiaryId: 'swallow-003', focusSupportCaseId: CASE_ID, overallGoal: null, canEditOverallGoal: false,
+    participant: { name: null, phone: null }, activeGoals: [],
+    sections: [{ sourceSupportCase: { id: CASE_ID }, aiSuggestions: [], sessionRows: [],
+      discrepancies: [], openActionItems: [], flags: [], pendingReviewSessionIds: [] }],
+    focusUpcomingSchedule: { id: 'schedule-1', scheduledAt: '2026-09-20T01:00:00.000Z',
+      sessionKind: 'regular', sessionGoals: [], customQuestions },
+  });
+
+  it('accepts the real string array, including no custom questions', () => {
+    expect(decodeBriefing(briefing(['첫 질문', '다음 질문']), CASE_ID).upcoming?.customQuestions)
+      .toEqual(['첫 질문', '다음 질문']);
+    expect(decodeBriefing(briefing([]), CASE_ID).upcoming?.customQuestions).toEqual([]);
+  });
+
+  it.each([{ questions: [{ body: '옛 객체' }] }, { questions: [1] }, { questions: null }, { questions: undefined }])('rejects non-string-array custom questions %j', ({ questions }) => {
+    expect(() => decodeBriefing(briefing(questions), CASE_ID)).toThrow();
   });
 });

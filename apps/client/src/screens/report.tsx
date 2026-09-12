@@ -56,29 +56,29 @@ export function ReportScreen() {
   const base = `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
 
   if (error !== null) {
-    return <WireCard title="전체 상담 리포트">
+    return <WireCard title="경과 리포트">
       <WireError>{error.message}</WireError>
       <div className="business-actions"><WireButton variant="neutral" onClick={load}>다시 불러오기</WireButton></div>
     </WireCard>;
   }
   if (report === null) {
-    return <WireCard title="전체 상담 리포트"><WireEmpty live reserve>리포트를 불러오고 있습니다.</WireEmpty></WireCard>;
+    return <WireCard title="경과 리포트"><WireEmpty live reserve>리포트를 불러오고 있어요.</WireEmpty></WireCard>;
   }
 
   const missing = REPORT_SECTION_ORDER.filter((key: ReportSectionKey) => report.sections[key] === undefined);
 
   return <>
-    <WireCard title="전체 상담 리포트">
+    <WireCard title="경과 리포트">
       <WireDataRows>
         <WireDataRow label="사업" value={report.programName ?? report.programId} />
         <WireDataRow label="상태" value={report.status === 'active' ? '진행 중' : '종결'} />
         <WireDataRow label="회차 수" value={`${report.sessions.length}회`} />
       </WireDataRows>
       {report.firstIntakeGoal === undefined
-        ? <WireCallout tone="info" title="첫 인테이크 목표 기록이 없습니다">
-          지금 목표를 첫 목표로 대신 적지 않습니다.
+        ? <WireCallout tone="info" title="첫 상담의 목표 기록이 없어요">
+          지금 목표를 첫 목표로 대신 적지 않아요.
         </WireCallout>
-        : <WireCardSection title="첫 인테이크에서 세운 방향">
+        : <WireCardSection title="첫 상담에서 세운 방향">
           <Evidence item={report.firstIntakeGoal} base={base} />
         </WireCardSection>}
       {missing.length > 0 && <WireCallout tone="info" title="자료가 없어 빠진 구획">
@@ -93,7 +93,7 @@ export function ReportScreen() {
         description={item.summary?.text ?? '요약으로 쓸 근거가 없습니다'}
         status={<>
           <WireBadge tone={item.kind === 'intake' ? 'lavender' : 'mint'}>
-            {item.kind === 'intake' ? '인테이크' : '기본 상담'}
+            {item.kind === 'intake' ? '첫 상담' : '기본 상담'}
           </WireBadge>
           <WireBadge tone="neutral">{CHANNEL_LABELS[item.channel]}</WireBadge>
         </>}
@@ -168,8 +168,8 @@ export function ReportScreen() {
 
     <WireCard>
       <div className="business-actions">
-        <WireButton variant="neutral" href={`${base}/records`}>상담 기록 확인하기</WireButton>
-        <WireButton variant="neutral" href={`${base}/briefing`}>15초 페이지</WireButton>
+        <WireButton variant="neutral" href={`${base}/records`}>상담 기록</WireButton>
+        <WireButton variant="neutral" href={`${base}/briefing`}>상담 전 톺아보기</WireButton>
       </div>
     </WireCard>
   </>;

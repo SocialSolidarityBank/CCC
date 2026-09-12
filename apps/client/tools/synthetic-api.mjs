@@ -3,6 +3,7 @@
 
 const USER_ID = 'a800424b-7cb1-49f5-8bb4-8989d586c455';
 const CASE_ID = '2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10';
+const REGISTERED_CASE_ID = '9bd2a1c4-3f57-4a26-8e19-0b4c6d8e1f20';
 const CLOSED_CASE_ID = '7c1f5b02-9a2e-4d8b-9f6a-1c3b5d7e9f21';
 const SCHEDULE_ID = '5b8d3c14-6f2a-4c19-8d3e-9a1b2c4d6e80';
 const SESSION_ID = '91ac47d2-38b5-4f0c-9a71-2d5e6f8a0b13';
@@ -24,6 +25,9 @@ export function createSyntheticState() {
     discrepancyResolution: null,
     caseClosed: null,
     intake: null,
+    registeredIntake: null,
+    registrationKey: null,
+    registeredAssigneeId: null,
     submissions: new Map(),
     records: [],
     draftDecision: null,
@@ -434,10 +438,16 @@ export function handleApi(request, state, options) {
       if (privacy?.decision !== 'grant' && !emergency) {
         return json({ error: 'privacy_consent_required' }, 422, cors);
       }
+      const replayed = state.registrationKey === body.idempotencyKey;
+      if (!replayed) {
+        state.registrationKey = body.idempotencyKey;
+        state.registeredAssigneeId = body.initialAssigneeUserId ?? USER_ID;
+      }
       return json({
-        beneficiaryId: 'otter-011', supportCaseId: '9bd2a1c4-3f57-4a26-8e19-0b4c6d8e1f20',
-        assignmentRole: 'primary', replayed: false,
-      }, 201, cors);
+        beneficiaryId: 'otter-011', supportCaseId: REGISTERED_CASE_ID,
+        assignmentRole: 'primary', replayed,
+        canWriteIntake: state.role === 'worker' && state.registeredAssigneeId === USER_ID,
+      }, replayed ? 200 : 201, cors);
     });
   }
   if (path === '/debug/last-registration' && request.method === 'GET') {
@@ -610,7 +620,7 @@ export function handleApi(request, state, options) {
       focusUpcomingSchedule: {
         id: SCHEDULE_ID, scheduledAt: '2026-09-20T01:00:00.000Z', sessionKind: 'regular', channel: 'in_person',
         sessionGoals: [{ body: '체납 정리 진행 상황 확인', caseGoalId: null, caseGoalTitle: null, caseGoalStatus: null }],
-        customQuestions: [{ body: '지난주 상담 이후 달라진 점이 있나요' }],
+        customQuestions: ['지난주 상담 이후 달라진 점이 있나요'],
       },
     }, 200, cors);
   }
@@ -672,8 +682,9 @@ export function handleApi(request, state, options) {
       questions: [{ title: '고지서 확인 여부', reason: '지난 회차에 미확인이라고 함' }],
       evidence: [{ id: 'evidence-1', claimKey: 'claim-1', quote: '아직 고지서를 못 봤어요' }],
       contrast: [
-        { axis: 'missing_in_memo', status: 'applied', findings: [{ description: '이자 연체 언급', materialKind: 'transcript', quote: '이자를 못 냈어요' }] },
-        { axis: 'undiscussed_goals', status: 'no_material', findings: [] },
+        { axis: 'missing_from_memo', status: 'applied', findings: [{ description: '이자 연체 언급', materialKind: 'transcript', quote: '이자를 못 냈어요' }] },
+        { axis: 'missing_from_transcript', status: 'applied', findings: [{ description: '합성 비노출 메모', materialKind: 'text_context', quote: '목록으로 표시하지 않는 합성 메모' }] },
+        { axis: 'undiscussed_session_goal', status: 'no_session_goal', findings: [] },
       ],
       regenerateAvailable: false, regenerateSourceSnapshotId: null, transcriptQuality: null,
     }, 200, cors);
@@ -870,27 +881,38 @@ export function handleApi(request, state, options) {
       return json({ id: CASE_ID, status: 'closed', closedAt: state.caseClosed.at }, 200, cors);
     });
   }
-  if (path === `/support-cases/${CASE_ID}/records/intake` && request.method === 'GET') {
+  const intakeCaseId = path === `/support-cases/${CASE_ID}/records/intake` ? CASE_ID
+    : path === `/support-cases/${REGISTERED_CASE_ID}/records/intake` && state.registrationKey !== null ? REGISTERED_CASE_ID : null;
+  const canWriteIntake = state.role === 'worker' && (intakeCaseId === REGISTERED_CASE_ID
+    ? state.registeredAssigneeId === USER_ID
+    : state.caseClosed === null && state.assignees.some((entry) => entry.supportCaseId === CASE_ID
+      && entry.userId === USER_ID && entry.status === 'active' && entry.unassignedAt === null));
+  const savedIntake = intakeCaseId === REGISTERED_CASE_ID ? state.registeredIntake : state.intake;
+  if (intakeCaseId !== null && request.method === 'GET') {
     return json({
-      beneficiaryId: 'swallow-003', supportCaseId: CASE_ID,
+      beneficiaryId: intakeCaseId === CASE_ID ? 'swallow-003' : 'otter-011', supportCaseId: intakeCaseId,
+      canWrite: canWriteIntake,
       participant: { name: '김합성', phone: '010-0000-0000', email: 'synthetic@example.invalid' },
-      sessionSequence: state.intake === null ? 1 : 2, hasIntake: state.intake !== null,
+      sessionSequence: savedIntake === null ? 1 : 2, hasIntake: savedIntake !== null,
       extendedPii: { birthDate: '1980-03-05', region: '서울', emergencyContact: null, gender: null },
-      consent: currentConsentStates(state), saved: state.intake, overallGoal: state.overallGoal,
-      schedule: { id: SCHEDULE_ID, beneficiaryId: 'swallow-003', supportCaseId: CASE_ID,
+      consent: currentConsentStates(state), saved: savedIntake, overallGoal: state.overallGoal,
+      schedule: intakeCaseId === REGISTERED_CASE_ID ? null : { id: SCHEDULE_ID, beneficiaryId: 'swallow-003', supportCaseId: CASE_ID,
         scheduledAt: '2026-09-20T01:00:00.000Z', status: 'scheduled', version: state.scheduleVersion,
         completedSessionId: null },
     }, 200, cors);
   }
-  if (path === `/support-cases/${CASE_ID}/records/intake` && (request.method === 'POST' || request.method === 'PUT')) {
+  if (intakeCaseId !== null && (request.method === 'POST' || request.method === 'PUT')) {
+    if (!canWriteIntake) return json({ error: 'forbidden' }, 403, cors);
     return request.json().then((body) => {
-      const replayed = request.method === 'POST' && state.intake !== null;
-      state.intake = {
+      const replayed = request.method === 'POST' && savedIntake !== null;
+      const intake = replayed ? savedIntake : {
         sessionId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', heldAt: body.heldAt, channel: 'in_person',
         answers: body.answers ?? [], debts: body.debts ?? [], linkedOrgs: body.linkedOrgs ?? [],
         additionalItems: body.additionalItems ?? [], managerOpinion: body.managerOpinion ?? null,
       };
-      const record = { id: state.intake.sessionId, heldAt: body.heldAt, channel: 'in_person', kind: 'intake' };
+      if (intakeCaseId === REGISTERED_CASE_ID) state.registeredIntake = intake;
+      else state.intake = intake;
+      const record = { id: intake.sessionId, heldAt: intake.heldAt, channel: 'in_person', kind: 'intake' };
       return request.method === 'POST'
         ? json({ record, replayed }, replayed ? 200 : 201, cors)
         : json({ record }, 200, cors);

@@ -14,7 +14,7 @@ export interface ShellDestination {
 const destinations: readonly ShellDestination[] = [
   { id: 'account', title: '내 정보', href: '/settings', roles: ['institution-admin', 'technical-admin', 'supervisor', 'worker'] },
   { id: 'schedule', title: '일정', href: '/schedule', roles: ['institution-admin', 'supervisor', 'worker'] },
-  { id: 'schedule-register', title: '상담 일정 등록', href: '/schedules/new', roles: ['institution-admin', 'worker'] },
+  { id: 'schedule-register', title: '상담 등록', href: '/schedules/new', roles: ['institution-admin', 'worker'] },
   { id: 'participants', title: '당사자 목록', href: '/participants', roles: ['institution-admin', 'supervisor', 'worker'] },
   { id: 'participant-register', title: '당사자 등록', href: '/participants/new', roles: ['institution-admin', 'worker'] },
   { id: 'participant-invite', title: '당사자 초대', href: '/participants/invite',
@@ -74,16 +74,16 @@ export function destinationAt(pathname: string, search: string): ShellDestinatio
     return { ...schedule, title: '상담 계획', href: pathname };
   }
   if (participants !== undefined && BRIEFING.test(pathname)) {
-    return { ...participants, title: '15초 페이지', href: pathname };
+    return { ...participants, title: '상담 전 톺아보기', href: pathname };
   }
   if (participants !== undefined && REPORT.test(pathname)) {
-    return { ...participants, title: '전체 상담 리포트', href: pathname };
+    return { ...participants, title: '경과 리포트', href: pathname };
   }
   const records = RECORDS.exec(pathname);
   if (participants !== undefined && records !== null) {
-    const title = records[1] === undefined ? '상담 기록 확인하기'
-      : records[1] === '/new' ? '상담 기록하기'
-        : records[1] === '/intake' ? '인테이크 기록' : 'AI 정리 검토';
+    const title = records[1] === undefined ? '상담 기록'
+      : records[1] === '/new' ? '오늘 상담 기록'
+        : records[1] === '/intake' ? '첫 상담 기록' : 'AI 정리 검토';
     return { ...participants, title, href: pathname };
   }
   const detail = PARTICIPANT_DETAIL.exec(pathname);

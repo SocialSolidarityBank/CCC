@@ -166,7 +166,7 @@ export const INTAKE_STEPS: readonly IntakeStep[] = [
         id: 'needs',
         title: '3-1. 우선적으로 필요한 도움',
         questions: [
-          { key: 'need_primary', label: '1순위 지원욕구',
+          { key: 'need_primary', label: '1순위 지원욕구', hint: '당사자가 원하는 도움을 골라요. 합의한 장기목표와는 달라요.',
             options: ['생계비·긴급지원', '채무상담·채무조정', '일자리·소득지원', '주거지원', '의료지원', '심리상담',
               '가족·돌봄지원', '법률·행정지원', '교육·훈련', '정보제공·기관연계', '기타'] },
           { key: 'need_secondary', label: '2순위 지원욕구',
@@ -218,7 +218,7 @@ export const INTAKE_STEPS: readonly IntakeStep[] = [
         id: 'summary',
         title: '4-3. 담당 실무자 판단과 다음 단계',
         questions: [
-          { key: 'summary_urgency', label: '긴급도', options: ['일반', '주의', '긴급', '즉시 개입 필요'] },
+          { key: 'summary_urgency', label: '위기도', hint: '실무자가 판단해요. 개별 위험 신호와는 별개예요.', options: ['일반', '주의', '긴급', '즉시 개입 필요'] },
           { key: 'summary_direction', label: '주요 지원방향',
             options: ['정보 제공', '기관 연계', '사례관리 진행', '단기 집중지원', '전문상담 의뢰', '추가 사정 후 결정'] },
         ],

@@ -91,6 +91,7 @@ export interface ParticipantCreationResult {
   supportCaseId: string;
   assignmentRole: 'primary';
   replayed: boolean;
+  canWriteIntake: boolean;
 }
 
 function exactKeys(row: Record<string, unknown>, keys: readonly string[]): void {
@@ -240,14 +241,14 @@ export function decodeProgramOptions(value: unknown): ProgramOption[] {
 
 function decodeCreation(value: unknown): ParticipantCreationResult {
   const row = record(value);
-  exactKeys(row, ['beneficiaryId', 'supportCaseId', 'assignmentRole', 'replayed']);
+  exactKeys(row, ['beneficiaryId', 'supportCaseId', 'assignmentRole', 'replayed', 'canWriteIntake']);
   if (!isOpaqueIdentifier(row.beneficiaryId) || !isOpaqueIdentifier(row.supportCaseId)
-    || row.assignmentRole !== 'primary' || typeof row.replayed !== 'boolean') {
+    || row.assignmentRole !== 'primary' || typeof row.replayed !== 'boolean' || typeof row.canWriteIntake !== 'boolean') {
     throw new BusinessError('invalid_response');
   }
   return {
     beneficiaryId: row.beneficiaryId, supportCaseId: row.supportCaseId,
-    assignmentRole: 'primary', replayed: row.replayed,
+    assignmentRole: 'primary', replayed: row.replayed, canWriteIntake: row.canWriteIntake,
   };
 }
 
