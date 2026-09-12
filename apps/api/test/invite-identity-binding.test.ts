@@ -62,6 +62,11 @@ function acceptRequest(inviteToken: string, credential: string | null, email = i
   });
 }
 
+/** 공개 수락 route 는 신원 해석 앞에 있다. 해석기가 불리면 그 자체가 실패다. */
+const noActor = async (): Promise<never> => {
+  throw new Error('public accept route must not resolve an actor');
+};
+
 async function subjectFor(email: string): Promise<string | null> {
   const row = await t.db.prepare('SELECT auth_subject FROM users WHERE lower(trim(email)) = ?')
     .bind(email).first<{ auth_subject: string | null }>();
@@ -77,7 +82,7 @@ beforeAll(async () => {
 describe('초대 수락이 계정을 결속한다', () => {
   it('검증된 자격으로 수락하면 등재와 같은 배치에서 subject 가 채워진다', async () => {
     const { env, token: inviteToken } = await invited();
-    const response = await handleRequest(acceptRequest(inviteToken, await token()), env);
+    const response = await handleRequest(acceptRequest(inviteToken, await token()), env, noActor);
     expect(response.status).toBe(201);
     expect(await subjectFor(invitedEmail)).toBe(subject);
   });
@@ -85,7 +90,7 @@ describe('초대 수락이 계정을 결속한다', () => {
   it('자격의 이메일이 초대와 다르면 결속하지 않는다', async () => {
     const { env, token: inviteToken } = await invited();
     const response = await handleRequest(
-      acceptRequest(inviteToken, await token({ email: 'someone.else@example.invalid' })), env,
+      acceptRequest(inviteToken, await token({ email: 'someone.else@example.invalid' })), env, noActor,
     );
     expect(response.status).toBe(201);
     expect(await subjectFor(invitedEmail)).toBeNull();
@@ -93,7 +98,7 @@ describe('초대 수락이 계정을 결속한다', () => {
 
   it('자격 없이 수락하면 등재만 하고 결속하지 않는다', async () => {
     const { env, token: inviteToken } = await invited();
-    const response = await handleRequest(acceptRequest(inviteToken, null), env);
+    const response = await handleRequest(acceptRequest(inviteToken, null), env, noActor);
     expect(response.status).toBe(201);
     expect(await subjectFor(invitedEmail)).toBeNull();
   });
@@ -101,7 +106,7 @@ describe('초대 수락이 계정을 결속한다', () => {
   it('서명이 깨진 자격은 수락 자체를 막고 계정도 만들지 않는다', async () => {
     const { env, token: inviteToken } = await invited();
     const forged = `${(await token()).slice(0, -4)}AAAA`;
-    const response = await handleRequest(acceptRequest(inviteToken, forged), env);
+    const response = await handleRequest(acceptRequest(inviteToken, forged), env, noActor);
     expect(response.status).toBe(401);
     expect(await subjectFor(invitedEmail)).toBeNull();
     const row = await t.db.prepare('SELECT count(*) AS n FROM users WHERE lower(trim(email)) = ?')
