@@ -24,6 +24,18 @@ export const ACTION_RESOLUTION_LABELS: Record<'done' | 'in_progress' | 'not_done
   done: '완료', in_progress: '진행 중', not_done: '못 함', hold: '보류',
 };
 
+function intakeProvenance(row: Record<string, unknown>): Pick<ReportEvidence, 'intakeSchemaVersion' | 'intakeRevision'> {
+  if (row.intakeSchemaVersion !== undefined && row.intakeSchemaVersion !== 1 && row.intakeSchemaVersion !== 2) {
+    throw new BusinessError('invalid_response');
+  }
+  if (row.intakeRevision !== undefined && (typeof row.intakeRevision !== 'number'
+    || !Number.isSafeInteger(row.intakeRevision) || row.intakeRevision < 1)) throw new BusinessError('invalid_response');
+  return {
+    ...(row.intakeSchemaVersion === undefined ? {} : { intakeSchemaVersion: row.intakeSchemaVersion }),
+    ...(row.intakeRevision === undefined ? {} : { intakeRevision: row.intakeRevision as number }),
+  };
+}
+
 function evidence(value: unknown): ReportEvidence {
   const row = record(value);
   if (!isOpaqueIdentifier(row.sessionId) || typeof row.sessionNumber !== 'number'
@@ -34,6 +46,7 @@ function evidence(value: unknown): ReportEvidence {
   return {
     sessionId: row.sessionId, sessionNumber: row.sessionNumber, heldAt: row.heldAt,
     source: row.source, text: row.text,
+    ...intakeProvenance(row),
   };
 }
 
@@ -121,6 +134,7 @@ export function decodeReport(value: unknown): SupportCaseReport {
       return {
         sessionId: session.sessionId, sessionNumber: session.sessionNumber, heldAt: session.heldAt,
         kind: session.kind, channel: session.channel,
+        ...intakeProvenance(session),
         ...(summary === undefined ? {} : { summary }),
       };
     }),

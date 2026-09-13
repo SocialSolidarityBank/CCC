@@ -32,6 +32,7 @@ export interface ProgramSummary {
   version: number;
   admissionState: ProgramAdmissionState;
   confirmedAt: string | null;
+  financialSupportEnabled: boolean;
 }
 
 export interface ProgramsView {
@@ -62,11 +63,13 @@ function decodeProgram(value: unknown): ProgramSummary {
     || !(PROCESSING_MODES as readonly unknown[]).includes(row.processingMode)
     || typeof row.version !== 'number' || !Number.isSafeInteger(row.version) || row.version < 1
     || !isAdmissionState(row.admissionState)
+    || typeof row.financialSupportEnabled !== 'boolean'
     || (confirmation !== null && typeof confirmation.at !== 'string')) throw new BusinessError('invalid_response');
   return {
     id: row.id, displayName: row.displayName, status: row.status,
     storageMode: row.storageMode as ProgramStorageMode, processingMode: row.processingMode as ProgramProcessingMode,
     version: row.version, admissionState: row.admissionState,
+    financialSupportEnabled: row.financialSupportEnabled,
     confirmedAt: confirmation === null ? null : confirmation.at as string,
   };
 }
@@ -109,14 +112,14 @@ export class InstitutionApi {
   constructor(private readonly transport: BusinessTransport) {}
 
   /** 기관 이름과 첫 사업 이름을 저장한다. 준비 완료 판정은 응답의 institution만 읽는다. */
-  async completeInitialSetup(input: { orgName: string; programDisplayName: string }): Promise<InstitutionReadiness> {
+  async completeInitialSetup(input: { orgName: string; programDisplayName: string; financialSupportEnabled: boolean }): Promise<InstitutionReadiness> {
     const orgName = input.orgName.trim();
     const programDisplayName = input.programDisplayName.trim();
-    if (!orgName || orgName.length > 80 || !programDisplayName || programDisplayName.length > 120) {
+    if (!orgName || orgName.length > 80 || !programDisplayName || programDisplayName.length > 120 || typeof input.financialSupportEnabled !== 'boolean') {
       throw new BusinessError('invalid_request', 400);
     }
     const response = record(await this.transport.request('/organization/onboarding', 'POST', {
-      orgName, programDisplayName,
+      orgName, programDisplayName, financialSupportEnabled: input.financialSupportEnabled,
     }));
     if (typeof response.orgId !== 'string') throw new BusinessError('invalid_response');
     return decodeInstitutionReadiness(response.institution, response.orgId);
@@ -129,6 +132,16 @@ export class InstitutionApi {
     return decodePrograms(payload, displayedHash);
   }
 
+  async createProgram(input: { displayName: string; financialSupportEnabled: boolean }): Promise<ProgramSummary> {
+    if (!input.displayName.trim() || input.displayName.trim().length > 120 || typeof input.financialSupportEnabled !== 'boolean') {
+      throw new BusinessError('invalid_request', 400);
+    }
+    const response = record(await this.transport.request('/programs', 'POST', {
+      displayName: input.displayName.trim(), financialSupportEnabled: input.financialSupportEnabled,
+    }));
+    return decodeProgram(response.program);
+  }
+
   /** 저장 위치와 처리 경로 선택, 그리고 관리자 확인을 한 번에 보낸다. 확인값은 서버가 만든다. */
   async confirmProgram(input: {
     programId: string;
@@ -136,8 +149,9 @@ export class InstitutionApi {
     storageMode: ProgramStorageMode;
     processingMode: ProgramProcessingMode;
     confirmation: ProgramConfirmationInput;
+    financialSupportEnabled: boolean;
   }): Promise<ProgramSummary> {
-    if (!isOpaqueIdentifier(input.programId) || !Number.isSafeInteger(input.expectedVersion)) {
+    if (!isOpaqueIdentifier(input.programId) || !Number.isSafeInteger(input.expectedVersion) || typeof input.financialSupportEnabled !== 'boolean') {
       throw new BusinessError('invalid_request', 400);
     }
     const response = record(await this.transport.request(
@@ -146,6 +160,7 @@ export class InstitutionApi {
         expectedVersion: input.expectedVersion,
         storageMode: input.storageMode,
         processingMode: input.processingMode,
+        financialSupportEnabled: input.financialSupportEnabled,
         confirmation: input.confirmation,
       },
     ));

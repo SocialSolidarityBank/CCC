@@ -45,6 +45,7 @@ function InitialSetupForm({ session }: { session: Session }) {
   const readiness = session.me.institution;
   const [orgName, setOrgName] = useState(readiness.orgName ?? '');
   const [programName, setProgramName] = useState(readiness.firstProgram?.displayName ?? '');
+  const [financialSupportEnabled, setFinancialSupportEnabled] = useState(readiness.firstProgram?.financialSupportEnabled ?? false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
 
@@ -53,7 +54,7 @@ function InitialSetupForm({ session }: { session: Session }) {
     setBusy(true);
     setError(null);
     try {
-      await session.institution.completeInitialSetup({ orgName, programDisplayName: programName });
+      await session.institution.completeInitialSetup({ orgName, programDisplayName: programName, financialSupportEnabled });
       session.reloadIdentity();
     } catch (cause) {
       const safe = safeError(cause);
@@ -75,6 +76,8 @@ function InitialSetupForm({ session }: { session: Session }) {
         <input id="setup-program" value={programName} required disabled={busy}
           onChange={(event) => setProgramName(event.target.value)} />
       </WireFormField>
+      <WireChoice type="checkbox" id="setup-financial-module" label="첫 사업에서 금융지원 모듈 사용"
+        checked={financialSupportEnabled} disabled={busy} onChange={setFinancialSupportEnabled} />
       <div className="business-actions">
         <WireButton type="submit" variant="primary" disabled={busy}>초기 설정 저장</WireButton>
       </div>
@@ -88,6 +91,7 @@ function ProgramAdmissionForm({ session, program, view, onSaved }: {
   const cloud = view.installation.deploymentMode === 'community-cloud';
   const [storage, setStorage] = useState<ProgramStorageMode>(program.storageMode);
   const [processing, setProcessing] = useState<ProgramProcessingMode>(program.processingMode);
+  const [financialSupportEnabled, setFinancialSupportEnabled] = useState(program.financialSupportEnabled);
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
@@ -101,6 +105,7 @@ function ProgramAdmissionForm({ session, program, view, onSaved }: {
     try {
       await session.institution.confirmProgram({
         programId: program.id, expectedVersion: program.version, storageMode: storage, processingMode: processing,
+        financialSupportEnabled,
         confirmation: {
           copyVersion: view.admissionCopy.version, copyHash: view.admissionCopy.hash,
           installationPolicyVersion: view.installation.policyVersion,
@@ -121,6 +126,11 @@ function ProgramAdmissionForm({ session, program, view, onSaved }: {
 
   return <>
     {error && <WireError>{error.message}</WireError>}
+    <WireCardSection title="첫 상담 사업 모듈">
+      <WireChoice type="checkbox" id={`program-financial-${program.id}`} label="금융지원 모듈 사용"
+        checked={financialSupportEnabled} disabled={busy} onChange={setFinancialSupportEnabled} />
+      <p className="wire-section-value">켜고 경제·재정 영역을 고르면 첫 상담 기록에 채무 표가 열려요. 이전 기록의 값은 바뀌지 않아요.</p>
+    </WireCardSection>
     <WireCardSection title={copy.storage.heading}>
       <p className="wire-section-value">{copy.storage.installationNotice}</p>
       <WireChoice type="radio" name={`storage-${program.id}`} label={copy.storage.options.supabase_seoul.label}
@@ -214,7 +224,7 @@ export function InstitutionScreen() {
           <WireDataRow label="사업 상태" value={program.status === 'active' ? '진행 중' : '종결'} />
           <WireDataRow label="마지막 확인" value={program.confirmedAt ?? '확인 기록 없음'} />
         </WireDataRows>
-        <ProgramAdmissionForm session={session} program={program} view={programs} onSaved={loadPrograms} />
+        <ProgramAdmissionForm key={program.version} session={session} program={program} view={programs} onSaved={loadPrograms} />
       </WireCardSection>)}
     </WireCard>
   </>;

@@ -3,6 +3,9 @@ import { signInstallManifest } from '@ccc/contracts/install-manifest';
 import { buildCapabilityManifest } from '@ccc/contracts/capabilities';
 import type { SignedInstallManifest } from '@ccc/contracts/runtime';
 import { loadInstallation } from './installation';
+import {
+  requiredIntakeQuestionKeys, type IntakeAnswer, type IntakeArea, type IntakeModuleSnapshot, type IntakeQuestionnaire,
+} from '@ccc/contracts/intake';
 
 // 테스트 전용이다. 이 키와 주소는 런타임 진입점에서 가져오지 않는다.
 export const origin = 'https://client.example';
@@ -61,3 +64,21 @@ export const readiness = (orgId = 'org-1', overrides: Record<string, unknown> = 
   },
   ...overrides,
 });
+
+export const intakeModule: IntakeModuleSnapshot = { programId: 'program-1', programVersion: 3, financialSupportEnabled: false };
+
+/** Valid synthetic answers, not an automatic production response policy. */
+export function intakeQuestionnaire(
+  moduleSnapshot: IntakeModuleSnapshot = intakeModule,
+  areas: IntakeArea[] = [],
+  replacements: IntakeAnswer[] = [],
+): IntakeQuestionnaire {
+  const overrides = new Map(replacements.map((answer) => [answer.key, answer]));
+  if (areas.length > 0) overrides.set('difficulty_areas', { key: 'difficulty_areas', response: 'answered', choices: areas });
+  return {
+    schemaVersion: 2, moduleSnapshot,
+    answers: requiredIntakeQuestionKeys(areas).map((key) => overrides.get(key) ?? { key, response: 'unknown' }),
+    linkedOrgs: { response: 'not_applicable' }, additionalItems: { response: 'unknown' },
+    debts: moduleSnapshot.financialSupportEnabled && areas.includes('economy') ? { response: 'unknown' } : null,
+  };
+}

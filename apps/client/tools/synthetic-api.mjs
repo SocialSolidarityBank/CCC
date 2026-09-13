@@ -1,6 +1,8 @@
 // 합성 전용 업무 API와 인증 서버. 실제 기관 자료, 실제 인증, 실제 사업자 연결은 없다.
 // 미리보기와 브라우저 검수가 같은 응답을 쓰도록 한 곳에 둔다.
 
+import { IntakeContractError, parseIntakeCreateRequest, parseIntakeUpdateRequest } from '@ccc/contracts/intake';
+import { canonicalizeJcs } from '@ccc/contracts/jcs';
 const USER_ID = 'a800424b-7cb1-49f5-8bb4-8989d586c455';
 const CASE_ID = '2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10';
 const REGISTERED_CASE_ID = '9bd2a1c4-3f57-4a26-8e19-0b4c6d8e1f20';
@@ -16,6 +18,13 @@ export function createSyntheticState() {
     planVersion: 2,
     overallGoal: '월세 체납을 정리하고 안정적인 소득을 만든다',
     admissionCopyHash: null,
+    programVersion: 3,
+    financialSupportEnabled: false,
+    intakeSubmissions: new Map(),
+    intakeRevisionMetadata: new Map(),
+    orgName: '합성 기관',
+    programName: '금전 지원',
+    extraPrograms: [],
     admissionConfirmed: false,
     assignmentRequested: false,
     goals: [{ id: 'a7f1c9d2-4b6e-4a30-8c52-1d3e5f70b284', title: '월세 체납 정리', status: 'active', closedReason: null, closedAt: null,
@@ -60,6 +69,19 @@ export function createSyntheticState() {
     }],
     calls: [],
   };
+}
+
+/** Seed a migrated legacy revision with its original updated_at, never the conversion time. */
+export function seedSyntheticLegacyIntake(state, supportCaseId, saved, recordedAt) {
+  if ((supportCaseId !== CASE_ID && supportCaseId !== REGISTERED_CASE_ID) || saved.schemaVersion !== 1
+    || typeof recordedAt !== 'string' || !Number.isFinite(Date.parse(recordedAt))) {
+    throw new Error('invalid_synthetic_legacy_intake');
+  }
+  const key = `${supportCaseId}:${saved.revision}`;
+  if (state.intakeRevisionMetadata.has(key)) throw new Error('synthetic_revision_already_exists');
+  state.intakeRevisionMetadata.set(key, { actorId: null, recordedAt, convertedFromRevision: null });
+  if (supportCaseId === CASE_ID) state.intake = structuredClone(saved);
+  else state.registeredIntake = structuredClone(saved);
 }
 
 const CONSENT_DOMAINS = [
@@ -213,13 +235,14 @@ export function handleAuth(request, state, clientOrigin) {
 
 function readiness(state) {
   return {
-    orgId: 'org-1', orgName: '합성 기관', settingsState: 'present', creatorLinkState: 'linked',
-    initialSetupState: 'complete',
+    orgId: 'org-1', orgName: state.orgName, settingsState: 'present', creatorLinkState: 'linked',
+    initialSetupState: state.orgName === null ? 'not_set_up' : 'complete',
     firstProgramAdmissionState: state.admissionConfirmed ? 'admitted' : 'not_admitted',
     firstProgram: {
-      id: 'program-1', displayName: '금전 지원', programType: 'financial_support_v1',
+      id: 'program-1', displayName: state.programName, programType: 'financial_support_v1',
       admissionState: state.admissionConfirmed ? 'ready' : 'confirmation_required',
-      status: 'active', version: state.admissionConfirmed ? 4 : 3,
+      status: 'active', version: state.programVersion,
+      financialSupportEnabled: state.financialSupportEnabled,
     },
     installationState: 'available', retentionPolicyStatus: 'configured',
     consentCopy: {
@@ -291,6 +314,19 @@ export function handleApi(request, state, options) {
       role: state.role === 'worker' ? 'counselor' : 'admin', lastProgramType: null,
       roles: [state.role === 'worker' ? 'worker' : 'institution-admin'], institution: readiness(state),
     }, 200, cors);
+  }
+  if (path === '/organization/onboarding' && request.method === 'POST') {
+    return request.json().then((body) => {
+      if (state.role !== 'institution-admin') return json({ error: 'forbidden' }, 403, cors);
+      if (typeof body.orgName !== 'string' || !body.orgName.trim() || typeof body.programDisplayName !== 'string'
+        || !body.programDisplayName.trim() || (body.financialSupportEnabled !== undefined && typeof body.financialSupportEnabled !== 'boolean')) return json({ error: 'invalid_request' }, 400, cors);
+      if (state.orgName !== null) return json({ error: 'conflict' }, 409, cors);
+      state.orgName = body.orgName;
+      state.programName = body.programDisplayName;
+      state.financialSupportEnabled = body.financialSupportEnabled ?? state.financialSupportEnabled;
+      state.programVersion += 1;
+      return json({ orgId: 'org-1', orgName: state.orgName, programDisplayName: state.programName, institution: readiness(state) }, 200, cors);
+    });
   }
   if (path === '/assignment-requests') return json({ requests: [] }, 200, cors);
   if (path === '/auth/logout') return new Response(null, { status: 204, headers: cors });
@@ -888,10 +924,11 @@ export function handleApi(request, state, options) {
     : state.caseClosed === null && state.assignees.some((entry) => entry.supportCaseId === CASE_ID
       && entry.userId === USER_ID && entry.status === 'active' && entry.unassignedAt === null));
   const savedIntake = intakeCaseId === REGISTERED_CASE_ID ? state.registeredIntake : state.intake;
+  const moduleSnapshot = { programId: 'program-1', programVersion: state.programVersion, financialSupportEnabled: state.financialSupportEnabled };
   if (intakeCaseId !== null && request.method === 'GET') {
     return json({
       beneficiaryId: intakeCaseId === CASE_ID ? 'swallow-003' : 'otter-011', supportCaseId: intakeCaseId,
-      canWrite: canWriteIntake,
+      canWrite: canWriteIntake, writeSchemaVersion: 2, moduleSnapshot,
       participant: { name: '김합성', phone: '010-0000-0000', email: 'synthetic@example.invalid' },
       sessionSequence: savedIntake === null ? 1 : 2, hasIntake: savedIntake !== null,
       extendedPii: { birthDate: '1980-03-05', region: '서울', emergencyContact: null, gender: null },
@@ -902,30 +939,78 @@ export function handleApi(request, state, options) {
     }, 200, cors);
   }
   if (intakeCaseId !== null && (request.method === 'POST' || request.method === 'PUT')) {
-    if (!canWriteIntake) return json({ error: 'forbidden' }, 403, cors);
-    return request.json().then((body) => {
-      const replayed = request.method === 'POST' && savedIntake !== null;
-      const intake = replayed ? savedIntake : {
-        sessionId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', heldAt: body.heldAt, channel: 'in_person',
-        answers: body.answers ?? [], debts: body.debts ?? [], linkedOrgs: body.linkedOrgs ?? [],
-        additionalItems: body.additionalItems ?? [], managerOpinion: body.managerOpinion ?? null,
+    if (!canWriteIntake) return intakeCaseId === CASE_ID && state.caseClosed !== null
+      ? json({ error: 'conflict' }, 409, cors) : json({ error: 'forbidden' }, 403, cors);
+    return request.json().then((raw) => {
+      let body;
+      try { body = request.method === 'POST' ? parseIntakeCreateRequest(raw) : parseIntakeUpdateRequest(raw); }
+      catch (error) {
+        if (error instanceof IntakeContractError) return json({ error: 'invalid_request' }, 400, cors);
+        throw error;
+      }
+      const receiptKey = `${intakeCaseId}:${body.submissionId}`;
+      const fingerprint = canonicalizeJcs(body);
+      if (request.method === 'POST') {
+        const previous = state.intakeSubmissions.get(receiptKey);
+        if (previous) return previous.fingerprint === fingerprint
+          ? json({ ...previous.result, replayed: true }, 200, cors) : json({ error: 'conflict' }, 409, cors);
+      }
+      const snapshot = body.questionnaire.moduleSnapshot;
+      if (snapshot.programId !== moduleSnapshot.programId || snapshot.programVersion !== moduleSnapshot.programVersion
+        || snapshot.financialSupportEnabled !== moduleSnapshot.financialSupportEnabled) return json({ error: 'conflict' }, 409, cors);
+      if (request.method === 'POST') {
+        if (savedIntake !== null) return json({ error: 'conflict' }, 409, cors);
+        if (body.scheduleId !== undefined && (body.scheduleId !== SCHEDULE_ID || body.expectedScheduleVersion !== state.scheduleVersion)) {
+          return json({ error: 'conflict' }, 409, cors);
+        }
+      } else if (savedIntake === null || body.expectedRevision !== savedIntake.revision
+        || (savedIntake.schemaVersion === 1 ? body.conversion?.sourceRevision !== savedIntake.revision || body.conversion?.confirmed !== true
+          : body.conversion !== undefined)) return json({ error: 'conflict' }, 409, cors);
+      const previousMetadata = savedIntake === null ? null
+        : state.intakeRevisionMetadata.get(`${intakeCaseId}:${savedIntake.revision}`);
+      // Manually seeded revisions must include their original provenance rather than inventing it here.
+      if (savedIntake !== null && !previousMetadata) return json({ error: 'internal_error' }, 500, cors);
+      const history = savedIntake === null ? [] : [{
+        revision: savedIntake.revision, schemaVersion: savedIntake.schemaVersion, heldAt: savedIntake.heldAt,
+        channel: savedIntake.channel, ...previousMetadata,
+        detailsJson: savedIntake.schemaVersion === 1 ? savedIntake.legacyDetailsJson : JSON.stringify(savedIntake.questionnaire),
+      }, ...savedIntake.history];
+      const intake = {
+        sessionId: savedIntake?.sessionId ?? (intakeCaseId === CASE_ID ? '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35' : '6d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35'),
+        heldAt: body.heldAt, channel: body.channel, revision: (savedIntake?.revision ?? 0) + 1,
+        schemaVersion: 2, questionnaire: structuredClone(body.questionnaire), legacyDetailsJson: null, history,
       };
       if (intakeCaseId === REGISTERED_CASE_ID) state.registeredIntake = intake;
       else state.intake = intake;
-      const record = { id: intake.sessionId, heldAt: intake.heldAt, channel: 'in_person', kind: 'intake' };
-      return request.method === 'POST'
-        ? json({ record, replayed }, replayed ? 200 : 201, cors)
-        : json({ record }, 200, cors);
+      state.intakeRevisionMetadata.set(`${intakeCaseId}:${intake.revision}`, {
+        actorId: USER_ID, recordedAt: new Date().toISOString(), convertedFromRevision: body.conversion?.sourceRevision ?? null,
+      });
+      const result = { schemaVersion: 2, revision: intake.revision, replayed: false,
+        record: { id: intake.sessionId, heldAt: intake.heldAt, channel: intake.channel, kind: 'intake' } };
+      if (request.method === 'POST') state.intakeSubmissions.set(receiptKey, { fingerprint, result });
+      return json(result, request.method === 'POST' ? 201 : 200, cors);
+    });
+  }
+  if (path === '/programs' && request.method === 'POST') {
+    return request.json().then((body) => {
+      if (state.role !== 'institution-admin') return json({ error: 'forbidden' }, 403, cors);
+      if (typeof body.displayName !== 'string' || !body.displayName.trim()
+        || (body.financialSupportEnabled !== undefined && typeof body.financialSupportEnabled !== 'boolean')) return json({ error: 'invalid_request' }, 400, cors);
+      const program = { id: `program-created-${state.extraPrograms.length + 1}`, orgId: 'org-1', displayName: body.displayName,
+        programType: 'financial_support_v1', storageMode: 'undecided', processingMode: 'undecided', status: 'active',
+        version: 1, financialSupportEnabled: body.financialSupportEnabled ?? false, confirmation: null, admissionState: 'undecided', staff: [] };
+      state.extraPrograms.push(program);
+      return json({ program }, 201, cors);
     });
   }
   if (path === '/programs' && request.method === 'GET') {
     return json({
       programs: [{
-        id: 'program-1', orgId: 'org-1', displayName: '금전 지원', status: 'active',
+        id: 'program-1', orgId: 'org-1', displayName: state.programName, status: 'active',
         programType: 'financial_support_v1', storageMode: 'supabase_seoul', processingMode: 'external_allowed',
-        version: state.admissionConfirmed ? 4 : 3, confirmation: null,
+        version: state.programVersion, financialSupportEnabled: state.financialSupportEnabled, confirmation: null,
         admissionState: state.admissionConfirmed ? 'ready' : 'confirmation_required', staff: [],
-      }],
+      }, ...state.extraPrograms],
       staffOptions: [],
       admissionCopy: { version: admissionCopyVersion, hash: state.admissionCopyHash ?? admissionCopyHash, copy: {} },
       installation: {
@@ -936,11 +1021,27 @@ export function handleApi(request, state, options) {
   }
   if (path.startsWith('/programs/') && request.method === 'PATCH') {
     return request.json().then((body) => {
+      if (state.role !== 'institution-admin') return json({ error: 'forbidden' }, 403, cors);
+      if (path !== '/programs/program-1') {
+        const program = state.extraPrograms.find((entry) => path === `/programs/${entry.id}`);
+        if (!program) return json({ error: 'not_found' }, 404, cors);
+        if (body.expectedVersion !== program.version) return json({ error: 'conflict' }, 409, cors);
+        if (body.financialSupportEnabled !== undefined && typeof body.financialSupportEnabled !== 'boolean') return json({ error: 'invalid_request' }, 400, cors);
+        Object.assign(program, { financialSupportEnabled: body.financialSupportEnabled ?? program.financialSupportEnabled, version: program.version + 1,
+          storageMode: body.storageMode ?? program.storageMode, processingMode: body.processingMode ?? program.processingMode,
+          confirmation: body.confirmation ? { by: 'user-1', at: new Date().toISOString(), ...body.confirmation } : program.confirmation,
+          admissionState: body.confirmation ? 'ready' : program.admissionState });
+        return json({ program }, 200, cors);
+      }
+      if (body.expectedVersion !== state.programVersion) return json({ error: 'conflict' }, 409, cors);
+      if (body.financialSupportEnabled !== undefined && typeof body.financialSupportEnabled !== 'boolean') return json({ error: 'invalid_request' }, 400, cors);
+      state.financialSupportEnabled = body.financialSupportEnabled ?? state.financialSupportEnabled;
+      state.programVersion += 1;
       state.admissionConfirmed = true;
       return json({ program: {
-        id: 'program-1', orgId: 'org-1', displayName: '금전 지원', status: 'active',
+        id: 'program-1', orgId: 'org-1', displayName: state.programName, status: 'active',
         programType: 'financial_support_v1', storageMode: body.storageMode, processingMode: body.processingMode,
-        version: 4, admissionState: 'ready', staff: [],
+        version: state.programVersion, financialSupportEnabled: state.financialSupportEnabled, admissionState: 'ready', staff: [],
         confirmation: { by: 'user-1', at: new Date().toISOString(), storageMode: body.storageMode,
           processingMode: body.processingMode, ...body.confirmation },
       } }, 200, cors);
