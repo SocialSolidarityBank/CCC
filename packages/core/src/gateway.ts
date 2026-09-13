@@ -21530,18 +21530,18 @@ export interface StaffInviteAcceptResult {
  * 초대 수락(원자). 토큰 소비, users 등재, 초대에 적힌 역할 부여, legacy 자동 부여 역할 회수를
  * 한 배치에 묶는다. 이메일이 초대와 다르면 소비하지 않고 미존재와 같은 ForbiddenError다.
  *
- * 계정 결속(D90): 수락자가 이미 만든 Auth 계정의 검증된 `subject` 를 등재와 같은 배치에서 채운다.
+ * 계정 결속(D90): 초대로 받은 Auth 계정의 검증된 `subject` 를 등재와 같은 배치에서 채운다.
  * 초대 토큰은 한 번만 쓰는 비밀이고 subject 는 서명으로 검증된 값이라, 연결 근거가 이메일 claim 이
  * 아니라 이 둘이다. 연결되지 않은 users 행을 남기지 않으므로 나중에 가로챌 자리도 없다.
  */
 export async function acceptStaffInvite(
   env: Env,
   input: { token: string; name: string; email: string },
-  authSubject: string | null = null,
+  authSubject: string,
 ): Promise<StaffInviteAcceptResult> {
   assertExactKeys(input, ['token', 'name', 'email']);
   assertNonBlankText(input.name, 'name');
-  if (authSubject !== null) assertOpaqueIdentifier(authSubject, 'auth subject');
+  assertOpaqueIdentifier(authSubject, 'auth subject');
   const name = input.name.trim();
   const email = normalizedStaffEmail(input.email);
   const row = await liveStaffInviteByToken(env, input.token);

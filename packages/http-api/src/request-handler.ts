@@ -2313,18 +2313,21 @@ export async function handleRequest(
       const body = await requestBody(request);
       requireOnlyKeys(body, ['name', 'email']);
       const email = requiredString(body, 'email');
-      // D90: 수락자는 자기 Auth 계정으로 부른다. 서명으로 검증한 subject 만 등재 행에 결속하고,
-      // 토큰 이메일이 초대 이메일과 다르면 결속하지 않는다. 자격이 없으면 결속 없이 등재만 한다.
-      let authSubject: string | null = null;
+      // 검증된 subject가 있어야 수락한다. 이메일은 여기서 요청과 대조한 뒤
+      // gateway가 초대의 정규화된 이메일과 다시 대조한다.
       const verifyLinkClaims = env.verifyIdentityLinkClaims;
-      if (verifyLinkClaims !== undefined && request.headers.get('authorization') !== null) {
-        const claims = await verifyLinkClaims(request);
-        if (claims.email.trim().toLowerCase() === email.trim().toLowerCase()) authSubject = claims.subject;
+      if (verifyLinkClaims === undefined || request.headers.get('authorization') === null) {
+        return json({ error: 'not_found' }, 404);
+      }
+      const claims = await verifyLinkClaims(request);
+      if (typeof claims.subject !== 'string' || claims.subject.trim().length === 0
+        || typeof claims.email !== 'string' || claims.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
+        return json({ error: 'not_found' }, 404);
       }
       try {
         return json(await acceptStaffInvite(env, {
           token: pubParts[2] ?? '', name: requiredString(body, 'name'), email,
-        }, authSubject), 201);
+        }, claims.subject), 201);
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
