@@ -6,6 +6,8 @@ export interface ReportEvidence {
   /** Stored field or canonical record-projection path within the source session. */
   source: string;
   text: string;
+  intakeSchemaVersion?: 1 | 2;
+  intakeRevision?: number;
 }
 
 export interface SupportCaseReport {
@@ -21,6 +23,8 @@ export interface SupportCaseReport {
     heldAt: string;
     kind: 'regular' | 'intake';
     channel: 'in_person' | 'phone' | 'video';
+    intakeSchemaVersion?: 1 | 2;
+    intakeRevision?: number;
     /** Approved one-liner/summary excerpt, otherwise a sourced manual excerpt. */
     summary?: ReportEvidence;
   }>;

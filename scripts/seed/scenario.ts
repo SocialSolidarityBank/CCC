@@ -22,6 +22,7 @@ import {
   createCounselingSchedule,
   createCounselingRecord,
   createIntakeRecord,
+  getIntakeRecordContext,
   listGoals,
   closeGoal,
   createGoal,
@@ -36,6 +37,7 @@ import {
   type CounselingRecordFlagInput,
   type CreateScheduleSessionGoalInput,
 } from '@ccc/core/gateway';
+import { requiredIntakeQuestionKeys, type IntakeAnswer } from '@ccc/contracts/intake';
 import type { D1Capture } from './capture';
 import { ADMIN_ACTOR_ID, ORG_ID } from './preload-data';
 import {
@@ -213,15 +215,21 @@ async function runParticipant(
     active[slot] = { key: replacement.newGoal.key, id: successor.id, title: replacement.newGoal.title };
   };
 
-  // 4) 인테이크 기록 — 인테이크 일정 완료. kind='intake' 세션이 서고 intake_at 이 채워진다
-  //    (CCC-56 배선). 메모는 실기록과 같은 자리인 실무자 종합 의견(managerOpinion)에 싣는다 —
-  //    인테이크 세션의 memo 컬럼은 실흐름에서도 NULL 이다.
+  // 인테이크 메모는 실무자 종합의견에 둔다. 합성 시나리오가 제공하지 않은 응답은 모름으로 명시한다.
+  const intakeContext = await getIntakeRecordContext(env, primaryActor, supportCaseId);
+  const intakeAnswers: IntakeAnswer[] = requiredIntakeQuestionKeys([]).map(key => key === 'managerOpinion'
+    ? { key, response: 'answered', text: participant.intakeMemo }
+    : { key, response: 'unknown' });
   mark();
   await createIntakeRecord(env, primaryActor, supportCaseId, {
+    schemaVersion: 2,
     submissionId: crypto.randomUUID(),
     heldAt: participant.intakeAt,
     channel: 'in_person',
-    managerOpinion: participant.intakeMemo,
+    questionnaire: {
+      schemaVersion: 2, moduleSnapshot: intakeContext.moduleSnapshot, answers: intakeAnswers,
+      linkedOrgs: { response: 'unknown' }, additionalItems: { response: 'unknown' }, debts: null,
+    },
     scheduleId: intakeSchedule.id,
     expectedScheduleVersion: 1,
   });

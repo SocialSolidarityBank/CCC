@@ -32,6 +32,7 @@ export const checkpoints = [
   { id: 'participant-request-links', sqlite: '0059_participant_request_links.sql', postgres: '0015_participant_request_links.sql' },
   { id: 'canonical-compatibility-views', sqlite: '0060_canonical_compatibility_views.sql', postgres: '0016_canonical_compatibility_views.sql' },
   { id: 'agent-credentials', sqlite: '0061_agent_credentials.sql', postgres: '0017_agent_credentials.sql' },
+  { id: 'intake-versions', sqlite: '0062_intake_versions.sql', postgres: '0018_intake_versions.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;

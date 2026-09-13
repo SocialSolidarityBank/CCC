@@ -116,6 +116,7 @@ export interface ProgramStaff extends ProgramStaffInput {
 
 export interface CreateProgramInput {
   displayName: string;
+  financialSupportEnabled?: boolean;
   storageMode?: ProgramStorageMode | null;
   processingMode?: ProgramProcessingMode | null;
   confirmation?: ProgramConfirmationInput | null;
@@ -125,6 +126,7 @@ export interface CreateProgramInput {
 export interface UpdateProgramInput {
   expectedVersion: number;
   displayName?: string;
+  financialSupportEnabled?: boolean;
   storageMode?: ProgramStorageMode | null;
   processingMode?: ProgramProcessingMode | null;
   confirmation?: ProgramConfirmationInput | null;
@@ -148,6 +150,7 @@ export interface ProgramRecord {
   storageMode: ProgramStorageMode;
   processingMode: ProgramProcessingMode;
   version: number;
+  financialSupportEnabled: boolean;
   confirmation: ProgramConfirmation | null;
 }
 

@@ -1,4 +1,3 @@
-import type { Bindable, PreparedStatement } from '@ccc/contracts/database';
 import { describe, expect, it, vi } from 'vitest';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import worker from './support/local-worker';
@@ -44,6 +43,7 @@ import {
   seedCanonicalSttConsent,
 } from './support/agent-jobs';
 import { registrationConsentEvents, registrationInput, signupConsentEvents } from './support/registration';
+import { intakeInput, intakeQuestionnaire } from './support/intake';
 
 const counselorHeaders = {
   'content-type': 'application/json',
@@ -681,6 +681,7 @@ describe('API routes', () => {
           programType: 'financial_support_v1',
           status: 'active',
           version: 1,
+          financialSupportEnabled: false,
           admissionState: 'undecided',
         },
         installationState: 'available',
@@ -1157,35 +1158,12 @@ describe('API routes', () => {
     await expectNoDraft(mismatched.env, mismatched.session.id);
   });
 
-  it('stops provider egress when admission changes during historical context loading', async () => {
+  it('blocks provider egress when program admission becomes stale after the source was recorded', async () => {
     const fixture = await setupPhase1AiFixture();
     const source = await recordSourceSnapshot(fixture.env, fixture.session.id);
-    let changed = false;
-    const wrap = (statement: PreparedStatement): PreparedStatement => new Proxy(statement, {
-      get(target, property) {
-        if (property === 'bind') return (...values: Bindable[]) => wrap(target.bind(...values));
-        if (property === 'first') return async () => {
-          if (!changed) {
-            changed = true;
-            await t.db.prepare('UPDATE program_admission_policies SET version = version + 1 WHERE org_id = ?')
-              .bind(fixture.counselor.orgId).run();
-          }
-          return target.first();
-        };
-        const value = Reflect.get(target, property);
-        return typeof value === 'function' ? value.bind(target) : value;
-      },
-    });
-    const env: ApiEnv = { ...fixture.env, DB: {
-      prepare: (sql) => {
-        const statement = fixture.env.DB.prepare(sql);
-        return sql.startsWith('SELECT 1 AS eligible FROM counseling_memory_cases c')
-          ? wrap(statement) : statement;
-      },
-      batch: fixture.env.DB.batch.bind(fixture.env.DB),
-    } };
-    const response = await generateDraft(env, fixture.session.id, source.sourceSnapshotId);
-    expect(changed, `historical context injection; status=${response.status}`).toBe(true);
+    await t.db.prepare('UPDATE program_admission_policies SET version = version + 1 WHERE org_id = ?')
+      .bind(fixture.counselor.orgId).run();
+    const response = await generateDraft(fixture.env, fixture.session.id, source.sourceSnapshotId);
     expect(fixture.adapter.calls).toBe(0);
     expect(response.status).toBe(409);
     await expectNoDraft(fixture.env, fixture.session.id);
@@ -2398,6 +2376,7 @@ interface ParticipantCreation {
   supportCaseId: string;
   assignmentRole: 'primary';
   replayed: boolean;
+  canWriteIntake: boolean;
 }
 
 async function setupCanonicalParticipant(): Promise<ParticipantCreation> {
@@ -2953,13 +2932,13 @@ describe('canonical participant API routes', () => {
       {
         method: 'POST',
         headers: canonicalCounselorHeaders,
-        body: JSON.stringify({
+        body: JSON.stringify(await intakeInput(t.env, canonicalCounselor, creation.supportCaseId, {
           submissionId: 'c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3',
           heldAt: '2026-07-15T09:30:00.000Z',
           channel: 'in_person',
           scheduleId: schedule.id,
           expectedScheduleVersion: schedule.version,
-        }),
+        })),
       },
     ), t.env);
     expect(created.status).toBe(201);
@@ -2993,26 +2972,10 @@ describe('canonical participant API routes', () => {
       hasIntake: false,
     });
 
-    const intakeBody = {
+    const intakeBody = await intakeInput(t.env, canonicalCounselor, creation.supportCaseId, {
       submissionId: 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1',
       heldAt: '2026-07-15T09:30:00.000Z',
-      channel: 'in_person',
-      helpNarrative: {
-        todayHelp: 'INTAKE_TODAY_HELP',
-        hardestPoint: 'INTAKE_HARDEST',
-        desiredChange: 'INTAKE_DESIRED',
-      },
-      lifeAreas: [
-        { areaKey: 'economy', status: 'crisis', note: 'INTAKE_ECONOMY' },
-        { areaKey: 'housing', status: 'okay' },
-        { areaKey: 'employment', status: 'strained' },
-        { areaKey: 'health', status: 'okay' },
-        { areaKey: 'mental_health', status: 'declined' },
-        { areaKey: 'family', status: 'not_applicable' },
-      ],
-      goals: [{ title: 'INTAKE_GOAL', scaleCriteria: { plus2: '완납' } }],
-      actions: [{ description: 'INTAKE_ACTION', owner: 'beneficiary' }],
-    };
+    });
     const created = await worker.fetch(new Request(
       `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
       { method: 'POST', headers: canonicalCounselorHeaders, body: JSON.stringify(intakeBody) },
@@ -3058,102 +3021,67 @@ describe('canonical participant API routes', () => {
     ), t.env);
     expect(denied.status).toBe(403);
   });
-  it('serves the saved intake in the context and updates it in place (2026-08-08 확인·수정)', async () => {
+  it.each(['POST', 'PUT'] as const)('returns 400 for nonstring intake channels on %s without mutation', async (method) => {
     const creation = await setupCanonicalParticipant();
+    const path = `http://localhost/support-cases/${creation.supportCaseId}/records/intake`;
+    const input = await intakeInput(t.env, canonicalCounselor, creation.supportCaseId, { heldAt: '2026-07-15T09:30:00.000Z' });
+    const send = (verb: string, body: object) => worker.fetch(new Request(path, {
+      method: verb, headers: canonicalCounselorHeaders, body: JSON.stringify(body),
+    }), t.env);
+    if (method === 'PUT') expect((await send('POST', input)).status).toBe(201);
+    const body = method === 'POST' ? input : {
+      schemaVersion: 2, expectedRevision: 1, heldAt: '2026-07-16T10:00:00.000Z', questionnaire: input.questionnaire,
+    };
+    const before = await worker.fetch(new Request(path, { headers: canonicalCounselorHeaders }), t.env);
+    expect(before.status).toBe(200);
+    const beforeBody = await before.json() as { saved: unknown; hasIntake: boolean; sessionSequence: number };
+    const caseBefore = await t.db.prepare('SELECT intake_at FROM support_cases WHERE id = ?')
+      .bind(creation.supportCaseId).first();
+    for (const channel of [['phone'], { toString: 'phone' }, {}, 42, false, null]) {
+      const response = await send(method, { ...body, channel });
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: 'invalid_request' });
+    }
+    const after = await worker.fetch(new Request(path, { headers: canonicalCounselorHeaders }), t.env);
+    expect(after.status).toBe(200);
+    await expect(after.json()).resolves.toMatchObject({
+      saved: beforeBody.saved, hasIntake: beforeBody.hasIntake, sessionSequence: beforeBody.sessionSequence,
+    });
+    expect(await t.db.prepare('SELECT intake_at FROM support_cases WHERE id = ?')
+      .bind(creation.supportCaseId).first()).toEqual(caseBefore);
+  });
 
-    // 인테이크가 없으면 수정은 409 — 만들기 1회 규칙의 짝(수정은 있는 것만).
-    const beforeCreate = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      {
-        method: 'PUT',
-        headers: canonicalCounselorHeaders,
-        body: JSON.stringify({ heldAt: '2026-07-15T09:30:00.000Z', channel: 'in_person' }),
-      },
-    ), t.env);
-    expect(beforeCreate.status).toBe(409);
-
-    const created = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      {
-        method: 'POST',
-        headers: canonicalCounselorHeaders,
-        body: JSON.stringify({
-          submissionId: 'c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3',
-          heldAt: '2026-07-15T09:30:00.000Z',
-          channel: 'in_person',
-          answers: [{ key: 'counsel_method', response: 'answered', text: '대면 상담(내방)' }],
-          debts: [{ creditor: '해당 없음' }],
-          managerOpinion: 'INTAKE_OPINION_V1',
-        }),
-      },
-    ), t.env);
+  it('returns versioned intake history, rejects stale edits, and preserves read-only access', async () => {
+    const creation = await setupCanonicalParticipant();
+    const path = `http://localhost/support-cases/${creation.supportCaseId}/records/intake`;
+    const input = await intakeInput(t.env, canonicalCounselor, creation.supportCaseId, { heldAt: '2026-07-15T09:30:00.000Z' });
+    input.questionnaire = intakeQuestionnaire(input.questionnaire.moduleSnapshot, [{ key: 'managerOpinion', response: 'answered', text: 'INTAKE_OPINION_V1' }]);
+    const edit = { schemaVersion: 2, expectedRevision: 1, heldAt: '2026-07-16T10:00:00.000Z', channel: 'phone',
+      questionnaire: intakeQuestionnaire(input.questionnaire.moduleSnapshot, [{ key: 'managerOpinion', response: 'answered', text: 'INTAKE_OPINION_V2' }]) };
+    const send = (method: string, body: object, headers: HeadersInit = canonicalCounselorHeaders) => worker.fetch(new Request(path, { method, headers, body: JSON.stringify(body) }), t.env);
+    expect((await send('PUT', edit)).status).toBe(409);
+    const { schemaVersion: _version, ...unversioned } = input;
+    expect((await send('POST', unversioned)).status).toBe(400);
+    expect((await send('POST', { ...input, schemaVersion: 3 })).status).toBe(400);
+    const created = await send('POST', input);
     expect(created.status).toBe(201);
     const createdBody = await created.json() as { record: { id: string } };
-
-    // 컨텍스트가 저장분을 싣는다 — 확인 화면의 재료(감사는 화면 조회 1건에 합산).
-    const context = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      { headers: canonicalCounselorHeaders },
-    ), t.env);
-    await expect(context.json()).resolves.toMatchObject({
-      hasIntake: true,
-      saved: {
-        sessionId: createdBody.record.id,
-        heldAt: '2026-07-15T09:30:00.000Z',
-        channel: 'in_person',
-        answers: [{ key: 'counsel_method', response: 'answered', text: '대면 상담(내방)' }],
-        debts: [{ creditor: '해당 없음' }],
-        managerOpinion: 'INTAKE_OPINION_V1',
-      },
+    const before = await worker.fetch(new Request(path, { headers: canonicalCounselorHeaders }), t.env);
+    await expect(before.json()).resolves.toMatchObject({
+      hasIntake: true, writeSchemaVersion: 2, moduleSnapshot: input.questionnaire.moduleSnapshot,
+      saved: { sessionId: createdBody.record.id, schemaVersion: 2, revision: 1, questionnaire: input.questionnaire },
     });
-
-    // 수정: 상담일·답변·의견을 덮어쓴다. 같은 세션 행이 그대로 남는다(새 회차 아님).
-    const updated = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      {
-        method: 'PUT',
-        headers: canonicalCounselorHeaders,
-        body: JSON.stringify({
-          heldAt: '2026-07-16T10:00:00.000Z',
-          channel: 'phone',
-          answers: [{ key: 'counsel_method', response: 'answered', text: '전화 상담' }],
-          debts: [{ creditor: 'OO은행', kind: '신용대출' }],
-          managerOpinion: 'INTAKE_OPINION_V2',
-        }),
-      },
-    ), t.env);
+    const updated = await send('PUT', edit);
     expect(updated.status).toBe(200);
-    await expect(updated.json()).resolves.toMatchObject({
-      record: { id: createdBody.record.id, heldAt: '2026-07-16T10:00:00.000Z', channel: 'phone', kind: 'intake' },
-    });
-
-    const contextAfter = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      { headers: canonicalCounselorHeaders },
-    ), t.env);
-    await expect(contextAfter.json()).resolves.toMatchObject({
-      // 회차가 늘지 않았다(수정은 덮어쓰기) — sessionSequence = 기존 1 + 1.
+    await expect(updated.json()).resolves.toMatchObject({ schemaVersion: 2, revision: 2, record: { id: createdBody.record.id, heldAt: edit.heldAt, channel: 'phone', kind: 'intake' } });
+    expect((await send('PUT', edit)).status).toBe(409);
+    expect((await send('PUT', { ...edit, expectedRevision: 2 }, canonicalUnassignedHeaders)).status).toBe(403);
+    const after = await worker.fetch(new Request(path, { headers: canonicalCounselorHeaders }), t.env);
+    await expect(after.json()).resolves.toMatchObject({
       sessionSequence: 2,
-      saved: {
-        sessionId: createdBody.record.id,
-        heldAt: '2026-07-16T10:00:00.000Z',
-        channel: 'phone',
-        answers: [{ key: 'counsel_method', response: 'answered', text: '전화 상담' }],
-        debts: [{ creditor: 'OO은행', kind: '신용대출' }],
-        managerOpinion: 'INTAKE_OPINION_V2',
-      },
+      saved: { sessionId: createdBody.record.id, schemaVersion: 2, revision: 2, heldAt: edit.heldAt, questionnaire: edit.questionnaire,
+        history: [{ revision: 1, schemaVersion: 2, detailsJson: JSON.stringify(input.questionnaire) }] },
     });
-
-    // 담당 아닌 실무자는 수정할 수 없다(403) — 읽기와 같은 경계다(D7).
-    const denied = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      {
-        method: 'PUT',
-        headers: canonicalUnassignedHeaders,
-        body: JSON.stringify({ heldAt: '2026-07-17T10:00:00.000Z', channel: 'in_person' }),
-      },
-    ), t.env);
-    expect(denied.status).toBe(403);
   });
   it('returns 409 for a conflicting canonical SupportCase receipt without state mutation', async () => {
     const creation = await setupCanonicalParticipant();
@@ -3180,6 +3108,7 @@ describe('canonical participant API routes', () => {
       supportCaseId: expect.any(String),
       assignmentRole: 'primary',
       replayed: false,
+      canWriteIntake: true,
     });
 
     const stateBeforeConflict = await t.db.prepare(

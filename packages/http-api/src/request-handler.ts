@@ -1,6 +1,9 @@
 import type { MeResponse } from '@ccc/contracts/institution';
 import type { CreateProgramInput, UpdateProgramInput, ProgramOptionsResponse, ProgramMutationResponse, ProgramAdmissionDeniedResponse } from '@ccc/contracts/program-admission';
+import { parseIntakeCreateRequest, parseIntakeUpdateRequest, IntakeContractError, type IntakeMutationResponse } from '@ccc/contracts/intake';
 import {
+  type IntakeRecordResult,
+  type IntakeRecordContext,
   ACTION_ITEM_RESOLUTION_STATUSES,
   type ActionItemResolutionStatus,
   AiProviderNotConfiguredError,
@@ -19,7 +22,6 @@ import {
   correctCounselingMemory,
   getCounselingMemory,
   getCounselingMemorySettings,
-  loadCounselingMemoryContext,
   setCounselingMemorySettings,
   acceptCounselingMemorySource,
   claimCounselingMemorySources,
@@ -41,9 +43,6 @@ import {
   FixtureDraftApprovalForbiddenError,
   LIFE_AREA_KEYS,
   LIFE_AREA_STATUSES,
-  INTAKE_ANSWER_KEYS,
-  INTAKE_ANSWER_RESPONSES,
-  INTAKE_EXTENDED_PII_FIELDS,
   PARTICIPANT_BASIC_INFO_FIELDS,
   NotApprovedError,
   PilotTextAiConsentRequiredError,
@@ -735,281 +734,18 @@ function requiredBoolean(body: JsonObject, key: string): boolean {
   return value;
 }
 
-// 인테이크 제출 파서(CCC-7). 게이트웨이 createIntakeRecord 입력으로 정규화한다.
-// 바디 키는 정기 기록과 맞춰 액션은 'actions' 로 받고, 게이트웨이엔 actionItems 로 넘긴다.
 function parseIntakeCreation(body: JsonObject) {
-  const hasSchedule = Object.hasOwn(body, 'scheduleId') || Object.hasOwn(body, 'expectedScheduleVersion');
-  const hasManagerOpinion = Object.hasOwn(body, 'managerOpinion');
-  const hasAnswers = Object.hasOwn(body, 'answers');
-  const hasExtendedPii = Object.hasOwn(body, 'extendedPii');
-  const hasAdditionalItems = Object.hasOwn(body, 'additionalItems');
-  const hasNextMeeting = Object.hasOwn(body, 'nextMeeting');
-  // D42: 동의·원하는 도움 3문·6영역·목표·다음 행동은 정본 질문지에 대응 항목이 없어 선택이다.
-  const hasHelpNarrative = Object.hasOwn(body, 'helpNarrative');
-  const hasLifeAreas = Object.hasOwn(body, 'lifeAreas');
-  const hasGoals = Object.hasOwn(body, 'goals');
-  const hasActions = Object.hasOwn(body, 'actions');
-  const hasDebts = Object.hasOwn(body, 'debts');
-  const hasLinkedOrgs = Object.hasOwn(body, 'linkedOrgs');
-  const allowedKeys = ['submissionId', 'heldAt', 'channel'];
-  if (hasHelpNarrative) allowedKeys.push('helpNarrative');
-  if (hasLifeAreas) allowedKeys.push('lifeAreas');
-  if (hasGoals) allowedKeys.push('goals');
-  if (hasActions) allowedKeys.push('actions');
-  if (hasAnswers) allowedKeys.push('answers');
-  if (hasExtendedPii) allowedKeys.push('extendedPii');
-  if (hasAdditionalItems) allowedKeys.push('additionalItems');
-  if (hasDebts) allowedKeys.push('debts');
-  if (hasLinkedOrgs) allowedKeys.push('linkedOrgs');
-  if (hasNextMeeting) allowedKeys.push('nextMeeting');
-  if (hasManagerOpinion) allowedKeys.push('managerOpinion');
-  if (hasSchedule) allowedKeys.push('scheduleId', 'expectedScheduleVersion');
-  requireOnlyKeys(body, allowedKeys);
-
-  const channelValue = requiredString(body, 'channel');
-  if (channelValue !== 'in_person' && channelValue !== 'phone' && channelValue !== 'video') {
-    throw new ValidationError('record channel is invalid');
+  try { return parseIntakeCreateRequest(body); } catch (error) {
+    if (error instanceof IntakeContractError) throw new ValidationError(error.message);
+    throw error;
   }
-  const channel: 'in_person' | 'phone' | 'video' = channelValue;
-
-
-  const helpNarrative = !hasHelpNarrative ? undefined : (() => {
-    const narrativeObject = asObject(body.helpNarrative);
-    requireOnlyKeys(narrativeObject, ['todayHelp', 'hardestPoint', 'desiredChange']);
-    return {
-      todayHelp: requiredString(narrativeObject, 'todayHelp'),
-      hardestPoint: requiredString(narrativeObject, 'hardestPoint'),
-      desiredChange: requiredString(narrativeObject, 'desiredChange'),
-    };
-  })();
-
-  const lifeAreas = !hasLifeAreas ? undefined : objectArray(body.lifeAreas, 'lifeAreas').map((area) => {
-    requireOnlyKeys(area, Object.hasOwn(area, 'note') ? ['areaKey', 'status', 'note'] : ['areaKey', 'status']);
-    const areaKey = requiredString(area, 'areaKey');
-    if (!(LIFE_AREA_KEYS as readonly string[]).includes(areaKey)) {
-      throw new ValidationError('life area key is invalid');
-    }
-    const status = requiredString(area, 'status');
-    if (!(LIFE_AREA_STATUSES as readonly string[]).includes(status)) {
-      throw new ValidationError('life area status is invalid');
-    }
-    return {
-      areaKey: areaKey as typeof LIFE_AREA_KEYS[number],
-      status: status as typeof LIFE_AREA_STATUSES[number],
-      ...(Object.hasOwn(area, 'note') ? { note: requiredString(area, 'note') } : {}),
-    };
-  });
-
-  const goals = !hasGoals ? undefined : objectArray(body.goals, 'goals').map((goal) => {
-    requireOnlyKeys(goal, Object.hasOwn(goal, 'scaleCriteria') ? ['title', 'scaleCriteria'] : ['title']);
-    return {
-      title: requiredString(goal, 'title'),
-      ...(Object.hasOwn(goal, 'scaleCriteria') ? { scaleCriteria: goal.scaleCriteria } : {}),
-    };
-  });
-
-  const actionItems = !hasActions ? undefined : objectArray(body.actions, 'actions').map((action) => {
-    requireOnlyKeys(action, Object.hasOwn(action, 'dueDate') ? ['description', 'owner', 'dueDate'] : ['description', 'owner']);
-    const ownerValue = requiredString(action, 'owner');
-    if (ownerValue !== 'counselor' && ownerValue !== 'beneficiary' && ownerValue !== 'org') {
-      throw new ValidationError('action owner is invalid');
-    }
-    const owner: 'counselor' | 'beneficiary' | 'org' = ownerValue;
-    const dueDate = action.dueDate;
-    if (dueDate !== undefined && typeof dueDate !== 'string') {
-      throw new ValidationError('dueDate is invalid');
-    }
-    return {
-      description: requiredString(action, 'description'),
-      owner,
-      ...(dueDate === undefined ? {} : { dueDate: canonicalDate(dueDate, 'dueDate') }),
-    };
-  });
-
-  // 질문지 답변(D41). 키·응답 어휘는 게이트웨이 상수를 그대로 쓴다.
-  const answers = !hasAnswers ? undefined : objectArray(body.answers, 'answers').map((answer) => {
-    requireOnlyKeys(answer, Object.hasOwn(answer, 'text') ? ['key', 'response', 'text'] : ['key', 'response']);
-    const key = requiredString(answer, 'key');
-    if (!(INTAKE_ANSWER_KEYS as readonly string[]).includes(key)) {
-      throw new ValidationError('intake answer key is invalid');
-    }
-    const response = requiredString(answer, 'response');
-    if (!(INTAKE_ANSWER_RESPONSES as readonly string[]).includes(response)) {
-      throw new ValidationError('intake answer response is invalid');
-    }
-    return {
-      key: key as typeof INTAKE_ANSWER_KEYS[number],
-      response: response as typeof INTAKE_ANSWER_RESPONSES[number],
-      ...(Object.hasOwn(answer, 'text') ? { text: requiredString(answer, 'text') } : {}),
-    };
-  });
-
-  // 추가 개인정보(P4) — 준 필드만 넘긴다. 값은 게이트웨이가 금고에 암호화 저장한다(D3).
-  const extendedPiiObject = hasExtendedPii ? asObject(body.extendedPii) : undefined;
-  const extendedPii = extendedPiiObject === undefined ? undefined : (() => {
-    requireOnlyKeys(extendedPiiObject, INTAKE_EXTENDED_PII_FIELDS);
-    const patch: Record<string, string> = {};
-    for (const field of INTAKE_EXTENDED_PII_FIELDS) {
-      if (Object.hasOwn(extendedPiiObject, field)) patch[field] = requiredString(extendedPiiObject, field);
-    }
-    return patch;
-  })();
-
-  const additionalItems = !hasAdditionalItems
-    ? undefined
-    : objectArray(body.additionalItems, 'additionalItems').map((entry) => {
-      const entryKeys = ['item'];
-      for (const key of ['owner', 'dueDate', 'reason', 'method', 'dueNote']) {
-        if (Object.hasOwn(entry, key)) entryKeys.push(key);
-      }
-      requireOnlyKeys(entry, entryKeys);
-      return {
-        item: requiredString(entry, 'item'),
-        ...(Object.hasOwn(entry, 'owner') ? { owner: requiredString(entry, 'owner') } : {}),
-        ...(Object.hasOwn(entry, 'dueDate') ? { dueDate: canonicalDate(requiredString(entry, 'dueDate'), 'dueDate') } : {}),
-        ...(Object.hasOwn(entry, 'reason') ? { reason: requiredString(entry, 'reason') } : {}),
-        ...(Object.hasOwn(entry, 'method') ? { method: requiredString(entry, 'method') } : {}),
-        ...(Object.hasOwn(entry, 'dueNote') ? { dueNote: requiredString(entry, 'dueNote') } : {}),
-      };
-    });
-
-  // 반복 행 표 2종(2-1 부채 · 3-3 연계 기관). 첫 열만 필수이고 나머지는 준 것만 넘긴다.
-  function tableRows(value: unknown, label: string, requiredKey: string, optionalKeys: readonly string[]) {
-    return objectArray(value, label).map((row) => {
-      const keys = [requiredKey, ...optionalKeys.filter((key) => Object.hasOwn(row, key))];
-      requireOnlyKeys(row, keys);
-      return Object.fromEntries(keys.map((key) => [key, requiredString(row, key)]));
-    });
-  }
-  const debts = !hasDebts
-    ? undefined
-    : tableRows(body.debts, 'debts', 'creditor', ['kind', 'balance', 'monthlyPayment', 'arrearsStatus']) as Array<
-      { creditor: string; kind?: string; balance?: string; monthlyPayment?: string; arrearsStatus?: string }>;
-  const linkedOrgs = !hasLinkedOrgs
-    ? undefined
-    : tableRows(body.linkedOrgs, 'linkedOrgs', 'orgName', ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus']) as Array<
-      { orgName: string; serviceName?: string; supportDetail?: string; usagePeriod?: string; progressStatus?: string }>;
-
-  const nextMeeting = !hasNextMeeting ? undefined : (() => {
-    const meeting = asObject(body.nextMeeting);
-    requireOnlyKeys(meeting, ['heldAt', 'channel']);
-    const meetingChannel = requiredString(meeting, 'channel');
-    if (meetingChannel !== 'in_person' && meetingChannel !== 'phone' && meetingChannel !== 'video') {
-      throw new ValidationError('next meeting channel is invalid');
-    }
-    return {
-      heldAt: requiredCanonicalUtc(meeting, 'heldAt'),
-      channel: meetingChannel as 'in_person' | 'phone' | 'video',
-    };
-  })();
-
-  return {
-    submissionId: requiredUuid(body, 'submissionId'),
-    heldAt: requiredCanonicalUtc(body, 'heldAt'),
-    channel,
-    ...(helpNarrative === undefined ? {} : { helpNarrative }),
-    ...(lifeAreas === undefined ? {} : { lifeAreas }),
-    ...(goals === undefined ? {} : { goals }),
-    ...(actionItems === undefined ? {} : { actionItems }),
-    ...(answers === undefined ? {} : { answers }),
-    ...(extendedPii === undefined ? {} : { extendedPii }),
-    ...(additionalItems === undefined ? {} : { additionalItems }),
-    ...(debts === undefined ? {} : { debts }),
-    ...(linkedOrgs === undefined ? {} : { linkedOrgs }),
-    ...(nextMeeting === undefined ? {} : { nextMeeting }),
-    ...(hasManagerOpinion ? { managerOpinion: requiredString(body, 'managerOpinion') } : {}),
-    ...(hasSchedule
-      ? {
-        scheduleId: requiredUuid(body, 'scheduleId'),
-        expectedScheduleVersion: requiredExpectedVersion(body, 'expectedScheduleVersion'),
-      }
-      : {}),
-  };
 }
 
-/**
- * 인테이크 수정 입력(2026-08-08 Q "확인/수정"). parseIntakeCreation 의 부분집합이다 —
- * 위저드가 소유한 필드만 받고, 동의·목표·금고·일정 연결은 이 경로에 없다.
- */
 function parseIntakeUpdate(body: JsonObject) {
-  const hasManagerOpinion = Object.hasOwn(body, 'managerOpinion');
-  const hasAnswers = Object.hasOwn(body, 'answers');
-  const hasAdditionalItems = Object.hasOwn(body, 'additionalItems');
-  const hasDebts = Object.hasOwn(body, 'debts');
-  const hasLinkedOrgs = Object.hasOwn(body, 'linkedOrgs');
-  const allowedKeys = ['heldAt', 'channel'];
-  if (hasAnswers) allowedKeys.push('answers');
-  if (hasAdditionalItems) allowedKeys.push('additionalItems');
-  if (hasDebts) allowedKeys.push('debts');
-  if (hasLinkedOrgs) allowedKeys.push('linkedOrgs');
-  if (hasManagerOpinion) allowedKeys.push('managerOpinion');
-  requireOnlyKeys(body, allowedKeys);
-
-  const channelValue = requiredString(body, 'channel');
-  if (channelValue !== 'in_person' && channelValue !== 'phone' && channelValue !== 'video') {
-    throw new ValidationError('record channel is invalid');
+  try { return parseIntakeUpdateRequest(body); } catch (error) {
+    if (error instanceof IntakeContractError) throw new ValidationError(error.message);
+    throw error;
   }
-
-  const answers = !hasAnswers ? undefined : objectArray(body.answers, 'answers').map((answer) => {
-    requireOnlyKeys(answer, Object.hasOwn(answer, 'text') ? ['key', 'response', 'text'] : ['key', 'response']);
-    const key = requiredString(answer, 'key');
-    if (!(INTAKE_ANSWER_KEYS as readonly string[]).includes(key)) {
-      throw new ValidationError('intake answer key is invalid');
-    }
-    const response = requiredString(answer, 'response');
-    if (!(INTAKE_ANSWER_RESPONSES as readonly string[]).includes(response)) {
-      throw new ValidationError('intake answer response is invalid');
-    }
-    return {
-      key: key as typeof INTAKE_ANSWER_KEYS[number],
-      response: response as typeof INTAKE_ANSWER_RESPONSES[number],
-      ...(Object.hasOwn(answer, 'text') ? { text: requiredString(answer, 'text') } : {}),
-    };
-  });
-
-  const additionalItems = !hasAdditionalItems
-    ? undefined
-    : objectArray(body.additionalItems, 'additionalItems').map((entry) => {
-      const entryKeys = ['item'];
-      for (const key of ['owner', 'dueDate', 'reason', 'method', 'dueNote']) {
-        if (Object.hasOwn(entry, key)) entryKeys.push(key);
-      }
-      requireOnlyKeys(entry, entryKeys);
-      return {
-        item: requiredString(entry, 'item'),
-        ...(Object.hasOwn(entry, 'owner') ? { owner: requiredString(entry, 'owner') } : {}),
-        ...(Object.hasOwn(entry, 'dueDate') ? { dueDate: canonicalDate(requiredString(entry, 'dueDate'), 'dueDate') } : {}),
-        ...(Object.hasOwn(entry, 'reason') ? { reason: requiredString(entry, 'reason') } : {}),
-        ...(Object.hasOwn(entry, 'method') ? { method: requiredString(entry, 'method') } : {}),
-        ...(Object.hasOwn(entry, 'dueNote') ? { dueNote: requiredString(entry, 'dueNote') } : {}),
-      };
-    });
-
-  function tableRows(value: unknown, label: string, requiredKey: string, optionalKeys: readonly string[]) {
-    return objectArray(value, label).map((row) => {
-      const keys = [requiredKey, ...optionalKeys.filter((key) => Object.hasOwn(row, key))];
-      requireOnlyKeys(row, keys);
-      return Object.fromEntries(keys.map((key) => [key, requiredString(row, key)]));
-    });
-  }
-  const debts = !hasDebts
-    ? undefined
-    : tableRows(body.debts, 'debts', 'creditor', ['kind', 'balance', 'monthlyPayment', 'arrearsStatus']) as Array<
-      { creditor: string; kind?: string; balance?: string; monthlyPayment?: string; arrearsStatus?: string }>;
-  const linkedOrgs = !hasLinkedOrgs
-    ? undefined
-    : tableRows(body.linkedOrgs, 'linkedOrgs', 'orgName', ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus']) as Array<
-      { orgName: string; serviceName?: string; supportDetail?: string; usagePeriod?: string; progressStatus?: string }>;
-
-  return {
-    heldAt: requiredCanonicalUtc(body, 'heldAt'),
-    channel: channelValue as 'in_person' | 'phone' | 'video',
-    ...(answers === undefined ? {} : { answers }),
-    ...(additionalItems === undefined ? {} : { additionalItems }),
-    ...(debts === undefined ? {} : { debts }),
-    ...(linkedOrgs === undefined ? {} : { linkedOrgs }),
-    ...(hasManagerOpinion ? { managerOpinion: requiredString(body, 'managerOpinion') } : {}),
-  };
 }
 
 function parseScheduleSessionGoals(body: JsonObject): Array<{ body: string; caseGoalId: string | null }> | undefined {
@@ -1178,7 +914,7 @@ function parseProgramStaff(value: unknown): NonNullable<CreateProgramInput['staf
   });
 }
 
-function parseProgramChoices(body: JsonObject): Pick<CreateProgramInput, 'storageMode' | 'processingMode' | 'confirmation' | 'staff'> {
+function parseProgramChoices(body: JsonObject): Pick<CreateProgramInput, 'storageMode' | 'processingMode' | 'confirmation' | 'staff' | 'financialSupportEnabled'> {
   const storageMode = optionalNullableString(body, 'storageMode');
   if (storageMode !== undefined && storageMode !== null && storageMode !== 'supabase_seoul'
     && storageMode !== 'naver_public' && storageMode !== 'local_encrypted' && storageMode !== 'undecided') {
@@ -1196,6 +932,7 @@ function parseProgramChoices(body: JsonObject): Pick<CreateProgramInput, 'storag
     ...(processingMode === undefined ? {} : { processingMode }),
     ...(confirmation === undefined ? {} : { confirmation }),
     ...(body.staff === undefined ? {} : { staff: parseProgramStaff(body.staff) }),
+    ...(body.financialSupportEnabled === undefined ? {} : { financialSupportEnabled: requiredBoolean(body, 'financialSupportEnabled') }),
   };
 }
 
@@ -1523,22 +1260,25 @@ function counselingRecordResponse(record: Awaited<ReturnType<typeof createCounse
   };
 }
 
-function intakeRecordResponse(record: Awaited<ReturnType<typeof createIntakeRecord>>['record']) {
+function intakeRecordResponse(record: IntakeRecordResult['record']): IntakeMutationResponse['record'] {
   return {
     id: record.id,
     heldAt: record.heldAt,
     channel: record.channel,
-    kind: record.kind,
+    kind: 'intake',
   };
 }
 
-function intakeContextResponse(context: Awaited<ReturnType<typeof getIntakeRecordContext>>) {
+function intakeContextResponse(context: IntakeRecordContext) {
   return {
     beneficiaryId: context.beneficiaryId,
     supportCaseId: context.supportCaseId,
     participant: context.participant,
     sessionSequence: context.sessionSequence,
     hasIntake: context.hasIntake,
+    canWrite: context.canWrite,
+    writeSchemaVersion: context.writeSchemaVersion,
+    moduleSnapshot: context.moduleSnapshot,
     extendedPii: context.extendedPii,
     consent: context.consent,
     // 저장된 인테이크 내용(확인/수정 화면 재료, 2026-08-08 Q). 없으면 null.
@@ -1998,6 +1738,21 @@ const CONFIGURATION_REASONS: ReadonlySet<AiProviderUnavailableReason> = new Set(
   'adapter_invalid',
 ]);
 
+/** Share the existing activation check across product generation and discrepancy egress. */
+async function resolveActiveSessionAiProvider(env: ApiEnv, actor: Actor, sessionId: string) {
+  const { adapter, config } = await resolveAiProviderAdapter(env);
+  const runtimeConfigHash = await canonicalAiProviderConfigHash(config);
+  const activeProvider = await getActiveAiProviderRuntimeMetadataForService(env, actor, sessionId);
+  if (
+    activeProvider.adapterId !== adapter.providerId
+    || activeProvider.adapterVersion !== adapter.adapterVersion
+    || activeProvider.configHash !== runtimeConfigHash
+  ) {
+    throw new AiProviderUnavailableError();
+  }
+  return { adapter, config, activeProvider };
+}
+
 async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: string): Promise<void> {
   // CCC-47 — 어떻게 끝났든 사실 한 줄을 남긴다. 이 값들은 전부 분류·숫자·설정값이고
   // 상담 내용은 하나도 들어가지 않는다(R3). 관측이 없으면 아래 스킵 경로들이 "정상적으로
@@ -2042,7 +1797,7 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
         rawOutput = await adapter.detectDiscrepancies(providerRequest);
       }
     } else {
-      const { adapter, config } = (await resolveAiProviderAdapter(env));
+      const { adapter, config } = await resolveActiveSessionAiProvider(env, actor, sessionId);
       model = config.model;
       if (adapter.detectDiscrepancies === undefined) {
         outcome = 'skipped_unsupported';
@@ -2269,14 +2024,11 @@ async function generateAiDraft(
     const materialRefs = draftMaterialRefs(materialSet.materials);
 
     if (previewModeEnabled(env)) {
-      const historicalContext = await loadCounselingMemoryContext(env, actor, sessionId);
-      const generationRequest = historicalContext === null
-        ? providerRequest
-        : validateAiProviderRequest({ ...providerRequest, historicalContext });
+      await authorizeSessionTextAiEgress(env, actor, sessionId);
       const rawOutput = env.AI_PROVIDER_ADAPTER === undefined
-        ? generatePreviewFixtureAiDraft(generationRequest)
-        : await (await resolveAiProviderAdapter(env)).adapter.generate(generationRequest);
-      const output = validateAiProviderOutput(rawOutput, generationRequest);
+        ? generatePreviewFixtureAiDraft(providerRequest)
+        : await (await resolveAiProviderAdapter(env)).adapter.generate(providerRequest);
+      const output = validateAiProviderOutput(rawOutput, providerRequest);
       const draft = await createFixtureGeneratedAiDraftForService(env, actor, sessionId, {
         origin: 'fixture_generated',
         creationMode: 'fixture_generated',
@@ -2299,13 +2051,6 @@ async function generateAiDraft(
         questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
         evidence: providerEvidenceLinks(output),
         materials: materialRefs,
-        ...(historicalContext === null ? {} : {
-          memoryContext: {
-            supportCaseId: historicalContext.supportCaseId,
-            revision: historicalContext.revision,
-            materialSnapshotIds: historicalContext.materials.map((material) => material.snapshotId),
-          },
-        }),
         contrast: draftContrastAxes(output, providerRequest.contrastAxes),
       });
       outcome = 'stored';
@@ -2314,26 +2059,10 @@ async function generateAiDraft(
 
     // 주입형 testOnly adapter는 기존 테스트 seam이다. Preview 전용 내장 fixture 선택과
     // 구분하며, 실제 provider와 같은 활성 설정·동의·스냅샷 검증을 그대로 거친다.
-    const { adapter, config } = (await resolveAiProviderAdapter(env));
+    const { adapter, config, activeProvider } = await resolveActiveSessionAiProvider(env, actor, sessionId);
     model = config.model;
-    const runtimeConfigHash = await canonicalAiProviderConfigHash(config);
-
-    // Check the active provider, then reload verified historical context at the outbound boundary.
-    const activeProvider = await getActiveAiProviderRuntimeMetadataForService(env, actor, sessionId);
-    if (
-      activeProvider.adapterId !== adapter.providerId
-      || activeProvider.adapterVersion !== adapter.adapterVersion
-      || activeProvider.configHash !== runtimeConfigHash
-    ) {
-      throw new AiProviderUnavailableError();
-    }
-
-    const historicalContext = await loadCounselingMemoryContext(env, actor, sessionId);
-    const generationRequest = historicalContext === null
-      ? providerRequest
-      : validateAiProviderRequest({ ...providerRequest, historicalContext });
     await authorizeSessionTextAiEgress(env, actor, sessionId);
-    const output = validateAiProviderOutput(await adapter.generate(generationRequest), generationRequest);
+    const output = validateAiProviderOutput(await adapter.generate(providerRequest), providerRequest);
     const draft = await createGeneratedAiDraftForService(env, actor, sessionId, {
       summaryText: validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n')),
       claims: output.claims.map((claim) => ({
@@ -2359,13 +2088,6 @@ async function generateAiDraft(
       questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
       evidence: providerEvidenceLinks(output),
       materials: materialRefs,
-      ...(historicalContext === null ? {} : {
-        memoryContext: {
-          supportCaseId: historicalContext.supportCaseId,
-          revision: historicalContext.revision,
-          materialSnapshotIds: historicalContext.materials.map((material) => material.snapshotId),
-        },
-      }),
       contrast: draftContrastAxes(output, providerRequest.contrastAxes),
     });
     outcome = 'stored';
@@ -2875,7 +2597,7 @@ export async function handleRequest(
       if (request.method === 'GET') return json(await listPrograms(env, actor));
       if (request.method === 'POST') {
         const body = await requestBody(request);
-        requireOnlyKeys(body, ['displayName', 'storageMode', 'processingMode', 'confirmation', 'staff']);
+        requireOnlyKeys(body, ['displayName', 'storageMode', 'processingMode', 'confirmation', 'staff', 'financialSupportEnabled']);
         const program = await createProgram(env, actor, {
           displayName: requiredString(body, 'displayName'), ...parseProgramChoices(body),
         });
@@ -2885,7 +2607,7 @@ export async function handleRequest(
     if (parts.length === 2 && parts[0] === 'programs' && request.method === 'PATCH') {
       requestQuery(url, []);
       const body = await requestBody(request);
-      requireOnlyKeys(body, ['expectedVersion', 'displayName', 'storageMode', 'processingMode', 'confirmation', 'status', 'staff']);
+      requireOnlyKeys(body, ['expectedVersion', 'displayName', 'storageMode', 'processingMode', 'confirmation', 'status', 'staff', 'financialSupportEnabled']);
       const displayName = optionalString(body, 'displayName');
       const input: UpdateProgramInput = {
         expectedVersion: requiredExpectedVersion(body, 'expectedVersion'),
@@ -2944,13 +2666,14 @@ export async function handleRequest(
       // 관리자 온보딩 2단계 저장 (CCC-32 · 스펙 #78 US 1). admin 검사·감사는 게이트웨이 내장(R1).
       requestQuery(url, []);
       const body = await requestBody(request);
-      requireOnlyKeys(body, ['orgName', 'programDisplayName']);
+      requireOnlyKeys(body, ['orgName', 'programDisplayName', 'financialSupportEnabled']);
       const orgName = body.orgName;
       const programDisplayName = body.programDisplayName;
       if (typeof orgName !== 'string' || typeof programDisplayName !== 'string') {
         throw new ValidationError('organization onboarding payload is invalid');
       }
-      return json(await completeOrganizationOnboarding(env, actor, { orgName, programDisplayName }));
+      return json(await completeOrganizationOnboarding(env, actor, { orgName, programDisplayName,
+        ...(body.financialSupportEnabled === undefined ? {} : { financialSupportEnabled: requiredBoolean(body, 'financialSupportEnabled') }) }));
     }
     if (request.method === 'PUT' && parts.length === 2 && parts[0] === 'me' && parts[1] === 'last-program') {
       // 마지막에 선택한 사업을 본인 계정에 기억시킨다. 본인 행만 쓰고 감사는 남기지 않는다
@@ -3438,7 +3161,7 @@ export async function handleRequest(
         // 인테이크도 수기 공식 기록이다(D5) — 회차 내 모순 검출 대상(CCC-43).
         if (!result.replayed) await onRecordOfficialized(env, actor, result.record.id, 'manual_record');
         return json(
-          { record: intakeRecordResponse(result.record), replayed: result.replayed },
+          { schemaVersion: result.schemaVersion, revision: result.revision, record: intakeRecordResponse(result.record), replayed: result.replayed } satisfies IntakeMutationResponse,
           result.replayed ? 200 : 201,
         );
       }
@@ -3448,7 +3171,7 @@ export async function handleRequest(
         const result = await updateIntakeRecord(env, actor, supportCaseId, parseIntakeUpdate(await requestBody(request)));
         // 수정본도 수기 공식 기록이다(D5) — 공식화 시점 불일치 검출을 다시 돈다(CCC-43).
         await onRecordOfficialized(env, actor, result.record.id, 'manual_record');
-        return json({ record: intakeRecordResponse(result.record) });
+        return json({ schemaVersion: result.schemaVersion, revision: result.revision, record: intakeRecordResponse(result.record), replayed: false } satisfies IntakeMutationResponse);
       }
     }
 

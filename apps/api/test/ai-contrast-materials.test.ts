@@ -12,6 +12,10 @@ import {
 import {
   AI_DRAFT_PROMPT_VERSION,
   AI_DRAFT_SCHEMA_VERSION,
+  DISCREPANCY_PROMPT_VERSION,
+  DISCREPANCY_SCHEMA_VERSION,
+  MEMORY_PROMPT_VERSION,
+  MEMORY_SCHEMA_VERSION,
   AiProviderInputError,
   AiProviderProhibitedOutputError,
   CODEX_PROVIDER_ADAPTER_VERSION,
@@ -125,11 +129,6 @@ function baseOutput(request: AiProviderRequest): AiProviderOutput {
 }
 
 describe('호출 ① 재료 다중화와 대조 3종 v4 (D69 · ADR-0036 · CCC-102)', () => {
-  it('버전이 v4 로 올라간다', () => {
-    expect(AI_DRAFT_PROMPT_VERSION).toBe('phase1.grounded.v4');
-    expect(AI_DRAFT_SCHEMA_VERSION).toBe('phase1.grounded-draft.v4');
-  });
-
   it('재료 두 개와 대조 3종을 담은 출력이 왕복한다', () => {
     const request = bothMaterialsRequest();
     expect(request.materials).toHaveLength(2);
@@ -750,18 +749,32 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     expect(sessionRow?.speaker_mapping_confirmed_at).toBe(sessionRow?.approved_at);
   });
 
-  it('v2 해시가 활성이면 fail-closed 이고 재활성화하면 통과한다', async () => {
-    // 프롬프트·스키마 버전이 오르면 활성 설정 해시가 어긋난다. D57 의 의도된 동작.
-    const staleHash = await canonicalAiProviderConfigHash({
-      ...ROUTE_PROVIDER_CONFIG,
-      configVersion: 'contrast-test-stale',
-    });
-    const { env, session } = await setupRouteFixture({ configHash: staleHash });
+  it.each(['pre-relayer', 'historical-memory', 'discrepancy-v1'] as const)(
+    'rejects an activation with obsolete %s policy until reactivated',
+    async (policy) => {
+    // Preserve the real canonical tuple order, changing only the obsolete policy.
+    const staleHash = await sha256Hex(JSON.stringify({
+      adapterVersion: ROUTE_PROVIDER_CONFIG.adapterVersion,
+      configVersion: ROUTE_PROVIDER_CONFIG.configVersion,
+      model: ROUTE_PROVIDER_CONFIG.model,
+      promptVersion: policy === 'discrepancy-v1' ? AI_DRAFT_PROMPT_VERSION : 'phase1.grounded.v4',
+      providerId: ROUTE_PROVIDER_CONFIG.providerId,
+      registryVersion: ROUTE_PROVIDER_CONFIG.registryVersion,
+      schemaVersion: AI_DRAFT_SCHEMA_VERSION,
+      ...(policy === 'pre-relayer' ? {} : {
+        discrepancyPromptVersion: policy === 'discrepancy-v1' ? 'phase1.discrepancy.v1' : DISCREPANCY_PROMPT_VERSION,
+        discrepancySchemaVersion: DISCREPANCY_SCHEMA_VERSION,
+      }),
+      memoryPromptVersion: MEMORY_PROMPT_VERSION,
+      memorySchemaVersion: MEMORY_SCHEMA_VERSION,
+    }));
+    const { adapter, env, session } = await setupRouteFixture({ configHash: staleHash });
     const text = await postTextSnapshot(env, session.id);
 
     const blocked = await generateFromSnapshot(env, session.id, text.sourceSnapshotId);
     expect(blocked.status).toBe(503);
     expect(await blocked.json()).toMatchObject({ error: 'ai_provider_unavailable' });
+    expect(adapter.invocations).toEqual([]);
     expect(await t.db.prepare('SELECT COUNT(*) AS count FROM ai_draft_versions')
       .first<{ count: number }>()).toMatchObject({ count: 0 });
 
@@ -773,7 +786,8 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     });
     await activateAiProviderConfiguration(t.env, admin, reactivated.id);
     expect((await generateFromSnapshot(env, session.id, text.sourceSnapshotId)).status).toBe(201);
-  });
+    },
+  );
 
   // 0035 는 ai_evidence_links_insert_guard 의 가운데 절만 넓히고 나머지 두 절은 글자
   // 그대로 되살린다. 되살리다 한 절을 흘리면 아무 테스트도 빨개지지 않으므로 여기서 못 박는다.
