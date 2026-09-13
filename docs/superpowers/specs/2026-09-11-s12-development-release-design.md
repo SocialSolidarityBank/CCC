@@ -51,10 +51,13 @@
 
 ## 5. 키 보관 (DR3)
 
-- 오프라인 루트에 해당하는 개발판 키 이름은 `CCC_RELEASE_ROOT_SIGNING_PRIVATE_KEY`,
-  릴리스 서명 키는 `CCC_RELEASE_SIGNING_PRIVATE_KEY`, 공개 신뢰 목록은
-  `CCC_RELEASE_TRUST_STORE`다. 모두 RELAYER prod에 두고 설치기 프로세스에만 주입한다.
-- 업무 런타임 금지 이름 목록에 위 세 이름을 추가한다. 값이 비어 있어도 존재 자체를 거부한다.
+- 오프라인 루트에 해당하는 개발판 키의 Infisical SecretStore 정본은
+  `RELAYER_RELEASE_ROOT_SIGNING_PRIVATE_KEY`, 릴리스 서명 키는
+  `RELAYER_RELEASE_SIGNING_PRIVATE_KEY`, 공개 신뢰 목록은 `RELAYER_RELEASE_TRUST_STORE`다.
+  모두 RELAYER prod에 두고 설치기 프로세스에만 주입한다.
+- 업무 런타임 금지 이름 목록에는 현재 코드 입력인 `CCC_RELEASE_ROOT_SIGNING_PRIVATE_KEY`,
+  `CCC_RELEASE_SIGNING_PRIVATE_KEY`, `CCC_RELEASE_TRUST_STORE`를 유지한다. 값이 비어 있어도 존재
+  자체를 거부한다.
 - 문서와 진단 출력은 이 키가 개발 전용이며 정식 오프라인 루트가 아님을 밝힌다. 정식 전환은
   별도 결정과 키 교체로 한다.
 - 서명 형식은 S12 §3.1을 따른다. baseline 모듈의 표준 Base64 88자와 달리 릴리스 객체는

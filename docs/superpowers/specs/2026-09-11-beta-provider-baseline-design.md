@@ -52,7 +52,7 @@ DB 쓰기는 이 설계 승인에 포함되지 않는다. 기준선 구현 뒤 s
 사용한다. 이 값은 설치 담당자가 기관에 대해 구성한 외부 입력이다. 서명 객체가 자기 root public key를
 싣거나 새로운 root를 등록할 수 없다.
 
-개발판 root 개인키와 release 개인키는 RELAYER SecretStore에서 설치 서명 프로세스에만 주입한다.
+개발판 root 개인키와 release 개인키는 Infisical SecretStore의 `RELAYER_BETA_ROOT_SIGNING_PRIVATE_KEY`와 `RELAYER_BETA_RELEASE_SIGNING_PRIVATE_KEY`에서 설치 서명 프로세스에만 주입한다.
 업무 API, 브라우저, 정적 client, Azure Container App에는 전달하지 않는다. 다음 이름은 업무 런타임의
 forbidden binding에 추가한다.
 

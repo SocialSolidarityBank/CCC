@@ -473,7 +473,7 @@ git commit -m "feat(supabase): require exact beta provider baseline"
 
 **Interfaces:**
 - Consumes: verified code from Tasks 1-4, actual Relayer S11 documents, Supabase official CA, in-memory Management API token, RELAYER SecretStore and pinned official source commits.
-- Produces: `CCC_BETA_RELEASE_TRUST`, `CCC_PROVIDER_BASELINE`, public beta root map and revoked-root list in RELAYER prod plus two value-free repository artifacts.
+- Produces: `RELAYER_BETA_RELEASE_TRUST`, `RELAYER_PROVIDER_BASELINE`, `RELAYER_BETA_TRUST_ROOT_KEYS`, `RELAYER_BETA_REVOKED_ROOT_KEY_IDS` in RELAYER prod plus two value-free repository artifacts.
 
 - [ ] **Step 1: Re-run the pre-generation safety observation**
 
@@ -501,10 +501,10 @@ The artifact contains only source provenance, counts and aggregate hashes. It mu
 
 Use Node Ed25519 in memory. Create these RELAYER prod SecretStore names only after source review passes:
 
-- `CCC_BETA_ROOT_SIGNING_PRIVATE_KEY`
-- `CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY`
-- `CCC_BETA_TRUST_ROOT_KEYS`
-- `CCC_BETA_REVOKED_ROOT_KEY_IDS` with exact value `[]`
+- `RELAYER_BETA_ROOT_SIGNING_PRIVATE_KEY`
+- `RELAYER_BETA_RELEASE_SIGNING_PRIVATE_KEY`
+- `RELAYER_BETA_TRUST_ROOT_KEYS`
+- `RELAYER_BETA_REVOKED_ROOT_KEY_IDS` with exact value `[]`
 
 The root map contains only the new beta root public key. Verify fresh injection by signing and verifying a fixed synthetic message, then discard in-memory key copies. Never print lengths, prefixes or values beyond public SHA-256 fingerprints.
 
@@ -512,8 +512,8 @@ The root map contains only the new beta root public key. Verify fresh injection 
 
 Run the generator with explicit temporary owner-only output paths. Verify both outputs again with `requireProviderBaseline`, then create:
 
-- `CCC_BETA_RELEASE_TRUST`
-- `CCC_PROVIDER_BASELINE`
+- `RELAYER_BETA_RELEASE_TRUST`
+- `RELAYER_PROVIDER_BASELINE`
 
 in RELAYER prod. Fresh injection must reproduce the same baseline and trust SHA-256. Remove temporary signed files after successful storage and verification.
 
