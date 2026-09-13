@@ -67,7 +67,9 @@ adapter 내부 context의 인증 원천 literal은 `supabase-jwt | cloudflare-ac
 
 roles의 업무 의미는 lossless하게 유지한다. `institution-admin`은 기관 업무와 허용된 PII 업무를 수행하고, `technical-admin`은 설치·진단·업데이트만 수행하며 케이스·상담·PII business route에는 403이다. `supervisor`는 지정 팀의 읽기 전용 감독 범위, `worker`는 활성 담당 케이스 쓰기 범위를 가진다. `service`는 아래 Agent route만 가진다. 복수 role은 합집합으로 권한을 계산하며 `roles=[]`인 human은 business route에서 403이다.
 
-Community Cloud의 모든 human role(`institution-admin`, `technical-admin`, `supervisor`, `worker`)은 `Actor.authn.assurance='aal2'`인 세션만 허용한다. `aal1` 또는 다른 assurance는 human Actor를 만들지 않고 403 `mfa_required`다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.
+Community Cloud의 human role은 `Actor.authn.assurance`가 `aal1` 또는 `aal2`인 세션을 받는다(2026-09-12 Q 결정, D89). MFA는 선택이며 로그인이 인증 앱 등록을 강요하지 않는다. 인증 앱을 등록한 사람은 다음 로그인부터 여섯 자리 확인을 거치고 그 세션은 `aal2`로 기록된다. 실제 assurance는 그대로 Actor에 남아 감사에 쓰인다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.
+
+**2026-09-12 Q 확정(D90).** 초대받은 실무자의 계정 결속은 초대 수락 한 번에 끝난다. 수락자는 먼저 자기 Auth 계정을 만들고 그 access token으로 `POST /staff-invites/token/:token/accept`를 부르며, 서버는 서명을 검증한 `sub`를 `users` 등재와 같은 배치에서 `auth_subject`에 채운다. 연결 근거는 일회용 초대 토큰과 검증된 `sub` 두 가지이고, `email` claim은 초대 이메일과 같은지 대조하는 데만 쓴다. 다르면 결속하지 않고 등재만 한다. 결속되지 않은 행을 남기지 않으므로 나중에 다른 계정이 그 행을 가로챌 자리가 없다. 이 설계는 이메일 claim으로 행을 찾던 `POST /identity/link`(구 D80 경로)를 대체하며 그 route는 제거했다. 수락 직후 세션이 서야 하므로 설치는 Auth의 가입 확인 메일을 요구하지 않아야 하고(autoconfirm), 이 조건은 `scripts/supabase` plan·doctor가 `AUTH_CONFIRMATION_REQUIRED` 차단 사유로 강제한다.
 
 Agent service Actor의 scope는 정확히 다음 여섯 개다.
 
@@ -147,6 +149,7 @@ Supabase logout, password reset, MFA 변경, 관리자 계정 비활성화는 re
 ### 2.6 Cloud scheduler 경계
 
 Supabase `pg_cron → Edge HTTP` 호출은 사람 Actor가 아니다. `SCHEDULER_SECRET`은 rotating platform secret으로 Supabase Vault와 Edge secret에 같은 active version으로 저장하고, constant-time 비교한다. `POST /internal/scheduler/run`에서만 받고 `Origin`이 없어야 하며 browser Origin이 있으면 403이다. 성공한 호출은 내부 `SchedulerContext { actorId: 'system:scheduler'; scopes: ['scheduler:run'] }`로 바꾸어 `scheduled-job-runner`만 호출하고 canonical human Actor로 투영하지 않는다. `/internal/scheduler/run` 외 route와 업무 DB read/write에는 사용할 수 없다. Local Single/Office는 HTTP credential 없이 같은 runner를 in-process 호출한다.
+**2026-09-12 Q 확정 개정.** 이 공유 비밀 설계가 정본이며 S11 §2.8의 이전 서명 token 설계는 폐기했다. 성공한 호출은 `kind='system'`, `userId='system:scheduler'`, `orgId`=설치 기관, `roles=['service']`, `scopes=['scheduler:run','/internal/storage/authorize']`, `authn.source='scheduler-secret'`인 Actor다. 받는 route는 `/internal/scheduler/run`과 S11 §2.7 StorageSigner 콜백 `/internal/storage/authorize`의 scheduler lane 둘뿐이며, 후자는 스케줄러 자신의 원음 삭제 작업이 `deletion_pending` 행과 삭제 시도 기록을 대조하는 읽기만 한다. 그 밖의 업무 route와 DB 쓰기에는 쓸 수 없다.
 소유: Cloud Edge HTTP와 CORS response는 E6-2, Agent pairing은 E6-4, local scheduler와 Electron 연결은 E7/E8이 구현한다.
 
 ### 2.7 signed bootstrap과 설치 신뢰 경계
@@ -305,7 +308,7 @@ E2-5c가 legacy token-path route를 이 계약으로 cutover한다. 초대 token
 |---|---|---|---|
 | client origin | signed exact HTTPS origin | registered `ccc://app` | 기관 CA HTTPS origin |
 | API origin | signed Supabase/Edge HTTPS | DPAPI endpoint record가 정한 loopback random port | 내부망 HTTPS |
-| human auth | Supabase JWT + all human roles require `aal2` | OS user + Argon2id app lock + stableUserId | Argon2id local account + privileged session MFA |
+| human auth | Supabase JWT, MFA 선택(`aal1` 또는 `aal2`) | OS user + Argon2id app lock + stableUserId | Argon2id local account + privileged session MFA |
 | Actor source | `auth_subject → users.id` | stableUserId | local users.id |
 | Agent source | SG5 service principal + agent_installations | paired local Agent + agent_installations | paired server Agent + agent_installations |
 | revocation | Supabase session + `auth_revocations` | in-memory/token hash + install revoke | session rows + account revoke |

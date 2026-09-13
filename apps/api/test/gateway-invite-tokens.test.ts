@@ -4,11 +4,10 @@ import {
   INVITE_SIGNUP_ACTOR_ID,
   ValidationError,
   consumeInviteToken,
-  createCounselorInvite,
   createParticipantInvite,
   getInviteForSignup,
 } from '@ccc/core/gateway';
-import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors, testProgramId } from './support/d1';
 
 const { counselor, admin, service } = testActors;
 
@@ -21,7 +20,7 @@ describe('invite tokens (CCC-29)', () => {
     await t.reset();
 
     const invite = await createParticipantInvite(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
     });
 
     expect(invite.token).toMatch(/^[0-9a-f]{64}$/);
@@ -43,7 +42,7 @@ describe('invite tokens (CCC-29)', () => {
     await grantTestPractitionerRole(t.db, admin);
 
     const invite = await createParticipantInvite(t.env, admin, {
-      programType: 'financial_support_v1',
+    programId: testProgramId(admin.orgId),
     });
     expect(invite.issuedBy).toBe(admin.userId);
   });
@@ -52,34 +51,23 @@ describe('invite tokens (CCC-29)', () => {
     await t.reset();
 
     await expect(
-      createParticipantInvite(t.env, service, { programType: 'financial_support_v1' }),
+      createParticipantInvite(t.env, service, { programId: testProgramId(service.orgId) }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it('당사자 초대는 유효한 사업 유형이 필수다', async () => {
+  it('당사자 초대에는 비어 있지 않은 사업 ID가 필요하다', async () => {
     await t.reset();
 
     await expect(
-      createParticipantInvite(t.env, counselor, { programType: 'unknown_program' }),
+      createParticipantInvite(t.env, counselor, { programId: '' }),
     ).rejects.toBeInstanceOf(ValidationError);
-  });
-
-  it('실무자 초대 발급은 관리자만 할 수 있다', async () => {
-    await t.reset();
-
-    await expect(createCounselorInvite(t.env, counselor)).rejects.toBeInstanceOf(ForbiddenError);
-
-    const invite = await createCounselorInvite(t.env, admin);
-    expect(invite.kind).toBe('counselor');
-    expect(invite.programType).toBeNull();
-    expect(invite.issuedBy).toBe(admin.userId);
   });
 
   it('경계 조회는 유효한 토큰+종류 일치만 통과시키고 나머지는 같은 에러로 거부한다', async () => {
     await t.reset();
 
     const invite = await createParticipantInvite(t.env, counselor, {
-      programType: 'financial_support_v1',
+    programId: testProgramId(counselor.orgId),
     });
 
     const found = await getInviteForSignup(t.env, invite.token, 'participant');
@@ -95,7 +83,7 @@ describe('invite tokens (CCC-29)', () => {
     await t.reset();
 
     const invite = await createParticipantInvite(t.env, counselor, {
-      programType: 'financial_support_v1',
+    programId: testProgramId(counselor.orgId),
     });
 
     const used = await consumeInviteToken(t.env, invite.token, 'participant', {
@@ -120,23 +108,5 @@ describe('invite tokens (CCC-29)', () => {
       "SELECT actor_id FROM audit_log WHERE action = 'invite_consume' AND target_id = ?",
     ).bind(invite.token).first<{ actor_id: string }>();
     expect(audit?.actor_id).toBe(INVITE_SIGNUP_ACTOR_ID);
-  });
-
-  it('검증 뒤 폐기된 토큰도 DB 경계에서 소비되지 않는다', async () => {
-    await t.reset();
-    const invite = await createCounselorInvite(t.env, admin);
-    await expect(getInviteForSignup(t.env, invite.token, 'counselor')).resolves.toBeTruthy();
-    await t.db.prepare(
-      'UPDATE invite_tokens SET revoked_at = datetime(\'now\') WHERE token = ?',
-    ).bind(invite.token).run();
-
-    await expect(t.db.prepare(
-      `UPDATE invite_tokens
-       SET status = 'used', used_at = datetime('now')
-       WHERE token = ?`,
-    ).bind(invite.token).run()).rejects.toThrow('invite_token_revoked');
-    await expect(t.db.prepare(
-      'SELECT status FROM invite_tokens WHERE token = ?',
-    ).bind(invite.token).first<{ status: string }>()).resolves.toEqual({ status: 'issued' });
   });
 });

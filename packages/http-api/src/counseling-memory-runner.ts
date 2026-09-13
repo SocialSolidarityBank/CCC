@@ -12,6 +12,7 @@ import {
   commitCounselingMemoryWork,
   ConflictError,
   failCounselingMemoryWork,
+  ProgramAdmissionRequiredError,
   prepareCounselingMemoryWork,
   prepareCounselingMemoryTrialWork,
   type Actor,
@@ -34,6 +35,7 @@ const MEMORY_FAILURE_CODES: Readonly<Record<string, true>> = {
 
 function failureCode(error: unknown): string {
   if (error instanceof ConflictError) return 'memory_work_superseded';
+  if (error instanceof ProgramAdmissionRequiredError) return error.code;
   if (error instanceof AiProviderUnavailableError) return 'ai_provider_unavailable';
   if (error instanceof AiProviderInputError) return 'invalid_memory_materials';
   if (error instanceof AiProviderProhibitedOutputError) return 'invalid_memory_output';

@@ -1,6 +1,8 @@
+import { EventEmitter, once } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
-import { setupD1 } from './support/d1';
+import { setupD1, testProgramId } from './support/d1';
+import type { PreparedStatement } from '@ccc/contracts/database';
 
 // 설정 화면(#14)의 두 데이터 경로에 대한 HTTP 계약 테스트.
 //   GET /me     — 내 계정(이메일·역할). 인증된 본인 누구나(역할 무관).
@@ -48,7 +50,7 @@ describe('settings routes (/me, /users)', () => {
     const response = await worker.fetch(new Request('http://localhost/me', { headers: counselorHeaders }), t.env);
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
+    await expect(response.json()).resolves.toMatchObject({
       id: 'counselor.routes@example.invalid',
       orgId: 'org_demo',
       email: 'counselor.routes@example.invalid',
@@ -62,10 +64,10 @@ describe('settings routes (/me, /users)', () => {
       roles: ['worker'],
     });
     // R1: 자기 신원 열람도 감사에 남는다(read, users, self).
-    // 마지막 선택 사업 조회는 여기에 행을 더하지 않는다 — 본인 UI 설정이라 감사 대상이
-    // 아니다(근거: db/gateway.ts rememberLastProgramType · migrations/sqlite/0017 주석).
+    // Last selection adds no audit. Institution readiness is a separate audited settings read.
     expect(await auditRows('counselor.routes@example.invalid')).toEqual([
       expect.objectContaining({ action: 'read', targetTable: 'users', detail: JSON.stringify({ self: true }) }),
+      expect.objectContaining({ action: 'read', targetTable: 'organization_settings', detail: JSON.stringify({ institutionReadiness: true }) }),
     ]);
   });
 
@@ -154,5 +156,121 @@ describe('settings routes (/me, /users)', () => {
     const unauthenticated = await worker.fetch(new Request('http://localhost/users'), t.env);
     expect(unauthenticated.status).toBe(401);
     await expect(unauthenticated.json()).resolves.toEqual({ error: 'actor_authentication_required' });
+  });
+});
+
+describe('organization profile partial update', () => {
+  const patchProfile = (body: unknown, headers = adminHeaders, env = t.env) => worker.fetch(new Request('http://localhost/organization/profile', {
+    method: 'PATCH',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  }), env);
+
+  it('saves only the institution name and preserves the first program and policy', async () => {
+    await t.reset();
+    await t.db.batch([
+      t.db.prepare("UPDATE programs SET display_name = '기존 사업' WHERE id = ?").bind(testProgramId('org_demo')),
+      t.db.prepare("UPDATE organization_settings SET initial_program_id = ? WHERE org_id = 'org_demo'").bind(testProgramId('org_demo')),
+    ]);
+    const response = await patchProfile({ orgName: ' 새 기관 ', expectedOrgName: null });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ orgId: 'org_demo', orgName: '새 기관', programDisplayName: '기존 사업' });
+    const saved = await worker.fetch(new Request('http://localhost/organization/profile', { headers: adminHeaders }), t.env);
+    await expect(saved.json()).resolves.toEqual({ orgId: 'org_demo', orgName: '새 기관', programDisplayName: '기존 사업' });
+    const policy = await t.db.prepare("SELECT pii_purge_grace_days FROM organization_settings WHERE org_id = 'org_demo'").first();
+    expect(policy?.pii_purge_grace_days).toBe(180);
+    const audits = await auditRows(adminHeaders['X-CCC-User-Id']);
+    expect(audits.filter(row => row.targetTable === 'organization_settings')).toEqual([
+      expect.objectContaining({ action: 'update', detail: expect.not.stringContaining('onboarding') }),
+    ]);
+  });
+
+  it('rejects a stale same-value editor without recording a second successful change', async () => {
+    await t.reset();
+    const payload = { orgName: '동시 변경 기관', expectedOrgName: null };
+    const barrier = new EventEmitter();
+    const ready = once(barrier, 'ready');
+    const database = t.env.DB;
+    let arrivals = 0;
+    const env = {
+      ...t.env,
+      DB: {
+        prepare: database.prepare.bind(database),
+        async batch<T>(statements: PreparedStatement[]) {
+          if (++arrivals === 2) barrier.emit('ready');
+          await ready;
+          return database.batch<T>(statements);
+        },
+      },
+    };
+    const secondHeaders = { ...adminHeaders, 'X-CCC-User-Id': 'admin@example.invalid' };
+    const results = await Promise.all([patchProfile(payload, adminHeaders, env), patchProfile(payload, secondHeaders, env)]);
+    expect(results.map(result => result.status).sort()).toEqual([200, 409]);
+    const audits = await t.db.prepare("SELECT actor_id FROM audit_log WHERE target_table = 'organization_settings'").all<{ actor_id: string }>();
+    expect(audits.results).toEqual([{ actor_id: results[0].status === 200 ? adminHeaders['X-CCC-User-Id'] : secondHeaders['X-CCC-User-Id'] }]);
+  });
+
+  it('rejects non-admin writes and unrelated fields without changing stored settings', async () => {
+    await t.reset();
+    expect((await patchProfile({ orgName: '금지', expectedOrgName: null }, counselorHeaders)).status).toBe(403);
+    expect((await patchProfile({ orgName: '금지', expectedOrgName: null, programDisplayName: '침범' })).status).toBe(400);
+    expect((await patchProfile({ orgName: '금지', expectedOrgName: null, orgId: 'org_other' })).status).toBe(400);
+    expect((await patchProfile({ orgName: ' ' , expectedOrgName: null })).status).toBe(400);
+    const saved = await worker.fetch(new Request('http://localhost/organization/profile', { headers: adminHeaders }), t.env);
+    await expect(saved.json()).resolves.toEqual({ orgId: 'org_demo', orgName: null, programDisplayName: null });
+    expect((await auditRows(adminHeaders['X-CCC-User-Id'])).filter(row => row.targetTable === 'organization_settings')).toEqual([]);
+  });
+
+  it('rolls back the name when its audit insert fails', async () => {
+    await t.reset();
+    await t.db.prepare(`CREATE TRIGGER reject_profile_audit BEFORE INSERT ON audit_log
+      WHEN NEW.target_table = 'organization_settings'
+      BEGIN SELECT RAISE(ABORT, 'profile audit unavailable'); END`).run();
+    expect((await patchProfile({ orgName: '롤백 대상', expectedOrgName: null })).status).toBe(500);
+    const saved = await worker.fetch(new Request('http://localhost/organization/profile', { headers: adminHeaders }), t.env);
+    await expect(saved.json()).resolves.toEqual({ orgId: 'org_demo', orgName: null, programDisplayName: null });
+    expect((await auditRows(adminHeaders['X-CCC-User-Id'])).filter(row => row.targetTable === 'organization_settings')).toEqual([]);
+  });
+
+  it('does not recreate missing institution settings', async () => {
+    await t.reset();
+    await t.db.prepare("DELETE FROM organization_settings WHERE org_id = 'org_demo'").run();
+    expect((await patchProfile({ orgName: '새 기관', expectedOrgName: null })).status).toBe(403);
+    expect(await t.db.prepare("SELECT org_id FROM organization_settings WHERE org_id = 'org_demo'").first()).toBeNull();
+  });
+
+  it('keeps a same-value save unchanged without another audit and rejects stale expectations', async () => {
+    await t.reset();
+    expect((await patchProfile({ orgName: '새 기관', expectedOrgName: null })).status).toBe(200);
+    expect((await patchProfile({ orgName: '새 기관', expectedOrgName: '새 기관' })).status).toBe(200);
+    expect((await patchProfile({ orgName: '다른 이름', expectedOrgName: null })).status).toBe(409);
+    expect((await auditRows(adminHeaders['X-CCC-User-Id'])).filter(row => row.targetTable === 'organization_settings')).toHaveLength(1);
+    const other = await worker.fetch(new Request('http://localhost/organization/profile', { headers: otherOrgCounselorHeaders }), t.env);
+    await expect(other.json()).resolves.toEqual({ orgId: 'org_other', orgName: null, programDisplayName: null });
+  });
+
+  it('allows IA alone but rejects TA alone, revoked IA, inactive IA, and service actors', async () => {
+    await t.reset();
+    const actorId = adminHeaders['X-CCC-User-Id'];
+    await t.db.prepare("UPDATE user_role_assignments SET revoked_at = '2026-09-09T00:00:00Z' WHERE user_id = ? AND role = 'institution_technical_admin'").bind(actorId).run();
+    expect((await patchProfile({ orgName: 'IA 단독', expectedOrgName: null })).status).toBe(200);
+    await t.db.prepare("UPDATE user_role_assignments SET revoked_at = '2026-09-09T00:00:00Z' WHERE user_id = ? AND role = 'institution_admin'").bind(actorId).run();
+    expect((await patchProfile({ orgName: '철회 후', expectedOrgName: 'IA 단독' })).status).toBe(403);
+    await t.db.prepare("INSERT INTO user_role_assignments (id, org_id, user_id, role, source, granted_by) VALUES ('ta-only-profile', 'org_demo', ?, 'institution_technical_admin', 'manual', ?)").bind(actorId, 'admin@example.invalid').run();
+    expect((await patchProfile({ orgName: 'TA 단독', expectedOrgName: 'IA 단독' })).status).toBe(403);
+    expect((await patchProfile({ orgName: 'service', expectedOrgName: 'IA 단독' }, { ...adminHeaders, 'X-CCC-Role': 'service' })).status).toBe(403);
+    await t.db.prepare("INSERT INTO user_role_assignments (id, org_id, user_id, role, source, granted_by) VALUES ('inactive-profile', 'org_demo', ?, 'institution_admin', 'manual', ?)").bind(actorId, 'admin@example.invalid').run();
+    await t.db.prepare('UPDATE users SET active = 0 WHERE id = ?').bind(actorId).run();
+    expect((await patchProfile({ orgName: '비활성', expectedOrgName: 'IA 단독' })).status).toBe(403);
+    expect((await auditRows(actorId)).filter(row => row.targetTable === 'organization_settings')).toHaveLength(1);
+    expect(await t.db.prepare("SELECT org_name FROM organization_settings WHERE org_id = 'org_demo'").first()).toEqual({ org_name: 'IA 단독' });
+  });
+
+  it('fails closed if canonical role assignments cannot be read', async () => {
+    await t.reset();
+    await t.db.prepare('DROP TABLE user_role_assignments').run();
+    expect((await patchProfile({ orgName: '권한 미확인', expectedOrgName: null })).status).toBe(500);
+    expect(await t.db.prepare("SELECT org_name FROM organization_settings WHERE org_id = 'org_demo'").first()).toEqual({ org_name: null });
+    expect((await auditRows(adminHeaders['X-CCC-User-Id'])).filter(row => row.targetTable === 'organization_settings')).toEqual([]);
   });
 });

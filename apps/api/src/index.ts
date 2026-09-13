@@ -2,13 +2,14 @@ import { adaptD1Environment } from '@ccc/db-d1';
 import { createR2AudioStore } from '@ccc/audio-r2';
 import { createEnvironmentSecretStore, SECRET_NAMES } from '@ccc/secrets-env';
 import type { SecretName, ScheduledJobKind } from '@ccc/contracts/runtime';
-import { gatewayActorFromIdentity, type ApiEnv } from '@ccc/http-api/identity';
+import type { ApiEnv } from '@ccc/http-api/identity';
 import { localDevActorResolver } from './local-actor';
 import { handlePreviewUnlock, previewActorResolver } from '@ccc/http-api/preview-gate';
 import { handleRequest } from '@ccc/http-api';
 import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
 import { createScheduledJobRunner } from '@ccc/core/scheduled-job-runner';
 import { createAccessIdentity } from '@ccc/identity-access';
+import { createAgentBearerResolver } from '@ccc/http-api/agent-identity';
 
 import { AUDIO_EXPIRY_CRON, MEMORY_CRON, PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
 
@@ -59,14 +60,15 @@ export default {
       }
       return handleRequest(request, runtimeEnv, previewResolver);
     }
-    // 로컬 프리뷰(dev 이중 잠금)만 기존 환경 resolver를 쓴다. 그 외 production path는
-    // Access Identity가 canonical Actor를 만들고, gateway 앞의 E4-1 경계에서 기존 role로 투영한다.
+    // Preview keeps its isolated resolver; authenticated metadata retains the full canonical role set.
     const localResolver = localDevActorResolver(runtimeEnv);
     if (localResolver !== undefined) return handleRequest(request, runtimeEnv, localResolver);
+    // S2 §2.2 L64: agent-bearer 레인이 사람 신원(E2-7 까지 Access) 앞에 온다. bearer 가
+    // Agent 자격이 아니면 그대로 아래로 흐르므로 사람 경로 동작은 바뀌지 않는다.
     const identity = createAccessIdentity(runtimeEnv);
-    return handleRequest(request, runtimeEnv, async (nextRequest) => (
-      gatewayActorFromIdentity(await identity.resolve(nextRequest))
-    ));
+    return handleRequest(request, runtimeEnv, createAgentBearerResolver({
+      inner: (nextRequest) => identity.resolve(nextRequest),
+    }));
   },
   // Cron trigger: only exact configured expressions may enqueue D8 or D10 work.
   async scheduled(controller: ScheduledController, env: WorkerEnv, ctx: ExecutionContext): Promise<void> {
@@ -74,6 +76,7 @@ export default {
     if (kind === undefined) throw new Error('unexpected_scheduled_trigger');
     const nowIso = new Date(controller.scheduledTime ?? Date.now()).toISOString();
     const runtimeEnv = adaptWorkerEnvironment(env);
-    ctx.waitUntil(createScheduledJobRunner(runtimeEnv, () => runCounselingMemory(runtimeEnv)).run(kind, nowIso));
+    if (runtimeEnv.audioStore === null) throw new Error('scheduled_audio_store_unavailable');
+    ctx.waitUntil(createScheduledJobRunner({ ...runtimeEnv, audioStore: runtimeEnv.audioStore }, () => runCounselingMemory(runtimeEnv)).run(kind, nowIso));
   },
 } satisfies ExportedHandler<WorkerEnv>;

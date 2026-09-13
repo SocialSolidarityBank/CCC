@@ -12,6 +12,10 @@ import {
 import {
   AI_DRAFT_PROMPT_VERSION,
   AI_DRAFT_SCHEMA_VERSION,
+  DISCREPANCY_PROMPT_VERSION,
+  DISCREPANCY_SCHEMA_VERSION,
+  MEMORY_PROMPT_VERSION,
+  MEMORY_SCHEMA_VERSION,
   AiProviderInputError,
   AiProviderProhibitedOutputError,
   CODEX_PROVIDER_ADAPTER_VERSION,
@@ -30,8 +34,9 @@ import {
 } from '@ccc/ai-runtime';
 import { contrastAxisStates } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
-import { setupD1 } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testProgramId } from './support/d1';
 import { agentManifestEnv, agentResultRequest, claimOverHttp, registerFixtureRecording } from './support/agent-jobs';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 
@@ -124,11 +129,6 @@ function baseOutput(request: AiProviderRequest): AiProviderOutput {
 }
 
 describe('호출 ① 재료 다중화와 대조 3종 v4 (D69 · ADR-0036 · CCC-102)', () => {
-  it('버전이 v4 로 올라간다', () => {
-    expect(AI_DRAFT_PROMPT_VERSION).toBe('phase1.grounded.v4');
-    expect(AI_DRAFT_SCHEMA_VERSION).toBe('phase1.grounded-draft.v4');
-  });
-
   it('재료 두 개와 대조 3종을 담은 출력이 왕복한다', () => {
     const request = bothMaterialsRequest();
     expect(request.materials).toHaveLength(2);
@@ -418,17 +418,22 @@ interface RouteFixtureOptions {
 async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   await t.reset();
   const adapter = options.adapter ?? new ContrastAdapter();
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+    sttMode: 'local',
+    llmMode: 'openai',
+  });
   const env: ApiEnv = {
     ...t.env,
     TEXT_AI_PILOT_ENABLED: '1',
+    CCC_STT_MODE: 'local',
     CCC_LLM_MODE: 'openai',
     AI_PROVIDER_ADAPTER: adapter,
   };
-  const caseRecord = await createCase(t.env, counselor, {
-    consentRecordingAt: '2026-08-01T00:00:00.000Z',
-    consentTextAiAt: '2026-08-01T00:00:00.000Z',
-  });
-  const session = await createManualSession(t.env, counselor, caseRecord.id, {
+  // 텍스트 AI 권한은 등록 6종 동의만이 만든다(옛 파일럿 증빙 라우트는 폐지).
+  const caseRecord = await createCase(env, counselor, await registrationInput(env, counselor, {
+    programId: testProgramId(counselor.orgId),
+  }));
+  const session = await createManualSession(env, counselor, caseRecord.id, {
     submissionId: crypto.randomUUID(),
     heldAt: '2026-08-01T09:00:00.000Z',
     channel: 'in_person',
@@ -437,29 +442,13 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   });
   await registerFixtureRecording(t.env, counselor, service, session.id);
 
-  const consent = await worker.fetch(new Request(
-    `http://localhost/cases/${caseRecord.id}/pilot-text-ai-consent`,
-    {
-      method: 'POST',
-      headers: counselorHeaders,
-      body: JSON.stringify({
-        noticeVersion: 'contrast-notice-v1',
-        noticeHash: 'c'.repeat(64),
-        evidenceRef: 'contrast-evidence-1',
-        evidenceHash: 'd'.repeat(64),
-        effectiveAt: '2020-01-01T09:00:00.000Z',
-      }),
-    },
-  ), env);
-  expect(consent.status).toBe(201);
-
-  const providerConfig = await registerAiProviderConfiguration(t.env, admin, {
+  const providerConfig = await registerAiProviderConfiguration(env, admin, {
     adapterId: CODEX_PROVIDER_ID,
     adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION,
     configHash: options.configHash ?? await canonicalAiProviderConfigHash(ROUTE_PROVIDER_CONFIG),
     approvalRefs: ['contrast-approval-1'],
   });
-  await activateAiProviderConfiguration(t.env, admin, providerConfig.id);
+  await activateAiProviderConfiguration(env, admin, providerConfig.id);
   return { adapter, caseRecord, env, session };
 }
 
@@ -760,18 +749,32 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     expect(sessionRow?.speaker_mapping_confirmed_at).toBe(sessionRow?.approved_at);
   });
 
-  it('v2 해시가 활성이면 fail-closed 이고 재활성화하면 통과한다', async () => {
-    // 프롬프트·스키마 버전이 오르면 활성 설정 해시가 어긋난다. D57 의 의도된 동작.
-    const staleHash = await canonicalAiProviderConfigHash({
-      ...ROUTE_PROVIDER_CONFIG,
-      configVersion: 'contrast-test-stale',
-    });
-    const { env, session } = await setupRouteFixture({ configHash: staleHash });
+  it.each(['pre-relayer', 'historical-memory', 'discrepancy-v1'] as const)(
+    'rejects an activation with obsolete %s policy until reactivated',
+    async (policy) => {
+    // Preserve the real canonical tuple order, changing only the obsolete policy.
+    const staleHash = await sha256Hex(JSON.stringify({
+      adapterVersion: ROUTE_PROVIDER_CONFIG.adapterVersion,
+      configVersion: ROUTE_PROVIDER_CONFIG.configVersion,
+      model: ROUTE_PROVIDER_CONFIG.model,
+      promptVersion: policy === 'discrepancy-v1' ? AI_DRAFT_PROMPT_VERSION : 'phase1.grounded.v4',
+      providerId: ROUTE_PROVIDER_CONFIG.providerId,
+      registryVersion: ROUTE_PROVIDER_CONFIG.registryVersion,
+      schemaVersion: AI_DRAFT_SCHEMA_VERSION,
+      ...(policy === 'pre-relayer' ? {} : {
+        discrepancyPromptVersion: policy === 'discrepancy-v1' ? 'phase1.discrepancy.v1' : DISCREPANCY_PROMPT_VERSION,
+        discrepancySchemaVersion: DISCREPANCY_SCHEMA_VERSION,
+      }),
+      memoryPromptVersion: MEMORY_PROMPT_VERSION,
+      memorySchemaVersion: MEMORY_SCHEMA_VERSION,
+    }));
+    const { adapter, env, session } = await setupRouteFixture({ configHash: staleHash });
     const text = await postTextSnapshot(env, session.id);
 
     const blocked = await generateFromSnapshot(env, session.id, text.sourceSnapshotId);
     expect(blocked.status).toBe(503);
     expect(await blocked.json()).toMatchObject({ error: 'ai_provider_unavailable' });
+    expect(adapter.invocations).toEqual([]);
     expect(await t.db.prepare('SELECT COUNT(*) AS count FROM ai_draft_versions')
       .first<{ count: number }>()).toMatchObject({ count: 0 });
 
@@ -783,7 +786,8 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     });
     await activateAiProviderConfiguration(t.env, admin, reactivated.id);
     expect((await generateFromSnapshot(env, session.id, text.sourceSnapshotId)).status).toBe(201);
-  });
+    },
+  );
 
   // 0035 는 ai_evidence_links_insert_guard 의 가운데 절만 넓히고 나머지 두 절은 글자
   // 그대로 되살린다. 되살리다 한 절을 흘리면 아무 테스트도 빨개지지 않으므로 여기서 못 박는다.

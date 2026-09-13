@@ -56,6 +56,10 @@ class Config:
     ner_attestation: dict[str, str]
     ner_release_receipt_id: str
     audio_download_origin: str | None
+    # E6-4: 운영 자격이 페어링 Bearer 인지(True) E2-7 까지의 legacy Access 서비스
+    # 토큰인지(False) 가른다. refresh 값 자체는 Config 에 두지 않는다 — 출처는
+    # `api_client.AgentCredentialSource` 이고 이 플래그는 어느 레인인지만 말한다.
+    agent_bearer_auth: bool
     backup_policy: BackupPolicy
 
 
@@ -203,12 +207,18 @@ def load_config() -> Config:
     client_id = _optional("CCC_PIPELINE_CLIENT_ID")
     client_secret = _optional("CCC_PIPELINE_CLIENT_SECRET")
     preview_access_code = _optional("CCC_PREVIEW_E2E_ACCESS_CODE")
+    # 값은 읽지 않는다. 이 자리에서는 페어링 자격이 주입됐는지만 본다 (R3).
+    agent_bearer_auth = "CCC_AGENT_REFRESH_TOKEN" in os.environ and bool(
+        os.environ["CCC_AGENT_REFRESH_TOKEN"].strip()
+    )
     if runtime_environment == "preview":
         api_base_url = (configured_url or PREVIEW_API_BASE_URL).rstrip("/")
         if api_base_url != PREVIEW_API_BASE_URL:
             raise ConfigError("preview runtime requires the Preview API URL")
         if client_id is not None or client_secret is not None:
             raise ConfigError("preview runtime must not receive production Access credentials")
+        if agent_bearer_auth:
+            raise ConfigError("preview runtime must not receive the Agent pairing credential")
         if preview_access_code is None:
             raise ConfigError("environment variable CCC_PREVIEW_E2E_ACCESS_CODE is required")
     else:
@@ -217,9 +227,13 @@ def load_config() -> Config:
             raise ConfigError("production runtime requires the production API URL")
         if preview_access_code is not None:
             raise ConfigError("production runtime must not receive Preview credentials")
-        if client_id is None:
+        # 두 레인은 배타적이다: 페어링 Bearer 하나, 또는 legacy Access 자격 한 쌍.
+        if agent_bearer_auth:
+            if client_id is not None or client_secret is not None:
+                raise ConfigError("Agent pairing credential excludes production Access credentials")
+        elif client_id is None:
             raise ConfigError("environment variable CCC_PIPELINE_CLIENT_ID is required")
-        if client_secret is None:
+        elif client_secret is None:
             raise ConfigError("environment variable CCC_PIPELINE_CLIENT_SECRET is required")
     backup_policy = _backup_policy()
     try:
@@ -288,5 +302,6 @@ def load_config() -> Config:
         ner_release_receipt_id=_required("CCC_NER_RELEASE_RECEIPT_ID"),
         runtime_environment=runtime_environment,
         audio_download_origin=audio_download_origin,
+        agent_bearer_auth=agent_bearer_auth,
         backup_policy=backup_policy,
     )

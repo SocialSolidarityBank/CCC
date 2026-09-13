@@ -12,7 +12,8 @@ import {
   updateScheduleSessionGoals,
   updateParticipantPii,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 const { counselor, unassignedCounselor, admin } = testActors;
 
@@ -22,9 +23,9 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
   it('rejects an unassigned counselor and records a deny_access audit row', async () => {
     await t.reset();
 
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
 
     await expect(assertSupportCaseAccess(t.env, unassignedCounselor, created.supportCaseId))
       .rejects.toBeInstanceOf(ForbiddenError);
@@ -55,9 +56,9 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
   it('does not record deny_access when access is granted', async () => {
     await t.reset();
 
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
 
     await expect(assertSupportCaseAccess(t.env, counselor, created.supportCaseId))
       .resolves.toMatchObject({ id: created.supportCaseId });
@@ -71,9 +72,9 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
   it('allows an institution administrator to read an unassigned case', async () => {
     await t.reset();
 
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
 
     await expect(assertSupportCaseAccess(t.env, admin, created.supportCaseId))
       .resolves.toMatchObject({ id: created.supportCaseId });
@@ -87,9 +88,9 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
   it('does not let an administrator without a practitioner role mutate case content even when assigned', async () => {
     await t.reset();
 
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
     await createCounselingSchedule(t.env, counselor, {
       beneficiaryId: created.beneficiaryId,
       supportCaseId: created.supportCaseId,
@@ -140,9 +141,9 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
   it('rejects assigning a case to a user without an active practitioner role at the database boundary', async () => {
     await t.reset();
 
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
 
     await expect(t.db.prepare(
       `INSERT INTO support_case_assignees (
@@ -159,9 +160,9 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
   it('denies counseling reads after the institution administrator role is revoked', async () => {
     await t.reset();
 
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
     await t.db.prepare(
       `UPDATE user_role_assignments SET revoked_at = datetime('now')
        WHERE org_id = ? AND user_id = ? AND role = 'institution_admin' AND revoked_at IS NULL`,
@@ -178,9 +179,9 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
   it('does not let an unassigned institution administrator rewrite session goals', async () => {
     await t.reset();
 
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
     const schedule = await createCounselingSchedule(t.env, counselor, {
       beneficiaryId: created.beneficiaryId,
       supportCaseId: created.supportCaseId,
@@ -198,9 +199,9 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
   it('allows a supervisor to read a case assigned to an active team member', async () => {
     await t.reset();
 
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
     await t.db.batch([
       t.db.prepare(
         'INSERT INTO teams (id, org_id, name, created_by) VALUES (?, ?, ?, ?)',
@@ -256,9 +257,9 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
   it('rejects a supervisor after the team grant is revoked', async () => {
     await t.reset();
 
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
     await t.db.batch([
       t.db.prepare(
         'INSERT INTO teams (id, org_id, name, created_by) VALUES (?, ?, ?, ?)',
@@ -287,9 +288,9 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
   it('does not let a supervisor mutate content in a supervised case', async () => {
     await t.reset();
 
-    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
-    });
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
     await t.db.batch([
       t.db.prepare(
         'INSERT INTO teams (id, org_id, name, created_by) VALUES (?, ?, ?, ?)',

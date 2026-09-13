@@ -1,11 +1,16 @@
-import { ForbiddenError, type Actor as GatewayActor, type Env as GatewayEnv } from '@ccc/core/gateway';
+import { ForbiddenError, type Actor as GatewayActor, type AuthenticatedIdentityClaims, type Env as GatewayEnv } from '@ccc/core/gateway';
 import type { AiProviderRuntimeEnv } from '@ccc/ai-runtime';
 import type { Actor as IdentityActor, AudioStore } from '@ccc/contracts/runtime';
 import type { NotifyEnv } from '@ccc/core/notify';
 
 export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv, NotifyEnv {
-  /** Runtime-neutral original-audio storage port; provider bindings stay in composition roots. */
-  audioStore: AudioStore;
+  /** Null means this runtime cannot handle original audio; no fallback adapter is supplied. */
+  audioStore: AudioStore | null;
+  /**
+   * 첫 로그인 신원 연결(D80) 전용 자격 검증 포트. 서명·claim 만 보고 MFA 관문도 디렉터리
+   * 조회도 하지 않는다. 없는 런타임에는 `POST /identity/link` 표면 자체가 없다(404).
+   */
+  verifyIdentityLinkClaims?: (request: Request) => Promise<AuthenticatedIdentityClaims>;
   /**
    * Cloudflare Access adapter와 preview/local 이중 잠금이 읽는 공개 설정.
    * 검증 구현은 `adapters/identity-access`; http-api는 값만 전달한다.
@@ -74,7 +79,9 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv, NotifyEnv {
  * legacy role. Remove this projection when gateway authorization moves to canonical multi-role Actor.
  */
 export function gatewayActorFromIdentity(actor: IdentityActor): GatewayActor {
-  if (actor.orgId === null) throw new ForbiddenError('system actor is not allowed on business routes');
+  if (actor.kind === 'system' || actor.orgId === null) {
+    throw new ForbiddenError('system actor is not allowed on business routes');
+  }
   if (actor.roles.includes('service')) return { userId: actor.userId, orgId: actor.orgId, role: 'service' };
   if (actor.roles.includes('institution-admin')) return { userId: actor.userId, orgId: actor.orgId, role: 'admin' };
   if (actor.roles.includes('worker') || actor.roles.includes('supervisor')) {

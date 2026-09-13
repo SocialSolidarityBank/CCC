@@ -3,9 +3,12 @@ packages:
   - packages/*
   - adapters/*
 allowBuilds:
+  '@primno/dpapi': false
   better-sqlite3-multiple-ciphers: false
   esbuild: true
   sharp: true
   workerd: true
 minimumReleaseAgeExclude:
   - lucide-react@1.24.0
+patchedDependencies:
+  '@primno/dpapi@2.0.1': patches/@primno__dpapi@2.0.1.patch

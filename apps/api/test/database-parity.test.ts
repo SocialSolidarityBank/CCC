@@ -49,7 +49,8 @@ async function businessFixture(fixture: ParityDatabase) {
     VALUES ('used-token',?,'counselor',NULL,?,'used',?,?)`).bind(actor.orgId, actor.userId, now, now).run();
   const failures = [
     { subtype: 'unique', statement: db.prepare(`INSERT INTO users(id,org_id,email,role,created_at) VALUES ('duplicate-email',?,?,'admin',?)`).bind(actor.orgId, 'parity-admin@example.invalid', now) },
-    { subtype: 'primary_key', statement: db.prepare(`INSERT INTO users(id,org_id,email,role,created_at) VALUES (?,?,'other-parity@example.invalid','admin',?)`).bind(actor.userId, actor.orgId, now) },
+    // Keep (id, org_id) and email distinct so only the logical primary key collides.
+    { subtype: 'primary_key', statement: db.prepare(`INSERT INTO users(id,org_id,email,role,created_at) VALUES (?,?,'other-parity@example.invalid','admin',?)`).bind(actor.userId, 'parity-pk-other-org', now) },
     { subtype: 'primary_key', statement: db.prepare(`INSERT INTO counseling_memory_history(id,org_id,support_case_id,revision,item_json) VALUES ('history',?,'synthetic-case',1,'{}')`).bind(actor.orgId) },
     { subtype: 'foreign_key', statement: db.prepare(`INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES ('missing-support-case',?)`).bind(actor.orgId) },
     { subtype: 'check', statement: db.prepare(`INSERT INTO counseling_memory_settings(org_id,enabled) VALUES ('bad-check',2)`) },

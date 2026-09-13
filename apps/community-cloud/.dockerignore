@@ -1,0 +1,10 @@
+**
+!Dockerfile
+!dist
+dist/**
+!dist/index.js
+!with-ca.sh
+!src
+src/**
+!src/application-ca.mjs
+!src/validate-ca.mjs

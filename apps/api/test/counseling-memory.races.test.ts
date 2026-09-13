@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, seedTestProgramWithRuntimeModes, testActors, testProgramId } from './support/d1';
 import { seedCanonicalSttConsent, seedNerQualification, claimRequest, agentResultRequest, type NerQualification } from './support/agent-jobs';
 import type { MemoryMaskJob } from '@ccc/contracts/agent-jobs';
 import worker from './support/local-worker';
 import { agentManifestEnv, AGENT_SERVICE_HEADERS } from './support/agent-jobs';
 import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
-import { AI_PROVIDER_REGISTRY_VERSION, CODEX_PROVIDER_ID, CODEX_PROVIDER_ADAPTER_VERSION, canonicalAiProviderConfigHash, type AiProviderTestAdapter } from '@ccc/ai-runtime';
+import { AI_PROVIDER_REGISTRY_VERSION, CODEX_PROVIDER_ID, CODEX_PROVIDER_ADAPTER_VERSION, canonicalAiProviderConfigHash, generatePreviewFixtureAiDraft, type AiProviderRequest, type AiProviderTestAdapter } from '@ccc/ai-runtime';
 import { activateAiProviderConfiguration, appendSupportCaseConsentEvent, beginCounselingMemoryEgress, claimCounselingMemorySources, commitCounselingMemoryWork, correctCounselingMemory, createActionItem, createCase, createManualSession, getCounselingMemory, getCounselingMemorySource, getSupportCaseConsent, issueSupportCaseConsentDisclosures, listSupportCasesForBeneficiary, loadCounselingMemoryContext, prepareCounselingMemoryWork, registerAiProviderConfiguration, resolveActionItem, acceptCounselingMemorySource, type ActionItem } from '@ccc/core/gateway';
+import { ProgramAdmissionRequiredError, releaseCounselingMemorySource } from '@ccc/core/gateway';
+import { recordMaskedSourceSnapshot } from '@ccc/core/gateway';
+import { registrationInput } from './support/registration';
 vi.setConfig({ testTimeout: 30000 });
 const t = setupD1();
 const { counselor, admin, service } = testActors;
@@ -15,8 +18,12 @@ interface MemoryFixture { id: string; action: ActionItem; qualification: NerQual
 async function fixture(claim = true, expiresAt?: string, configHash = 'b'.repeat(64)): Promise<MemoryFixture> {
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   t.env.CCC_LLM_MODE = 'openai';
+  t.env.installationMode = 'local-single';
   t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
-  const c = await createCase(t.env, counselor, {});
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
+    deploymentMode: 'local-single', sttMode: 'off', llmMode: 'openai',
+  });
+  const c = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, c.id);
   const id = programs[0]!.supportCase.id;
   await seedCanonicalSttConsent(t.env, counselor, id);
@@ -80,6 +87,86 @@ async function materialize(f: MemoryFixture) {
   return { work, output };
 }
 describe('durable memory races', () => {
+  it.each(['actual', 'preview-adapter', 'preview-fixture'] as const)(
+    'isolates shadow memory from generate and regenerate requests (%s)',
+    async (mode) => {
+      const f = await fixture();
+      const first = await materialize(f);
+      await commitCounselingMemoryWork(t.env, first.work, first.output);
+      const memo = '이번 상담에서 새 일정을 확인했습니다.';
+      const session = await createManualSession(t.env, counselor, f.action.caseId, {
+        submissionId: crypto.randomUUID(), heldAt: '2026-09-08T09:00:00.000Z',
+        channel: 'in_person', memo, gasScores: [],
+      });
+      await maskPending(f);
+      // A relevant, independently masked historical item really exists. Empty memory
+      // would let a route that still loads historicalContext pass this regression.
+      const context = await loadCounselingMemoryContext(t.env, counselor, session.id);
+      expect(context?.materials.map(material => material.maskedText).join('\n')).toContain('서류 준비 예정');
+      const memoryBefore = await getCounselingMemory(t.env, counselor, f.id);
+      const requests: AiProviderRequest[] = [];
+      const adapter: AiProviderTestAdapter = {
+        providerId: CODEX_PROVIDER_ID, adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION, testOnly: true,
+        config: {
+          registryVersion: AI_PROVIDER_REGISTRY_VERSION, providerId: CODEX_PROVIDER_ID,
+          adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION, configVersion: 'shadow-memory-test', model: 'test-model',
+        },
+        async generate(request) {
+          requests.push(request);
+          return generatePreviewFixtureAiDraft(request);
+        },
+      };
+      const config = await registerAiProviderConfiguration(t.env, admin, {
+        adapterId: adapter.providerId, adapterVersion: adapter.adapterVersion,
+        configHash: await canonicalAiProviderConfigHash(adapter.config), approvalRefs: ['synthetic-shadow-approval'],
+      });
+      await activateAiProviderConfiguration(t.env, admin, config.id);
+      t.env.AI_PROVIDER_ADAPTER = adapter;
+      if (mode !== 'actual') {
+        t.env.PREVIEW_MODE = 'true';
+        t.env.PREVIEW_ACCESS_CODE = 'synthetic-shadow-preview';
+      }
+      if (mode === 'preview-fixture') delete t.env.AI_PROVIDER_ADAPTER;
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(memo));
+      const sha256 = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+      const snapshot = await recordMaskedSourceSnapshot(t.env, service, session.id, {
+        maskedText: memo, sha256, maskingPipelineVersion: 'local-ner-v1',
+        evidence: [{
+          id: crypto.randomUUID(), sourceRef: 'memo:shadow-current', sourceSha256: sha256,
+          evidenceQuote: memo, sourceStart: 0, sourceEnd: Array.from(memo).length,
+        }],
+      });
+      for (const actor of mode === 'actual' ? [service, counselor] : [service]) {
+        const response = await worker.fetch(new Request(`http://localhost/sessions/${session.id}/ai/generate`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json', 'X-CCC-User-Id': actor.userId,
+            'X-CCC-Org-Id': actor.orgId, 'X-CCC-Role': actor.role,
+          },
+          body: JSON.stringify({ sourceSnapshotId: snapshot.id }),
+        }), t.env);
+        expect(response.status, await response.clone().text()).toBe(201);
+      }
+      expect(requests).toHaveLength(mode === 'preview-fixture' ? 0 : mode === 'actual' ? 2 : 1);
+      for (const request of requests) {
+        expect(request).not.toHaveProperty('historicalContext');
+        expect(request.materials.map(material => material.maskedText)).toEqual([memo]);
+      }
+      const drafts = await t.db.prepare(`SELECT draft.version FROM ai_draft_versions AS draft
+        JOIN ai_work_items AS work ON work.id=draft.work_item_id
+        WHERE work.session_id=? ORDER BY draft.version`)
+        .bind(session.id).all<{ version: number }>();
+      expect(drafts.results.map(draft => draft.version)).toEqual(mode === 'actual' ? [1, 2] : [1]);
+      const usage = await t.db.prepare(`SELECT context.draft_id FROM counseling_memory_draft_context AS context
+        JOIN ai_draft_versions AS draft ON draft.id=context.draft_id
+        JOIN ai_work_items AS work ON work.id=draft.work_item_id WHERE work.session_id=?`)
+        .bind(session.id).all();
+      expect(usage.results).toEqual([]);
+      const memoryAfter = await getCounselingMemory(t.env, counselor, f.id);
+      expect(memoryAfter.items).toEqual(memoryBefore.items);
+      expect(memoryAfter.summary).toEqual(memoryBefore.summary);
+    },
+  );
   it('keeps Agent source work separate and publishes memory only after attested masking', async () => {
     const f = await fixture(false);
     // This valid UUID contains a numeric run resembling an account number.
@@ -189,7 +276,7 @@ describe('durable memory races', () => {
   it('stops in-flight memory when the installed LLM mode is off', async () => {
     const f = await fixture();
     const prepared = await materialize(f);
-    t.env.CCC_LLM_MODE = 'off';
+    await t.db.prepare("UPDATE program_admission_policies SET llm_mode='off',version=version+1 WHERE org_id=?").bind(counselor.orgId).run();
     await expect(commitCounselingMemoryWork(t.env, prepared.work, prepared.output)).rejects.toThrow('memory_disabled');
     expect(await prepareCounselingMemoryWork(t.env)).toEqual([]);
     expect(await claimCounselingMemorySources(t.env, service, claimRequest(f.qualification))).toEqual([]);
@@ -307,7 +394,7 @@ describe('durable memory races', () => {
     await maskJobs(f);
     const waitingIds: string[] = [];
     for (let index = 0; index < 2; index++) {
-      const participant = await createCase(t.env, counselor, {});
+      const participant = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
       const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, participant.id);
       const id = programs[0]!.supportCase.id;
       waitingIds.push(id);
@@ -410,5 +497,36 @@ describe('durable memory races', () => {
     })).rejects.toThrow('memory_context_overflow');
     expect(await getCounselingMemory(t.env, counselor, f.id)).toMatchObject({ items: [], summary: [] });
     expect(await t.db.prepare('SELECT processed FROM counseling_memory_materials WHERE id=?').bind(source.id).first()).toEqual({ processed: 0 });
+  });
+  it('blocks memory source delivery after admission changes but still releases the lease', async () => {
+    const f = await fixture();
+    const job = f.jobs.find(entry => entry.sourceKind === 'action')!;
+    await t.db.prepare('UPDATE program_admission_policies SET version=version+1 WHERE org_id=?').bind(counselor.orgId).run();
+    await expect(getCounselingMemorySource(t.env, service, job.jobId, job.claimToken, job.attempt))
+      .rejects.toBeInstanceOf(ProgramAdmissionRequiredError);
+    await releaseCounselingMemorySource(t.env, service, job.jobId, {
+      claimToken: job.claimToken, attempt: job.attempt, outcome: 'transient', reason: 'engine_unavailable',
+    });
+    expect(await t.db.prepare('SELECT lease_token FROM counseling_memory_materials WHERE id=?').bind(job.jobId).first())
+      .toEqual({ lease_token: null });
+  });
+
+  it('rejects an in-flight memory result after program confirmation becomes stale', async () => {
+    const f = await fixture();
+    const prepared = await materialize(f);
+    await t.db.prepare('UPDATE program_admission_policies SET version=version+1 WHERE org_id=?').bind(counselor.orgId).run();
+    await expect(commitCounselingMemoryWork(t.env, prepared.work, prepared.output))
+      .rejects.toBeInstanceOf(ProgramAdmissionRequiredError);
+    expect((await getCounselingMemory(t.env, counselor, f.id)).items).toEqual([]);
+  });
+
+  it('retains the previous summary and correction access while program admission is blocked', async () => {
+    const f = await fixture();
+    const prepared = await materialize(f);
+    await commitCounselingMemoryWork(t.env, prepared.work, prepared.output);
+    await t.db.prepare('UPDATE program_admission_policies SET version=version+1 WHERE org_id=?').bind(counselor.orgId).run();
+    const view = await getCounselingMemory(t.env, counselor, f.id);
+    expect(view).toMatchObject({ status: 'blocked', reason: 'program_admission_required', canCorrect: true });
+    expect(view.summary.map(line => line.text)).toEqual(['서류 준비 예정']);
   });
 });

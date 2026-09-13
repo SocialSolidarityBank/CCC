@@ -15,7 +15,6 @@ import {
   listSupportCasesForBeneficiary,
   getSupportCaseConsent,
   issueSupportCaseConsentDisclosures,
-  recordPilotTextAiConsentEvidence,
   registerAiProviderConfiguration,
   registerRecording,
   releaseRecordingResultDownstream,
@@ -31,7 +30,7 @@ import {
   type AiProviderRequest,
   type AiProviderTestAdapter,
 } from '@ccc/ai-runtime';
-import { setupD1, testActors } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import {
   agentManifestEnv,
   AGENT_SERVICE_HEADERS,
@@ -43,6 +42,7 @@ import {
 } from './support/agent-jobs';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import type { ApiEnv } from '@ccc/http-api/identity';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 const counselor: Actor = testActors.counselor;
@@ -140,30 +140,31 @@ async function recordingResultBody(maskedText = MASKED_FIXTURE) {
   };
 }
 
-async function createUploadedRecording(submissionId = crypto.randomUUID()) {
-  const caseRecord = await createCase(t.env, counselor, {
-    consentRecordingAt: '2026-08-01T00:00:00.000Z',
-    consentTextAiAt: '2026-08-01T00:00:00.000Z',
+async function createUploadedRecording(
+  env: ApiEnv = Object.assign(t.env, { CCC_STT_MODE: 'local', CCC_LLM_MODE: 'openai' }),
+  submissionId = crypto.randomUUID(),
+) {
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+    deploymentMode: env.installationMode ?? 'community-cloud',
+    sttMode: env.CCC_STT_MODE === 'azure' ? 'azure' : env.CCC_STT_MODE === 'local' ? 'local' : 'off',
+    llmMode: env.CCC_LLM_MODE === 'openai' ? 'openai' : 'off',
   });
-  const session = await createManualSession(t.env, counselor, caseRecord.id, {
+  // 녹음·STT·국외 처리 권한은 등록이 남긴 6종 동의 이벤트에서만 나온다.
+  const caseRecord = await createCase(env, counselor, await registrationInput(env, counselor, {
+    programId: testProgramId(counselor.orgId),
+  }));
+  const session = await createManualSession(env, counselor, caseRecord.id, {
     submissionId,
     heldAt: '2026-08-01T09:00:00.000Z',
     channel: 'in_person',
     memo: '합성 테스트용 수기 기록',
     gasScores: [],
   });
-  const recording = await registerFixtureRecording(t.env, counselor, service, session.id);
+  const recording = await registerFixtureRecording(env, counselor, service, session.id);
   return { caseRecord, session, recordingKey: recording.key };
 }
 
 async function configureProvider(env: ApiEnv, provider: FixtureAiProvider, caseId: string): Promise<void> {
-  await recordPilotTextAiConsentEvidence(env, counselor, caseId, {
-    noticeVersion: 'recording-result-e2e-v1',
-    noticeSha256: 'a'.repeat(64),
-    evidenceRef: 'fixture:recording-consent',
-    evidenceSha256: 'b'.repeat(64),
-    effectiveAt: '2020-01-01T00:00:00.000Z',
-  });
   const providerConfig = await registerAiProviderConfiguration(env, testActors.admin, {
     adapterId: CODEX_PROVIDER_ID,
     adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION,
@@ -417,15 +418,9 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       PREVIEW_ACCESS_CODE: 'fixture-preview-code',
       TEXT_AI_PILOT_ENABLED: '1',
       EXTERNAL_AI_CALLS_ENABLED: '0',
+      CCC_LLM_MODE: 'off',
     }, { stt: 'local' });
-    const { caseRecord, session } = await createUploadedRecording('95000000-0000-4000-8000-000000000001');
-    await recordPilotTextAiConsentEvidence(env, counselor, caseRecord.id, {
-      noticeVersion: 'recording-result-e2e-v1',
-      noticeSha256: 'a'.repeat(64),
-      evidenceRef: 'fixture:recording-consent',
-      evidenceSha256: 'b'.repeat(64),
-      effectiveAt: '2020-01-01T00:00:00.000Z',
-    });
+    const { caseRecord, session } = await createUploadedRecording(env, '95000000-0000-4000-8000-000000000001');
 
     const server = createServer((request, response) => {
       void relayToWorker(request, response, env).catch(() => {
@@ -575,21 +570,15 @@ describe('recording result end-to-end contract (CCC-95)', () => {
 
   it('rejects recording re-registration after an immutable result commit', async () => {
     await t.reset();
-    const { caseRecord, session, recordingKey } = await createUploadedRecording('95000000-0000-4000-8000-000000000005');
+    const { session, recordingKey } = await createUploadedRecording(undefined, '95000000-0000-4000-8000-000000000005');
     const env = await agentManifestEnv({
       ...t.env,
       PREVIEW_MODE: 'true',
       PREVIEW_ACCESS_CODE: 'fixture-preview-code',
       TEXT_AI_PILOT_ENABLED: '1',
       EXTERNAL_AI_CALLS_ENABLED: '0',
+      CCC_LLM_MODE: 'openai',
     }, { stt: 'local' });
-    await recordPilotTextAiConsentEvidence(env, counselor, caseRecord.id, {
-      noticeVersion: 'recording-result-e2e-v1',
-      noticeSha256: 'a'.repeat(64),
-      evidenceRef: 'fixture:recording-consent',
-      evidenceSha256: 'b'.repeat(64),
-      effectiveAt: '2020-01-01T00:00:00.000Z',
-    });
     const admission = await admitRecordingUpload(env, counselor, session.id, LOCAL_SINGLE_RUNTIME);
     const replacementMetadata = {
       contentLength: 1,
@@ -644,15 +633,8 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
     }, { stt: 'local' });
-    const { caseRecord, session } = await createUploadedRecording('95000000-0000-4000-8000-000000000007');
+    const { caseRecord, session } = await createUploadedRecording(env, '95000000-0000-4000-8000-000000000007');
     await t.db.prepare("UPDATE sessions SET memo = '' WHERE id = ?").bind(session.id).run();
-    await recordPilotTextAiConsentEvidence(env, counselor, caseRecord.id, {
-      noticeVersion: 'recording-result-e2e-v1',
-      noticeSha256: 'a'.repeat(64),
-      evidenceRef: 'fixture:recording-consent',
-      evidenceSha256: 'b'.repeat(64),
-      effectiveAt: '2020-01-01T00:00:00.000Z',
-    });
     const resultResponse = await postResult(env, session.id, await recordingResultBody());
     expect(resultResponse.status, await resultResponse.text()).toBe(204);
     const { programs } = await listSupportCasesForBeneficiary(env, counselor, caseRecord.id);
@@ -687,7 +669,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       AI_PROVIDER_ADAPTER: provider,
     }, { stt: 'local' });
     const { caseRecord, session } = await createUploadedRecording(
-      '95000000-0000-4000-8000-000000000008',
+      env, '95000000-0000-4000-8000-000000000008',
     );
     await configureProvider(env, provider, caseRecord.id);
     const { programs } = await listSupportCasesForBeneficiary(env, counselor, caseRecord.id);
@@ -741,14 +723,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
     }, { stt: 'local' });
-    const { caseRecord, session } = await createUploadedRecording('95000000-0000-4000-8000-000000000006');
-    await recordPilotTextAiConsentEvidence(env, counselor, caseRecord.id, {
-      noticeVersion: 'recording-result-e2e-v1',
-      noticeSha256: 'a'.repeat(64),
-      evidenceRef: 'fixture:recording-consent',
-      evidenceSha256: 'b'.repeat(64),
-      effectiveAt: '2020-01-01T00:00:00.000Z',
-    });
+    const { session } = await createUploadedRecording(env, '95000000-0000-4000-8000-000000000006');
     const result = await recordingResultBody();
     const accepted = await commitRecordingResult(env, service, session.id, result);
     expect(accepted.finalized).toBe(false);
@@ -867,15 +842,9 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
+      CCC_STT_MODE: 'local',
     };
-    const unavailable = await createUploadedRecording();
-    await recordPilotTextAiConsentEvidence(unavailableEnv, counselor, unavailable.caseRecord.id, {
-      noticeVersion: 'recording-result-boundary-v1',
-      noticeSha256: 'c'.repeat(64),
-      evidenceRef: 'fixture:boundary-consent',
-      evidenceSha256: 'd'.repeat(64),
-      effectiveAt: '2020-01-01T00:00:00.000Z',
-    });
+    const unavailable = await createUploadedRecording(unavailableEnv);
     const unavailableResponse = await postResult(
       unavailableEnv,
       unavailable.session.id,
@@ -892,8 +861,9 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
       AI_PROVIDER_ADAPTER: provider,
+      CCC_STT_MODE: 'local',
     };
-    const configured = await createUploadedRecording();
+    const configured = await createUploadedRecording(providerEnv);
     await configureProvider(providerEnv, provider, configured.caseRecord.id);
     const configuredResponse = await postResult(
       providerEnv,
@@ -922,8 +892,9 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       CCC_LLM_MODE: 'openai',
       AI_PROVIDER_ADAPTER: provider,
+      CCC_STT_MODE: 'local',
     };
-    const { caseRecord, session } = await createUploadedRecording();
+    const { caseRecord, session } = await createUploadedRecording(env);
     await configureProvider(env, provider, caseRecord.id);
     const body = await recordingResultBody();
 
@@ -968,19 +939,13 @@ describe('recording result transcript quality (CCC-124)', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
+      CCC_STT_MODE: 'local',
     };
   }
 
   async function consentedRecording(submissionId: `${string}-${string}-${string}-${string}-${string}`) {
     const env = previewEnv();
-    const { caseRecord, session } = await createUploadedRecording(submissionId);
-    await recordPilotTextAiConsentEvidence(env, counselor, caseRecord.id, {
-      noticeVersion: 'recording-result-e2e-v1',
-      noticeSha256: 'a'.repeat(64),
-      evidenceRef: 'fixture:recording-consent',
-      evidenceSha256: 'b'.repeat(64),
-      effectiveAt: '2020-01-01T00:00:00.000Z',
-    });
+    const { caseRecord, session } = await createUploadedRecording(env, submissionId);
     return { env, caseRecord, session };
   }
 

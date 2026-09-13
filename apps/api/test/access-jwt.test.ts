@@ -406,7 +406,7 @@ describe('Access Identity canonical Actor (E4-1)', () => {
       `INSERT INTO auth_revocations (id, kind, subject, revoked_at, reason)
        VALUES ('malformed-revocation-time', 'actor', ?, 'not-a-time', 'security-event')`,
     ).bind(user.id).run();
-    await expect(identity.resolve(refreshed)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(identity.resolve(refreshed)).rejects.toBeInstanceOf(IdentityStoreUnavailableError);
   });
 
   it('separates an unreadable identity store from invalid credentials', async () => {

@@ -1,16 +1,83 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { startPostgresHarness, type PostgresHarness } from './support/postgres';
+import { intakeQuestionnaire } from './support/intake';
 import {
   PARITY_MANIFEST_PATH, assertFingerprint, assertLogicalParity, canonical, checkpointSources,
   collectCatalog, dialectSemantics, fingerprint, hash, identifier, openParityDatabase,
   physicalRules, timestampInventory, type Catalog, type ParityDatabase, type TimestampColumn,
+  seedScheduleDisplaySchema, proveScheduleDisplaySchema,
+  seedPreregistrationConsentSchema, provePreregistrationConsentSchema,
+  proveStaffInvitesSchema, proveParticipantRequestLinksSchema,
+  proveCanonicalCompatibilityViews, proveAgentCredentialsSchema,
 } from './support/migration-parity';
 
 let harness: PostgresHarness;
 // From repository root: CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1
 beforeAll(async () => { harness = await startPostgresHarness(); }, 240_000);
 afterAll(async () => { await harness?.dispose(); }, 150_000);
+
+const intakeVersionProof = {
+  org: 'parity-intake-org', user: 'parity-intake-user', beneficiary: 'A908',
+  program: 'parity-intake-program', supportCase: 'parity-intake-case', session: 'parity-intake-session',
+  at: '2026-09-01T09:00:00.000Z',
+  details: JSON.stringify({ answers: [
+    { key: 'family_care_burden', response: 'answered', text: '복수 돌봄' },
+    { key: 'employment_education', response: 'answered', text: '이전 교육 기록' },
+    { key: 'summary_urgency', response: 'answered', text: '즉시 개입 필요' },
+  ], additionalItems: [{ item: '구 자료', reason: '구 확인 이유' }] }),
+};
+
+async function seedIntakeVersionSchema(fixture: ParityDatabase): Promise<void> {
+  const db = fixture.db, p = intakeVersionProof;
+  await db.batch([
+    db.prepare('INSERT INTO organization_settings (org_id,time_zone,pii_purge_grace_days) VALUES (?,?,?)').bind(p.org, 'UTC', 180),
+    db.prepare('INSERT INTO programs (id,org_id) VALUES (?,?)').bind(p.program, p.org),
+    db.prepare("INSERT INTO users (id,org_id,email,role,active,created_at) VALUES (?,?,?,'counselor',1,?)").bind(p.user, p.org, 'intake@example.invalid', p.at),
+    db.prepare("INSERT INTO beneficiaries (id,org_id,initialization_state,created_at,updated_at) VALUES (?,?,'pending',?,?)").bind(p.beneficiary, p.org, p.at, p.at),
+    db.prepare(`INSERT INTO support_cases (id,org_id,beneficiary_id,legacy_case_id,program_id,status,creation_kind,created_at,updated_at)
+      VALUES (?,?,?,?,?,'active','initial',?,?)`).bind(p.supportCase, p.org, p.beneficiary, p.beneficiary, p.program, p.at, p.at),
+    db.prepare("INSERT INTO support_case_assignees (id,org_id,support_case_id,user_id,role,status,assigned_at) VALUES (?,?,?,?,'primary','active',?)")
+      .bind('parity-intake-assignment', p.org, p.supportCase, p.user, p.at),
+    ...([
+      ['create', 'beneficiaries', p.beneficiary, null],
+      ['create', 'support_cases', p.supportCase, p.supportCase],
+      ['assign', 'support_case_assignees', 'parity-intake-assignment', p.supportCase],
+    ] as const).map(([action, table, id, supportCaseId]) => db.prepare(`INSERT INTO audit_log
+      (org_id,actor_id,actor_role,action,target_table,target_id,beneficiary_id,support_case_id,created_at)
+      VALUES (?,?,'counselor',?,?,?,?,?,?)`).bind(p.org, p.user, action, table, id, p.beneficiary, supportCaseId, p.at)),
+    db.prepare("UPDATE beneficiaries SET initialization_state='complete' WHERE id=?").bind(p.beneficiary),
+    db.prepare(`INSERT INTO sessions (id,org_id,support_case_id,counselor_id,held_at,channel,kind,intake_details,
+      submission_id,submission_hash,submitted_by,ai_status,created_at,updated_at)
+      VALUES (?,?,?,?,?,'in_person','intake',?,?,?,?,'none',?,?)`)
+      .bind(p.session, p.org, p.supportCase, p.user, p.at, p.details, 'parity-intake-submission', 'a'.repeat(64), p.user, p.at, p.at),
+  ]);
+}
+
+async function proveIntakeVersionSchema(fixture: ParityDatabase): Promise<void> {
+  const db = fixture.db, p = intakeVersionProof;
+  expect(await db.prepare('SELECT intake_schema_version,intake_revision,intake_details FROM sessions WHERE id=?').bind(p.session).first())
+    .toEqual({ intake_schema_version: 1, intake_revision: 1, intake_details: p.details });
+  expect(await db.prepare('SELECT actor_id,details FROM intake_record_revisions WHERE session_id=? AND revision=1').bind(p.session).first())
+    .toEqual({ actor_id: null, details: p.details });
+  await expect(db.prepare("UPDATE sessions SET intake_details='{}' WHERE id=?").bind(p.session).run()).rejects.toMatchObject({ kind: 'constraint' });
+  const converted = JSON.stringify(intakeQuestionnaire({ programId: p.program, programVersion: 1, financialSupportEnabled: false },
+    [{ key: 'summary_urgency', response: 'answered', text: '주의' }]));
+  await expect(db.prepare('UPDATE sessions SET intake_details=?,intake_schema_version=2,intake_revision=2,intake_updated_by=? WHERE id=?')
+    .bind(converted, p.user, p.session).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await db.prepare(`UPDATE sessions SET intake_details=?,intake_schema_version=2,intake_revision=2,
+    intake_updated_by=?,intake_converted_from_revision=1 WHERE id=?`).bind(converted, p.user, p.session).run();
+  expect((await db.prepare('SELECT revision,schema_version,details,actor_id,converted_from_revision FROM intake_record_revisions WHERE session_id=? ORDER BY revision')
+    .bind(p.session).all()).results).toEqual([
+      { revision: 1, schema_version: 1, details: p.details, actor_id: null, converted_from_revision: null },
+      { revision: 2, schema_version: 2, details: converted, actor_id: p.user, converted_from_revision: 1 },
+    ]);
+  await expect(db.prepare("UPDATE intake_record_revisions SET details='{}' WHERE session_id=?").bind(p.session).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare('DELETE FROM intake_record_revisions WHERE session_id=?').bind(p.session).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare(`INSERT INTO intake_record_revisions (session_id,org_id,revision,schema_version,held_at,channel,recorded_at)
+    VALUES (?, ?, 3, 2, ?, 'in_person', ?)`).bind(p.session, 'foreign-org', p.at, p.at).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare('UPDATE programs SET financial_support_enabled=2 WHERE id=?').bind(p.program).run()).rejects.toMatchObject({ kind: 'constraint' });
+}
 const legacy = '2026-01-01 09:00:00';
 const normalizedLegacy = '2026-01-01T09:00:00.000Z';
 const modern = '2026-01-01T09:00:00.500Z';
@@ -318,6 +385,34 @@ async function timestampProofs(orderingFixture: ParityDatabase, inventory: Times
   return proofs;
 }
 
+async function proveProgramAdmissionSchema(fixture: ParityDatabase): Promise<void> {
+  const db = fixture.db;
+  const orgId = 'parity-admission-org';
+  const id = `legacy-program:${orgId}`;
+  expect(await db.prepare(
+    `SELECT storage_mode, processing_mode, admission_confirmed_by, admission_confirmed_at
+     FROM programs WHERE id = ? AND org_id = ?`,
+  ).bind(id, orgId).first()).toEqual({
+    storage_mode: 'undecided', processing_mode: 'undecided',
+    admission_confirmed_by: null, admission_confirmed_at: null,
+  });
+  await db.prepare('INSERT INTO programs (id, org_id) VALUES (?, ?)')
+    .bind('parity-foreign-program', 'parity-foreign-org').run();
+  await expect(db.prepare('UPDATE organization_settings SET initial_program_id = ? WHERE org_id = ?')
+    .bind('parity-foreign-program', orgId).run()).rejects.toThrow();
+  await expect(db.prepare('UPDATE programs SET admission_confirmed_by = ? WHERE id = ?')
+    .bind('partial-confirmation', id).run()).rejects.toThrow();
+  await expect(db.batch([
+    db.prepare('UPDATE programs SET display_name = ? WHERE id = ?').bind('Must roll back', id),
+    db.prepare('INSERT INTO program_admission_guards (id, org_id, valid) VALUES (?, ?, 0)')
+      .bind('parity-invalid-admission', orgId),
+  ])).rejects.toThrow();
+  expect(await db.prepare('SELECT display_name, admission_confirmed_by FROM programs WHERE id = ?')
+    .bind(id).first()).toEqual({ display_name: null, admission_confirmed_by: null });
+  expect(await db.prepare('SELECT initial_program_id FROM organization_settings WHERE org_id = ?')
+    .bind(orgId).first()).toEqual({ initial_program_id: id });
+}
+
 async function proveDrift(fixture: ParityDatabase, original: Catalog): Promise<void> {
   const expected = fingerprint(original);
   const index = original.indexes.find((entry) => entry.name === 'idx_users_org');
@@ -408,6 +503,22 @@ describe('S1 live migration parity', () => {
       let lastSqlite: Catalog | undefined;
       let lastPostgres: Catalog | undefined;
       for (const checkpoint of sources) {
+        if (checkpoint.id === 'program-admission') {
+          for (const fixture of [sqlite, postgres]) {
+            await fixture.db.prepare(
+              'INSERT INTO organization_settings (org_id, time_zone, pii_purge_grace_days) VALUES (?, ?, ?)',
+            ).bind('parity-admission-org', 'UTC', 180).run();
+          }
+        }
+        if (checkpoint.id === 'schedule-display') {
+          for (const fixture of [sqlite, postgres]) await seedScheduleDisplaySchema(fixture.db);
+        }
+        if (checkpoint.id === 'preregistration-consent') {
+          for (const fixture of [sqlite, postgres]) await seedPreregistrationConsentSchema(fixture.db);
+        }
+        if (checkpoint.id === 'intake-versions') {
+          for (const fixture of [sqlite, postgres]) await seedIntakeVersionSchema(fixture);
+        }
         await sqlite.apply(checkpoint.sqlite);
         await postgres.apply(checkpoint.postgres);
         const left = await collectCatalog(sqlite);
@@ -415,6 +526,31 @@ describe('S1 live migration parity', () => {
         assertLogicalParity(left, right);
         const sqliteSemantics = await dialectSemantics(sqlite);
         expect(await dialectSemantics(postgres)).toEqual(sqliteSemantics);
+        if (checkpoint.id === 'program-admission') {
+          await proveProgramAdmissionSchema(sqlite);
+          await proveProgramAdmissionSchema(postgres);
+        }
+        if (checkpoint.id === 'schedule-display') {
+          for (const fixture of [sqlite, postgres]) await proveScheduleDisplaySchema(fixture.db);
+        }
+        if (checkpoint.id === 'preregistration-consent') {
+          for (const fixture of [sqlite, postgres]) await provePreregistrationConsentSchema(fixture.db);
+        }
+        if (checkpoint.id === 'staff-invites') {
+          for (const fixture of [sqlite, postgres]) await proveStaffInvitesSchema(fixture.db);
+        }
+        if (checkpoint.id === 'participant-request-links') {
+          for (const fixture of [sqlite, postgres]) await proveParticipantRequestLinksSchema(fixture.db);
+        }
+        if (checkpoint.id === 'canonical-compatibility-views') {
+          for (const fixture of [sqlite, postgres]) await proveCanonicalCompatibilityViews(fixture.db);
+        }
+        if (checkpoint.id === 'agent-credentials') {
+          for (const fixture of [sqlite, postgres]) await proveAgentCredentialsSchema(fixture.db);
+        }
+        if (checkpoint.id === 'intake-versions') {
+          for (const fixture of [sqlite, postgres]) await proveIntakeVersionSchema(fixture);
+        }
         if (checkpoint.id === 'baseline-0045') {
           inventory = timestampInventory(left);
           expect(inventory.some((entry) => entry.table === 'audit_log' && entry.column === 'created_at')).toBe(true);
@@ -426,7 +562,9 @@ describe('S1 live migration parity', () => {
           expect(covered, 'Every live inventoried timestamp requires a real rewrite, output and ordering witness').toEqual(inventory.map(({ table, column }) => `${table}.${column}`).sort());
         }
         const markers = left.tables.flatMap((table) => table.columns.filter((column) => ['operation_marker', 'consumption_id'].includes(column.name)).map((column) => `${table.name}.${column.name}`));
-        if (checkpoint.id !== 'baseline-0045') expect(markers).toHaveLength(7);
+        // 0058 adds staff_invites.consumption_id to the seven markers every checkpoint since 0046 carries.
+        const staffInvitesIndex = sources.findIndex((source) => source.id === 'staff-invites');
+        if (checkpoint.id !== 'baseline-0045') expect(markers).toHaveLength(sources.indexOf(checkpoint) >= staffInvitesIndex ? 8 : 7);
         entries.push({ id: checkpoint.id,
           sqlite: { sources: checkpoint.sqlite.map(({ name, sha256 }) => ({ name, sha256 })), catalogSha256: fingerprint(left) },
           postgres: { sources: checkpoint.postgres.map(({ name, sha256 }) => ({ name, sha256 })), catalogSha256: fingerprint(right) },

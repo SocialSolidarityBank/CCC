@@ -10,15 +10,32 @@ function coreBoundary(store: CoreSecretStore) {
   void store.get('DB_MASTER_KEY');
   // @ts-expect-error Python Agent keys are not TypeScript secrets.
   void store.get('AZURE_SPEECH_KEY');
+  // @ts-expect-error PII material cannot cross the immutable string port.
+  void store.get('PII_ENC_KEY');
 }
 void coreBoundary;
 
 describe('environment SecretStore', () => {
   it('reads core and platform values without changing nonempty material', async () => {
-    const store = createEnvironmentSecretStore({ PII_ENC_KEY: ' synthetic material ', SCHEDULER_SECRET: 'synthetic-scheduler' });
-    expect(await store.get('PII_ENC_KEY')).toBe(' synthetic material ');
+    const store = createEnvironmentSecretStore({ CODEX_API_KEY: ' synthetic material ', SCHEDULER_SECRET: 'synthetic-scheduler' });
+    expect(await store.get('CODEX_API_KEY')).toBe(' synthetic material ');
     expect(await store.get('SCHEDULER_SECRET')).toBe('synthetic-scheduler');
     expect(JSON.stringify(store)).toBe('{}');
+  });
+
+  it('decodes provider PII into independent versioned bytes and rejects noncanonical encoding', async () => {
+    const encoded = btoa('12345678901234567890123456789012');
+    const store = createEnvironmentSecretStore({ PII_ENC_KEY: encoded, PII_KEY_VERSION: '7' });
+    const first = await store.getBytesWithVersion('PII_ENC_KEY');
+    expect(first).toEqual({ bytes: new TextEncoder().encode('12345678901234567890123456789012'), version: 7 });
+    first!.bytes.fill(0);
+    const second = await store.getBytesWithVersion('PII_ENC_KEY');
+    expect(second!.bytes).toEqual(new TextEncoder().encode('12345678901234567890123456789012'));
+    second!.bytes.fill(0);
+    await expect(createEnvironmentSecretStore({ PII_ENC_KEY: `${encoded.slice(0, -2)}J=` })
+      .getBytesWithVersion('PII_ENC_KEY')).rejects.toThrow('secret_invalid');
+    await expect(createEnvironmentSecretStore({ PII_ENC_KEY: encoded, PII_KEY_VERSION: '0' })
+      .getBytesWithVersion('PII_ENC_KEY')).rejects.toThrow('secret_invalid');
   });
 
   it('returns null for absent, empty, whitespace-only and inherited values', async () => {
@@ -27,7 +44,7 @@ describe('environment SecretStore', () => {
     });
     const store = createEnvironmentSecretStore(environment);
     expect(await store.get('DB_MASTER_KEY')).toBeNull();
-    expect(await store.get('PII_ENC_KEY')).toBeNull();
+    expect(await store.getBytesWithVersion('PII_ENC_KEY')).toBeNull();
     expect(await store.get('NOTIFY_WEBHOOK_URL')).toBeNull();
     expect(await store.get('CODEX_API_KEY')).toBeNull();
   });
@@ -36,7 +53,7 @@ describe('environment SecretStore', () => {
     const getter = vi.fn(() => 'synthetic-private-value');
     const environment = Object.defineProperty({}, 'AZURE_SPEECH_KEY', { get: getter });
     const store = createEnvironmentSecretStore(environment);
-    await expect(store.get('AZURE_SPEECH_KEY' as SecretName)).rejects.toThrow('secret_invalid');
+    await expect(store.get('AZURE_SPEECH_KEY' as Exclude<SecretName, 'PII_ENC_KEY'>)).rejects.toThrow('secret_invalid');
     expect(getter).not.toHaveBeenCalled();
   });
 
@@ -46,7 +63,7 @@ describe('environment SecretStore', () => {
       const store = createEnvironmentSecretStore(Object.defineProperty({}, 'PII_ENC_KEY', {
         get() { throw new Error('synthetic-sensitive-provider-message'); },
       }));
-      const error = await store.get('PII_ENC_KEY').catch((failure: unknown) => failure);
+      const error = await store.getBytesWithVersion('PII_ENC_KEY').catch((failure: unknown) => failure);
       expect(error).toBeInstanceOf(Error);
       expect(String(error)).toBe('Error: secret_access_denied');
       expect(JSON.stringify(error)).not.toContain('synthetic-sensitive');

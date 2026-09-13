@@ -19,7 +19,7 @@ import {
   reconcileAudioObjectDeletion,
   type Actor,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, seedTestProgramWithRuntimeModes, testActors, testProgramId, type TestApiEnv } from './support/d1';
 import {
   agentManifestEnv,
   claimOverHttp,
@@ -27,6 +27,7 @@ import {
   registerFixtureRecording,
   seedCanonicalSttConsent,
 } from './support/agent-jobs';
+import { registrationInput } from './support/registration';
 
 const counselor: Actor = testActors.counselor;
 const admin: Actor = testActors.admin;
@@ -84,19 +85,33 @@ const otherOrgServiceHeaders = {
 const AUDIO_BYTES = new Uint8Array([0x49, 0x44, 0x33, 0x04, 0x00, 0x11, 0x22, 0x33]);
 
 const t = setupD1();
-let configuredEnv: ApiEnv;
+let configuredEnv: TestApiEnv;
 beforeAll(async () => {
   await t.reset();
   configuredEnv = await agentManifestEnv(t.env, { stt: 'local' });
 });
 
-function localEnv(): ApiEnv {
+function localEnv(): TestApiEnv {
   Object.assign(configuredEnv, t.env);
   return configuredEnv;
 }
 
 async function makeInPersonSession(consent: boolean) {
-  const caseRecord = await createCase(t.env, counselor, consent ? { consentRecordingAt: '2026-01-01T00:00:00.000Z' } : {});
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, { sttMode: 'local', llmMode: 'off' });
+  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_LLM_MODE = 'off';
+  // 녹음 권한의 유일한 근거는 등록 6종 동의다 — 미동의 경로는 녹음·STT·국외·보유기간을 decline 으로 남긴다.
+  const caseRecord = await createCase(t.env, counselor, await registrationInput(
+    t.env,
+    counselor,
+    { programId: testProgramId(counselor.orgId) },
+    consent ? undefined : {
+      counseling_recording: 'decline',
+      external_stt_processing: 'decline',
+      external_llm_cross_border_processing: 'decline',
+      voice_original_retention_period: 'decline',
+    },
+  ));
   const session = await createManualSession(t.env, counselor, caseRecord.id, {
     submissionId: '03000000-0000-4000-8000-000000000001',
     heldAt: '2026-01-02T10:00:00.000Z',
@@ -115,6 +130,8 @@ async function makeInPersonSession(consent: boolean) {
     const scope = await t.db.prepare('SELECT support_case_id FROM sessions WHERE id=?')
       .bind(session.id).first<{ support_case_id: string }>();
     if (scope === null) throw new Error('expected support case scope');
+    // 동의는 등록이 이미 남겼다. 이 호출이 여기 남는 이유는 녹음 허가가 요구하는
+    // 영업일 달력(CCC_KR_BUSINESS_CALENDAR)을 env 에 세워 주기 때문이다.
     await seedCanonicalSttConsent(localEnv(), counselor, scope.support_case_id);
   }
   return { caseRecord, session };
@@ -122,7 +139,7 @@ async function makeInPersonSession(consent: boolean) {
 
 async function putAudio(
   sessionId: string,
-  env: ReturnType<typeof localEnv>,
+  env: ApiEnv,
   headers: HeadersInit = counselorHeaders,
   body: BodyInit = AUDIO_BYTES,
 ) {
@@ -209,7 +226,7 @@ async function expectDeniedAudioRequest(
 describe('audio upload and relay', () => {
   it('uploads audio to R2 and links it through registerRecording', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
 
     const response = await putAudio(session.id, env);
@@ -350,7 +367,7 @@ describe('audio upload and relay', () => {
 
   it('다운로드가 원본 바이트를 그대로 돌려주고 감사를 남긴다 (CCC-94 녹음 보관함 왕복)', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     const upload = await putAudio(session.id, env);
     expect(upload.status).toBe(200);
@@ -371,6 +388,7 @@ describe('audio upload and relay', () => {
   });
   it('rechecks the practitioner role inside the recording mutation batch', async () => {
     await t.reset();
+    await localEnv();
     const { session } = await makeInPersonSession(true);
     const scope = await t.db.prepare(
       'SELECT support_case_id FROM sessions WHERE id = ? AND org_id = ?',
@@ -428,7 +446,7 @@ describe('audio upload and relay', () => {
   });
   it('rejects raw audio key registration so human actors cannot link arbitrary objects', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     const before = await recordingState(session.id);
 
@@ -447,7 +465,7 @@ describe('audio upload and relay', () => {
   });
   it('rejects an unauthenticated upload without creating audio or mutating the recording', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     const before = await recordingState(session.id);
 
@@ -463,7 +481,7 @@ describe('audio upload and relay', () => {
 
   it('rejects a service upload without creating audio or mutating the recording', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     const before = await recordingState(session.id);
 
@@ -473,7 +491,7 @@ describe('audio upload and relay', () => {
 
   it('rejects an unassigned institution administrator upload without mutating the recording', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     const before = await recordingState(session.id);
 
@@ -490,7 +508,7 @@ describe('audio upload and relay', () => {
 
   it('rejects an unassigned counselor upload without creating audio or mutating the recording', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     const before = await recordingState(session.id);
     const putSpy = vi.spyOn(t.bucket, 'put');
@@ -503,7 +521,7 @@ describe('audio upload and relay', () => {
 
   it('rejects a cross-org counselor upload without creating audio or mutating the recording', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     const before = await recordingState(session.id);
 
@@ -513,7 +531,7 @@ describe('audio upload and relay', () => {
 
   it('rejects upload without recording consent before writing to R2', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(false);
 
     const before = await recordingState(session.id);
@@ -530,7 +548,7 @@ describe('audio upload and relay', () => {
 
   it('rejects an unsupported content type before touching R2', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
 
     const before = await recordingState(session.id);
@@ -543,7 +561,7 @@ describe('audio upload and relay', () => {
 
   it('streams audio bytes to the service role and audits the download', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     expect((await putAudio(session.id, env)).status).toBe(200);
 
@@ -559,7 +577,7 @@ describe('audio upload and relay', () => {
 
   it('rejects an unauthenticated relay without a download audit or recording mutation', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     expect((await putAudio(session.id, env)).status).toBe(200);
     const before = await recordingState(session.id);
@@ -576,7 +594,7 @@ describe('audio upload and relay', () => {
 
   it('forbids the audio relay for a counselor actor', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     expect((await putAudio(session.id, env)).status).toBe(200);
 
@@ -593,7 +611,7 @@ describe('audio upload and relay', () => {
   });
   it('rejects a same-org admin from the service-only audio relay without a download audit or recording mutation', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     expect((await putAudio(session.id, env)).status).toBe(200);
     const before = await recordingState(session.id);
@@ -609,7 +627,7 @@ describe('audio upload and relay', () => {
   });
   it('rejects a cross-org service relay without a download audit or recording mutation', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     expect((await putAudio(session.id, env)).status).toBe(200);
     const before = await recordingState(session.id);
@@ -627,7 +645,7 @@ describe('audio upload and relay', () => {
 
   it('returns 404 when the registered audio object is missing from R2', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     const recording = await registerFixtureRecording(t.env, counselor, service, session.id);
     // 정상 등록된 합성 객체를 저장소에서만 지워 DB와 원음 저장소의 불일치를 재현한다.

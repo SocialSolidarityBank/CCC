@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createBeneficiaryWithInitialSupportCase, type Actor } from '@ccc/core/gateway';
 import worker from './support/local-worker';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
+import { registrationInput } from './support/registration';
 
 const t = setupD1();
 beforeEach(async () => { await t.reset(); });
@@ -21,10 +22,20 @@ function request(path: string, actor: Actor, method = 'GET', body?: unknown): Re
 
 describe('케이스 기억의 HTTP 접근 경계', () => {
   it('담당자는 자기 케이스 기억을 읽고 비담당자와 다른 기관은 읽지 못한다', async () => {
+    // 녹음·AI 도메인은 decline 으로 남긴다 — 접근 경계 자체는 동의와 무관함을 그대로 본다.
     const created = await createBeneficiaryWithInitialSupportCase(
       t.env, testActors.counselor,
-      { programType: 'financial_support_v1', intakeAt: '2026-09-01T09:00:00.000Z' },
-      undefined, { privacy: true, recordingAi: false },
+      await registrationInput(
+        t.env,
+        testActors.counselor,
+        { programId: testProgramId(testActors.counselor.orgId), intakeAt: '2026-09-01T09:00:00.000Z' },
+        {
+          counseling_recording: 'decline',
+          external_stt_processing: 'decline',
+          external_llm_cross_border_processing: 'decline',
+          voice_original_retention_period: 'decline',
+        },
+      ),
     );
     const path = `/support-cases/${created.supportCaseId}/memory`;
     const own = await worker.fetch(request(path, testActors.counselor), t.env);

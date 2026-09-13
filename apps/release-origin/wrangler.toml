@@ -1,0 +1,12 @@
+name = "ccc-releases"
+main = "src/index.mjs"
+compatibility_date = "2026-07-06"
+workers_dev = true
+
+# Published release files are copied into ./public at publish time (gitignored).
+# The worker serves them byte for byte from the pinned origin; no redirect, no listing.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "none"
+html_handling = "none"

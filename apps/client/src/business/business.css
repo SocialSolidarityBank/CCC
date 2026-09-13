@@ -1,0 +1,62 @@
+.business-form {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.business-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.business-qr {
+  max-width: 100%;
+  height: auto;
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: var(--section-gap);
+  align-items: start;
+  min-width: 0;
+}
+
+.settings-content {
+  display: grid;
+  gap: var(--section-gap);
+  min-width: 0;
+}
+
+.settings-navigation-list {
+  display: grid;
+  gap: var(--space-0-5);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.settings-navigation-list .navigation-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+@media (max-width: 767px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-navigation > .wire-card-body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .settings-navigation .wire-card-section + .wire-card-section {
+    margin-inline: 0;
+    padding-top: 0;
+    padding-inline: 0;
+    border-top: 0;
+  }
+}

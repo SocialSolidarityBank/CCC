@@ -13,6 +13,8 @@ const APPLICATION_TRIGGER_CODES = [
   'invite_token_already_used',
   'participant_schema_violation',
   'counseling_memory_fence',
+  'program_admission_required',
+  'account_state_changed',
 ] as const;
 const MIGRATION_NAME = /^\d{4}_[A-Za-z0-9][A-Za-z0-9_-]*\.sql$/;
 

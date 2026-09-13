@@ -1,0 +1,92 @@
+--- a/src/dpapi_win.cpp
++++ b/src/dpapi_win.cpp
+@@ -10,7 +10,21 @@
+ #include <dpapi.h>
+ #include <functional>
+ #include <iostream>
+-#include <string>
++#include <string>
++
++// CCC S9: wipe Windows-owned output even if Node allocation/copy throws.
++struct WipedOutput {
++ DATA_BLOB blob{};
++ ~WipedOutput() noexcept {
++  if (blob.pbData != nullptr) {
++   SecureZeroMemory(blob.pbData, blob.cbData);
++   LocalFree(blob.pbData);
++  }
++ }
++ WipedOutput() = default;
++ WipedOutput(const WipedOutput&) = delete;
++ WipedOutput& operator=(const WipedOutput&) = delete;
++};
+ 
+ Napi::Value ProtectDataCommon(bool protect, const Napi::CallbackInfo& info)
+ {
+@@ -39,27 +53,28 @@
+ 		throw Napi::TypeError::New(env, "Third argument, scope, must be a string");
+ 	}
+ 
+-	DWORD flags = 0;
++	DWORD flags = CRYPTPROTECT_UI_FORBIDDEN;
+ 	Napi::String strData = info[2].As<Napi::String>();
+ 	std::string scope = strData.Utf8Value();
+-	if (stricmp(scope.c_str(), "LocalMachine") == 0)
+-	{
+-		flags = CRYPTPROTECT_LOCAL_MACHINE;
++	if (scope != "CurrentUser")
++	{
++		throw Napi::Error::New(env, "secret_access_denied");
+ 	}
+ 
+-	auto buffer = info[0].As<Napi::Buffer<char>>().Data();
+-	auto len = info[0].As<Napi::Buffer<char>>().ElementLength();
++	auto buffer = info[0].As<Napi::Uint8Array>().Data();
++	auto len = info[0].As<Napi::Uint8Array>().ElementLength();
+ 
+-	DATA_BLOB entropyBlob;
++	DATA_BLOB entropyBlob{};
+ 	entropyBlob.pbData = nullptr;
+ 	if (!info[1].IsNull())
+ 	{
+-		entropyBlob.pbData = reinterpret_cast<BYTE*>(info[1].As<Napi::Buffer<char>>().Data());
+-		entropyBlob.cbData = info[1].As<Napi::Buffer<char>>().ElementLength();
++		entropyBlob.pbData = reinterpret_cast<BYTE*>(info[1].As<Napi::Uint8Array>().Data());
++		entropyBlob.cbData = info[1].As<Napi::Uint8Array>().ElementLength();
+ 	}
+ 
+ 	DATA_BLOB dataIn;
+-	DATA_BLOB dataOut;
++	WipedOutput output;
++	DATA_BLOB& dataOut = output.blob;
+ 
+ 	// initialize input data
+ 	dataIn.pbData = reinterpret_cast<BYTE*>(buffer);
+@@ -93,14 +108,12 @@
+ 
+ 	if (!success)
+ 	{
+-		DWORD errorCode = GetLastError();
+-		std::string errorMessage = std::string("Encryption/Decryption failed. Error code: ") + std::to_string(errorCode);
+-		throw Napi::Error::New(env, &errorMessage[0]);
++		throw Napi::Error::New(env, "secret_access_denied");
+ 	}
+ 
+ 	// Copy and free the buffer
+-	Napi::Buffer<char> returnBuffer = Napi::Buffer<char>::Copy(env, reinterpret_cast<char*>(dataOut.pbData), dataOut.cbData);
+-	LocalFree(dataOut.pbData);
++	Napi::Buffer<char> returnBuffer = Napi::Buffer<char>::Copy(env, reinterpret_cast<char*>(dataOut.pbData), dataOut.cbData);
+ 
++
+ 	return returnBuffer;
+ }
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -24,6 +24,7 @@
+ 	exports.Set(Napi::String::New(env, "unprotectData"),
+ 		Napi::Function::New(env, unprotectData));
+ 	
++	exports.Set("cccHardeningVersion", Napi::Number::New(env, 1));
+ 	return exports;
+ }
+ 

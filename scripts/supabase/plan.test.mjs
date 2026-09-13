@@ -1,11 +1,161 @@
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { observationAuthorization } from './fixtures/authorization.mjs';
+import { fingerprint } from './hosted-inspector.mjs';
+import { normalizeProviderInventory, providerInventoryFingerprint } from './provider-inventory.mjs';
+import {
+  BETA_TRUST_DOMAIN,
+  PROVIDER_BASELINE_DOMAIN,
+  requireProviderBaseline,
+} from './provider-baseline.mjs';
+import * as verifier from '../../apps/community-cloud/dist/install-manifest-verifier.js';
 
 import {
   PlanFailure,
-  buildSupabasePlan,
+  buildSupabasePlan as buildPlan,
+  buildSupabaseDoctor as buildDoctor,
+  installationStateFingerprint as stateFingerprint,
   expectedSupabaseResources,
 } from './plan.mjs';
+
+function providerFixture({ objectCount = 101, grantCount = 903 } = {}) {
+  const objects = Array.from({ length: objectCount }, (_, index) => ({
+    kind: 'catalog',
+    schema: 'auth',
+    identity: `provider-object-must-not-escape-${String(index).padStart(3, '0')}`,
+    owner: 'supabase_admin',
+    definitionSha256: createHash('sha256').update(`object-${index}`).digest('hex'),
+    provenance: 'supabase_managed',
+  }));
+  const grants = Array.from({ length: grantCount }, (_, index) => ({
+    kind: 'role',
+    schema: '',
+    objectIdentity: `provider-role-must-not-escape-${String(index).padStart(3, '0')}`,
+    grantor: 'supabase_admin',
+    grantee: 'ROLE:authenticated',
+    privilege: 'MEMBER',
+    grantable: false,
+    inheritOption: true,
+    setOption: true,
+    provenance: 'supabase_managed',
+  }));
+  return { objects, grants, ...providerInventoryFingerprint({ objects, grants }) };
+}
+
+const providerInventory = providerFixture();
+
+function verifiedProviderFixture(inventory = providerInventory, overrides = {}) {
+  return {
+    baselineVersion: 'supabase-hosted-pg17-20260911-v1',
+    projectRefSha256: observationAuthorization().projectRefHash,
+    ownerOrgIdSha256: observationAuthorization().expectedOwnerOrgIdHash,
+    region: 'ap-northeast-2',
+    databaseVersion: '17.4',
+    objects: inventory.objects,
+    grants: inventory.grants,
+    objectInventorySha256: inventory.objectInventorySha256,
+    grantInventorySha256: inventory.grantInventorySha256,
+    baselineSha256: 'b'.repeat(64),
+    releaseTrustSha256: 'c'.repeat(64),
+    expiresAt: observationAuthorization().expiresAt,
+
+    ...overrides,
+  };
+}
+async function signedProviderFixture(inventory) {
+  const authorization = observationAuthorization();
+  const root = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  const release = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  const base64 = bytes => Buffer.from(bytes).toString('base64');
+  const publicKey = async pair => base64(await crypto.subtle.exportKey('raw', pair.publicKey));
+  const sign = async (value, pair, domain) => ({
+    ...value,
+    ed25519Signature: base64(await crypto.subtle.sign(
+      'Ed25519',
+      pair.privateKey,
+      Buffer.concat([
+        Buffer.from(domain, 'ascii'),
+        Buffer.from(verifier.canonicalizeJcs(value), 'utf8'),
+      ]),
+    )),
+  });
+  const now = Date.now();
+  const releaseTrust = await sign({
+    schemaVersion: 1,
+    profile: 'development',
+    channel: 'beta',
+    provider: 'supabase',
+    projectRefSha256: authorization.projectRefHash,
+    ownerOrgIdSha256: authorization.expectedOwnerOrgIdHash,
+    region: 'ap-northeast-2',
+    rootKeyId: 'complete-inventory-root',
+    releaseKeyId: 'complete-inventory-release',
+    releasePublicKey: await publicKey(release),
+    notBefore: new Date(now - 1_000).toISOString(),
+    expiresAt: new Date(now + 50_000).toISOString(),
+  }, root, BETA_TRUST_DOMAIN);
+  const providerBaseline = await sign({
+    schemaVersion: 1,
+    profile: 'development',
+    channel: 'beta',
+    provider: 'supabase',
+    baselineVersion: 'complete-provider-inventory-v1',
+    projectRefSha256: authorization.projectRefHash,
+    ownerOrgIdSha256: authorization.expectedOwnerOrgIdHash,
+    region: 'ap-northeast-2',
+    databaseVersion: '17.4',
+    sourceEvidenceSha256: 'd'.repeat(64),
+    emptyBusinessState: {
+      userTableCount: 0,
+      userRowEstimate: 0,
+      authUserCount: 0,
+      bucketCount: 0,
+      storageObjectCount: 0,
+    },
+    objects: inventory.objects,
+    grants: inventory.grants,
+    objectInventorySha256: inventory.objectInventorySha256,
+    grantInventorySha256: inventory.grantInventorySha256,
+    issuedAt: new Date(now - 1_000).toISOString(),
+    expiresAt: new Date(now + 40_000).toISOString(),
+    signingKeyId: 'complete-inventory-release',
+  }, release, PROVIDER_BASELINE_DOMAIN);
+  const verified = await requireProviderBaseline({
+    releaseTrust: JSON.stringify(releaseTrust),
+    providerBaseline: JSON.stringify(providerBaseline),
+    rootKeys: { 'complete-inventory-root': await publicKey(root) },
+    revokedRootKeyIds: [],
+    authorization,
+    manifestExpiresAt: authorization.expiresAt,
+    now: new Date(now),
+    verifier,
+  });
+  return { authorization, verified };
+}
+
+function buildSupabasePlan(options) {
+  return buildPlan({
+    ...options,
+    ...(options.target === 'hosted' && !Object.hasOwn(options, 'providerBaseline')
+      ? { providerBaseline: verifiedProviderFixture() }
+      : {}),
+  });
+}
+
+function buildSupabaseDoctor(options) {
+  return buildDoctor({
+    ...options,
+    ...(options.target === 'hosted' && !Object.hasOwn(options, 'providerBaseline')
+      ? { providerBaseline: verifiedProviderFixture() }
+      : {}),
+  });
+}
+
+function installationStateFingerprint(snapshot, baseline = verifiedProviderFixture()) {
+  return stateFingerprint(snapshot, baseline);
+}
 
 const stableState = Object.freeze({
   schemaFingerprint: 'schema-empty',
@@ -17,6 +167,22 @@ const stableState = Object.freeze({
   userRowEstimate: 0,
   rlsEnabledTableCount: 0,
   policyCount: 0,
+  authUserCount: 0,
+  bucketCount: 0,
+  storageObjectCount: 0,
+  userRoutineCount: 0,
+  userTypeCount: 0,
+  unknownObjectCount: 101,
+  customSchemaCount: 0,
+  auxiliaryRelationCount: 0,
+  unownedObjectCount: 101,
+  unexpectedGrantCount: 903,
+  providerObjectCount: 101,
+  providerGrantCount: 903,
+  privateTableNames: [],
+  privateSchemaExists: false,
+  legacyLedgerPresent: false,
+  buckets: [],
   bucket: { exists: false, public: null },
 });
 
@@ -26,6 +192,7 @@ function snapshot(overrides = {}) {
       region: 'ap-northeast-2',
       databaseVersion: '17.4',
       status: 'ACTIVE_HEALTHY',
+      ownerOrgIdHash: observationAuthorization().expectedOwnerOrgIdHash,
     },
     connection: {
       readOnly: true,
@@ -41,10 +208,13 @@ function snapshot(overrides = {}) {
     auth: {
       emailEnabled: true,
       openSignupDisabled: true,
+      emailConfirmationRequired: false,
       totpEnabled: true,
       refreshTokenRotationEnabled: true,
     },
     state: stableState,
+    cronJobCount: 0,
+    providerInventory,
     ...overrides,
   };
 }
@@ -60,9 +230,499 @@ function inspector(...snapshots) {
   };
 }
 
-test('fresh Seoul project returns a read-only plan with named resources and no blocker', async () => {
+function snapshotWithProviderInventory(inventory, overrides = {}) {
+  return snapshot({
+    ...overrides,
+    state: {
+      ...stableState,
+      unownedObjectCount: inventory.objects.length,
+      unknownObjectCount: inventory.objects.length,
+      customSchemaCount: inventory.objects.filter(({ kind }) => kind === 'schema').length,
+      unexpectedGrantCount: inventory.grants.length,
+      providerObjectCount: inventory.objects.length,
+      providerGrantCount: inventory.grants.length,
+      ...(overrides.state ?? {}),
+    },
+    providerInventory: inventory,
+  });
+}
+
+function observedBucket(id = 'ccc-audio', metadata = {
+  public: false,
+  fileSizeLimit: null,
+  allowedMimeTypes: null,
+}) {
+  return {
+    resourceType: 'storage_bucket',
+    resourceIdHash: createHash('sha256').update(id, 'utf8').digest('hex'),
+    resourceDigest: fingerprint(metadata),
+  };
+}
+
+async function installedSnapshot({
+  state = {},
+  resources = [],
+  migrations = [],
+  journal = {},
+} = {}) {
+  const authorization = observationAuthorization();
+  const desired = await buildSupabasePlan({
+    target: 'hosted',
+    authorization,
+    inspector: inspector(snapshot(), snapshot()),
+  });
+  const journalAuthorization = {
+    installationId: authorization.installationId,
+    institutionIdHash: authorization.institutionIdHash,
+    projectRefHash: authorization.projectRefHash,
+    expectedOwnerOrgIdHash: authorization.expectedOwnerOrgIdHash,
+    runtimeManifestSha256: authorization.runtimeManifestSha256,
+    approvalSha256: authorization.approvalSha256,
+    runtimeConfigurationSha256: authorization.runtimeConfigurationSha256,
+    contractVersion: authorization.contractVersion,
+    runtimeSequence: authorization.runtimeSequence,
+    expiresAt: authorization.expiresAt,
+  };
+  const observed = snapshot({
+    state: { ...stableState, ...state },
+    installState: {
+      journal: {
+        ...journalAuthorization,
+        resourcesSha256: desired.resourcesSha256,
+        migrationsSha256: desired.migrationsSha256,
+        phase: 'installed',
+        databaseFingerprint: null,
+        ...journal,
+      },
+      migrations,
+      resources,
+      completedSteps: [],
+      currentReceipt: null,
+      releaseHistory: [],
+    },
+  });
+  if (!Object.hasOwn(journal, 'stateFingerprint')) {
+    observed.installState.journal.stateFingerprint = await installationStateFingerprint(observed);
+  }
+  return { authorization, desired, observed };
+}
+
+async function installedReceiptSnapshot({ state = {}, resources = [] } = {}) {
+  const fixture = await installedSnapshot({ state, resources });
+  fixture.observed.installState.migrations = structuredClone(fixture.desired.migrations);
+  fixture.observed.databaseFingerprint =
+    createHash('sha256').update('installed-catalog').digest('hex');
+  fixture.observed.installState.journal.databaseFingerprint = fixture.observed.databaseFingerprint;
+  fixture.observed.installState.journal.stateFingerprint =
+    await installationStateFingerprint(fixture.observed);
+  const receipt = {
+    contract: 'S11',
+    contractVersion: '0.3',
+    installationId: fixture.authorization.installationId,
+    institutionIdHash: fixture.authorization.institutionIdHash,
+    rollbackTarget: null,
+    expectedOwnerOrgIdHash: fixture.authorization.expectedOwnerOrgIdHash,
+    observedOwnerOrgIdHash: fixture.authorization.expectedOwnerOrgIdHash,
+    releaseVersion: '1.0.0',
+    releaseSequence: 1,
+    manifestDigest: createHash('sha256').update('release-manifest').digest('hex'),
+    artifactSetDigest: createHash('sha256').update('artifact-set').digest('hex'),
+    migrationHead: fixture.desired.migrations.at(-1).id,
+    schemaFingerprint: fixture.observed.databaseFingerprint,
+    edgeRegionEvidence: {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'ap-northeast-2',
+      functionRegion: 'ap-northeast-2',
+      mismatch: false,
+    },
+    providerResourceDigests: Object.fromEntries(
+      resources.map(resource => [resource.resourceIdHash, resource.resourceDigest]),
+    ),
+    backupId: null,
+    backupDigest: null,
+    priorReceiptDigest: null,
+    recordedAt: '2026-09-11T00:00:00.000Z',
+    status: 'installed',
+  };
+  fixture.observed.installState.currentReceipt = receipt;
+  fixture.observed.installState.releaseHistory = [structuredClone(receipt)];
+  return fixture;
+}
+
+function blockerCodes(result) {
+  return result.blockers.map(blocker => blocker.code);
+}
+
+test('exact signed provider baseline approves only managed inventory', async () => {
+  const observed = snapshotWithProviderInventory(providerInventory);
+  const result = await buildPlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    providerBaseline: verifiedProviderFixture(),
+    inspector: inspector(observed, observed),
+  });
+
+  assert.equal(result.ready, true);
+  assert.deepEqual(result.providerBaseline, {
+    matched: true,
+    baselineVersion: 'supabase-hosted-pg17-20260911-v1',
+    expectedObjectCount: 101,
+    observedObjectCount: 101,
+    expectedGrantCount: 903,
+    observedGrantCount: 903,
+    objectInventorySha256: providerInventory.objectInventorySha256,
+    grantInventorySha256: providerInventory.grantInventorySha256,
+
+  });
+  assert.equal(result.observed.userTableCount, 0);
+  assert.equal(result.observed.userRowEstimate, 0);
+  assert.doesNotMatch(JSON.stringify(result), /provider-(?:object|role)-must-not-escape|ed25519Signature/u);
+});
+test('signed complete inventory matches while filtered cleanliness remains independently zero', async () => {
+  const inventory = normalizeProviderInventory({
+    objects: [
+      {
+        object_kind: 'routine', namespace_name: 'auth',
+        object_identity: 'auth.extension_routine() FUNCTION RETURNS void',
+        owner_name: 'supabase_admin', definition_text: 'extension definition',
+        provenance: 'extension',
+      },
+      {
+        object_kind: 'type', namespace_name: 'storage',
+        object_identity: 'storage.initial_type', owner_name: 'supabase_storage_admin',
+        definition_text: 'initial type definition', provenance: 'initial_privilege',
+      },
+    ],
+    grants: [
+      {
+        grant_kind: 'schema', namespace_name: 'auth', object_identity: 'auth',
+        grantor_name: 'supabase_admin', grantee_name: 'ROLE:supabase_admin',
+        privilege: 'USAGE', is_grantable: false, inherit_option: null, set_option: null,
+        provenance: 'supabase_managed',
+      },
+      {
+        grant_kind: 'routine', namespace_name: 'auth',
+        object_identity: 'auth.extension_routine() FUNCTION RETURNS void',
+        grantor_name: 'supabase_admin', grantee_name: 'PUBLIC',
+        privilege: 'EXECUTE', is_grantable: false, inherit_option: null, set_option: null,
+        provenance: 'initial_privilege',
+      },
+      {
+        grant_kind: 'type', namespace_name: 'storage', object_identity: 'storage.initial_type',
+        grantor_name: 'supabase_storage_admin', grantee_name: 'ROLE:authenticated',
+        privilege: 'USAGE', is_grantable: false, inherit_option: null, set_option: null,
+        provenance: 'supabase_managed',
+      },
+    ],
+  });
+  const { authorization, verified } = await signedProviderFixture(inventory);
+  const observed = snapshotWithProviderInventory(inventory, {
+    state: {
+      unownedObjectCount: 0,
+      unknownObjectCount: 0,
+      customSchemaCount: 0,
+      unexpectedGrantCount: 0,
+    },
+  });
+  const exact = await buildPlan({
+    target: 'hosted',
+    authorization,
+    providerBaseline: verified,
+    inspector: inspector(observed, observed),
+  });
+  assert.equal(exact.ready, true);
+  assert.equal(exact.providerBaseline.matched, true);
+  assert.equal(exact.providerBaseline.expectedObjectCount, 2);
+  assert.equal(exact.providerBaseline.expectedGrantCount, 3);
+
+  const driftedInventory = structuredClone(inventory);
+  driftedInventory.objects[0].definitionSha256 = 'f'.repeat(64);
+  Object.assign(driftedInventory, providerInventoryFingerprint(driftedInventory));
+  const drifted = snapshotWithProviderInventory(driftedInventory, {
+    state: {
+      unownedObjectCount: 0,
+      unknownObjectCount: 0,
+      customSchemaCount: 0,
+      unexpectedGrantCount: 0,
+    },
+  });
+  const mismatch = await buildPlan({
+    target: 'hosted',
+    authorization,
+    providerBaseline: verified,
+    inspector: inspector(drifted, drifted),
+  });
+  assert.equal(mismatch.ready, false);
+  assert.equal(mismatch.providerBaseline.matched, false);
+  assert.ok(blockerCodes(mismatch).includes('PROVIDER_BASELINE_MISMATCH'));
+});
+
+test('provider baseline is required and raw signed input is rejected before observation', async () => {
+  let calls = 0;
+  const source = { inspect: async () => { calls += 1; return snapshot(); } };
+  await assert.rejects(
+    buildPlan({ target: 'hosted', authorization: observationAuthorization(), inspector: source }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  await assert.rejects(
+    buildPlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      providerBaseline: { ...verifiedProviderFixture(), ed25519Signature: 'bad-signature' },
+      inspector: source,
+    }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  assert.equal(calls, 0);
+});
+
+test('provider baseline rejects extra or missing exact records', async () => {
+  const extra = providerFixture({ objectCount: 102 });
+  const missing = {
+    objects: providerInventory.objects.slice(0, -1),
+    grants: providerInventory.grants,
+  };
+  Object.assign(missing, providerInventoryFingerprint(missing));
+  for (const inventory of [extra, missing]) {
+    const observed = snapshotWithProviderInventory(inventory);
+    const result = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      inspector: inspector(observed, observed),
+    });
+    assert.equal(result.ready, false);
+
+    assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
+  }
+});
+
+test('provider baseline cannot hide an unproved extra behind an overlapping installation candidate', async () => {
+  const baselineInventory = providerFixture({ objectCount: 1, grantCount: 0 });
+  baselineInventory.objects[0] = {
+    ...baselineInventory.objects[0],
+    schema: 'public',
+    identity: 'overlapping-baseline-catalog-record',
+  };
+  Object.assign(baselineInventory, providerInventoryFingerprint(baselineInventory));
+  const extra = {
+    ...baselineInventory.objects[0],
+    schema: 'auth',
+    identity: 'unproved-provider-looking-record-must-not-escape',
+  };
+  const raw = {
+    objects: [baselineInventory.objects[0], extra],
+    grants: [],
+    installationObjects: [baselineInventory.objects[0]],
+    installationGrants: [],
+  };
+  Object.assign(raw, providerInventoryFingerprint(raw));
+  const observed = snapshotWithProviderInventory(raw, {
+    databaseFingerprint: 'd'.repeat(64),
+    state: {
+      unownedObjectCount: 1,
+      unknownObjectCount: 1,
+      customSchemaCount: 0,
+      unexpectedGrantCount: 0,
+    },
+    installState: {
+      journal: { databaseFingerprint: 'd'.repeat(64) },
+      migrations: [],
+      resources: [],
+    },
+  });
+  const result = await buildPlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    providerBaseline: verifiedProviderFixture(baselineInventory),
+    inspector: inspector(observed, observed),
+  });
+  assert.equal(result.providerBaseline.matched, false);
+  assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
+  assert.doesNotMatch(JSON.stringify(result), /unproved-provider-looking-record/u);
+});
+
+test('provider baseline expiry between observations stops before further access', async () => {
+  const baseline = verifiedProviderFixture();
+  let calls = 0;
+  const source = {
+    async inspect() {
+      calls += 1;
+      if (calls === 1) baseline.expiresAt = new Date(Date.now() - 1).toISOString();
+      return snapshot();
+    },
+  };
+  await assert.rejects(
+    buildPlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      providerBaseline: baseline,
+      inspector: source,
+    }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  assert.equal(calls, 1);
+});
+
+test('provider baseline expiry before doctor observation result is never matched', async () => {
+  const baseline = verifiedProviderFixture();
+  let calls = 0;
+  const source = {
+    async inspect() {
+      calls += 1;
+      if (calls === 3) baseline.expiresAt = new Date(Date.now() - 1).toISOString();
+      return snapshot();
+    },
+  };
+  await assert.rejects(
+    buildDoctor({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      providerBaseline: baseline,
+      inspector: source,
+    }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  assert.equal(calls, 3);
+});
+
+test('provider baseline expiry during final plan hashing prevents a terminal result', async () => {
+  const baseline = verifiedProviderFixture();
+  const expiry = Date.parse(baseline.expiresAt);
+  let reads = 0;
+  const now = () => {
+    reads += 1;
+    return reads < 4 ? expiry - 1 : expiry;
+  };
+  await assert.rejects(
+    buildPlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      providerBaseline: baseline,
+      inspector: inspector(snapshot(), snapshot()),
+      now,
+    }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  assert.equal(reads, 4);
+});
+
+test('provider baseline expiry during final doctor hashing prevents a terminal result', async () => {
+  const baseline = verifiedProviderFixture();
+  const expiry = Date.parse(baseline.expiresAt);
+  let reads = 0;
+  const now = () => {
+    reads += 1;
+    return reads < 6 ? expiry - 1 : expiry;
+  };
+  await assert.rejects(
+    buildDoctor({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      providerBaseline: baseline,
+      inspector: inspector(snapshot(), snapshot(), snapshot()),
+      now,
+    }),
+    error => error.code === 'PROVIDER_BASELINE_INVALID',
+  );
+  assert.equal(reads, 6);
+});
+
+test('provider baseline detects inventory drift between observations', async () => {
+  const changed = providerFixture({ grantCount: 904 });
   const result = await buildSupabasePlan({
     target: 'hosted',
+    authorization: observationAuthorization(),
+    inspector: inspector(
+      snapshotWithProviderInventory(providerInventory),
+      snapshotWithProviderInventory(changed),
+    ),
+  });
+  assert.equal(result.ready, false);
+  assert.equal(result.unchanged, false);
+  assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
+  assert.ok(blockerCodes(result).includes('PLAN_STATE_CHANGED'));
+});
+
+test('provider baseline requires the observed database version', async () => {
+  const observed = snapshotWithProviderInventory(providerInventory, {
+    project: {
+      region: 'ap-northeast-2',
+      databaseVersion: '17.5',
+      status: 'ACTIVE_HEALTHY',
+      ownerOrgIdHash: observationAuthorization().expectedOwnerOrgIdHash,
+    },
+  });
+  const result = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    inspector: inspector(observed, observed),
+  });
+  assert.equal(result.ready, false);
+  assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
+});
+
+test('provider baseline never exempts business tables, users, buckets or storage objects', async () => {
+  for (const state of [
+    { userTableCount: 1 },
+    { userRowEstimate: 1 },
+    { authUserCount: 1 },
+    { bucketCount: 1 },
+    { storageObjectCount: 1 },
+  ]) {
+    const observed = snapshotWithProviderInventory(providerInventory, { state });
+    const result = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      inspector: inspector(observed, observed),
+    });
+    assert.equal(result.ready, false);
+    assert.ok(blockerCodes(result).includes('EXISTING_PROJECT_NOT_CLEAN'));
+  }
+});
+
+test('provider baseline identity binds state, resources and plan fingerprints', async () => {
+  const observed = snapshotWithProviderInventory(providerInventory);
+  const first = await buildPlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    providerBaseline: verifiedProviderFixture(),
+    inspector: inspector(observed, observed),
+  });
+  const second = await buildPlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    providerBaseline: verifiedProviderFixture(providerInventory, {
+      baselineVersion: 'supabase-hosted-pg17-20260911-v2',
+      baselineSha256: 'd'.repeat(64),
+    }),
+    inspector: inspector(observed, observed),
+  });
+  assert.notEqual(first.stateFingerprint, second.stateFingerprint);
+  assert.notEqual(first.resourcesSha256, second.resourcesSha256);
+  assert.notEqual(first.planFingerprint, second.planFingerprint);
+});
+
+test('provider baseline doctor reports only redacted latest inventory evidence', async () => {
+  const changed = providerFixture({ objectCount: 102 });
+  const result = await buildSupabaseDoctor({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    inspector: inspector(
+      snapshotWithProviderInventory(providerInventory),
+      snapshotWithProviderInventory(providerInventory),
+      snapshotWithProviderInventory(changed),
+    ),
+  });
+  assert.equal(result.providerBaseline.matched, false);
+  assert.equal(result.providerBaseline.observedObjectCount, 102);
+  assert.ok(blockerCodes(result).includes('PROVIDER_BASELINE_MISMATCH'));
+  assert.doesNotMatch(JSON.stringify(result), /provider-(?:object|role)-must-not-escape/u);
+});
+
+test('fresh Seoul project with verified authorization returns a full read-only owner-aware plan', async () => {
+  const result = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
     inspector: inspector(snapshot(), snapshot()),
   });
 
@@ -75,18 +735,23 @@ test('fresh Seoul project returns a read-only plan with named resources and no b
     result.plannedResources.map(({ name }) => name),
     expectedSupabaseResources.map(({ name }) => name),
   );
+  assert.ok(result.plannedResources.some(resource => resource.kind === 'storage-bucket' && resource.name === 'ccc-audio (private)'));
+  assert.ok(result.plannedResources.some(resource => resource.kind === 'database-role' && resource.name.startsWith('ccc_api ')));
+  assert.ok(result.migrations.every(migration => /^\d{4}_[A-Za-z0-9_-]+\.sql$/.test(migration.id) && /^[a-f0-9]{64}$/.test(migration.checksum)));
 });
 
 test('hosted project with missing or non-Seoul region evidence is blocked before apply', async () => {
   for (const [region, code] of [
-    [null, 'REGION_UNVERIFIED'],
+    [null, 'REGION_MISMATCH'],
     ['ap-southeast-1', 'REGION_MISMATCH'],
+    ['seoul', 'REGION_MISMATCH'],
   ]) {
     const observed = snapshot({
       project: { region, databaseVersion: '17.4', status: 'ACTIVE_HEALTHY' },
     });
     const result = await buildSupabasePlan({
       target: 'hosted',
+      authorization: observationAuthorization(),
       inspector: inspector(observed, observed),
     });
 
@@ -96,35 +761,77 @@ test('hosted project with missing or non-Seoul region evidence is blocked before
   }
 });
 
-test('existing project data and unsupported installed versions produce different recovery paths', async () => {
+// D80: 이메일 확인을 요구하지 않는 hosted 설치는 첫 로그인 신원 연결을 신뢰할 수 없으므로
+// plan 과 doctor 둘 다 막는다. 로컬 개발 관찰은 설치 승인이 아니라 차단 대상이 아니다.
+test('hosted Auth demanding a confirmation mail blocks plan and doctor', async () => {
+  const unconfirmed = snapshot({
+    auth: {
+      emailEnabled: true, openSignupDisabled: true, emailConfirmationRequired: true,
+      totpEnabled: true, refreshTokenRotationEnabled: true,
+    },
+  });
+  const plan = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    inspector: inspector(unconfirmed, unconfirmed),
+  });
+  assert.equal(plan.ready, false);
+  const blocker = plan.blockers.find(({ code }) => code === 'AUTH_CONFIRMATION_REQUIRED');
+  assert.ok(blocker !== undefined);
+  assert.match(blocker.recovery, /가입 확인/u);
+
+  const doctorResult = await buildSupabaseDoctor({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    inspector: inspector(unconfirmed, unconfirmed, unconfirmed),
+  });
+  assert.equal(doctorResult.ready, false);
+  assert.ok(blockerCodes(doctorResult).includes('AUTH_CONFIRMATION_REQUIRED'));
+  assert.equal(
+    blockerCodes(doctorResult).filter(code => code === 'AUTH_CONFIRMATION_REQUIRED').length,
+    1,
+  );
+
+  const ready = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    inspector: inspector(snapshot(), snapshot()),
+  });
+  assert.deepEqual(ready.blockers, []);
+});
+
+test('existing data and any legacy ledger are rejected without S11 installation ownership', async () => {
   const existing = snapshot({
     state: { ...stableState, institutionDataFingerprint: 'data-present', userTableCount: 2, userRowEstimate: 8 },
   });
   const existingPlan = await buildSupabasePlan({
     target: 'hosted',
+    authorization: observationAuthorization(),
     inspector: inspector(existing, existing),
   });
-  assert.equal(existingPlan.blockers[0].code, 'EXISTING_PROJECT');
-  assert.match(existingPlan.blockers[0].recovery, /빈 프로젝트/u);
+  assert.equal(existingPlan.blockers[0].code, 'EXISTING_PROJECT_NOT_CLEAN');
+  assert.match(existingPlan.blockers[0].recovery, /소유 승인/u);
 
   const ahead = snapshot({
     installed: { ledger: 'present', version: 99, checksum: 'newer-checksum' },
   });
   const aheadPlan = await buildSupabasePlan({
     target: 'hosted',
+    authorization: observationAuthorization(),
     inspector: inspector(ahead, ahead),
   });
-  assert.equal(aheadPlan.blockers[0].code, 'VERSION_AHEAD');
-  assert.doesNotMatch(aheadPlan.blockers[0].recovery, /빈 프로젝트/u);
+  assert.equal(aheadPlan.blockers[0].code, 'RESOURCE_OWNERSHIP_MISMATCH');
+  assert.equal(aheadPlan.installed.state, 'unverified');
 
   const behind = snapshot({
     installed: { ledger: 'present', version: 0, checksum: 'older-checksum' },
   });
   const behindPlan = await buildSupabasePlan({
     target: 'hosted',
+    authorization: observationAuthorization(),
     inspector: inspector(behind, behind),
   });
-  assert.equal(behindPlan.blockers[0].code, 'VERSION_GAP');
+  assert.equal(behindPlan.blockers[0].code, 'RESOURCE_OWNERSHIP_MISMATCH');
 });
 
 test('a state change observed during planning fails instead of claiming read-only stability', async () => {
@@ -133,11 +840,12 @@ test('a state change observed during planning fails instead of claiming read-onl
   });
   const result = await buildSupabasePlan({
     target: 'hosted',
+    authorization: observationAuthorization(),
     inspector: inspector(snapshot(), changed),
   });
 
   assert.equal(result.ready, false);
-  assert.ok(result.blockers.some(({ code }) => code === 'STATE_CHANGED_DURING_PLAN'));
+  assert.ok(result.blockers.some(({ code }) => code === 'PLAN_STATE_CHANGED'));
   assert.equal(result.unchanged, false);
 });
 
@@ -148,10 +856,148 @@ test('a migration ledger change during planning invalidates the earlier version 
   const result = await buildSupabasePlan({
     target: 'hosted',
     inspector: inspector(snapshot(), after),
+    authorization: observationAuthorization(),
   });
 
   assert.equal(result.unchanged, false);
-  assert.ok(result.blockers.some(({ code }) => code === 'STATE_CHANGED_DURING_PLAN'));
+  assert.ok(result.blockers.some(({ code }) => code === 'PLAN_STATE_CHANGED'));
+});
+
+test('cleanliness and stability cover safety state added only by the second observation', async () => {
+  for (const stateChange of [
+    { authUserCount: 1 },
+    { customSchemaCount: 1 },
+    { userTypeCount: 1 },
+    { privateSchemaExists: true, privateTableNames: ['foreign_private_table'] },
+  ]) {
+    const after = snapshot({ state: { ...stableState, ...stateChange } });
+    const result = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      inspector: inspector(snapshot(), after),
+    });
+    assert.equal(result.ready, false);
+    assert.ok(result.blockers.some(({ code }) => code === 'EXISTING_PROJECT_NOT_CLEAN'));
+    assert.ok(result.blockers.some(({ code }) => code === 'PLAN_STATE_CHANGED'));
+    assert.equal(result.unchanged, false);
+  }
+});
+
+test('installed bucket ownership requires exact observed ID and metadata digest reconciliation', async () => {
+  const bucket = observedBucket();
+  const owned = await installedSnapshot({
+    state: {
+      bucketCount: 1,
+      buckets: [bucket],
+      bucket: { exists: true, public: false },
+    },
+    resources: [{ ...bucket, ownershipTag: 'ccc.installation_id=synthetic-installation' }],
+  });
+  const accepted = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: owned.authorization,
+    inspector: inspector(owned.observed, owned.observed),
+  });
+  assert.equal(accepted.ready, true);
+
+  for (const [name, state, resources] of [
+    ['unowned', { bucketCount: 1, buckets: [bucket] }, []],
+    ['deleted', { bucketCount: 0, buckets: [] }, [{
+      ...bucket, ownershipTag: 'ccc.installation_id=synthetic-installation',
+    }]],
+    ['digest-mismatch', { bucketCount: 1, buckets: [bucket] }, [{
+      ...bucket,
+      resourceDigest: 'f'.repeat(64),
+      ownershipTag: 'ccc.installation_id=synthetic-installation',
+    }]],
+    ['unsupported-type', { bucketCount: 0, buckets: [] }, [{
+      ...bucket,
+      resourceType: 'foreign_provider_resource',
+      ownershipTag: 'ccc.installation_id=synthetic-installation',
+    }]],
+  ]) {
+    const fixture = await installedSnapshot({ state, resources });
+    const result = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed),
+    });
+    assert.ok(result.blockers.some(({ code }) => code === 'RESOURCE_OWNERSHIP_MISMATCH'), name);
+  }
+});
+
+test('installed journals do not authorize unknown custom schemas or standalone user types', async () => {
+  for (const state of [{ customSchemaCount: 1 }, { userTypeCount: 1 }]) {
+    const fixture = await installedSnapshot({ state });
+    const result = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed),
+    });
+    assert.ok(result.blockers.some(({ code }) => code === 'RESOURCE_OWNERSHIP_MISMATCH'));
+  }
+});
+
+test('rejected installed summaries expose only approved migration IDs, phases and hashes', async () => {
+  const fixture = await installedSnapshot({
+    migrations: [
+      { id: 'provider-secret-migration-id', checksum: 'provider-secret-checksum' },
+    ],
+    journal: {
+      phase: 'provider-secret-phase',
+      runtimeManifestSha256: 'provider-secret-manifest',
+      approvalSha256: 'provider-secret-approval',
+    },
+  });
+  const approvedMigration = fixture.desired.migrations[0];
+  fixture.observed.installState.migrations.unshift(approvedMigration);
+  const result = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(fixture.observed, fixture.observed),
+  });
+  assert.equal(result.ready, false);
+  assert.deepEqual(result.installed, {
+    state: 'unverified',
+    migrationHead: approvedMigration.id,
+    runtimeManifestSha256: null,
+    approvalSha256: null,
+  });
+  assert.doesNotMatch(JSON.stringify(result), /provider-secret/u);
+});
+
+test('doctor summaries retain only allowlisted steps and hashes and omit receipt contents', async () => {
+  const fixture = await installedSnapshot({
+    journal: {
+      phase: 'provider-secret-phase',
+      runtimeManifestSha256: 'provider-secret-manifest',
+      approvalSha256: 'provider-secret-approval',
+    },
+  });
+  fixture.observed.installState.completedSteps = [
+    { step: 'storage_bucket', idempotencyKey: 'a'.repeat(64) },
+    { step: 'provider-secret-step', idempotencyKey: 'provider-secret-key' },
+  ];
+  fixture.observed.installState.currentReceipt = {
+    migrationHead: 'provider-secret-receipt-id',
+    providerResourceDigests: { raw: 'provider-secret-receipt-metadata' },
+  };
+  const result = await buildSupabaseDoctor({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(fixture.observed),
+  });
+  assert.deepEqual(result.installed, {
+    state: 'unverified',
+    migrationHead: null,
+    runtimeManifestSha256: null,
+    approvalSha256: null,
+  });
+  assert.deepEqual(result.completedSteps, [{
+    step: 'storage_bucket',
+    idempotencyKey: 'a'.repeat(64),
+  }]);
+  assert.doesNotMatch(JSON.stringify(result), /provider-secret/u);
 });
 
 test('credential failures retain stable error codes without provider response text', async () => {
@@ -164,7 +1010,7 @@ test('credential failures retain stable error codes without provider response te
     };
 
     await assert.rejects(
-      buildSupabasePlan({ target: 'hosted', inspector: failingInspector }),
+      buildSupabasePlan({ target: 'hosted', inspector: failingInspector, authorization: observationAuthorization() }),
       (error) => {
         assert.equal(error.code, code);
         assert.doesNotMatch(error.message, new RegExp(secret, 'u'));
@@ -177,6 +1023,12 @@ test('credential failures retain stable error codes without provider response te
 test('local plans are valid without hosted region evidence but are never production-ready', async () => {
   const local = snapshot({
     project: { region: null, databaseVersion: '17.4', status: 'LOCAL' },
+    state: {
+      ...stableState,
+      unknownObjectCount: 0,
+      unownedObjectCount: 0,
+      unexpectedGrantCount: 0,
+    },
   });
   const result = await buildSupabasePlan({
     target: 'local',
@@ -186,4 +1038,724 @@ test('local plans are valid without hosted region evidence but are never product
   assert.equal(result.ready, true);
   assert.equal(result.productionReady, false);
   assert.ok(result.notes.some((note) => note.includes('로컬')));
+});
+
+test('local plans retain zero-only provider inventory cleanliness', async () => {
+  const local = snapshot({
+    project: { region: null, databaseVersion: '17.4', status: 'LOCAL' },
+    state: {
+      ...stableState,
+      unknownObjectCount: 1,
+      unownedObjectCount: 1,
+      unexpectedGrantCount: 0,
+    },
+  });
+  const result = await buildSupabasePlan({
+    target: 'local',
+    inspector: inspector(local, local),
+  });
+  assert.equal(result.ready, false);
+  assert.ok(blockerCodes(result).includes('EXISTING_PROJECT_NOT_CLEAN'));
+});
+
+test('missing or expired authorization stops before any hosted observation', async () => {
+  let calls = 0;
+  const source = { inspect: async () => { calls += 1; return snapshot(); } };
+  await assert.rejects(buildSupabasePlan({ target: 'hosted', inspector: source }), error => error.code === 'OWNER_EVIDENCE_MISSING');
+  await assert.rejects(buildSupabasePlan({
+    target: 'hosted', inspector: source,
+    authorization: { ...observationAuthorization(), expiresAt: new Date(Date.now() - 1).toISOString() },
+  }), error => error.code === 'OWNER_EVIDENCE_MISSING');
+  assert.equal(calls, 0);
+});
+
+test('doctor separates business activity from configuration drift', async () => {
+  const fixture = await installedSnapshot({
+    state: { userTableCount: 1, rlsEnabledTableCount: 1, policyCount: 1 },
+  });
+  fixture.observed.installState.journal.stateFingerprint =
+    await installationStateFingerprint(fixture.observed);
+  fixture.observed.state = { ...fixture.observed.state, userRowEstimate: 4, authUserCount: 2 };
+  const activity = await buildSupabaseDoctor({
+    target: 'hosted', authorization: fixture.authorization, inspector: inspector(fixture.observed),
+  });
+  assert.ok(activity.blockers.some(item => item.code === 'INSTALL_INCOMPLETE'));
+  assert.ok(!activity.blockers.some(item => item.code === 'DRIFT_DETECTED'));
+
+  fixture.observed.state.schemaFingerprint = 'changed-schema';
+  const drift = await buildSupabaseDoctor({
+    target: 'hosted', authorization: fixture.authorization, inspector: inspector(fixture.observed),
+  });
+  assert.ok(drift.blockers.some(item => item.code === 'DRIFT_DETECTED'));
+});
+
+test('opaque schema objects cannot be adopted with or without an installation journal', async () => {
+  const fresh = snapshot({ state: { ...stableState, unknownObjectCount: 1 } });
+  const initial = await buildSupabasePlan({
+    target: 'hosted', authorization: observationAuthorization(), inspector: inspector(fresh),
+  });
+  assert.ok(initial.blockers.some(item => item.code === 'EXISTING_PROJECT_NOT_CLEAN'));
+  const fixture = await installedSnapshot({ state: { unknownObjectCount: 1 } });
+  const resumed = await buildSupabasePlan({
+    target: 'hosted', authorization: fixture.authorization, inspector: inspector(fixture.observed),
+  });
+  assert.ok(resumed.blockers.some(item => item.code === 'RESOURCE_OWNERSHIP_MISMATCH'));
+});
+
+test('resumed and renewal plans reject stable Auth drift from the durable provider fingerprint', async () => {
+  const fixture = await installedSnapshot();
+  const drifted = structuredClone(fixture.observed);
+  drifted.state.authFingerprint = 'stable-but-changed-auth';
+
+  const resumed = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(drifted, drifted),
+  });
+  assert.equal(resumed.ready, false);
+  assert.ok(blockerCodes(resumed).includes('DRIFT_BLOCKED'));
+
+  const renewedAuthorization = {
+    ...fixture.authorization,
+    runtimeManifestSha256: 'a'.repeat(64),
+    approvalSha256: 'b'.repeat(64),
+    runtimeSequence: fixture.authorization.runtimeSequence + 1,
+  };
+  const renewal = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: renewedAuthorization,
+    renewAuthorization: true,
+    inspector: inspector(drifted, drifted),
+  });
+  assert.equal(renewal.ready, false);
+  assert.ok(blockerCodes(renewal).includes('DRIFT_BLOCKED'));
+});
+
+test('resumed plans reject missing or malformed durable provider fingerprints', async () => {
+  for (const stateFingerprint of [undefined, null, 'not-a-fingerprint']) {
+    const fixture = await installedSnapshot({ journal: { stateFingerprint } });
+    const result = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed),
+    });
+    assert.equal(result.ready, false);
+    assert.ok(blockerCodes(result).includes('INSTALL_JOURNAL_INVALID'));
+  }
+});
+
+test('resumed plans compare the durable provider fingerprint with both observations', async () => {
+  const fixture = await installedSnapshot();
+  const drifted = structuredClone(fixture.observed);
+  drifted.state.authFingerprint = 'changed-in-one-observation';
+  for (const observations of [
+    [drifted, fixture.observed],
+    [fixture.observed, drifted],
+  ]) {
+    const result = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(...observations),
+    });
+    assert.ok(blockerCodes(result).includes('DRIFT_BLOCKED'));
+  }
+});
+
+test('fresh and resumed plans cannot authorize cron before signed cron ownership exists', async () => {
+  const fresh = snapshot({ cronJobCount: 1 });
+  const freshResult = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    inspector: inspector(fresh, fresh),
+  });
+  assert.ok(blockerCodes(freshResult).includes('EXISTING_PROJECT_NOT_CLEAN'));
+
+  const fixture = await installedSnapshot();
+  fixture.observed.cronJobCount = 1;
+  fixture.observed.installState.journal.stateFingerprint =
+    await installationStateFingerprint(fixture.observed);
+  const result = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(fixture.observed, fixture.observed),
+  });
+  assert.equal(result.ready, false);
+  assert.ok(blockerCodes(result).includes('RESOURCE_OWNERSHIP_MISMATCH'));
+  assert.ok(!blockerCodes(result).includes('DRIFT_BLOCKED'));
+});
+
+test('fresh and resumed plans require proved clean object and grant inventories', async () => {
+  for (const inventory of [
+    { unownedObjectCount: 1, unexpectedGrantCount: 0 },
+    { unownedObjectCount: 0, unexpectedGrantCount: 1 },
+    { unownedObjectCount: undefined, unexpectedGrantCount: 0 },
+    { unownedObjectCount: 0.5, unexpectedGrantCount: 0 },
+    { unownedObjectCount: 0, unexpectedGrantCount: -1 },
+  ]) {
+    const fresh = snapshot({ state: { ...stableState, ...inventory } });
+    const freshResult = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      inspector: inspector(fresh, fresh),
+    });
+    assert.ok(blockerCodes(freshResult).includes('EXISTING_PROJECT_NOT_CLEAN'));
+
+    const fixture = await installedSnapshot({ state: inventory });
+    const resumedResult = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed),
+    });
+    assert.ok(blockerCodes(resumedResult).includes('RESOURCE_OWNERSHIP_MISMATCH'));
+  }
+});
+
+test('doctor rejects empty, failed, mismatched and history-unmatched receipts without exposing them', async () => {
+  for (const mutate of [
+    fixture => { fixture.observed.installState.currentReceipt = {}; },
+    fixture => {
+      fixture.observed.installState.currentReceipt.status = 'rollback_failed';
+      fixture.observed.installState.releaseHistory[0].status = 'rollback_failed';
+    },
+    fixture => {
+      fixture.observed.installState.currentReceipt.institutionIdHash = 'f'.repeat(64);
+      fixture.observed.installState.releaseHistory[0].institutionIdHash = 'f'.repeat(64);
+    },
+    fixture => {
+      fixture.observed.installState.currentReceipt.installationId = 'other-installation';
+      fixture.observed.installState.releaseHistory[0].installationId = 'other-installation';
+    },
+    fixture => {
+      fixture.observed.installState.currentReceipt.observedOwnerOrgIdHash = 'f'.repeat(64);
+      fixture.observed.installState.releaseHistory[0].observedOwnerOrgIdHash = 'f'.repeat(64);
+    },
+    fixture => { fixture.observed.installState.migrations.pop(); },
+    fixture => { fixture.observed.installState.currentReceipt.migrationHead = 'provider-secret-head'; },
+    fixture => { fixture.observed.installState.releaseHistory = []; },
+    fixture => { fixture.observed.installState.releaseHistory[0].manifestDigest = 'e'.repeat(64); },
+  ]) {
+    const fixture = await installedReceiptSnapshot();
+    mutate(fixture);
+    const result = await buildSupabaseDoctor({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+    });
+    assert.equal(result.ready, false);
+    assert.ok(blockerCodes(result).includes('INSTALL_INCOMPLETE'));
+    assert.doesNotMatch(JSON.stringify(result), /provider-secret/u);
+  }
+});
+
+test('doctor rejects catalog and provider receipt fingerprint mismatches as drift', async () => {
+  const bucket = observedBucket();
+  for (const mutate of [
+    fixture => { fixture.observed.installState.currentReceipt.schemaFingerprint = 'f'.repeat(64); },
+    fixture => {
+      const [resourceIdHash] = Object.keys(
+        fixture.observed.installState.currentReceipt.providerResourceDigests,
+      );
+      fixture.observed.installState.currentReceipt.providerResourceDigests[resourceIdHash] = 'f'.repeat(64);
+    },
+    fixture => { fixture.observed.installState.currentReceipt.edgeRegionEvidence.mismatch = true; },
+  ]) {
+    const fixture = await installedReceiptSnapshot({
+      state: { bucketCount: 1, buckets: [bucket], bucket: { exists: true, public: false } },
+      resources: [{ ...bucket, ownershipTag: 'ccc.installation_id=synthetic-installation' }],
+    });
+    mutate(fixture);
+    fixture.observed.installState.releaseHistory =
+      [structuredClone(fixture.observed.installState.currentReceipt)];
+    const result = await buildSupabaseDoctor({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+    });
+    assert.equal(result.ready, false);
+    assert.ok(blockerCodes(result).includes('DRIFT_DETECTED'));
+  }
+});
+
+test('doctor checks the latest observation rather than blessing a stale two-snapshot plan', async () => {
+  const fixture = await installedReceiptSnapshot();
+  const latest = structuredClone(fixture.observed);
+  latest.state.authFingerprint = 'changed-after-plan';
+  const result = await buildSupabaseDoctor({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(fixture.observed, fixture.observed, latest),
+  });
+  assert.equal(result.ready, false);
+  assert.ok(blockerCodes(result).includes('PLAN_STATE_CHANGED'));
+  assert.ok(blockerCodes(result).includes('DRIFT_DETECTED'));
+});
+
+test('doctor checks read-only connection evidence on its latest observation', async () => {
+  const fixture = await installedReceiptSnapshot();
+  const latest = structuredClone(fixture.observed);
+  latest.connection.readOnly = false;
+  const result = await buildSupabaseDoctor({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(fixture.observed, fixture.observed, latest),
+  });
+  assert.equal(result.ready, false);
+  assert.ok(blockerCodes(result).includes('CONNECTION_NOT_READ_ONLY'));
+});
+
+test('internally consistent receipt and history remain incomplete without S12 release trust proof', async () => {
+  const fixture = await installedReceiptSnapshot();
+  const result = await buildSupabaseDoctor({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+  });
+  assert.equal(result.ready, false);
+  assert.deepEqual(blockerCodes(result), ['RELEASE_PREREQUISITES_MISSING']);
+});
+
+// bootstrap이 고정 원본에서 받아 서명과 trust를 확인한 뒤 넘기는 모양 그대로다.
+function verifiedReleaseIndex(receipt, {
+  bundleId = 'ccc-dev-1.0.0-1-abcdef123456',
+  version = receipt.releaseVersion,
+  sequence = String(receipt.releaseSequence),
+  manifestSha256 = receipt.manifestDigest,
+} = {}) {
+  return {
+    bundle: { bundleId, version, sequence },
+    rows: [{
+      family: 'community-cloud-cli',
+      manifestSha256,
+      edgeComponentManifestSha256: createHash('sha256').update('edge-manifest').digest('hex'),
+      mode: 'community-cloud',
+      platform: 'macos',
+      arch: 'arm64',
+    }],
+  };
+}
+
+test('doctor clears the release blocker only when the receipt matches the verified pinned bundle', async () => {
+  const doctor = async index => {
+    const fixture = await installedReceiptSnapshot();
+    return buildSupabaseDoctor({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+      ...(index === undefined
+        ? {}
+        : { release: index(fixture.observed.installState.currentReceipt) }),
+    });
+  };
+
+  // ① 영수증의 manifest digest, 판과 순번이 서명된 묶음과 같으면 차단 사유가 없다.
+  const exact = await doctor(receipt => verifiedReleaseIndex(receipt));
+  assert.deepEqual(blockerCodes(exact), []);
+  assert.deepEqual(exact.notices, []);
+  assert.equal(exact.ready, true);
+
+  // ② trust store가 없으면 index도 없고 차단 사유가 그대로 남는다.
+  const absent = await doctor();
+  assert.deepEqual(blockerCodes(absent), ['RELEASE_PREREQUISITES_MISSING']);
+  assert.equal(absent.ready, false);
+
+  // ③ 영수증의 digest가 묶음 색인에 없으면 릴리스 승인이 아니다.
+  const unindexed = await doctor(receipt =>
+    verifiedReleaseIndex(receipt, { manifestSha256: 'f'.repeat(64) }));
+  assert.deepEqual(blockerCodes(unindexed), ['RELEASE_PREREQUISITES_MISSING']);
+  assert.equal(unindexed.ready, false);
+
+  // ④ 원본이 더 나아갔어도 설치된 digest가 여전히 색인되어 있으면 안내뿐이다.
+  const superseded = await doctor(receipt => verifiedReleaseIndex(receipt, {
+    bundleId: 'ccc-dev-1.1.0-2-abcdef123456',
+    version: '1.1.0',
+    sequence: '2',
+  }));
+  assert.deepEqual(blockerCodes(superseded), []);
+  assert.deepEqual(superseded.notices.map(({ code }) => code), ['RELEASE_SUPERSEDED']);
+  assert.match(superseded.notices[0].message, /ccc-dev-1\.1\.0-2-abcdef123456/u);
+  assert.equal(superseded.ready, true);
+
+  // ⑤ 같은 순번의 다른 판이나 과거로의 이동은 안내가 아니라 차단이다.
+  const sideways = await doctor(receipt => verifiedReleaseIndex(receipt, { version: '1.0.1' }));
+  assert.deepEqual(blockerCodes(sideways), ['RELEASE_PREREQUISITES_MISSING']);
+});
+
+test('doctor separates installed health from runtime readiness', async () => {
+  const evidence = ({ installedHealthy, runtimeReady }) => async () => ({
+    healthy: installedHealthy && runtimeReady,
+    installedHealthy,
+    runtimeReady,
+    storageSignerHealthy: installedHealthy,
+    edgeRegionEvidence: {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'ap-northeast-2',
+      functionRegion: 'ap-northeast-2',
+      mismatch: false,
+    },
+    restrictedDatabase: {
+      connected: true, role: 'ccc_api', superuser: false, bypassRls: false,
+    },
+  });
+  const doctor = async health => {
+    const fixture = await installedReceiptSnapshot();
+    return buildSupabaseDoctor({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+      ...(health === undefined ? {} : { health }),
+    });
+  };
+  const baseline = await doctor();
+
+  // ① 설치 health 실패는 지금처럼 차단 사유다.
+  const failed = await doctor(evidence({ installedHealthy: false, runtimeReady: false }));
+  assert.ok(blockerCodes(failed).includes('HEALTH_FAILED'));
+  assert.deepEqual(failed.notices.map(({ code }) => code), ['RUNTIME_NOT_READY']);
+  assert.equal(failed.health.installedHealthy, false);
+  assert.equal(failed.productionReady, false);
+
+  // ② runtime 미준비는 안내뿐이고 ready를 바꾸지 않는다.
+  const notReady = await doctor(evidence({ installedHealthy: true, runtimeReady: false }));
+  assert.equal(blockerCodes(notReady).includes('HEALTH_FAILED'), false);
+  assert.deepEqual(blockerCodes(notReady), blockerCodes(baseline));
+  assert.equal(notReady.ready, baseline.ready);
+  assert.deepEqual(notReady.notices.map(({ code }) => code), ['RUNTIME_NOT_READY']);
+  assert.equal(notReady.health.runtimeReady, false);
+  assert.equal(notReady.productionReady, false);
+
+  // ③ 두 단계 모두 통과하면 남은 차단 사유만이 productionReady를 막는다.
+  const both = await doctor(evidence({ installedHealthy: true, runtimeReady: true }));
+  assert.equal(blockerCodes(both).includes('HEALTH_FAILED'), false);
+  assert.deepEqual(both.notices, []);
+  assert.deepEqual(blockerCodes(both), ['RELEASE_PREREQUISITES_MISSING']);
+  assert.equal(both.productionReady, false);
+  assert.equal(both.health.installedHealthy && both.health.runtimeReady, true);
+});
+
+// 실제 첫 설치가 남긴 모양으로 만든 관찰이다. 설치는 자기 객체와 권한을 더하고,
+// 승인된 0006 마이그레이션이 public 스키마의 브라우저 권한과 기본권한을 회수하며,
+// journal의 database_fingerprint는 마지막 마이그레이션 시점에 멈춘다.
+const AUDIO_MIME_TYPES = Object.freeze([
+  'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/webm', 'audio/x-m4a', 'audio/x-wav',
+]);
+
+function recordedBucketDigest(metadata = {
+  isPublic: false, fileSizeLimit: '209715200', allowedMimeTypes: AUDIO_MIME_TYPES,
+}) {
+  return createHash('sha256').update([
+    'ccc-audio',
+    metadata.isPublic ? 'public' : 'private',
+    metadata.fileSizeLimit,
+    [...metadata.allowedMimeTypes].sort().join(','),
+  ].join('\n'), 'utf8').digest('hex');
+}
+
+function providerGrant(overrides) {
+  return {
+    kind: 'relation',
+    schema: 'storage',
+    objectIdentity: 'storage.objects TABLE',
+    grantor: 'supabase_admin',
+    grantee: 'ROLE:anon',
+    privilege: 'SELECT',
+    grantable: false,
+    inheritOption: null,
+    setOption: null,
+    provenance: 'initial_privilege',
+    ...overrides,
+  };
+}
+
+function canonicallySorted(records) {
+  return [...records].sort((left, right) => Buffer.compare(
+    Buffer.from(verifier.canonicalizeJcs(left)),
+    Buffer.from(verifier.canonicalizeJcs(right)),
+  ));
+}
+
+function installedInventories() {
+  const providerObjects = ['auth.users TABLE', 'storage.buckets TABLE'].map(identity => ({
+    kind: 'relation',
+    schema: identity.split('.')[0],
+    identity,
+    owner: 'supabase_admin',
+    definitionSha256: createHash('sha256').update(identity).digest('hex'),
+    provenance: 'initial_privilege',
+  }));
+  const comparedGrants = [
+    providerGrant({}),
+    providerGrant({
+      kind: 'role', schema: '', objectIdentity: 'anon', grantee: 'ROLE:authenticator',
+      privilege: 'MEMBER', inheritOption: false, setOption: true, provenance: 'supabase_managed',
+    }),
+  ];
+  // 설치가 회수한 기준선 권한. 관찰에는 더 이상 없다.
+  const revokedGrants = [
+    providerGrant({
+      kind: 'schema', schema: 'public', objectIdentity: 'public',
+      grantor: 'pg_database_owner', grantee: 'ROLE:anon', privilege: 'USAGE',
+      provenance: 'supabase_managed',
+    }),
+    providerGrant({
+      kind: 'default', schema: 'public',
+      objectIdentity: 'default privileges for role postgres in schema public on TABLES',
+      grantor: 'postgres', grantee: 'ROLE:authenticated', privilege: 'SELECT',
+      provenance: 'supabase_managed',
+    }),
+  ];
+  // 양쪽에 있는 자기 기본권한 기록.
+  const selfDefaultGrant = providerGrant({
+    kind: 'default', schema: '',
+    objectIdentity: 'default privileges for role postgres on FUNCTIONS',
+    grantor: 'postgres', grantee: 'ROLE:postgres', privilege: 'EXECUTE',
+    provenance: 'supabase_managed',
+  });
+  const installationObjects = [
+    {
+      kind: 'relation', schema: 'public', identity: 'public.consent_events TABLE',
+      owner: 'ccc_schema_owner',
+      definitionSha256: createHash('sha256').update('public.consent_events').digest('hex'),
+      provenance: 'supabase_managed',
+    },
+    {
+      kind: 'schema', schema: 'private', identity: 'private', owner: 'postgres',
+      definitionSha256: createHash('sha256').update('private').digest('hex'),
+      provenance: 'supabase_managed',
+    },
+  ];
+  const installationGrants = [
+    providerGrant({
+      schema: 'public', objectIdentity: 'public.consent_events TABLE',
+      grantor: 'ccc_schema_owner', grantee: 'ROLE:ccc_api', privilege: 'SELECT',
+      provenance: 'supabase_managed',
+    }),
+    providerGrant({
+      kind: 'schema', schema: 'public', objectIdentity: 'public',
+      grantor: 'pg_database_owner', grantee: 'ROLE:ccc_schema_owner', privilege: 'USAGE',
+      provenance: 'supabase_managed',
+    }),
+  ];
+  // 설치가 만들었지만 목록 분류가 설치 소유로 잡지 못하는 기록.
+  const unclassifiedInstallationGrants = [
+    providerGrant({
+      kind: 'default', schema: '',
+      objectIdentity: 'default privileges for role ccc_schema_owner on FUNCTIONS',
+      grantor: 'ccc_schema_owner', grantee: 'ROLE:ccc_schema_owner', privilege: 'EXECUTE',
+      provenance: 'supabase_managed',
+    }),
+    providerGrant({
+      kind: 'role', schema: '', objectIdentity: 'ccc_schema_owner',
+      grantor: 'supabase_admin', grantee: 'ROLE:postgres', privilege: 'MEMBER',
+      inheritOption: false, setOption: false, provenance: 'supabase_managed',
+    }),
+  ];
+  const baseline = {
+    objects: canonicallySorted(providerObjects),
+    grants: canonicallySorted([...comparedGrants, ...revokedGrants, selfDefaultGrant]),
+  };
+  const observed = {
+    objects: canonicallySorted([...providerObjects, ...installationObjects]),
+    grants: canonicallySorted([
+      ...comparedGrants, selfDefaultGrant,
+      ...installationGrants, ...unclassifiedInstallationGrants,
+    ]),
+    installationObjects: canonicallySorted(installationObjects),
+    installationGrants: canonicallySorted(installationGrants),
+  };
+  return {
+    baseline: { ...baseline, ...providerInventoryFingerprint(baseline) },
+    observed: { ...observed, ...providerInventoryFingerprint(observed) },
+  };
+}
+
+async function firstInstallFixture() {
+  const authorization = observationAuthorization();
+  const inventories = installedInventories();
+  const providerBaseline = verifiedProviderFixture(inventories.baseline);
+  const cleanObservation = snapshotWithProviderInventory(inventories.baseline, {
+    state: {
+      unownedObjectCount: 0, unknownObjectCount: 0, customSchemaCount: 0,
+      unexpectedGrantCount: 3, providerObjectCount: inventories.baseline.objects.length,
+      providerGrantCount: inventories.baseline.grants.length,
+    },
+  });
+  const desired = await buildPlan({
+    target: 'hosted',
+    authorization,
+    providerBaseline,
+    inspector: inspector(cleanObservation, cleanObservation),
+  });
+  assert.deepEqual(blockerCodes(desired), []);
+
+  const bucket = {
+    resourceType: 'storage_bucket',
+    resourceIdHash: createHash('sha256').update('ccc-audio', 'utf8').digest('hex'),
+    resourceDigest: recordedBucketDigest(),
+  };
+  const resources = [
+    { ...bucket, ownershipTag: `ccc.installation_id=${authorization.installationId}` },
+    {
+      resourceType: 'cron_job',
+      resourceIdHash: createHash('sha256').update('ccc_scheduler_tick', 'utf8').digest('hex'),
+      resourceDigest: createHash('sha256').update('cron-desired').digest('hex'),
+      ownershipTag: `ccc.installation_id=${authorization.installationId}`,
+    },
+    {
+      resourceType: 'edge_function',
+      resourceIdHash: createHash('sha256').update('ccc-storage-signer', 'utf8').digest('hex'),
+      resourceDigest: createHash('sha256').update('signer-version').digest('hex'),
+      ownershipTag: `ccc.installation_id=${authorization.installationId}`,
+    },
+  ];
+  const observed = snapshotWithProviderInventory(inventories.observed, {
+    cronJobCount: 1,
+    state: {
+      // 설치 소유 기록을 뺀 집계. inspector가 durable 지문을 확인한 뒤 내려준다.
+      unownedObjectCount: 0, unknownObjectCount: 0, customSchemaCount: 0,
+      unexpectedGrantCount: 2,
+      providerObjectCount: inventories.observed.objects.length,
+      providerGrantCount: inventories.observed.grants.length,
+      userTableCount: 78, rlsEnabledTableCount: 78, policyCount: 86,
+      bucketCount: 1, buckets: [bucket], bucket: { exists: true, public: false },
+      privateSchemaExists: true, privateTableNames: ['ccc_install_journal'],
+    },
+  });
+  observed.databaseFingerprint = createHash('sha256').update('installed-catalog').digest('hex');
+  const receipt = {
+    contract: 'S11',
+    contractVersion: '0.3',
+    installationId: authorization.installationId,
+    institutionIdHash: authorization.institutionIdHash,
+    rollbackTarget: null,
+    expectedOwnerOrgIdHash: authorization.expectedOwnerOrgIdHash,
+    observedOwnerOrgIdHash: authorization.expectedOwnerOrgIdHash,
+    releaseVersion: '0.9.0-dev.2',
+    releaseSequence: 2,
+    manifestDigest: createHash('sha256').update('release-manifest').digest('hex'),
+    artifactSetDigest: createHash('sha256').update('artifact-set').digest('hex'),
+    migrationHead: desired.migrations.at(-1).id,
+    schemaFingerprint: observed.databaseFingerprint,
+    edgeRegionEvidence: {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'ap-northeast-2',
+      functionRegion: 'ap-northeast-2',
+      mismatch: false,
+    },
+    providerResourceDigests: Object.fromEntries(
+      resources.map(resource => [resource.resourceIdHash, resource.resourceDigest]),
+    ),
+    backupId: 'not_applicable',
+    backupDigest: createHash('sha256').update('backup-evidence').digest('hex'),
+    priorReceiptDigest: null,
+    recordedAt: '2026-09-11T19:19:08.927+00:00',
+    status: 'installed',
+  };
+  observed.installState = {
+    journal: {
+      installationId: authorization.installationId,
+      institutionIdHash: authorization.institutionIdHash,
+      projectRefHash: authorization.projectRefHash,
+      expectedOwnerOrgIdHash: authorization.expectedOwnerOrgIdHash,
+      runtimeManifestSha256: authorization.runtimeManifestSha256,
+      approvalSha256: authorization.approvalSha256,
+      runtimeConfigurationSha256: authorization.runtimeConfigurationSha256,
+      contractVersion: authorization.contractVersion,
+      runtimeSequence: authorization.runtimeSequence,
+      expiresAt: authorization.expiresAt,
+      resourcesSha256: desired.resourcesSha256,
+      migrationsSha256: desired.migrationsSha256,
+      phase: 'installed',
+      // 마지막 마이그레이션 시점 값이며 설치가 끝난 카탈로그와 다르다.
+      databaseFingerprint: createHash('sha256').update('migration-phase-catalog').digest('hex'),
+      stateFingerprint: null,
+    },
+    migrations: structuredClone(desired.migrations),
+    resources,
+    completedSteps: [],
+    currentReceipt: receipt,
+    releaseHistory: [structuredClone(receipt)],
+  };
+  // 설치가 완료 시점에 적은 값이다. 완전한 공급자 목록 해시로 계산하므로 설치 뒤
+  // 재검증에서도 같은 값이 나와야 한다.
+  observed.installState.journal.stateFingerprint = await verifier.sha256Jcs({
+    region: observed.project.region,
+    ownerOrgIdHash: observed.project.ownerOrgIdHash,
+    database: observed.databaseFingerprint,
+    policies: observed.state.policyFingerprint,
+    buckets: observed.state.bucketFingerprint,
+    auth: observed.state.authFingerprint,
+    cron: observed.cronJobCount,
+    providerBaselineVersion: providerBaseline.baselineVersion,
+    providerBaselineSha256: providerBaseline.baselineSha256,
+    providerObjectsSha256: observed.providerInventory.objectInventorySha256,
+    providerGrantsSha256: observed.providerInventory.grantInventorySha256,
+  });
+  return { authorization, providerBaseline, desired, observed };
+}
+
+function firstInstallDoctor(fixture, mutate = () => {}) {
+  const observed = structuredClone(fixture.observed);
+  mutate(observed);
+  return buildDoctor({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    providerBaseline: fixture.providerBaseline,
+    inspector: inspector(observed, observed, observed),
+  });
+}
+
+test('doctor verifies a completed first install against the receipt catalog and signed baseline', async () => {
+  const fixture = await firstInstallFixture();
+  const result = await firstInstallDoctor(fixture);
+
+  // 설치가 만든 목록과 승인된 마이그레이션이 회수한 권한을 양쪽에서 빼고 기준선과 대조한다.
+  assert.deepEqual(blockerCodes(result), ['RELEASE_PREREQUISITES_MISSING']);
+  assert.equal(result.providerBaseline.matched, true);
+  assert.equal(result.providerBaseline.observedObjectCount, 2);
+  assert.equal(result.providerBaseline.expectedObjectCount, 2);
+  assert.equal(result.providerBaseline.observedGrantCount, 2);
+  assert.equal(result.providerBaseline.expectedGrantCount, 2);
+  // durable 상태 지문은 완전한 목록으로 계산해 journal에 적힌 값과 계속 같다.
+  assert.equal(result.stateFingerprint, fixture.observed.installState.journal.stateFingerprint);
+  assert.equal(fixture.desired.resourcesSha256, fixture.observed.installState.journal.resourcesSha256);
+  assert.equal(result.installed.state, 'installed');
+});
+
+test('installed reconciliation still blocks provider, catalog and ownership drift', async () => {
+  const fixture = await firstInstallFixture();
+  for (const [name, code, mutate] of [
+    ['공급자 스키마 권한 변경', 'PROVIDER_BASELINE_MISMATCH', observed => {
+      const target = observed.providerInventory.grants
+        .find(grant => grant.schema === 'storage');
+      target.grantee = 'ROLE:service_role';
+      Object.assign(observed.providerInventory, providerInventoryFingerprint(observed.providerInventory));
+    }],
+    ['설치 소유로 주장한 남의 객체', 'PROVIDER_BASELINE_MISMATCH', observed => {
+      observed.providerInventory.objects.push({
+        kind: 'schema', schema: 'foreign', identity: 'foreign', owner: 'postgres',
+        definitionSha256: createHash('sha256').update('foreign').digest('hex'),
+        provenance: 'supabase_managed',
+      });
+      observed.state = { ...observed.state, providerObjectCount: observed.providerInventory.objects.length };
+      Object.assign(observed.providerInventory, providerInventoryFingerprint(observed.providerInventory));
+    }],
+    ['영수증 카탈로그와 다른 관찰', 'DRIFT_DETECTED', observed => {
+      observed.installState.currentReceipt.schemaFingerprint = 'f'.repeat(64);
+      observed.installState.releaseHistory[0].schemaFingerprint = 'f'.repeat(64);
+    }],
+    ['bucket 메타데이터 변경', 'RESOURCE_OWNERSHIP_MISMATCH', observed => {
+      observed.state.buckets[0].resourceDigest = recordedBucketDigest({
+        isPublic: true, fileSizeLimit: '209715200', allowedMimeTypes: AUDIO_MIME_TYPES,
+      });
+    }],
+    ['소유 기록이 없는 cron job', 'RESOURCE_OWNERSHIP_MISMATCH', observed => {
+      observed.cronJobCount = 2;
+    }],
+    ['설치가 만들지 않은 자원 종류', 'RESOURCE_OWNERSHIP_MISMATCH', observed => {
+      observed.installState.resources[1].resourceType = 'foreign_provider_resource';
+    }],
+  ]) {
+    const result = await firstInstallDoctor(fixture, mutate);
+    assert.ok(blockerCodes(result).includes(code), `${name}: ${blockerCodes(result).join(',')}`);
+  }
 });

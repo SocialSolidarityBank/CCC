@@ -49,3 +49,11 @@ regexes = [
   '''3dbacf213494f7624c00676ce62742c414528997fd2a23c21e926c16d79404d2''',
   '''MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=''',
 ]
+
+[[allowlists]]
+description = "S9 public pinned DPAPI source SHA-256 digests, not credentials (exact values only)"
+regexes = [
+  '''18280b1135123aff82fbf4188a5aadfc9a5d6fffad9309f72f347f380f2da550''',
+  '''78d13f387bc58f9e1aabed34815860fd8e0126f43fe546a4d0c8815a5aaa93c5''',
+  '''7c03cec11c438b6d2512239477d9f1b45d6e16763122a3a36458ab339f50d3c4''',
+]

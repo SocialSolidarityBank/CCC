@@ -9,12 +9,10 @@ import {
   createCounselingRecord,
   enqueueTextWorkItem,
   listSupportCasesForBeneficiary,
-  recordPilotTextAiConsentEvidence,
   recordSttReadiness,
-  updateParticipantConsent,
   type AgentRuntime,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId, type TestApiEnv } from './support/d1';
 import {
   claimRequest,
   registerFixtureRecording,
@@ -22,6 +20,7 @@ import {
   seedNerQualification,
 } from './support/agent-jobs';
 import { createTestSigner, signedManifest, SYNTHETIC_LOCAL_REGISTRY } from './support/install-manifest';
+import { registrationInput } from './support/registration';
 
 vi.setConfig({ testTimeout: 60_000 });
 
@@ -41,15 +40,22 @@ const counselorHeaders = {
   'X-CCC-Role': 'counselor',
 };
 
-async function envForMode(mode: DeploymentMode): Promise<ApiEnv> {
+async function envForMode(mode: DeploymentMode): Promise<TestApiEnv> {
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+    deploymentMode: mode,
+    sttMode: 'local',
+    llmMode: 'openai',
+  });
   const signer = await createTestSigner();
   const manifest = await signedManifest(signer, mode, { approvedSttEngineIds: SYNTHETIC_LOCAL_REGISTRY });
   return {
     ...t.env,
+    installationMode: mode,
     TEXT_AI_PILOT_ENABLED: '1',
     CCC_INSTALL_MANIFEST: JSON.stringify(manifest),
     CCC_INSTALL_SIGNING_KEYS: JSON.stringify(signer.publicKeys),
     CCC_STT_MODE: 'local',
+    CCC_LLM_MODE: 'openai',
   };
 }
 
@@ -59,7 +65,9 @@ async function seedJobs(
   mode: DeploymentMode = 'local-single',
   expectedUploadStatus = 200,
 ) {
-  const beneficiary = await createCase(env, counselor, {});
+  const beneficiary = await createCase(env, counselor, await registrationInput(env, counselor, {
+    programId: testProgramId(counselor.orgId),
+  }));
   const { programs } = await listSupportCasesForBeneficiary(env, counselor, beneficiary.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected an initial support case');
@@ -71,14 +79,7 @@ async function seedJobs(
     state: 'ready',
     capacity: 1,
   });
-  await updateParticipantConsent(env, counselor, supportCaseId, { privacy: true, recordingAi: true });
-  await recordPilotTextAiConsentEvidence(env, counselor, beneficiary.id, {
-    noticeVersion: 'pilot-text-ai-v1',
-    noticeSha256: 'a'.repeat(64),
-    evidenceRef: `r2://pilot-evidence/${beneficiary.id}`,
-    evidenceSha256: 'f'.repeat(64),
-    effectiveAt: '2026-01-01T00:00:00.000Z',
-  });
+  // 등록 6종 동의 + seedCanonicalSttConsent 가 권한의 유일한 근거다(파일럿 증빙 기록기는 폐지).
 
   const textRecord = await createCounselingRecord(env, counselor, supportCaseId, {
     submissionId: crypto.randomUUID(),
@@ -237,7 +238,9 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
   it('upload-target admission and completion failures stay inside the structured HTTP error boundary', async () => {
     await t.reset();
     const env = await envForMode('community-cloud');
-    const beneficiary = await createCase(env, counselor, {});
+    const beneficiary = await createCase(env, counselor, await registrationInput(env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
     const { programs } = await listSupportCasesForBeneficiary(env, counselor, beneficiary.id);
     const supportCaseId = programs[0]?.supportCase.id;
     if (supportCaseId === undefined) throw new Error('expected support case');
@@ -375,6 +378,9 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
 
   it('승인 registry 에 없는 STT 는 오디오 작업을 claim 하지 않는다', async () => {
     await t.reset();
+    await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+      sttMode: 'local', llmMode: 'openai',
+    });
     const signer = await createTestSigner();
     const manifest = await signedManifest(signer, 'local-office', { approvedSttEngineIds: [] });
     const env = {

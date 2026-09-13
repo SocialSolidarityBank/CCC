@@ -16,5 +16,8 @@
     "../../packages/http-api/src/**/*.ts",
     "../../packages/ai-runtime/src/**/*.ts",
     "../../adapters/*/src/**/*.ts"
+  ],
+  "exclude": [
+    "../../packages/wire/**"
   ]
 }

@@ -66,6 +66,7 @@ def make_config(work_dir: Path) -> Config:
         ner_release_receipt_id=RECEIPT_ID,
         runtime_environment="preview",
         audio_download_origin="https://storage.example",
+        agent_bearer_auth=False,
         backup_policy=BackupPolicy(),
     )
 
