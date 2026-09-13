@@ -86,17 +86,66 @@ describe('independent Community Cloud runtime', () => {
     }
   });
 
-  it('retains exact CORS and preflight method/header restrictions', async () => {
+  it('allows conditional and idempotent preflights with the complete approved browser policy', async () => {
     const handler = await createCommunityCloudRuntime(await config());
-    const denied = await handler(new Request(`${apiOrigin}/api/health`, { headers: { origin: `${clientOrigin}.evil.invalid` } }));
-    await expectFailure(denied, 403, 'forbidden');
-    expect(denied.headers.has('access-control-allow-origin')).toBe(false);
+    const response = await handler(new Request(`${apiOrigin}/api/me`, {
+      method: 'OPTIONS', headers: {
+        origin: clientOrigin, 'access-control-request-method': 'PUT',
+        'access-control-request-headers': 'Authorization, Content-Type, If-Match, Idempotency-Key, X-Request-ID, X-Region',
+      },
+    }));
+    expect(response.status).toBe(204);
+    expect(response.headers.get('access-control-allow-origin')).toBe(clientOrigin);
+    expect(response.headers.get('vary')).toBe('Origin');
+    expect(new Set(response.headers.get('access-control-allow-methods')?.split(', ')))
+      .toEqual(new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']));
+    expect(new Set(response.headers.get('access-control-allow-headers')?.toLowerCase().split(', ')))
+      .toEqual(new Set(['authorization', 'content-type', 'if-match', 'idempotency-key', 'x-request-id', 'x-region']));
+    expect(response.headers.get('access-control-max-age')).toBe('600');
+    expect(response.headers.has('access-control-allow-credentials')).toBe(false);
+    const options = await handler(new Request(`${apiOrigin}/api/me`, {
+      method: 'OPTIONS', headers: { origin: clientOrigin, 'access-control-request-method': 'OPTIONS' },
+    }));
+    expect(options.status).toBe(204);
+    expect(options.headers.get('access-control-allow-origin')).toBe(clientOrigin);
+  });
+
+  it('denies untrusted origins and invalid preflights without CORS authorization', async () => {
+    const handler = await createCommunityCloudRuntime(await config());
     const preflight = (method: string, headers: string) => new Request(`${apiOrigin}/api/me`, {
       method: 'OPTIONS', headers: { origin: clientOrigin, 'access-control-request-method': method, 'access-control-request-headers': headers },
     });
-    expect((await handler(preflight('GET', 'authorization, content-type'))).status).toBe(204);
-    await expectFailure(await handler(preflight('TRACE', 'authorization')), 403, 'forbidden');
-    await expectFailure(await handler(preflight('GET', 'x-forwarded-host')), 403, 'forbidden');
+    const requests = [
+      new Request(`${apiOrigin}/api/health`, { headers: { origin: `${clientOrigin}.evil.invalid` } }),
+      new Request(`${apiOrigin}/api/health`, { headers: { origin: 'null' } }),
+      preflight('TRACE', 'authorization'),
+      preflight('GET', 'Authorization, X-Forwarded-Host'),
+      new Request(`${apiOrigin}/api/me`, { method: 'OPTIONS', headers: { origin: clientOrigin } }),
+      new Request(`${apiOrigin}/api/me`, { method: 'OPTIONS', headers: { 'access-control-request-method': 'GET' } }),
+    ];
+    for (const request of requests) {
+      const denied = await handler(request);
+      await expectFailure(denied, 403, 'forbidden');
+      expect(denied.headers.has('access-control-allow-origin')).toBe(false);
+      expect(denied.headers.has('access-control-expose-headers')).toBe(false);
+      expect(denied.headers.get('vary')).toBe('Origin');
+    }
+  });
+
+  it('exposes response metadata on browser success and errors without adding CORS to originless requests', async () => {
+    const handler = await createCommunityCloudRuntime(await config());
+    for (const [path, status] of [['health', 200], ['me', 401]] as const) {
+      const response = await handler(new Request(`${apiOrigin}/api/${path}`, { headers: { origin: clientOrigin } }));
+      expect(response.status).toBe(status);
+      expect(response.headers.get('access-control-allow-origin')).toBe(clientOrigin);
+      expect(response.headers.get('vary')).toBe('Origin');
+      expect(new Set(response.headers.get('access-control-expose-headers')?.toLowerCase().split(', ')))
+        .toEqual(new Set(['etag', 'x-request-id', 'x-ccc-installation-id']));
+      expect(response.headers.has('access-control-allow-credentials')).toBe(false);
+      const originless = await handler(new Request(`${apiOrigin}/api/${path}`));
+      expect(originless.status).toBe(status);
+      expect([...originless.headers.keys()].filter(name => name.startsWith('access-control-'))).toEqual([]);
+    }
   });
 
   it('requires Bearer identity and continues to refuse audio bodies', async () => {
