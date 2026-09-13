@@ -21,7 +21,6 @@ import {
   createBeneficiaryWithInitialSupportCase,
   createProgram,
   listPrograms,
-  installConsentProviderRegistry,
   issueRegistrationConsentDisclosures,
   createCounselingSchedule,
   createCounselingRecord,
@@ -42,8 +41,9 @@ import {
   type CreateScheduleSessionGoalInput,
 } from '@ccc/core/gateway';
 import { INTAKE_SCHEMA_VERSION, INTAKE_WRITE_SCHEMA_VERSION, requiredIntakeQuestionKeys, type IntakeAnswer } from '@ccc/contracts/intake';
-import { CONSENT_COPY, CONSENT_DOMAINS, type AppendConsentEventInput } from '@ccc/contracts/consent';
+import type { AppendConsentEventInput } from '@ccc/contracts/consent';
 import type { D1Capture } from './capture';
+import { installPreviewConsentProviderRegistry } from './harness';
 import { ADMIN_ACTOR_ID, ORG_ID } from './preload-data';
 import {
   PARTICIPANTS,
@@ -133,16 +133,6 @@ async function provisionSyntheticProgram(env: Env, adminActor: Actor, capture: D
       installationPolicyVersion: context.installation.policyVersion,
       installationConfigHash: context.installation.configHash,
     },
-  });
-  capture.mark('setup', VIRTUAL_COUNSELORS.length + 2);
-  // 합성 수신자 승인도 신뢰 설치 관문을 거친다. 실제 사업자 연결이나 AI 활성화는 없다.
-  await installConsentProviderRegistry(env.DB, {
-    schemaVersion: 1, orgId: adminActor.orgId, approvedBy: adminActor.userId,
-    approvedAt: new Date().toISOString(), approvalRef: `synthetic-seed:${crypto.randomUUID()}`,
-    providers: [...new Set(CONSENT_DOMAINS.map(domain => CONSENT_COPY[domain].provider))].map(provider => ({
-      provider, legalRecipient: `Synthetic ${provider} recipient`,
-      country: provider === 'openai' ? 'US' : 'KR', validUntil: null,
-    })),
   });
   return program.id;
 }
@@ -368,6 +358,8 @@ export async function runScenario(env: Env, capture: D1Capture): Promise<Scenari
   const adminActor: Actor = { userId: ADMIN_ACTOR_ID, orgId: ORG_ID, role: 'admin' };
   await provisionVirtualCounselors(env, adminActor, capture);
   const programId = await provisionSyntheticProgram(env, adminActor, capture);
+  capture.mark('setup', VIRTUAL_COUNSELORS.length + 2);
+  await installPreviewConsentProviderRegistry(env, adminActor);
 
   let sessions = 0;
   for (let index = 0; index < PARTICIPANTS.length; index += 1) {
