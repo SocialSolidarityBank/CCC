@@ -75,6 +75,9 @@ export function buildSeedEnv(db: D1Database, capture: D1Capture): Env {
   assertPiiKeyMaterial(key);
   return {
     DB: createD1Database(capture.wrap(db)),
+    installationMode: 'community-cloud',
+    CCC_STT_MODE: 'off',
+    CCC_LLM_MODE: 'off',
     secretStore: createEnvironmentSecretStore({ PII_ENC_KEY: key, PII_KEY_VERSION: SEED_PII_KEY_VERSION }),
     PII_KEY_VERSION: SEED_PII_KEY_VERSION,
   };

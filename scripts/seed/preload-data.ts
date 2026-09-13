@@ -56,7 +56,7 @@ export interface RawStatement {
 
 /**
  * 캡처 없이 실행하는 raw 프리로드 문장(harness 가 실 D1 에 직접 건다).
- * 실행 순서: organization_settings → users → beneficiaries 스텁.
+ * 실행 순서: organization_settings → program_admission_policies → users → beneficiaries 스텁.
  */
 export function preloadStatements(): RawStatement[] {
   const statements: RawStatement[] = [];
@@ -65,6 +65,13 @@ export function preloadStatements(): RawStatement[] {
     sql: `INSERT INTO organization_settings (
              org_id, time_zone, pii_purge_grace_days, version, created_at, updated_at
            ) VALUES (?, 'Asia/Seoul', 365, 1, ?, ?)`,
+    params: [ORG_ID, PRELOAD_AT, PRELOAD_AT],
+  });
+
+  statements.push({
+    sql: `INSERT INTO program_admission_policies (
+             org_id, version, stt_mode, llm_mode, created_at, updated_at
+           ) VALUES (?, 1, 'off', 'off', ?, ?)`,
     params: [ORG_ID, PRELOAD_AT, PRELOAD_AT],
   });
 
