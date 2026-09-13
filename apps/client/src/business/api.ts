@@ -124,7 +124,8 @@ export function decodeInstitutionReadiness(value: unknown, orgId: string): Insti
     || (first !== null && (!isOpaqueIdentifier(first.id) || !isNullableString(first.displayName)
       || first.programType !== 'financial_support_v1' || !isAdmissionState(first.admissionState)
       || (first.status !== 'active' && first.status !== 'closed')
-      || typeof first.version !== 'number' || !Number.isSafeInteger(first.version) || first.version < 1))) {
+      || typeof first.version !== 'number' || !Number.isSafeInteger(first.version) || first.version < 1
+      || typeof first.financialSupportEnabled !== 'boolean'))) {
     throw new BusinessError('invalid_response');
   }
   return {
@@ -134,6 +135,7 @@ export function decodeInstitutionReadiness(value: unknown, orgId: string): Insti
       id: first.id as string, displayName: first.displayName as string | null,
       programType: 'financial_support_v1', admissionState: first.admissionState as ProgramAdmissionState,
       status: first.status as 'active' | 'closed', version: first.version as number,
+      financialSupportEnabled: first.financialSupportEnabled as boolean,
     },
     installationState: row.installationState, retentionPolicyStatus: row.retentionPolicyStatus,
     consentCopy: {

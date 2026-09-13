@@ -56,6 +56,7 @@ describe('institution readiness boundary', () => {
       firstProgram: {
         id: 'program-1', displayName: '금전 지원', programType: 'financial_support_v1',
         admissionState: 'confirmation_required', status: 'active', version: 3,
+        financialSupportEnabled: true,
       },
     }), 'org-1');
     expect(value.creatorLinkState).toBe('linked');
