@@ -1,22 +1,14 @@
-// 초대와 요청 링크의 API 경계 (D86 ③④). 익명 실무자 초대와 옛 자기 확인 페이지는 폐기됐다.
-//
-// 실무자 초대는 이메일 하나에 묶인 1회용이고, 당사자 접점은 목적 하나짜리 요청 링크다.
-// 두 경로 모두 토큰이 자격이라 완료 요청에는 Bearer 를 붙이지 않는다(`PublicTransport`).
+// 실무자 초대는 목록과 취소만 제공한다. 발급과 수락은 서버 계약이 준비될 때까지 닫아 둔다.
+// 당사자 접점은 목적 하나짜리 요청 링크이며 공개 전송기는 Bearer를 붙이지 않는다.
 
 import type { ConsentDisclosureSnapshot } from '@ccc/contracts/consent';
-import { isNullableString, isOpaqueIdentifier, record, type HumanRole } from './api';
+import { isNullableString, isOpaqueIdentifier, record } from './api';
 import { decodeDisclosures } from './consent';
 import { BusinessError } from './errors';
 import type { BusinessTransport, PublicTransport } from './transport';
 
 /** 서버가 저장하는 역할 이름. 화면 역할 이름과 철자가 다르다. */
 export type InviteStoredRole = 'institution_admin' | 'institution_technical_admin' | 'supervisor' | 'practitioner';
-export const INVITE_ROLE_BY_HUMAN: Record<HumanRole, InviteStoredRole> = {
-  'institution-admin': 'institution_admin',
-  'technical-admin': 'institution_technical_admin',
-  supervisor: 'supervisor',
-  worker: 'practitioner',
-};
 export const INVITE_ROLE_LABELS: Record<InviteStoredRole, string> = {
   institution_admin: '기관 관리자',
   institution_technical_admin: '기관 기술 관리자',
@@ -38,8 +30,6 @@ export interface StaffInvite {
   revokedAt: string | null;
 }
 
-export interface StaffInvitePublicInfo { orgName: string | null; roles: InviteStoredRole[]; expiresAt: string }
-export interface StaffInviteAccepted { userId: string; email: string; roleWaiting: boolean }
 export type RequestLinkInfo =
   | { status: 'issued'; programId: string; programType: string; orgName: string | null; expiresAt: string }
   | { status: 'used'; counselorName: string | null; message: string };
@@ -63,7 +53,7 @@ function decodeInvite(value: unknown): StaffInvite {
   };
 }
 
-/** 관리자 화면이 쓰는 초대 발급과 취소. 토큰 원문은 발급 응답에 한 번만 실린다. */
+/** 기존 실무자 초대 관리와 당사자 요청 링크 발급. */
 export class InvitesApi {
   constructor(private readonly transport: BusinessTransport) {}
 
@@ -73,15 +63,6 @@ export class InvitesApi {
     return row.invites.map(decodeInvite);
   }
 
-  async create(email: string, roles: InviteStoredRole[]): Promise<{ invite: StaffInvite; token: string }> {
-    const trimmed = email.trim();
-    if (trimmed === '' || trimmed.length > 320 || !trimmed.includes('@')) {
-      throw new BusinessError('invalid_request', 400);
-    }
-    const row = record(await this.transport.request('/staff-invites', 'POST', { email: trimmed, roles }));
-    if (typeof row.token !== 'string' || row.token === '') throw new BusinessError('invalid_response');
-    return { invite: decodeInvite(row.invite), token: row.token };
-  }
 
   async revoke(inviteId: string): Promise<StaffInvite> {
     if (!isOpaqueIdentifier(inviteId)) throw new BusinessError('invalid_request', 400);
@@ -116,25 +97,6 @@ export class InvitesApi {
 export class PublicJoinApi {
   constructor(private readonly transport: PublicTransport) {}
 
-  async staffInvite(token: string): Promise<StaffInvitePublicInfo> {
-    const row = record(await this.transport.request(`/staff-invites/token/${encodeURIComponent(token)}`));
-    if (!isNullableString(row.orgName) || !Array.isArray(row.roles) || !row.roles.every(isStoredRole)
-      || typeof row.expiresAt !== 'string') throw new BusinessError('invalid_response');
-    return { orgName: row.orgName, roles: row.roles as InviteStoredRole[], expiresAt: row.expiresAt };
-  }
-
-  async acceptStaffInvite(
-    token: string, input: { name: string; email: string }, accessToken?: string,
-  ): Promise<StaffInviteAccepted> {
-    const row = record(await this.transport.request(
-      `/staff-invites/token/${encodeURIComponent(token)}/accept`, 'POST',
-      { name: input.name.trim(), email: input.email.trim() }, accessToken,
-    ));
-    if (typeof row.userId !== 'string' || typeof row.email !== 'string' || typeof row.roleWaiting !== 'boolean') {
-      throw new BusinessError('invalid_response');
-    }
-    return { userId: row.userId, email: row.email, roleWaiting: row.roleWaiting };
-  }
 
   async requestLink(token: string): Promise<RequestLinkInfo> {
     const row = record(await this.transport.request(`/invites/participant/${encodeURIComponent(token)}`));

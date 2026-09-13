@@ -126,8 +126,6 @@ export class BusinessTransport {
  * 경로만 허용한다. 업무 API 는 이 전송기로 부르지 않는다.
  */
 const PUBLIC_PATHS: readonly RegExp[] = [
-  /^\/staff-invites\/token\/[A-Za-z0-9_-]{1,300}$/u,
-  /^\/staff-invites\/token\/[A-Za-z0-9_-]{1,300}\/accept$/u,
   /^\/invites\/participant\/[A-Za-z0-9_-]{1,300}$/u,
   /^\/invites\/participant\/[A-Za-z0-9_-]{1,300}\/consent\/disclosures$/u,
   /^\/signup\/participant$/u,
@@ -139,8 +137,7 @@ export class PublicTransport {
     private readonly fetcher: typeof fetch = globalThis.fetch.bind(globalThis),
   ) {}
 
-  /** `token` 은 방금 만든 자기 계정의 접근 토큰이다. 인자로만 받고 보관하지 않는다(D90). */
-  async request(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown, token?: string): Promise<unknown> {
+  async request(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<unknown> {
     assertInstallationCurrent(this.installation);
     if (!PUBLIC_PATHS.some((pattern) => pattern.test(path))) throw new BusinessError('invalid_api_path');
     const target = `${this.installation.apiBase.replace(/\/$/, '')}${path}`;
@@ -151,7 +148,6 @@ export class PublicTransport {
         headers: {
           Accept: 'application/json',
           ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-          ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
