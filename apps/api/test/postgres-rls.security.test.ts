@@ -108,10 +108,8 @@ beforeAll(async () => {
     }));
     if (actor === actorA) caseA = created;
     else caseB = created;
-    const session = await createCounselingRecord(env, actor, created.supportCaseId, {
-      submissionId: crypto.randomUUID(), heldAt: '2026-09-08T00:00:00.000Z',
-      channel: 'in_person', memo: 'Synthetic RLS fixture', gasScores: [], actionItems: [], flags: [],
-    });
+    const session = await createCounselingRecord(env, actor, created.supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-09-08T00:00:00.000Z',
+    channel: 'in_person', memo: 'Synthetic RLS fixture', gasScores: [], actionItems: [], flags: [], });
     await admin.prepare(`INSERT INTO ner_release_qualification_receipts
       (id,org_id,model_id,model_revision,label_set_hash,corpus_hash,result_hash,validated_at,expires_at,status,created_at)
       VALUES (?,?,'synthetic','v1',?,?,?,'2026-09-08T00:00:00.000Z','2027-09-08T00:00:00.000Z','passed','2026-09-08T00:00:00.000Z')`)

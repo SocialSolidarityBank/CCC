@@ -24,6 +24,7 @@ import {
 } from './support/d1';
 import { registrationInput } from './support/registration';
 import { seedLegacyIntake } from './support/intake';
+import { seedLegacyManualRecord } from './support/manual-record';
 import { intakeInput, intakeQuestionnaire } from './support/intake';
 import { createIntakeRecord } from '@ccc/core/gateway';
 
@@ -170,42 +171,33 @@ describe('GET /support-cases/:id/report', () => {
     const beneficiaryAction = openActions.find((item) => item.description === '당사자 임대차 서류 준비');
     if (beneficiaryAction === undefined) throw new Error('missing beneficiary action fixture');
 
-    const third = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
-      submissionId: '10000000-0000-4000-8000-000000000003',
-      heldAt: '2026-07-03T09:00:00.000Z',
-      channel: 'video',
-      memo: '셋째 회차 수기 요약',
-      gasScores: [],
-      actionItems: [{ description: '실무자 후속 전화', owner: 'counselor' }],
-      flags: [{ flagType: 'housing_livelihood_shock', quote: '퇴거 통지를 받았다고 확인함' }],
-      actionItemResolutions: [{
-        actionItemId: beneficiaryAction.id,
-        status: 'hold',
-        note: '임대차 계약서 도착 대기',
-      }],
-      lifeAreas: [
-        { areaKey: 'economy', changed: true, status: 'strained', note: '이번 달 수입이 감소했습니다' },
-        { areaKey: 'housing', changed: false },
-        { areaKey: 'employment', changed: false },
-        { areaKey: 'health', changed: false },
-        { areaKey: 'mental_health', changed: false },
-        { areaKey: 'family', changed: false },
-      ],
-      details: {
-        sessionGoalNote: '주거 지원 신청 방향을 확인한다',
-        changeSinceLast: '임대인에게 퇴거 통지를 받았습니다',
-        safetyNote: '오늘 머물 곳은 확보했습니다',
-      },
-    });
-    const second = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
-      submissionId: '10000000-0000-4000-8000-000000000002',
-      heldAt: '2026-07-02T09:00:00.000Z',
-      channel: 'in_person',
-      memo: '둘째 회차 수기 요약',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-    });
+    const third = await seedLegacyManualRecord(t.env, counselor, created.supportCaseId, { submissionId: '10000000-0000-4000-8000-000000000003',
+    heldAt: '2026-07-03T09:00:00.000Z',
+    channel: 'video',
+    memo: '셋째 회차 수기 요약',
+    gasScores: [],
+    actionItems: [{ description: '실무자 후속 전화', owner: 'counselor' }],
+    flags: [{ flagType: 'housing_livelihood_shock', quote: '퇴거 통지를 받았다고 확인함' }],
+    actionItemResolutions: [{
+      actionItemId: beneficiaryAction.id,
+      status: 'hold',
+      note: '임대차 계약서 도착 대기',
+    }],
+    lifeAreas: [
+      { areaKey: 'economy', status: 'strained', note: '이번 달 수입이 감소했습니다' },
+    ],
+    details: {
+      sessionGoalNote: '주거 지원 신청 방향을 확인한다',
+      changeSinceLast: '임대인에게 퇴거 통지를 받았습니다',
+      safetyNote: '오늘 머물 곳은 확보했습니다',
+    }, });
+    const second = await createCounselingRecord(t.env, counselor, created.supportCaseId, { schemaVersion: 2, submissionId: '10000000-0000-4000-8000-000000000002',
+    heldAt: '2026-07-02T09:00:00.000Z',
+    channel: 'in_person',
+    memo: '둘째 회차 수기 요약',
+    gasScores: [],
+    actionItems: [],
+    flags: [], });
     await setSupportCaseOverallGoal(t.env, counselor, created.supportCaseId, 'MUTABLE_OVERALL_GOAL_CANARY');
 
     const flag = await t.db.prepare('SELECT id FROM flags WHERE session_id = ?')
@@ -489,15 +481,13 @@ describe('GET /support-cases/:id/report', () => {
     t.env.TEXT_AI_PILOT_ENABLED = '1';
     const created = await seedCase();
     await seedCanonicalSttConsent(t.env, counselor, created.supportCaseId);
-    const session = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
-      submissionId: '30000000-0000-4000-8000-000000000001',
-      heldAt: '2026-07-06T09:00:00.000Z',
-      channel: 'in_person',
-      memo: '승인 전에는 이 수기 요약만 보입니다',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-    });
+    const session = await createCounselingRecord(t.env, counselor, created.supportCaseId, { schemaVersion: 2, submissionId: '30000000-0000-4000-8000-000000000001',
+    heldAt: '2026-07-06T09:00:00.000Z',
+    channel: 'in_person',
+    memo: '승인 전에는 이 수기 요약만 보입니다',
+    gasScores: [],
+    actionItems: [],
+    flags: [], });
     const config = await registerAiProviderConfiguration(t.env, admin, {
       adapterId: 'codex',
       adapterVersion: 'v1',

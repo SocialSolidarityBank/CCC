@@ -60,17 +60,15 @@ async function seedTree() {
     scheduledAt: '2026-07-23T01:00:00.000Z',
     sessionGoals: [{ body: '지출 항목 정리', caseGoalId: active.id }],
   });
-  const completed = await createCounselingRecord(t.env, testActors.counselor, owned.supportCaseId, {
-    submissionId: '77777777-7777-4777-8777-777777777777',
-    heldAt: '2026-07-23T01:00:00.000Z',
-    channel: 'in_person',
-    memo: '지출 항목을 정리했다.',
-    gasScores: [],
-    actionItems: [],
-    flags: [],
-    scheduleId: completedSchedule.id,
-    expectedScheduleVersion: completedSchedule.version,
-  });
+  const completed = await createCounselingRecord(t.env, testActors.counselor, owned.supportCaseId, { schemaVersion: 2, submissionId: '77777777-7777-4777-8777-777777777777',
+  heldAt: '2026-07-23T01:00:00.000Z',
+  channel: 'in_person',
+  memo: '지출 항목을 정리했다.',
+  gasScores: [],
+  actionItems: [],
+  flags: [],
+  scheduleId: completedSchedule.id,
+  expectedScheduleVersion: completedSchedule.version, });
 
   return {
     ...owned,

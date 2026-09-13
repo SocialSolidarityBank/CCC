@@ -1,11 +1,10 @@
 import type { MeResponse } from '@ccc/contracts/institution';
 import type { CreateProgramInput, UpdateProgramInput, ProgramOptionsResponse, ProgramMutationResponse, ProgramAdmissionDeniedResponse } from '@ccc/contracts/program-admission';
 import { parseIntakeCreateRequest, parseIntakeUpdateRequest, IntakeContractError, type IntakeMutationResponse } from '@ccc/contracts/intake';
+import { parseCreateManualRecord, ManualRecordContractError } from '@ccc/contracts/manual-record';
 import {
   type IntakeRecordResult,
   type IntakeRecordContext,
-  ACTION_ITEM_RESOLUTION_STATUSES,
-  type ActionItemResolutionStatus,
   AiProviderNotConfiguredError,
   assertSupportCaseAccess,
   listSettingsSupportCaseOptions,
@@ -41,8 +40,6 @@ import {
   ForbiddenError,
   GroundedEvidenceRequiredError,
   FixtureDraftApprovalForbiddenError,
-  LIFE_AREA_KEYS,
-  LIFE_AREA_STATUSES,
   PARTICIPANT_BASIC_INFO_FIELDS,
   NotApprovedError,
   PilotTextAiConsentRequiredError,
@@ -73,7 +70,6 @@ import {
   resolveSessionDiscrepancy,
   listRecordErrorSessionIds,
   acceptSupportCaseAssignment,
-  COUNSELING_RECORD_DETAIL_KEYS,
   cancelCounselingSchedule,
   closeGoal,
   closeSupportCase,
@@ -84,6 +80,7 @@ import {
   issueRegistrationConsentDisclosures,
   createCase,
   createCounselingRecord,
+  getManualRecordContext,
   createActionItem,
   createIntakeRecord,
   updateIntakeRecord,
@@ -602,130 +599,12 @@ function requiredSchemaVersion(body: JsonObject): 1 {
 }
 
 function parseRecordCreation(body: JsonObject) {
-  const hasSchedule = Object.hasOwn(body, 'scheduleId') || Object.hasOwn(body, 'expectedScheduleVersion');
-  const hasResolutions = Object.hasOwn(body, 'actionResolutions');
-  const hasLifeAreas = Object.hasOwn(body, 'lifeAreas');
-  const hasDetails = Object.hasOwn(body, 'details');
-  const allowedKeys = ['submissionId', 'heldAt', 'channel', 'memo', 'gasScores', 'actions', 'flags'];
-  if (hasResolutions) allowedKeys.push('actionResolutions');
-  if (hasLifeAreas) allowedKeys.push('lifeAreas');
-  if (hasDetails) allowedKeys.push('details');
-  if (hasSchedule) allowedKeys.push('scheduleId', 'expectedScheduleVersion');
-  requireOnlyKeys(body, allowedKeys);
-  const channelValue = requiredString(body, 'channel');
-  if (channelValue !== 'in_person' && channelValue !== 'phone' && channelValue !== 'video') {
-    throw new ValidationError('record channel is invalid');
+  try {
+    return parseCreateManualRecord(body);
+  } catch (error) {
+    if (error instanceof ManualRecordContractError) throw new ValidationError(error.message);
+    throw error;
   }
-  const channel: 'in_person' | 'phone' | 'video' = channelValue;
-  const gasScores = objectArray(body.gasScores, 'gasScores').map((score) => {
-    requireOnlyKeys(score, ['goalId', 'score']);
-    const value = score.score;
-    if (!Number.isInteger(value) || (value as number) < -2 || (value as number) > 2) {
-      throw new ValidationError('GAS score is invalid');
-    }
-    return { goalId: requiredUuid(score, 'goalId'), score: value as -2 | -1 | 0 | 1 | 2 };
-  });
-  if (new Set(gasScores.map((score) => score.goalId)).size !== gasScores.length) {
-    throw new ValidationError('GAS score is duplicated');
-  }
-  const actionItems = objectArray(body.actions, 'actions').map((action) => {
-    requireOnlyKeys(action, Object.hasOwn(action, 'dueDate') ? ['description', 'owner', 'dueDate'] : ['description', 'owner']);
-    const ownerValue = requiredString(action, 'owner');
-    if (ownerValue !== 'counselor' && ownerValue !== 'beneficiary' && ownerValue !== 'org') {
-      throw new ValidationError('action owner is invalid');
-    }
-    const owner: 'counselor' | 'beneficiary' | 'org' = ownerValue;
-    const dueDate = action.dueDate;
-    if (dueDate !== undefined && typeof dueDate !== 'string') {
-      throw new ValidationError('dueDate is invalid');
-    }
-    return {
-      description: requiredString(action, 'description'),
-      owner,
-      ...(dueDate === undefined ? {} : { dueDate: canonicalDate(dueDate, 'dueDate') }),
-    };
-  });
-  const flags = objectArray(body.flags, 'flags').map((flag) => {
-    requireOnlyKeys(flag, ['flagType']);
-    const flagType = requiredString(flag, 'flagType');
-    if (!(FLAG_TYPES as readonly string[]).includes(flagType)) {
-      throw new ValidationError('flag type is invalid');
-    }
-    return { flagType: flagType as typeof FLAG_TYPES[number] };
-  });
-  const actionItemResolutions = hasResolutions
-    ? objectArray(body.actionResolutions, 'actionResolutions').map((resolution) => {
-      requireOnlyKeys(resolution, Object.hasOwn(resolution, 'note') ? ['actionItemId', 'status', 'note'] : ['actionItemId', 'status']);
-      const status = requiredString(resolution, 'status');
-      if (!(ACTION_ITEM_RESOLUTION_STATUSES as readonly string[]).includes(status)) {
-        throw new ValidationError('action item resolution status is invalid');
-      }
-      return {
-        actionItemId: requiredUuid(resolution, 'actionItemId'),
-        status: status as ActionItemResolutionStatus,
-        ...(Object.hasOwn(resolution, 'note') ? { note: requiredString(resolution, 'note') } : {}),
-      };
-    })
-    : undefined;
-  const lifeAreas = hasLifeAreas
-    ? objectArray(body.lifeAreas, 'lifeAreas').map((area) => {
-      const changed = area.changed;
-      if (typeof changed !== 'boolean') throw new ValidationError('life area changed is invalid');
-      requireOnlyKeys(
-        area,
-        changed
-          ? (Object.hasOwn(area, 'note') ? ['areaKey', 'changed', 'status', 'note'] : ['areaKey', 'changed', 'status'])
-          : ['areaKey', 'changed'],
-      );
-      const areaKey = requiredString(area, 'areaKey');
-      if (!(LIFE_AREA_KEYS as readonly string[]).includes(areaKey)) {
-        throw new ValidationError('life area key is invalid');
-      }
-      if (!changed) {
-        return { areaKey: areaKey as typeof LIFE_AREA_KEYS[number], changed: false as const };
-      }
-      const status = requiredString(area, 'status');
-      if (!(LIFE_AREA_STATUSES as readonly string[]).includes(status)) {
-        throw new ValidationError('life area status is invalid');
-      }
-      return {
-        areaKey: areaKey as typeof LIFE_AREA_KEYS[number],
-        changed: true as const,
-        status: status as typeof LIFE_AREA_STATUSES[number],
-        ...(Object.hasOwn(area, 'note') ? { note: requiredString(area, 'note') } : {}),
-      };
-    })
-    : undefined;
-  // 서술형 항목(CCC-10): 알려진 키만, 값은 공백 아닌 문자열. 빈 객체는 게이트웨이가 거부한다.
-  const details = hasDetails
-    ? (() => {
-      const raw = asObject(body.details);
-      requireOnlyKeys(raw, COUNSELING_RECORD_DETAIL_KEYS);
-      const parsed: Record<string, string> = {};
-      for (const key of COUNSELING_RECORD_DETAIL_KEYS) {
-        if (Object.hasOwn(raw, key)) parsed[key] = requiredString(raw, key);
-      }
-      return parsed;
-    })()
-    : undefined;
-  return {
-    submissionId: requiredUuid(body, 'submissionId'),
-    heldAt: requiredCanonicalUtc(body, 'heldAt'),
-    channel,
-    memo: requiredString(body, 'memo'),
-    gasScores,
-    actionItems,
-    flags,
-    ...(actionItemResolutions === undefined ? {} : { actionItemResolutions }),
-    ...(lifeAreas === undefined ? {} : { lifeAreas }),
-    ...(details === undefined ? {} : { details }),
-    ...(hasSchedule
-      ? {
-        scheduleId: requiredUuid(body, 'scheduleId'),
-        expectedScheduleVersion: requiredExpectedVersion(body, 'expectedScheduleVersion'),
-      }
-      : {}),
-  };
 }
 
 function requiredBoolean(body: JsonObject, key: string): boolean {
@@ -1257,6 +1136,7 @@ function counselingRecordResponse(record: Awaited<ReturnType<typeof createCounse
     heldAt: record.heldAt,
     channel: record.channel,
     memo: record.memo,
+    manual: record.manual,
   };
 }
 
@@ -1302,6 +1182,7 @@ function counselingRecordDetailsResponse(
     memo: record.memo,
     kind: record.kind,
     createdAt: record.createdAt,
+    manual: record.manual,
     gasScores: record.gasScores.map((score) => ({
       goalId: score.goalId,
       goalTitle: goalTitles.get(score.goalId)!,
@@ -3110,6 +2991,10 @@ export async function handleRequest(
         // 주소의 참여 사업을 함께 넘긴다 — 게이트웨이가 **바꾸기 전에** 소속을 대조한다.
         // 여기서 응답을 받아 놓고 걸러내면 이미 저장·감사가 끝난 뒤라 상태를 바꾼 403 이 된다.
         return json(await resolveSessionDiscrepancy(env, actor, discrepancyId, status, supportCaseId));
+      }
+      if (request.method === 'GET' && parts.length === 4 && parts[2] === 'records' && parts[3] === 'context') {
+        requestQuery(url, []);
+        return json(await getManualRecordContext(env, actor, supportCaseId));
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'records') {
         const query = requestQuery(url, ['official']);
