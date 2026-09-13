@@ -53,10 +53,12 @@ N01 검증 뒤에는 이 범위만 해당 티켓 ID로 커밋한다. 완료 코�
 | 기준 | 실제 의미 | 이번 작업의 처리 |
 |---|---|---|
 | main D89 | Cloud MFA는 선택, `aal1`과 `aal2`를 실제 값대로 기록 | 유지한다. 첫 로그인을 TOTP 등록으로 강제하지 않는다 |
-| main D90 | 일회용 직원 초대 수락과 검증된 Auth `sub`로 계정 결속, `POST /identity/link` 제거 | 유지한다. 이메일 일치만으로 신원을 연결하는 구 경로를 되살리지 않는다 |
+| main D90 | 일회용 직원 초대 수락과 검증된 Auth `sub`로 계정 결속, `POST /identity/link` 제거. 2026-09-14 Q 부분 개정은 Community Cloud의 `disable_signup=true`를 유지하고 신규 직원 계정을 권한 있는 Auth 초대와 `/auth/invite`로만 만든다 | `subject`가 없거나 Auth email claim이 초대 이메일과 다르면 사용자 생성, 역할 부여와 초대 소비를 모두 거부한다. 당사자 `public_signup` 정책은 바꾸지 않는다 |
 | main S11 후속 개정 | `api_credential`, StorageSigner의 온라인 권한 확인, 현행 scheduler 자격과 route, 최초 관리자 연결의 현재 동작 | 현재 구현과 함께 읽는다. 오래된 S11 전체로 덮어쓰지 않는다 |
 | 오케스트레이터 ADR-0048 | 독립 Cloud 실행과 최초 관리자 초대. 그 브랜치에서는 D89라고 부른다 | 필요한 온보딩 요구는 ADR-0050에 반영했다. 구 D번호나 MFA 강제 문장을 복사하지 않는다 |
 | 오케스트레이터 ADR-0049 | 카드 계약과 AI 모듈 기준. 그 브랜치에서는 D90이라고 부른다 | 다른 베타 작업이다. 온보딩에서 적용하거나 번호를 고치지 않는다 |
+
+2026-09-14 부분 개정은 정책과 구현 계약만 승인했다. 실제 Auth 설정 변경, 시크릿 저장이나 주입, 초대 발송과 배포는 승인하지 않았다. `/auth/invite`는 installed `@supabase/auth-js@2.116.0`의 implicit session 입력을 좁혀 success key `access_token`, `refresh_token`, `expires_in`, 선택적인 `expires_at`, `token_type`, `type`과 error key `error`, `error_code`, `error_description`만 받는다. `token_type=bearer`, `type=invite`를 요구하며 두 집합의 혼합, unknown key, provider token, PKCE와 OTP 전용 key를 거부한다. N03은 In Review이고 N04 구현과 WORKER `/new`는 보류한다.
 
 조사 시점 오케스트레이터의 정확한 commit은 `01e68d70fa7f6e6afe6984edab1bb4f9d3aeda7c`다. 필요하면 작업 폴더를 바꾸지 않고 Git object로 근거만 읽는다.
 
@@ -102,7 +104,7 @@ N01의 단계 안내와 승인 결합은 이미 구현돼 있다. 검증은 이 
 ## 아직 없는 것을 있다고 보고하지 않는다
 
 - `relayer`라는 공개 실행 파일은 아직 없다. 개발 진입점 `node scripts/onboarding/cli.mjs`는 사용 방식 선택, 계획 안내, 고정 도움, 취소와 종료를 제공한다.
-- 기존 Cloud `plan/apply/doctor`와 journal은 재사용 기반이다. N01의 결과 변환 함수는 공개 안내만 만들며 실제 실행기에는 아직 연결되지 않았다. 신규 자원 생성과 자동 첫 관리자 초대가 구현된 것은 아니다.
+- N02의 신규 Cloud 생성과 설치, N03의 최초 관리자 초대 상태 기계와 결속 도구는 구현됐다. N03은 signed client의 `/auth/invite` 실화면, 직원 초대 전용 정책 구현과 실제 비민감 초대 검증이 남아 In Review다. 이 상태를 전체 온보딩 완료나 실제 초대 발송으로 보고하지 않는다.
 - 현재 연결 상태 화면은 조회 중심이고 AI/STT 설치 정책 writer가 필요하다. 키 입력만으로 활성화되지 않는다.
 - 현재 클라이언트는 Local Single과 Office를 명시적으로 거부한다. local-service와 서명 설치물은 E7/E8 선행 작업을 받아야 한다. 거부만 지우거나 로컬 Supabase를 대신 설치하지 않는다.
 - 현재 rollback은 전제가 없으면 거부한다. 실증되지 않은 자동 복원이나 외부 자원 정리 성공을 약속하지 않는다.
@@ -111,6 +113,8 @@ N01의 단계 안내와 승인 결합은 이미 구현돼 있다. 검증은 이 
 ## 자원과 세션 인계
 
 읽기 전용 선행 점검에서 생성 전 추가 워크트리가 전체 21개였고 권고 상한 4개를 넘었다. Q가 `폴더만 하나 추가`를 명시적으로 선택했다. 당시 여유 메모리는 44%였다. 점검 스크립트는 Claude만 세므로 출력된 세션 0개는 실제 전체 세션 수가 아니다. 별도 executable 관찰에서는 OMP 7개와 Codex 6개가 보였으며 앱 내부 세션까지 센 숫자는 아니다.
+
+이 문서의 `WORKER`는 티켓 하나를 구현하는 pane 역할이고 `ORCHESTRATOR`는 다음 입력, 승인 경계와 세션 전환을 관리하는 pane 역할이다. 두 이름은 경로와 pane 번호가 아니라 화면에 표시하는 역할 이름이다.
 
 이 레인은 기존 두 Herdr pane을 사용한다. 하나는 티켓별 구현을 맡고, 다른 하나는 다음 입력을 보관하는 오케스트레이터다. 같은 작업 폴더의 작성자는 한 명만 둔다. 다른 워크트리와 세션을 정리하거나 새 프로세스를 계속 늘리지 않는다.
 

@@ -243,7 +243,13 @@ node --test --test-name-pattern=N02 scripts/supabase/bootstrap.test.mjs
 
 수신자 수락과 첫 로그인은 같은 표시된 Auth subject의 `confirmed_at`과 `last_sign_in_at`으로 따로 기록한다. 수락 전 만료만 거부하며, 수락 뒤에는 첫 로그인을 기다린다. 두 사실이 확인된 뒤 provider가 인증한 관리자 응답의 subject를 기존 `linkFirstAdmin`에 전달한다. 연결 커밋 뒤 응답을 잃으면 같은 영수증을 재조회한다. 실제 업무 로그인은 서명된 JWT subject와 `users.auth_subject`를 다시 대조한다. D89대로 추가 인증을 등록하지 않은 세션의 `aal1`을 허용하고 D90 직원 초대 흐름과 제거된 `POST /identity/link`는 바꾸지 않는다.
 
-실제 초대 전에 frontend 소유의 `<clientOrigin>/auth/invite`가 invitation fragment를 메모리에서 처리하고 주소를 지우며 비밀번호 설정을 완료하는지 별도 실화면 검증해야 한다. 또한 첫 관리자 대기 중 필요한 `disable_signup=true`와, Supabase `signUp`을 쓰는 현행 D90 직원 초대의 후속 계정 생성을 함께 만족할 승인된 정책 인계가 필요하다. 이 두 경로 중 하나라도 없으면 N03의 실제 이메일, 첫 로그인, 기관 설정 진입과 이후 직원 초대를 완료할 수 없으므로 초대를 보내지 않는다.
+2026-09-14 Q 부분 개정으로 post-link Auth 정책은 다음처럼 확정됐다. Community Cloud는 `disable_signup=true`를 유지하고 신규 직원 Auth 계정도 권한 있는 Auth 초대와 signed client의 `/auth/invite`로만 만든다. 직원 초대 수락은 검증된 Auth `subject`와 Auth email claim이 초대 이메일과 일치할 때만 실행한다. `subject`가 없거나 이메일이 다르면 사용자 행 생성, 역할 부여와 초대 소비를 모두 하지 않는다. `POST /identity/link`를 복원하거나 업무 API에 관리자 자격을 두지 않는다. 당사자 `public_signup` 정책은 바꾸지 않는다.
+
+`/auth/invite`의 success fragment key는 `access_token`, `refresh_token`, `expires_in`, 선택적인 `expires_at`, `token_type`, `type`으로 닫는다. `token_type=bearer`, `type=invite`만 허용한다. provider error fragment는 `error`, `error_code`, `error_description`만 받는다. success와 error key의 혼합, unknown key, `provider_token`, `provider_refresh_token`, `code`, `sb_flow_id`, `token_hash`는 거부한다. fragment는 렌더 전에 메모리로 옮기고 `history.replaceState`로 주소에서 지운다. token, email과 password는 브라우저 저장소, URL, history, referrer, 로그, 분석 도구와 오류 객체에 남기지 않는다.
+
+현재 `apps/client`에는 `/auth/invite` route가 없고 직원 가입 화면은 Supabase `signUp`을 호출한다. HTTP accept와 gateway는 `subject`가 없거나 이메일이 달라도 결속되지 않은 사용자 행을 만들고 초대를 소비할 수 있다. `/auth/invite` callback, 메모리 세션과 비밀번호 설정 및 subject/email 전부 거부는 N03 완료 조건이며 N04 범위가 아니다. 총괄은 다음 배치에서 FRONTEND, BACKEND와 설치 작성자의 단일 슬롯을 정한다. N03은 N02 doctor가 `productionReady=true`인 설치만 소비하며 `RUNTIME_NOT_READY` 영수증은 완료된 설치로 보지 않는다. 첫 관리자 이후 직원 발급 trigger, CCC 초대와 Auth 초대의 결합 표식, 두 TTL의 정렬과 미결속 Auth 사용자 정리는 해당 슬롯에서 확정한다. 설치 작성자는 업무 API가 아니라 기존 PC 설치 및 관리 경계의 Auth 초대 발급을 우선 검토한다. 새 서비스나 관리자 권한을 만들지 않고 N04에 의존시켜 순환시키지 않는다.
+
+이 승인은 정책과 구현 계약만 확정한다. 실제 Auth 설정 변경, 시크릿 저장이나 주입, 초대 발송과 배포는 별도 승인 대상이다. N03은 `/auth/invite` 실화면, 실제 비민감 초대, 같은 subject 결속, `aal1` 첫 로그인과 기관 초기 설정 진입을 검증할 때까지 In Review다. N03이 완료되기 전에는 직접 선행 관계를 가진 N04를 구현하거나 WORKER를 초기화하지 않는다.
 
 검사는 다음 범위다.
 

@@ -135,7 +135,7 @@ Local Office도 별도 온보딩 엔진을 만들지 않고 같은 진행 규칙
 
 코드는 `origin/main@ad218e8eafa646a524674fe4ef8cf9c20c0b68bb`에서 읽었다. 실제 설치, 외부 계정, 비용 발생 호출과 UI 시나리오는 실행하지 않았다.
 
-- `scripts/supabase/bootstrap.mjs`: 기존 plan/apply/doctor, 기관 생성과 최초 관리자 연결을 재사용할 수 있다. 최초 관리자 초대의 발송 경로는 현재의 기존 인증 사용자 연결과 다르므로 추가 구현이 필요하다. 현재 rollback 분기는 전제가 없으면 거부하므로 자동 복구가 완성됐다고 가정하지 않는다.
+- `scripts/supabase/bootstrap.mjs`: 기존 plan/apply/doctor, 기관 생성과 최초 관리자 연결을 재사용한다. `scripts/onboarding/first-admin.mjs`가 최초 관리자 Auth 초대 발송과 관찰을 구현했지만, signed client의 `/auth/invite` 실화면과 2026-09-14 직원 초대 전용 정책의 구현 및 별도 실행 승인 전에는 실제 초대를 보낼 수 없다. 현재 rollback 분기는 전제가 없으면 거부하므로 자동 복구가 완성됐다고 가정하지 않는다.
 - `apps/client/src/screens/institution.tsx`와 `business/institution.ts`: 기관 준비 상태, 초기 설정과 사업 도입 확인의 기반이다.
 - `apps/client/src/screens/settings.tsx:441-457`: 현재 연결 상태는 조회 중심이다. 안전한 비밀값 공급, 검사와 변경 실행 흐름을 추가해야 한다.
 - `apps/client/src/business/installation.ts:66-67`: 현재 클라이언트는 Local Single과 Local Office를 거부한다. 온보딩 문안만 바꿔서는 Local 설치가 완주되지 않는다.
@@ -160,7 +160,19 @@ Local Office도 별도 온보딩 엔진을 만들지 않고 같은 진행 규칙
 
 ### 첫 관리자와 자유 입력
 
-첫 관리자 초대는 지정된 이메일 하나, 해당 설치와 검증된 Auth 신원에 결합한다. 실패나 중단 뒤 이미 생성되거나 수락된 초대를 확인하지 않고 다시 만들지 않는다. 공급자의 원문 오류나 링크를 보고서에 남기지 않는다. 기존 직원 초대와 최초 설치의 계정 연결은 주체가 다르므로 D90과 설치 권한 경계를 각각 검증한다.
+첫 관리자 초대는 지정된 이메일 하나, 해당 설치와 검증된 Auth 신원에 결합한다. 실패나 중단 뒤 이미 생성되거나 수락된 초대를 확인하지 않고 다시 만들지 않는다. 공급자의 원문 오류나 링크를 보고서에 남기지 않는다. 2026-09-14 Q 부분 개정에 따라 이후 직원도 `disable_signup=true`를 유지한 권한 있는 Auth 초대로 계정을 만들며, 검증된 `subject`와 초대 이메일이 일치하지 않으면 사용자 생성, 역할 부여와 초대 소비를 모두 거부한다.
+
+#### 2026-09-14 직원 Auth 초대 callback
+
+`/auth/invite`는 업무 셸과 분리된 공개 route지만 signed manifest의 exact client origin과 Supabase Auth origin만 신뢰한다. 앱은 렌더 전에 fragment를 메모리로 옮기고 `history.replaceState`로 주소에서 지운다. 성공 fragment의 닫힌 key는 `access_token`, `refresh_token`, `expires_in`, 선택적인 `expires_at`, `token_type`, `type`이다. `token_type=bearer`, `type=invite`를 요구한다. 오류 fragment는 `error`, `error_code`, `error_description`만 받는다. 두 집합의 혼합, unknown key, `provider_token`, `provider_refresh_token`, `code`, `sb_flow_id`, `token_hash`는 거부한다.
+
+초대 세션은 `persistSession=false`, `detectSessionInUrl=false`인 기존 Auth 객체의 메모리에만 둔다. 다른 사용자의 기존 세션과 합치지 않으며, 초대 세션에서 사용자가 입력한 비밀번호를 설정한 뒤 지역 참조를 지운다. email과 password를 권한 근거로 저장하지 않는다. `invite_missing`은 fragment가 없는 상태, `invite_invalid`는 key 집합, `token_type`, `type` 또는 token 형식이 계약과 다른 상태다. `invite_expired`는 공급자가 `otp_expired`, `invite_not_found` 또는 `session_expired`로 거부한 상태다. `invite_session_conflict`는 현재 메모리 세션의 subject가 초대 subject와 다른 상태다. `password_rejected`는 공급자가 비밀번호를 거부한 상태, `provider_unavailable`은 제한 시간 안에 안전한 공급자 응답을 확인하지 못한 상태다. 여섯 상태에서는 업무 진입과 결속이 일어나지 않는다.
+
+실제 초대 전에 해당 Supabase 프로젝트의 email template이 위 implicit success fragment를 만드는지 확인해야 한다. 설치된 SDK가 지원하는 `token_hash`와 `verifyOtp` 방식은 이 계약의 자동 fallback이 아니다. template이 다른 방식을 쓰면 초대를 보내지 않고 Q의 계약 개정을 기다린다.
+
+실화면 검수는 hash가 첫 화면 전에 사라지고 뒤로가기로 복원되지 않는지, localStorage, sessionStorage, IndexedDB, CacheStorage, console, analytics, network URL, referrer와 history에 bearer, refresh token, invitation token, email과 password가 없는지 확인한다. 비밀번호 설정 뒤 같은 provider subject의 수락과 첫 sign-in을 관찰하고, operator `resume`이 같은 subject를 결속한 다음 새 비밀번호의 `aal1` 업무 로그인과 기관 초기 설정 진입을 확인해야 한다.
+
+Auth 초대 발급은 업무 API가 아니라 기존 PC 설치 및 관리 경계를 우선한다. 첫 관리자 이후 직원 발급의 trigger, CCC 직원 초대와 Auth 초대를 묶는 비공개 표식, TTL 정렬과 미결속 Auth 사용자 정리는 아직 작성 슬롯과 세부 계약이 필요하다. 이 설계는 새 서비스나 권한을 승인하지 않으며 N04를 N03의 선행으로 만들지 않는다.
 
 설정 도우미의 외부 입력은 허용된 상태 필드와 안전 처리가 끝난 질문으로 제한한다. 전체 환경변수나 로그를 보내고 모델에게 비밀값을 지워 달라고 하지 않는다. 자유 질문의 안전 처리 경로가 없거나 실패했으면 원문 전송은 0건이고 고정 안내를 계속 제공한다. 전송 허용 필드와 거부 코드의 정확한 형식은 실행 계획 N05에서 생산자와 소비자가 함께 고정한 뒤 외부 호출을 구현한다.
 
