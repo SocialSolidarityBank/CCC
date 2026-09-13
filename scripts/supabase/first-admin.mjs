@@ -50,7 +50,15 @@ const DIRECTORY_QUERY = `SELECT
     JOIN users AS holder ON holder.id = held.user_id AND holder.org_id = held.org_id
     WHERE held.org_id = $1 AND held.role = 'institution_admin' AND held.revoked_at IS NULL) AS admin_exists,
   EXISTS (SELECT 1 FROM users WHERE auth_subject = $2) AS subject_taken,
-  EXISTS (SELECT 1 FROM users WHERE email = $3) AS email_taken`;
+  EXISTS (SELECT 1 FROM users WHERE lower(btrim(email)) = lower(btrim($3))) AS email_taken`;
+const INSPECTION_QUERY = `SELECT
+  (SELECT count(*)::integer FROM audit_log AS receipt
+    WHERE receipt.org_id = $1 AND receipt.actor_id = $2 AND receipt.actor_role = 'service'
+      AND receipt.action = '${FIRST_ADMIN_ACTION}' AND receipt.target_table = 'users') AS receipt_count,
+  EXISTS (SELECT 1 FROM user_role_assignments AS held
+    JOIN users AS holder ON holder.id = held.user_id AND holder.org_id = held.org_id
+    WHERE held.org_id = $1 AND held.role = 'institution_admin' AND held.revoked_at IS NULL) AS admin_exists,
+  EXISTS (SELECT 1 FROM users WHERE lower(btrim(email)) = lower(btrim($3))) AS email_taken`;
 
 export function firstAdminActorId(orgId) {
   return `install:first-admin:${orgId}`;
@@ -100,6 +108,33 @@ function report(userId, identity) {
     emailSha256: sha256Hex(identity.email),
     authSubjectSha256: sha256Hex(identity.authSubject),
   };
+}
+
+/** 초대 전에 기존 최초 관리자와 같은 이메일만 읽는다. 설치 잠금 안에서 호출한다. */
+export async function inspectFirstAdmin(session, input) {
+  if (typeof session?.unsafe !== 'function') throw new PlanFailure('PROVIDER_UNREADABLE');
+  const orgId = typeof input?.orgId === 'string' ? input.orgId.trim() : '';
+  const email = typeof input?.email === 'string' ? input.email.trim().toLowerCase() : '';
+  if (!ORG_ID.test(orgId)) throw new PlanFailure('OWNER_EVIDENCE_MISSING');
+  if (email.length > 254 || !EMAIL.test(email)) throw new PlanFailure('OPERATION_UNSUPPORTED');
+  await session.unsafe('BEGIN');
+  try {
+    for (const statement of LIFT_GUARDS) await session.unsafe(statement);
+    const [state] = await session.unsafe(
+      INSPECTION_QUERY,
+      [orgId, firstAdminActorId(orgId), email],
+    );
+    if (!Number.isSafeInteger(state?.receipt_count)
+      || typeof state?.admin_exists !== 'boolean' || typeof state?.email_taken !== 'boolean') {
+      throw new PlanFailure('PROVIDER_UNREADABLE');
+    }
+    await session.unsafe('ROLLBACK');
+    if (state.receipt_count > 0 || state.admin_exists) return { state: 'linked' };
+    return { state: state.email_taken ? 'email-taken' : 'empty' };
+  } catch (error) {
+    await session.unsafe('ROLLBACK').catch(() => {});
+    throw error;
+  }
 }
 
 /**

@@ -110,61 +110,86 @@ The provider steps never enable a database extension. `cron.schedule`, `net.http
 
 ### Institution
 
-ADR-0044 D86 fixes the order: install creates the institution, and the first login only performs its initial setup (institution name, first program). The setup screen itself calls `GET /capabilities` first, and that call answers `409 admission_required` while `program_admission_policies` has no row for the institution. The only business writer of that row is `createOrganizationSettings`, which has no HTTP route, so this command is the only path from a completed installation to an institution a first login can set up.
+ADR-0050 keeps the D86 rule that installation creates the institution and the first business login performs only initial setup. N03 now owns the normal operator sequence: after both first-admin approvals and before invitation submission, `scripts/onboarding/first-admin.mjs invite` calls the existing `createInstitution` helper under the signed owner preflight and install lock. Do not run a separate manual institution command during the normal flow.
 
-The full order is `apply` -> `create-institution` -> `link-first-admin` -> first login with TOTP enrollment -> the onboarding screen. The two post-install commands are independent: `link-first-admin` does not require `create-institution` and `create-institution` does not require a linked administrator, so an installation that already linked an administrator can still run this command afterwards. Only the first login needs both, because it authenticates as the linked administrator and its first call reads the admission policy.
+The helper writes one `organization_settings` row with the Seoul and 365-day defaults, one `program_admission_policies` row with `stt_mode=off` and `llm_mode=off`, and one service audit receipt in a transaction. If both rows already exist, it returns their stored values without writing. N03 proceeds only when those stored AI modes are still `off`. If exactly one row exists, it returns `INSTITUTION_STATE_INCONSISTENT` and changes nothing.
 
-```sh
-sh apps/community-cloud/with-ca.sh node scripts/supabase/bootstrap.mjs create-institution \
-  --target hosted \
-  --time-zone Asia/Seoul \
-  --pii-purge-grace-days 365
-```
+The setup screen can therefore read an admission-policy row on the first business login. The institution name and first program remain unset until that signed-in administrator completes institution setup. A longer retention period, another time zone, AI activation or STT activation is not part of N03.
 
-Both flags are optional and default to exactly those values: D32's one-year PII purge grace period and the institution time zone Seoul. The time zone is validated with `Intl.DateTimeFormat` like `createOrganizationSettings` and must be `UTC` or an IANA region/city name; the grace period must be an integer between 1 and 3660 days. A value above `RETENTION_POLICY_MAX_DAYS` (1826) stays storable but makes the institution's readiness report `retentionPolicyStatus: review_required`, so a longer period is a deliberate decision, not a default. The inputs are the same as `doctor`: signed manifest, signed approval, institution identifier, signing keys, development beta trust, provider baseline and `SUPABASE_ACCESS_TOKEN`; the write additionally needs `CCC_INSTALL_DATABASE_URL`. Owner verification and the read-only plan run first, and a project whose installation state is not `installed` stops with `INSTITUTION_NOT_INSTALLED`.
-
-The write is one transaction inside the install lock. It records one `organization_settings` row (`version 1`, time zone, grace period), one `program_admission_policies` row (`version 1`, `stt_mode 'off'`, `llm_mode 'off'` as D77's install defaults) and one `audit_log` receipt (`actor_id = "install:institution:" + orgId`, `actor_role 'service'`, `action 'create'`, `target_table 'organization_settings'`, `target_id = orgId`). Enabling STT or LLM later is a business decision, not part of installation. Re-running when both rows exist reads the stored values, returns them and writes nothing. If only one of the two rows exists, the half state is never overwritten: the command stops with `INSTITUTION_STATE_INCONSISTENT` and writes nothing, and that institution has to be repaired deliberately.
-
-The output is a single JSON report carrying only `operation`, `ready`, `orgIdSha256`, `timeZone`, `piiPurgeGraceDays`, `sttMode` and `llmMode`. The institution identifier itself is never printed.
-
-The PostgreSQL scenarios for this command are `scripts/supabase/institution.test.mjs`. They require an explicitly injected `CCC_INSTITUTION_TEST_DATABASE_URL` pointing at an empty loopback **disposable** database with a test/fixture/disposable name; missing configuration fails rather than skipping. Never supply an installation or production URL.
-
-```sh
-docker run --rm -d --name s12-institution-pg -e POSTGRES_PASSWORD=synthetic-test-only \
-  -e POSTGRES_DB=ccc_institution_test -p 127.0.0.1:55436:5432 postgres:17
-CCC_INSTITUTION_TEST_DATABASE_URL='postgres://postgres:synthetic-test-only@127.0.0.1:55436/ccc_institution_test' \
-  node --test scripts/supabase/institution.test.mjs
-docker rm -f s12-institution-pg
-```
+`scripts/supabase/institution.test.mjs` retains the helper's PostgreSQL transaction, RLS, defaults, idempotency and half-state coverage. It requires an explicitly injected empty loopback disposable database and must never receive an installation or production URL.
 
 ### First administrator
 
-ADR-0044 D86 fixes the order: install creates the institution, and the first login is the institution's initial setup. No browser form creates the first administrator, so this command is the only path from a completed installation to a usable institution administrator.
+ADR-0050 replaces manual Auth UUID copying with `scripts/onboarding/first-admin.mjs`. The installer sends one Supabase Auth invitation to the approved email, observes that same invitation account, and passes its provider-owned subject to the existing `linkFirstAdmin` transaction. The installer never creates or receives a password.
 
-The prerequisite is a Supabase Auth user. Create that account first in the Supabase dashboard or through the Auth Admin API and complete its email confirmation. This command never creates an Auth account and never handles a password, whether the operator used an invitation mail or a temporary password. Once the account exists, read its opaque Auth user uuid and link it to the directory with the command below. After linking, that person signs in and enrolls TOTP themselves; sign-in only holds at aal2, so no business screen opens before the enrollment.
+Start only from the completed N02 installation and its existing request, journals, signed S11 pair and approved secret-injection path. This stage does not create another Supabase project or ACA app.
+
+**Pre-live gate:** do not run `invite` until the frontend owner has deployed and verified the signed client route `<clientOrigin>/auth/invite`. That route must consume the Supabase invitation fragment in memory, remove it from the address before rendering, establish the first Auth session, let the recipient set a password, and retain no bearer, refresh token, invitation token or email in browser storage, logs, analytics or history. The owner sign-off must name the non-secret release or commit identifier and confirm those real-surface checks without copying the callback URL, fragment, email or credentials. The onboarding worktree does not own `apps/client`; the current source has no such route. `plan` and the provider-free tests below remain safe to run.
+
+The same live gate also requires an approved post-link Auth policy handoff. N03 must keep `disable_signup=true` while its invitation is pending, but the current D90 staff screen calls Supabase `signUp` and therefore cannot create later staff accounts while signup remains disabled. This tool does not change that policy after binding. Choose and implement the signed provider-baseline transition or a revised D90 Auth invitation path before treating the installation as a complete onboarding flow.
+
+The tool consumes these inputs:
+
+| Input | Contract |
+|---|---|
+| `CCC_ONBOARDING_REQUEST` | The exact N02 request JSON. Do not mint a new request ID. |
+| `CCC_ONBOARDING_JOURNAL` | The existing N02 journal path inside its owner-only directory. |
+| `CCC_ONBOARDING_INSTALLATION` | The N02 project ref and optional signed manifest, approval and release manifest path. |
+| `CCC_ONBOARDING_FIRST_ADMIN` | JSON with one `email` and optional `name`, supplied through the approved secret injection path. |
+| S11 installer inputs | `CCC_ORGANIZATION_ID`, signing and beta trust, provider baseline, release trust, `SUPABASE_ACCESS_TOKEN`, installer DB connection and Supabase service-role credential. Use the same N02 values and map N02-specific names only inside this process. |
+
+Do not put the email, invitation link, token, password, URL or credential in argv, output, receipts, reports or Linear. The optional name is sent only to `linkFirstAdmin`; the Auth invitation receives the email and a private random correlation marker.
+
+#### Operator and recipient sequence
+
+1. `plan` is an optional standalone preflight. It prints a hash-only credential-use summary, asks for `이대로 확인`, then reads the signed installation, current Auth invitation policy and existing first administrator. It performs no provider write.
+2. `invite` repeats that inspection approval. It then prints the N01 stage binding and asks separately for `이대로 초대`. Only this second approval permits institution-default creation and one invitation request.
+3. Stop after `status=invited`. The provider accepted and recorded the invitation; delivery to the mailbox is not proven.
+4. The recipient opens the email and completes the verified `<clientOrigin>/auth/invite` flow. That callback establishes the first Auth session and lets the recipient set a password. The recipient handles the password, and MFA enrollment remains optional.
+5. Run `resume` after the callback finishes. An early `resume` returns pending and exits; run it again after the first Auth session exists. It records provider confirmation as `status=accepted`, records first sign-in separately, and idempotently links both facts for the same marked subject.
+6. After `status=bound`, the recipient signs in to the business client with the new password. That request verifies the signed JWT subject against `users.auth_subject`; an `aal1` session is sufficient when no additional factor is registered. The first screen is institution setup, not a workspace-creation screen.
 
 ```sh
-sh apps/community-cloud/with-ca.sh node scripts/supabase/bootstrap.mjs link-first-admin \
-  --target hosted \
-  --auth-subject 00000000-0000-0000-0000-000000000000 \
-  --email admin@example.org \
-  --name 'Institution administrator'
+sh apps/community-cloud/with-ca.sh node scripts/onboarding/first-admin.mjs plan
+sh apps/community-cloud/with-ca.sh node scripts/onboarding/first-admin.mjs invite
+# Stop here. The recipient accepts the email and completes the first Auth sign-in.
+sh apps/community-cloud/with-ca.sh node scripts/onboarding/first-admin.mjs resume
 ```
 
-`--auth-subject` must be the lowercase uuid. An uppercase or otherwise rewritten spelling is refused, because the receipt hash has to match the subject string the runtime sees. `--name` is optional. The inputs are the same as `doctor`: signed manifest, signed approval, institution identifier, signing keys, development beta trust, provider baseline and `SUPABASE_ACCESS_TOKEN`; the write additionally needs `CCC_INSTALL_DATABASE_URL`. Owner verification and the read-only plan run first, and a project whose installation state is not `installed` stops with `FIRST_ADMIN_NOT_INSTALLED`.
+The first-admin journal is a set of records next to the N02 journal, `<N02 journal>.first-admin.<phase>` for the phases `approved`, `institution-ready`, `invite-submitted`, `invited`, `accepted` and `bound`; the newest present phase is current. `plan`, `invite` and `resume` hold the installer's session-scoped PostgreSQL project advisory lock, the same lock the N02 installer uses, for the whole command; a concurrent first-admin command or installer run stops with `FIRST_ADMIN_IN_PROGRESS`, and the lock disappears with the session, so an interrupted command never leaves a stale lock. Each phase record is published once and never rewritten, so a late write from a command that lost its session cannot replace a newer phase; it stops with `FIRST_ADMIN_STATE_INCONSISTENT`. The permanent `.first-admin.submission` claim additionally lets only one process ever record the submission; a second claimant stops with `FIRST_ADMIN_INVITE_OUTCOME_UNKNOWN` before writing or sending. All of these files are mode `0600` in the same owner-only directory. They contain control state, timestamps and SHA-256 values only; they never contain the raw marker, recipient, request, installation or subject. The records keep submission, provider acceptance, recipient acceptance and identity binding as separate facts, and the submission record is written before the provider call so a lost response is observed rather than resent.
 
-The write is one transaction inside the install lock. It records one `users` row (legacy role `admin`, `active=1`, `auth_subject`), that row's canonical role assignments and exactly one `first_admin_linked` receipt. The canonical assignments come from the same `users` insert trigger the business path uses, so the installer does not write them itself. An existing institution administrator or receipt is refused with `FIRST_ADMIN_EXISTS`, an already linked Auth user with `FIRST_ADMIN_SUBJECT_TAKEN` and an existing email with `FIRST_ADMIN_EMAIL_TAKEN`; none of them writes anything. Re-running with the same `--auth-subject` and `--email` reads the receipt, returns the same hashes and writes nothing.
+The invitation policy must report `disable_signup=true`; otherwise the tool stops with `FIRST_ADMIN_OPEN_SIGNUP_ENABLED`. This prevents a person who merely knows the invited email from claiming the pending account through open signup. The approved invitation TTL is bound into the stage and rechecked before send and resume. The signed client callback is exactly `<clientOrigin>/auth/invite`. Reopening signup after binding is not automatic and requires the separately approved D90 handoff above.
 
-The output is a single JSON report carrying only `operation`, `ready`, `userIdSha256`, `emailSha256` and `authSubjectSha256`. The email, the Auth user uuid and the application user identifier are never printed.
+Institution creation happens after send approval and before invitation submission. A new institution starts with `sttMode=off` and `llmMode=off`. If both institution rows already exist, their values are preserved, but the pending send and the pending first-admin binding proceed only when both modes are still `off`. A one-row half state stops with `INSTITUTION_STATE_INCONSISTENT`; the tool never repairs or overwrites it. Reports carry `onboardingSttMode` and `onboardingLlmMode` as the onboarding defaults; they do not restate current institution policy after binding.
 
-The PostgreSQL scenarios for this command are `scripts/supabase/first-admin.test.mjs`. They require an explicitly injected `CCC_FIRST_ADMIN_TEST_DATABASE_URL` pointing at an empty loopback **disposable** database with a test/fixture/disposable name; missing configuration fails rather than skipping. Never supply an installation or production URL.
+| Journal or provider state | Allowed next action |
+|---|---|
+| no first-admin journal | Run `plan` or `invite`. |
+| `approved` or `institution-ready`, no submission | Re-run `invite`; it rebuilds the current stage, checks Auth-user absence and institution rows, then claims the submission and sends once. `resume` refuses because there is nothing to observe. |
+| submission recorded, invitation response lost | Run `resume`. It observes the marked provider account and never resends. |
+| `FIRST_ADMIN_INVITE_OUTCOME_UNKNOWN` after resume | Keep the request and journal. Do not delete either or create a replacement. Escalate; automatic resend is forbidden. |
+| `invited` | Recipient completes the email flow, then operator runs `resume`. Early `resume` returns pending. |
+| `accepted`, first sign-in absent | Run `resume` after the recipient signs in. Acceptance does not become expired. |
+| link committed but response lost | `resume` asks `linkFirstAdmin` to reconcile the exact existing receipt and records `bound`. |
+| `bound` with matching receipt | `resume` returns the same hash-only result and writes nothing. |
+| expired, mismatched invitee, conflicting administrator or partial institution | Stop. Replacement invitation and manual state repair are not implemented; do not delete the journal or use the old manual UUID command. |
+
+Outputs contain fixed status fields, timestamps only inside the private journal, and SHA-256 identifiers. `ready=true` requires `status=bound`, a provider-confirmed invitation, first sign-in and an idempotently matching `first_admin_linked` receipt. The code leaves D90 staff invitation and the removed `POST /identity/link` unchanged, but complete onboarding remains blocked until the frontend callback and post-link D90 policy handoff are both verified.
+
+The state-machine tests use no provider credentials. The PostgreSQL tests require explicitly injected empty loopback disposable databases:
 
 ```sh
+node --test scripts/onboarding/first-admin.test.mjs
 docker run --rm -d --name s12-first-admin-pg -e POSTGRES_PASSWORD=synthetic-test-only \
   -e POSTGRES_DB=ccc_first_admin_test -p 127.0.0.1:55435:5432 postgres:17
 CCC_FIRST_ADMIN_TEST_DATABASE_URL='postgres://postgres:synthetic-test-only@127.0.0.1:55435/ccc_first_admin_test' \
   node --test scripts/supabase/first-admin.test.mjs
 docker rm -f s12-first-admin-pg
+docker run --rm -d --name s12-institution-pg -e POSTGRES_PASSWORD=synthetic-test-only \
+  -e POSTGRES_DB=ccc_institution_test -p 127.0.0.1:55436:5432 postgres:17
+CCC_INSTITUTION_TEST_DATABASE_URL='postgres://postgres:synthetic-test-only@127.0.0.1:55436/ccc_institution_test' \
+  node --test scripts/supabase/institution.test.mjs
+docker rm -f s12-institution-pg
 ```
 
 ### Pending executable verification

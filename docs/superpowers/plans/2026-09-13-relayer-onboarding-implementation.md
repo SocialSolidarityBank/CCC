@@ -227,11 +227,36 @@ node --test --test-name-pattern=N02 scripts/supabase/bootstrap.test.mjs
 
 - [ ] PC 설치 도구가 지정 이메일 하나로 실제 1회용 초대를 발송한다. 초대 URL, token과 원문 이메일은 모델/영수증/로그에 넣지 않는다.
 - [ ] 발송, 수락, 신원 결속을 다른 사실로 다룬다. 발송 응답 유실이나 재실행에서 이미 발급 또는 수락된 초대를 관찰하고 무조건 재발송하지 않는다.
-- [ ] 신원은 서명 검증된 Auth `sub`로 결속하고 이메일 일치만으로 업무 계정을 가로채지 못하게 한다. 기존 `linkFirstAdmin`의 중복/소유 검사를 재사용한다.
+- [ ] Auth 초대 callback이 만든 첫 세션과 공급자 관리자 관찰에서 같은 비공개 표식으로 식별한 subject만 결속한다. 이메일 일치만으로 연결하지 않고, `linkFirstAdmin`의 중복과 소유 검사를 재사용한 뒤 실제 업무 로그인에서 서명 검증한 JWT subject를 다시 대조한다.
 - [ ] 초대 만료, 다른 사용자 수락, 같은 요청 재개, 이미 있는 최초 관리자를 검사한다. 현재 D90 직원 초대 테스트도 유지하며 `POST /identity/link`를 복원하지 않는다.
 - [ ] 실제 시험 이메일의 초대 수락 뒤 첫 로그인을 수행한다. Cloud MFA 선택을 유지하고, 기관 설정을 시작하기 위해 불필요한 인증 등급을 새로 강제하지 않는다.
 
 **완료:** 수동 Auth UUID 복사 없이 최초 관리자 가입과 기관 초기 설정 입구가 이어지고, 잘못된 신원의 결속은 거부된다.
+
+#### N03 개발 명령과 입력
+
+진입점은 `node scripts/onboarding/first-admin.mjs`다. `plan`과 `invite`는 해시만 담은 자격 사용 요약을 먼저 보여주고 `이대로 확인`을 입력받은 뒤 설치와 Auth 및 기존 관리자 상태를 읽는다. `invite`는 N01 단계 결합 요약의 `이대로 초대` 승인까지 받아야 기관 기본값을 만들고 Supabase Auth 초대 한 건을 보낸다. `resume`은 제출된 요청만 관찰하며 이메일을 다시 보내지 않는다. 발송 전에 중단된 `approved`와 `institution-ready` 단계는 기존 승인을 다시 확인한 `invite`만 이어서 실행한다.
+
+`CCC_ONBOARDING_FIRST_ADMIN`은 `email`과 선택적인 `name`만 받는 JSON이다. N02의 request, journal, installation 입력과 기존 S11 설치 자격을 그대로 사용한다. 원문 이메일, Auth subject, 초대 URL과 token은 출력하지 않는다. N02 journal과 같은 비공개 디렉터리에 `<N02 journal>.first-admin` 기록을 두고 발송 제출, 공급자 수락, 수신자 수락, 결속 시각과 식별자의 SHA-256만 보존한다.
+
+초대 승인 뒤 `createInstitution`을 먼저 재사용한다. 양쪽 기관 행이 이미 있으면 값을 바꾸지 않되 STT와 LLM이 모두 `off`인 경우만 진행하고, 한쪽만 있으면 `INSTITUTION_STATE_INCONSISTENT`로 멈춘다. 다음으로 Supabase Auth 초대를 한 번만 요청한다. 공급자의 공개 가입이 닫혀 있어야 하며, 서명된 client origin의 `/auth/invite`를 callback으로 사용한다. 발송 응답을 잃으면 Auth에 남은 비공개 표식을 관찰하고 모순이면 다시 보내지 않는다.
+
+수신자 수락과 첫 로그인은 같은 표시된 Auth subject의 `confirmed_at`과 `last_sign_in_at`으로 따로 기록한다. 수락 전 만료만 거부하며, 수락 뒤에는 첫 로그인을 기다린다. 두 사실이 확인된 뒤 provider가 인증한 관리자 응답의 subject를 기존 `linkFirstAdmin`에 전달한다. 연결 커밋 뒤 응답을 잃으면 같은 영수증을 재조회한다. 실제 업무 로그인은 서명된 JWT subject와 `users.auth_subject`를 다시 대조한다. D89대로 추가 인증을 등록하지 않은 세션의 `aal1`을 허용하고 D90 직원 초대 흐름과 제거된 `POST /identity/link`는 바꾸지 않는다.
+
+실제 초대 전에 frontend 소유의 `<clientOrigin>/auth/invite`가 invitation fragment를 메모리에서 처리하고 주소를 지우며 비밀번호 설정을 완료하는지 별도 실화면 검증해야 한다. 또한 첫 관리자 대기 중 필요한 `disable_signup=true`와, Supabase `signUp`을 쓰는 현행 D90 직원 초대의 후속 계정 생성을 함께 만족할 승인된 정책 인계가 필요하다. 이 두 경로 중 하나라도 없으면 N03의 실제 이메일, 첫 로그인, 기관 설정 진입과 이후 직원 초대를 완료할 수 없으므로 초대를 보내지 않는다.
+
+검사는 다음 범위다.
+
+```bash
+node --test scripts/onboarding/first-admin.test.mjs
+# 다음 줄의 URL은 빈 loopback disposable PostgreSQL을 가리키는 설명용 자리다.
+CCC_FIRST_ADMIN_TEST_DATABASE_URL='<empty loopback disposable PostgreSQL URL>' \
+  node --test scripts/supabase/first-admin.test.mjs
+CCC_INSTITUTION_TEST_DATABASE_URL='<another empty loopback disposable PostgreSQL URL>' \
+  node --test scripts/supabase/institution.test.mjs
+pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/invite-identity-binding.test.ts
+pnpm --filter @ccc/client run test -- src/business/auth.test.ts src/screens/invites.test.ts
+```
 
 ### N04. PC 도구를 열어 둔 동안만 Cloud와 인계
 

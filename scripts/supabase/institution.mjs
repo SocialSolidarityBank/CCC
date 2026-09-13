@@ -93,6 +93,28 @@ function report(orgId, settings, modes) {
   };
 }
 
+/** 설치 잠금 안에서 기관 두 행과 AI 기본 모드만 읽는다. 어떤 상태도 만들거나 고치지 않는다. */
+export async function inspectInstitution(session, input) {
+  if (typeof session?.unsafe !== 'function') throw new PlanFailure('PROVIDER_UNREADABLE');
+  const orgId = typeof input?.orgId === 'string' ? input.orgId.trim() : '';
+  if (!ORG_ID.test(orgId)) throw new PlanFailure('OWNER_EVIDENCE_MISSING');
+  await session.unsafe('BEGIN');
+  try {
+    for (const statement of LIFT_GUARDS) await session.unsafe(statement);
+    const [state] = await session.unsafe(STATE_QUERY, [orgId]);
+    if (typeof state?.settings_exists !== 'boolean' || typeof state?.policy_exists !== 'boolean') {
+      throw new PlanFailure('PROVIDER_UNREADABLE');
+    }
+    await session.unsafe('ROLLBACK');
+    if (!state.settings_exists && !state.policy_exists) return { state: 'missing' };
+    if (!state.settings_exists || !state.policy_exists) return { state: 'inconsistent' };
+    return { state: 'ready', sttMode: state.stt_mode, llmMode: state.llm_mode };
+  } catch (error) {
+    await session.unsafe('ROLLBACK').catch(() => {});
+    throw error;
+  }
+}
+
 /**
  * 설치 잠금을 쥔 예약 연결에서 한 transaction으로 실행한다. 두 표가 모두 있으면 저장된
  * 값을 그대로 돌려주고 아무것도 쓰지 않는다. 한쪽만 있으면 반쪽 상태를 덮어쓰지 않고

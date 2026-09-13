@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import postgres from 'postgres';
 import { INSTALLER_SESSION_TIMEOUTS } from './installer-connection.mjs';
-import { firstAdminActorId, linkFirstAdmin } from './first-admin.mjs';
+import { firstAdminActorId, inspectFirstAdmin, linkFirstAdmin } from './first-admin.mjs';
 
 function disposableDatabaseUrl(value) {
   if (typeof value !== 'string' || value.length === 0) throw new Error('MISSING_DISPOSABLE_POSTGRES_FIXTURE');
@@ -31,12 +31,14 @@ const migrationDirectory = resolve(import.meta.dirname, '../../migrations/postgr
 const installerRole = 'ccc_first_admin_installer';
 const subject = '00000000-0000-4000-8000-000000000001';
 const otherSubject = '00000000-0000-4000-8000-000000000002';
+const thirdSubject = '00000000-0000-4000-8000-000000000003';
 const email = 'synthetic.creator@example.invalid';
 const otherEmail = 'synthetic.second@example.invalid';
 const orgs = Object.freeze({
   linked: 'org-first-admin-linked',
   second: 'org-first-admin-second',
   legacy: 'org-first-admin-legacy',
+  emailTaken: 'org-first-admin-email-taken',
 });
 
 function sha256Hex(value) {
@@ -140,6 +142,12 @@ test('설치자만이 첫 기관 관리자를 연결하고 재실행은 아무�
         { users: before.users, assignments: before.assignments, receipts: before.receipts },
         { users: 0, assignments: 0, receipts: 0 },
       );
+      assert.deepEqual(
+        await withInstallerSession(installerUrl, session => inspectFirstAdmin(session, {
+          orgId: orgs.linked, email,
+        })),
+        { state: 'empty' },
+      );
       const report = await withInstallerSession(installerUrl, session => linkFirstAdmin(session, {
         orgId: orgs.linked, authSubject: subject, email, name: '첫 관리자',
       }));
@@ -149,6 +157,12 @@ test('설치자만이 첫 기관 관리자를 연결하고 재실행은 아무�
       assert.equal(report.ready, true);
       assert.equal(report.emailSha256, sha256Hex(email));
       assert.equal(report.authSubjectSha256, sha256Hex(subject));
+      assert.deepEqual(
+        await withInstallerSession(installerUrl, session => inspectFirstAdmin(session, {
+          orgId: orgs.linked, email,
+        })),
+        { state: 'linked' },
+      );
 
       const [user] = await admin.unsafe(
         'SELECT id, org_id, email, role, active, name, auth_subject FROM users WHERE org_id = $1',
@@ -258,6 +272,25 @@ test('설치자만이 첫 기관 관리자를 연결하고 재실행은 아무�
         { users: counts.users, assignments: counts.assignments, receipts: counts.receipts },
         { users: 0, assignments: 0, receipts: 0 },
       );
+    });
+
+    await t.test('이메일 대소문자만 달라도 기존 계정과 겹치지 않는다', async () => {
+      await admin.unsafe(
+        "INSERT INTO users (id, org_id, email, role, active) VALUES ($1, $2, $3, 'counselor', 1)",
+        ['existing-mixed-case-user', orgs.emailTaken, 'Synthetic.Mixed@Example.Invalid'],
+      );
+      assert.deepEqual(
+        await withInstallerSession(installerUrl, session => inspectFirstAdmin(session, {
+          orgId: orgs.emailTaken, email: 'synthetic.mixed@example.invalid',
+        })),
+        { state: 'email-taken' },
+      );
+      const refusal = await withInstallerSession(installerUrl, session => linkFirstAdmin(session, {
+        orgId: orgs.emailTaken,
+        authSubject: thirdSubject,
+        email: 'synthetic.mixed@example.invalid',
+      }));
+      assert.deepEqual(refusal, { ok: false, code: 'FIRST_ADMIN_EMAIL_TAKEN' });
     });
 
     await t.test('다른 기관의 첫 관리자는 표시 이름 없이 독립으로 연결된다', async () => {

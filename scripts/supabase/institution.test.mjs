@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import postgres from 'postgres';
 import { INSTALLER_SESSION_TIMEOUTS } from './installer-connection.mjs';
-import { createInstitution, institutionActorId } from './institution.mjs';
+import { createInstitution, inspectInstitution, institutionActorId } from './institution.mjs';
 
 function disposableDatabaseUrl(value) {
   if (typeof value !== 'string' || value.length === 0) throw new Error('MISSING_DISPOSABLE_POSTGRES_FIXTURE');
@@ -123,6 +123,12 @@ test('설치가 기관을 만들고 재실행은 아무것도 쓰지 않는다',
   const { admin, installerUrl, apiUrl } = await prepareFixture();
   try {
     await t.test('첫 실행이 두 표와 영수증을 쓰고 FORCE RLS를 되돌린다', async () => {
+      assert.deepEqual(
+        await withInstallerSession(installerUrl, session => inspectInstitution(session, {
+          orgId: orgs.created,
+        })),
+        { state: 'missing' },
+      );
       const report = await withInstallerSession(installerUrl, session => createInstitution(session, {
         orgId: orgs.created,
       }));
@@ -131,6 +137,12 @@ test('설치가 기관을 만들고 재실행은 아무것도 쓰지 않는다',
         orgIdSha256: sha256Hex(orgs.created), timeZone: 'Asia/Seoul', piiPurgeGraceDays: 365,
         sttMode: 'off', llmMode: 'off',
       });
+      assert.deepEqual(
+        await withInstallerSession(installerUrl, session => inspectInstitution(session, {
+          orgId: orgs.created,
+        })),
+        { state: 'ready', sttMode: 'off', llmMode: 'off' },
+      );
 
       const [settings] = await admin.unsafe(
         `SELECT time_zone, pii_purge_grace_days::integer AS days, version::integer AS version,
@@ -222,6 +234,10 @@ test('설치가 기관을 만들고 재실행은 아무것도 쓰지 않는다',
         [orgs.settingsOnly, 'Asia/Seoul', 365],
       );
       for (const orgId of [orgs.policyOnly, orgs.settingsOnly]) {
+        assert.deepEqual(
+          await withInstallerSession(installerUrl, session => inspectInstitution(session, { orgId })),
+          { state: 'inconsistent' },
+        );
         const before = await businessRowCounts(admin, orgId);
         const refusal = await withInstallerSession(installerUrl, session => createInstitution(session, { orgId }));
         assert.deepEqual(refusal, { ok: false, code: 'INSTITUTION_STATE_INCONSISTENT' });
