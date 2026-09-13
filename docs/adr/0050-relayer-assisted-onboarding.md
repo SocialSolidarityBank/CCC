@@ -39,13 +39,15 @@ Community Cloud의 신규 직원 Auth 계정은 권한 있는 Auth 초대와 서
 
 직원 초대 수락은 일회용 직원 초대 token, 서명 검증을 마친 Auth `subject`, Auth email claim과 초대 이메일의 일치를 모두 요구한다. `subject`가 없거나 이메일이 다르면 사용자 행 생성, 역할 부여와 초대 소비를 모두 하지 않는다. 일반 업무 API에 Supabase 관리자 자격을 두거나 `POST /identity/link`를 복원해 나중에 결속하지 않는다.
 
-`/auth/invite`의 implicit success fragment는 `access_token`, `refresh_token`, `expires_in`, 선택적인 `expires_at`, `token_type`, `type`만 받는다. `token_type`은 `bearer`, `type`은 `invite`여야 한다. provider error fragment는 `error`, `error_code`, `error_description`만 받으며 success key와 섞이면 거부한다. unknown key, `provider_token`, `provider_refresh_token`, PKCE의 `code`와 `sb_flow_id`, 별도 OTP 방식의 `token_hash`는 이 route에서 받지 않는다. 이 목록은 설치된 `@supabase/auth-js@2.116.0`의 implicit session 입력과 현재 email invite 방식을 좁힌 계약이다.
+**2026-09-14 Q 후속 개정: 수동 여섯 자리 인증 코드.** 초대 이메일은 query와 fragment가 없는 signed client origin의 `/auth/invite` 링크를 `{{ .RedirectTo }}`로 정확히 한 번 제공하고, `{{ .Token }}` 여섯 자리 코드를 화면에 정확히 한 번 표시한다. `{{ .ConfirmationURL }}`, `{{ .TokenHash }}`, `{{ .Email }}`, `{{ .Data }}`, session credential과 비공개 marker는 이메일에 넣지 않는다. implicit success와 error fragment 계약은 이 방식이 대체하며, Chrome 진단 보존 예외는 승인하지 않았다.
 
-클라이언트는 fragment를 화면 렌더 전에 한 번만 메모리로 옮기고 `history.replaceState`로 주소에서 지운다. 세션은 기존 `persistSession=false`, `detectSessionInUrl=false` 경계를 유지하며 token, email과 password를 URL, history, referrer, 브라우저 저장소, 로그, 분석 도구나 오류 객체에 남기지 않는다. `invite_missing`, `invite_invalid`, `invite_expired`, `invite_session_conflict`, `password_rejected`, `provider_unavailable` 상태에서는 고정 안내를 표시하고 업무 진입과 결속을 하지 않는다. 주소를 지운 뒤 reload하거나 브라우저를 닫으면 token을 복원하지 않고 원본 초대 메일을 다시 열도록 안내한다.
+클라이언트는 query나 fragment에서 자격을 받지 않는다. `/auth/invite`를 직접 연 사용자가 이메일, 여섯 자리 숫자 코드, 비밀번호와 확인 값을 입력하면 기존 메모리 전용 Supabase client가 `verifyOtp({ email, token: code, type: 'invite' })`를 호출한다. provider가 돌려준 session과 user의 subject 및 email이 입력과 일치할 때만 같은 흐름에서 비밀번호를 설정한다. 초대 세션은 업무 접근에 쓰지 않고 완료 또는 취소 뒤 폐기한다. 비밀번호 설정만 실패한 경우에는 검증된 메모리 세션만 남겨 비밀번호 입력만 다시 받을 수 있다. reload 뒤 이미 소비한 코드가 유효하지 않으면 새 초대가 필요하다.
+
+`invite_invalid`, `invite_expired`, `invite_session_conflict`, `password_rejected`, `provider_unavailable`에서는 고정 안내를 표시하고 업무 진입과 결속을 하지 않는다. email, code, password, session과 subject를 URL, history, referrer, 브라우저 저장소, React 상태, 로그, 분석 도구나 오류 객체에 남기지 않는다. 일반 `signUp`, raw 직원 token 링크와 브라우저의 `POST /identity/link`는 되살리지 않는다.
 
 Auth 초대 발급은 업무 API 밖에서 관리자 자격을 이미 제한적으로 주입하는 기존 PC 설치 및 관리 프로세스를 우선 후보로 삼는다. 첫 관리자는 현행 `scripts/onboarding/first-admin.mjs` 경계를 유지한다. 이후 직원의 발급 명령, 업무 초대 token과 Auth 초대의 결합 표식, 두 TTL의 정렬, 미결속 Auth 사용자 정리는 FRONTEND, BACKEND와 설치 작성자가 단일 슬롯을 정한 뒤 확정한다. 새 서비스, 새 권한, 새 비용을 이 문서로 승인하지 않으며 N04에 의존시켜 N03과 순환시키지 않는다.
 
-이 부분 개정은 정책과 구현 계약의 승인이다. Auth 설정 변경, 시크릿 저장이나 주입, 실제 초대 발송, 배포 승인이 아니다. N03은 실화면과 결속 검증 전까지 In Review이며 N04 구현은 보류한다.
+이 부분 개정은 정책과 구현 계약의 승인이다. installer readiness는 `bf456337d2f952b124ddf923524a4e65ecee2892`에서 33개 검사, FRONTEND manual OTP는 `8bfe49d6c05aaa3c23062b6a9ec3c80cd4251747`에서 54개 검사와 typecheck, build 및 브라우저 zero-retention 진단을 통과했다. 이 증거는 hosted Auth template 변경, 시크릿 저장이나 주입, 실제 초대 발송, 배포 또는 운영 수용의 승인이 아니다. N03은 별도 승인된 실제 template 확인, 비민감 초대 한 건, installer `resume`, 새 `aal1` 로그인과 기관 초기 설정 진입 전까지 In Review이며 N04 구현은 보류한다.
 
 ## 독립 업무 실행 경계와 번호 충돌
 

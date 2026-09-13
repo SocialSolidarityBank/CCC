@@ -58,7 +58,7 @@ N01 검증 뒤에는 이 범위만 해당 티켓 ID로 커밋한다. 완료 코�
 | 오케스트레이터 ADR-0048 | 독립 Cloud 실행과 최초 관리자 초대. 그 브랜치에서는 D89라고 부른다 | 필요한 온보딩 요구는 ADR-0050에 반영했다. 구 D번호나 MFA 강제 문장을 복사하지 않는다 |
 | 오케스트레이터 ADR-0049 | 카드 계약과 AI 모듈 기준. 그 브랜치에서는 D90이라고 부른다 | 다른 베타 작업이다. 온보딩에서 적용하거나 번호를 고치지 않는다 |
 
-2026-09-14 부분 개정은 정책과 구현 계약만 승인했다. 실제 Auth 설정 변경, 시크릿 저장이나 주입, 초대 발송과 배포는 승인하지 않았다. `/auth/invite`는 installed `@supabase/auth-js@2.116.0`의 implicit session 입력을 좁혀 success key `access_token`, `refresh_token`, `expires_in`, 선택적인 `expires_at`, `token_type`, `type`과 error key `error`, `error_code`, `error_description`만 받는다. `token_type=bearer`, `type=invite`를 요구하며 두 집합의 혼합, unknown key, provider token, PKCE와 OTP 전용 key를 거부한다. N03은 In Review이고 N04 구현과 WORKER `/new`는 보류한다.
+2026-09-14 Q 후속 개정은 implicit fragment 계약을 수동 여섯 자리 인증 코드로 대체했다. 초대 이메일은 query와 fragment가 없는 signed client `/auth/invite` 링크와 눈에 보이는 여섯 자리 code만 제공한다. 사용자는 email, code, password와 confirmation을 입력하고 client는 `verifyOtp`로 일치하는 메모리 session을 확인한 뒤 password를 설정하고 폐기한다. 브라우저 persistence, public `signUp`, raw 직원 token 링크, `POST /identity/link`와 업무 API의 관리자 key는 없다. Chrome 진단 보존 예외도 승인하지 않았다. 이 정책과 source 검증은 hosted template 변경, 시크릿 저장이나 주입, 초대 발송, 배포와 운영 수용의 승인이 아니다. N03은 In Review이고 N04 구현과 WORKER `/new`는 보류한다.
 
 조사 시점 오케스트레이터의 정확한 commit은 `01e68d70fa7f6e6afe6984edab1bb4f9d3aeda7c`다. 필요하면 작업 폴더를 바꾸지 않고 Git object로 근거만 읽는다.
 
@@ -104,7 +104,7 @@ N01의 단계 안내와 승인 결합은 이미 구현돼 있다. 검증은 이 
 ## 아직 없는 것을 있다고 보고하지 않는다
 
 - `relayer`라는 공개 실행 파일은 아직 없다. 개발 진입점 `node scripts/onboarding/cli.mjs`는 사용 방식 선택, 계획 안내, 고정 도움, 취소와 종료를 제공한다.
-- N02의 신규 Cloud 생성과 설치, N03의 최초 관리자 초대 상태 기계와 결속 도구는 구현됐다. N03은 signed client의 `/auth/invite` 실화면, 직원 초대 전용 정책 구현과 실제 비민감 초대 검증이 남아 In Review다. 이 상태를 전체 온보딩 완료나 실제 초대 발송으로 보고하지 않는다.
+- N02의 신규 Cloud 생성과 설치, N03의 최초 관리자 초대 상태 기계와 결속 도구, installer의 exact manual-code template readiness와 FRONTEND manual OTP source는 구현 및 검증됐다. N03은 별도 승인된 hosted template 확인, 실제 비민감 초대 한 건, installer `resume`, 새 `aal1` 로그인과 기관 초기 설정 진입이 남아 In Review다. 이 상태를 전체 온보딩 완료나 실제 초대 발송으로 보고하지 않는다.
 - 현재 연결 상태 화면은 조회 중심이고 AI/STT 설치 정책 writer가 필요하다. 키 입력만으로 활성화되지 않는다.
 - 현재 클라이언트는 Local Single과 Office를 명시적으로 거부한다. local-service와 서명 설치물은 E7/E8 선행 작업을 받아야 한다. 거부만 지우거나 로컬 Supabase를 대신 설치하지 않는다.
 - 현재 rollback은 전제가 없으면 거부한다. 실증되지 않은 자동 복원이나 외부 자원 정리 성공을 약속하지 않는다.

@@ -164,13 +164,19 @@ Local Office도 별도 온보딩 엔진을 만들지 않고 같은 진행 규칙
 
 #### 2026-09-14 직원 Auth 초대 callback
 
-`/auth/invite`는 업무 셸과 분리된 공개 route지만 signed manifest의 exact client origin과 Supabase Auth origin만 신뢰한다. 앱은 렌더 전에 fragment를 메모리로 옮기고 `history.replaceState`로 주소에서 지운다. 성공 fragment의 닫힌 key는 `access_token`, `refresh_token`, `expires_in`, 선택적인 `expires_at`, `token_type`, `type`이다. `token_type=bearer`, `type=invite`를 요구한다. 오류 fragment는 `error`, `error_code`, `error_description`만 받는다. 두 집합의 혼합, unknown key, `provider_token`, `provider_refresh_token`, `code`, `sb_flow_id`, `token_hash`는 거부한다.
+`/auth/invite`는 업무 셸과 분리된 공개 route지만 signed manifest의 exact client origin과 Supabase Auth origin만 신뢰한다. 초대 이메일의 유일한 링크는 query와 fragment가 없는 `{{ .RedirectTo }}`이고 본문은 여섯 자리 `{{ .Token }}`을 표시한다. `{{ .ConfirmationURL }}`, `{{ .TokenHash }}`, `{{ .Email }}`, `{{ .Data }}`, session credential과 marker는 넣지 않는다. implicit success와 error fragment 방식은 사용하지 않으며 Chrome 진단 보존 예외도 없다.
 
-초대 세션은 `persistSession=false`, `detectSessionInUrl=false`인 기존 Auth 객체의 메모리에만 둔다. 다른 사용자의 기존 세션과 합치지 않으며, 초대 세션에서 사용자가 입력한 비밀번호를 설정한 뒤 지역 참조를 지운다. email과 password를 권한 근거로 저장하지 않는다. `invite_missing`은 fragment가 없는 상태, `invite_invalid`는 key 집합, `token_type`, `type` 또는 token 형식이 계약과 다른 상태다. `invite_expired`는 공급자가 `otp_expired`, `invite_not_found` 또는 `session_expired`로 거부한 상태다. `invite_session_conflict`는 현재 메모리 세션의 subject가 초대 subject와 다른 상태다. `password_rejected`는 공급자가 비밀번호를 거부한 상태, `provider_unavailable`은 제한 시간 안에 안전한 공급자 응답을 확인하지 못한 상태다. 여섯 상태에서는 업무 진입과 결속이 일어나지 않는다.
+앱은 router, React root, 설치 로딩과 network/Auth 동작 전에 exact `/auth/invite`의 search와 hash가 모두 비었는지 동기 확인한다. 하나라도 있으면 내용을 읽거나 복사하지 않고 `history.replaceState`로 깨끗한 path만 남긴 뒤 `invite_invalid`로 끝낸다. 첫 진입이 아닌 SPA 이동도 `invite_invalid`이며 Auth 호출은 0건이다. legacy `/staff/join`의 search와 fragment는 같은 시점에 버리지만 당사자 `/join`은 건드리지 않는다.
 
-실제 초대 전에 해당 Supabase 프로젝트의 email template이 위 implicit success fragment를 만드는지 확인해야 한다. 설치된 SDK가 지원하는 `token_hash`와 `verifyOtp` 방식은 이 계약의 자동 fallback이 아니다. template이 다른 방식을 쓰면 초대를 보내지 않고 Q의 계약 개정을 기다린다.
+정상 화면은 uncontrolled email, 여섯 자리 code, password와 password confirmation 네 필드만 받는다. submit 안에서만 email을 trim하고 소문자로 바꾸며, code는 ASCII 숫자 여섯 자리, password는 여덟 자 이상과 확인 값 일치를 검사한다. 값을 지역 변수로 옮긴 뒤 FormData와 form을 즉시 비우고 Auth를 호출한다. email, code와 password는 React state, context, props, 오류나 serialization에 들어가지 않는다.
 
-실화면 검수는 hash가 첫 화면 전에 사라지고 뒤로가기로 복원되지 않는지, localStorage, sessionStorage, IndexedDB, CacheStorage, console, analytics, network URL, referrer와 history에 bearer, refresh token, invitation token, email과 password가 없는지 확인한다. 비밀번호 설정 뒤 같은 provider subject의 수락과 첫 sign-in을 관찰하고, operator `resume`이 같은 subject를 결속한 다음 새 비밀번호의 `aal1` 업무 로그인과 기관 초기 설정 진입을 확인해야 한다.
+기존 `persistSession=false`, `detectSessionInUrl=false` Supabase client가 `verifyOtp({ email, token: code, type: 'invite' })`를 호출한다. 일반 session이 이미 있으면 `invite_session_conflict`로 거부하고 그 session을 바꾸지 않는다. 성공하려면 반환된 session과 user가 있고 subject가 같으며 양쪽 email이 입력 email과 일치해야 한다. 이어 같은 session에서 비밀번호를 설정한 뒤 local sign-out과 client 폐기를 수행한다. 초대 session이 살아 있는 동안 `getToken`은 `null`이고 업무 API, MFA와 일반 로그인 전이는 잠긴다.
+
+`invite_invalid`, `invite_expired`, `invite_session_conflict`, `password_rejected`, `provider_unavailable`만 화면 상태에 둔다. 비밀번호 설정의 비만료 4xx나 확인할 수 없는 network 결과에서는 검증된 메모리 session만 남겨 password만 다시 받을 수 있다. reload하거나 새 tab을 열면 메모리 session은 사라지고 전체 입력부터 다시 시작한다. 소비된 code가 더 이상 유효하지 않으면 installer가 새 초대를 발급해야 한다.
+
+완료는 Auth가 OTP, 동일 신원과 비밀번호 변경을 확인하고 초대 session을 폐기했다는 뜻뿐이다. 업무 화면으로 자동 이동하지 않고 installer 결속 대기를 표시한다. installer `resume`이 같은 marker, email, subject, `confirmedAt`과 `lastSignInAt`을 확인해 `linkFirstAdmin`을 마친 뒤에만 새 password로 별도 `aal1` 로그인하고 기관 초기 설정에 진입한다.
+
+실화면 검수는 clean URL에서 수동 code 흐름이 동작하고 localStorage, sessionStorage, IndexedDB, CacheStorage, console, analytics, network URL, referrer와 history에서 email, code, password, bearer, refresh token과 invitation token이 0건인지 확인한다. installer source `bf456337d2f952b124ddf923524a4e65ecee2892`와 FRONTEND source `8bfe49d6c05aaa3c23062b6a9ec3c80cd4251747`의 검증은 통과했지만 hosted template 변경, 실제 초대와 운영 수용은 아직 승인되지 않았다.
 
 Auth 초대 발급은 업무 API가 아니라 기존 PC 설치 및 관리 경계를 우선한다. 첫 관리자 이후 직원 발급의 trigger, CCC 직원 초대와 Auth 초대를 묶는 비공개 표식, TTL 정렬과 미결속 Auth 사용자 정리는 아직 작성 슬롯과 세부 계약이 필요하다. 이 설계는 새 서비스나 권한을 승인하지 않으며 N04를 N03의 선행으로 만들지 않는다.
 

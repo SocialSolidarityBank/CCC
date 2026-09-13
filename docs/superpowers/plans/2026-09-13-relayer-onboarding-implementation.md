@@ -245,11 +245,25 @@ node --test --test-name-pattern=N02 scripts/supabase/bootstrap.test.mjs
 
 2026-09-14 Q 부분 개정으로 post-link Auth 정책은 다음처럼 확정됐다. Community Cloud는 `disable_signup=true`를 유지하고 신규 직원 Auth 계정도 권한 있는 Auth 초대와 signed client의 `/auth/invite`로만 만든다. 직원 초대 수락은 검증된 Auth `subject`와 Auth email claim이 초대 이메일과 일치할 때만 실행한다. `subject`가 없거나 이메일이 다르면 사용자 행 생성, 역할 부여와 초대 소비를 모두 하지 않는다. `POST /identity/link`를 복원하거나 업무 API에 관리자 자격을 두지 않는다. 당사자 `public_signup` 정책은 바꾸지 않는다.
 
-`/auth/invite`의 success fragment key는 `access_token`, `refresh_token`, `expires_in`, 선택적인 `expires_at`, `token_type`, `type`으로 닫는다. `token_type=bearer`, `type=invite`만 허용한다. provider error fragment는 `error`, `error_code`, `error_description`만 받는다. success와 error key의 혼합, unknown key, `provider_token`, `provider_refresh_token`, `code`, `sb_flow_id`, `token_hash`는 거부한다. fragment는 렌더 전에 메모리로 옮기고 `history.replaceState`로 주소에서 지운다. token, email과 password는 브라우저 저장소, URL, history, referrer, 로그, 분석 도구와 오류 객체에 남기지 않는다.
+2026-09-14 Q 후속 개정은 implicit fragment를 수동 여섯 자리 인증 코드로 대체한다. hosted invite template의 유일한 링크는 query와 fragment가 없는 `{{ .RedirectTo }}`이고, `{{ .Token }}`을 눈에 보이는 code로 정확히 한 번 표시한다. `{{ .ConfirmationURL }}`, `{{ .TokenHash }}`, `{{ .Email }}`, `{{ .Data }}`, session credential과 marker를 넣지 않는다. installer는 `mailer_templates_invite_content`가 승인된 exact HTML과 byte-equal인지 기존 Auth config GET으로 확인하고, 다르면 `FIRST_ADMIN_INVITE_TEMPLATE_UNREADY`로 초대 전에 거부한다. 이 검사는 hosted template을 바꾸지 않는다.
 
-현재 `apps/client`에는 `/auth/invite` route가 없고 직원 가입 화면은 Supabase `signUp`을 호출한다. HTTP accept와 gateway는 `subject`가 없거나 이메일이 달라도 결속되지 않은 사용자 행을 만들고 초대를 소비할 수 있다. `/auth/invite` callback, 메모리 세션과 비밀번호 설정 및 subject/email 전부 거부는 N03 완료 조건이며 N04 범위가 아니다. 총괄은 다음 배치에서 FRONTEND, BACKEND와 설치 작성자의 단일 슬롯을 정한다. N03은 N02 doctor가 `productionReady=true`인 설치만 소비하며 `RUNTIME_NOT_READY` 영수증은 완료된 설치로 보지 않는다. 첫 관리자 이후 직원 발급 trigger, CCC 초대와 Auth 초대의 결합 표식, 두 TTL의 정렬과 미결속 Auth 사용자 정리는 해당 슬롯에서 확정한다. 설치 작성자는 업무 API가 아니라 기존 PC 설치 및 관리 경계의 Auth 초대 발급을 우선 검토한다. 새 서비스나 관리자 권한을 만들지 않고 N04에 의존시켜 순환시키지 않는다.
+승인된 `mailer_templates_invite_content`의 exact HTML은 다음과 같다.
 
-이 승인은 정책과 구현 계약만 확정한다. 실제 Auth 설정 변경, 시크릿 저장이나 주입, 초대 발송과 배포는 별도 승인 대상이다. N03은 `/auth/invite` 실화면, 실제 비민감 초대, 같은 subject 결속, `aal1` 첫 로그인과 기관 초기 설정 진입을 검증할 때까지 In Review다. N03이 완료되기 전에는 직접 선행 관계를 가진 N04를 구현하거나 WORKER를 초기화하지 않는다.
+```html
+<h2>Relayer 관리자 초대</h2>
+<p>아래 링크를 열고 이 이메일 주소와 여섯 자리 인증 코드를 입력해 관리자 계정을 설정하세요.</p>
+<p><a href="{{ .RedirectTo }}">관리자 계정 설정</a></p>
+<p>인증 코드: <strong>{{ .Token }}</strong></p>
+<p>이 코드는 한 번만 사용할 수 있으며 만료되면 설치 담당자에게 새 초대를 요청해 주세요.</p>
+```
+
+`/auth/invite`는 direct `RuntimeBoundary` child이며 AuthBoundary와 BusinessShell 밖에 둔다. `main.tsx`가 router와 첫 render 전에 exact path의 search/hash가 모두 비었는지 동기 확인한다. URL에 어떤 값이라도 있으면 읽거나 보존하지 않고 깨끗한 path로 바꾼 뒤 `invite_invalid`와 Auth 호출 0건으로 끝낸다. 정상 화면은 uncontrolled email, ASCII 숫자 여섯 자리 code, password와 confirmation을 submit 안에서만 읽고 즉시 비운다.
+
+기존 메모리 전용 Supabase client는 `verifyOtp({ email, token: code, type: 'invite' })`로 session을 만든다. 반환 session/user의 subject와 email이 모두 일치해야 같은 session에서 password를 설정한다. 초대 mode 동안 business token, 일반 sign-in, MFA와 업무 API는 잠근다. 완료 또는 취소 뒤 local sign-out과 client 폐기를 수행한다. password 설정만 실패한 경우에는 검증된 메모리 session만 남겨 password-only retry를 허용한다. reload 뒤 소비된 code가 유효하지 않으면 새 code가 필요하다. 브라우저 persistence, public `signUp`, raw 직원 token 링크, `POST /identity/link`와 업무 API의 관리자 key는 만들지 않는다.
+
+고정 실패 상태는 `invite_invalid`, `invite_expired`, `invite_session_conflict`, `password_rejected`, `provider_unavailable`이다. provider body, message, URL, email, code, password, session과 subject는 화면 상태, 오류, 로그와 serialization에 넣지 않는다. 최초 관리자 callback은 Auth 검증과 password 설정만 하며 CCC 사용자, 역할, 직원 초대, 감사 영수증과 `users.auth_subject`를 만들지 않는다. installer `resume`이 marker, email, subject, 수락과 첫 sign-in을 별도로 관찰한 뒤 `linkFirstAdmin`을 실행한다.
+
+installer readiness는 `bf456337d2f952b124ddf923524a4e65ecee2892`에서 33개 검사, FRONTEND manual OTP는 `8bfe49d6c05aaa3c23062b6a9ec3c80cd4251747`에서 54개 검사, typecheck, build와 실제 브라우저 zero-retention 진단을 통과했다. 이 승인은 hosted Auth template 변경, 시크릿 저장이나 주입, 실제 초대 발송, 배포와 운영 수용의 승인이 아니다. N03은 별도 승인된 실제 template 확인, 비민감 초대 한 건, installer `resume`, 새 `aal1` 로그인과 기관 초기 설정 진입을 검증할 때까지 In Review다. N03이 완료되기 전에는 직접 선행 관계를 가진 N04를 구현하거나 WORKER를 초기화하지 않는다.
 
 검사는 다음 범위다.
 
