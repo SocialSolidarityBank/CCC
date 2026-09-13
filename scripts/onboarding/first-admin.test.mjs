@@ -14,6 +14,7 @@ const email = 'first.admin@example.invalid';
 const subject = '00000000-0000-4000-8000-000000000001';
 const marker = 'm'.repeat(64);
 const hash = 'a'.repeat(64);
+const inviteTemplate = '<h2>Relayer 관리자 초대</h2>\n<p>아래 링크를 열고 이 이메일 주소와 여섯 자리 인증 코드를 입력해 관리자 계정을 설정하세요.</p>\n<p><a href="{{ .RedirectTo }}">관리자 계정 설정</a></p>\n<p>인증 코드: <strong>{{ .Token }}</strong></p>\n<p>이 코드는 한 번만 사용할 수 있으며 만료되면 설치 담당자에게 새 초대를 요청해 주세요.</p>';
 
 async function fixture(t, overrides = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'relayer-first-admin-'));
@@ -532,7 +533,11 @@ test('Supabase Auth 관리자 경계는 초대와 관찰 결과만 좁혀 돌려
       const url = new URL(input);
       requests.push({ url, init });
       if (url.hostname === 'api.supabase.com') {
-        return new Response(JSON.stringify({ mailer_otp_exp: 3600, disable_signup: true }), {
+        return new Response(JSON.stringify({
+          mailer_otp_exp: 3600,
+          disable_signup: true,
+          mailer_templates_invite_content: inviteTemplate,
+        }), {
           status: 200, headers: { 'content-type': 'application/json' },
         });
       }
@@ -568,6 +573,58 @@ test('Supabase Auth 관리자 경계는 초대와 관찰 결과만 좁혀 돌려
     requests.find(request => request.init.method === 'POST')?.url.searchParams.get('redirect_to'),
     'https://app.example.invalid/auth/invite',
   );
+});
+
+test('정확하지 않은 초대 템플릿이면 Auth 초대를 보내지 않는다', async t => {
+  const variants = [
+    ['누락', undefined],
+    ['한 글자 차이', `${inviteTemplate}!`],
+    ['ConfirmationURL', inviteTemplate.replace('{{ .RedirectTo }}', '{{ .ConfirmationURL }}')],
+    ['TokenHash', inviteTemplate.replace('{{ .Token }}', '{{ .TokenHash }}')],
+    ['Email', inviteTemplate.replace('{{ .Token }}', '{{ .Email }}')],
+    ['Data', inviteTemplate.replace('{{ .Token }}', '{{ .Data }}')],
+    ['query', inviteTemplate.replace('{{ .RedirectTo }}', '{{ .RedirectTo }}?code={{ .Token }}')],
+    ['fragment', inviteTemplate.replace('{{ .RedirectTo }}', '{{ .RedirectTo }}#code')],
+  ];
+
+  for (const [name, template] of variants) {
+    await t.test(name, async () => {
+      let sends = 0;
+      const auth = createSupabaseAuthAdmin({
+        authOrigin: 'https://abcdefghijklmnopqrst.supabase.co',
+        projectRef: 'abcdefghijklmnopqrst',
+        serviceRoleKey: 'service-role-secret-value',
+        managementAccessToken: 'management-secret-value',
+        redirectTo: 'https://app.example.invalid/auth/invite',
+        fetch: async (input, init = {}) => {
+          const url = new URL(input);
+          if (url.hostname === 'api.supabase.com') {
+            const config = { mailer_otp_exp: 3600, disable_signup: true };
+            if (template !== undefined) config.mailer_templates_invite_content = template;
+            return new Response(JSON.stringify(config), {
+              status: 200, headers: { 'content-type': 'application/json' },
+            });
+          }
+          if (init.method === 'POST') sends += 1;
+          return new Response(JSON.stringify({
+            id: subject,
+            email,
+            invited_at: '2026-09-13T12:00:00.000Z',
+            confirmed_at: null,
+            last_sign_in_at: null,
+            user_metadata: { relayerFirstAdmin: marker },
+          }), { status: 200, headers: { 'content-type': 'application/json' } });
+        },
+      });
+
+      await assert.rejects(
+        () => auth.inviteTtlSeconds()
+          .then(() => auth.inviteAuthUser({ email, marker })),
+        error => error.code === 'FIRST_ADMIN_INVITE_TEMPLATE_UNREADY',
+      );
+      assert.equal(sends, 0);
+    });
+  }
 });
 
 test('서명된 클라이언트의 초대 수락 경로가 없으면 Auth 초대를 만들지 않는다', () => {

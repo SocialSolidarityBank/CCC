@@ -34,6 +34,7 @@ const HASH = /^[a-f0-9]{64}$/u;
 const AUTH_SUBJECT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const MARKER = /^[A-Za-z0-9_-]{32,128}$/u;
 const PHASES = ['approved', 'institution-ready', 'invite-submitted', 'invited', 'accepted', 'bound'];
+const FIRST_ADMIN_INVITE_TEMPLATE = '<h2>Relayer 관리자 초대</h2>\n<p>아래 링크를 열고 이 이메일 주소와 여섯 자리 인증 코드를 입력해 관리자 계정을 설정하세요.</p>\n<p><a href="{{ .RedirectTo }}">관리자 계정 설정</a></p>\n<p>인증 코드: <strong>{{ .Token }}</strong></p>\n<p>이 코드는 한 번만 사용할 수 있으며 만료되면 설치 담당자에게 새 초대를 요청해 주세요.</p>';
 const JOURNAL_KEYS = [
   'schemaVersion', 'requestSha256', 'emailSha256', 'nameSha256', 'approved', 'phase',
   'inviteTtlSeconds', 'markerSha256', 'submittedAt', 'sentAt', 'acceptedAt', 'boundAt',
@@ -647,6 +648,9 @@ export function createSupabaseAuthAdmin({
       if (value?.disable_signup !== true) fail('FIRST_ADMIN_OPEN_SIGNUP_ENABLED');
       const seconds = Number(value.mailer_otp_exp);
       if (!Number.isSafeInteger(seconds) || seconds < 60 || seconds > 604800) fail('PROVIDER_UNREADABLE');
+      if (value.mailer_templates_invite_content !== FIRST_ADMIN_INVITE_TEMPLATE) {
+        fail('FIRST_ADMIN_INVITE_TEMPLATE_UNREADY');
+      }
       return seconds;
     },
   };
