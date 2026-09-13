@@ -150,18 +150,44 @@ describe('versioned intake journey', () => {
     expect(h.calls.filter((call) => call === 'POST /participants')).toHaveLength(1);
   });
 
-  it('requires selected area responses before saving', async () => {
+  it('keeps selected area requirements and values while the accessible target is collapsed', async () => {
     const h = await harness({ direct: true, financialSupportEnabled: true });
     await h.completeCommon(); await h.fill('intake-held-at', '2026-09-01T10:00');
     await h.select('intake-difficulty_areas-response', 'answered'); await h.click('#intake-difficulty_areas-economy');
-    await h.select('intake-debts-response', 'unknown');
-    expect(h.container.querySelector('#intake-economy_income_type-response')).not.toBeNull();
-    await h.submit(); expect(h.writes).toHaveLength(0); expect(h.container.querySelector('[role="alert"]')).not.toBeNull();
+    await h.select('intake-debts-response', 'answered'); await h.fill('debts-0-creditor', '보존 채권자');
+    const selector = 'button[aria-controls="intake-area-economy"]';
+    const control = h.container.querySelector<HTMLButtonElement>(selector)!;
+    expect(control).not.toBeNull();
+    expect(control.type).toBe('button');
+    expect(control.getAttribute('aria-expanded')).toBe('true');
+    const target = h.container.querySelector<HTMLElement>(`#${control.getAttribute('aria-controls')}`)!;
+    expect(target).not.toBeNull();
+    expect(target.hidden).toBe(false);
+    expect(target.querySelector('#intake-economy_monthly_income-response')).not.toBeNull();
+    await h.click(selector);
+    expect(control.getAttribute('aria-expanded')).toBe('false');
+    expect(target.hidden).toBe(true);
+    await h.submit();
+    expect(h.writes).toHaveLength(0);
+    expect(h.container.querySelector('[role="alert"]')).not.toBeNull();
+    await h.click(selector);
+    expect(control.getAttribute('aria-expanded')).toBe('true');
+    expect(target.hidden).toBe(false);
     for (const key of requiredIntakeQuestionKeys(['economy']).filter((key) => !requiredIntakeQuestionKeys([]).includes(key))) await h.select(`intake-${key}-response`, 'unknown');
     await h.select('intake-economy_monthly_income-response', 'answered'); await h.fill('intake-economy_monthly_income', '0');
+    await h.select('intake-economy_detail-response', 'answered'); await h.fill('intake-economy_detail', '보존할 경제 기록');
+    await h.click(selector);
+    expect(target.hidden).toBe(true);
+    expect(control.getAttribute('aria-expanded')).toBe('false');
+    expect(target.querySelector<HTMLInputElement>('#intake-economy_monthly_income')?.value).toBe('0');
+    expect(target.querySelector<HTMLTextAreaElement>('#intake-economy_detail')?.value).toBe('보존할 경제 기록');
+    expect(h.container.querySelector<HTMLInputElement>('#intake-difficulty_areas-economy')?.checked).toBe(true);
+    expect(h.container.querySelector<HTMLInputElement>('#debts-0-creditor')?.value).toBe('보존 채권자');
     await h.submit();
+    expect(h.writes[0]!.questionnaire.answers).toContainEqual({ key: 'difficulty_areas', response: 'answered', choices: ['economy'] });
     expect(h.writes[0]!.questionnaire.answers).toContainEqual({ key: 'economy_monthly_income', response: 'answered', amount: 0 });
-    expect(h.writes[0]!.questionnaire.debts).toEqual({ response: 'unknown' });
+    expect(h.writes[0]!.questionnaire.answers).toContainEqual({ key: 'economy_detail', response: 'answered', text: '보존할 경제 기록' });
+    expect(h.writes[0]!.questionnaire.debts).toEqual({ response: 'answered', rows: [{ creditor: '보존 채권자' }] });
   });
 
   it('does not open financial debt fields just because the existing program type is financial_support_v1', async () => {

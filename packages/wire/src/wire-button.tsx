@@ -14,6 +14,8 @@ export interface WireLinkProps {
   className: string;
   children: ReactNode;
   'aria-label'?: string;
+  'aria-expanded'?: boolean;
+  'aria-controls'?: string;
   'data-variant': string;
   'data-justify': string;
 }
@@ -84,6 +86,10 @@ export interface WireButtonProps {
    * 글자 라벨이 있으면 주지 않는다: 이름이 둘이면 스크린 리더가 라벨을 못 읽는다.
    */
   ariaLabel?: string;
+  /** 접힘/펼침 상태를 보조기기에 전달한다(2026-09-13 W03 - 영역 접기). */
+  ariaExpanded?: boolean;
+  /** 이 버튼이 제어하는 대상 요소의 id (2026-09-13 W03 - 영역 접기). */
+  ariaControls?: string;
   className?: string;
 }
 
@@ -103,6 +109,8 @@ export function WireButton({
   value,
   form,
   ariaLabel,
+  ariaExpanded,
+  ariaControls,
   className,
 }: WireButtonProps) {
   const renderLink = useContext(WireLinkContext);
@@ -126,6 +134,8 @@ export function WireButton({
       'data-justify': justify,
       children: inner,
       ...(ariaLabel === undefined ? {} : { 'aria-label': ariaLabel }),
+      ...(ariaExpanded === undefined ? {} : { 'aria-expanded': ariaExpanded }),
+      ...(ariaControls === undefined ? {} : { 'aria-controls': ariaControls }),
     };
     return renderLink === null ? <a {...linkProps} /> : renderLink(linkProps);
   }
@@ -140,6 +150,8 @@ export function WireButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
+      aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
       data-variant={resolvedVariant}
       data-justify={justify}
     >
