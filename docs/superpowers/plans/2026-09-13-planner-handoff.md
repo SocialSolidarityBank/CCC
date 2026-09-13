@@ -23,9 +23,10 @@
 - 총괄의 **G1/G3/G5/G6과 G7 기술 대응 정책 승인**은 로컬 체크포인트 `b43f7d138b4dea55e47a08474b47787e681489f4`의 계획 §6 및 카드/AI 소비 계약에서 읽었다. G7은 기존 금고와 같은 암호화·키 보호 아래 사례별 표를 보관하고 일반 열람 UI를 만들지 않는다. 신규 이름/기관은 별도의 기관 내부 보호 경로로 등록하며 일반 ResultRequest나 provider에 원문/대응표를 싣지 않는다. 같은 이름만으로 합치지 않고 모호하면 일반 가림을 유지한다. 생년월일은 상대 날짜로 바꾸지 않고 명확한 사건일·기한만 변환한다. 실제 자료 사용, 법적 적합성, 의미 품질 통과나 provider 활성화 승인은 아니다.
 - **로컬 체크포인트와 Tailscale SSH Git 인계만 사용한다. `origin` 작업, PR, main 통합과 배포는 하지 않는다.** 이 규율 전에 조회한 원격 SHA/PR/티켓 상태는 당시 근거이며 추가 원격 작업의 지시가 아니다. 총괄의 2026-09-13 회신에서 현 배치 미완료와 PLANNER 문서 전용 유지를 확인했다. 신규 구현과 W 정본의 작성권, 제품 검증 슬롯은 인계되지 않았다.
 - 총괄의 `CONTEXT.md` 변경은 카드/의미/승인/브리핑/기억 그림자/목표 용어 영역을 소유한다. PLANNER는 동석자, 파기, 파기 내역과 업무 반출/복구·이전의 국소 변경만 체크포인트로 전달하고 총괄의 용어 영역을 덮어쓰지 않는다. 현재 기준에서 두 레인의 기존 줄 변경 구간은 겹치지 않았다.
-- 2026-09-13 Q는 총괄과의 작업 조율을 승인했다. PLANNER가 파일 범위, 순서, 기준 SHA와 검증 슬롯을 직접 조율하고 확인된 인계를 기록한다. 이 승인은 다른 레인의 파일 작성권 이전이나 `origin` 작업·PR·main 통합·배포 승인이 아니다.
+- 2026-09-13 Q가 승인한 총괄 조율은 위 마감 회신까지 진행했다. 이후 Q는 작업 중인 오케스트레이터에 메시지나 지시를 보내지 말고 PLANNER가 독립적으로 파악하도록 지시했다. 새 명시적 허용 전에는 수신 확인이나 상태 문의도 보내지 않는다. 기존 소유권과 `origin` 작업·PR·main 통합·배포 금지는 유지한다.
 - **이번 단일 파일 인계:** 단일 작성자는 PLANNER(`w1W:p1`)이고 대상은 자기 워크트리의 `docs/superpowers/plans/2026-09-13-planner-handoff.md`다. 인계 편집 기준은 `b71524e`의 같은 본문이며, 그 위에 이미 기록한 `c3073c5`와 현재 문서 브랜치를 보존한다. 전체 브랜치 병합, reset과 다른 워크트리 복사는 하지 않는다.
 - **검증 슬롯:** 이 파일의 문서 검수와 정상 pre-commit 가드만 허용한다. 같은 문서 검사를 미리 반복하지 않으며 제품 build/typecheck/tests/browser/Windows 슬롯은 Main 소유다. 확인 뒤 로컬 체크포인트 SHA와 이 경로만 회신하고 문서 전용으로 대기한다. 수신 확인 메시지마다 새 체크포인트를 만들지 않는다. 신규 구현 작성권은 0이다.
+- 같은 날 Q는 AI/STT/DB의 기존 계획과 구현을 대조하고, 누락된 연결·검증·복구 계약만 기존 W/E 항목에 연결하는 설계 제안을 Ouroboros로 구체화하도록 승인했다. 아래 후속 구체화는 이 파일만 갱신하며 계획용 Seed와 QA 기록은 세션 로컬 아티팩트로 둔다. 코드 구현, 미승인 정책의 확정과 다른 레인 개입은 허용하지 않는다.
 
 ## 정본 읽기
 
@@ -288,6 +289,57 @@ S-H의 CSAP 개편 시점, 선례의 숫자, 서비스별 가격, CLOVA 보관/�
 - `node scripts/guard-doc-numbers.mjs`가 통과했다. 이 검사는 현재 PLANNER 트리의 번호 검사이며 총괄 브랜치와의 D90 충돌 해소를 증명하지 않는다.
 - 맥락 없는 독립 읽기에서 지적한 단계별 수정 권한, 새 인계 SHA에서 정본을 가져오는 순서, 필수 스킬의 읽기 경로를 보완했다. 공개 사실은 위 1차 출처와 대조했고, 의미 품질/실런타임/법무 승인은 미검증으로 구별했다.
 
+### Ouroboros 후속: AI/STT/DB 미연결 계약 구체화
+
+**Q가 확인한 목표:** 기존 AI·STT·DB 계획과 코드를 재사용하고, 빠진 연결·검증·복구 계약만 기존 W/E 항목에 연결한 설계 제안으로 구체화한다. 아래 묶음은 새 W나 실행 티켓이 아니라 기존 항목의 계약 준비 범위다. 본문의 파일·심볼은 고정 코드에서 확인했으며 이후 구현 담당자나 최신 미커밋 작업을 뜻하지 않는다.
+
+**근거와 도구:** 정책은 `3dff4d0c`, 코드 조사는 `68968722`다. 독립적인 로컬 Git 조회에서 통합 tip `bb5b47e7`을 확인했고 추가 커밋은 client 영역 접기와 Wire 변경이었다. 두 코드 기준 사이 `packages/ai-runtime/src`, `packages/contracts/src`, `apps/pipeline/ccc_pipeline`, `adapters`, `packages/core/src`, `packages/http-api/src`, `scripts/stt`의 차이는 0건이었다. 제품 검사는 실행하지 않았다. Ouroboros 0.51.15는 설치돼 있으나 MCP SDK v2 부재로 서버가 시작되지 않아 공식 직접 인터뷰 경로를 사용했다. 세 독립 관점의 계획 범위 검토와 Q의 목표 확인을 마쳤으며 자동 모호성 점수와 제품 품질 점수는 측정하지 않았다.
+
+**계획 산출물 검수:** 계획용 Seed `seed_ccc_ai_stt_storage_plan_20260913`은 설치된 `ouroboros.core.seed.Seed` 스키마를 통과했다. 독립 Seed QA는 1회차 `pass`/0.98이고 본문 계약 검수도 PASS다. 이는 문서의 품질 검토이며 자동 모호성 점수나 제품 구현·품질 검증이 아니다. Seed에는 자동 점수 미측정과 제품 실행 불허를 기록했다.
+
+| 영역 | 기존 계획과 재사용 코드 | 확인된 미연결 범위 |
+|---|---|---|
+| AI | W05~W10/W12, E5-4/CCC-237, E5-5/CCC-238, E5-9/CCC-239. `CodexProviderAdapter`, `AiProviderRequest`, `AiProviderOutput`, `reviewGeneratedAiDraft`, `getSupportCaseReport`가 있다. 기억 입력 차단과 G2 대조 문구 변경도 코드에 있다 | 일반 AI snapshot의 S6 근거 보존·재검증, 새 번호 가림·카드·주제·연결, 장문/부분 결과와 나머지 M7~M11 계약은 완료로 확인되지 않았다 |
+| STT | E5-2/CCC-231, E5-3/CCC-236, E5-6/CCC-261, E5-7/CCC-245, E5-8/CCC-250. `build_engine`, Qwen 격리 runtime, `preflight_azure`/`transcribe_azure`, claim-bound worker와 내부 시험 경로가 있다 | 기관별 모드/접속 결속, Windows 설치·임시 파일 복구, S13 v2 평가 실행 경로와 사람·장비·기관 적합성 근거는 별개로 남는다 |
+| DB/저장소 | E3, E4-4a/b/E4-5, E6-7/E7-3/E8-5, W01 G8/W13 및 R1~R10. Database, PostgreSQL·암호화 SQLite, 암호화 원음, SecretStore·DPAPI와 Recovery Kit 부품이 있다 | 자유 글 암호화 확장, 행의 키 버전에 맞는 읽기, 금고 AAD 결속, 원문·파생자료 전체 파기와 파기 내역을 반영하는 복원 Application Service는 완료로 확인되지 않았다 |
+
+#### AI: W06/E5-4/E5-5의 근거 연결과 W05/W07~W10/E5-9 소비
+
+- **수정 경계 제안:** Agent의 `apps/pipeline/ccc_pipeline/masking.py`, `worker.py`, `results.py`; `packages/contracts/src/agent-jobs.ts`; 코어의 `acceptAgentJobResult`, `recordMaskedSourceSnapshot`, `commitMaskedResult`, `loadAiCallMaterialsForService`, `authorizeSessionTextAiEgress`; HTTP의 `generateAiDraft`, `runDiscrepancyDetection`과 기존 provider/보고서 타입이다. 광범위한 gateway 분해나 두 번째 AI 호출 경로를 만들지 않는다.
+- **입력과 확인된 틈:** `ResultRequest`에는 `maskingPipelineHash`, `nerAttestationId`, `nerAttestationResultHash`, `releaseQualificationReceiptId`, `sha256`, `evidenceHash` 등이 있지만 `gateway.ts:10482-10501`의 일반 snapshot 전달은 기존 일부 필드만 보존한다. 요청된 재료뿐 아니라 반대 축과 과거 대조 재료도 같은 근거 계약으로 다뤄야 한다. 별도 기억 경로의 `verifyMemoryProof`를 재사용 근거로 삼되 기억을 제품 AI 입력에 다시 넣지 않는다.
+- **출력 계약 제안:** snapshot과 재료 revision에 S6가 요구하는 근거 전체를 연결하고, 보존된 허용 version/hash·receipt·동의와 현재 원문 상태를 외부 호출 직전에 대조한다. `OpenAiEgressAuthorization` 타입의 존재를 실제 전송 권한 소비로 간주하지 않는다. 기존 일곱 fail-closed code와 S5 결과 멱등성을 유지하고 본문을 재작성해 hash/offset을 맞추지 않는다.
+- **후속 소비:** W07의 카드·주제·동일 내용·결과/업데이트 연결 필드 책임은 기존 카드 설계 정본을 따른다. 수기 기록은 정본으로 남고 AI 카드만 회차 승인을 받는다. 이 생산자 계약 뒤에 W08/M5, W09/M6와 W10 소비를 연결한다. 등록된 액션 목록을 미등록 약속 추적의 완료로 바꾸지 않는다.
+- **장문과 상태:** W05/E5-9에는 재료 revision, 검사한 구간, 부분 결과, 제외 구간과 실패를 소비자가 구별하는 계약이 필요하다. 성공한 0건과 미실행·대기·차단·일부 실패·오래된 결과를 구분한다. 기존 `AiContrastAxisStates`, `recordAiCallOutcome`, `AiProviderOutput`과 보고서 응답을 확장 대상으로 삼고 원전사와 근거를 덮어쓰지 않는다.
+- **수용 기준:** 하나의 근거 hash 변조, receipt 만료, 동의 철회 또는 이미 파기한 재료가 있으면 해당 외부 호출은 0회다. 늦은 결과는 파기한 snapshot/대응표를 되살리지 못한다. 수기 기록을 중복 저장하거나 재승인하지 않고, 미승인 카드·연결은 공식 조회에 없다. 긴 입력의 누락 구간과 재시도 결과가 표시되며 실제 0건을 실패로 바꾸지 않는다.
+- **미래 검증:** 기존 pipeline 결과/worker 검사와 API 가림·승인·대조 경로에서 위 실패와 성공을 합성 자료로 확인한다. W12는 새 카드/짝/주제/상대 날짜/요약의 독립 정답 작성자와 검토자, 측정 단위·표본·threshold를 출력 전에 고정한다. 평가기 자기검사와 의미 품질, 실제 egress 증거는 구별한다.
+
+#### STT: E5-1b/E5-6/E5-7의 Agent 결속과 E5-8의 독립 판정
+
+- **수정 경계 제안:** `apps/pipeline/ccc_pipeline/config.py`, `api_client.py`, `worker.py`, `trial_server.py`, 기존 Qwen runtime/의존성 정의와 S12 설치 계약이다. Local/Azure 엔진을 다시 고르거나 어댑터를 새로 만들지 않는다.
+- **접속 입력과 출력:** 기존 설치 manifest·Identity·페어링 계약에서 승인된 모드, 기관, API origin과 service 자격의 결속을 소비한다. 현재 `config.py:16-17,202-237`의 고정 Workers 주소만으로 세 모드 연결을 완료 처리하지 않는다. 허가되지 않은 모드/origin에는 요청이나 자격을 보내지 않으며 키 유무만으로 STT를 활성화하지 않는다.
+- **임시 원음:** 코어 AudioStore의 원본 삭제 증거와 Agent의 다운로드/청크/임시 파일 정리는 별개다. `worker.py:667-675`와 `trial_server.py`의 기존 정리를 출발점으로 Windows 파일 잠금·중단 뒤 복구를 구체화한다. 삭제 실패를 성공으로 표시하지 않고 복구 시 전사나 업로드를 다시 시작하지 않는다. Azure의 durable attempt marker는 임시 원음과 함께 지우지 않는다.
+- **평가 입력과 출력:** `scripts/stt/benchmark.py`, `benchmark_engines.py`, `metrics.py`, `benchmark-models.json`의 재사용 범위를 정한다. 현재 v1의 두 엔진·합성 150건·Windows CPU 판정을 수정해 v2로 가장하지 않는다. v2는 S13의 여섯 허락된 파일, 독립 전사·화자/핵심 사실 정답, 후보와 run identity를 고정하고 누락/실패/미측정을 결과에 남긴다. 기존 threshold와 역사 FAIL은 보존한다.
+- **수용 기준:** 승인된 기관/모드에서만 health와 허용된 합성 처리가 이어지고 다른 origin의 요청은 차단된다. Windows 중단·잠금 뒤 원음/청크의 실제 부재를 확인하며 재전송은 없다. v1 결과와 v2 결과가 섞이지 않고 평가 제외 파일·후보도 숨기지 않는다. off/null과 명시적 관리자 선택, Q 채택은 평가 코드 작성과 별개다.
+- **미래 검증과 담당 구분:** 기존 `test_azure_stt.py`, `test_api_client_worker.py`, `test_trial_server.py`의 계약을 재사용하고 S12의 새 Windows 설치→health→허용된 Local 처리→제거로 장비 증거를 닫는다. Azure의 계약 확인자·증빙 위치·구독/운영/동의 검토는 S13 §7.2와 법률 검토 목록의 기존 담당 인계로 남긴다. 인증 성공을 기관 적합성으로 대체하지 않는다.
+
+#### 저장소: W01/R1~R10의 설계 선택과 기존 E3/E4/E6~E8 복원
+
+- **수정 경계 제안:** `packages/contracts/src/runtime.ts`, `packages/core/src/gateway.ts`의 금고/원문/아카이브 경로, 기존 SecretStore·DPAPI·원음 어댑터와 `migrations/parity.yaml`이다. 실제 paired migration 번호는 실행 시점에 정하며 적용된 이력은 수정하지 않는다. S9/S10 Application Service를 기존 포트 위에 구현하며 새 런타임 포트를 만들지 않는다.
+- **저장 봉투와 키의 설계 제안:** R2의 본문·JSON·인용·파생자료별 저장/조회/복사/검색 목록을 먼저 갖춘다. 후보 봉투에는 암호화 형식 버전, 키 버전, nonce와 ciphertext를 두고 기관/대상/행/필드/두 버전을 인증 데이터에 결속한다. 정확한 인코딩·검색 유출 범위와 Cloud 확장 적용 범위는 미승인 제안으로 표시한다. 현재 `gateway.ts:1437-1493`의 활성 키 한 개 선택과 AAD 없는 금고 형식을 새 계약의 완료로 보지 않는다.
+- **전환과 복구:** 키 보유자는 바꾸지 않는다. S9의 권한·감사→write fence/drain→고정된 이전 세대→새 shadow 전체 검증→단일 pointer 활성화를 그대로 소비한다. 이전 행은 그 세대/키 버전에 맞게 읽고 새 ciphertext를 옛 코드가 평문으로 해석하지 못하게 한다. 이미 확인된 쓰기는 중단이나 rollback으로 유실되지 않아야 한다. 무중단 전환을 새 전제로 추가하지 않는다.
+- **파기 범위와 늦은 쓰기:** 기존 금고/아카이브 파기와 기억 파생자료 삭제도 재사용한다. 원문·revision·목표·인용·AI 결과·생성된 반출 임시물의 연결 목록과, 보존 중인 다른 사례가 공유하는 자료를 구별한다. 파기 대상과 범위를 코어가 확정한 뒤 늦은 Agent/AI/재시도/반출이 자료를 재생성하지 못하게 한다. 정당하게 보존 중인 다른 기관/활성 사례를 함께 지우지 않는다.
+- **파기 내역과 복원 출력:** 기관·파기 대상 참조·범위/정책 버전·파기 revision·시각을 원문 없이 대조하고 진위와 최신성을 입증하는 내역이 필요하다. 내역 포맷·보호 위치·증명 키는 S9/S10 소유자가 정할 설계 선택이며 승인된 새 표나 API로 쓰지 않는다. 원본 backup hash를 먼저 검증하고 비공개 shadow에 허가된 파기 차이만 적용한다. S9 `RestoreChecks`/성공 상태와 S10 `RECOVERY_BLOCKED`의 판정은 업무 노출 시점의 최신성까지 포함한다.
+- **조건부 Cloud 원음 암호화:** R7을 진행할 경우에만 기존 `AudioStore`/StorageSigner의 plaintext/ciphertext 크기·hash·generation, 복호화 권한과 키 부재 거부를 하나의 계약으로 정한다. frontend 업로드와 Agent 다운로드가 같은 바이트를 검증해야 하고 업무 API는 원음을 프록시하지 않는다. 로컬 암호화 파일 코드로 Cloud 암호화를 완료 처리하지 않는다.
+- **수용 기준:** 이전/새 세대의 허가된 읽기는 값을 보존하고, 기관/행/필드 교체와 잘못된 키는 거부한다. 파기 뒤 대상 원문·연결 파생자료와 임시 사본은 없고 늦은 결과도 이를 되살리지 못한다. 정상 옛 백업과 최신 파기 내역으로 나머지 자료는 보존되며 내역 누락·변조·다른 기관·대상 모호성·오래된 revision은 업무 개방을 막는다. 손상된 원본 hash는 파기 내역으로 면제하지 않는다.
+- **미래 검증:** 기존 DB/원음/SecretStore 계약 검사, E3-7/E4-5/E6-7/E7-3/E8-5의 권한·세대 전환·중단 복구·깨끗한 대상 복원을 재사용한다. SQLite/PG parity와 실제 Windows/Cloud 복원 증거는 그 레인의 별도 슬롯에서 얻는다. 새 문서나 암호화 부품만으로 전체 복원 PASS를 주장하지 않는다.
+
+#### 실제 의존과 다음 인계
+
+- 먼저 고정할 것은 AI proof/material 버전과 저장 봉투/파기 내역의 생산자·소비자 계약이다. 같은 snapshot 컬럼과 gateway 구간, paired migration을 함께 바꾸는 부분만 한 작성자가 직렬로 통합한다. `worker.py`의 S5/Azure/정리 변경도 한 작성 경계를 따른다.
+- W07 카드 생산자 뒤에 W08~W10 소비를, 파기 내역 생산자 뒤에 복원 소비와 활성화 판정을 연결한다. Agent 모드 결속은 페어링/Identity와, Cloud ciphertext 전송은 frontend/Agent와 인계한다. 독립 정답과 S13 v2 입력 준비는 코드 작성과 분리할 수 있지만 미승인 모델·provider 활성화를 포함하지 않는다.
+- 코드 작성권과 검증 슬롯은 여전히 0이다. 위 파일은 배정 대상 제안이지 현재 작성자 지정이 아니다. 실제 구현은 생산자 커밋·검증, 겹치는 구간 동결과 파일/단일 작성자/기준 SHA/수용 기준/검증 슬롯의 명시적 인계를 받아야 한다. 이 문서 작업 때문에 오케스트레이터 세션에 요청을 보내지 않는다.
+
+
 ### 다음 인계 요청
 
 수정안과 작성권/배치 인계 요청은 기존 티켓의 코멘트로 게시하고 재조회했다: [계획과 제출 CCC-192](https://linear.app/bss-ccc/issue/CCC-192/e10-6-제출-패키지와-시연#comment-120e89e5), [법무 CCC-157](https://linear.app/bss-ccc/issue/CCC-157/sg14-법무와-실데이터-게이트-확정-게이트#comment-3a3f4bcf), [STT CCC-250](https://linear.app/bss-ccc/issue/CCC-250/e5-8-stt-g1stt-g3-엔진-판정#comment-71ecd30b). 상태는 각각 Backlog, Backlog, In Progress 그대로다. 게시 성공은 총괄의 수신 확인이나 작성권 인계가 아니다.
@@ -296,7 +348,7 @@ S-H의 CSAP 개편 시점, 선례의 숫자, 서비스별 가격, CLOVA 보관/�
 
 ## 배치 진행 중 할 일
 
-1. 총괄에게 현재 배치 ID, 실제 담당 레인, 작성 중인 파일 범위, 통합 기준 SHA, 검증 슬롯과 종료 통지 경로를 확인한다. 총괄이 인계한 로컬 체크포인트로 준비를 계속하되 현재 작업의 소유권이나 완료를 추정하지 않는다.
+1. 새로 명시적으로 받은 배치/소유권 인계와 허용된 로컬 커밋으로 다음 범위를 확인한다. 현재 Q 지시 아래에서는 오케스트레이터 세션에 상태 문의나 작업 지시를 보내지 않는다. 미커밋 작업이나 실제 실행 여부를 커밋의 존재만으로 추정하지 않는다.
 2. PLANNER의 쓰기 범위는 위 ‘작업 범위와 보존’에 명시한 승인 문서이며 기존 계획 정본의 작성자는 총괄이다. 정본 작성권 인계 전에는 기준 SHA와 변경 구간을 명시한 수정안만 전달한다. 총괄이 대상 경로와 인계 시점을 명시하고 그 파일의 작성을 멈춘 뒤에만 PLANNER 안에서 같은 정본 경로를 갱신한다. 다른 워크트리의 파일은 직접 고치지 않는다.
 3. 새 승인 결정, API/스키마 계약 변경, 로컬 체크포인트 반영, 검증 실패나 작업 취소가 들어오면 기존 W 항목에 대한 수정안을 갱신한다. 새 상태 파일이나 두 번째 W01~W13 목록을 만들지 않는다. 현재 변경의 전달에는 위 로컬 인계 규율을 적용한다.
 4. 다음 미착수 묶음에 아래 준비 항목을 모두 갖춘다. 기존 배치와 같은 파일을 건드리는 부분만 의존관계로 남기고 독립적인 조사와 계획 준비는 계속한다. 현재 진행 중인 일의 재구현은 시작하지 않는다.
