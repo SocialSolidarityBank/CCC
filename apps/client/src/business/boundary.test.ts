@@ -1,40 +1,107 @@
 import { describe, expect, it } from 'vitest';
 import { apiBase, capabilities, fixture, installation, installationId, json, origin } from './test-support';
-import { loadInstallation } from './installation';
+import { loadInstallation, parseInstallationTrust } from './installation';
 import { BusinessTransport } from './transport';
 
 describe('verified browser installation', () => {
   it('accepts a signed Cloud installation with separate client and API hosts', async () => {
-    const { manifest, keys } = await fixture({ host: new URL(origin).host });
-    await expect(loadInstallation(origin, keys, async (input) =>
+    const { manifest, trust } = await fixture({ host: new URL(origin).host, sequence: 2,
+      supabaseAuthOrigin: 'https://abcdefghijklmnopqrst.auth.example' });
+    const verified = await loadInstallation(origin, trust, async (input) =>
       String(input).endsWith('/ccc-install-manifest.json')
-        ? json(manifest) : json({ mode: manifest.mode, apiBase: manifest.apiBase })))
-      .resolves.toMatchObject({ apiBase });
+        ? json(manifest) : json({ mode: manifest.mode, apiBase: manifest.apiBase }));
+    expect(verified.apiBase).toBe(apiBase);
+    expect(verified.manifest.supabaseAuthOrigin).toBe('https://abcdefghijklmnopqrst.auth.example');
+    const transport = new BusinessTransport(verified, () => 'synthetic-token', async () =>
+      json(capabilities(), 200, { 'X-CCC-Installation-Id': installationId }));
+    await expect(transport.initialize()).resolves.toMatchObject({ mode: 'community-cloud' });
+    transport.dispose();
   });
 
   it('does not consult unsigned bootstrap after a tampered signature', async () => {
-    const { manifest, keys } = await fixture();
+    const { manifest, trust } = await fixture();
     const destinations: string[] = [];
-    await expect(loadInstallation(origin, keys, async (input) => {
+    await expect(loadInstallation(origin, trust, async (input) => {
       destinations.push(String(input));
       return json({ ...manifest, apiBase: 'https://attacker.example/collect' });
     })).rejects.toMatchObject({ code: 'installation_invalid' });
     expect(destinations).toEqual([`${origin}/ccc-install-manifest.json`]);
   });
 
-  it('fails before any network request when no public trust keys are configured', async () => {
+  it('fails before any network request when no installation trust is configured', async () => {
     await expect(loadInstallation(origin, undefined, async () => {
       throw new Error('Network must not be reached');
     })).rejects.toMatchObject({ code: 'trust_missing' });
   });
 
   it('rejects bootstrap redirection and a signed but different client origin', async () => {
-    const { manifest, keys } = await fixture();
-    await expect(loadInstallation(origin, keys, async (input) => String(input).endsWith('/ccc-install-manifest.json')
+    const { manifest, trust } = await fixture();
+    await expect(loadInstallation(origin, trust, async (input) => String(input).endsWith('/ccc-install-manifest.json')
       ? json(manifest) : json({ mode: manifest.mode, apiBase: 'https://attacker.example' })))
       .rejects.toMatchObject({ code: 'installation_invalid' });
-    await expect(loadInstallation('https://other.example', keys, async () => json(manifest)))
+    await expect(loadInstallation('https://other.example', trust, async () => json(manifest)))
       .rejects.toMatchObject({ code: 'installation_invalid' });
+  });
+
+  it('rejects incomplete, extra-field and malformed trust before the first fetch', async () => {
+    const { trust } = await fixture();
+    const valid = JSON.parse(trust);
+    const invalid = [
+      undefined, '', '{', 'null', '[]', JSON.stringify(valid.publicKeys),
+      ...Object.keys(valid).map((key) => JSON.stringify(Object.fromEntries(Object.entries(valid).filter(([name]) => name !== key)))),
+      JSON.stringify({ ...valid, privateApproval: 'PRIVATE_APPROVAL_SENTINEL' }),
+      JSON.stringify({ ...valid, publicKeys: {} }),
+      JSON.stringify({ ...valid, publicKeys: { test: 'not-a-public-key' } }),
+      JSON.stringify({ ...valid, publicKeys: { constructor: valid.publicKeys.test } }),
+      JSON.stringify({ ...valid, revokedKeyIds: 'test' }),
+      JSON.stringify({ ...valid, revokedKeyIds: [''] }),
+      JSON.stringify({ ...valid, revokedKeyIds: [1] }),
+      JSON.stringify({ ...valid, revokedKeyIds: ['test', 'test'] }),
+      ...[-1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', null].map((minSequence) => JSON.stringify({ ...valid, minSequence })),
+      JSON.stringify({ ...valid, expectedInstallationId: '' }),
+      JSON.stringify({ ...valid, expectedInstallationId: '   ' }),
+    ];
+    for (const config of invalid) {
+      const requests: string[] = [];
+      await expect(loadInstallation(origin, config, async (input) => {
+        requests.push(String(input)); return json({});
+      })).rejects.toMatchObject({ code: 'trust_missing' });
+      expect(requests).toEqual([]);
+    }
+  });
+
+  it.each([
+    { name: 'revoked key', patch: { revokedKeyIds: ['test'] } },
+    { name: 'external sequence floor', patch: { minSequence: 2 } },
+    { name: 'external installation identity', patch: { expectedInstallationId: 'another-installation' } },
+  ])('rejects $name after manifest verification and before bootstrap or API', async ({ patch }) => {
+    const { manifest, trust } = await fixture();
+    const requests: string[] = [];
+    await expect(loadInstallation(origin, JSON.stringify({ ...JSON.parse(trust), ...patch }), async (input) => {
+      requests.push(String(input)); return json(manifest);
+    })).rejects.toMatchObject({ code: 'installation_invalid' });
+    expect(requests).toEqual([`${origin}/ccc-install-manifest.json`]);
+  });
+
+  it('keeps accepted trust values immutable without replacing externally supplied identity or floor', async () => {
+    const { trust } = await fixture();
+    const parsed = parseInstallationTrust(trust);
+    expect(parsed).toEqual(JSON.parse(trust));
+    expect(Reflect.set(parsed, 'minSequence', 0)).toBe(false);
+    expect(Reflect.set(parsed.publicKeys, 'new-key', 'bad')).toBe(false);
+    expect(Reflect.set(parsed.revokedKeyIds, '0', 'test')).toBe(false);
+    expect(parsed.expectedInstallationId).toBe(installationId);
+    expect(parsed.minSequence).toBe(1);
+  });
+
+  it('preserves expiry and unsupported local-mode refusals with valid external trust', async () => {
+    const expired = await fixture({ expiresAt: '2000-01-01T00:00:00.000Z' });
+    await expect(loadInstallation(origin, expired.trust, async () => json(expired.manifest)))
+      .rejects.toMatchObject({ code: 'installation_invalid' });
+    const local = await fixture({ mode: 'local-office', supabaseProjectRef: null, supabaseAuthOrigin: null, supabasePublishableKey: null });
+    await expect(loadInstallation(origin, local.trust, async (input) => String(input).endsWith('/ccc-install-manifest.json')
+      ? json(local.manifest) : json({ mode: 'local-office', apiBase })))
+      .rejects.toMatchObject({ code: 'local_office_unsupported' });
   });
 });
 

@@ -15,21 +15,44 @@ export function assertInstallationCurrent(installation: VerifiedInstallation): v
   if (Date.parse(installation.manifest.expiresAt) <= Date.now()) throw new BusinessError('installation_expired');
 }
 
-/** 공개 키만 받는다. 서명 대상 문서에서 신뢰할 키를 가져오지 않는다. */
-function trustedKeys(config: string | undefined): Record<string, string> {
+export interface InstallationTrust {
+  readonly publicKeys: Readonly<Record<string, string>>;
+  readonly revokedKeyIds: readonly string[];
+  readonly minSequence: number;
+  readonly expectedInstallationId: string;
+}
+
+const TRUST_FIELDS = ['publicKeys', 'revokedKeyIds', 'minSequence', 'expectedInstallationId'] as const;
+function isTrustKeyId(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && !/[\u0000-\u001f\u007f]/u.test(value)
+    && value !== '__proto__' && value !== 'constructor' && value !== 'prototype';
+}
+
+/** Installer-owned input only. Fetched documents never supply their own expected state. */
+export function parseInstallationTrust(config: string | undefined): InstallationTrust {
   if (!config) throw new BusinessError('trust_missing');
   try {
     const parsed: unknown = JSON.parse(config);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error();
-    const entries = Object.entries(parsed);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)
+      || Object.keys(parsed).length !== TRUST_FIELDS.length || !TRUST_FIELDS.every((key) => Object.hasOwn(parsed, key))) throw new Error();
+    const input = parsed as Record<string, unknown>;
+    if (typeof input.publicKeys !== 'object' || input.publicKeys === null || Array.isArray(input.publicKeys)) throw new Error();
+    const entries = Object.entries(input.publicKeys);
     if (entries.length === 0) throw new Error();
-    const keys: Record<string, string> = Object.create(null);
+    const publicKeys: Record<string, string> = Object.create(null);
     for (const [id, key] of entries) {
-      if (!id || ['__proto__', 'constructor', 'prototype'].includes(id) || typeof key !== 'string'
-        || !/^[A-Za-z0-9+/]{43}=$/.test(key) || atob(key).length !== 32) throw new Error();
-      keys[id] = key;
+      if (!isTrustKeyId(id) || typeof key !== 'string' || !/^[A-Za-z0-9+/]{43}=$/.test(key)) throw new Error();
+      const decoded = atob(key);
+      if (decoded.length !== 32 || btoa(decoded) !== key) throw new Error();
+      publicKeys[id] = key;
     }
-    return keys;
+    const { revokedKeyIds, minSequence, expectedInstallationId } = input;
+    if (!Array.isArray(revokedKeyIds) || !revokedKeyIds.every(isTrustKeyId)
+      || new Set(revokedKeyIds).size !== revokedKeyIds.length
+      || typeof minSequence !== 'number' || !Number.isSafeInteger(minSequence) || minSequence < 0
+      || typeof expectedInstallationId !== 'string' || expectedInstallationId.trim().length === 0) throw new Error();
+    return Object.freeze({ publicKeys: Object.freeze(publicKeys), revokedKeyIds: Object.freeze(revokedKeyIds),
+      minSequence, expectedInstallationId });
   } catch {
     throw new BusinessError('trust_missing');
   }
@@ -37,10 +60,10 @@ function trustedKeys(config: string | undefined): Record<string, string> {
 
 export async function loadInstallation(
   clientOrigin: string,
-  publicKeyConfig: string | undefined,
+  trustConfig: string | undefined,
   fetcher: typeof fetch = fetch,
 ): Promise<VerifiedInstallation> {
-  const publicKeys = trustedKeys(publicKeyConfig);
+  const trust = parseInstallationTrust(trustConfig);
   async function publicJson(path: string): Promise<unknown> {
     try {
       const response = await fetcher(`${clientOrigin}${path}`, {
@@ -56,7 +79,7 @@ export async function loadInstallation(
   }
   try {
     const manifest = await verifySignedInstallManifest(await publicJson('/ccc-install-manifest.json'), {
-      publicKeys, now: new Date(),
+      ...trust, now: new Date(),
     });
     if (manifest.clientOrigin !== clientOrigin || !manifest.allowedOrigins.includes(clientOrigin)) {
       throw new BusinessError('installation_invalid');

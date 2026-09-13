@@ -72,7 +72,7 @@ function RuntimeBoundary() {
     let live = true;
     let owned: Runtime | undefined;
     // Keep the existing one-installation/one-Auth lifecycle across StrictMode effects.
-    runtimePromise ??= loadInstallation(window.location.origin, import.meta.env.VITE_CCC_INSTALL_SIGNING_KEYS)
+    runtimePromise ??= loadInstallation(window.location.origin, import.meta.env.VITE_CCC_INSTALL_TRUST)
       .then((installation) => ({ installation, auth: new CloudAuth(installation) }));
     void runtimePromise.then((value) => {
       if (live) { owned = value; setRuntime(value); }

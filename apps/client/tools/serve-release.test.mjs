@@ -1,5 +1,5 @@
 // Native only; no packages, provider calls or real credentials.
-// deno test --no-config --no-lock --no-remote --allow-read --allow-write --allow-run=deno --allow-net=127.0.0.1 \
+// deno test --no-config --no-lock --no-remote --allow-read --allow-write --allow-run=deno,bun --allow-env=PATH --allow-net=127.0.0.1 \
 //   apps/client/tools/serve-release.test.mjs
 // These are shape-only artifacts. Main separately exercises build:release with a
 // synthetic SIGNED manifest + PUBLIC verification keys before image verification.
@@ -163,3 +163,45 @@ Deno.test('the executable exits closed with a fixed diagnostic before listening'
   assert.equal(new TextDecoder().decode(result.stdout), '');
   assert.equal(new TextDecoder().decode(result.stderr).trim(), 'static_release_invalid');
 }));
+
+Deno.test('release builder rejects closed-trust and manifest mismatches before invoking Vite', async () => {
+  const root = await Deno.makeTempDir({ prefix: 'ccc-release-trust-' });
+  try {
+    const fixtureUrl = new URL('../src/business/test-support.ts', import.meta.url).href;
+    const fixtureFile = join(root, 'fixture.json');
+    const generated = await new Deno.Command('bun', {
+      args: ['--eval', `const {fixture}=await import(${JSON.stringify(fixtureUrl)}); await Bun.write(${JSON.stringify(fixtureFile)}, JSON.stringify(await fixture({sequence:2})));`],
+      stdout: 'piped', stderr: 'piped',
+    }).output();
+    assert.equal(generated.code, 0);
+    const { manifest: signed, trust: trustJson } = JSON.parse(await Deno.readTextFile(fixtureFile));
+    const trust = JSON.parse(trustJson);
+    await Deno.writeTextFile(join(root, 'manifest.json'), JSON.stringify(signed));
+    const bin = join(root, 'bin');
+    await Deno.mkdir(bin);
+    await Deno.writeTextFile(join(bin, 'pnpm'), '#!/bin/sh\nprintf "UNEXPECTED_VITE_INVOCATION\\n"\nexit 99\n');
+    await Deno.chmod(join(bin, 'pnpm'), 0o700);
+    const privateText = 'PRIVATE_APPROVAL_JOURNAL_BEARER_PII_SENTINEL';
+    const cases = [
+      { trust: undefined, error: 'trust_missing' },
+      { trust: { ...trust, revokedKeyIds: ['test'] }, error: 'key_revoked' },
+      { trust: { ...trust, minSequence: 3 }, error: 'sequence_replay' },
+      { trust: { ...trust, expectedInstallationId: 'another-installation' }, error: 'wrong_install' },
+      { trust: { ...trust, privateApproval: privateText }, error: 'trust_missing' },
+    ];
+    for (const scenario of cases) {
+      const config = join(root, 'release.json');
+      await Deno.writeTextFile(config, JSON.stringify({ manifestPath: 'manifest.json', trust: scenario.trust }));
+      const result = await new Deno.Command('bun', {
+        args: [new URL('./build-release.mjs', import.meta.url).pathname, '--config', config, '--out', join(root, 'dist')],
+        env: { PATH: `${bin}:${Deno.env.get('PATH') ?? ''}` }, stdout: 'piped', stderr: 'piped',
+      }).output();
+      const output = new TextDecoder().decode(result.stdout) + new TextDecoder().decode(result.stderr);
+      assert.equal(result.code, 1);
+      assert.ok(output.includes(scenario.error));
+      assert.ok(!output.includes('UNEXPECTED_VITE_INVOCATION'));
+      assert.ok(!output.includes(privateText));
+      await assert.rejects(Deno.stat(join(root, 'dist')), Deno.errors.NotFound);
+    }
+  } finally { await Deno.remove(root, { recursive: true }); }
+});

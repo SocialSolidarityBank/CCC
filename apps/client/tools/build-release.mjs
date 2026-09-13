@@ -9,7 +9,7 @@
 //
 // 이 명령이 하는 일은 넷이다.
 //   1. 배포 담당이 서명한 install manifest 를 공개 키로 **검증**한다. 여기서 서명하지 않는다.
-//   2. 검증한 값으로 vite production 빌드를 돌린다(`VITE_CCC_INSTALL_SIGNING_KEYS` 주입).
+//   2. 설치기가 준 신뢰 상태 그대로 vite production 빌드를 돌린다(`VITE_CCC_INSTALL_TRUST` 주입).
 //   3. `/ccc-install-manifest.json` 과 `/ccc-bootstrap.json` 을 산출물에 넣는다.
 //      bootstrap 은 manifest 에서 파생하며 손으로 적지 않는다.
 //   4. 정적 서버가 켜야 하는 header 를 `ccc-deploy-headers.json` 으로 적는다(S2 §2.9 고정 문구).
@@ -21,7 +21,8 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verifySignedInstallManifest, parsePublicBootstrap, assertBootstrapMatchesManifest, resolveEffectiveApiBase } from '@ccc/contracts/install-manifest';
+import { InstallManifestError, verifySignedInstallManifest, parsePublicBootstrap, assertBootstrapMatchesManifest, resolveEffectiveApiBase } from '@ccc/contracts/install-manifest';
+import { parseInstallationTrust } from '../src/business/installation.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const clientRoot = join(here, '..');
@@ -45,29 +46,33 @@ let config;
 try {
   config = JSON.parse(readFileSync(configFile, 'utf8'));
 } catch {
-  fail(`설정 파일을 읽지 못했습니다: ${configFile}`);
+  fail('배포 설정을 읽을 수 없습니다.');
 }
 
-const { manifestPath, publicKeys } = config;
-if (typeof manifestPath !== 'string' || manifestPath === '') fail('설정의 manifestPath 가 없습니다.');
-if (typeof publicKeys !== 'object' || publicKeys === null || Object.keys(publicKeys).length === 0) {
-  fail('설정의 publicKeys 가 없습니다. 공개 키만 넣습니다.');
+if (typeof config !== 'object' || config === null || Array.isArray(config)
+  || Object.keys(config).some((key) => !['manifestPath', 'trust', '_note', '_manifestPath', '_trust'].includes(key))) {
+  fail('배포 설정 형식이 올바르지 않습니다.');
 }
+const { manifestPath } = config;
+if (typeof manifestPath !== 'string' || manifestPath.trim() === '') fail('설정의 manifestPath 가 없습니다.');
+let trust;
+try { trust = parseInstallationTrust(JSON.stringify(config.trust)); }
+catch { fail('trust_missing'); }
 
 const manifestFile = isAbsolute(manifestPath) ? manifestPath : resolve(configDir, manifestPath);
 let manifestJson;
 try {
   manifestJson = JSON.parse(readFileSync(manifestFile, 'utf8'));
 } catch {
-  fail(`서명된 manifest 를 읽지 못했습니다: ${manifestFile}`);
+  fail('서명된 manifest 를 읽을 수 없습니다.');
 }
 
 // 1. 검증. 서명, 만료, 모드별 필드가 여기서 걸린다.
 let manifest;
 try {
-  manifest = await verifySignedInstallManifest(manifestJson, { publicKeys, now: new Date() });
+  manifest = await verifySignedInstallManifest(manifestJson, { ...trust, now: new Date() });
 } catch (error) {
-  fail(`manifest 검증 실패: ${error?.code ?? error?.message ?? 'unknown'}`);
+  fail(`manifest 검증 실패: ${error instanceof InstallManifestError ? error.code : 'invalid_manifest'}`);
 }
 if (manifest.mode !== 'community-cloud') {
   fail(`이 명령은 community-cloud 산출물만 만듭니다(받은 값: ${manifest.mode}).`);
@@ -81,11 +86,11 @@ const outDir = outDirArg === undefined
   ? join(clientRoot, 'dist')
   : (isAbsolute(outDirArg) ? outDirArg : resolve(process.cwd(), outDirArg));
 
-// 2. 빌드. 공개 키만 환경변수로 들어간다.
+// 2. 빌드. 설치기의 공개 신뢰 상태를 그대로 넣는다. manifest 값으로 기대 상태를 만들지 않는다.
 const build = spawnSync(
   'pnpm',
   ['--filter', '@ccc/client', 'exec', 'vite', 'build', '--outDir', outDir, '--emptyOutDir'],
-  { stdio: 'inherit', env: { ...process.env, VITE_CCC_INSTALL_SIGNING_KEYS: JSON.stringify(publicKeys) } },
+  { stdio: 'inherit', env: { ...process.env, VITE_CCC_INSTALL_TRUST: JSON.stringify(trust) } },
 );
 if (build.status !== 0) fail('vite build 실패');
 
