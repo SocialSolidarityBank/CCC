@@ -202,6 +202,8 @@ const walkMarkup = (dir) => {
 };
 walkMarkup(join(repoRoot, 'apps/web/app'));
 walkMarkup(join(repoRoot, 'apps/client/src'));
+// 2026-09-10 P9: 공유 Wire 부품 패키지로 분리됨(packages/wire).
+walkMarkup(join(repoRoot, 'packages/wire/src'));
 
 const declaredClasses = new Map();
 for (const file of TARGETS) {
