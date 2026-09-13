@@ -511,12 +511,15 @@ export function RecordReviewScreen() {
   };
 
   const base = `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
+  const manualRecovery = error?.code === 'not_found' || error?.code === 'consent_not_effective'
+    || error?.code === 'text_ai_pilot_disabled' || error?.code === 'ai_provider_not_configured'
+    || error?.code === 'ai_prohibited_output' || error?.code === 'ai_provider_unavailable';
   return <WireCard title="AI 정리 검토">
     {error && <><WireError>{error.message}</WireError>
       {(error.code === 'draft_changed' || error.code === 'conflict') && <WireCallout tone="info" title="선택한 내용은 그대로 두었어요">
         최신 초안을 불러와 비교하기 전까지 승인, 반려, 할 일 등록 상태를 완료로 처리하지 않아요.
       </WireCallout>}
-      <div className="business-actions"><WireButton variant="neutral" onClick={load}>최신 초안 다시 불러오기</WireButton></div></>}
+      {!manualRecovery && <div className="business-actions"><WireButton variant="neutral" onClick={load}>최신 초안 다시 불러오기</WireButton></div>}</>}
     {aiOff && <WireCallout tone="info" title="AI 처리가 꺼져 있습니다">
       이 설치는 AI 정리를 쓰지 않습니다. 상담은 직접 쓴 기록으로 남고, 이 화면은 저장된 초안이 있을 때만 내용을 보여 줍니다.
     </WireCallout>}

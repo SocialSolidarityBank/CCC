@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AiReviewApi, CONTRAST_AXIS_LABELS, CONTRAST_UNAVAILABLE_LABELS } from '../business/ai-review';
 import type { Session } from '../business/session';
 import { RecordReviewScreen } from './records';
+import { httpError } from '../business/errors';
 
 const roots = new Set<{ root: Root; container: HTMLElement }>();
 afterEach(async () => {
@@ -17,12 +18,19 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function renderContrast(contrast: unknown[]) {
+async function renderContrast(contrast: unknown[], failure?: { status: number; code: string; calls: string[] }) {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const draft = { version: 1, origin: 'agent', creationMode: 'recording', summaryText: '합성 요약',
-    claims: [], questions: [], evidence: [], oneLiner: null, reviewDecision: 'approved', contrast };
+    claims: [], questions: [], evidence: [], oneLiner: null, reviewDecision: failure ? null : 'approved', contrast,
+    regenerateAvailable: failure !== undefined, regenerateSourceSnapshotId: failure ? 'snapshot-1' : null };
   const session = {
-    aiReview: new AiReviewApi({ request: async () => draft } as never),
+    aiReview: new AiReviewApi({ request: async (_path: string, method = 'GET') => {
+      failure?.calls.push(method);
+      if (method === 'POST' && failure) throw httpError(failure.status, {
+        error: failure.code, message: 'PRIVATE_PROVIDER_RESPONSE_SENTINEL', token: 'PRIVATE_PROVIDER_RESPONSE_SENTINEL',
+      });
+      return draft;
+    } } as never),
     capabilities: { llmMode: 'off' }, auth: { signOut: vi.fn() },
   } as unknown as Session;
   const container = document.createElement('div');
@@ -70,5 +78,34 @@ describe('comparison visibility and unavailable reasons', () => {
     ]);
     expect(negativeOnly.textContent).toBe(absent.textContent);
     expect(negativeOnly.textContent).not.toContain('비노출 표식');
+  });
+});
+
+describe('CCC-212 review recovery', () => {
+  it.each([
+    [404, 'not_found', 'manual-records'],
+    [409, 'consent_not_effective', 'manual-records'],
+    [409, 'text_ai_pilot_disabled', 'manual-records'],
+    [409, 'ai_provider_not_configured', 'manual-records'],
+    [422, 'ai_prohibited_output', 'manual-records'],
+    [503, 'ai_provider_unavailable', 'manual-records'],
+    [409, 'conflict', 'draft-reload'],
+    [409, 'stale_draft_version', 'draft-reload'],
+    [409, 'draft_version_required', 'draft-reload'],
+  ] as const)('HTTP %s / %s uses %s recovery without retry or approval', async (status, code, recovery) => {
+    const calls: string[] = [];
+    const container = await renderContrast([], { status, code, calls });
+    await act(async () => { container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(); });
+    await act(async () => {
+      [...container.querySelectorAll('button')].find((button) => button.textContent === '최신 재료로 다시 만들기')!.click();
+    });
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(httpError(status, { error: code }).message);
+    const reload = [...container.querySelectorAll('button')].find((button) => button.textContent === '최신 초안 다시 불러오기');
+    expect(reload !== undefined).toBe(recovery === 'draft-reload');
+    expect(container.querySelector('a[href="/participants/swallow-003/programs/case-1/records"]')).not.toBeNull();
+    expect(container.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked).toBe(true);
+    expect([...container.querySelectorAll('button')].some((button) => button.textContent === '승인')).toBe(true);
+    expect(container.textContent).not.toContain('PRIVATE_PROVIDER_RESPONSE_SENTINEL');
+    expect(calls).toEqual(['GET', 'POST']);
   });
 });
