@@ -110,6 +110,7 @@ function IntakeForm({ beneficiaryId, supportCaseId }: { beneficiaryId: string; s
   const [heldAt, setHeldAt] = useState('');
   const [channel, setChannel] = useState<IntakeCreateRequest['channel']>('in_person');
   const [conversionConfirmed, setConversionConfirmed] = useState(false);
+  const [collapsed, setCollapsed] = useState<Partial<Record<string, boolean>>>({});
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [conflict, setConflict] = useState(false);
@@ -132,6 +133,7 @@ function IntakeForm({ beneficiaryId, supportCaseId }: { beneficiaryId: string; s
       setChannel(value.saved?.channel ?? 'in_person');
       setConversionConfirmed(false);
       setConflict(false);
+      setCollapsed({});
     }).catch((cause: unknown) => {
       if (own !== generation.current) return;
       const safe = safeError(cause);
@@ -234,8 +236,16 @@ function IntakeForm({ beneficiaryId, supportCaseId }: { beneficiaryId: string; s
         <WireCardSection title="공통 질문" action={<WireBadge tone="neutral">{requiredIntakeQuestionKeys([]).length}개 필수</WireBadge>}>
           {requiredIntakeQuestionKeys([]).map(question)}
         </WireCardSection>
-        {areas.map((area) => <WireCardSection key={area} title={INTAKE_AREA_LABELS[area]}>
-          {requiredKeys.filter((key) => (INTAKE_QUESTIONS[key] as IntakeQuestion).area === area).map(question)}
+        {areas.map((area) => <WireCardSection key={area} title={INTAKE_AREA_LABELS[area]}
+          action={<WireButton variant="neutral" type="button" ariaExpanded={!collapsed[area]} ariaControls={`intake-area-${area}`}
+            onClick={() => setCollapsed((current) => ({ ...current, [area]: !current[area] }))}>
+            {collapsed[area] ? '펼치기' : '접기'}
+          </WireButton>}>
+          <div id={`intake-area-${area}`} hidden={collapsed[area] === true}>
+            <div className="business-form">
+              {requiredKeys.filter((key) => (INTAKE_QUESTIONS[key] as IntakeQuestion).area === area).map(question)}
+            </div>
+          </div>
         </WireCardSection>)}
         {table('linkedOrgs', false)}{table('additionalItems', false)}
         {context.moduleSnapshot.financialSupportEnabled && areas.includes('economy') && table('debts', false)}
