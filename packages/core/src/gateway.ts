@@ -22,6 +22,7 @@ import type { AudioDeletionEvidence, AudioStore, CoreSecretStore } from '@ccc/co
 import type { InstitutionReadiness, OrganizationProfile, OrganizationOnboardingInput, OrganizationOnboardingResponse } from '@ccc/contracts/institution';
 import type { ReportEvidence, SupportCaseReport } from '@ccc/contracts/report';
 import { parseIntakeQuestionnaire, parseIntakeCreateRequest, parseIntakeUpdateRequest, requiredIntakeQuestionKeys, intakeAnswerDisplayText, IntakeContractError, type IntakeArea, type IntakeCreateRequest, type IntakeUpdateRequest, type IntakeModuleSnapshot, type IntakeSavedRecord, type IntakeRevision, type IntakeResponseCode, type IntakeDebt, type IntakeLinkedOrg } from '@ccc/contracts/intake';
+import { parseCreateManualRecord, ManualRecordContractError, type CreateManualRecordInput, type ManualRecordDetails, type ManualRecordProjection, type ManualRecordContext, type ManualOpenAction, type ManualPendingQuestion, type ManualActionOutcome, type ManualQuestionOutcome } from '@ccc/contracts/manual-record';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import {
@@ -6342,6 +6343,7 @@ export async function createManualSession(
 ): Promise<Session> {
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   const result = await createCounselingRecord(env, actor, context.supportCaseId, {
+    schemaVersion: 2,
     submissionId: input.submissionId,
     heldAt: input.heldAt,
     channel: input.channel,
@@ -18365,6 +18367,7 @@ export interface CounselingRecordDiscrepancy {
 }
 
 export interface CounselingRecordDetails extends CounselingRecord {
+  manual: ManualRecordProjection | null;
   completedSchedule: CounselingRecordCompletedSchedule | null;
   gasScores: CounselingRecordGasScore[];
   actionItems: ActionItem[];
@@ -18412,12 +18415,6 @@ export interface CounselingRecordFlagInput {
 export const ACTION_ITEM_RESOLUTION_STATUSES = ['done', 'in_progress', 'not_done', 'hold'] as const;
 export type ActionItemResolutionStatus = (typeof ACTION_ITEM_RESOLUTION_STATUSES)[number];
 
-export interface CounselingRecordActionItemResolutionInput {
-  actionItemId: string;
-  status: ActionItemResolutionStatus;
-  note?: string;
-
-}
 
 /**
  * 생활 6영역 스냅샷 (CCC-8). 키·상태값의 유일 출처.
@@ -18444,16 +18441,6 @@ export const LIFE_AREA_STATUSES = [
 ] as const;
 export type LifeAreaStatus = (typeof LIFE_AREA_STATUSES)[number];
 
-/**
- * 회차별 6영역 입력. changed=false('변화 없음')면 직전 세션 스냅샷 값을 복사한다
- * (직전 없으면 미기록 — 행 미생성). changed=true 면 제출된 status(+note)로 기록한다.
- */
-export interface CounselingRecordLifeAreaInput {
-  areaKey: LifeAreaKey;
-  changed: boolean;
-  status?: LifeAreaStatus;
-  note?: string;
-}
 
 /** 저장·조회되는 한 영역의 스냅샷 값. */
 export interface LifeAreaSnapshotEntry {
@@ -18462,50 +18449,9 @@ export interface LifeAreaSnapshotEntry {
   note: string | null;
 }
 
-/**
- * 정기 기록지 서술형 항목(CCC-10 · 0016 record_details). 전부 선택이며, 하나라도 채워진
- * 경우에만 details 를 보낸다(빈 객체는 거부). 값은 서술 기록일 뿐 자동 판정 입력이
- * 아니다 — 플래그 확정·GAS 점수는 여전히 실무자 몫이다(D6·D9·R5).
- */
-export interface CounselingRecordDetailsInput {
-  /** 이번 상담 목표 — 일정에 세션 목표가 연결되지 않은 회차에서만 기록한다(D28). */
-  sessionGoalNote?: string;
-  /** 지난 상담 이후 달라진 일. */
-  changeSinceLast?: string;
-  /** 위기·안전 확인 서술. */
-  safetyNote?: string;
-  /** 담당 실무자 의견(당사자 발언과 구분). */
-  counselorOpinion?: string;
-}
-
-export interface CreateCounselingRecordInput {
-  submissionId: string;
-  heldAt: string;
-  channel: Session['channel'];
-  memo: string;
-  gasScores: CounselingRecordGasScoreInput[];
-  actionItems: CounselingRecordActionItemInput[];
-  flags: CounselingRecordFlagInput[];
-  actionItemResolutions?: CounselingRecordActionItemResolutionInput[];
-  // 6영역 전체 스냅샷(CCC-8). 구 클라이언트 호환을 위해 옵션 — 생략 시 스냅샷 미저장.
-  lifeAreas?: CounselingRecordLifeAreaInput[];
-  // 서술형 항목(CCC-10). 생략 시 record_details 는 NULL.
-  details?: CounselingRecordDetailsInput;
-  // 구 목표 종료+신설(goalTransition)은 D62 §5 로 폐지. 닫기는 closeGoal 단일 관문이다.
-  scheduleId?: string;
-  expectedScheduleVersion?: number;
-}
-
-/** record_details 에 담기는 서술형 키 목록(CCC-10 · 0016). 유일 출처. */
-export const COUNSELING_RECORD_DETAIL_KEYS = [
-  'sessionGoalNote',
-  'changeSinceLast',
-  'safetyNote',
-  'counselorOpinion',
-] as const;
 
 export interface CounselingRecordResult {
-  record: CounselingRecord;
+  record: CounselingRecord & { manual: Pick<ManualRecordProjection, 'schemaVersion' | 'revision' | 'details'> };
   replayed: boolean;
 }
 
@@ -18524,134 +18470,15 @@ function mapCounselingRecord(row: DbRow, aiSummary: string | null = null, approv
   };
 }
 
-function assertCounselingRecordInput(input: CreateCounselingRecordInput): void {
-  const hasSchedule = input.scheduleId !== undefined || input.expectedScheduleVersion !== undefined;
-  const hasResolutions = input.actionItemResolutions !== undefined;
-  const hasLifeAreas = input.lifeAreas !== undefined;
-  const expectedKeys = ['submissionId', 'heldAt', 'channel', 'memo', 'gasScores', 'actionItems', 'flags'];
-  if (hasResolutions) expectedKeys.push('actionItemResolutions');
-  if (hasLifeAreas) expectedKeys.push('lifeAreas');
-  if (input.details !== undefined) expectedKeys.push('details');
-  if (hasSchedule) expectedKeys.push('scheduleId', 'expectedScheduleVersion');
-  assertExactKeys(input, expectedKeys);
+function assertCounselingRecordInput(input: CreateManualRecordInput): void {
+  try {
+    parseCreateManualRecord(input);
+  } catch (error) {
+    if (error instanceof ManualRecordContractError) throw new ValidationError(error.message);
+    throw error;
+  }
   assertCanonicalSubmissionId(input.submissionId);
-  canonicalUtcInstant(input.heldAt, 'record time');
-  if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
-    throw new ValidationError('record channel is invalid');
-  }
-  assertNonBlankText(input.memo, 'record memo');
-  assertBoundedArray(input.gasScores, 'GAS scores', MAX_ACTIVE_GOALS);
-  assertBoundedArray(input.actionItems, 'action items', 20);
-  assertBoundedArray(input.flags, 'flags', 20);
-  if (hasSchedule) {
-    assertOpaqueIdentifier(input.scheduleId, 'schedule id');
-    if (
-      typeof input.expectedScheduleVersion !== 'number'
-      || !Number.isInteger(input.expectedScheduleVersion)
-      || input.expectedScheduleVersion < 1
-    ) {
-      throw new ValidationError('schedule version is invalid');
-    }
-  }
-
-  const goalIds = new Set<string>();
-  for (const score of input.gasScores) {
-    assertExactKeys(score, ['goalId', 'score']);
-    assertOpaqueIdentifier(score.goalId, 'goal id');
-    if (!Number.isInteger(score.score) || score.score < -2 || score.score > 2) {
-      throw new ValidationError('GAS score is invalid');
-    }
-    if (goalIds.has(score.goalId)) {
-      throw new ValidationError('GAS score is duplicated');
-    }
-    goalIds.add(score.goalId);
-  }
-  for (const action of input.actionItems) {
-    assertExactKeys(action, action.dueDate === undefined ? ['description', 'owner'] : ['description', 'owner', 'dueDate']);
-    assertNonBlankText(action.description, 'action description');
-    if (action.owner !== 'counselor' && action.owner !== 'beneficiary' && action.owner !== 'org') {
-      throw new ValidationError('action owner is invalid');
-    }
-    if (action.dueDate !== undefined) assertDateOnly(action.dueDate);
-  }
-  for (const flag of input.flags) {
-    assertExactKeys(flag, flag.quote === undefined ? ['flagType'] : ['flagType', 'quote']);
-    toFlagType(flag.flagType);
-    if (flag.quote !== undefined) assertNonBlankText(flag.quote, 'flag quote');
-  }
-  if (input.actionItemResolutions !== undefined) {
-    assertBoundedArray(input.actionItemResolutions, 'action item resolutions', 20);
-    const resolvedActionIds = new Set<string>();
-    for (const resolution of input.actionItemResolutions) {
-      assertExactKeys(resolution, resolution.note === undefined ? ['actionItemId', 'status'] : ['actionItemId', 'status', 'note']);
-      assertOpaqueIdentifier(resolution.actionItemId, 'action item id');
-      if (!(ACTION_ITEM_RESOLUTION_STATUSES as readonly string[]).includes(resolution.status)) {
-        throw new ValidationError('action item resolution status is invalid');
-      }
-      if (resolution.note !== undefined) assertNonBlankText(resolution.note, 'action item resolution note');
-      if (resolvedActionIds.has(resolution.actionItemId)) {
-        throw new ValidationError('action item resolution is duplicated');
-      }
-      resolvedActionIds.add(resolution.actionItemId);
-    }
-  }
-  if (input.lifeAreas !== undefined) assertLifeAreaInputs(input.lifeAreas);
-  if (input.details !== undefined) assertCounselingRecordDetails(input.details);
-}
-
-/**
- * 서술형 항목 검증(CCC-10). 알려진 키만 허용하고 값은 공백이 아닌 문자열이어야 한다.
- * 빈 객체는 거부한다 — 채운 항목이 없으면 details 자체를 생략한다(제출 해시 정합).
- */
-function assertCounselingRecordDetails(details: CounselingRecordDetailsInput): void {
-  if (details === null || typeof details !== 'object' || Array.isArray(details)) {
-    throw new ValidationError('record details is invalid');
-  }
-  const keys = Object.keys(details);
-  if (keys.length === 0) throw new ValidationError('record details is empty');
-  for (const key of keys) {
-    if (!(COUNSELING_RECORD_DETAIL_KEYS as readonly string[]).includes(key)) {
-      throw new ValidationError('record details is invalid');
-    }
-    assertNonBlankText((details as Record<string, unknown>)[key], `record detail ${key}`);
-  }
-}
-
-/**
- * 6영역 입력 검증(CCC-8). 6영역 전부 포함(누락 거부)·중복 금지·알 수 없는 키 거부.
- * changed=true 면 유효한 status 필수(note 선택), changed=false 면 status/note 불허
- * (직전 스냅샷을 복사하므로 값을 받지 않는다).
- */
-function assertLifeAreaInputs(lifeAreas: CounselingRecordLifeAreaInput[]): void {
-  assertBoundedArray(lifeAreas, 'life areas', LIFE_AREA_KEYS.length);
-  const seen = new Set<string>();
-  for (const area of lifeAreas) {
-    if (typeof area !== 'object' || area === null || typeof area.changed !== 'boolean') {
-      throw new ValidationError('life area is invalid');
-    }
-    assertExactKeys(
-      area,
-      area.changed
-        ? (area.note === undefined ? ['areaKey', 'changed', 'status'] : ['areaKey', 'changed', 'status', 'note'])
-        : ['areaKey', 'changed'],
-    );
-    if (!(LIFE_AREA_KEYS as readonly string[]).includes(area.areaKey)) {
-      throw new ValidationError('life area key is invalid');
-    }
-    if (seen.has(area.areaKey)) {
-      throw new ValidationError('life area is duplicated');
-    }
-    seen.add(area.areaKey);
-    if (area.changed) {
-      if (area.status === undefined || !(LIFE_AREA_STATUSES as readonly string[]).includes(area.status)) {
-        throw new ValidationError('life area status is invalid');
-      }
-      if (area.note !== undefined) assertNonBlankText(area.note, 'life area note');
-    }
-  }
-  if (seen.size !== LIFE_AREA_KEYS.length) {
-    throw new ValidationError('life areas must cover all six areas');
-  }
+  for (const flag of input.flags ?? []) toFlagType(flag.flagType);
 }
 
 async function assertRecordGoalsBelongToSupportCase(
@@ -18671,29 +18498,12 @@ async function assertRecordGoalsBelongToSupportCase(
     throw new ForbiddenError('record context is unavailable');
   }
 }
-async function assertActionResolutionsAreOpenInSupportCase(
-  env: Env,
-  orgId: string,
-  supportCaseId: string,
-  resolutions: CounselingRecordActionItemResolutionInput[],
-): Promise<void> {
-  if (resolutions.length === 0) return;
-  const actionItemIds = resolutions.map((resolution) => resolution.actionItemId);
-  const placeholders = actionItemIds.map(() => '?').join(', ');
-  const found = await env.DB.prepare(
-    `SELECT id FROM action_items
-     WHERE org_id = ? AND support_case_id = ? AND resolved_at IS NULL AND id IN (${placeholders})`,
-  ).bind(orgId, supportCaseId, ...actionItemIds).all<{ id: string }>();
-  if (found.results.length !== actionItemIds.length) {
-    throw new ForbiddenError('record context is unavailable');
-  }
-}
 
 async function recordReplay(
   env: Env,
   actor: Actor,
   supportCaseId: string,
-  input: CreateCounselingRecordInput,
+  input: Pick<CreateManualRecordInput, 'submissionId'>,
   submissionHash: string,
 ): Promise<CounselingRecordResult | null> {
   const row = await env.DB.prepare(
@@ -18706,7 +18516,7 @@ async function recordReplay(
   if (row.submitted_by !== actor.userId || row.submission_hash !== submissionHash) {
     throw new ConflictError('submission conflicts with an existing official operation');
   }
-  return { record: mapCounselingRecord(row), replayed: true };
+  return { record: { ...mapCounselingRecord(row), manual: { schemaVersion: 2, revision: integerValue(row.manual_revision)!, details: storedManualDetails(row) } }, replayed: true };
 }
 
 function mapLifeAreaSnapshotRow(row: DbRow): LifeAreaSnapshotEntry {
@@ -18717,32 +18527,132 @@ function mapLifeAreaSnapshotRow(row: DbRow): LifeAreaSnapshotEntry {
   };
 }
 
-/**
- * 직전 6영역 스냅샷(CCC-8): 해당 support case 의 세션 중 스냅샷을 보유한 최신 회차의
- * 값. '변화 없음' 복사원본이자, 기록 작성 폼의 "직전 상태" 표시원이다. 순서는
- * listCounselingRecords 와 같은 held_at DESC, id DESC — 복사원본과 표시값이 일치한다.
- */
-async function getLatestLifeAreaSnapshot(
-  env: Env,
-  orgId: string,
-  supportCaseId: string,
-): Promise<LifeAreaSnapshotEntry[]> {
-  const rows = await env.DB.prepare(
-    `SELECT snapshot.area_key, snapshot.status, snapshot.note
-     FROM session_life_area_snapshots AS snapshot
-     WHERE snapshot.org_id = ? AND snapshot.session_id = (
-       SELECT session.id FROM sessions AS session
-       WHERE session.org_id = ? AND session.support_case_id = ?
-         AND EXISTS (
-           SELECT 1 FROM session_life_area_snapshots AS latest
-           WHERE latest.session_id = session.id
-         )
-       ORDER BY session.held_at DESC, session.id DESC
-       LIMIT 1
-     )
-     ORDER BY snapshot.area_key`,
-  ).bind(orgId, orgId, supportCaseId).all<DbRow>();
-  return rows.results.map(mapLifeAreaSnapshotRow);
+
+function storedManualDetails(row: DbRow): ManualRecordDetails | null {
+  if (integerValue(row.manual_schema_version) !== 2) return null;
+  return JSON.parse(stringValue(row.record_details)) as ManualRecordDetails;
+}
+
+/** Canonical manual entities only. AI drafts and derived memory cards are not sources. */
+async function loadManualWork(env: Env, orgId: string, supportCaseId: string) {
+  // One statement selects all source IDs/revisions and result-owning sessions.
+  // Independent adapter reads after this point may observe later commits.
+  const sources = await env.DB.prepare(`SELECT * FROM (
+    SELECT 'action' AS source_kind, a.id, a.revision, NULL AS source_id,
+      a.session_id AS source_session_id, s.held_at AS source_held_at, NULL AS source_scheduled_at,
+      a.created_at, a.description AS body, a.owner, a.due_date, a.resolved_at, a.stop_reason,
+      NULL AS record_details, CAST(NULL AS BIGINT) AS manual_schema_version, NULL AS ordinal
+    FROM action_items a LEFT JOIN sessions s ON s.id = a.session_id AND s.org_id = a.org_id
+    WHERE a.org_id = ? AND a.support_case_id = ?
+    UNION ALL
+    SELECT 'schedule', q.id, q.revision, q.schedule_id, s.completed_session_id,
+      origin.held_at, s.scheduled_at, q.created_at, q.body, NULL, NULL, NULL, NULL, NULL, NULL, q.ordinal
+    FROM schedule_custom_questions q
+    JOIN counseling_schedules s ON s.id = q.schedule_id AND s.org_id = q.org_id
+    LEFT JOIN sessions origin ON origin.id = s.completed_session_id AND origin.org_id = s.org_id
+    WHERE q.org_id = ? AND q.support_case_id = ?
+    UNION ALL
+    SELECT 'record', s.id, s.manual_revision, NULL, s.id, s.held_at, NULL, s.created_at,
+      NULL, NULL, NULL, NULL, NULL, s.record_details, s.manual_schema_version, NULL
+    FROM sessions s WHERE s.org_id = ? AND s.support_case_id = ? AND s.kind = 'regular' AND s.manual_schema_version = 2
+  ) AS manual_work_sources
+  ORDER BY COALESCE(source_held_at, source_scheduled_at, created_at), created_at, ordinal, id`)
+    .bind(orgId, supportCaseId, orgId, supportCaseId, orgId, supportCaseId).all<DbRow>();
+  const actions = new Map<string, ManualOpenAction>();
+  const questions = new Map<string, ManualPendingQuestion>();
+  const selectedRecordIds = new Set<string>();
+  for (const row of sources.results) {
+    const id = stringValue(row.id);
+    if (row.source_kind === 'action') {
+      actions.set(id, {
+        id, revision: integerValue(row.revision)!, sourceSessionId: nullableString(row.source_session_id),
+        sourceHeldAt: nullableString(row.source_held_at), createdAt: stringValue(row.created_at),
+        description: stringValue(row.body), owner: stringValue(row.owner) as ActionItem['owner'], dueDate: nullableString(row.due_date),
+        state: row.resolved_at == null ? 'open' : row.stop_reason == null ? 'done' : 'stopped', history: [], outcomes: [],
+      });
+    } else if (row.source_kind === 'schedule') {
+      questions.set(`schedule:${id}`, {
+        kind: 'schedule', id, sourceId: stringValue(row.source_id), sourceRevision: integerValue(row.revision)!,
+        sourceSessionId: nullableString(row.source_session_id), sourceHeldAt: nullableString(row.source_held_at),
+        sourceScheduledAt: stringValue(row.source_scheduled_at), createdAt: stringValue(row.created_at),
+        body: stringValue(row.body), state: 'open', outcomes: [],
+      });
+    } else {
+      selectedRecordIds.add(id);
+      for (const question of storedManualDetails(row)!.nextQuestions) {
+        questions.set(`record:${question.id}`, {
+          kind: 'record', id: question.id, sourceId: id, sourceRevision: integerValue(row.revision)!,
+          sourceSessionId: id, sourceHeldAt: stringValue(row.source_held_at), sourceScheduledAt: null,
+          createdAt: stringValue(row.created_at), body: question.body, state: 'open', outcomes: [],
+        });
+      }
+    }
+  }
+  const [actionHistory, actionOutcomes, questionOutcomes] = await Promise.all([
+    env.DB.prepare(`SELECT h.* FROM action_item_revisions h JOIN action_items a ON a.id = h.action_item_id AND a.org_id = h.org_id
+      WHERE a.org_id = ? AND a.support_case_id = ? ORDER BY h.revision`).bind(orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, s.held_at FROM manual_action_outcomes o JOIN manual_record_revisions s ON s.session_id = o.session_id AND s.org_id = o.org_id AND s.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? ORDER BY s.held_at, s.session_id`).bind(orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, s.held_at FROM manual_question_outcomes o JOIN manual_record_revisions s ON s.session_id = o.session_id AND s.org_id = o.org_id AND s.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? ORDER BY s.held_at, s.session_id`).bind(orgId, supportCaseId).all<DbRow>(),
+  ]);
+  for (const row of actionHistory.results) {
+    const action = actions.get(stringValue(row.action_item_id));
+    if (action === undefined || integerValue(row.revision)! > action.revision) continue;
+    action.history.push({
+      revision: integerValue(row.revision)!, description: stringValue(row.description), owner: stringValue(row.owner) as ActionItem['owner'],
+      dueDate: nullableString(row.due_date), resolutionStatus: nullableString(row.resolution_status) as ActionItemResolutionStatus | null,
+      resolutionNote: nullableString(row.resolution_note), sourceSessionId: nullableString(row.resolution_session_id),
+      resolvedAt: nullableString(row.resolved_at), stopReason: nullableString(row.stop_reason),
+    });
+  }
+  for (const row of actionOutcomes.results) {
+    const action = actions.get(stringValue(row.action_item_id));
+    if (action === undefined || integerValue(row.source_revision)! > action.revision
+      || !selectedRecordIds.has(stringValue(row.session_id))) continue;
+    action.outcomes.push({
+      actionItemId: stringValue(row.action_item_id), sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at),
+      sourceRevision: integerValue(row.source_revision)!, outcome: stringValue(row.outcome) as ManualActionOutcome['outcome'],
+      continuation: nullableString(row.continuation) as ManualActionOutcome['continuation'], reason: nullableString(row.reason),
+    });
+  }
+  for (const row of questionOutcomes.results) {
+    const question = questions.get(`${stringValue(row.kind)}:${stringValue(row.question_id)}`);
+    if (question === undefined || integerValue(row.source_revision)! > question.sourceRevision
+      || !selectedRecordIds.has(stringValue(row.session_id))) continue;
+    const outcome = stringValue(row.outcome) as ManualQuestionOutcome['outcome'];
+    question.outcomes.push({
+      sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at), outcome, answer: nullableString(row.answer),
+      sourceRevision: integerValue(row.source_revision)!, sourceText: stringValue(row.source_text),
+    });
+    if (outcome === 'confirmed') question.state = 'confirmed';
+  }
+  return {
+    actions: [...actions.values()],
+    questions: [...questions.values()].sort((a, b) =>
+      (a.sourceHeldAt ?? a.sourceScheduledAt ?? a.createdAt).localeCompare(b.sourceHeldAt ?? b.sourceScheduledAt ?? b.createdAt) || a.id.localeCompare(b.id)),
+  };
+}
+
+export async function getManualRecordContext(env: Env, actor: Actor, supportCaseId: string): Promise<ManualRecordContext> {
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const [work, scheduleRow, canWrite] = await Promise.all([
+    loadManualWork(env, actor.orgId, supportCaseId),
+    env.DB.prepare(`SELECT * FROM counseling_schedules WHERE org_id = ? AND support_case_id = ?
+      AND status = 'scheduled' AND session_kind = 'regular' ORDER BY scheduled_at, id LIMIT 1`)
+      .bind(actor.orgId, supportCaseId).first<DbRow>(),
+    canWriteIntake(env, actor, supportCaseId),
+  ]);
+  const schedule = scheduleRow === null ? null : mapCounselingSchedule(scheduleRow);
+  await writeCanonicalAudit(env, actor, { action: 'read', targetTable: 'sessions', beneficiaryId: supportCase.beneficiaryId, supportCaseId });
+  return {
+    schemaVersion: 2, supportCaseId, canWrite,
+    defaults: { heldAt: schedule?.scheduledAt ?? null, channel: schedule?.channel ?? null, reason: null, scheduleId: schedule?.id ?? null, scheduleVersion: schedule?.version ?? null },
+    actions: work.actions.filter(action => action.state === 'open'),
+    questions: work.questions.filter(question => question.state === 'open'),
+    closedActions: work.actions.filter(action => action.state !== 'open'),
+    confirmedQuestions: work.questions.filter(question => question.state === 'confirmed'),
+  };
 }
 
 /**
@@ -18752,331 +18662,206 @@ async function getLatestLifeAreaSnapshot(
  * record without another audit.
  */
 export async function createCounselingRecord(
-  env: Env,
-  actor: Actor,
-  supportCaseId: string,
-  input: CreateCounselingRecordInput,
+  env: Env, actor: Actor, supportCaseId: string, input: CreateManualRecordInput,
 ): Promise<CounselingRecordResult> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
   assertCounselingRecordInput(input);
   const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
-  if (supportCase.status !== 'active') {
-    throw new ConflictError('support case is unavailable');
-  }
-  await assertRecordGoalsBelongToSupportCase(env, actor.orgId, supportCaseId, input.gasScores);
-  const actionItemResolutions = input.actionItemResolutions ?? [];
-
-  const submissionHash = await canonicalSha256({
-    actionItemResolutions,
-    actionItems: input.actionItems,
-    actorId: actor.userId,
-    channel: input.channel,
-    details: input.details ?? null,
-    flags: input.flags,
-    gasScores: input.gasScores,
-    heldAt: input.heldAt,
-    lifeAreas: input.lifeAreas ?? null,
-    memo: input.memo,
-    orgId: actor.orgId,
-    scheduleId: input.scheduleId ?? null,
-    scheduleVersion: input.expectedScheduleVersion ?? null,
-    supportCaseId,
-  });
+  const program = await programForOrg(env, actor.orgId, supportCase.programId);
+  if (supportCase.status !== 'active' || program.status !== 'active') throw new ConflictError('support case is unavailable');
+  await assertRecordGoalsBelongToSupportCase(env, actor.orgId, supportCaseId, input.gasScores ?? []);
+  const submissionHash = await canonicalSha256({ input, actorId: actor.userId, orgId: actor.orgId, supportCaseId });
   const replay = await recordReplay(env, actor, supportCaseId, input, submissionHash);
   if (replay !== null) return replay;
-  await assertActionResolutionsAreOpenInSupportCase(env, actor.orgId, supportCaseId, actionItemResolutions);
-
   let schedule: CounselingSchedule | null = null;
   if (input.scheduleId !== undefined) {
     schedule = await getCounselingScheduleForOrg(env, actor.orgId, input.scheduleId);
     await assertScheduleMutationAccess(env, actor, schedule);
-    if (
-      schedule.beneficiaryId !== supportCase.beneficiaryId
-      || schedule.supportCaseId !== supportCaseId
-      || schedule.status !== 'scheduled'
-      || schedule.version !== input.expectedScheduleVersion
-    ) {
+    if (schedule.supportCaseId !== supportCaseId || schedule.status !== 'scheduled'
+      || schedule.version !== input.expectedScheduleVersion || schedule.sessionKind !== 'regular') {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
       throw new ConflictError('counseling schedule is unavailable');
     }
   }
-
-  // 6영역 스냅샷 해석(CCC-8): changed=true 는 제출값, changed=false 는 직전 스냅샷 복사.
-  // 직전 없는(콜드스타트) '변화 없음' 영역은 미기록 — 행을 만들지 않는다.
-  const lifeAreaRows: LifeAreaSnapshotEntry[] = [];
-  if (input.lifeAreas !== undefined) {
-    const priorByArea = new Map(
-      (await getLatestLifeAreaSnapshot(env, actor.orgId, supportCaseId)).map((entry) => [entry.areaKey, entry] as const),
-    );
-    for (const area of input.lifeAreas) {
-      if (area.changed && area.status !== undefined) {
-        lifeAreaRows.push({ areaKey: area.areaKey, status: area.status, note: area.note ?? null });
-      } else if (!area.changed) {
-        const prior = priorByArea.get(area.areaKey);
-        if (prior !== undefined) {
-          lifeAreaRows.push({ areaKey: area.areaKey, status: prior.status, note: prior.note });
-        }
-      }
+  const work = await loadManualWork(env, actor.orgId, supportCaseId);
+  const heldAt = Date.parse(input.heldAt);
+  const actions = work.actions.filter(action => action.state === 'open'
+    && Date.parse(action.sourceHeldAt ?? action.createdAt) <= heldAt);
+  const questions = work.questions.filter(question => question.state === 'open'
+    && ((question.kind === 'schedule' && question.sourceId === schedule?.id)
+      || Date.parse(question.sourceHeldAt ?? question.sourceScheduledAt ?? question.createdAt) <= heldAt));
+  const outcomes = new Map((input.actionOutcomes ?? []).map(outcome => [outcome.actionItemId, outcome]));
+  const answers = new Map((input.questionAnswers ?? []).map(answer => [`${answer.kind}:${answer.questionId}`, answer]));
+  for (const outcome of outcomes.values()) {
+    const action = actions.find(candidate => candidate.id === outcome.actionItemId);
+    if (action === undefined || action.revision !== outcome.expectedRevision) {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
+      if (action === undefined) throw new ForbiddenError('manual action source is unavailable');
+      throw new ConflictError('manual action revision changed');
     }
-
   }
-
+  for (const answer of answers.values()) {
+    const question = questions.find(candidate => candidate.kind === answer.kind && candidate.id === answer.questionId);
+    if (question === undefined || question.sourceId !== answer.sourceId || question.sourceRevision !== answer.expectedRevision) {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
+      if (question === undefined || question.sourceId !== answer.sourceId) throw new ForbiddenError('manual question source is unavailable');
+      throw new ConflictError('manual question revision changed');
+    }
+  }
   const id = newId();
   const createdAt = now();
-  // 서술형 항목(CCC-10 · 0016): 채운 항목이 없으면 컬럼을 NULL 로 둔다.
-  const recordDetails = input.details === undefined ? null : stringifyJson({ ...input.details });
-  const activeSupportCaseGuard = `EXISTS (
-    SELECT 1 FROM support_cases
-    WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND status = 'active'
+  const details: ManualRecordDetails = {
+    schemaVersion: 2, method: input.channel, reason: input.reason ?? null, urgency: input.urgency ?? null,
+    changes: input.changes ?? [], counselorOpinion: input.counselorOpinion ?? null,
+    nextQuestions: (input.nextQuestions ?? []).map(body => ({ id: newId(), body })),
+  };
+  // The legacy transport column stays compatible with intake. Visit is explicit in versioned manual metadata.
+  const channel = input.channel === 'visit' ? 'in_person' : input.channel;
+  const guard = `EXISTS (
+    SELECT 1 FROM support_cases sc
+    JOIN programs p ON p.id = sc.program_id AND p.org_id = sc.org_id
+    JOIN users u ON u.id = ? AND u.org_id = sc.org_id AND u.active = 1
+    JOIN user_role_assignments r ON r.user_id = u.id AND r.org_id = u.org_id AND r.role = 'practitioner' AND r.revoked_at IS NULL
+    JOIN support_case_assignees a ON a.user_id = u.id AND a.org_id = sc.org_id AND a.support_case_id = sc.id
+    WHERE sc.id = ? AND sc.org_id = ? AND sc.status = 'active' AND p.status = 'active'
+      AND p.version = ? AND a.status = 'active' AND a.unassigned_at IS NULL
   )`;
-  const activeSupportCaseBindings = [supportCaseId, actor.orgId, supportCase.beneficiaryId];
-  const sessionExistsClause = `EXISTS (
-    SELECT 1 FROM sessions
-    WHERE id = ? AND org_id = ? AND support_case_id = ?
-  )`;
-  const sessionExistsBindings = [id, actor.orgId, supportCaseId];
-  const sessionStatement = schedule === null
-    ? env.DB.prepare(
-      `INSERT INTO sessions (
-         id, org_id, support_case_id, counselor_id, held_at, channel, memo, record_details,
-         submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?
-       WHERE ${activeSupportCaseGuard}`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-      input.heldAt,
-      input.channel,
-      input.memo,
-      recordDetails,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-      createdAt,
-      createdAt,
-      ...activeSupportCaseBindings,
-    )
-    : env.DB.prepare(
-      `INSERT INTO sessions (
-         id, org_id, support_case_id, counselor_id, held_at, channel, memo, record_details,
-         submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?
-       WHERE EXISTS (
-         SELECT 1 FROM counseling_schedules
-         WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND support_case_id = ?
-           AND status = 'scheduled' AND version = ?
-       )
-       AND ${activeSupportCaseGuard}`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-      input.heldAt,
-      input.channel,
-      input.memo,
-      recordDetails,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-      createdAt,
-      createdAt,
-      schedule.id,
-      actor.orgId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      input.expectedScheduleVersion ?? null,
-      ...activeSupportCaseBindings,
-    );
-
-  const statements: PreparedStatement[] = [sessionStatement];
-
-  for (const score of input.gasScores) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO session_goal_scores (
-         id, org_id, session_id, goal_id, score, evidence_quote, scored_by, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, NULL, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      id,
-      score.goalId,
-      score.score,
-      actor.userId,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
+  const guardBindings: Bindable[] = [actor.userId, supportCaseId, actor.orgId, program.version];
+  const preconditions = [guard];
+  const preconditionBindings: Bindable[] = [...guardBindings];
+  // 각 출처를 별도 문장으로 확인해 누적 미해결 건수가 SQL 식 깊이와 바인딩 한도에 걸리지 않게 한다.
+  const sourceAssertions: PreparedStatement[] = [];
+  const statements: PreparedStatement[] = [
+    env.DB.prepare('UPDATE programs SET version = version WHERE id = ? AND org_id = ?').bind(program.id, actor.orgId),
+    env.DB.prepare('UPDATE support_cases SET status = status WHERE id = ? AND org_id = ?').bind(supportCaseId, actor.orgId),
+  ];
+  for (const action of actions) {
+    statements.push(env.DB.prepare('UPDATE action_items SET revision = revision WHERE id = ? AND org_id = ?').bind(action.id, actor.orgId));
+    sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+      NOT EXISTS (SELECT 1 FROM action_items a LEFT JOIN sessions origin ON origin.id = a.session_id AND origin.org_id = a.org_id
+        WHERE a.id = ? AND a.org_id = ? AND a.support_case_id = ? AND a.revision = ? AND a.resolved_at IS NULL
+          AND COALESCE(origin.held_at, a.created_at) = ?)`)
+      .bind(id, action.id, actor.orgId, supportCaseId, action.revision, action.sourceHeldAt ?? action.createdAt));
   }
-  for (const action of input.actionItems) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO action_items (
-         id, org_id, support_case_id, session_id, description, owner, due_date, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      supportCaseId,
-      id,
-      action.description,
-      action.owner,
-      action.dueDate ?? null,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-  }
-  for (const flag of input.flags) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO flags (
-         id, org_id, support_case_id, session_id, flag_type, quote, source, review_status,
-         reviewed_by, reviewed_at, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, 'counselor', 'confirmed', ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      supportCaseId,
-      id,
-      flag.flagType,
-      flag.quote ?? null,
-      actor.userId,
-      createdAt,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-  }
-  for (const area of lifeAreaRows) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO session_life_area_snapshots (
-         id, org_id, session_id, area_key, status, note, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      id,
-      area.areaKey,
-      area.status,
-      area.note,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-  }
-  for (const resolution of actionItemResolutions) {
-    const resolvedAt = resolution.status === 'done' ? createdAt : null;
-    const resolvedBy = resolution.status === 'done' ? actor.userId : null;
-    const operationMarker = newId();
-    statements.push(env.DB.prepare(
-      `UPDATE action_items
-       SET resolution_status = ?, resolution_note = ?, resolution_at = ?, resolution_session_id = ?,
-           resolved_at = ?, resolved_by = ?, operation_marker = ?
-       WHERE id = ? AND org_id = ? AND support_case_id = ? AND resolved_at IS NULL
-         AND ${sessionExistsClause}`,
-    ).bind(
-      resolution.status,
-      resolution.note ?? null,
-      createdAt,
-      id,
-      resolvedAt,
-      resolvedBy,
-      operationMarker,
-      resolution.actionItemId,
-      actor.orgId,
-      supportCaseId,
-      ...sessionExistsBindings,
-    ));
-    statements.push(env.DB.prepare(
-      `INSERT INTO audit_log (
-         org_id, actor_id, actor_role, action, target_table, target_id, case_id,
-         beneficiary_id, support_case_id, detail, created_at
-       )
-       SELECT ?, ?, ?, 'update', 'action_items', ?, NULL, ?, ?, ?, ?
-       WHERE EXISTS (
-         SELECT 1 FROM action_items
-         WHERE id = ? AND org_id = ? AND operation_marker = ?
-       )`,
-    ).bind(
-      actor.orgId,
-      actor.userId,
-      actor.role,
-      resolution.actionItemId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      stringifyJson({ resolutionStatus: resolution.status }),
-      createdAt,
-      resolution.actionItemId,
-      actor.orgId,
-      operationMarker,
-    ));
+  for (const question of questions) {
+    if (question.kind === 'schedule') {
+      statements.push(env.DB.prepare('UPDATE schedule_custom_questions SET revision = revision WHERE id = ? AND org_id = ?').bind(question.id, actor.orgId));
+      sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+        NOT EXISTS (SELECT 1 FROM schedule_custom_questions q
+          JOIN counseling_schedules s ON s.id = q.schedule_id AND s.org_id = q.org_id
+          LEFT JOIN sessions origin ON origin.id = s.completed_session_id AND origin.org_id = s.org_id
+          WHERE q.id = ? AND q.org_id = ? AND q.support_case_id = ? AND q.schedule_id = ? AND q.revision = ?
+            AND COALESCE(origin.held_at, s.scheduled_at, q.created_at) = ?)`)
+        .bind(id, question.id, actor.orgId, supportCaseId, question.sourceId, question.sourceRevision,
+          question.sourceHeldAt ?? question.sourceScheduledAt ?? question.createdAt));
+    } else {
+      statements.push(env.DB.prepare('UPDATE sessions SET manual_revision = manual_revision WHERE id = ? AND org_id = ?').bind(question.sourceId, actor.orgId));
+      sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+        NOT EXISTS (SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND support_case_id = ? AND manual_revision = ?)`)
+        .bind(id, question.sourceId, actor.orgId, supportCaseId, question.sourceRevision));
+    }
+    sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+      EXISTS (SELECT 1 FROM manual_question_outcomes WHERE org_id = ? AND support_case_id = ? AND kind = ? AND question_id = ? AND outcome = 'confirmed')`)
+      .bind(id, actor.orgId, supportCaseId, question.kind, question.id));
   }
   if (schedule !== null) {
-    statements.push(env.DB.prepare(
-      `UPDATE counseling_schedules
-       SET status = 'completed', completed_session_id = ?, completed_by_actor_id = ?,
-           completed_at = ?, updated_by_actor_id = ?, version = version + 1, updated_at = ?
-       WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND support_case_id = ?
-         AND status = 'scheduled' AND version = ?
-         AND ${sessionExistsClause}`,
-    ).bind(
-      id,
-      actor.userId,
-      createdAt,
-      actor.userId,
-      createdAt,
-      schedule.id,
-      actor.orgId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      input.expectedScheduleVersion ?? null,
-      ...sessionExistsBindings,
-    ));
+    preconditions.push("EXISTS (SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND support_case_id = ? AND status = 'scheduled' AND version = ?)");
+    preconditionBindings.push(schedule.id, actor.orgId, supportCaseId, schedule.version);
   }
-
+  const exists = 'EXISTS (SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND support_case_id = ?)';
+  const existsBindings = [id, actor.orgId, supportCaseId];
+  statements.push(env.DB.prepare(`INSERT INTO sessions (
+    id, org_id, support_case_id, counselor_id, held_at, channel, memo, record_details,
+    submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at, manual_schema_version
+  ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?, 2 WHERE ${preconditions.join(' AND ')}`)
+    .bind(id, actor.orgId, supportCaseId, actor.userId, input.heldAt, channel, input.memo, stringifyJson(details),
+      input.submissionId, submissionHash, actor.userId, createdAt, createdAt, ...preconditionBindings));
+  for (const assertion of sourceAssertions) statements.push(assertion);
+  for (const score of input.gasScores ?? []) {
+    statements.push(env.DB.prepare(`INSERT INTO session_goal_scores
+      (id, org_id, session_id, goal_id, score, evidence_quote, scored_by, created_at)
+      SELECT ?, ?, ?, ?, ?, NULL, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, id, score.goalId, score.score, actor.userId, createdAt, ...existsBindings));
+  }
+  for (const action of input.actionItems ?? []) {
+    statements.push(env.DB.prepare(`INSERT INTO action_items (id, org_id, support_case_id, session_id, description, owner, due_date, created_at)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, id, action.description, action.owner, action.dueDate ?? null, createdAt, ...existsBindings));
+  }
+  for (const flag of input.flags ?? []) {
+    statements.push(env.DB.prepare(`INSERT INTO flags
+      (id, org_id, support_case_id, session_id, flag_type, quote, source, review_status, reviewed_by, reviewed_at, created_at)
+      SELECT ?, ?, ?, ?, ?, ?, 'counselor', 'confirmed', ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, id, flag.flagType, flag.quote ?? null, actor.userId, createdAt, createdAt, ...existsBindings));
+  }
+  for (const action of actions) {
+    const outcome = outcomes.get(action.id);
+    const stop = outcome?.outcome === 'not_done' && outcome.continuation === 'stop';
+    const reason = stop ? outcome.reason : null;
+    statements.push(env.DB.prepare(`INSERT INTO manual_action_outcomes
+      (id, org_id, support_case_id, action_item_id, session_id, source_revision, outcome, continuation, reason)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, action.id, id, action.revision, outcome?.outcome ?? 'unconfirmed',
+        outcome?.outcome === 'not_done' ? outcome.continuation : null, reason, ...existsBindings));
+    if (outcome === undefined) continue;
+    const closes = outcome.outcome === 'done' || stop;
+    const dueDate = outcome.update !== undefined && Object.hasOwn(outcome.update, 'dueDate') ? outcome.update.dueDate ?? null : action.dueDate;
+    statements.push(env.DB.prepare(`UPDATE action_items SET description = ?, due_date = ?, resolution_status = ?, resolution_note = ?,
+      resolution_at = ?, resolution_session_id = ?, resolved_at = ?, resolved_by = ?, stop_reason = ?
+      WHERE id = ? AND org_id = ? AND revision = ? AND resolved_at IS NULL AND ${exists}`)
+      .bind(outcome.update?.description ?? action.description, dueDate, outcome.outcome, reason, createdAt, id,
+        closes ? createdAt : null, closes ? actor.userId : null, reason, action.id, actor.orgId, action.revision, ...existsBindings));
+    statements.push(env.DB.prepare(`INSERT INTO audit_log
+      (org_id, actor_id, actor_role, action, target_table, target_id, beneficiary_id, support_case_id, detail, created_at)
+      SELECT ?, ?, ?, 'update', 'action_items', ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(actor.orgId, actor.userId, actor.role, action.id, supportCase.beneficiaryId, supportCaseId,
+        stringifyJson({ outcome: outcome.outcome, sessionId: id }), createdAt, ...existsBindings));
+  }
+  for (const question of questions) {
+    const answer = answers.get(`${question.kind}:${question.id}`);
+    statements.push(env.DB.prepare(`INSERT INTO manual_question_outcomes
+      (id, org_id, support_case_id, kind, question_id, source_id, source_revision, source_text, session_id, outcome, answer)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, question.kind, question.id, question.sourceId, question.sourceRevision,
+        question.body, id, answer === undefined ? 'unconfirmed' : 'confirmed', answer?.answer ?? null, ...existsBindings));
+  }
+  if (schedule !== null) {
+    statements.push(env.DB.prepare(`UPDATE counseling_schedules SET status = 'completed', completed_session_id = ?, completed_by_actor_id = ?,
+      completed_at = ?, updated_by_actor_id = ?, version = version + 1, updated_at = ?
+      WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND ${exists}`)
+      .bind(id, actor.userId, createdAt, actor.userId, createdAt, schedule.id, actor.orgId, schedule.version, ...existsBindings));
+    // A lost schedule CAS must roll the entire batch back, not leave an unattached official record.
+    statements.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND NOT EXISTS (
+      SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND completed_session_id = ? AND status = 'completed')`)
+      .bind(id, schedule.id, actor.orgId, id));
+  }
+  statements.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND NOT (${guard})`).bind(id, ...guardBindings));
   try {
     await env.DB.batch(statements);
-    const persisted = await env.DB.prepare(
-      `SELECT id FROM sessions
-       WHERE id = ? AND org_id = ? AND support_case_id = ?
-         AND submission_id = ? AND submission_hash = ? AND submitted_by = ?
-       LIMIT 1`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-    ).first<{ id: string }>();
-    if (persisted === null) {
-      throw new ConflictError('counseling record is unavailable');
-    }
   } catch (error) {
-    if (!isUniqueConstraintError(error)) throw error;
-    const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
-    if (matched !== null) return matched;
+    if (isUniqueConstraintError(error)) {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
+      throw new ConflictError('manual source changed');
+    }
+    if (error !== null && typeof error === 'object' && 'kind' in error && error.kind === 'constraint'
+      && 'constraintSubtype' in error && error.constraintSubtype === 'check') {
+      throw new ConflictError('manual record context changed');
+    }
     throw error;
   }
+  const persisted = await env.DB.prepare('SELECT id FROM sessions WHERE id = ? AND org_id = ?').bind(id, actor.orgId).first<DbRow>();
+  if (persisted === null) {
+    const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+    if (matched !== null) return matched;
+    throw new ConflictError('manual record context changed');
+  }
   return {
-    record: {
-      id,
-      supportCaseId,
-      counselorId: actor.userId,
-      heldAt: input.heldAt,
-      channel: input.channel,
-      memo: input.memo,
-      kind: 'regular',
-      aiSummary: null,
-      approvedAt: null,
-      createdAt,
-    },
+    record: { id, supportCaseId, counselorId: actor.userId, heldAt: input.heldAt, channel, memo: input.memo, kind: 'regular',
+      aiSummary: null, approvedAt: null, createdAt, manual: { schemaVersion: 2, revision: 1, details } },
     replayed: false,
   };
 }
@@ -19490,7 +19275,7 @@ export async function listCounselingRecords(
   }
 
   const placeholders = sessionIds.map(() => '?').join(', ');
-  const [approved, scores, actionItems, confirmedFlags, completedSchedules, lifeAreas, discrepancyRows] = await Promise.all([
+  const [approved, scores, actionItems, confirmedFlags, completedSchedules, lifeAreas, discrepancyRows, manualActionOutcomes, manualQuestionOutcomes, manualHistory] = await Promise.all([
     env.DB.prepare(
       // one_liner 는 D47 접힌 줄의 핵심 한 줄(0025) — 브리핑 영역 ②와 같은 승인 경로에서 읽는다(R2).
       `SELECT session_id, summary_text, approved_at, one_liner
@@ -19543,7 +19328,54 @@ export async function listCounselingRecords(
        WHERE resolution_status IS NULL OR resolved_rank <= ${DISCREPANCY_RESOLVED_HISTORY_LIMIT}
        ORDER BY (resolution_status IS NULL) DESC, detected_at DESC, id`,
     ).bind(actor.orgId, supportCaseId, ...sessionIds, ...sessionIds).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, h.held_at FROM manual_action_outcomes o
+      JOIN manual_record_revisions h ON h.session_id = o.session_id AND h.org_id = o.org_id AND h.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? AND o.session_id IN (${placeholders})
+      ORDER BY h.held_at, o.session_id, o.action_item_id`)
+      .bind(actor.orgId, supportCaseId, ...sessionIds).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, h.held_at FROM manual_question_outcomes o
+      JOIN manual_record_revisions h ON h.session_id = o.session_id AND h.org_id = o.org_id AND h.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? AND o.session_id IN (${placeholders})
+      ORDER BY h.held_at, o.session_id, o.kind, o.question_id`)
+      .bind(actor.orgId, supportCaseId, ...sessionIds).all<DbRow>(),
+    env.DB.prepare(`SELECT h.* FROM manual_record_revisions h JOIN sessions s ON s.id = h.session_id AND s.org_id = h.org_id
+      WHERE s.org_id = ? AND s.support_case_id = ? AND h.session_id IN (${placeholders})
+      ORDER BY h.revision`).bind(actor.orgId, supportCaseId, ...sessionIds).all<DbRow>(),
   ]);
+  const manualBySession = new Map<string, ManualRecordProjection>();
+  for (const row of sessions.results) {
+    if (row.kind !== 'regular') continue;
+    const schemaVersion = integerValue(row.manual_schema_version) === 2 ? 2 : 1;
+    manualBySession.set(stringValue(row.id), {
+      schemaVersion, revision: integerValue(row.manual_revision)!, details: storedManualDetails(row),
+      legacyDetailsJson: schemaVersion === 1 ? nullableString(row.record_details) : null,
+      history: [], actionOutcomes: [], questionOutcomes: [],
+    });
+  }
+  for (const row of manualHistory.results) {
+    // 최초 조회한 회차 revision 이후의 수정 이력은 다음 조회에서만 보인다.
+    const selected = manualBySession.get(stringValue(row.session_id))!;
+    if (integerValue(row.revision)! > selected.revision) continue;
+    selected.history.push({
+      revision: integerValue(row.revision)!, schemaVersion: integerValue(row.schema_version) === 2 ? 2 : 1,
+      heldAt: stringValue(row.held_at), channel: toChannel(row.channel), memo: nullableString(row.memo),
+      detailsJson: nullableString(row.details), recordedAt: stringValue(row.recorded_at), actorId: nullableString(row.actor_id),
+    });
+  }
+  for (const row of manualActionOutcomes.results) {
+    manualBySession.get(stringValue(row.session_id))!.actionOutcomes.push({
+      actionItemId: stringValue(row.action_item_id), sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at),
+      sourceRevision: integerValue(row.source_revision)!, outcome: stringValue(row.outcome) as ManualActionOutcome['outcome'],
+      continuation: nullableString(row.continuation) as ManualActionOutcome['continuation'], reason: nullableString(row.reason),
+    });
+  }
+  for (const row of manualQuestionOutcomes.results) {
+    manualBySession.get(stringValue(row.session_id))!.questionOutcomes.push({
+      kind: stringValue(row.kind) as ManualPendingQuestion['kind'], questionId: stringValue(row.question_id), sourceId: stringValue(row.source_id),
+      sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at), outcome: stringValue(row.outcome) as ManualQuestionOutcome['outcome'],
+      answer: nullableString(row.answer), sourceRevision: integerValue(row.source_revision)!, sourceText: stringValue(row.source_text),
+    });
+  }
   const approvedBySession = new Map(
     approved.results.map((row) => [
       stringValue(row.session_id),
@@ -19657,6 +19489,7 @@ export async function listCounselingRecords(
       : sessionGoalNoteLines(nullableString(row.record_details));
     return {
       ...mapCounselingRecord(row, projected?.summaryText ?? null, projected?.approvedAt ?? null),
+      manual: manualBySession.get(sessionId) ?? null,
       completedSchedule,
       gasScores: scoresBySession.get(sessionId) ?? [],
       actionItems: actionsBySession.get(sessionId) ?? [],

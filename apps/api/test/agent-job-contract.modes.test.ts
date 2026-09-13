@@ -81,26 +81,22 @@ async function seedJobs(
   });
   // 등록 6종 동의 + seedCanonicalSttConsent 가 권한의 유일한 근거다(파일럿 증빙 기록기는 폐지).
 
-  const textRecord = await createCounselingRecord(env, counselor, supportCaseId, {
-    submissionId: crypto.randomUUID(),
-    heldAt: '2026-07-08T10:00:00.000Z',
-    channel: 'in_person',
-    memo: 'Mode fixture memo for the text queue.',
-    gasScores: [],
-    actionItems: [],
-    flags: [],
-  });
+  const textRecord = await createCounselingRecord(env, counselor, supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(),
+  heldAt: '2026-07-08T10:00:00.000Z',
+  channel: 'in_person',
+  memo: 'Mode fixture memo for the text queue.',
+  gasScores: [],
+  actionItems: [],
+  flags: [], });
   await enqueueTextWorkItem(env, counselor, textRecord.record.id, 'manual_record');
 
-  const audioRecord = await createCounselingRecord(env, counselor, supportCaseId, {
-    submissionId: crypto.randomUUID(),
-    heldAt: '2026-07-09T10:00:00.000Z',
-    channel: 'in_person',
-    memo: 'Mode fixture memo for the audio queue.',
-    gasScores: [],
-    actionItems: [],
-    flags: [],
-  });
+  const audioRecord = await createCounselingRecord(env, counselor, supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(),
+  heldAt: '2026-07-09T10:00:00.000Z',
+  channel: 'in_person',
+  memo: 'Mode fixture memo for the audio queue.',
+  gasScores: [],
+  actionItems: [],
+  flags: [], });
   if (mode === 'community-cloud') {
     const runtime: AgentRuntime = {
       route: 'community-cloud-agent',
@@ -252,15 +248,13 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
       state: 'ready',
       capacity: 1,
     });
-    const makeSession = async () => (await createCounselingRecord(env, counselor, supportCaseId, {
-      submissionId: crypto.randomUUID(),
-      heldAt: '2026-07-10T10:00:00.000Z',
-      channel: 'in_person',
-      memo: 'Synthetic target boundary fixture.',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-    })).record.id;
+    const makeSession = async () => (await createCounselingRecord(env, counselor, supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(),
+    heldAt: '2026-07-10T10:00:00.000Z',
+    channel: 'in_person',
+    memo: 'Synthetic target boundary fixture.',
+    gasScores: [],
+    actionItems: [],
+    flags: [], })).record.id;
     const requestTarget = (sessionId: string, targetEnv: ApiEnv) => worker.fetch(new Request(
       `http://localhost/sessions/${sessionId}/audio-upload-target`,
       {

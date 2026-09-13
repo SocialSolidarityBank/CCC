@@ -253,17 +253,15 @@ async function runParticipant(
     });
 
     mark();
-    await createCounselingRecord(env, primaryActor, supportCaseId, {
-      submissionId: crypto.randomUUID(),
-      heldAt: regular.heldAt,
-      channel: 'in_person',
-      memo: regular.memo,
-      gasScores: scoreActiveGoals(active, participant.trajectory, sessionIndex),
-      actionItems: toRecordActionItems(regular.actionItems),
-      flags: toRecordFlags(regular.flags),
-      scheduleId: schedule.id,
-      expectedScheduleVersion: 1,
-    });
+    await createCounselingRecord(env, primaryActor, supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(),
+    heldAt: regular.heldAt,
+    channel: 'in_person',
+    memo: regular.memo,
+    gasScores: scoreActiveGoals(active, participant.trajectory, sessionIndex),
+    actionItems: toRecordActionItems(regular.actionItems),
+    flags: toRecordFlags(regular.flags),
+    scheduleId: schedule.id,
+    expectedScheduleVersion: 1, });
     sessions += 1;
 
     await applyReplacementAfter(sessionIndex);

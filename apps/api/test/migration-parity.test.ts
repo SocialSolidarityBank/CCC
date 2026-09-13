@@ -78,6 +78,61 @@ async function proveIntakeVersionSchema(fixture: ParityDatabase): Promise<void> 
     VALUES (?, ?, 3, 2, ?, 'in_person', ?)`).bind(p.session, 'foreign-org', p.at, p.at).run()).rejects.toMatchObject({ kind: 'constraint' });
   await expect(db.prepare('UPDATE programs SET financial_support_enabled=2 WHERE id=?').bind(p.program).run()).rejects.toMatchObject({ kind: 'constraint' });
 }
+
+async function seedManualLifecycleSchema(fixture: ParityDatabase): Promise<void> {
+  const db = fixture.db, p = intakeVersionProof;
+  await db.batch([
+    db.prepare(`INSERT INTO sessions (id,org_id,support_case_id,counselor_id,held_at,channel,memo,record_details,
+      submission_id,submission_hash,submitted_by,ai_status,created_at,updated_at)
+      VALUES ('parity-manual-old',?,?,?,?,'phone','old memo','{"safetyNote":"old wording"}','parity-manual-old-submit',?,?,'none',?,?)`)
+      .bind(p.org, p.supportCase, p.user, p.at, 'b'.repeat(64), p.user, p.at, p.at),
+    db.prepare(`INSERT INTO action_items (id,org_id,support_case_id,session_id,description,owner,created_at,
+      resolution_status,resolution_note,resolution_at,resolution_session_id)
+      VALUES ('parity-manual-action',?,?,'parity-manual-old','old action','beneficiary',?,'hold','old hold',?,'parity-manual-old')`)
+      .bind(p.org, p.supportCase, p.at, p.at),
+  ]);
+}
+
+async function proveManualLifecycleSchema(fixture: ParityDatabase): Promise<void> {
+  const db = fixture.db, p = intakeVersionProof;
+  expect(await db.prepare("SELECT schema_version,details,actor_id FROM manual_record_revisions WHERE session_id='parity-manual-old'").first())
+    .toEqual({ schema_version: 1, details: '{"safetyNote":"old wording"}', actor_id: null });
+  expect(await db.prepare("SELECT revision,resolution_status,resolution_note FROM action_item_revisions WHERE action_item_id='parity-manual-action'").first())
+    .toEqual({ revision: 1, resolution_status: 'hold', resolution_note: 'old hold' });
+  const details = JSON.stringify({ schemaVersion: 2, method: 'visit', reason: null, urgency: null,
+    changes: [], counselorOpinion: null, nextQuestions: [{ id: 'parity-manual-question', body: 'original question' }] });
+  await db.prepare(`INSERT INTO sessions (id,org_id,support_case_id,counselor_id,held_at,channel,memo,record_details,
+    submission_id,submission_hash,submitted_by,ai_status,created_at,updated_at,manual_schema_version)
+    VALUES ('parity-manual-new',?,?,?,?,'in_person','new memo',?,'parity-manual-new-submit',?,?,'none',?,?,2)`)
+    .bind(p.org, p.supportCase, p.user, p.at, details, 'c'.repeat(64), p.user, p.at, p.at).run();
+  await expect(db.prepare(`INSERT INTO manual_action_outcomes
+    (id,org_id,support_case_id,action_item_id,session_id,source_revision,outcome,continuation)
+    VALUES ('parity-manual-bad-stop',?,?,'parity-manual-action','parity-manual-new',1,'not_done','stop')`)
+    .bind(p.org, p.supportCase).run()).rejects.toMatchObject({ kind: 'constraint', constraintSubtype: 'check' });
+  await db.prepare(`INSERT INTO manual_action_outcomes
+    (id,org_id,support_case_id,action_item_id,session_id,source_revision,outcome,continuation)
+    VALUES ('parity-manual-outcome',?,?,'parity-manual-action','parity-manual-new',1,'not_done','continue')`)
+    .bind(p.org, p.supportCase).run();
+  await db.prepare(`UPDATE action_items SET description='revised action',resolution_status='not_done',
+    resolution_note=NULL,resolution_session_id='parity-manual-new' WHERE id='parity-manual-action'`).run();
+  expect((await db.prepare("SELECT revision,description,resolution_status,resolution_note FROM action_item_revisions WHERE action_item_id='parity-manual-action' ORDER BY revision").all()).results)
+    .toEqual([
+      { revision: 1, description: 'old action', resolution_status: 'hold', resolution_note: 'old hold' },
+      { revision: 2, description: 'revised action', resolution_status: 'not_done', resolution_note: null },
+    ]);
+  expect(await db.prepare("SELECT revision,resolved_at FROM action_items WHERE id='parity-manual-action'").first())
+    .toEqual({ revision: 2, resolved_at: null });
+  await expect(db.prepare(`INSERT INTO manual_question_outcomes
+    (id,org_id,support_case_id,kind,question_id,source_id,source_revision,source_text,session_id,outcome,answer)
+    VALUES ('parity-manual-wrong-question',?,?,'record','wrong-id','parity-manual-new',1,'original question','parity-manual-new','confirmed','answer')`)
+    .bind(p.org, p.supportCase).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await db.prepare("UPDATE sessions SET memo='corrected memo' WHERE id='parity-manual-new'").run();
+  expect((await db.prepare("SELECT revision,memo,details FROM manual_record_revisions WHERE session_id='parity-manual-new' ORDER BY revision").all()).results)
+    .toEqual([{ revision: 1, memo: 'new memo', details }, { revision: 2, memo: 'corrected memo', details }]);
+  await expect(db.prepare("UPDATE sessions SET record_details='{}' WHERE id='parity-manual-new'").run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare("DELETE FROM action_item_revisions WHERE action_item_id='parity-manual-action'").run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare("UPDATE manual_action_outcomes SET outcome='done' WHERE id='parity-manual-outcome'").run()).rejects.toMatchObject({ kind: 'constraint' });
+}
 const legacy = '2026-01-01 09:00:00';
 const normalizedLegacy = '2026-01-01T09:00:00.000Z';
 const modern = '2026-01-01T09:00:00.500Z';
@@ -519,6 +574,9 @@ describe('S1 live migration parity', () => {
         if (checkpoint.id === 'intake-versions') {
           for (const fixture of [sqlite, postgres]) await seedIntakeVersionSchema(fixture);
         }
+        if (checkpoint.id === 'manual-record-lifecycle') {
+          for (const fixture of [sqlite, postgres]) await seedManualLifecycleSchema(fixture);
+        }
         await sqlite.apply(checkpoint.sqlite);
         await postgres.apply(checkpoint.postgres);
         const left = await collectCatalog(sqlite);
@@ -550,6 +608,9 @@ describe('S1 live migration parity', () => {
         }
         if (checkpoint.id === 'intake-versions') {
           for (const fixture of [sqlite, postgres]) await proveIntakeVersionSchema(fixture);
+        }
+        if (checkpoint.id === 'manual-record-lifecycle') {
+          for (const fixture of [sqlite, postgres]) await proveManualLifecycleSchema(fixture);
         }
         if (checkpoint.id === 'baseline-0045') {
           inventory = timestampInventory(left);

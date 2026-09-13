@@ -838,12 +838,13 @@ async function postManualRecord(supportCaseId: string, memo: string, sequence: n
     method: 'POST',
     headers: counselorHeaders(),
     body: JSON.stringify({
+      schemaVersion: 2,
       submissionId: submissionId(),
       heldAt: `2026-07-1${sequence}T10:00:00.000Z`,
       channel: 'in_person',
       memo,
       gasScores: [],
-      actions: [],
+      actionItems: [],
       flags: [],
     }),
   }), t.env);

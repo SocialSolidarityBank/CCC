@@ -46,15 +46,13 @@ async function makeDueParticipant() {
     programId: testProgramId(counselor.orgId),
     intakeAt: '2025-01-01T09:00:00.000Z',
   }));
-  const record = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
-    submissionId: '72727272-7272-4727-8727-727272727272',
-    heldAt: '2025-01-01T10:00:00.000Z',
-    channel: 'in_person',
-    memo: 'PSEUDONYMOUS_RECORD_SURVIVES',
-    gasScores: [],
-    actionItems: [],
-    flags: [],
-  });
+  const record = await createCounselingRecord(t.env, counselor, created.supportCaseId, { schemaVersion: 2, submissionId: '72727272-7272-4727-8727-727272727272',
+  heldAt: '2025-01-01T10:00:00.000Z',
+  channel: 'in_person',
+  memo: 'PSEUDONYMOUS_RECORD_SURVIVES',
+  gasScores: [],
+  actionItems: [],
+  flags: [], });
   await updateParticipantPii(t.env, admin, created.beneficiaryId, {
     supportCaseContextId: created.supportCaseId,
     expectedVersion: 1,
