@@ -248,7 +248,8 @@ describe('server-authoritative intake write permission', () => {
       const auditAfter = await t.db.prepare('SELECT COUNT(*) AS count FROM audit_log').first<{ count: number }>();
       expect(auditAfter?.count).toBe(auditBefore!.count + 1);
 
-      const edit = { schemaVersion: 2, expectedRevision: 1, heldAt: saved.record.heldAt, channel: 'in_person',
+      const edit = { schemaVersion: 3, expectedRevision: 1, heldAt: saved.record.heldAt, channel: 'in_person',
+        additionalItemRefs: [], questionWithdrawals: [],
         questionnaire: intakeQuestionnaire(input.questionnaire.moduleSnapshot, [{ key: 'managerOpinion', response: 'answered', text: '합성 수정 기록' }]) };
       const updated = await http(reader, path, edit, 'PUT');
       const closed = access === 'closed' || access === 'closed-program';
