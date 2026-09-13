@@ -13,7 +13,7 @@
 ## 작업 범위와 보존
 
 - 경로는 `<repo>/.worktrees/PLANNER`, 현재 문서 브랜치는 `docs/privacy-stt-prerequisites`다. 시작 브랜치 `plan/batch-followup`에서 기존 인계 파일을 보존한 채 옮겼다. `<repo>`는 Git 공통 디렉터리 `.git`이 있는 CCC-new 루트다.
-- 초기 대조 기준은 `ad218e8eafa646a524674fe4ef8cf9c20c0b68bb`이며, 당시 HEAD와 `origin/main`의 차이는 `0 0`이었다. Q가 승인한 A3/A4 두 문서와 그릴링 결정의 `CONTEXT.md`, ADR-0010, S10/S13 및 이 인계 파일만 로컬에서 작성한다. 이 범위는 총괄 계획, D90/ADR0049나 다른 구현 레인의 작성권을 포함하지 않는다.
+- 초기 대조 기준은 `ad218e8eafa646a524674fe4ef8cf9c20c0b68bb`이며, 당시 HEAD와 `origin/main`의 차이는 `0 0`이었다. Q가 승인한 A3/A4와 그릴링 결정은 `CONTEXT.md`, ADR-0010, 법률 검토 목록, S10/S13 및 이 인계 파일의 6개 경로에 작성해 전달했다. 조율 마감 뒤 이번 쓰기 범위는 이 인계 파일 하나이며 다른 5개 승인 문서는 읽기 전용이다.
 - 로컬 체크포인트 검증 과정에서 pnpm 11.5.3이 이 워크트리의 의존성을 설치했다. 로그상 잠금 파일은 최신이었고 새 다운로드는 0건이었다. 다른 레인의 `node_modules`를 연결하지 않았다. 이 설치와 정적 커밋 가드 통과는 제품 코드의 실제 동작이나 Windows 실행 검증이 아니다.
 - 새 OMP 세션, 자동 감시, 예약 작업과 외부 AI 호출은 시작하지 않는다. 이전 티켓 코멘트는 전달 이력으로 보존하며 현재 인계는 다음 규율을 따른다.
 
@@ -24,16 +24,18 @@
 - **로컬 체크포인트와 Tailscale SSH Git 인계만 사용한다. `origin` 작업, PR, main 통합과 배포는 하지 않는다.** 이 규율 전에 조회한 원격 SHA/PR/티켓 상태는 당시 근거이며 추가 원격 작업의 지시가 아니다. 총괄의 2026-09-13 회신에서 현 배치 미완료와 PLANNER 문서 전용 유지를 확인했다. 신규 구현과 W 정본의 작성권, 제품 검증 슬롯은 인계되지 않았다.
 - 총괄의 `CONTEXT.md` 변경은 카드/의미/승인/브리핑/기억 그림자/목표 용어 영역을 소유한다. PLANNER는 동석자, 파기, 파기 내역과 업무 반출/복구·이전의 국소 변경만 체크포인트로 전달하고 총괄의 용어 영역을 덮어쓰지 않는다. 현재 기준에서 두 레인의 기존 줄 변경 구간은 겹치지 않았다.
 - 2026-09-13 Q는 총괄과의 작업 조율을 승인했다. PLANNER가 파일 범위, 순서, 기준 SHA와 검증 슬롯을 직접 조율하고 확인된 인계를 기록한다. 이 승인은 다른 레인의 파일 작성권 이전이나 `origin` 작업·PR·main 통합·배포 승인이 아니다.
+- **이번 단일 파일 인계:** 단일 작성자는 PLANNER(`w1W:p1`)이고 대상은 자기 워크트리의 `docs/superpowers/plans/2026-09-13-planner-handoff.md`다. 인계 편집 기준은 `b71524e`의 같은 본문이며, 그 위에 이미 기록한 `c3073c5`와 현재 문서 브랜치를 보존한다. 전체 브랜치 병합, reset과 다른 워크트리 복사는 하지 않는다.
+- **검증 슬롯:** 이 파일의 문서 검수와 정상 pre-commit 가드만 허용한다. 같은 문서 검사를 미리 반복하지 않으며 제품 build/typecheck/tests/browser/Windows 슬롯은 Main 소유다. 확인 뒤 로컬 체크포인트 SHA와 이 경로만 회신하고 문서 전용으로 대기한다. 수신 확인 메시지마다 새 체크포인트를 만들지 않는다. 신규 구현 작성권은 0이다.
 
 ## 정본 읽기
 
-총괄의 작업 공간은 `<repo>/.worktrees/beta-0.9-orchestrator`, 브랜치는 `orchestrate/beta-0.9`다. 2026-09-13 회신으로 확인한 문서 통합 HEAD는 `081d3d0cc6275c4ae779a78d5cfe6aa2a1a37a06`이며 최종 문서 검사와 W 참조 보완 전이다. 아래 정본 수정안의 원래 정책 대조 기준은 `b43f7d138b4dea55e47a08474b47787e681489f4`로 보존한다. 처음 읽었던 `01e68d70`은 과거 결함/계획 근거로만 남긴다. 문서 통합 HEAD와 아래 표의 검증된 코드 통합 SHA를 구별한다.
+총괄의 작업 공간은 `<repo>/.worktrees/beta-0.9-orchestrator`, 브랜치는 `orchestrate/beta-0.9`다. 조율 마감의 최종 문서 통합 및 정책 읽기 기준은 `3dff4d0ceb7cf2458a23f349afe31230400aefe0`이다. `081d3d0c`는 W 참조와 현재 구현 경고 보완 전의 문서 통합 이력이며, 아래 정본 수정안의 원래 대조 기준 `b43f7d13`과 초기 결함 근거 `01e68d70`도 역사로 보존한다. 문서 기준과 아래 표의 검증된 코드 통합 SHA를 구별한다.
 
 새 기준도 총괄이 로컬 체크포인트와 허가된 Tailscale SSH Git 경로로 인계한 SHA를 사용한다. 상대 워크트리를 직접 수정하거나 미커밋 파일을 복사하지 않는다. 아래 명령은 공유 Git 저장소의 로컬 객체를 읽으며 origin 통신이나 전체 브랜치 병합을 하지 않는다.
 
 ```sh
-git show b43f7d138b4dea55e47a08474b47787e681489f4:docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md
-git show b43f7d138b4dea55e47a08474b47787e681489f4:docs/superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md
+git show 3dff4d0ceb7cf2458a23f349afe31230400aefe0:docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md
+git show 3dff4d0ceb7cf2458a23f349afe31230400aefe0:docs/superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md
 git show 01e68d70fa7f6e6afe6984edab1bb4f9d3aeda7c:docs/superpowers/plans/2026-09-12-beta-0.9-mini-handoff.md
 ```
 
@@ -60,33 +62,34 @@ git show 01e68d70fa7f6e6afe6984edab1bb4f9d3aeda7c:docs/superpowers/plans/2026-09
 
 ### 배치에서 확인한 것과 확인하지 못한 것
 
-**2026-09-13 총괄 직접 회신 기준.** 아래 검증 결과는 총괄이 인계한 근거이며 PLANNER가 제품 검사를 다시 실행한 결과가 아니다. G1/G3/G5/G6/G7 정책과 G4 기억 입력 차단은 기존 승인 계약을 유지한다.
+**2026-09-13 총괄 조율 마감 회신 기준.** 아래 검증 결과는 총괄이 인계한 근거이며 PLANNER가 제품 검사를 다시 실행한 결과가 아니다. G1/G3/G5/G6/G7 정책과 G4 기억 입력 차단은 기존 승인 계약을 유지한다. 문서 가드 통과는 제품 구현·품질·Windows·복원 완료의 증거가 아니다.
 
 | 구분 | 확인된 상태와 인계 경계 |
 |---|---|
-| 총괄 | 승인 문서의 국소 통합을 마치고 W 정본의 참조와 미구현 경계 정리를 준비 중이다. 회신 시점의 background job은 0개이고 실행 중인 총괄 검증도 없다. 현 배치는 미완료다 |
+| 총괄 | 승인 문서를 국소 통합하고 W01 G8/W11/W12/W13의 참조와 미구현 경계를 연결했다. 별도 보완은 `CONTEXT.md`의 파기 뒤 가명기록 보존 오해 제거와 `docs/ops.md`의 기존 금고 중심 구현 경고다. 현 배치는 미완료다 |
 | 검증된 코드 | `integrate/relayer-domain-beta@6896872203c0b69c9a9e2b06431911b22ffac36b`. core `a1afc7a7`와 client `9b5b5c6e`를 포함하며 client 139검사, 타입, 빌드, 가드와 PostgreSQL parity 근거를 총괄이 확인했다 |
 | core mini | W04의 manual-record 계약, gateway/HTTP와 관련 migration/tests를 소유한다. 현재 작성 중단 및 검증 대기이며 이 소스는 위 검증에 포함되지 않았다 |
 | frontend | `apps/client`의 `intake.tsx`와 `participants.test.ts` 영역 접기 복구를 소유한다. 현재 작성 중단 및 검증 대기이며 이 변경도 위 검증에 포함되지 않았다 |
 | DESIGN | `apps/web` intake와 공유 Wire 부품을 소유한다. 보고는 P9/부품 수준이므로 W03 legacy intake 완료로 인정하지 않았다. 회신 시점에 core/frontend/DESIGN Herdr 상태는 모두 idle이다 |
-| 문서 수신과 통합 | 필요한 6개 문서 경로만 로컬 cherry-pick했다. `665e3985` → `da76e0a4`, `926bb861` → `d5090be2`, `b71524e` → `081d3d0c`다. S10 §1.1의 다운로드 감사 범위가 반영됐으며 통합 뒤 최종 문서 검사와 W 참조 보완은 아직 전이다 |
-| PLANNER | 문서 전용을 유지하고 이 회신을 기존 인계 문서에 기록한다. 다른 정본과 코드는 수정하지 않는다. 총괄이 문서 반영 마감 SHA와 정확한 파일, 단일 작성자, 기준 SHA, 검증 슬롯을 별도로 인계한 뒤 그 범위만 다음 작업으로 삼는다. Q에게 같은 자료를 다시 요청하지 않는다 |
+| 문서 수신과 통합 | 필요한 6개 경로만 로컬 cherry-pick했다. `665e3985` → `da76e0a4`, `926bb861` → `d5090be2`, `b71524e` → `081d3d0c`이며 후속 정리를 마친 최종 문서 기준은 `3dff4d0ceb7cf2458a23f349afe31230400aefe0`다. 정상 pre-commit의 문서 번호, DB/core 경계, 시크릿과 디자인 가드가 통과했다. 다운로드 감사만 남기고 발송 기록·수령 기관·목적 수집과 별도 발송 기록 의무를 두지 않는 범위는 S10 §1.1 정본을 따른다 |
+| PLANNER | 위 단일 파일 인계와 문서 검증 슬롯만 받았다. W 정본/D90/ADR0049는 계속 Main 소유이며 다른 정본과 코드는 수정하지 않는다. 다음 범위는 관련 생산자 계약의 커밋·검증과 Main의 소유 구간 동결 뒤 명시적 인계로 정한다. Q에게 같은 자료를 다시 요청하지 않는다 |
+| CCC-237 보존 인계 | Q가 기존 작업 보존 후 이식을 승인했다. Main은 원본 196개 해시와 HEAD/status 불변을 확인하고 재사용 소스/문서/검사 정의 18개만 `archive/ccc237-input-a98b9f23642f@38254876e1d2083ccae3db085245d088411cc50b`에 보관했다. 실험 로그/결과/압축파일 178개는 원위치에 보존했다. 보관 커밋은 채택이나 품질 PASS가 아니며 오래된 `99d7b41` 전체 트리를 현재 코드에 병합하지 않는다. S5/S6 재전송, 결과 멱등성, Azure 1회 전송과 qualification 경계는 다시 열지 않는다 |
 
 다음 PR과 티켓 상태는 이전 조회 시점의 근거로 보존한다. 위 직접 회신을 대신하는 현재 배치 상태표가 아니다.
 - [PR #335](https://github.com/SocialSolidarityBank/CCC/pull/335)는 OPEN이다. [#334](https://github.com/SocialSolidarityBank/CCC/pull/334)와 [#333](https://github.com/SocialSolidarityBank/CCC/pull/333)은 MERGED이며 이미 위 main 기준에 포함돼 있다. 역할 PR의 열림이나 이전 PR의 머지는 카드 배치 종료 증거가 아니다. 총괄 브랜치를 head로 하는 PR은 조회 결과 없었다.
 - Linear의 최근 변경 조회와 `릴레이어`, `민감정보`, 기존 E/SG 식별자 검색으로 이번 배치의 W별 작성권 인계는 찾지 못했다. 아래 E 티켓은 관련 실행 항목이지 이번 배치의 담당자 확정표가 아니다. 기존 티켓에 남은 `CCC_OPEN_PILOT_PLAN.md`와 과거 모델명은 현행 W 실행 순서를 대체하지 않는다.
 - [CCC-237](https://linear.app/bss-ccc/issue/CCC-237)은 In Progress다. 공개 코멘트의 NER 품질 실패와 긴 입력 누락, v2/v3 미커밋 작업, 통과 증명 미발행을 그대로 선행 근거로 쓴다. 다른 레인의 파일을 읽거나 복사해 반영 완료로 처리하지 않는다.
-- **CCC-237 총괄 문의 답변(2026-09-13):** PLANNER는 현재 담당자와 승인된 채택 체크포인트를 모른다. 근거는 Linear 공개 코멘트(최신 2026-09-06: 전체 가림 FAIL, 긴 입력 단일 창 누락, v2/v3 미커밋, 통과 증명 없음)와 로컬 브랜치 목록뿐이며 `.worktrees/e5-4-privacy-generalization`, `apps/pipeline`, 코어 가림 코드는 읽거나 고치지 않았다. 다시 열지 않을 S5/S6 규칙: mask dictionary 응답 유실 뒤 같은 service·job·claim·attempt의 만료 전 재전송은 같은 dictionary ID와 동일 응답을 돌려주고, 그 밖은 `stale_claim`·`lease_expired`·`dictionary_already_consumed`로 거부한다(S5 §2.1). 결과 멱등성은 JCS payload hash로 판정한다(같은 hash `204`, 다른 hash `409 result_conflict`). Azure는 attempt당 원본 전송 최대 1회이고 자동 재시도가 없다. release는 immutable `NerReleaseQualificationReceipt`(`status='passed'`, 만료 전)를 전제하며 S6 N2 설치 health와 E5-4 통과 증명은 별개다. dictionary는 메모리에서만 쓰고 처리 뒤 zeroize한다(S6 §2.4·§2.6). PLANNER 소비용 체크포인트는 `665e3985`다.
+- **CCC-237 이전 문의 답변(2026-09-13):** 당시 PLANNER는 담당자와 승인된 채택 체크포인트를 알지 못했다. 근거는 Linear 공개 코멘트(최신 2026-09-06: 전체 가림 FAIL, 긴 입력 단일 창 누락, v2/v3 미커밋, 통과 증명 없음)와 로컬 브랜치 목록뿐이었으며 `.worktrees/e5-4-privacy-generalization`, `apps/pipeline`, 코어 가림 코드는 읽거나 고치지 않았다. 이후 보존 인계는 위 표로 구별한다. 다시 열지 않을 S5/S6 규칙: mask dictionary 응답 유실 뒤 같은 service·job·claim·attempt의 만료 전 재전송은 같은 dictionary ID와 동일 응답을 돌려주고, 그 밖은 `stale_claim`·`lease_expired`·`dictionary_already_consumed`로 거부한다(S5 §2.1). 결과 멱등성은 JCS payload hash로 판정한다(같은 hash `204`, 다른 hash `409 result_conflict`). Azure는 attempt당 원본 전송 최대 1회이고 자동 재시도가 없다. release는 immutable `NerReleaseQualificationReceipt`(`status='passed'`, 만료 전)를 전제하며 S6 N2 설치 health와 E5-4 통과 증명은 별개다. dictionary는 메모리에서만 쓰고 처리 뒤 zeroize한다(S6 §2.4·§2.6). 당시 PLANNER 소비용 체크포인트는 `665e3985`였다.
 - [CCC-250](https://linear.app/bss-ccc/issue/CCC-250)은 In Progress다. 옛 합성 150건/CPU 비교 본문과 후속 S13 v2 사람 품질 계약은 시점이 다르다. 최신 S13을 기준으로 담당 레인에 본문 정합 수정을 전달하되 역사 측정과 댓글은 보존한다.
 - [CCC-157](https://linear.app/bss-ccc/issue/CCC-157), [CCC-189](https://linear.app/bss-ccc/issue/CCC-189), [CCC-234](https://linear.app/bss-ccc/issue/CCC-234), [CCC-192](https://linear.app/bss-ccc/issue/CCC-192)는 Backlog다. CCC-192에는 CCC-194가 열린 `blocks`로 남아 있다. [법무 스펙 이슈 #227](https://github.com/SocialSolidarityBank/CCC/issues/227)은 OPEN이며, 명시된 `docs/specs/S14-legal-gates.md`는 현재 PLANNER 기준에 없다. 기존 의뢰 목록 작성과 법무 관문 통과를 구별한다.
 
 ## 정본 반영 수정안
 
-**수신자와 적용 조건:** 총괄이 아래 대상 구간의 작성권과 기준 SHA를 인계하면 PLANNER 안의 같은 경로에 반영한다. 그전에는 이 절만 제안으로 유지한다. 새 W 항목이나 병렬 상태 파일을 만들지 않는다.
+**수신자와 적용 조건:** 총괄은 승인된 파기/복원/반출 정책과 A3/A4의 참조를 W01 G8/W11/W12/W13에 연결했다. A1/A2/A6 및 R1~R10의 제안 구현 전체를 승인하거나 코드로 옮긴 것은 아니다. 아래 나머지 수정안은 해당 작성권과 기준 SHA를 새로 인계받기 전까지 제안으로 유지한다. 새 W 항목이나 병렬 상태 파일을 만들지 않는다.
 
-작성권을 인계받으면 인계 SHA의 대상 파일을 PLANNER의 같은 경로에 가져온다. 이후 기준이 바뀌면 현재 수정안 기준 `b43f7d13`과의 대상 파일 변경만 대조한다. 전체 브랜치를 병합하거나 총괄의 미커밋 파일을 복사하지 않는다. 이 수정안의 추가 파기/반출 요구는 총괄이 읽고 통합하기 전까지 정본 W 계획에 반영된 것으로 취급하지 않는다.
+추가 정본 작성권을 인계받으면 인계 SHA의 대상 파일을 PLANNER의 같은 경로에 가져온다. 현재 정책 읽기 기준은 `3dff4d0c`이며 아래 표의 원래 제안 기준 `b43f7d13`과 구별한다. 전체 브랜치를 병합하거나 총괄의 미커밋 파일을 복사하지 않는다. 이미 연결된 문서 참조를 반복 적용하거나 그 연결을 제품 구현 완료로 취급하지 않는다.
 
-**대상:** `docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md`의 `b43f7d13` 기준. 카드 필드/전환 설계도 같은 체크포인트의 `docs/superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md`를 참조한다.
+**원래 제안 대상:** `docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md`의 `b43f7d13` 기준 변경표다. 카드 필드/전환 설계도 당시 같은 체크포인트의 `docs/superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md`를 참조했다. 현행 정책 판정에는 위 최종 문서 기준을 사용한다.
 
 | 변경 구간 | 넣을 내용 | 기존 계획과의 관계 |
 |---|---|---|
@@ -289,7 +292,7 @@ S-H의 CSAP 개편 시점, 선례의 숫자, 서비스별 가격, CLOVA 보관/�
 
 수정안과 작성권/배치 인계 요청은 기존 티켓의 코멘트로 게시하고 재조회했다: [계획과 제출 CCC-192](https://linear.app/bss-ccc/issue/CCC-192/e10-6-제출-패키지와-시연#comment-120e89e5), [법무 CCC-157](https://linear.app/bss-ccc/issue/CCC-157/sg14-법무와-실데이터-게이트-확정-게이트#comment-3a3f4bcf), [STT CCC-250](https://linear.app/bss-ccc/issue/CCC-250/e5-8-stt-g1stt-g3-엔진-판정#comment-71ecd30b). 상태는 각각 Backlog, Backlog, In Progress 그대로다. 게시 성공은 총괄의 수신 확인이나 작성권 인계가 아니다.
 
-위 총괄 회신으로 PLANNER의 승인 문서 수신과 국소 통합을 확인했다. 다음 인계는 총괄의 W 참조 보완과 문서 반영 마감 뒤에 정하는 정확한 작업 범위다. 총괄의 계획 작성권과 구현 배치 소유는 유지한다. A1/A2 문안/버전은 코어→frontend→DESIGN 순서로 넘기고, A6과 R1~R10의 코드는 PLANNER에 새 소유권을 주지 않은 상태에서 시작하지 않는다.
+총괄의 문서 수신, 정본 참조 반영과 마감 기준을 위 표에 기록했다. 다음 구현이나 정본 갱신은 관련 core/frontend/DESIGN 생산자 계약이 커밋·검증되고 Main이 겹치는 소유 구간을 동결한 뒤, 정확한 파일, 단일 작성자, 기준 SHA, 수용 기준과 검증 슬롯을 명시적으로 전달해야 시작한다. 이번 조율 승인만으로 그 조건이 충족되지 않는다. A1/A2 문안/버전은 코어→frontend→DESIGN 순서를 유지하고, A6과 R1~R10의 코드는 PLANNER에 새 소유권을 주지 않은 상태에서 시작하지 않는다. D90 번호 충돌은 경로와 출처 SHA로 구별하며 Main의 향후 통합 관문에 남긴다.
 
 ## 배치 진행 중 할 일
 
