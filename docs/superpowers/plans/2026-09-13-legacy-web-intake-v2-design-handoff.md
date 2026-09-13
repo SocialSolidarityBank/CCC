@@ -11,6 +11,7 @@
 - `apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/**` (위저드, 조회, 임시본, 저장 알림)
 - `apps/web/app/actions.ts`의 인테이크 저장·수정 액션
 - `apps/web/app/lib/api.ts`의 인테이크 컨텍스트 디코더와 요청 전송
+- `apps/web/app/components/wire/wire-button.tsx`와 해당 부품 검사: `ariaLabel`과 같은 공개 API 방식으로 `ariaExpanded`, `ariaControls`를 추가해 실제 DOM의 `aria-expanded`, `aria-controls`에 연결한다. 이 변경은 frontend 레인의 영역 접기 복구가 소비한다.
 - 화면 URL: `/participants/:beneficiaryId/programs/:supportCaseId/records/intake`
 
 ## 3. API 계약
@@ -24,6 +25,8 @@
 - 필수 판정: 공통 21문항 + `difficulty_areas`에서 고른 영역의 문항. 화면에서 접어도 필수는 유지된다. `requiredIntakeQuestionKeys(areas)`가 정본이다.
 - 응답: `{ schemaVersion: 2, revision, record { id, heldAt, channel, kind: 'intake' }, replayed }`. `POST` 201(재전송 200), `PUT` 200.
 - 사업 설정: `financialSupportEnabled`는 `POST /programs`, `PATCH /programs/:id`(expectedVersion 필요), `POST /organization/onboarding`이 받고 `ProgramRecord`, `ProgramView`, `institution.firstProgram`이 돌려준다. `ProgramOption`에는 없다. 화면은 `moduleSnapshot`으로만 모듈 여부를 판단한다.
+
+공유 부품의 추가 계약은 `ariaExpanded?: boolean`, `ariaControls?: string`이다. 기존 `ariaLabel`, 버튼·링크 렌더러, 스타일과 크기를 유지한다. 지원하지 않는 `aria-*`를 넘겼는데 TypeScript 검사가 통과했다는 이유로 DOM에 전달됐다고 보지 않는다. frontend 레인은 이 두 공개 prop을 받은 뒤 자기 소유 화면의 접기 상태와 누락 검사를 복구한다.
 
 ## 4. 거부와 상태 전체
 
@@ -42,7 +45,7 @@
 - 이전 형식 기록: "이전 값은 그대로 보존해요. 저장 당시의 항목 이름과 값을 그대로 보여 줘요. 현재 영역이나 위기도로 자동 분류하지 않아요."
 - 전환 확인: "이전 원본을 보존하고 새 양식에 직접 작성해 전환할 것을 확인했어요"
 - 충돌: "다른 곳에서 먼저 저장됐어요. 다시 불러온 뒤 이어서 작성해 주세요."
-- 읽기 전용: "지금은 작성할 수 없어요. 진행 중인 사례의 담당 실무자만 작성할 수 있어요."
+- 읽기 전용: "지금은 읽기만 할 수 있어요. 저장된 내용은 계속 확인할 수 있어요." 권한과 사업 상태 중 확인되지 않은 원인을 임의로 단정하지 않는다.
 - `재약속`이라는 낱말은 쓰지 않는다. 해요체, 긴 대시 금지(`CLAUDE.md` 11장).
 
 ## 6. 적용되는 `DESIGN-RULES.md` 절
@@ -58,10 +61,11 @@
 - 409에서 초안이 유지되고 다시 불러오기 뒤에만 재전송한다.
 - `apps/web` 위저드, 조회, 임시본, 저장 알림의 기존 테스트 6개 파일이 새 계약으로 갱신되고, 평면 본문을 고정하던 단언은 제거된다.
 - 데스크톱과 390px 실화면에서 가로 넘침이 없다(실측).
+- 영역 접기는 제거하거나 필수 판정을 바꾸는 방식으로 대체하지 않는다. 실제 접기/펼치기 상태와 연결 대상이 보조기기에 전달되고, 접힌 영역의 미응답 때문에 저장이 거부되며 펼친 뒤 값을 이어서 입력할 수 있어야 한다. 기존 입력값은 접기 때문에 사라지지 않는다.
 
 ## 8. 손대지 말 것과 선행 조건
 
 - 손대지 말 것: `packages/**`, `migrations/**`, `apps/client/**`, 공유 CSS·토큰 규칙 변경(필요하면 `DESIGN.md`와 `DESIGN-RULES.md`를 같은 커밋에서 고치는 별도 티켓).
 - 선행 조건 1: 코어 체크포인트 `a1afc7a7`이 DESIGN 워크트리에 반영돼 있어야 한다. 소유: 베타 총괄(로컬 Git 인계만, origin 푸시·PR은 Q 별도 승인).
-- 선행 조건 2: `apps/client` 소비 슬라이스는 frontend 레인이 완료했으며 두 클라이언트는 같은 API 출고 묶음으로 나간다. 소유: 베타 총괄.
+- 선행 조건 2: `apps/client`의 v2 소비 체크포인트는 `9b5b5c6e`다. 기본 경로는 검증됐지만 영역 접기는 위 공유 prop을 받은 뒤 frontend 레인이 복구해야 한다. 두 클라이언트와 부품을 같은 출고 묶음으로 검증하며, 접기를 뺀 것을 완료로 취급하지 않는다. 소유: 베타 총괄과 frontend.
 - 선행 조건 3: `ccc-preview` 반영과 운영 배포는 이 패킷의 범위가 아니다. 소유: Q 승인.
