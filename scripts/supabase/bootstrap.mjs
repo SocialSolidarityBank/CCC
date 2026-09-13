@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   createHostedInspector,
   createInstallationHealth,
@@ -285,10 +286,19 @@ async function verifiedInstallManifest(document, authorization) {
   return manifest;
 }
 
-async function main() {
-  let options;
+export async function runSupabaseBootstrap(options, {
+  expectedPlanFingerprint, expectedReleaseSha256, expectedAuthorizationSha256, includeRelease = false,
+} = {}) {
   try {
-    options = parseArgs(process.argv.slice(2));
+    for (const digest of [expectedPlanFingerprint, expectedReleaseSha256, expectedAuthorizationSha256]) {
+      if (digest !== undefined && (typeof digest !== 'string' || !/^[a-f0-9]{64}$/u.test(digest))) {
+        throw new PlanFailure('PLAN_STATE_CHANGED');
+      }
+    }
+    if (((expectedPlanFingerprint !== undefined || expectedReleaseSha256 !== undefined) && options.operation !== 'apply')
+      || typeof includeRelease !== 'boolean' || (includeRelease && options.operation !== 'plan')) {
+      throw new PlanFailure('OPERATION_UNSUPPORTED');
+    }
     try { assertApplicationCaBinding(); } catch { throw new PlanFailure('CA_TRUST_UNAVAILABLE'); }
     const authorize = () => requireSignedOwnerPreflight({
       installManifest: options.installManifest ?? process.env.CCC_INSTALL_MANIFEST,
@@ -303,6 +313,11 @@ async function main() {
     });
     // Owner authorization and both beta documents are verified before token consumption.
     const authorization = options.target === 'hosted' ? await authorize() : undefined;
+    if (expectedAuthorizationSha256 !== undefined && (!authorization
+      || expectedAuthorizationSha256 !== await hashCanonical({
+        runtimeManifestSha256: authorization.runtimeManifestSha256,
+        approvalSha256: authorization.approvalSha256,
+      }))) throw new PlanFailure('PLAN_STATE_CHANGED');
     const providerBaseline = options.target === 'hosted'
       ? await requireProviderBaseline({
           releaseTrust: process.env.CCC_BETA_RELEASE_TRUST,
@@ -370,6 +385,10 @@ async function main() {
         release: await loadReleaseIndexForDoctor({ now: new Date() }),
       })
       : await buildSupabasePlan(planOptions);
+    if (expectedPlanFingerprint !== undefined
+      && (!result.ready || result.planFingerprint !== expectedPlanFingerprint)) {
+      throw new PlanFailure('PLAN_STATE_CHANGED');
+    }
     if (options.operation === 'report') {
       const report = buildRedactedReport({ doctor: result, ledger: reportLedger });
       await writeRedactedReport({
@@ -399,7 +418,7 @@ async function main() {
           blockers: [],
         };
       }));
-    } else if (result.ready && options.operation === 'apply') {
+    } else if (result.ready && (options.operation === 'apply' || includeRelease)) {
       const loaded = await loadReleaseForApply({
         manifestUrl: options.manifestUrl,
         authorize: authorizeProviderAccess,
@@ -420,6 +439,10 @@ async function main() {
         localNow: new Date(),
       });
       try {
+        if (includeRelease) return { plan: result, releaseSha256: loaded.releaseSha256 };
+        if (expectedReleaseSha256 !== undefined && expectedReleaseSha256 !== loaded.releaseSha256) {
+          throw new PlanFailure('PLAN_STATE_CHANGED');
+        }
         result = await withInstallerConnection(authorization, async sql => {
           const applyInspector = {
             inspect: () => inspector.inspect(),
@@ -509,6 +532,20 @@ async function main() {
         llmMode: created.llmMode,
       };
     }
+    return includeRelease ? { plan: result, releaseSha256: null } : result;
+  } catch (error) {
+    let code = 'OUTPUT_REDACTION_FAILED';
+    try { code = JSON.parse(safeError(error, 'json').output).error.code; } catch {}
+    throw Object.assign(new Error(code), { code });
+  }
+}
+
+async function main() {
+  let options;
+  try {
+    options = parseArgs(process.argv.slice(2));
+    const result = await runSupabaseBootstrap(options);
+    if (result === undefined) return;
     process.stdout.write(options.format === 'json' ? json(result) : text(result));
     process.exitCode = result.ready ? 0 : 6;
   } catch (error) {
@@ -525,4 +562,6 @@ async function main() {
   }
 }
 
-await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  await main();
+}

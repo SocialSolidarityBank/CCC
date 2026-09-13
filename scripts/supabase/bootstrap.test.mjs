@@ -222,7 +222,7 @@ async function withManagementApi({
 
 async function runCli(origin, {
   token = accessToken, leadingSeparator = false, managementOrigin, operation = 'plan',
-  installManifest, manifestUrl, signedInput, extraArgs = [], format = 'json', cwd = repoRoot,
+  installManifest, manifestUrl, signedInput, extraArgs = [], format = 'json', cwd = repoRoot, runCode,
 } = {}) {
   const args = [cliPath, ...(leadingSeparator ? ['--'] : []), operation, '--target', 'hosted', '--project-ref', 'test-project'];
   if (format !== null) args.push('--format', format);
@@ -249,7 +249,7 @@ async function runCli(origin, {
   delete childEnv.CCC_RELEASE_TRUST_STORE;
   if (signedInput !== undefined) Object.assign(childEnv, signedInput);
   if (managementOrigin !== undefined) childEnv.CCC_SUPABASE_MANAGEMENT_ORIGIN = managementOrigin;
-  const child = spawn(process.execPath, args, {
+  const child = spawn(process.execPath, runCode === undefined ? args : ['--input-type=module', '-e', runCode], {
     cwd,
     env: childEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -529,6 +529,51 @@ test('real CLI accepts both signed documents and observes the approved owner rea
     assertNoSensitiveOutput(result, origin);
     assert.equal(result.stdout.includes('test-organization'), false);
     assert.equal(result.stdout.includes('synthetic-institution'), false);
+  });
+});
+
+test('N02 rejects a stale approved plan before release loading or installer writes', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const result = await runCli(origin, {
+      signedInput: await signedCliInputs(),
+      runCode: `
+        const { runSupabaseBootstrap } = await import('./scripts/supabase/bootstrap.mjs');
+        try {
+          await runSupabaseBootstrap({
+            operation: 'apply', target: 'hosted', projectRef: 'test-project',
+          }, { expectedPlanFingerprint: '0'.repeat(64) });
+          console.log(JSON.stringify({ accepted: true }));
+        } catch (error) { console.log(JSON.stringify({ code: error.code })); }
+      `,
+    });
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.equal(result.stderr, '');
+    assert.deepEqual(JSON.parse(result.stdout), { code: 'PLAN_STATE_CHANGED' });
+    assert.ok(requests.some(({ path }) => path.endsWith('/database/query/read-only')));
+    assert.ok(requests.every(({ method, path }) =>
+      method === 'GET' || path.endsWith('/database/query/read-only')));
+    assertNoSensitiveOutput(result, origin);
+  });
+});
+
+test('N02 rejects a replaced signed authorization pair before provider reads', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const result = await runCli(origin, {
+      signedInput: await signedCliInputs(),
+      runCode: `
+        const { runSupabaseBootstrap } = await import('./scripts/supabase/bootstrap.mjs');
+        try {
+          await runSupabaseBootstrap({
+            operation: 'plan', target: 'hosted', projectRef: 'test-project',
+          }, { expectedAuthorizationSha256: '0'.repeat(64) });
+          console.log(JSON.stringify({ accepted: true }));
+        } catch (error) { console.log(JSON.stringify({ code: error.code })); }
+      `,
+    });
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.equal(result.stderr, '');
+    assert.deepEqual(JSON.parse(result.stdout), { code: 'PLAN_STATE_CHANGED' });
+    assert.equal(requests.length, 0);
   });
 });
 

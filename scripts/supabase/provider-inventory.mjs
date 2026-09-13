@@ -14,6 +14,25 @@ const OBJECT_PROVENANCE = new Set(['extension', 'initial_privilege', 'supabase_m
 const GRANT_KINDS = new Set(['schema', 'relation', 'column', 'routine', 'type', 'default', 'role']);
 const GRANT_PROVENANCE = new Set(['initial_privilege', 'supabase_managed']);
 
+// Only Supabase Realtime's rolling daily children are represented by their checked
+// parent. Other partitions remain exact inventory records.
+export const PROVIDER_RELATION_STABILITY_PREDICATE = `NOT (
+  relation.relispartition
+  AND relation.relkind = 'r'
+  AND namespace.nspname = 'realtime'
+  AND relation.relname ~ '^messages_[0-9]{4}_[0-9]{2}_[0-9]{2}$'
+  AND EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_inherits AS inheritance
+    JOIN pg_catalog.pg_class AS parent_relation ON parent_relation.oid = inheritance.inhparent
+    JOIN pg_catalog.pg_namespace AS parent_namespace ON parent_namespace.oid = parent_relation.relnamespace
+    WHERE inheritance.inhrelid = relation.oid
+      AND parent_namespace.nspname = 'realtime'
+      AND parent_relation.relname = 'messages'
+      AND parent_relation.relkind = 'p'
+      AND parent_relation.relowner = relation.relowner
+  )
+)`;
 export const PROVIDER_INVENTORY_QUERY = `SELECT * FROM (
 WITH
   non_system_namespace AS MATERIALIZED (
@@ -63,7 +82,7 @@ WITH
     SELECT 'relation', 'pg_catalog.pg_class'::regclass, relation.oid, 0, namespace.oid
     FROM pg_catalog.pg_class AS relation
     JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
-    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f') AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
       AND NOT EXISTS (
         SELECT 1 FROM pg_catalog.pg_depend AS dependency
         WHERE dependency.classid = 'pg_catalog.pg_class'::regclass
@@ -150,7 +169,7 @@ WITH
     SELECT 'relation', 'pg_catalog.pg_class'::regclass, relation.oid, 0, namespace.oid
     FROM pg_catalog.pg_class AS relation
     JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
-    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f') AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
     UNION ALL
     SELECT 'routine', 'pg_catalog.pg_proc'::regclass, procedure.oid, 0, namespace.oid
     FROM pg_catalog.pg_proc AS procedure
@@ -211,7 +230,7 @@ WITH
     FROM pg_catalog.pg_class AS relation
     JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
     CROSS JOIN LATERAL pg_catalog.aclexplode(relation.relacl) AS privilege
-    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f') AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
     UNION ALL
     SELECT 'column', 'pg_catalog.pg_class'::regclass, relation.oid, attribute.attnum,
       namespace.nspname, relation.relowner,
@@ -220,7 +239,7 @@ WITH
     JOIN pg_catalog.pg_class AS relation ON relation.oid = attribute.attrelid
     JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
     CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS privilege
-    WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+    WHERE attribute.attnum > 0 AND NOT attribute.attisdropped AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
     UNION ALL
     SELECT 'default', 'pg_catalog.pg_default_acl'::regclass, defaults.oid, 0,
       COALESCE(namespace.nspname, ''), defaults.defaclrole,
@@ -255,7 +274,7 @@ WITH
       relation.relacl,
       pg_catalog.acldefault((CASE WHEN relation.relkind = 'S' THEN 's' ELSE 'r' END)::"char", relation.relowner)
     )) AS privilege
-    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f') AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
     UNION ALL
     SELECT 'column', 'pg_catalog.pg_class'::regclass, relation.oid, attribute.attnum,
       namespace.nspname, relation.relowner,
@@ -267,7 +286,7 @@ WITH
     CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
       attribute.attacl, pg_catalog.acldefault('c'::"char", relation.relowner)
     )) AS privilege
-    WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+    WHERE attribute.attnum > 0 AND NOT attribute.attisdropped AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
     UNION ALL
     SELECT 'routine', 'pg_catalog.pg_proc'::regclass, procedure.oid, 0,
       namespace.nspname, procedure.proowner,

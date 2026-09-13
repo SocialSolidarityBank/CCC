@@ -303,6 +303,8 @@ export async function loadReleaseForApply({
         apiBase,
         supabaseOrigin,
       }),
+      releaseSha256: createHash('sha256').update(canonicalDocument(bundle))
+        .update('\0').update(manifestDocument).digest('hex'),
       trustedTime,
       cleanup: () => rm(stagingRoot, { recursive: true, force: true }),
     };

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { installationStateFingerprint, PlanFailure } from './plan.mjs';
 import { buildInstallStateQuery, DATABASE_INSTALL_FINGERPRINT_QUERY, hashDatabaseInstallFingerprint, installedDatabaseFingerprint, INSTALL_METADATA_TABLES, storageBucketResourceDigest } from './install-journal.mjs';
 import { assertAuthorizationCurrent } from './manifest-preflight.mjs';
-import { normalizeProviderInventory, PROVIDER_INVENTORY_QUERY } from './provider-inventory.mjs';
+import { normalizeProviderInventory, PROVIDER_INVENTORY_QUERY, PROVIDER_RELATION_STABILITY_PREDICATE } from './provider-inventory.mjs';
 
 export const DATABASE_STATE_QUERY = `SELECT * FROM (
 WITH
@@ -112,7 +112,7 @@ WITH
     SELECT 'relation', relation.oid
     FROM pg_catalog.pg_class AS relation
     JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
-    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f') AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
       AND NOT EXISTS (
         SELECT 1 FROM pg_catalog.pg_depend AS dependency
         WHERE dependency.classid = 'pg_catalog.pg_class'::regclass
@@ -212,7 +212,7 @@ WITH
     FROM pg_catalog.pg_class AS relation
     JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
     CROSS JOIN LATERAL pg_catalog.aclexplode(relation.relacl) AS privilege
-    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f') AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
     UNION ALL
     SELECT 'column', 'pg_catalog.pg_class'::regclass, relation.oid, attribute.attnum,
       namespace.nspname, relation.relowner,
@@ -221,7 +221,7 @@ WITH
     JOIN pg_catalog.pg_class AS relation ON relation.oid = attribute.attrelid
     JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
     CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS privilege
-    WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+    WHERE attribute.attnum > 0 AND NOT attribute.attisdropped AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
     UNION ALL
     SELECT 'default', 'pg_catalog.pg_default_acl'::regclass, defaults.oid, 0,
       COALESCE(namespace.nspname, ''), defaults.defaclrole,
@@ -438,7 +438,7 @@ SELECT
     SELECT relation.oid, 'relation'
     FROM pg_catalog.pg_class AS relation
     JOIN non_system_namespace AS namespace ON namespace.oid = relation.relnamespace
-    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f') AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
     UNION ALL
     SELECT procedure.oid, 'routine'
     FROM pg_catalog.pg_proc AS procedure
@@ -478,7 +478,7 @@ SELECT
       relation.relacl,
       pg_catalog.acldefault((CASE WHEN relation.relkind = 'S' THEN 's' ELSE 'r' END)::"char", relation.relowner)
     )) AS privilege
-    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+    WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f') AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
     UNION ALL
     SELECT 1
     FROM pg_catalog.pg_attribute AS attribute
@@ -487,7 +487,7 @@ SELECT
     CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
       attribute.attacl, pg_catalog.acldefault('c'::"char", relation.relowner)
     )) AS privilege
-    WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+    WHERE attribute.attnum > 0 AND NOT attribute.attisdropped AND ${PROVIDER_RELATION_STABILITY_PREDICATE}
     UNION ALL
     SELECT 1
     FROM pg_catalog.pg_proc AS procedure

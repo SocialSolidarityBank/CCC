@@ -152,10 +152,19 @@ type SupabaseProviderBaselineV1 = {
 };
 ```
 
-배열은 UTF-8 lexicographic order로 정렬하고 중복을 거부한다. OID처럼 프로젝트마다 달라지는 값은
-identity에 쓰지 않는다. relation은 schema, 이름, relkind, 보안 속성, definition hash로 식별한다.
-routine은 schema, 이름, identity arguments, return type, definition hash로 식별한다. grant는 object
-identity와 grantor, grantee, privilege, grantable을 모두 비교한다.
+OID처럼 프로젝트마다 달라지는 값은 identity에 쓰지 않는다. relation은 schema, 이름, relkind, 보안 속성,
+definition hash로 식별한다. routine은 schema, 이름, identity arguments, return type, definition hash로
+식별한다. grant는 object identity와 grantor, grantee, privilege, grantable을 모두 비교한다. record
+정규화, definition 입력, UTF-8 JCS 정렬, 중복 검사와 집계 hash의 실행 정본은
+`scripts/supabase/provider-inventory.mjs`의 `normalizeProviderInventory`와
+`providerInventoryFingerprint`다. 다른 canonicalizer를 만들지 않는다.
+
+파티션 예외는 `relispartition=true`, `relkind='r'`, schema `realtime`, 이름
+`^messages_[0-9]{4}_[0-9]{2}_[0-9]{2}$`이고 같은 owner의 `realtime.messages` 파티션드 테이블을
+직접 부모로 둔 relation에만 적용한다. 이 자식의 column과 grant도 제외하지만 부모의 partitioned
+definition, owner, 보안 속성과 grant는 그대로 비교한다. 이 조건 밖의 파티션은 일반 relation과 똑같이
+inventory에 남는다. Realtime은 이 날짜별 자식을 만들고 72시간보다 오래된 자식을 지우므로, 허용된
+자식까지 고정 baseline에 넣으면 공급자 관리 작업만으로 plan이 달라진다.
 
 한 객체나 grant의 문자열은 UTF-8 4,096바이트 이하이며 `objects`는 최대 5,000개, `grants`는
 최대 20,000개다. 문서 전체의 1 MiB 상한이 먼저 적용된다. `baselineVersion`, key ID, identity는
@@ -210,6 +219,10 @@ UTF-8 SHA-256이다. 모든 `supabase_managed` record는 정확히 하나의 evi
 상대 경로여야 한다. record 문자열은 UTF-8 4,096바이트 이하이며 전체 문서는 1 MiB 이하이다. 생성기는
 이 문서를 검증할 뿐 source를 fetch하지 않는다.
 
+릴리스 담당자는 허용된 공식 저장소의 고정 commit과 파일 SHA-256을 별도로 검토해 record 대응을 만든다.
+그 검토와 실행 승인을 받은 evidence artifact만 생성기에 넘긴다. 생성기는 source를 다시 받지 않고,
+문서 형태와 관찰한 `supabase_managed` identity의 일대일 대응만 확인한다.
+
 ## 4. 기준선 생성
 
 기준선 생성기는 쓰기 권한을 사용하지 않는다.
@@ -219,7 +232,7 @@ UTF-8 SHA-256이다. 모든 `supabase_managed` record는 정확히 하나의 evi
 3. `BEGIN READ ONLY` 안에서 모든 non-system schema의 schema, relation, routine, type, catalog object,
    schema/table/column/routine/type/default/role grant를 읽는다.
 4. `pg_depend`의 extension membership과 `pg_init_privs`를 기계적으로 분류한다.
-5. 남은 `supabase_managed` 후보를 위 여섯 공식 저장소의 record별 고정 commit과 source evidence로
+5. 남은 `supabase_managed` 후보를 §3.4 허용 목록의 공식 저장소에 대한 record별 고정 commit과 source evidence로
    대조한다. 공식 소스에서 근거를 찾지 못한 객체나 grant가 하나라도 있으면 기준선을 만들지 않는다.
 6. 업무 표와 행, Auth 사용자, bucket, Storage object가 모두 0인지 다시 확인한다.
 7. 첫 관찰과 두 번째 관찰의 canonical inventory hash가 같을 때만 서명한다.
@@ -238,7 +251,7 @@ UTF-8 SHA-256이다. 모든 `supabase_managed` record는 정확히 하나의 evi
 2. trust가 위임한 release public key로 `SupabaseProviderBaselineV1`을 검증한다.
 3. profile, channel, provider, 프로젝트, 소유자, 리전, DB 버전, 기간을 검증한다.
 4. owner-aware read-only provider 관찰을 두 번 실행한다.
-5. live objects와 grants를 baseline 배열과 정확히 비교한다.
+5. §3.3의 정규화가 끝난 live objects와 grants를 baseline 배열과 정확히 비교한다.
 6. live inventory의 집계 해시와 baseline의 두 집계 해시를 비교한다.
 7. `emptyBusinessState`와 기존 S11 cleanliness 조건을 모두 확인한다.
 8. 두 관찰의 inventory와 S11 state fingerprint가 같을 때만 plan을 만든다.
@@ -297,10 +310,12 @@ S2 manifest 형식과 `packages/contracts`는 바꾸지 않는다. provider base
 - relation definition hash 변경
 - default grant, role membership, grantable 변경
 - 기대보다 하나 많은 객체와 하나 적은 객체
+- §3.3의 허용 조건 밖 파티션 추가
 - 첫 관찰과 두 번째 관찰 사이의 inventory 변경
 - 업무 표, 행, Auth 사용자, bucket, Storage object 존재
 - 업무 런타임에 beta root 또는 release 개인키를 빈 값으로라도 주입
 
-성공 fixture는 exact baseline 한 건뿐이다. 구현 검증 뒤 실제 Relayer 프로젝트에서 signed read-only
-`plan`을 다시 실행한다. 통과 결과는 `ready=true`, `readOnly=true`, `unchanged=true`, DB 쓰기 0건이어야
-한다.
+성공 fixture는 exact baseline과 §3.3 조건을 만족하는 Realtime 날짜 파티션 회전을 각각 증명한다. 허용된
+자식이 바뀌어도 정규화된 inventory hash는 같아야 한다. 조건 밖 파티션은 inventory에 남으며 baseline에
+없으면 plan을 막아야 한다. 구현 검증 뒤 실제 Relayer 프로젝트에서 signed read-only `plan`을 다시
+실행한다. 통과 결과는 `ready=true`, `readOnly=true`, `unchanged=true`, DB 쓰기 0건이어야 한다.

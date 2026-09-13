@@ -149,6 +149,76 @@ test('관찰한 설치 상태가 바뀌면 이전 승인을 쓸 수 없다', () 
 
 **완료:** 별도 승인을 받은 비민감 시험 설치에서 신규 자원 생성 → S11 plan/apply → 실제 health까지 이어지고, 중단 재개로 중복 자원을 만들지 않는다. 실제 시험 자격이 없으면 해당 검증만 차단 상태로 남긴다.
 
+#### N02 개발 명령과 입력
+
+개발 진입점은 `node scripts/onboarding/cloud.mjs`다. `plan`은 생성 전 계정과 소유권 및 과금 구성을 읽고, `create`는 요약 뒤 `이대로 생성` 입력을 받아야 요청을 보낸다. `resume`는 생성 기록이 있는 요청만 관찰하며 POST를 다시 보내지 않는다. `install-plan`, `install`, `doctor`는 생성 대상의 별도 S11 승인을 확인한 뒤 기존 설치기를 호출한다. `install`도 요약 뒤 `이대로 설치` 승인을 따로 받는다. 인자에는 비밀값을 넣지 않는다.
+
+| 환경변수 | 입력 계약 |
+|---|---|
+| `CCC_ONBOARDING_REQUEST` | JSON 객체. `schemaVersion: 1`, UUID `requestId`, 승인된 `institutionId`, `accountSha256`, `ownerOrgId`, `ownerOrgSlug`, `region: ap-northeast-2`, `plan: pro`, `instanceSize: micro`, 정수 `monthlyEstimateUsdCents`만 받는다. 비용은 USD 센트 단위의 예상치이며 결제 상한이 아니다. |
+| `CCC_ONBOARDING_JOURNAL` | 이미 존재하는 기관 소유 비공개 디렉터리 안의 생성 기록 경로다. 디렉터리는 현재 OS 사용자 소유의 `0700`, 기록은 `0600`이며 요청과 승인 및 자원 식별자의 해시만 저장한다. 경로도 승인에 결합한다. |
+| `SUPABASE_ACCESS_TOKEN` | 승인된 경로에서 현재 프로세스에만 주입한다. 계정과 조직 조회가 가능하다는 사실을 생성 승인으로 취급하지 않는다. |
+| `CCC_ONBOARDING_DATABASE_PASSWORD` | 새 시험 DB만을 위한 16~256자 비밀값이다. 생성 POST에만 사용하고 출력이나 생성 기록에 저장하지 않는다. 기존 업무 DB 자격을 재사용하지 않는다. |
+| `CCC_ONBOARDING_INSTALLATION` | `projectRef`와 선택적인 `installManifest`, `installApproval`, `manifestUrl`만 받는 JSON이다. manifest와 승인 문서는 기존 S11 입력과 같은 JSON 문자열 또는 로컬 파일 경로다. 서명과 신뢰 설정 및 설치 자격은 기존 주입 경로가 별도로 공급한다. |
+
+`CCC_ONBOARDING_REQUEST`는 위 열 개 키만 받는다. `requestId`는 소문자 UUID, `accountSha256`은
+Management API `/v1/profile`의 `gotrue_id` UTF-8 SHA-256이다. `institutionId`, `ownerOrgId`,
+`ownerOrgSlug`는 영숫자로 시작하는 1~128자 영숫자, `_`, `-` 식별자다. `ownerOrgId`와
+`ownerOrgSlug`는 같은 Supabase 기관을 가리켜야 하고 현재 계정은 그 기관의 owner 또는 administrator여야
+한다. 도구가 live 응답으로 전부 다시 대조하므로 입력 자체는 권한 근거가 아니다.
+`monthlyEstimateUsdCents`는 승인된 과금 검토에서 가져온 0 이상의 safe integer이고 안내에만 쓰며 결제
+상한을 만들지 않는다.
+
+설치 명령의 공통 입력은 request, journal 경로, `SUPABASE_ACCESS_TOKEN`, 필수 `projectRef`,
+`CCC_ORGANIZATION_ID`, `CCC_INSTALL_SIGNING_KEYS`, 선택적인 `CCC_INSTALL_REVOKED_KEY_IDS`,
+`CCC_BETA_TRUST_ROOT_KEYS`, 선택적인 `CCC_BETA_REVOKED_ROOT_KEY_IDS`,
+`CCC_BETA_RELEASE_TRUST`, `CCC_PROVIDER_BASELINE`이다. manifest와 approval은 installation 객체의
+`installManifest`, `installApproval`을 먼저 쓰고, 없으면 `CCC_INSTALL_MANIFEST`,
+`CCC_INSTALL_APPROVAL`을 쓴다. 두 문서, beta release trust, provider baseline과
+`CCC_RELEASE_TRUST_STORE`는 JSON 문자열 또는 로컬 파일 경로다. 공개키 map과 revoked ID 배열은 JSON
+문자열이다.
+
+| 명령 | 추가 필수 입력 |
+|---|---|
+| `plan` | request, journal 경로, `SUPABASE_ACCESS_TOKEN` |
+| `create` | `plan` 입력과 첫 생성 때만 쓰는 `CCC_ONBOARDING_DATABASE_PASSWORD` |
+| `resume` | request, 기존 journal, token. password를 읽거나 POST를 다시 보내지 않는다 |
+| `install-plan` | 설치 공통 입력, installation의 release `manifestUrl`, `CCC_RELEASE_TRUST_STORE`, `SCHEDULER_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `CCC_API_DATABASE_PASSWORD` |
+| `install` | `install-plan` 입력과 `CCC_INSTALL_DATABASE_URL`. 추가 CA가 필요하면 `CCC_DATABASE_CA_FILE`을 지정하고 `apps/community-cloud/with-ca.sh`로 실행한다 |
+| `doctor` | 설치 공통 입력과 완료 릴리스 검증용 `CCC_RELEASE_TRUST_STORE` |
+
+`projectRef`는 `resume`이 확인한 `relayer-${requestId}` 단일 자원의 ID다. 생성 journal에는 원문 대신
+그 SHA-256만 남기며, 설치 전 `verifyCreatedInstallation`이 요청 기관, 공급자 소유 기관과 projectRef를
+서명 승인서에 다시 결합한다.
+
+| 관찰 상태 | 허용하는 다음 행동 |
+|---|---|
+| 생성 요청 제출 뒤 결과 불명 | 같은 request와 journal로 `resume`. 조회에 없으면 `CLOUD_CREATION_OUTCOME_UNKNOWN`에서 멈춘다 |
+| 생성 자원 관찰 완료 | 별도 signed pair와 S11 입력을 준비해 `install-plan` |
+| 설치 journal이 중단 상태 | `doctor`로만 관찰하고 `BACKUP_FAILED`에서 복구 담당자에게 넘긴다. `install` 재실행이나 journal 삭제로 우회하지 않는다 |
+| 설치 완료 | `doctor`로 검증한다. 같은 대상의 `install` 재실행은 `BACKUP_FAILED`다 |
+
+생성 요청의 제출 기록을 완성하고 fsync한 뒤 독점적으로 게시한 호출 하나만 전송한다. 제출 기록이 생긴 뒤 중단됐으면 실제로 POST가 시작되지 않았을 가능성도 포함해 결과 불명으로 취급한다. 프로젝트가 아직 조회되지 않아도 기록을 지우거나 새 요청으로 자동 전환하지 않는다. 재개는 요청 이름과 승인된 소유 기관을 대조하며 이미 관찰한 자원 ID의 해시가 바뀌면 거부한다. 파일 보호와 원자적 게시를 지원하지 않는 환경은 거부하며, 현재 OS에서의 검사만으로 Windows 보호를 검증했다고 보고하지 않는다.
+
+설치 승인은 현재 상태 지문뿐 아니라 별도로 검증한 공개 manifest와 S11 승인 문서의 해시, 선택한 서명 릴리스의 해시에 결합한다. 적용 시 다시 읽은 문서나 릴리스가 바뀌면 설치 연결 전에 거부한다. 기존 `BACKUP_FAILED` 중단 설치 재개 관문을 우회하지 않는다.
+
+이 명령은 Supabase의 신규 프로젝트 생성과 S11 연결 경계다. Pro 결제 전환, ACA 자원 생성과 업무 API 배포는 실행하지 않는다. 그 구성과 실행 승인을 별도로 확정해야 하며, 합성 생성 검사나 읽기 전용 계정 조회를 N02의 실제 설치 완료 증거로 삼지 않는다. 실제 자원 사용 승인이 없으면 위 완료 조건은 계속 미완료다.
+
+실제 완료에는 별도 승인으로 만든 업무 runtime이 signed manifest의 `apiBase`에서 실행돼야 한다.
+runtime은 제한된 `ccc_api` 연결, manifest, 공개 서명키, scheduler 비밀값, PII 암호화 키와 필요한
+Supabase CA만 받는다. `doctor`는 해당 host의 `/readyz`, 설치가 배포한 StorageSigner의 인증 없는 요청
+거부, 서울 리전과 `ccc_api` 비특권 상태를 함께 확인한다. runtime이나 승인이 없으면 설치 영수증만
+완료된 `RUNTIME_NOT_READY`로 남기며 N02 전체를 완료 처리하지 않는다.
+
+N02 범위 검사:
+
+```bash
+pnpm --filter @ccc/community-cloud run build
+node --test scripts/onboarding/cloud.test.mjs scripts/supabase/installer-connection.test.mjs \
+  scripts/supabase/provider-inventory.test.mjs scripts/supabase/provider-baseline-generate.test.mjs
+node --test --test-name-pattern=N02 scripts/supabase/bootstrap.test.mjs
+```
+
 ### N03. 최초 관리자 초대부터 첫 로그인까지 연결
 
 **Files:** 신규 `scripts/onboarding/first-admin.mjs`. 기존 `scripts/supabase/first-admin.mjs`, `institution.mjs`, 클라이언트의 auth 및 초기 설정 화면은 각 소유자와 연결한다.

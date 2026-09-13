@@ -45,3 +45,23 @@ test('installer pins the constructed client port despite inherited PGPORT', asyn
     else process.env.PGPORT = previousPort;
   }
 });
+
+test('installer connection preserves a named error from the approved installation task', async () => {
+  const previous = process.env.CCC_INSTALL_DATABASE_URL;
+  process.env.CCC_INSTALL_DATABASE_URL = 'postgresql://postgres:synthetic@db.fixture-ref.supabase.co/postgres';
+  const sql = async () => [{ role: 'postgres', database: 'postgres' }];
+  sql.end = async () => {};
+  try {
+    await assert.rejects(
+      withInstallerConnection(
+        { projectRef: 'fixture-ref' },
+        async () => { throw Object.assign(new Error('synthetic'), { code: 'BACKUP_FAILED' }); },
+        { connect: () => sql },
+      ),
+      error => error.code === 'BACKUP_FAILED',
+    );
+  } finally {
+    if (previous === undefined) delete process.env.CCC_INSTALL_DATABASE_URL;
+    else process.env.CCC_INSTALL_DATABASE_URL = previous;
+  }
+});

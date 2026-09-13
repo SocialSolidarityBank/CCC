@@ -7,7 +7,7 @@ export const INSTALLER_SESSION_TIMEOUTS = Object.freeze({
 });
 
 /** Only called after dual-signature and Management API owner/region checks. */
-export async function withInstallerConnection(authorization, run) {
+export async function withInstallerConnection(authorization, run, { connect = postgres } = {}) {
   const connectionString = process.env.CCC_INSTALL_DATABASE_URL;
   if (typeof connectionString !== 'string' || connectionString.trim() === '') throw new PlanFailure('CREDENTIAL_MISSING');
   try {
@@ -25,7 +25,7 @@ export async function withInstallerConnection(authorization, run) {
   } catch {
     throw new PlanFailure('CREDENTIAL_INSUFFICIENT');
   }
-  const sql = postgres(connectionString, {
+  const sql = connect(connectionString, {
     port: 5432,
     ssl: 'verify-full',
     max: 1,
@@ -35,14 +35,17 @@ export async function withInstallerConnection(authorization, run) {
     debug: false,
   });
   try {
-    const [identity] = await sql`SELECT current_user AS role, current_database() AS database`;
+    let identity;
+    try {
+      [identity] = await sql`SELECT current_user AS role, current_database() AS database`;
+    } catch (error) {
+      throw new PlanFailure(error?.code ?? 'PROVIDER_UNREADABLE');
+    }
     if (typeof identity?.role !== 'string' || identity.database !== 'postgres'
       || ['ccc_api', 'anon', 'authenticated'].includes(identity.role)) {
       throw new PlanFailure('CREDENTIAL_INSUFFICIENT');
     }
     return await run(sql);
-  } catch (error) {
-    throw new PlanFailure(error?.code ?? 'PROVIDER_UNREADABLE');
   } finally {
     await sql.end({ timeout: 5 }).catch(() => {});
   }
