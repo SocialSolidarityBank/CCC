@@ -37,7 +37,7 @@ import {
   type CounselingRecordFlagInput,
   type CreateScheduleSessionGoalInput,
 } from '@ccc/core/gateway';
-import { requiredIntakeQuestionKeys, type IntakeAnswer } from '@ccc/contracts/intake';
+import { INTAKE_SCHEMA_VERSION, INTAKE_WRITE_SCHEMA_VERSION, requiredIntakeQuestionKeys, type IntakeAnswer } from '@ccc/contracts/intake';
 import type { D1Capture } from './capture';
 import { ADMIN_ACTOR_ID, ORG_ID } from './preload-data';
 import {
@@ -222,14 +222,16 @@ async function runParticipant(
     : { key, response: 'unknown' });
   mark();
   await createIntakeRecord(env, primaryActor, supportCaseId, {
-    schemaVersion: 2,
+    schemaVersion: INTAKE_WRITE_SCHEMA_VERSION,
     submissionId: crypto.randomUUID(),
     heldAt: participant.intakeAt,
     channel: 'in_person',
     questionnaire: {
-      schemaVersion: 2, moduleSnapshot: intakeContext.moduleSnapshot, answers: intakeAnswers,
+      schemaVersion: INTAKE_SCHEMA_VERSION, moduleSnapshot: intakeContext.moduleSnapshot, answers: intakeAnswers,
       linkedOrgs: { response: 'unknown' }, additionalItems: { response: 'unknown' }, debts: null,
     },
+    additionalItemRefs: [],
+    questionWithdrawals: [],
     scheduleId: intakeSchedule.id,
     expectedScheduleVersion: 1,
   });

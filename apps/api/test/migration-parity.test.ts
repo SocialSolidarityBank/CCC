@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { startPostgresHarness, type PostgresHarness } from './support/postgres';
 import { intakeQuestionnaire } from './support/intake';
+import type { IntakeQuestionLifecycle } from '@ccc/contracts/intake';
 import {
   PARITY_MANIFEST_PATH, assertFingerprint, assertLogicalParity, canonical, checkpointSources,
   collectCatalog, dialectSemantics, fingerprint, hash, identifier, openParityDatabase,
@@ -133,6 +134,121 @@ async function proveManualLifecycleSchema(fixture: ParityDatabase): Promise<void
   await expect(db.prepare("DELETE FROM action_item_revisions WHERE action_item_id='parity-manual-action'").run()).rejects.toMatchObject({ kind: 'constraint' });
   await expect(db.prepare("UPDATE manual_action_outcomes SET outcome='done' WHERE id='parity-manual-outcome'").run()).rejects.toMatchObject({ kind: 'constraint' });
 }
+async function seedIntakeQuestionLifecycle(fixture: ParityDatabase) {
+  const db = fixture.db, p = intakeVersionProof;
+  const questionnaire = intakeQuestionnaire({ programId: p.program, programVersion: 1, financialSupportEnabled: false });
+  questionnaire.additionalItems = { response: 'answered', rows: [{ item: 'same question' }, { item: 'same question', dueNote: 'second origin' }] };
+  await db.prepare(`UPDATE sessions SET intake_details=?,intake_revision=3,intake_converted_from_revision=NULL WHERE id=?`)
+    .bind(JSON.stringify({ ...questionnaire, retainedUnknown: { literal: 'preserve this byte sequence' } }), p.session).run();
+  await db.prepare(`INSERT INTO manual_question_outcomes
+    (id,org_id,support_case_id,kind,question_id,source_id,source_revision,source_text,session_id,outcome,answer)
+    VALUES ('parity-preserved-question-answer',?,?,'record','parity-manual-question','parity-manual-new',1,
+      'original question','parity-manual-new','confirmed','original answer')`).bind(p.org, p.supportCase).run();
+  return {
+    source: (await db.prepare('SELECT * FROM sessions WHERE id=?').bind(p.session).first<Record<string, unknown>>())!,
+    history: (await db.prepare('SELECT * FROM intake_record_revisions WHERE session_id=? ORDER BY revision').bind(p.session).all<Record<string, unknown>>()).results,
+    outcomes: (await db.prepare('SELECT * FROM manual_question_outcomes ORDER BY id').all<Record<string, unknown>>()).results,
+  };
+}
+
+async function proveIntakeQuestionLifecycle(fixture: ParityDatabase, before: Awaited<ReturnType<typeof seedIntakeQuestionLifecycle>>) {
+  const db = fixture.db, p = intakeVersionProof;
+  const { intake_question_lifecycle, ...source } = (await db.prepare('SELECT * FROM sessions WHERE id=?').bind(p.session).first<Record<string, unknown>>())!;
+  expect(intake_question_lifecycle).toBeNull();
+  expect(source).toEqual(before.source);
+  const migratedHistory = (await db.prepare('SELECT * FROM intake_record_revisions WHERE session_id=? ORDER BY revision').bind(p.session).all<Record<string, unknown>>()).results;
+  expect(migratedHistory.map(({ question_lifecycle, ...row }) => {
+    expect(question_lifecycle).toBeNull();
+    return row;
+  })).toEqual(before.history);
+  expect((await db.prepare('SELECT * FROM manual_question_outcomes ORDER BY id').all()).results).toEqual(before.outcomes);
+  const firstId = '29900000-0000-4000-8000-000000000001', secondId = '29900000-0000-4000-8000-000000000002';
+  const lifecycle: IntakeQuestionLifecycle = {
+    version: 1,
+    items: [firstId, secondId].map((id, sourceRowIndex) => ({
+      id, revision: 1, sourceRevision: 4, sourceRowIndex, createdBy: p.user, createdAt: p.at, withdrawn: null,
+      origin: { schemaVersion: 2, sourceRevision: 3, sourceRowIndex },
+    })),
+    conversion: {
+      sourceSchemaVersion: 2, sourceRevision: 3,
+      mechanical: { recordedAt: p.at, mappings: [{ questionId: firstId, sourceRowIndex: 0 }, { questionId: secondId, sourceRowIndex: 1 }] },
+      confirmation: { actorId: p.user, recordedAt: p.at },
+    },
+  };
+  const questionnaire = intakeQuestionnaire({ programId: p.program, programVersion: 1, financialSupportEnabled: false });
+  questionnaire.additionalItems = { response: 'answered', rows: [{ item: 'same question' }, { item: 'same question', dueNote: 'second origin' }] };
+  const boundJson = JSON.stringify(lifecycle), boundDetails = JSON.stringify(questionnaire);
+  await expect(db.prepare('UPDATE sessions SET intake_question_lifecycle=? WHERE id=?').bind(boundJson, p.session).run())
+    .rejects.toMatchObject({ kind: 'constraint' });
+  await db.prepare(`UPDATE sessions SET intake_question_lifecycle=?,intake_details=?,intake_revision=4,
+    intake_updated_by=?,intake_converted_from_revision=3 WHERE id=?`).bind(boundJson, boundDetails, p.user, p.session).run();
+  expect(await db.prepare('SELECT details,question_lifecycle,actor_id,converted_from_revision FROM intake_record_revisions WHERE session_id=? AND revision=4')
+    .bind(p.session).first()).toEqual({ details: boundDetails, question_lifecycle: boundJson, actor_id: p.user, converted_from_revision: 3 });
+  expect(await db.prepare('SELECT details,question_lifecycle FROM intake_record_revisions WHERE session_id=? AND revision=3')
+    .bind(p.session).first()).toEqual({ details: before.source.intake_details, question_lifecycle: null });
+  const insertOutcome = (id: string, questionId: string, revision: number, text: string, target = 'parity-manual-new', org = p.org, sourceId = p.session) =>
+    db.prepare(`INSERT INTO manual_question_outcomes
+      (id,org_id,support_case_id,kind,question_id,source_id,source_revision,source_text,session_id,outcome,answer)
+      VALUES (?,?,?,'intake',?,?,?,?,?,'confirmed','human answer')`)
+      .bind(id, org, p.supportCase, questionId, sourceId, revision, text, target);
+  for (const [id, questionId, revision, text, org, sourceId] of [
+    ['wrong-id', '29900000-0000-4000-8000-000000000099', 1, 'same question', p.org, p.session],
+    ['wrong-revision', firstId, 2, 'same question', p.org, p.session],
+    ['wrong-text', firstId, 1, 'not the immutable row', p.org, p.session],
+    ['wrong-org', firstId, 1, 'same question', 'foreign-org', p.session],
+    ['wrong-source', firstId, 1, 'same question', p.org, 'parity-manual-new'],
+  ] as const) {
+    await expect(insertOutcome(id, questionId, revision, text, 'parity-manual-new', org, sourceId).run()).rejects.toMatchObject({ kind: 'constraint' });
+  }
+  // Editing one row and omitting its sibling leaves the sibling's immutable pointer intact.
+  lifecycle.items[0] = { ...lifecycle.items[0]!, revision: 2, sourceRevision: 5, sourceRowIndex: 0 };
+  questionnaire.additionalItems = { response: 'answered', rows: [{ item: 'revised first question' }] };
+  await db.prepare(`UPDATE sessions SET intake_question_lifecycle=?,intake_details=?,intake_revision=5,intake_converted_from_revision=NULL WHERE id=?`)
+    .bind(JSON.stringify(lifecycle), JSON.stringify(questionnaire), p.session).run();
+  await expect(insertOutcome('old-first-revision', firstId, 1, 'same question').run()).rejects.toMatchObject({ kind: 'constraint' });
+  await insertOutcome('parity-intake-confirmed', secondId, 1, 'same question').run();
+  await db.prepare(`INSERT INTO sessions (id,org_id,support_case_id,counselor_id,held_at,channel,memo,record_details,
+    submission_id,submission_hash,submitted_by,ai_status,created_at,updated_at,manual_schema_version)
+    VALUES ('parity-intake-later',?,?,?,?,'in_person','later memo',?,'parity-intake-later-submit',?,?,'none',?,?,2)`)
+    .bind(p.org, p.supportCase, p.user, p.at,
+      JSON.stringify({ schemaVersion: 2, method: 'in_person', reason: null, urgency: null, changes: [], counselorOpinion: null, nextQuestions: [] }),
+      'd'.repeat(64), p.user, p.at, p.at).run();
+  await expect(insertOutcome('duplicate-confirmation', secondId, 1, 'same question', 'parity-intake-later').run())
+    .rejects.toMatchObject({ kind: 'constraint', constraintSubtype: 'unique' });
+  const confirmed = await db.prepare("SELECT * FROM manual_question_outcomes WHERE id='parity-intake-confirmed'").first();
+  const beforeWithdrawal = (await db.prepare('SELECT * FROM intake_record_revisions WHERE session_id=? ORDER BY revision').bind(p.session).all()).results;
+  lifecycle.items[1] = { ...lifecycle.items[1]!, revision: 2, withdrawn: { actorId: p.user, recordedAt: p.at, fromRevision: 1 } };
+  await db.prepare('UPDATE sessions SET intake_question_lifecycle=?,intake_revision=6 WHERE id=?').bind(JSON.stringify(lifecycle), p.session).run();
+  expect((await db.prepare('SELECT * FROM intake_record_revisions WHERE session_id=? AND revision<6 ORDER BY revision').bind(p.session).all()).results)
+    .toEqual(beforeWithdrawal);
+  expect(await db.prepare('SELECT COUNT(*) AS n FROM intake_record_revisions WHERE session_id=? AND revision=6').bind(p.session).first()).toEqual({ n: 1 });
+  expect(await db.prepare('SELECT details,question_lifecycle FROM intake_record_revisions WHERE session_id=? AND revision=6').bind(p.session).first())
+    .toEqual({ details: JSON.stringify(questionnaire), question_lifecycle: JSON.stringify(lifecycle) });
+  expect(await db.prepare("SELECT * FROM manual_question_outcomes WHERE id='parity-intake-confirmed'").first()).toEqual(confirmed);
+  lifecycle.items[0] = { ...lifecycle.items[0]!, revision: 3, sourceRevision: 7,
+    withdrawn: { actorId: p.user, recordedAt: p.at, fromRevision: 2 } };
+  await db.prepare('UPDATE sessions SET intake_question_lifecycle=?,intake_revision=7 WHERE id=?').bind(JSON.stringify(lifecycle), p.session).run();
+  await expect(insertOutcome('withdrawal-first', firstId, 3, 'revised first question', 'parity-intake-later').run())
+    .rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare("UPDATE manual_question_outcomes SET answer='replacement' WHERE id='parity-intake-confirmed'").run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare("DELETE FROM manual_question_outcomes WHERE id='parity-intake-confirmed'").run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare("UPDATE intake_record_revisions SET question_lifecycle=NULL WHERE session_id=?").bind(p.session).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.prepare("DELETE FROM intake_record_revisions WHERE session_id=?").bind(p.session).run()).rejects.toMatchObject({ kind: 'constraint' });
+  const state = async () => ({
+    source: await db.prepare('SELECT * FROM sessions WHERE id=?').bind(p.session).first(),
+    history: (await db.prepare('SELECT * FROM intake_record_revisions WHERE session_id=? ORDER BY revision').bind(p.session).all()).results,
+    outcomes: (await db.prepare('SELECT * FROM manual_question_outcomes ORDER BY id').all()).results,
+    audit: (await db.prepare('SELECT * FROM audit_log WHERE org_id=? ORDER BY id').bind(p.org).all()).results,
+  });
+  const beforeFailure = await state();
+  await expect(db.batch([
+    db.prepare(`INSERT INTO audit_log(org_id,actor_id,actor_role,action,target_table,target_id,created_at)
+      VALUES (?,?,'counselor','update','sessions',?,?)`).bind(p.org, p.user, p.session, p.at),
+    db.prepare('UPDATE sessions SET intake_question_lifecycle=NULL WHERE id=?').bind(p.session),
+  ])).rejects.toMatchObject({ kind: 'constraint' });
+  expect(await state()).toEqual(beforeFailure);
+}
+
 const legacy = '2026-01-01 09:00:00';
 const normalizedLegacy = '2026-01-01T09:00:00.000Z';
 const modern = '2026-01-01T09:00:00.500Z';
@@ -557,6 +673,7 @@ describe('S1 live migration parity', () => {
       let proofs: { sqlite: TimestampProof[]; postgres: TimestampProof[] } | undefined;
       let lastSqlite: Catalog | undefined;
       let lastPostgres: Catalog | undefined;
+      const intakeLifecycleBefore = new Map<ParityDatabase, Awaited<ReturnType<typeof seedIntakeQuestionLifecycle>>>();
       for (const checkpoint of sources) {
         if (checkpoint.id === 'program-admission') {
           for (const fixture of [sqlite, postgres]) {
@@ -576,6 +693,9 @@ describe('S1 live migration parity', () => {
         }
         if (checkpoint.id === 'manual-record-lifecycle') {
           for (const fixture of [sqlite, postgres]) await seedManualLifecycleSchema(fixture);
+        }
+        if (checkpoint.id === 'intake-question-lifecycle') {
+          for (const fixture of [sqlite, postgres]) intakeLifecycleBefore.set(fixture, await seedIntakeQuestionLifecycle(fixture));
         }
         await sqlite.apply(checkpoint.sqlite);
         await postgres.apply(checkpoint.postgres);
@@ -611,6 +731,9 @@ describe('S1 live migration parity', () => {
         }
         if (checkpoint.id === 'manual-record-lifecycle') {
           for (const fixture of [sqlite, postgres]) await proveManualLifecycleSchema(fixture);
+        }
+        if (checkpoint.id === 'intake-question-lifecycle') {
+          for (const fixture of [sqlite, postgres]) await proveIntakeQuestionLifecycle(fixture, intakeLifecycleBefore.get(fixture)!);
         }
         if (checkpoint.id === 'baseline-0045') {
           inventory = timestampInventory(left);

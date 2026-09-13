@@ -1,6 +1,7 @@
 import { INTAKE_AREAS, type IntakeArea } from './intake';
 
 export const MANUAL_RECORD_SCHEMA_VERSION = 2 as const;
+export const MANUAL_RECORD_CONTEXT_SCHEMA_VERSION = 3 as const;
 export const MANUAL_RECORD_METHODS = ['in_person', 'phone', 'video', 'visit'] as const;
 export const MANUAL_RECORD_REASONS = ['regular', 'irregular', 'urgent', 'walk_in'] as const;
 export const MANUAL_RECORD_URGENCIES = ['stable', 'caution', 'crisis'] as const;
@@ -19,7 +20,7 @@ export type ManualActionOutcomeInput = {
   | { outcome: 'not_done'; continuation: 'stop'; reason: string }
 );
 export interface ManualQuestionAnswerInput {
-  kind: 'schedule' | 'record';
+  kind: 'schedule' | 'record' | 'intake';
   questionId: string;
   sourceId: string;
   expectedRevision: number;
@@ -108,7 +109,7 @@ export interface ManualQuestionOutcome {
   sourceText: string;
 }
 export interface ManualPendingQuestion {
-  kind: 'schedule' | 'record';
+  kind: 'schedule' | 'record' | 'intake';
   id: string;
   sourceId: string;
   sourceRevision: number;
@@ -117,7 +118,7 @@ export interface ManualPendingQuestion {
   sourceScheduledAt: string | null;
   createdAt: string;
   body: string;
-  state: 'open' | 'confirmed';
+  state: 'open' | 'confirmed' | 'withdrawn';
   outcomes: ManualQuestionOutcome[];
 }
 export interface ManualRecordProjection {
@@ -127,10 +128,10 @@ export interface ManualRecordProjection {
   legacyDetailsJson: string | null;
   history: ManualRecordRevision[];
   actionOutcomes: ManualActionOutcome[];
-  questionOutcomes: Array<ManualQuestionOutcome & { kind: 'schedule' | 'record'; questionId: string; sourceId: string }>;
+  questionOutcomes: Array<ManualQuestionOutcome & { kind: 'schedule' | 'record' | 'intake'; questionId: string; sourceId: string }>;
 }
 export interface ManualRecordContext {
-  schemaVersion: 2;
+  schemaVersion: 3;
   supportCaseId: string;
   canWrite: boolean;
   defaults: { heldAt: string | null; channel: ManualRecordMethod | null; reason: null; scheduleId: string | null; scheduleVersion: number | null };
@@ -138,6 +139,7 @@ export interface ManualRecordContext {
   questions: ManualPendingQuestion[];
   closedActions: ManualOpenAction[];
   confirmedQuestions: ManualPendingQuestion[];
+  withdrawnQuestions: ManualPendingQuestion[];
 }
 export class ManualRecordContractError extends Error {
   constructor() { super('manual record input is invalid'); }
@@ -198,7 +200,7 @@ export function parseCreateManualRecord(value: unknown): CreateManualRecordInput
   const questionIds = new Set<string>();
   for (const raw of array(input.questionAnswers, 200)) {
     const answer = object(raw, ['kind', 'questionId', 'sourceId', 'expectedRevision', 'answer']);
-    if (!enumeration(answer.kind, ['schedule', 'record']) || !identifier(answer.questionId) || !identifier(answer.sourceId)
+    if (!enumeration(answer.kind, ['schedule', 'record', 'intake']) || !identifier(answer.questionId) || !identifier(answer.sourceId)
       || !revision(answer.expectedRevision) || !text(answer.answer)) throw new ManualRecordContractError();
     const key = `${answer.kind}:${answer.questionId}`;
     if (questionIds.has(key)) throw new ManualRecordContractError();

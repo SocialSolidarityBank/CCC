@@ -10,6 +10,7 @@ import {
   createIntakeRecord,
   updateIntakeRecord,
   getIntakeRecordContext,
+  getManualRecordContext,
   getNextCounselingScheduleForSupportCase,
   getParticipantBasicInfo,
   updateParticipantPii,
@@ -20,8 +21,8 @@ import {
 import { CONSENT_DOMAINS, type ConsentDomain } from '@ccc/contracts/consent';
 import { setupD1, testProgramId } from './support/d1';
 import { registrationInput } from './support/registration';
-import { INTAKE_AREAS, parseIntakeQuestionnaire, parseIntakeCreateRequest, parseIntakeUpdateRequest, IntakeContractError, type IntakeUpdateRequest } from '@ccc/contracts/intake';
-import { intakeInput, intakeQuestionnaire, seedLegacyIntake } from './support/intake';
+import { INTAKE_AREAS, parseIntakeQuestionLifecycle, parseIntakeQuestionnaire, parseIntakeCreateRequest, parseIntakeUpdateRequest, IntakeContractError, type IntakeUpdateRequest } from '@ccc/contracts/intake';
+import { intakeInput, intakeQuestionnaire, newIntakeQuestionRefs, legacyIntakeQuestionRefs, seedLegacyIntake } from './support/intake';
 
 const t = setupD1();
 
@@ -61,7 +62,7 @@ describe('versioned intake writes', () => {
     const questionnaire = intakeQuestionnaire({
       programId: testProgramId(canonicalActors.counselor.orgId), programVersion: 1, financialSupportEnabled: false,
     });
-    const common = { schemaVersion: 2, heldAt: '2026-07-15T09:30:00.000Z', questionnaire };
+    const common = { schemaVersion: 3, heldAt: '2026-07-15T09:30:00.000Z', questionnaire, additionalItemRefs: [], questionWithdrawals: [] };
     for (const channel of [['phone'], { toString: () => 'phone' }, { toString: 'phone' }, 42, false, null, undefined]) {
       expect(() => parseIntakeCreateRequest({ ...common, submissionId: 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1', channel }))
         .toThrow(IntakeContractError);
@@ -102,8 +103,10 @@ describe('versioned intake writes', () => {
     expect(await createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, input)).toMatchObject({ replayed: true, record: { id: first.record.id } });
     const changed = structuredClone(input);
     changed.questionnaire.additionalItems = { response: 'answered', rows: [{ item: '임대차 계약서', dueNote: '다음 상담 전' }] };
+    changed.additionalItemRefs = newIntakeQuestionRefs(changed.questionnaire);
     await expect(createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, changed)).rejects.toBeInstanceOf(ConflictError);
     changed.questionnaire = intakeQuestionnaire(input.questionnaire.moduleSnapshot, [{ key: 'managerOpinion', response: 'answered', text: '다른 내용' }]);
+    changed.additionalItemRefs = [];
     await expect(createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, changed)).rejects.toBeInstanceOf(ConflictError);
     await expect(createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, { ...input, submissionId: crypto.randomUUID() })).rejects.toBeInstanceOf(ConflictError);
     expect(await t.db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE support_case_id = ? AND kind = 'intake'").bind(initial.supportCaseId).first()).toEqual({ n: 1 });
@@ -116,6 +119,7 @@ describe('versioned intake writes', () => {
     const { schemaVersion: _version, ...unversioned } = input;
     expect(() => parseIntakeCreateRequest(unversioned)).toThrow(IntakeContractError);
     expect(() => parseIntakeCreateRequest({ ...input, schemaVersion: 1 })).toThrow(IntakeContractError);
+    expect(() => parseIntakeCreateRequest({ ...input, schemaVersion: 2 })).toThrow(IntakeContractError);
     const selected = intakeQuestionnaire(input.questionnaire.moduleSnapshot, [{ key: 'difficulty_areas', response: 'answered', choices: [...INTAKE_AREAS] }]);
     const missingArea = { ...selected, answers: selected.answers.filter(answer => answer.key !== 'care_burden') };
     expect(() => parseIntakeQuestionnaire(missingArea)).toThrow(IntakeContractError);
@@ -180,7 +184,8 @@ describe('versioned intake writes', () => {
     expect(saved.moduleSnapshot.financialSupportEnabled).toBe(false);
     expect(saved.saved).toMatchObject({ sessionId: result.record.id, questionnaire: { moduleSnapshot: { financialSupportEnabled: true }, debts: debt } });
     await expect(updateIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
-      schemaVersion: 2, expectedRevision: 1, heldAt: fresh.heldAt, channel: fresh.channel, questionnaire: fresh.questionnaire,
+      schemaVersion: 3, expectedRevision: 1, heldAt: fresh.heldAt, channel: fresh.channel, questionnaire: fresh.questionnaire,
+      additionalItemRefs: [], questionWithdrawals: [],
     })).rejects.toBeInstanceOf(ConflictError);
   });
 
@@ -224,9 +229,12 @@ describe('versioned intake writes', () => {
     if (before.saved?.schemaVersion !== 1) throw new Error('legacy fixture missing');
     const oldJson = before.saved.legacyDetailsJson;
     const input = await intakeInput(t.env, canonicalActors.counselor, initial.supportCaseId);
-    const edit: IntakeUpdateRequest = { schemaVersion: 2, expectedRevision: 1, heldAt: '2026-07-20T14:00:00.000Z', channel: 'phone', questionnaire: input.questionnaire };
+    input.questionnaire.additionalItems = { response: 'answered', rows: [{ item: '확인한 원자료', dueNote: '확인한 기한' }] };
+    const edit: IntakeUpdateRequest = { schemaVersion: 3, expectedRevision: 1, heldAt: '2026-07-20T14:00:00.000Z', channel: 'phone',
+      questionnaire: input.questionnaire, additionalItemRefs: newIntakeQuestionRefs(input.questionnaire), questionWithdrawals: [] };
     await expect(updateIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, edit)).rejects.toBeInstanceOf(ConflictError);
-    await updateIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, { ...edit, conversion: { confirmed: true, sourceRevision: 1 } });
+    await updateIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, { ...edit,
+      additionalItemRefs: legacyIntakeQuestionRefs([{ rowIndex: 0, legacySourceRowIndex: 0 }]), conversion: { confirmed: true, sourceRevision: 1 } });
     const converted = await getIntakeRecordContext(t.env, canonicalActors.counselor, initial.supportCaseId);
     expect(converted.saved).toMatchObject({
       schemaVersion: 2, revision: 2, questionnaire: input.questionnaire,
@@ -271,7 +279,8 @@ describe('versioned intake writes', () => {
       return typeof value === 'function' ? value.bind(target) : value;
     } });
     await expect(updateIntakeRecord({ ...t.env, DB: raceDb }, canonicalActors.counselor, initial.supportCaseId, {
-      schemaVersion: 2, expectedRevision: 1, heldAt: '2026-07-22T14:00:00.000Z', channel: 'phone', questionnaire: input.questionnaire,
+      schemaVersion: 3, expectedRevision: 1, heldAt: '2026-07-22T14:00:00.000Z', channel: 'phone', questionnaire: input.questionnaire,
+      additionalItemRefs: [], questionWithdrawals: [],
     })).rejects.toBeInstanceOf(ConflictError);
     expect(await t.db.prepare('SELECT held_at, intake_revision FROM sessions WHERE support_case_id = ?').bind(initial.supportCaseId).first()).toEqual({ held_at: input.heldAt, intake_revision: 1 });
     expect(await t.db.prepare('SELECT intake_at FROM support_cases WHERE id = ?').bind(initial.supportCaseId).first()).toEqual({ intake_at: input.heldAt });
@@ -616,5 +625,170 @@ describe('getParticipantBasicInfo is the edit screen read gate (CCC-37)', () => 
     await expect(
       getParticipantBasicInfo(t.env, canonicalActors.secondCounselor, initial.beneficiaryId),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('intake question lifecycle', () => {
+  const saved = async (supportCaseId: string) => (await getIntakeRecordContext(t.env, canonicalActors.counselor, supportCaseId)).saved!;
+  const state = async (supportCaseId: string) => ({
+    sources: (await t.db.prepare('SELECT * FROM sessions WHERE support_case_id=? ORDER BY id').bind(supportCaseId).all()).results,
+    history: (await t.db.prepare('SELECT h.* FROM intake_record_revisions h JOIN sessions s ON s.id=h.session_id WHERE s.support_case_id=? ORDER BY h.revision').bind(supportCaseId).all()).results,
+    outcomes: (await t.db.prepare('SELECT * FROM manual_question_outcomes WHERE support_case_id=? ORDER BY id').bind(supportCaseId).all()).results,
+    audit: (await t.db.prepare('SELECT * FROM audit_log WHERE support_case_id=? ORDER BY id').bind(supportCaseId).all()).results,
+  });
+
+  it('keeps UUID identity through editing, reordering, omission, last-row withdrawal and later create replay', async () => {
+    await t.reset();
+    const initial = await seedCase(), caseId = initial.supportCaseId;
+    const input = await intakeInput(t.env, canonicalActors.counselor, caseId);
+    input.questionnaire.additionalItems = { response: 'answered', rows: [{ item: '같은 질문' }, { item: '같은 질문', dueNote: '두 번째' }] };
+    input.additionalItemRefs = newIntakeQuestionRefs(input.questionnaire);
+    const created = await createIntakeRecord(t.env, canonicalActors.counselor, caseId, input);
+    const first = await saved(caseId);
+    const a = first.questionLifecycle!.items.find(item => item.sourceRevision === 1 && item.sourceRowIndex === 0)!;
+    const b = first.questionLifecycle!.items.find(item => item.sourceRevision === 1 && item.sourceRowIndex === 1)!;
+    expect(a.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(a.id).not.toBe(b.id);
+    const edit: IntakeUpdateRequest = {
+      schemaVersion: 3, expectedRevision: 1, heldAt: input.heldAt, channel: input.channel,
+      questionnaire: { ...input.questionnaire, additionalItems: { response: 'answered', rows: [{ item: '수정한 질문', dueNote: '새 기한' }, { item: '같은 질문', dueNote: '두 번째' }] } },
+      additionalItemRefs: [{ rowIndex: 0, questionId: a.id, expectedRevision: 1 }, { rowIndex: 1, questionId: b.id, expectedRevision: 1 }],
+      questionWithdrawals: [],
+    };
+    await updateIntakeRecord(t.env, canonicalActors.counselor, caseId, edit);
+    const edited = await saved(caseId);
+    expect(edited.questionLifecycle!.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: a.id, revision: 2, sourceRevision: 2, sourceRowIndex: 0 }),
+      expect.objectContaining({ id: b.id, revision: 1, sourceRevision: 2, sourceRowIndex: 1 }),
+    ]));
+    const reordered: IntakeUpdateRequest = { ...edit, expectedRevision: 2,
+      questionnaire: { ...edit.questionnaire, additionalItems: { response: 'answered', rows: [{ item: '같은 질문', dueNote: '두 번째' }, { item: '수정한 질문', dueNote: '새 기한' }] } },
+      additionalItemRefs: [{ rowIndex: 0, questionId: b.id, expectedRevision: 1 }, { rowIndex: 1, questionId: a.id, expectedRevision: 2 }],
+    };
+    await updateIntakeRecord(t.env, canonicalActors.counselor, caseId, reordered);
+    const rebased = await saved(caseId);
+    expect(rebased.questionLifecycle!.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: a.id, revision: 2, sourceRevision: 3, sourceRowIndex: 1 }),
+      expect.objectContaining({ id: b.id, revision: 1, sourceRevision: 3, sourceRowIndex: 0 }),
+    ]));
+    expect(rebased.history.find(row => row.revision === 1)?.questionLifecycle).toEqual(first.questionLifecycle);
+    const beforeConflict = await state(caseId);
+    await expect(updateIntakeRecord(t.env, canonicalActors.counselor, caseId, {
+      ...edit, expectedRevision: 3, questionWithdrawals: [{ questionId: a.id, expectedRevision: 2 }],
+      additionalItemRefs: [{ rowIndex: 0, questionId: a.id, expectedRevision: 2 }, { rowIndex: 1, questionId: b.id, expectedRevision: 1 }],
+      questionnaire: { ...edit.questionnaire, additionalItems: { response: 'answered', rows: [{ item: '충돌하는 수정' }, { item: '같은 질문', dueNote: '두 번째' }] } },
+    })).rejects.toBeInstanceOf(ConflictError);
+    expect(await state(caseId)).toEqual(beforeConflict);
+    const omission: IntakeUpdateRequest = { ...edit, expectedRevision: 3,
+      questionnaire: { ...edit.questionnaire, additionalItems: { response: 'unknown' } }, additionalItemRefs: [] };
+    await updateIntakeRecord(t.env, canonicalActors.counselor, caseId, omission);
+    expect((await saved(caseId)).questionLifecycle).toEqual(rebased.questionLifecycle);
+    expect((await getManualRecordContext(t.env, canonicalActors.counselor, caseId)).questions.map(question => question.id).sort())
+      .toEqual([a.id, b.id].sort());
+    await updateIntakeRecord(t.env, canonicalActors.counselor, caseId, {
+      ...omission, expectedRevision: 4, questionWithdrawals: [{ questionId: b.id, expectedRevision: 1 }],
+    });
+    await updateIntakeRecord(t.env, canonicalActors.counselor, caseId, {
+      ...edit, expectedRevision: 5,
+      questionnaire: { ...edit.questionnaire, additionalItems: { response: 'answered', rows: [{ item: '수정한 질문', dueNote: '새 기한' }] } },
+      additionalItemRefs: [{ rowIndex: 0, questionId: a.id, expectedRevision: 2 }],
+      questionWithdrawals: [{ questionId: a.id, expectedRevision: 2 }],
+    });
+    const withdrawn = await saved(caseId);
+    expect(withdrawn.questionnaire?.additionalItems.response).toBe('answered');
+    expect(withdrawn.questionLifecycle!.items.find(item => item.id === a.id)).toMatchObject({
+      revision: 3, sourceRevision: 6, sourceRowIndex: 0, withdrawn: { fromRevision: 2, actorId: canonicalActors.counselor.userId },
+    });
+    const context = await getManualRecordContext(t.env, canonicalActors.counselor, caseId);
+    expect(context).toMatchObject({ schemaVersion: 3, questions: [], confirmedQuestions: [] });
+    expect(context.withdrawnQuestions.map(question => question.id).sort()).toEqual([a.id, b.id].sort());
+    const beforeReplay = await state(caseId);
+    expect(await createIntakeRecord(t.env, canonicalActors.counselor, caseId, input))
+      .toMatchObject({ schemaVersion: 3, revision: 6, replayed: true, record: { id: created.record.id } });
+    await expect(createIntakeRecord(t.env, canonicalActors.counselor, caseId, { ...input, additionalItemRefs: [...input.additionalItemRefs].reverse() }))
+      .rejects.toBeInstanceOf(ConflictError);
+    await expect(updateIntakeRecord(t.env, canonicalActors.counselor, caseId, {
+      ...omission, expectedRevision: 6, questionWithdrawals: [{ questionId: a.id, expectedRevision: 3 }],
+    })).rejects.toBeInstanceOf(ConflictError);
+    expect(await state(caseId)).toEqual(beforeReplay);
+  });
+
+  it.each([1, 2] as const)('requires explicit one-to-one adoption of unbound schema %s without rewriting historical bytes', async (schemaVersion) => {
+    await t.reset();
+    const initial = await seedCase(), caseId = initial.supportCaseId;
+    const input = await intakeInput(t.env, canonicalActors.counselor, caseId);
+    input.questionnaire.additionalItems = { response: 'answered', rows: [{ item: '동일 문구' }, { item: '동일 문구' }] };
+    const original = JSON.stringify({ ...(schemaVersion === 1 ? { additionalItems: [{ item: '동일 문구', reason: '옛 첫째' }, { item: '동일 문구', reason: '옛 둘째' }] } : input.questionnaire),
+      unknownHistoricalField: { text: '원문 그대로' } });
+    const id = crypto.randomUUID();
+    await t.db.prepare(`INSERT INTO sessions (id,org_id,support_case_id,counselor_id,held_at,channel,kind,intake_details,intake_schema_version,
+      submission_id,submission_hash,submitted_by,ai_status,created_at,updated_at)
+      VALUES (?,?,?,?,?,'in_person','intake',?,?,?,?,?,'none',?,?)`)
+      .bind(id, canonicalActors.counselor.orgId, caseId, canonicalActors.counselor.userId, input.heldAt, original, schemaVersion,
+        crypto.randomUUID(), 'a'.repeat(64), canonicalActors.counselor.userId, input.heldAt, input.heldAt).run();
+    expect((await saved(caseId)).questionLifecycle).toBeNull();
+    expect((await getManualRecordContext(t.env, canonicalActors.counselor, caseId)).questions).toEqual([]);
+    const edit: IntakeUpdateRequest = { schemaVersion: 3, expectedRevision: 1, heldAt: input.heldAt, channel: input.channel,
+      questionnaire: input.questionnaire, additionalItemRefs: newIntakeQuestionRefs(input.questionnaire), questionWithdrawals: [] };
+    const before = await state(caseId);
+    await expect(updateIntakeRecord(t.env, canonicalActors.counselor, caseId, edit)).rejects.toBeInstanceOf(ConflictError);
+    await expect(updateIntakeRecord(t.env, canonicalActors.counselor, caseId, { ...edit, conversion: { confirmed: true, sourceRevision: 1 },
+      additionalItemRefs: [{ rowIndex: 0, questionId: null, expectedRevision: null, legacySourceRowIndex: 0 }, { rowIndex: 1, questionId: null, expectedRevision: null }],
+    })).rejects.toBeInstanceOf(ConflictError);
+    await expect(updateIntakeRecord(t.env, canonicalActors.counselor, caseId, { ...edit, conversion: { confirmed: true, sourceRevision: 1 },
+      additionalItemRefs: legacyIntakeQuestionRefs([{ rowIndex: 0, legacySourceRowIndex: 0 }, { rowIndex: 1, legacySourceRowIndex: 0 }]),
+    })).rejects.toBeInstanceOf(ValidationError);
+    expect(await state(caseId)).toEqual(before);
+    await updateIntakeRecord(t.env, canonicalActors.counselor, caseId, { ...edit, conversion: { confirmed: true, sourceRevision: 1 },
+      additionalItemRefs: legacyIntakeQuestionRefs([{ rowIndex: 0, legacySourceRowIndex: 1 }, { rowIndex: 1, legacySourceRowIndex: 0 }]),
+    });
+    const converted = await saved(caseId);
+    expect(converted.history).toMatchObject([{ revision: 1, schemaVersion, detailsJson: original, questionLifecycle: null }]);
+    const first = converted.questionLifecycle!.items.find(item => item.sourceRevision === 2 && item.sourceRowIndex === 0)!;
+    expect(first.origin).toEqual({ schemaVersion, sourceRevision: 1, sourceRowIndex: 1 });
+    expect(converted.questionLifecycle!.conversion).toMatchObject({
+      sourceSchemaVersion: schemaVersion, sourceRevision: 1,
+      mechanical: { mappings: expect.arrayContaining([{ questionId: first.id, sourceRowIndex: 1 }]) },
+      confirmation: { actorId: canonicalActors.counselor.userId },
+    });
+  });
+  it('requires human conversion even when the legacy source has zero eligible rows', async () => {
+    await t.reset();
+    const initial = await seedCase(), caseId = initial.supportCaseId;
+    await seedLegacyIntake(t.env, canonicalActors.counselor, caseId, {
+      submissionId: crypto.randomUUID(), heldAt: '2026-09-01T09:00:00.000Z', channel: 'in_person', unknownField: '원문',
+    });
+    const input = await intakeInput(t.env, canonicalActors.counselor, caseId);
+    const edit: IntakeUpdateRequest = { schemaVersion: 3, expectedRevision: 1, heldAt: input.heldAt, channel: input.channel,
+      questionnaire: input.questionnaire, additionalItemRefs: [], questionWithdrawals: [] };
+    await expect(updateIntakeRecord(t.env, canonicalActors.counselor, caseId, edit)).rejects.toBeInstanceOf(ConflictError);
+    expect((await saved(caseId)).questionLifecycle).toBeNull();
+    await updateIntakeRecord(t.env, canonicalActors.counselor, caseId, { ...edit, conversion: { confirmed: true, sourceRevision: 1 } });
+    expect((await saved(caseId)).questionLifecycle).toMatchObject({ version: 1, items: [], conversion: { mechanical: { mappings: [] } } });
+  });
+
+
+  it('rejects unknown nested metadata and malformed row identity without coercion', () => {
+    const questionnaire = intakeQuestionnaire({ programId: 'program', programVersion: 1, financialSupportEnabled: false });
+    questionnaire.additionalItems = { response: 'answered', rows: [{ item: '질문' }] };
+    const request = { schemaVersion: 3, submissionId: crypto.randomUUID(), heldAt: '2026-09-01T09:00:00.000Z', channel: 'phone',
+      questionnaire, additionalItemRefs: newIntakeQuestionRefs(questionnaire), questionWithdrawals: [] };
+    for (const refs of [[], [{ rowIndex: -1, questionId: null, expectedRevision: null }],
+      [{ rowIndex: 0, questionId: null, expectedRevision: 1 }], [{ rowIndex: 0, questionId: null, expectedRevision: null, unknown: true }]]) {
+      expect(() => parseIntakeCreateRequest({ ...request, additionalItemRefs: refs })).toThrow(IntakeContractError);
+    }
+    const id = crypto.randomUUID(), at = request.heldAt;
+    const lifecycle = { version: 1, items: [{ id, revision: 2, sourceRevision: 3, sourceRowIndex: 0, createdBy: 'writer', createdAt: at,
+      withdrawn: { actorId: 'writer', recordedAt: at, fromRevision: 1 }, origin: { schemaVersion: 1, sourceRevision: 1, sourceRowIndex: 0 } }],
+      conversion: { sourceSchemaVersion: 1, sourceRevision: 1, mechanical: { recordedAt: at, mappings: [{ questionId: id, sourceRowIndex: 0 }] },
+        confirmation: { actorId: 'writer', recordedAt: at } } };
+    expect(parseIntakeQuestionLifecycle(lifecycle).items[0]?.id).toBe(id);
+    const boundaries = [lifecycle, lifecycle.items[0]!, lifecycle.items[0]!.withdrawn, lifecycle.items[0]!.origin,
+      lifecycle.conversion, lifecycle.conversion.mechanical, lifecycle.conversion.mechanical.mappings[0]!, lifecycle.conversion.confirmation];
+    for (const boundary of boundaries) {
+      Object.assign(boundary, { unknown: true });
+      expect(() => parseIntakeQuestionLifecycle(lifecycle)).toThrow(IntakeContractError);
+      Reflect.deleteProperty(boundary, 'unknown');
+    }
   });
 });

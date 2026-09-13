@@ -25,8 +25,8 @@ import {
 import { registrationInput } from './support/registration';
 import { seedLegacyIntake } from './support/intake';
 import { seedLegacyManualRecord } from './support/manual-record';
-import { intakeInput, intakeQuestionnaire } from './support/intake';
-import { createIntakeRecord } from '@ccc/core/gateway';
+import { intakeInput, intakeQuestionnaire, newIntakeQuestionRefs } from './support/intake';
+import { createIntakeRecord, updateIntakeRecord, getIntakeRecordContext } from '@ccc/core/gateway';
 
 function withLegacyIntakeVersions(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(withLegacyIntakeVersions);
@@ -445,6 +445,40 @@ describe('GET /support-cases/:id/report', () => {
     for (const text of ['신체 건강에 관한 수기 기록', '심리와 정서에 관한 수기 기록', '가족 관계에 관한 수기 기록', '돌봄에 관한 수기 기록', '행정 서류에 관한 수기 기록']) expect(serialized).toContain(text);
     expect(serialized).not.toContain('INAPPLICABLE_RETAINED_CANARY');
     expect(body.sections.riskSignals?.entries).toContainEqual(expect.objectContaining({ text: '주의', intakeSchemaVersion: 2, intakeRevision: 1 }));
+  });
+
+  it('reports only open intake identities with their immutable evidence revision after omission and later answers', async () => {
+    const created = await seedCase(), caseId = created.supportCaseId;
+    const input = await intakeInput(t.env, counselor, caseId);
+    input.questionnaire.additionalItems = { response: 'answered', rows: [{ item: '확인할 첫 질문' }, { item: '남겨 둔 질문', dueNote: '원래 기한' }] };
+    input.additionalItemRefs = newIntakeQuestionRefs(input.questionnaire);
+    const intake = await createIntakeRecord(t.env, counselor, caseId, input);
+    const saved = (await getIntakeRecordContext(t.env, counselor, caseId)).saved!;
+    const a = saved.questionLifecycle!.items.find(item => item.sourceRowIndex === 0)!;
+    const b = saved.questionLifecycle!.items.find(item => item.sourceRowIndex === 1)!;
+    await updateIntakeRecord(t.env, counselor, caseId, {
+      schemaVersion: 3, expectedRevision: 1, heldAt: '2026-09-02T09:00:00.000Z', channel: input.channel,
+      questionnaire: { ...input.questionnaire, additionalItems: { response: 'answered', rows: [{ item: '수정한 첫 질문' }] } },
+      additionalItemRefs: [{ rowIndex: 0, questionId: a.id, expectedRevision: 1 }], questionWithdrawals: [],
+    });
+    const current = await report(counselor, caseId);
+    expect(current.nextConfirmations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ item: '수정한 첫 질문', evidence: expect.objectContaining({ intakeRevision: 2, source: 'intake_details.additionalItems.0.item' }) }),
+      expect.objectContaining({ item: '남겨 둔 질문', dueNote: '원래 기한', evidence: expect.objectContaining({
+        sessionId: intake.record.id, heldAt: input.heldAt, intakeSchemaVersion: 2, intakeRevision: 1, source: 'intake_details.additionalItems.1.item',
+      }) }),
+    ]));
+    await createCounselingRecord(t.env, counselor, caseId, { schemaVersion: 2, submissionId: crypto.randomUUID(),
+      heldAt: '2026-09-03T09:00:00.000Z', channel: 'in_person', memo: '수기로 확인',
+      questionAnswers: [{ kind: 'intake', questionId: b.id, sourceId: intake.record.id, expectedRevision: 1, answer: '확인한 답' }],
+    });
+    expect((await report(counselor, caseId)).nextConfirmations?.map(item => item.item)).toEqual(['수정한 첫 질문']);
+    await updateIntakeRecord(t.env, counselor, caseId, {
+      schemaVersion: 3, expectedRevision: 2, heldAt: '2026-09-02T09:00:00.000Z', channel: input.channel,
+      questionnaire: { ...input.questionnaire, additionalItems: { response: 'unknown' } }, additionalItemRefs: [],
+      questionWithdrawals: [{ questionId: a.id, expectedRevision: 2 }],
+    });
+    expect((await report(counselor, caseId)).nextConfirmations).toBeUndefined();
   });
 
   it('keeps an evidence-free intake session while omitting every fabricated section and summary', async () => {

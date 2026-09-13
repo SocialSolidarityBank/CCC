@@ -7,6 +7,8 @@ import { handleRequest } from '@ccc/http-api';
 import { setupD1, testActors, testProgramId } from './support/d1';
 import { registrationInput } from './support/registration';
 import { seedLegacyManualRecord } from './support/manual-record';
+import { createIntakeRecord, updateIntakeRecord, getIntakeRecordContext } from '@ccc/core/gateway';
+import { intakeInput, newIntakeQuestionRefs } from './support/intake';
 
 const t = setupD1();
 const writer = testActors.counselor;
@@ -388,5 +390,119 @@ describe('W04 manual record lifecycle', () => {
     ] }))).rejects.toBeInstanceOf(ForbiddenError);
     expect(await listCounselingRecords(t.env, writer, created.supportCaseId)).toEqual([]);
     expect((await getManualRecordContext(t.env, writer, other.supportCaseId)).questions.map(item => item.id)).toEqual([question.id]);
+  });
+});
+
+describe('later confirmation of intake questions', () => {
+  async function seedQuestion() {
+    const created = await seed();
+    const intake = await intakeInput(t.env, writer, created.supportCaseId);
+    intake.questionnaire.additionalItems = { response: 'answered', rows: [{ item: '원래 질문', dueNote: '첫 기한' }] };
+    intake.additionalItemRefs = newIntakeQuestionRefs(intake.questionnaire);
+    const source = await createIntakeRecord(t.env, writer, created.supportCaseId, intake);
+    const question = (await getManualRecordContext(t.env, writer, created.supportCaseId)).questions[0]!;
+    return { created, intake, source, question };
+  }
+  const state = async (caseId: string) => ({
+    sessions: (await t.db.prepare('SELECT * FROM sessions WHERE support_case_id=? ORDER BY id').bind(caseId).all()).results,
+    outcomes: (await t.db.prepare('SELECT * FROM manual_question_outcomes WHERE support_case_id=? ORDER BY id').bind(caseId).all()).results,
+    audits: (await t.db.prepare('SELECT * FROM audit_log WHERE support_case_id=? ORDER BY id').bind(caseId).all()).results,
+  });
+
+  it('keeps a confirmed answer readable after source editing and withdrawal without reopening it', async () => {
+    const { created, intake, source, question } = await seedQuestion(), caseId = created.supportCaseId;
+    const edit = { schemaVersion: 3 as const, expectedRevision: 1, heldAt: intake.heldAt, channel: intake.channel,
+      questionnaire: intake.questionnaire, additionalItemRefs: [{ rowIndex: 0, questionId: question.id, expectedRevision: 1 }], questionWithdrawals: [] };
+    await updateIntakeRecord(t.env, writer, caseId, edit);
+    const answer = input({ questionAnswers: [{ kind: 'intake', questionId: question.id, sourceId: source.record.id, expectedRevision: 1, answer: '확인한 답' }] });
+    const response = await http(writer, `/support-cases/${caseId}/records`, answer);
+    expect(response.status).toBe(201);
+    const record = await response.json() as { record: { id: string } };
+    const changed = { ...edit, expectedRevision: 2,
+      questionnaire: { ...intake.questionnaire, additionalItems: { response: 'answered' as const, rows: [{ item: '고친 질문', dueNote: '다른 기한' }] } } };
+    await updateIntakeRecord(t.env, writer, caseId, changed);
+    const confirmed = await getManualRecordContext(t.env, writer, caseId);
+    expect(confirmed.confirmedQuestions).toMatchObject([{ id: question.id, body: '고친 질문', sourceRevision: 2,
+      outcomes: [{ sourceRevision: 1, sourceText: '원래 질문', answer: '확인한 답' }] }]);
+    await updateIntakeRecord(t.env, writer, caseId, { ...changed, expectedRevision: 3,
+      additionalItemRefs: [{ rowIndex: 0, questionId: question.id, expectedRevision: 2 }],
+      questionWithdrawals: [{ questionId: question.id, expectedRevision: 2 }] });
+    const withdrawn = await getManualRecordContext(t.env, writer, caseId);
+    expect(withdrawn).toMatchObject({ schemaVersion: 3, questions: [], confirmedQuestions: [] });
+    expect(withdrawn.withdrawnQuestions).toMatchObject([{ kind: 'intake', id: question.id, state: 'withdrawn', sourceRevision: 3,
+      outcomes: [{ sessionId: record.record.id, sourceRevision: 1, sourceText: '원래 질문', answer: '확인한 답' }] }]);
+    const records = await listCounselingRecords(t.env, writer, caseId);
+    expect(records.find(item => item.id === record.record.id)?.manual?.questionOutcomes).toMatchObject([{
+      kind: 'intake', questionId: question.id, sourceId: source.record.id, sourceRevision: 1, sourceText: '원래 질문', answer: '확인한 답',
+    }]);
+    const before = await state(caseId);
+    const denied = await http(writer, `/support-cases/${caseId}/records`, { ...answer, submissionId: crypto.randomUUID() });
+    expect(denied.status).toBe(409);
+    await expect(denied.json()).resolves.toEqual({ error: 'conflict' });
+    expect(await state(caseId)).toEqual(before);
+    const replay = await http(writer, `/support-cases/${caseId}/records`, answer);
+    expect(replay.status).toBe(200);
+    expect(await state(caseId)).toEqual(before);
+  });
+
+  it.each(['withdrawal', 'date-correction'] as const)('rolls back a late confirmation after concurrent intake %s', async (boundary) => {
+    const { created, intake, source, question } = await seedQuestion(), caseId = created.supportCaseId;
+    let committed: Awaited<ReturnType<typeof state>> | undefined;
+    const db = beforeBatch(async () => {
+      await updateIntakeRecord(t.env, writer, caseId, {
+        schemaVersion: 3, expectedRevision: 1, heldAt: boundary === 'date-correction' ? '2026-09-14T09:00:00.000Z' : intake.heldAt,
+        channel: intake.channel, questionnaire: intake.questionnaire,
+        additionalItemRefs: [{ rowIndex: 0, questionId: question.id, expectedRevision: 1 }],
+        questionWithdrawals: boundary === 'withdrawal' ? [{ questionId: question.id, expectedRevision: 1 }] : [],
+      });
+      committed = await state(caseId);
+    });
+    await expect(createCounselingRecord({ ...t.env, DB: db }, writer, caseId, input({
+      questionAnswers: [{ kind: 'intake', questionId: question.id, sourceId: source.record.id, expectedRevision: 1, answer: '늦은 답' }],
+    }))).rejects.toBeInstanceOf(ConflictError);
+    expect(await state(caseId)).toEqual(committed);
+    expect((await getIntakeRecordContext(t.env, writer, caseId)).saved?.revision).toBe(2);
+  });
+
+  it('does not replace the selected intake source or consume outcomes from later regular sessions', async () => {
+    const { created, intake, source, question } = await seedQuestion(), caseId = created.supportCaseId;
+    const before = await getManualRecordContext(t.env, writer, caseId);
+    let changed = false;
+    const db = new Proxy(t.env.DB, { get(target, property, receiver) {
+      if (property === 'prepare') return (sql: string) => {
+        const statement = target.prepare(sql);
+        if (!sql.includes('AS manual_work_sources')) return statement;
+        return new Proxy(statement, { get(prepared, key, preparedReceiver) {
+          if (key === 'bind') return (...values: Parameters<PreparedStatement['bind']>) => {
+            const bound = prepared.bind(...values);
+            return new Proxy(bound, { get(boundTarget, boundKey, boundReceiver) {
+              if (boundKey === 'all') return async () => {
+                const result = await boundTarget.all();
+                if (!changed) {
+                  changed = true;
+                  await updateIntakeRecord(t.env, writer, caseId, { schemaVersion: 3, expectedRevision: 1, heldAt: intake.heldAt, channel: intake.channel,
+                    questionnaire: { ...intake.questionnaire, additionalItems: { response: 'answered', rows: [{ item: '나중 질문' }] } },
+                    additionalItemRefs: [{ rowIndex: 0, questionId: question.id, expectedRevision: 1 }], questionWithdrawals: [] });
+                  await createCounselingRecord(t.env, writer, caseId, input({ questionAnswers: [
+                    { kind: 'intake', questionId: question.id, sourceId: source.record.id, expectedRevision: 2, answer: '나중 답' },
+                  ] }));
+                }
+                return result;
+              };
+              const value: unknown = Reflect.get(boundTarget, boundKey, boundReceiver);
+              return typeof value === 'function' ? value.bind(boundTarget) : value;
+            } });
+          };
+          const value: unknown = Reflect.get(prepared, key, preparedReceiver);
+          return typeof value === 'function' ? value.bind(prepared) : value;
+        } });
+      };
+      const value: unknown = Reflect.get(target, property, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    } });
+    expect(await getManualRecordContext({ ...t.env, DB: db }, writer, caseId)).toEqual(before);
+    expect((await getManualRecordContext(t.env, writer, caseId)).confirmedQuestions).toMatchObject([{
+      id: question.id, body: '나중 질문', sourceRevision: 2, outcomes: [{ answer: '나중 답', sourceText: '나중 질문' }],
+    }]);
   });
 });

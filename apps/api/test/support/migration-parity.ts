@@ -34,6 +34,7 @@ export const checkpoints = [
   { id: 'agent-credentials', sqlite: '0061_agent_credentials.sql', postgres: '0017_agent_credentials.sql' },
   { id: 'intake-versions', sqlite: '0062_intake_versions.sql', postgres: '0018_intake_versions.sql' },
   { id: 'manual-record-lifecycle', sqlite: '0063_manual_record_lifecycle.sql', postgres: '0019_manual_record_lifecycle.sql' },
+  { id: 'intake-question-lifecycle', sqlite: '0064_intake_question_lifecycle.sql', postgres: '0020_intake_question_lifecycle.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;
