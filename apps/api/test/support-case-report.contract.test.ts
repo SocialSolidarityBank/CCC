@@ -6,9 +6,10 @@ import {
   createBeneficiaryWithInitialSupportCase,
   createCounselingRecord,
   createGeneratedAiDraft,
+  enqueueTextWorkItem,
   getActiveAiProviderRuntimeMetadataForService,
   listOpenActionItems,
-  recordMaskedSourceSnapshot,
+  loadMaskedSourceSnapshotForService,
   registerAiProviderConfiguration,
   setSupportCaseOverallGoal,
   updateParticipantPii,
@@ -17,7 +18,7 @@ import {
   type Actor,
 } from '@ccc/core/gateway';
 import { handleRequest } from '@ccc/http-api';
-import { seedCanonicalSttConsent, sha256Hex } from './support/agent-jobs';
+import { agentManifestEnv, runAgentTextJobs, seedCanonicalSttConsent } from './support/agent-jobs';
 import {
   seedTestProgramWithRuntimeModes,
   setupD1,
@@ -65,29 +66,24 @@ async function report(actor: Actor, supportCaseId: string): Promise<SupportCaseR
 }
 
 async function createDraft(sessionId: string, oneLiner: string) {
-  const maskedText = 'MASKED_REPORT_EVIDENCE';
-  const hash = await sha256Hex(maskedText);
-  const evidenceId = `report-evidence-${sessionId}`;
-  const snapshot = await recordMaskedSourceSnapshot(t.env, service, sessionId, {
-    maskedText,
-    sha256: hash,
-    maskingPipelineVersion: 'ner-mask-v1',
-    evidence: [{
-      id: evidenceId,
-      sourceRef: 'memo:report-source',
-      sourceSha256: hash,
-      evidenceQuote: maskedText,
-      sourceStart: 0,
-      sourceEnd: maskedText.length,
-    }],
-  });
+  Object.assign(t.env, await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'off' }));
+  t.env.TEXT_AI_PILOT_ENABLED = '1';
+  await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
+  expect(await runAgentTextJobs(t.env, t.db)).toBe(1);
+  const completed = await t.db.prepare(
+    'SELECT completed_snapshot_id AS id FROM ai_text_work_queue WHERE session_id = ?',
+  ).bind(sessionId).first<{ id: string }>();
+  if (completed === null) throw new Error('missing completed report snapshot');
+  const snapshot = await loadMaskedSourceSnapshotForService(t.env, service, sessionId, completed.id);
+  const evidenceItem = snapshot.evidence[0];
+  if (evidenceItem === undefined) throw new Error('missing report evidence');
   const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, sessionId);
   const evidenceLink = {
-    sourceEvidenceItemId: evidenceId,
-    evidenceQuote: maskedText,
-    sourceRef: 'memo:report-source',
-    sourceStart: 0,
-    sourceEnd: maskedText.length,
+    sourceEvidenceItemId: evidenceItem.id,
+    evidenceQuote: evidenceItem.evidenceQuote,
+    sourceRef: evidenceItem.sourceRef,
+    sourceStart: evidenceItem.sourceStart,
+    sourceEnd: evidenceItem.sourceEnd,
   };
   return createGeneratedAiDraft(t.env, service, sessionId, {
     summaryText: 'DRAFT_SUMMARY_CANARY',

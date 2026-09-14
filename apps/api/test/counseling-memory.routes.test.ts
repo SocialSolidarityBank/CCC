@@ -47,36 +47,38 @@ describe('케이스 기억의 HTTP 접근 경계', () => {
     expect(outside.status).toBe(403);
   }, 30_000);
 
-  it('기관 설정은 관리자만 바꾸며 뒤늦은 저장은 최신 선택을 덮어쓰지 못한다', async () => {
+  it('숨긴 기억 설정은 관리자에게도 GET과 PUT 모두 404이며 설정을 바꾸지 않는다', async () => {
     const path = '/settings/counseling-memory';
-    const denied = await worker.fetch(request(path, testActors.counselor), t.env);
-    expect(denied.status).toBe(403);
-    const initial = await worker.fetch(request(path, testActors.admin), t.env);
-    expect(initial.status).toBe(200);
-    const initialBody = await initial.json() as { version: number };
-    const disabled = await worker.fetch(request(path, testActors.admin, 'PUT', {
-      enabled: false, expectedVersion: initialBody.version,
+    const before = await t.db.prepare(
+      'SELECT enabled,version FROM counseling_memory_settings WHERE org_id=?',
+    ).bind(testActors.admin.orgId).first();
+    for (const actor of [testActors.counselor, testActors.admin]) {
+      expect((await worker.fetch(request(path, actor), t.env)).status).toBe(404);
+    }
+    const put = await worker.fetch(request(path, testActors.admin, 'PUT', {
+      enabled: false, expectedVersion: 1,
     }), t.env);
-    expect(disabled.status).toBe(200);
-    const stale = await worker.fetch(request(path, testActors.admin, 'PUT', {
-      enabled: true, expectedVersion: initialBody.version,
-    }), t.env);
-    expect(stale.status).toBe(409);
-    const current = await worker.fetch(request(path, testActors.admin), t.env);
-    expect(await current.json()).toMatchObject({ enabled: false });
+    expect(put.status).toBe(404);
+    expect(await t.db.prepare(
+      'SELECT enabled,version FROM counseling_memory_settings WHERE org_id=?',
+    ).bind(testActors.admin.orgId).first()).toEqual(before);
   }, 30_000);
 
-  it('기억 내용은 URL 입력으로 받지 않고 설정의 알 수 없는 입력도 거부한다', async () => {
-    const path = '/settings/counseling-memory';
-    const query = await worker.fetch(request(`${path}?memory=private`, testActors.admin), t.env);
-    expect(query.status).toBe(400);
-    const initial = await worker.fetch(request(path, testActors.admin), t.env);
-    const initialBody = await initial.json() as { version: number };
-    const unknownField = await worker.fetch(request(path, testActors.admin, 'PUT', {
-      enabled: false, expectedVersion: initialBody.version, prompt: 'override',
-    }), t.env);
-    expect(unknownField.status).toBe(400);
-    const after = await worker.fetch(request(path, testActors.admin), t.env);
-    expect(await after.json()).toEqual(initialBody);
+  it('숨긴 기억 설정과 Agent 기억 파이프라인은 입력 형태와 무관하게 404다', async () => {
+    expect((await worker.fetch(
+      request('/settings/counseling-memory?memory=private', testActors.admin),
+      t.env,
+    )).status).toBe(404);
+    expect((await worker.fetch(request('/settings/counseling-memory', testActors.admin, 'PUT', {
+      enabled: false, expectedVersion: 1, prompt: 'override',
+    }), t.env)).status).toBe(404);
+    const routes: Array<[string, string]> = [
+      ['/pipeline/memory/claim', 'POST'],
+      ['/pipeline/memory/00000000-0000-4000-8000-000000000001/source', 'GET'],
+      ['/pipeline/memory/00000000-0000-4000-8000-000000000001/result', 'POST'],
+    ];
+    for (const [path, method] of routes) {
+      expect((await worker.fetch(request(path, testActors.service, method, method === 'GET' ? undefined : {}), t.env)).status).toBe(404);
+    }
   }, 30_000);
 });

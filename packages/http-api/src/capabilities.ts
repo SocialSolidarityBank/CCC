@@ -42,11 +42,16 @@ export async function verifiedInstallManifest(env: Pick<ApiEnv, 'CCC_INSTALL_MAN
     throw new CapabilitiesUnavailableError('install manifest malformed');
   }
   try {
-    return await verifySignedInstallManifest(raw, {
+    const manifest = await verifySignedInstallManifest(raw, {
       publicKeys: parseSigningKeys(env.CCC_INSTALL_SIGNING_KEYS),
       now: new Date(),
     });
+    if (manifest.mode !== 'community-cloud') {
+      throw new CapabilitiesUnavailableError('installation mode unavailable');
+    }
+    return manifest;
   } catch (error) {
+    if (error instanceof CapabilitiesUnavailableError) throw error;
     throw new CapabilitiesUnavailableError(error instanceof Error ? error.message : 'install manifest invalid');
   }
 }
@@ -56,7 +61,6 @@ export async function buildCapabilities(env: ApiEnv, actor: Actor | IdentityActo
   const agentStatus = await getAgentStatusForCapabilities(env, actor);
   const installManifest = await verifiedInstallManifest(env);
   if (actor.orgId === null) throw new CapabilitiesUnavailableError('organization unavailable');
-  const localReady = await hasFreshSttReadiness(env, actor.orgId, 'local', 'qwen3-asr');
   const azureReady = await hasFreshSttReadiness(env, actor.orgId, 'azure', 'azure-speech-koreacentral');
   const policy = await getInstalledAiPolicy(env, actor);
   const llmKeyPresent = env.AI_PROVIDER_ADAPTER !== undefined || ((await env.secretStore.get('CODEX_API_KEY'))?.trim().length ?? 0) > 0;
@@ -64,11 +68,9 @@ export async function buildCapabilities(env: ApiEnv, actor: Actor | IdentityActo
     mode: installManifest.mode,
     requestedSttMode: policy.sttMode,
     requestedLlmMode: policy.llmMode,
-    registry: installManifest.approvedSttEngineIds,
+    registry: installManifest.approvedSttEngineIds.filter((entry) => entry.mode === 'azure'),
     sttGatePassed: {
-      local: localReady && installManifest.approvedSttEngineIds.some(
-        (entry) => entry.id === 'qwen3-asr' && entry.mode === 'local',
-      ),
+      local: false,
       azure: installManifest.approvedSttEngineIds.some(
         (entry) => entry.id === 'azure-speech-koreacentral' && entry.mode === 'azure',
       ),

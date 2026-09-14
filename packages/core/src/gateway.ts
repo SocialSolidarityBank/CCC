@@ -6198,33 +6198,13 @@ export async function collectDiscrepancyDetectionSources(
        JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id = (
          SELECT candidate.id FROM ai_masked_source_snapshots AS candidate
           WHERE candidate.org_id=session.org_id AND candidate.session_id=session.id
-            AND ${textSnapshotCurrentSql('candidate')}
           ORDER BY candidate.created_at DESC,candidate.id DESC LIMIT 1
        )
       WHERE session.org_id=? AND session.support_case_id=?
       ORDER BY session.held_at DESC,session.id DESC LIMIT ?`,
   ).bind(actor.orgId, scope.supportCaseId, DISCREPANCY_SOURCE_LIMIT).all<DbRow>();
-  const rows = [...sessionRows.results];
-  if (!rows.some((row) => stringValue(row.id) === triggerSessionId)) {
-    const triggerRow = await env.DB.prepare(
-      `SELECT session.id AS id, session.held_at AS held_at,
-              snapshot.id AS snapshot_id, snapshot.sha256 AS snapshot_sha256
-         FROM sessions AS session
-         LEFT JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id = (
-           SELECT candidate.id FROM ai_masked_source_snapshots AS candidate
-            WHERE candidate.org_id=session.org_id AND candidate.session_id=session.id
-              AND ${textSnapshotCurrentSql('candidate')}
-            ORDER BY candidate.created_at DESC,candidate.id DESC LIMIT 1
-         )
-        WHERE session.id=? AND session.org_id=? AND session.support_case_id=?`,
-    ).bind(triggerSessionId, actor.orgId, scope.supportCaseId).first<DbRow>();
-    if (triggerRow === null) throw new ForbiddenError('session is not available in this organization');
-    if (nullableString(triggerRow.snapshot_id) === null) {
-      throw new AgentJobContractError('masking_snapshot_missing');
-    }
-    rows.push(triggerRow);
-  }
-  rows.sort((left, right) => stringValue(left.held_at).localeCompare(stringValue(right.held_at)));
+  const rows = sessionRows.results.filter((row) => stringValue(row.id) === triggerSessionId);
+  if (rows.length === 0) throw new AgentJobContractError('masking_snapshot_missing');
   const sources: DiscrepancyDetectionSource[] = [];
   const materialRefs: OpenAiMaterialRef[] = [];
   for (const row of rows) {
@@ -6479,6 +6459,9 @@ export async function resolveSessionDiscrepancy(
     throw new ForbiddenError('discrepancy is not available in this organization');
   }
   const current = mapSessionDiscrepancy(existing);
+  if (current.kind === 'cross_session') {
+    throw new ForbiddenError('discrepancy is not available in this release');
+  }
   // 주소가 가리킨 참여 사업과 실제 소속이 어긋나면 아무것도 바꾸기 전에 멈춘다.
   if (expectedSupportCaseId !== undefined && current.supportCaseId !== expectedSupportCaseId) {
     throw new ForbiddenError('discrepancy does not belong to this support case');
@@ -6528,7 +6511,7 @@ export async function listRecordErrorSessionIds(
   await assertSupportCaseAccess(env, actor, supportCaseId);
   const rows = await env.DB.prepare(
     `SELECT left_session_id, right_session_id FROM session_discrepancies
-     WHERE org_id = ? AND support_case_id = ? AND resolution_status = 'record_error'`,
+     WHERE org_id = ? AND support_case_id = ? AND kind = 'within_session' AND resolution_status = 'record_error'`,
   ).bind(actor.orgId, supportCaseId).all<DbRow>();
   const ids = new Set<string>();
   for (const row of rows.results) {
@@ -13856,7 +13839,7 @@ export async function exportSupportCaseCsv(
               right_session_id, right_quote, detected_at, resolution_status,
               resolved_by, resolved_at, created_at
        FROM session_discrepancies
-       WHERE org_id = ? AND support_case_id = ?
+       WHERE org_id = ? AND support_case_id = ? AND kind = 'within_session'
        ORDER BY detected_at, id`,
     ).bind(actor.orgId, supportCaseId).all<DbRow>(),
     env.DB.prepare(
@@ -22638,6 +22621,7 @@ export async function listCounselingRecords(
                 ) AS resolved_rank
          FROM session_discrepancies AS discrepancy
          WHERE discrepancy.org_id = ? AND discrepancy.support_case_id = ?
+           AND discrepancy.kind = 'within_session'
            AND (
              discrepancy.left_session_id IN (${placeholders})
              OR discrepancy.right_session_id IN (${placeholders})
@@ -23337,6 +23321,7 @@ export async function getParticipantBriefing(
          JOIN sessions AS right_session
            ON right_session.id = discrepancy.right_session_id AND right_session.org_id = discrepancy.org_id
          WHERE discrepancy.org_id = ? AND discrepancy.support_case_id IN (${placeholders})
+           AND discrepancy.kind = 'within_session'
        )
        WHERE resolution_status IS NULL OR resolved_rank <= ${DISCREPANCY_RESOLVED_HISTORY_LIMIT}
        ORDER BY (resolution_status IS NULL) DESC, detected_at DESC, id`,

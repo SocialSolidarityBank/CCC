@@ -4134,6 +4134,12 @@ describe('public participant signup routes (CCC-28)', () => {
     );
     expect(invite.status).toBe(404);
 
+    const disclosures = await worker.fetch(
+      new Request(`http://localhost/invites/participant/${token}/consent/disclosures`),
+      t.env,
+    );
+    expect(disclosures.status).toBe(404);
+
     const signup = await worker.fetch(
       new Request('http://localhost/signup/participant', {
         method: 'POST',

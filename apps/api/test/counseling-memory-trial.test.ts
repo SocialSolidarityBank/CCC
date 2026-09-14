@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createBeneficiaryWithInitialSupportCase, type Actor } from '@ccc/core/gateway';
 import worker from './support/local-worker';
 import { setupD1, testActors, testProgramId } from './support/d1';
-import { seedNerQualification } from './support/agent-jobs';
 import { registrationInput } from './support/registration';
 
 const t = setupD1();
@@ -33,69 +32,33 @@ function request(id: string, actor: Actor, method = 'GET', body?: unknown) {
   });
 }
 
-describe('memory real-trial control', () => {
-  it('reports an expired qualification from a recently seen Agent as a blocker', async () => {
+describe('memory real-trial release boundary', () => {
+  it('keeps GET and POST hidden in preview, local header mode, and production', async () => {
     const id = await supportCase();
-    const qualification = await seedNerQualification(t.db, { expiresAt: new Date(Date.now() - 60000).toISOString() });
-    await t.db.prepare(`INSERT INTO counseling_memory_agents(org_id,actor_id,attestation_json,receipt_id,seen_at)
-      VALUES(?,?,?,?,?)`).bind(testActors.service.orgId, testActors.service.userId,
-      JSON.stringify(qualification.attestation), qualification.receiptId, new Date().toISOString()).run();
-    const env = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' };
-    const response = await worker.fetch(request(id, testActors.admin), env);
-    expect(response.status).toBe(200);
-    const state = await response.json();
-    expect(state).toMatchObject({ ready: false, blockers: expect.arrayContaining(['local_ner_unavailable']) });
-    const step = await worker.fetch(request(id, testActors.admin, 'POST', { confirmExternalAi: true }), env);
-    expect(step.status).toBe(409);
-    expect(await step.json()).toEqual(state);
-  }, 30_000);
-  it('reports missing prerequisites without returning memory prose or changing generation', async () => {
-    const id = await supportCase();
-    const response = await worker.fetch(request(id, testActors.admin), { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' });
-    expect(response.status).toBe(200);
-    expect(response.headers.get('cache-control')).toBe('no-store');
-    const state = await response.json() as { blockers: string[]; ready: boolean; generation: number; revision: number };
-    expect(state.ready).toBe(false);
-    expect(state.blockers).toContain('memory_disabled');
-    expect(state.blockers).toContain('agent_unavailable');
-    expect(state.blockers).toContain('masking_pipeline_version_mismatch');
-    expect(state).not.toHaveProperty('items');
-    expect(state).not.toHaveProperty('summary');
-    const again = await worker.fetch(request(id, testActors.admin), { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' });
-    expect(await again.json()).toEqual(state);
-  }, 30_000);
-
-  it('keeps the trial control unavailable in production even with a local flag', async () => {
-    const id = await supportCase();
-    const response = await worker.fetch(request(id, testActors.admin), {
-      ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true', ACCESS_TEAM_DOMAIN: 'example.cloudflareaccess.com', ACCESS_AUD: 'production-audience',
-    });
-    expect(response.status).toBe(404);
-  }, 30_000);
-
-  it('denies non-administrators and administrators from another institution', async () => {
-    const id = await supportCase();
-    const env = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' };
-    expect((await worker.fetch(request(id, testActors.counselor), env)).status).toBe(403);
-    expect((await worker.fetch(request(id, testActors.otherOrgAdmin), env)).status).toBe(403);
-  }, 30_000);
-
-  it('requires explicit external-call confirmation and rejects control-field injection', async () => {
-    const id = await supportCase();
-    const env = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' };
-    expect((await worker.fetch(request(id, testActors.admin, 'POST', { confirmExternalAi: false }), env)).status).toBe(400);
-    expect((await worker.fetch(request(id, testActors.admin, 'POST', { confirmExternalAi: true, bypassMasking: true }), env)).status).toBe(400);
-  }, 30_000);
-
-  it('does not enable settings or fabricate missing qualification when a trial is requested', async () => {
-    const id = await supportCase();
-    const env = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' };
-    const before = await worker.fetch(request(id, testActors.admin), env);
-    const response = await worker.fetch(request(id, testActors.admin, 'POST', { confirmExternalAi: true }), env);
-    expect(response.status).toBe(409);
-    const state = await response.json();
-    expect(state).toEqual(await before.json());
-    const after = await worker.fetch(request(id, testActors.admin), env);
-    expect(await after.json()).toEqual(state);
+    const before = await t.db.prepare(
+      'SELECT generation,status,reason FROM counseling_memory_cases WHERE support_case_id=?',
+    ).bind(id).first();
+    const environments = [
+      { ...t.env },
+      { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' },
+      {
+        ...t.env,
+        LOCAL_ACTOR_HEADER_MODE: 'true',
+        ACCESS_TEAM_DOMAIN: 'example.cloudflareaccess.com',
+        ACCESS_AUD: 'production-audience',
+      },
+    ];
+    for (const env of environments) {
+      expect((await worker.fetch(request(id, testActors.admin), env)).status).toBe(404);
+      expect((await worker.fetch(request(
+        id,
+        testActors.admin,
+        'POST',
+        { confirmExternalAi: true },
+      ), env)).status).toBe(404);
+    }
+    expect(await t.db.prepare(
+      'SELECT generation,status,reason FROM counseling_memory_cases WHERE support_case_id=?',
+    ).bind(id).first()).toEqual(before);
   }, 30_000);
 });

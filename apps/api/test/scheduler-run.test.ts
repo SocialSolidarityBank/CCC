@@ -94,12 +94,12 @@ function freezeUtc(iso: string): void {
 describe('dueScheduledJobKinds', () => {
   it('matches the Workers cron cadence on the UTC minute', () => {
     expect(dueScheduledJobKinds('2026-09-12T03:00:00.000Z'))
-      .toEqual(['audio_expiry', 'counseling_memory', 'pipeline_watchdog', 'pii_retention']);
+      .toEqual(['audio_expiry', 'pipeline_watchdog', 'pii_retention']);
     expect(dueScheduledJobKinds('2026-09-12T03:01:00.000Z')).toEqual([]);
     expect(dueScheduledJobKinds('2026-09-12T11:05:30.000Z')).toEqual(['audio_expiry']);
     expect(dueScheduledJobKinds('2026-09-12T11:30:00.000Z'))
-      .toEqual(['audio_expiry', 'counseling_memory', 'pipeline_watchdog']);
-    expect(dueScheduledJobKinds('2026-09-12T11:02:00.000Z')).toEqual(['counseling_memory']);
+      .toEqual(['audio_expiry', 'pipeline_watchdog']);
+    expect(dueScheduledJobKinds('2026-09-12T11:02:00.000Z')).toEqual([]);
     // 03:00 은 UTC 기준이다. 같은 분이라도 다른 시각이면 보존 작업은 due 가 아니다.
     expect(dueScheduledJobKinds('2026-09-12T04:00:00.000Z')).not.toContain('pii_retention');
     expect(() => dueScheduledJobKinds('not-a-time')).toThrow();
@@ -119,10 +119,10 @@ describe('scheduler shared secret identity', () => {
     expect(innerCalls).toBe(0);
   });
 
-  it('runs the memory drain on its own even-minute cadence', async () => {
+  it('does not run the release-excluded memory drain on even minutes', async () => {
     freezeUtc('2026-09-12T11:02:00.000Z');
     const body = await (await post('/internal/scheduler/run')).json() as { jobs: JobReport[] };
-    expect(body.jobs.map((job) => job.kind)).toEqual(['counseling_memory']);
+    expect(body.jobs).toEqual([]);
   });
 
   it('delegates a mismatched bearer and an installation without the secret', async () => {

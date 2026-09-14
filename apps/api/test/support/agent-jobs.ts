@@ -17,6 +17,30 @@ import type { ApiEnv } from '@ccc/http-api/identity';
 import worker from './local-worker';
 import { createTestSigner, signedManifest, SYNTHETIC_LOCAL_REGISTRY } from './install-manifest';
 
+const TEST_MASKING_PIPELINE_MANIFEST = {
+  schemaVersion: 2,
+  resultSchemaVersion: 2,
+  maskingPipelineVersion: 'ner-mask-v1-addr-cond-dict',
+  directIdentifierRulesVersion: 'direct-v1',
+  regexRulesVersion: 'regex-v2',
+  conditionDictionaryVersion: 'condition-dict-v1',
+  quasiIdentifierRulesVersion: 'quasi-v1',
+  g7RelativeDateRulesVersion: 'calendar-day-v1',
+  nerModelId: 'FrameByFrame/korean-pii-e5-base',
+  nerModelRevision: 'a'.repeat(40),
+  personLabels: ['PRIVATE_PERSON'],
+  addressLabels: ['PRIVATE_ADDRESS'],
+  conditionNerModelId: null,
+  conditionNerModelRevision: null,
+  conditionLabels: [],
+  labelSetHash: 'b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc',
+  nerHealthCorpusHash: 'b'.repeat(64),
+  nerHealthResultHash: 'c'.repeat(64),
+} as const;
+
+async function testMaskingPipelineHash(): Promise<string> {
+  return sha256Hex(canonicalizeJcs(TEST_MASKING_PIPELINE_MANIFEST));
+}
 /** Local 두 모드의 런타임. Community Cloud 는 modes 테스트가 따로 만든다. */
 export const LOCAL_SINGLE_RUNTIME: AgentRuntime = {
   route: 'local-single-agent',
@@ -167,8 +191,8 @@ export async function seedNerQualification(
   const attestation: NerAttestation = {
     id: `attestation-${crypto.randomUUID()}`,
     modelId: 'FrameByFrame/korean-pii-e5-base',
-    modelRevision: 'fixture-rev-1',
-    labelSetHash: 'a'.repeat(64),
+    modelRevision: 'a'.repeat(40),
+    labelSetHash: 'b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc',
     corpusHash: 'b'.repeat(64),
     resultHash: 'c'.repeat(64),
     validatedAt: '2026-09-01T00:00:00.000Z',
@@ -211,6 +235,7 @@ export interface AgentResultOptions {
   qualification: NerQualification;
   resultId?: string;
   maskingPipelineVersion?: string;
+  maskingPipelineHash?: string;
   emotionScores?: Record<string, unknown>;
   transcriptReliable?: boolean;
   checkedSource?: CheckedTextSource;
@@ -227,11 +252,12 @@ export async function agentResultRequest(options: AgentResultOptions): Promise<R
     sourceStart: 0,
     sourceEnd: [...options.maskedText].length,
   }];
+  const defaultMaskingPipelineHash = await testMaskingPipelineHash();
   const masked = {
     maskedText: options.maskedText,
     sha256,
-    maskingPipelineVersion: options.maskingPipelineVersion ?? 'ner-mask-v1-addr-cond-dict',
-    maskingPipelineHash: 'd'.repeat(64),
+    maskingPipelineVersion: options.maskingPipelineVersion ?? TEST_MASKING_PIPELINE_MANIFEST.maskingPipelineVersion,
+    maskingPipelineHash: options.maskingPipelineHash ?? defaultMaskingPipelineHash,
     nerAvailable: true as const,
     nerAttestationId: options.qualification.attestation.id,
     nerAttestationResultHash: options.qualification.attestation.resultHash,
@@ -272,12 +298,13 @@ export async function agentManifestEnv<T extends ApiEnv>(
   const manifest = await signedManifest(signer, options.mode ?? 'local-single', {
     approvedSttEngineIds: SYNTHETIC_LOCAL_REGISTRY,
   });
+  const maskingPipelineHash = await testMaskingPipelineHash();
   return {
     ...env,
-    MEMORY_MASKING_PIPELINES: env.MEMORY_MASKING_PIPELINES ?? JSON.stringify({
-      'ner-mask-v1-addr-cond-dict': 'd'.repeat(64),
-      'fixture-mask-v1': 'd'.repeat(64),
-      'local-ner-v1': 'd'.repeat(64),
+    MEMORY_MASKING_PIPELINES: JSON.stringify({
+      schemaVersion: 1,
+      activeMaskingPipelineVersion: TEST_MASKING_PIPELINE_MANIFEST.maskingPipelineVersion,
+      pipelines: [{ ...TEST_MASKING_PIPELINE_MANIFEST, maskingPipelineHash }],
     }),
     CCC_INSTALL_MANIFEST: JSON.stringify(manifest),
     CCC_INSTALL_SIGNING_KEYS: JSON.stringify(signer.publicKeys),
@@ -306,7 +333,7 @@ export async function claimOverHttp(
     headers,
     body: JSON.stringify(claimRequest(qualification)),
   }), env);
-  expect(response.status).toBe(200);
+  expect(response.status, await response.clone().text()).toBe(200);
   const claimed = await response.json() as { jobs: AgentJob[] };
   return { jobs: claimed.jobs, qualification };
 }
