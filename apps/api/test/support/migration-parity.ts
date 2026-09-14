@@ -36,6 +36,7 @@ export const checkpoints = [
   { id: 'manual-record-lifecycle', sqlite: '0063_manual_record_lifecycle.sql', postgres: '0019_manual_record_lifecycle.sql' },
   { id: 'intake-question-lifecycle', sqlite: '0064_intake_question_lifecycle.sql', postgres: '0020_intake_question_lifecycle.sql' },
   { id: 'agent-text-source-fence', sqlite: '0065_agent_text_source_fence.sql', postgres: '0021_agent_text_source_fence.sql' },
+  { id: 'case-entity-mapping', sqlite: '0066_case_entity_mapping.sql', postgres: '0022_case_entity_mapping.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;
@@ -106,6 +107,28 @@ export function checkpointSources() {
     sqlite: index === 0 ? sqlite.slice(0, boundary + 1) : [sqlite[boundary + index]!],
     postgres: [postgres[index]!],
   }));
+}
+
+/** F1: an encrypted aggregate cannot be reset or rewritten without the next revision. */
+export async function proveCaseEntityMappingSchema(db: Database, supportCaseId: string): Promise<void> {
+  expect(await db.prepare('SELECT enc_entity_map,entity_map_revision,entity_map_key_version FROM support_cases WHERE id=?')
+    .bind(supportCaseId).first()).toEqual({ enc_entity_map: null, entity_map_revision: 0, entity_map_key_version: null });
+  const update = (ciphertext: string | null, revision: number, keyVersion: number | null) => db.prepare(
+    'UPDATE support_cases SET enc_entity_map=?,entity_map_revision=?,entity_map_key_version=? WHERE id=?',
+  ).bind(ciphertext, revision, keyVersion, supportCaseId);
+  await expect(update('synthetic-ciphertext', 0, 1).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(update('synthetic-ciphertext', 1, null).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await update('synthetic-ciphertext', 1, 1).run();
+  await expect(update('replacement', 1, 1).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(update(null, 0, null).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(update('replacement', 3, 1).run()).rejects.toMatchObject({ kind: 'constraint' });
+  await expect(db.batch([update('replacement', 2, 1), update(null, 0, null)]))
+    .rejects.toMatchObject({ kind: 'constraint' });
+  expect(await db.prepare('SELECT enc_entity_map,entity_map_revision FROM support_cases WHERE id=?')
+    .bind(supportCaseId).first()).toEqual({ enc_entity_map: 'synthetic-ciphertext', entity_map_revision: 1 });
+  await update('replacement', 2, 1).run();
+  expect(await db.prepare('SELECT entity_map_revision FROM support_cases WHERE id=?').bind(supportCaseId).first())
+    .toEqual({ entity_map_revision: 2 });
 }
 
 /** Seed before the display migration so historical midnight data is part of the proof. */

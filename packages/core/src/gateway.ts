@@ -1496,6 +1496,199 @@ async function decryptPii(env: Env, value: string | null): Promise<string | null
   return new TextDecoder().decode(decrypted);
 }
 
+/** F1 내부 저장 계약. F2 호출 경계는 유효한 claim, 사례별 처리 동의, 근거의 동일인 판단을 검증해야 한다. */
+export interface CaseEntityEvidence {
+  sourceKind: 'support_case' | 'session' | 'goal' | 'schedule';
+  sourceId: string;
+  sourceRevision: string;
+  sourceStart: number;
+  sourceEnd: number;
+  quote: string;
+}
+export interface CaseEntityMapping {
+  orgId: string;
+  supportCaseId: string;
+  beneficiaryId: string;
+  vaultCreatedAt: string;
+  vaultVersion: number;
+  keyVersion: number;
+  revision: number;
+  personCounter: number;
+  institutionCounter: number;
+  entities: Array<{
+    kind: 'person' | 'institution';
+    number: number;
+    value: string;
+    evidence: CaseEntityEvidence;
+    aliases: Array<{ value: string; evidence: CaseEntityEvidence }>;
+  }>;
+}
+export interface AppendCaseEntityMappingInput {
+  expectedRevision: number;
+  kind: 'person' | 'institution';
+  /** 없으면 새 번호, 있으면 해당 번호에 명시적 별칭 근거만 덧붙인다. */
+  number?: number;
+  value: string;
+  evidence: CaseEntityEvidence;
+}
+interface CaseEntityMappingRow {
+  beneficiary_id: string;
+  enc_entity_map: string | null;
+  entity_map_revision: number;
+  entity_map_key_version: number | null;
+  vault_created_at: string;
+  vault_version: number;
+  vault_key_version: number;
+}
+const caseEntityMappingScope = `SELECT sc.beneficiary_id,sc.enc_entity_map,sc.entity_map_revision,sc.entity_map_key_version,
+  v.created_at AS vault_created_at,v.version AS vault_version,v.key_version AS vault_key_version
+  FROM support_cases sc
+  JOIN beneficiaries b ON b.id=sc.beneficiary_id AND b.org_id=sc.org_id
+  JOIN participant_pii_vault v ON v.beneficiary_id=sc.beneficiary_id AND v.org_id=sc.org_id
+  WHERE sc.id=? AND sc.org_id=? AND b.initialization_state='complete' AND v.purged_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM participant_pii_archives a WHERE a.org_id=sc.org_id AND a.beneficiary_id=sc.beneficiary_id)`;
+
+async function caseEntityMappingState(
+  env: Env, actor: Actor, supportCaseId: string,
+): Promise<{ row: CaseEntityMappingRow; mapping: CaseEntityMapping | null }> {
+  const row = actor.role !== 'service' ? null : await env.DB.prepare(caseEntityMappingScope)
+    .bind(supportCaseId, actor.orgId).first<CaseEntityMappingRow>();
+  if (row === null) {
+    await writeAudit(env, actor, { action: 'deny_access', targetTable: 'support_cases', targetId: supportCaseId });
+    throw new ForbiddenError('entity mapping is unavailable');
+  }
+  await writeCanonicalAudit(env, actor, {
+    action: row.enc_entity_map === null ? 'read' : 'decrypt_pii', targetTable: 'support_cases',
+    targetId: supportCaseId, supportCaseId, beneficiaryId: row.beneficiary_id,
+    detail: { entityMapping: true, revision: row.entity_map_revision },
+  });
+  if (row.enc_entity_map === null) return { row, mapping: null };
+  if (row.entity_map_key_version !== activePiiKeyVersion(env) || row.vault_key_version !== row.entity_map_key_version) {
+    throw new ValidationError('entity mapping key version is invalid');
+  }
+  let mapping: CaseEntityMapping;
+  try {
+    mapping = JSON.parse((await decryptPii(env, row.enc_entity_map))!) as CaseEntityMapping;
+  } catch {
+    throw new ValidationError('stored entity mapping is invalid');
+  }
+  // AES-GCM으로 인증된 본문 자체가 범위와 생애주기를 증명한다. 외부 metadata만 믿지 않는다.
+  if (mapping === null || typeof mapping !== 'object' || mapping.orgId !== actor.orgId
+    || mapping.supportCaseId !== supportCaseId || mapping.beneficiaryId !== row.beneficiary_id
+    || mapping.vaultCreatedAt !== row.vault_created_at || mapping.vaultVersion !== row.vault_version
+    || mapping.keyVersion !== row.entity_map_key_version || mapping.revision !== row.entity_map_revision
+    || !Number.isSafeInteger(mapping.personCounter) || mapping.personCounter < 0
+    || !Number.isSafeInteger(mapping.institutionCounter) || mapping.institutionCounter < 0
+    || !Array.isArray(mapping.entities)) throw new ValidationError('entity mapping binding is invalid');
+  return { row, mapping };
+}
+
+/** 일반 화면에 연결하지 않는 service 전용 내부 저장 관문이다. */
+export async function readCaseEntityMapping(
+  env: Env, actor: Actor, supportCaseId: string,
+): Promise<CaseEntityMapping | null> {
+  const state = await caseEntityMappingState(env, actor, supportCaseId);
+  // 복호화 중 원천 생애주기/표가 바뀌면 이전 평문을 반환하지 않는다.
+  const current = await env.DB.prepare(`${caseEntityMappingScope}
+    AND sc.entity_map_revision=? AND sc.enc_entity_map IS NOT DISTINCT FROM ?
+    AND v.version=? AND v.created_at=?`).bind(supportCaseId, actor.orgId,
+      state.row.entity_map_revision, state.row.enc_entity_map, state.row.vault_version, state.row.vault_created_at).first();
+  if (current === null) throw new ConflictError('entity mapping context changed');
+  return state.mapping;
+}
+
+function caseEntityEvidenceScope(evidence: CaseEntityEvidence, supportCaseId: string, orgId: string): AuditPostState {
+  if (evidence === null || typeof evidence !== 'object' || typeof evidence.sourceId !== 'string' || !evidence.sourceId
+    || typeof evidence.sourceRevision !== 'string' || !evidence.sourceRevision
+    || typeof evidence.quote !== 'string' || !evidence.quote.trim()
+    || !Number.isSafeInteger(evidence.sourceStart) || evidence.sourceStart < 0
+    || !Number.isSafeInteger(evidence.sourceEnd) || evidence.sourceEnd <= evidence.sourceStart
+    || Array.from(evidence.quote).length !== evidence.sourceEnd - evidence.sourceStart) {
+    throw new ValidationError('entity evidence is invalid');
+  }
+  switch (evidence.sourceKind) {
+    case 'support_case':
+      return { sql: 'SELECT 1 FROM support_cases WHERE id=? AND id=? AND org_id=?',
+        bindings: [evidence.sourceId, supportCaseId, orgId] };
+    case 'session':
+      return { sql: 'SELECT 1 FROM sessions WHERE id=? AND support_case_id=? AND org_id=?',
+        bindings: [evidence.sourceId, supportCaseId, orgId] };
+    case 'goal':
+      return { sql: 'SELECT 1 FROM goals WHERE id=? AND support_case_id=? AND org_id=?',
+        bindings: [evidence.sourceId, supportCaseId, orgId] };
+    case 'schedule':
+      return { sql: 'SELECT 1 FROM counseling_schedules WHERE id=? AND support_case_id=? AND org_id=?',
+        bindings: [evidence.sourceId, supportCaseId, orgId] };
+    default: throw new ValidationError('entity evidence is invalid');
+  }
+}
+
+/** CAS를 놓치면 재시도/재번호 발급하지 않는다. 호출자는 새 상태를 읽어 명시적으로 다시 결정한다. */
+export async function appendCaseEntityMapping(
+  env: Env, actor: Actor, supportCaseId: string, input: AppendCaseEntityMappingInput,
+): Promise<{ revision: number; number: number }> {
+  const { row, mapping: before } = await caseEntityMappingState(env, actor, supportCaseId);
+  if (input === null || typeof input !== 'object' || !Number.isSafeInteger(input.expectedRevision)
+    || input.expectedRevision < 0 || !['person', 'institution'].includes(input.kind)
+    || typeof input.value !== 'string' || !input.value.trim()
+    || (input.number !== undefined && (!Number.isSafeInteger(input.number) || input.number < 1))) {
+    throw new ValidationError('entity mapping input is invalid');
+  }
+  if (row.entity_map_revision !== input.expectedRevision || !Number.isSafeInteger(input.expectedRevision + 1)) {
+    throw new ConflictError('entity mapping revision changed');
+  }
+  if (row.vault_key_version !== activePiiKeyVersion(env)) throw new ValidationError('entity mapping key version is invalid');
+  const evidenceScope = caseEntityEvidenceScope(input.evidence, supportCaseId, actor.orgId);
+  if (await env.DB.prepare(evidenceScope.sql).bind(...evidenceScope.bindings).first() === null) {
+    throw new ForbiddenError('entity evidence is unavailable');
+  }
+  const mapping: CaseEntityMapping = before ?? {
+    orgId: actor.orgId, supportCaseId, beneficiaryId: row.beneficiary_id,
+    vaultCreatedAt: row.vault_created_at, vaultVersion: row.vault_version, keyVersion: row.vault_key_version,
+    revision: 0, personCounter: 0, institutionCounter: 0, entities: [],
+  };
+  mapping.revision += 1;
+  // 임의 객체의 추가 필드/직렬화 함수를 저장하지 않는다. 식별 근거는 이 암호문 안에만 둔다.
+  const evidence: CaseEntityEvidence = {
+    sourceKind: input.evidence.sourceKind, sourceId: input.evidence.sourceId, sourceRevision: input.evidence.sourceRevision,
+    sourceStart: input.evidence.sourceStart, sourceEnd: input.evidence.sourceEnd, quote: input.evidence.quote,
+  };
+  let number = input.number;
+  if (number === undefined) {
+    const counter = input.kind === 'person' ? 'personCounter' : 'institutionCounter';
+    number = mapping[counter] + 1;
+    if (!Number.isSafeInteger(number)) throw new ConflictError('entity mapping counter exhausted');
+    mapping[counter] = number;
+    mapping.entities.push({ kind: input.kind, number, value: input.value, evidence, aliases: [] });
+  } else {
+    const entity = mapping.entities.find(entry => entry.kind === input.kind && entry.number === number);
+    if (entity === undefined) throw new ForbiddenError('entity reference is unavailable');
+    entity.aliases.push({ value: input.value, evidence });
+  }
+  const encrypted = await encryptPii(env, stringifyJson(mapping));
+  const results = await env.DB.batch([
+    // 기존 batch 패턴으로 DB 행을 잠근다. 프로세스 지역 잠금은 쓰지 않는다.
+    env.DB.prepare('UPDATE participant_pii_vault SET version=version WHERE beneficiary_id=? AND org_id=? AND purged_at IS NULL')
+      .bind(row.beneficiary_id, actor.orgId),
+    env.DB.prepare(`UPDATE support_cases SET enc_entity_map=?,entity_map_revision=?,entity_map_key_version=?
+      WHERE id=? AND org_id=? AND entity_map_revision=? AND enc_entity_map IS NOT DISTINCT FROM ?
+        AND EXISTS (${caseEntityMappingScope} AND v.version=? AND v.created_at=? AND v.key_version=?)
+        AND EXISTS (${evidenceScope.sql})`)
+      .bind(encrypted, mapping.revision, mapping.keyVersion, supportCaseId, actor.orgId,
+        row.entity_map_revision, row.enc_entity_map, supportCaseId, actor.orgId,
+        row.vault_version, row.vault_created_at, row.vault_key_version, ...evidenceScope.bindings),
+    conditionalCanonicalAuditStatement(env, actor, {
+      action: 'update', targetTable: 'support_cases', targetId: supportCaseId, supportCaseId,
+      beneficiaryId: row.beneficiary_id, detail: { entityMapping: true, revision: mapping.revision },
+    }, {
+      sql: 'SELECT 1 FROM support_cases WHERE id=? AND org_id=? AND entity_map_revision=? AND enc_entity_map=?',
+      bindings: [supportCaseId, actor.orgId, mapping.revision, encrypted],
+    }, now()),
+  ]);
+  if (results[1]?.meta.changes !== 1) throw new ConflictError('entity mapping context changed');
+  return { revision: mapping.revision, number };
+}
+
 async function readPiiValues(
   env: Env,
   orgId: string,
