@@ -108,7 +108,7 @@ BEGIN
         SELECT substr(value,8) FROM jsonb_array_elements_text(NEW.source_ids_json::jsonb)
         WHERE value LIKE 'egress:%'
       )
-  ) THEN RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='privacy_purge_events_residual_scope';
+  )) THEN RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='privacy_purge_events_residual_scope';
   END IF;
   RETURN NEW;
 END $$;
