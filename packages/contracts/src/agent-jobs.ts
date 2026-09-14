@@ -1,7 +1,7 @@
 import type { DeploymentMode } from './runtime';
 import type { ConsentDomain } from './consent';
 import type { SttEngineId } from './stt-readiness';
-
+import type { EntitySourceDescriptor } from './entity-registration';
 export type { DeploymentMode } from './runtime';
 
 export const AGENT_JOB_STATES = [
@@ -90,11 +90,21 @@ export interface OpenAiEgressAuthorization {
     consentRevision: string;
   };
   status: 'authorized';
-  expiresAt: string;
 }
-
-export type EgressAuthorization = AzureEgressAuthorization | OpenAiEgressAuthorization;
-export type EgressRecordStatus = 'authorized' | 'in_flight' | 'completed' | 'revoked' | 'expired';
+export interface SourceResponse {
+  text: string;
+  sessionId: string;
+  sourceRevision: string;
+  sourceSha256: string;
+  sourceLength: number;
+  sourceBundleRevision: string;
+  expectedMapRevision: number;
+  sources: EntitySourceDescriptor[];
+  audio: null | {
+    generationId: string;
+    rawSha256: string | null;
+  };
+}
 
 export interface EgressAuthorizationRequest {
   claimToken: string;
@@ -254,6 +264,10 @@ export interface SourceResponse {
   sourceRevision: string;
   sourceSha256: string;
   sourceLength: number;
+  /** Server-ordered source/date witnesses fixed at the first source fetch. */
+  sourceBundleRevision: string;
+  expectedMapRevision: number;
+  sources: EntitySourceDescriptor[];
 }
 
 export interface TextProcessingStatus {

@@ -145,7 +145,6 @@ import {
   getSupportCaseReport,
   listCounselorAssignments,
   listMySupportCaseAssignmentRequests,
-  listGoals,
   claimAgentJobs,
   heartbeatAgentJob,
   releaseAgentJob,
@@ -190,6 +189,7 @@ import {
   PiiPurgeDisabledError,
   recordAiCallOutcome,
   registerAiProviderConfiguration,
+  registerCaseEntities,
   registerRecording,
   rescheduleCounselingSchedule,
   reviewAiDraftForSession,
@@ -255,6 +255,8 @@ import {
   type ReleaseRequest,
   type ResultRequest,
 } from '@ccc/contracts/agent-jobs';
+import type { EntityRegistrationRequest } from '@ccc/contracts/entity-registration';
+import { listGoals } from '@ccc/core/gateway';
 import {
   CONSENT_DOMAINS,
   type AppendConsentEventInput,
@@ -1368,6 +1370,71 @@ function parseAgentResultRequest(body: JsonObject): ResultRequest {
 function parseClaimCredentials(body: JsonObject): { claimToken: string; attempt: number } {
   requireOnlyKeys(body, ['claimToken', 'attempt']);
   return { claimToken: requiredString(body, 'claimToken'), attempt: requiredInteger(body, 'attempt') };
+}
+
+function parseEntityRegistrationRequest(body: JsonObject): EntityRegistrationRequest {
+  requireOnlyKeys(body, [
+    'family', 'jobId', 'claimToken', 'attempt', 'sourceBundleRevision', 'expectedMapRevision', 'entries',
+  ]);
+  const credentials = parseClaimCredentials({ claimToken: body.claimToken, attempt: body.attempt });
+  const familyValue = requiredString(body, 'family');
+  if (familyValue !== 'generic' && familyValue !== 'memory') {
+    throw new ValidationError('family is invalid');
+  }
+  const attempt = credentials.attempt;
+  if (!Number.isSafeInteger(attempt) || attempt < 1) {
+    throw new ValidationError('attempt is invalid');
+  }
+  const expectedMapRevision = body.expectedMapRevision;
+  if (!Number.isSafeInteger(expectedMapRevision) || (expectedMapRevision as number) < 0) {
+    throw new ValidationError('expectedMapRevision is invalid');
+  }
+  const rawEntries = objectArray(body.entries, 'entries');
+  if (rawEntries.length === 0) throw new ValidationError('entries must not be empty');
+  const entries = rawEntries.map<EntityRegistrationRequest['entries'][number]>((entry) => {
+    requireOnlyKeys(entry, ['kind', 'sourceValue', 'occurrences', 'entityReference']);
+    const kind = requiredString(entry, 'kind');
+    if (kind !== 'person' && kind !== 'institution') throw new ValidationError('entry kind is invalid');
+    const occurrences = objectArray(entry.occurrences, 'occurrences').map((occurrence) => {
+      requireOnlyKeys(occurrence, ['sourceId', 'sourceRevision', 'start', 'end']);
+      const start = occurrence.start;
+      const end = occurrence.end;
+      if (!Number.isSafeInteger(start) || (start as number) < 0
+        || !Number.isSafeInteger(end) || (end as number) <= (start as number)) {
+        throw new ValidationError('occurrence bounds are invalid');
+      }
+      return {
+        sourceId: requiredString(occurrence, 'sourceId'),
+        sourceRevision: requiredString(occurrence, 'sourceRevision'),
+        start: start as number,
+        end: end as number,
+      };
+    });
+    if (occurrences.length === 0) throw new ValidationError('occurrences must not be empty');
+    let entityReference: string | null;
+    if (entry.entityReference === null) {
+      entityReference = null;
+    } else if (typeof entry.entityReference === 'string' && entry.entityReference.trim().length > 0) {
+      entityReference = entry.entityReference;
+    } else {
+      throw new ValidationError('entityReference is invalid');
+    }
+    return {
+      kind,
+      sourceValue: requiredString(entry, 'sourceValue'),
+      occurrences,
+      entityReference,
+    };
+  });
+  return {
+    family: familyValue,
+    jobId: requiredString(body, 'jobId'),
+    claimToken: requiredString(body, 'claimToken'),
+    attempt: attempt as number,
+    sourceBundleRevision: requiredString(body, 'sourceBundleRevision'),
+    expectedMapRevision: expectedMapRevision as number,
+    entries,
+  };
 }
 
 /** claim 자격은 GET 에서도 필요하다. URL 에 토큰을 싣지 않고 헤더로만 받는다. */
@@ -3366,6 +3433,12 @@ export async function handleRequest(
         }
         return new Response(null, { status: 204 });
       }
+    }
+    if (parts[0] === 'pipeline' && parts[1] === 'entity-registrations') {
+      requestQuery(url, []);
+      if (request.method !== 'POST' || parts.length !== 2) return json({ error: 'not_found' }, 404);
+      if (actor.role !== 'service') throw new ForbiddenError();
+      return json(await registerCaseEntities(env, actor, parseEntityRegistrationRequest(await requestBody(request))));
     }
     if (parts[0] === 'pipeline' && parts[1] === 'memory') {
       requestQuery(url, []);

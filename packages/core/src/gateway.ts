@@ -89,6 +89,7 @@ import {
   type TextProcessingStatus,
   type SttEngine as AgentSttEngine,
 } from '@ccc/contracts/agent-jobs';
+import type { EntitySourceBinding, EntitySourceDescriptor } from '@ccc/contracts/entity-registration';
 import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision } from './access-policy';
 import {
   CONSENT_PRIVACY_NOTICE_TEXT,
@@ -1496,14 +1497,28 @@ async function decryptPii(env: Env, value: string | null): Promise<string | null
   return new TextDecoder().decode(decrypted);
 }
 
+type EntityRegistrationRequest = import('@ccc/contracts/entity-registration').EntityRegistrationRequest;
+type EntityRegistrationResponse = import('@ccc/contracts/entity-registration').EntityRegistrationResponse;
+type AppliedEntityRegistration = Extract<EntityRegistrationResponse, { outcome: 'applied' }>;
+interface EntityRegistrationReceipt {
+  family: EntityRegistrationRequest['family'];
+  jobId: string;
+  claimTokenHash: string;
+  attempt: number;
+  sourceBundleRevision: string;
+  entries: EntityRegistrationRequest['entries'];
+  response: AppliedEntityRegistration;
+}
+
 /** F1 내부 저장 계약. F2 호출 경계는 유효한 claim, 사례별 처리 동의, 근거의 동일인 판단을 검증해야 한다. */
 export interface CaseEntityEvidence {
-  sourceKind: 'support_case' | 'session' | 'goal' | 'schedule';
+  sourceKind: string;
   sourceId: string;
   sourceRevision: string;
   sourceStart: number;
   sourceEnd: number;
   quote: string;
+  identity?: { entityReference: string; sourceStart: number; sourceEnd: number; quote: string };
 }
 export interface CaseEntityMapping {
   orgId: string;
@@ -1515,6 +1530,7 @@ export interface CaseEntityMapping {
   revision: number;
   personCounter: number;
   institutionCounter: number;
+  registrationReceipts?: EntityRegistrationReceipt[];
   entities: Array<{
     kind: 'person' | 'institution';
     number: number;
@@ -1687,6 +1703,257 @@ export async function appendCaseEntityMapping(
   ]);
   if (results[1]?.meta.changes !== 1) throw new ConflictError('entity mapping context changed');
   return { revision: mapping.revision, number };
+}
+
+interface RegistrationAnchor {
+  evidence: CaseEntityEvidence;
+  points: readonly string[];
+  start: number;
+  order: number;
+}
+
+/** 두 표기가 같은 대상이라는 명시적 원천 표현만 허용한다. 근접성이나 철자는 증거가 아니다. */
+function registrationIdentityEvidence(
+  entity: CaseEntityMapping['entities'][number], value: string, reference: string, anchors: RegistrationAnchor[],
+): CaseEntityEvidence | null {
+  const known = [{ value: entity.value, evidence: entity.evidence }, ...entity.aliases];
+  for (const anchor of anchors) {
+    const evidence = anchor.evidence;
+    const points = anchor.points;
+    for (const previous of known) {
+      if (previous.value === value && previous.evidence.sourceId === evidence.sourceId
+        && previous.evidence.sourceRevision === evidence.sourceRevision
+        && previous.evidence.sourceStart >= anchor.start && previous.evidence.sourceEnd <= anchor.start + points.length
+        && points.slice(previous.evidence.sourceStart - anchor.start, previous.evidence.sourceEnd - anchor.start).join('') === value) {
+        return evidence;
+      }
+      const localStart = evidence.sourceStart - anchor.start;
+      const prefix = points.slice(Math.max(0, localStart - 160), localStart).join('');
+      const index = prefix.lastIndexOf(previous.value);
+      if (index < 0 || (index > 0 && !/[\s("'「『:：,]/.test(prefix[index - 1]!))) continue;
+      const relation = prefix.slice(index + previous.value.length);
+      if (!/^[\s(,:：]*(?:(?:의|은|는)\s*)?(?:별칭|별명|가명)(?:은|는|이|:|：)?[\s"'「『]*$/.test(relation)) continue;
+      const before = Array.from(prefix.slice(index)).length;
+      const sourceStart = evidence.sourceStart - before;
+      return { ...evidence, identity: { entityReference: reference, sourceStart,
+        sourceEnd: evidence.sourceEnd, quote: points.slice(sourceStart - anchor.start, evidence.sourceEnd - anchor.start).join('') } };
+    }
+  }
+  return null;
+}
+
+function registrationReceiptMatches(
+  receipt: EntityRegistrationReceipt, request: EntityRegistrationRequest, claimTokenHash: string,
+): boolean {
+  return receipt.family === request.family && receipt.jobId === request.jobId
+    && receipt.claimTokenHash === claimTokenHash && receipt.attempt === request.attempt
+    && receipt.sourceBundleRevision === request.sourceBundleRevision;
+}
+
+/** 등록값과 receipt의 원문은 F1 암호문 밖에 저장하지 않는다. */
+export async function registerCaseEntities(
+  env: Env, actor: Actor, request: EntityRegistrationRequest,
+): Promise<EntityRegistrationResponse> {
+  const context = await entityRegistrationContext(env, actor, request);
+  if (context === null) return { outcome: 'superseded' };
+  const { binding } = context;
+  const { row, mapping: before } = await caseEntityMappingState(env, actor, binding.supportCaseId);
+  const entries = request.entries.map(entry => ({
+    kind: entry.kind, sourceValue: entry.sourceValue, entityReference: entry.entityReference,
+    occurrences: entry.occurrences.map(occurrence => ({
+      sourceId: occurrence.sourceId, sourceRevision: occurrence.sourceRevision, start: occurrence.start, end: occurrence.end,
+    })),
+  }));
+  const exactRequest = canonicalizeJcs(entries);
+  const previousReceipts = (before?.registrationReceipts ?? [])
+    .filter(receipt => registrationReceiptMatches(receipt, request, binding.claimTokenHash));
+  const replay = previousReceipts.find(receipt => canonicalizeJcs(receipt.entries) === exactRequest);
+  if (replay !== undefined) {
+    if (await env.DB.prepare(context.guard.sql).bind(...context.guard.bindings).first() === null) {
+      const current = await entityRegistrationContext(env, actor, request);
+      if (current === null) return { outcome: 'superseded' };
+      throw new AgentJobContractError('stale_claim', request.jobId);
+    }
+    return replay.response;
+  }
+  if (request.expectedMapRevision !== row.entity_map_revision || binding.mapRevision !== row.entity_map_revision) {
+    await supersedeEntityRegistration(env, actor, request);
+    return { outcome: 'superseded' };
+  }
+  if (row.vault_key_version !== activePiiKeyVersion(env)
+    || binding.vaultVersion !== row.vault_version || binding.vaultCreatedAt !== row.vault_created_at
+    || binding.beneficiaryId !== row.beneficiary_id) throw new AgentJobContractError('stale_claim', request.jobId);
+
+  type Group = { kind: 'person' | 'institution'; value: string; indices: number[];
+    references: Set<string>; anchors: RegistrationAnchor[]; order: number; firstStart: number };
+  const groups = new Map<string, Group>();
+  const sourceTexts = context.texts.map(source => ({ ...source, points: Array.from(source.text) }));
+  for (const [index, entry] of entries.entries()) {
+    const key = `${entry.kind}\0${entry.sourceValue}`;
+    let group = groups.get(key);
+    if (group === undefined) {
+      group = { kind: entry.kind, value: entry.sourceValue, indices: [], references: new Set(), anchors: [], order: Infinity, firstStart: Infinity };
+      groups.set(key, group);
+    }
+    group.indices.push(index);
+    if (entry.entityReference !== null) {
+      const prefix = `${binding.supportCaseId}:${entry.kind}:`;
+      if (!entry.entityReference.startsWith(prefix) || !/^[1-9][0-9]*$/.test(entry.entityReference.slice(prefix.length))
+        || !Number.isSafeInteger(Number(entry.entityReference.slice(prefix.length)))) {
+        throw new AgentJobContractError('forbidden', request.jobId);
+      }
+      group.references.add(entry.entityReference);
+    }
+    for (const occurrence of entry.occurrences) {
+      const ordinal = binding.sources.findIndex(source => source.sourceId === occurrence.sourceId
+        && source.sourceRevision === occurrence.sourceRevision
+        && ((source.start <= occurrence.start && occurrence.end <= source.end)
+          || (source.sourceKind === 'transcript' && source.start === 0 && source.end === 0
+            && binding.audio?.rawSha256 != null && source.sha256 === binding.audio.rawSha256
+            && source.sourceRevision === binding.audio.generationId)));
+      const descriptor = binding.sources[ordinal];
+      const source = sourceTexts.find(source => source.sourceId === occurrence.sourceId
+        && source.sourceRevision === occurrence.sourceRevision && source.start <= occurrence.start
+        && occurrence.end <= source.start + source.points.length);
+      // 음성은 코어에 전사 원문이 없다. 현재 원음과 NER 자격에 묶인 Agent 증언이며 원문 대조로 가장하지 않는다.
+      const audioWitness = source === undefined && descriptor?.sourceKind === 'transcript'
+        && descriptor.start === 0 && descriptor.end === 0 && binding.audio?.rawSha256 != null
+        && descriptor.sha256 === binding.audio.rawSha256 && descriptor.sourceRevision === binding.audio.generationId;
+      const points = audioWitness ? Array.from(entry.sourceValue) : source?.points;
+      const start = audioWitness ? occurrence.start : source?.start;
+      if (descriptor === undefined || points === undefined || start === undefined
+        || !Number.isSafeInteger(occurrence.start) || !Number.isSafeInteger(occurrence.end)
+        || occurrence.start < 0 || occurrence.end <= occurrence.start
+        || (audioWitness ? occurrence.end - occurrence.start !== points.length
+          : occurrence.start < descriptor.start || occurrence.end > descriptor.end
+            || points.slice(occurrence.start - start, occurrence.end - start).join('') !== entry.sourceValue)) {
+        const error = new AgentJobContractError('evidence_hash_mismatch', request.jobId);
+        if (request.family === 'generic') {
+          const job = await loadClaimedAgentJob(env, actor, request.jobId, request.claimToken, request.attempt);
+          await closeJobOnResultRejection(env, actor, job, request.claimToken, () => { throw error; });
+        } else {
+          await releaseCounselingMemorySource(env, actor, request.jobId, {
+            claimToken: request.claimToken, attempt: request.attempt, outcome: 'permanent', reason: 'masking_failed',
+          });
+        }
+        throw error;
+      }
+      const order = ordinal;
+      const evidence: CaseEntityEvidence = { sourceKind: descriptor.sourceKind, sourceId: descriptor.sourceId,
+        sourceRevision: descriptor.sourceRevision, sourceStart: occurrence.start, sourceEnd: occurrence.end, quote: entry.sourceValue };
+      group.anchors.push({ evidence, points, start, order });
+      if (order < group.order || (order === group.order && occurrence.start < group.firstStart)) {
+        group.order = order;
+        group.firstStart = occurrence.start;
+      }
+    }
+  }
+
+  const mapping: CaseEntityMapping = before ?? {
+    orgId: actor.orgId, supportCaseId: binding.supportCaseId, beneficiaryId: row.beneficiary_id,
+    vaultCreatedAt: row.vault_created_at, vaultVersion: row.vault_version, keyVersion: row.vault_key_version,
+    revision: 0, personCounter: 0, institutionCounter: 0, entities: [],
+  };
+  if (!Number.isSafeInteger(mapping.revision + 1)) throw new ConflictError('entity mapping revision exhausted');
+  const response: AppliedEntityRegistration = { outcome: 'applied', mapRevision: mapping.revision + 1,
+    entries: entries.map((_, index) => ({ index, number: null, reason: 'missing_identity_evidence' })) };
+  for (const group of [...groups.values()].sort((left, right) => left.order - right.order || left.firstStart - right.firstStart)) {
+    group.anchors.sort((left, right) => left.order - right.order || left.evidence.sourceStart - right.evidence.sourceStart);
+    let number: number | null = null;
+    let reason: 'ambiguous_identity' | 'missing_identity_evidence' | null = null;
+    const earlier = previousReceipts.flatMap(receipt => receipt.entries.flatMap((entry, index) =>
+      entry.kind === group.kind && entry.sourceValue === group.value ? [receipt.response.entries[index]!] : []));
+    const priorNumbers = new Set(earlier.flatMap(entry => entry.number === null ? [] : [entry.number]));
+    const referencedNumbers = new Set([...group.references].map(reference => Number(reference.slice(reference.lastIndexOf(':') + 1))));
+    const combinedNumbers = new Set([...priorNumbers, ...referencedNumbers]);
+    if (combinedNumbers.size > 1 || earlier.some(entry => entry.reason === 'ambiguous_identity')) {
+      reason = 'ambiguous_identity';
+    } else if (group.anchors.length === 0) {
+      reason = 'missing_identity_evidence';
+    } else if (priorNumbers.size === 1) {
+      number = [...priorNumbers][0]!;
+    } else if (referencedNumbers.size === 1) {
+      const target = [...referencedNumbers][0]!;
+      const entity = mapping.entities.find(entity => entity.kind === group.kind && entity.number === target);
+      const proof = entity === undefined ? null
+        : registrationIdentityEvidence(entity, group.value, [...group.references][0]!, group.anchors);
+      if (entity === undefined || proof === null) reason = 'missing_identity_evidence';
+      else {
+        number = target;
+        if (group.value !== entity.value && !entity.aliases.some(alias => alias.value === group.value)) {
+          entity.aliases.push({ value: group.value, evidence: proof });
+        }
+      }
+    } else if (mapping.entities.some(entity => entity.kind === group.kind
+      && (entity.value === group.value || entity.aliases.some(alias => alias.value === group.value)))) {
+      reason = 'ambiguous_identity';
+    } else {
+      const counter = group.kind === 'person' ? 'personCounter' : 'institutionCounter';
+      number = mapping[counter] + 1;
+      if (!Number.isSafeInteger(number)) throw new ConflictError('entity mapping counter exhausted');
+      mapping[counter] = number;
+      mapping.entities.push({ kind: group.kind, number, value: group.value, evidence: group.anchors[0]!.evidence, aliases: [] });
+    }
+    for (const index of group.indices) response.entries[index] = { index, number, reason };
+  }
+  mapping.revision = response.mapRevision;
+  (mapping.registrationReceipts ??= []).push({ family: request.family, jobId: request.jobId,
+    claimTokenHash: binding.claimTokenHash, attempt: request.attempt, sourceBundleRevision: request.sourceBundleRevision,
+    entries, response });
+  const encrypted = await encryptPii(env, stringifyJson(mapping));
+  const marker = newId();
+  const nextBinding = canonicalizeJcs({ ...binding, mapRevision: mapping.revision });
+  const table = request.family === 'generic' ? 'agent_jobs' : 'counseling_memory_materials';
+  const tokenColumn = request.family === 'generic' ? 'claim_token_hash' : 'lease_token';
+  const stateColumn = request.family === 'generic' ? 'state' : 'status';
+  try {
+    const results = await programPolicyBatch(env, context.programAdmission.context, [
+      env.DB.prepare('UPDATE participant_pii_vault SET version=version WHERE beneficiary_id=? AND org_id=?')
+        .bind(row.beneficiary_id, actor.orgId),
+      env.DB.prepare('UPDATE support_cases SET entity_map_revision=entity_map_revision WHERE id=? AND org_id=?')
+        .bind(binding.supportCaseId, actor.orgId),
+      env.DB.prepare(`UPDATE ${table} SET attempt=attempt WHERE id=? AND org_id=?`)
+        .bind(request.jobId, actor.orgId),
+      env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS (
+        ${caseEntityMappingScope} AND sc.entity_map_revision=? AND sc.enc_entity_map IS NOT DISTINCT FROM ?
+          AND v.version=? AND v.created_at=? AND v.key_version=?
+        ) AND EXISTS (${context.guard.sql}) THEN 1 ELSE 0 END)`)
+        .bind(marker, actor.orgId, binding.supportCaseId, actor.orgId, row.entity_map_revision, row.enc_entity_map,
+          row.vault_version, row.vault_created_at, row.vault_key_version, ...context.guard.bindings),
+      // 이 claim의 결속부터 옮긴 뒤 map을 쓴다. 외부 정정 trigger가 자신의 등록을 폐기하지 않는다.
+      env.DB.prepare(`UPDATE ${table} SET entity_source_binding=? WHERE id=? AND org_id=? AND attempt=? AND ${tokenColumn}=?`)
+        .bind(nextBinding, request.jobId, actor.orgId, request.attempt, binding.claimTokenHash),
+      env.DB.prepare(`UPDATE support_cases SET enc_entity_map=?,entity_map_revision=?,entity_map_key_version=?
+        WHERE id=? AND org_id=? AND entity_map_revision=? AND enc_entity_map IS NOT DISTINCT FROM ?`)
+        .bind(encrypted, mapping.revision, mapping.keyVersion, binding.supportCaseId, actor.orgId, row.entity_map_revision, row.enc_entity_map),
+      env.DB.prepare(`UPDATE counseling_memory_guards SET ok=CASE WHEN EXISTS (
+        SELECT 1 FROM support_cases WHERE id=? AND org_id=? AND entity_map_revision=? AND enc_entity_map=?
+      ) AND EXISTS (SELECT 1 FROM ${table} WHERE id=? AND org_id=? AND ${stateColumn}='leased'
+        AND attempt=? AND ${tokenColumn}=? AND entity_source_binding=?) THEN 1 ELSE 0 END WHERE id=?`)
+        .bind(binding.supportCaseId, actor.orgId, mapping.revision, encrypted,
+          request.jobId, actor.orgId, request.attempt, binding.claimTokenHash, nextBinding, marker),
+      conditionalCanonicalAuditStatement(env, actor, {
+        action: 'update', targetTable: 'support_cases', targetId: binding.supportCaseId, supportCaseId: binding.supportCaseId,
+        beneficiaryId: row.beneficiary_id, detail: { entityMapping: true, revision: mapping.revision, registration: true },
+      }, { sql: 'SELECT 1 FROM support_cases WHERE id=? AND org_id=? AND entity_map_revision=? AND enc_entity_map=?',
+        bindings: [binding.supportCaseId, actor.orgId, mapping.revision, encrypted] }, now()),
+      env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(marker),
+    ], context.programAdmission.program);
+    if (results[4]?.meta.changes !== 1 || results[5]?.meta.changes !== 1) {
+      throw new ConflictError('entity registration context changed');
+    }
+  } catch (error) {
+    // 다른 요청이 먼저 같은 receipt를 저장한 경우만 재생한다. 번호 배정 자체를 재시도하지 않는다.
+    const current = await entityRegistrationContext(env, actor, request);
+    if (current === null) return { outcome: 'superseded' };
+    const stored = await caseEntityMappingState(env, actor, current.binding.supportCaseId);
+    const raced = stored.mapping?.registrationReceipts?.find(receipt =>
+      registrationReceiptMatches(receipt, request, current.binding.claimTokenHash)
+      && canonicalizeJcs(receipt.entries) === exactRequest);
+    if (raced !== undefined && await env.DB.prepare(current.guard.sql).bind(...current.guard.bindings).first() !== null) return raced.response;
+    throw error;
+  }
+  return response;
 }
 
 async function readPiiValues(
@@ -7743,7 +8010,7 @@ async function buildAgentJobSourceText(
   const scope = await resolveSessionScope(env, actor.orgId, sessionId);
 
   const [sessionRow, approvedRow, caseRow, intakeRow, detailGoalRows, sessionGoalRows] = await Promise.all([
-    env.DB.prepare('SELECT id, memo, record_details, manual_schema_version, manual_revision FROM sessions WHERE id = ? AND org_id = ?')
+    env.DB.prepare('SELECT id, held_at, memo, record_details, manual_schema_version, manual_revision FROM sessions WHERE id = ? AND org_id = ?')
       .bind(sessionId, actor.orgId).first<DbRow>(),
     env.DB.prepare(
       `SELECT summary_text FROM approved_ai_briefing_v1
@@ -8743,6 +9010,7 @@ interface AgentJobRow {
   requiredConsent: string;
   maskDictionaryId: string | null;
   maskDictionaryExpiresAt: string | null;
+  entitySourceBinding: string | null;
 }
 
 function mapAgentJobRow(row: DbRow): AgentJobRow {
@@ -8791,6 +9059,7 @@ function mapAgentJobRow(row: DbRow): AgentJobRow {
     requiredConsent: stringValue(row.required_consent),
     maskDictionaryId: nullableString(row.mask_dictionary_id),
     maskDictionaryExpiresAt: nullableString(row.mask_dictionary_expires_at),
+    entitySourceBinding: nullableString(row.entity_source_binding),
   };
 }
 
@@ -8987,6 +9256,11 @@ async function recoverAgentJobs(env: Env, orgId: string, nowIso: string): Promis
          lease_owner=NULL,claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
        WHERE org_id=? AND state='leased' AND lease_expires_at<=?`,
     ).bind(AGENT_JOB_MAX_ATTEMPTS, AGENT_JOB_MAX_ATTEMPTS, nowIso, orgId, nowIso),
+    env.DB.prepare(
+      `UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+         entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+       WHERE org_id=? AND entity_map_lease_expires_at<=?`,
+    ).bind(orgId, nowIso),
     env.DB.prepare(
       `UPDATE audio_objects SET
          state=CASE WHEN EXISTS(
@@ -9215,6 +9489,7 @@ export async function claimAgentJobs(
   const claimed: AgentJob[] = [];
   if (leases.length > 0) {
     const statements: PreparedStatement[] = [];
+    const slots: Array<{ lease: typeof leases[number]; jobIndex: number; audioIndex: number | null }> = [];
     for (const lease of leases) {
       const tokenHash = await sha256Hex(lease.claimToken);
       const receipt = parseJson<ConsentGateReceipt>(lease.job.consentReceiptJson);
@@ -9227,6 +9502,17 @@ export async function claimAgentJobs(
       const audioConsentGuard = lease.job.kind === 'audio' && receipt !== null
         ? consentSqlGuard(receipt, 'audio_objects')
         : { sql: '1=1', bindings: [] as Bindable[] };
+      // The case row is the map-consumer lock. It is deliberately acquired
+      // before the job CAS so a contending case never burns an attempt.
+      statements.push(env.DB.prepare(
+        `UPDATE support_cases SET entity_map_lease_family='generic',entity_map_lease_job_id=?,
+           entity_map_lease_attempt=?,entity_map_lease_expires_at=?
+         WHERE id=? AND org_id=? AND status='active'
+           AND ((entity_map_lease_family IS NULL AND entity_map_lease_job_id IS NULL
+             AND entity_map_lease_attempt IS NULL AND entity_map_lease_expires_at IS NULL)
+             OR entity_map_lease_expires_at<=?)`,
+      ).bind(lease.job.id, lease.attempt, lease.leaseExpiresAt, lease.job.supportCaseId, actor.orgId, nowIso));
+      const jobIndex = statements.length;
       statements.push(
         env.DB.prepare(
           `UPDATE agent_jobs
@@ -9239,6 +9525,10 @@ export async function claimAgentJobs(
              mask_dictionary_id=NULL,mask_dictionary_issued_at=NULL,
              mask_dictionary_expires_at=NULL,mask_dictionary_consumed_at=NULL,updated_at=?
            WHERE id=? AND org_id=? AND state=? AND attempt=?
+             AND EXISTS (SELECT 1 FROM support_cases AS leased
+               WHERE leased.id=agent_jobs.support_case_id AND leased.org_id=agent_jobs.org_id
+                 AND leased.entity_map_lease_family='generic' AND leased.entity_map_lease_job_id=agent_jobs.id
+                 AND leased.entity_map_lease_attempt=? AND leased.entity_map_lease_expires_at>?)
              AND (kind='text' OR (stt_engine=? AND stt_engine_id=? AND EXISTS(
                SELECT 1 FROM audio_objects AS audio
                WHERE audio.id=agent_jobs.audio_object_id AND audio.state='available'
@@ -9254,12 +9544,16 @@ export async function claimAgentJobs(
           attestation.id, attestation.modelId, attestation.modelRevision, attestation.labelSetHash,
           attestation.corpusHash, attestation.resultHash, attestation.validatedAt, attestation.expiresAt,
           request.releaseQualificationReceiptId, runtime.route, lease.processingDeadlineAt, nowIso,
-          lease.job.id, actor.orgId, lease.job.state, lease.job.attempt,
+          lease.job.id, actor.orgId, lease.job.state, lease.job.attempt, lease.attempt, nowIso,
           runtime.sttEngine, runtime.sttEngineId, nowIso, nowIso, nowIso,
           ...jobConsentGuard.bindings,
           ...(lease.job.kind === 'audio' ? audioAdmission : textAdmission),
         ),
-        env.DB.prepare(
+      );
+      let audioIndex: number | null = null;
+      if (lease.job.kind === 'audio') {
+        audioIndex = statements.length;
+        statements.push(env.DB.prepare(
           `UPDATE audio_objects
            SET state='claimed',first_agent_available_at=COALESCE(first_agent_available_at,?),
              processing_deadline_at=COALESCE(processing_deadline_at,?),claim_id=?,
@@ -9276,17 +9570,39 @@ export async function claimAgentJobs(
           lease.job.audioObjectId, actor.orgId, lease.job.audioGenerationId, nowIso, nowIso,
           ...audioConsentGuard.bindings,
           lease.job.id, actor.userId, tokenHash, lease.attempt,
-        ),
-      );
+        ));
+      }
+      // Roll back a claim whose paired audio CAS lost a race; this also
+      // prevents the case lock from becoming an orphaned lease.
+      statements.push(env.DB.prepare(
+        `UPDATE agent_jobs SET state=?,attempt=?,lease_owner=NULL,claim_token_hash=NULL,
+           claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+         WHERE id=? AND org_id=? AND state='leased' AND lease_owner=?
+           AND claim_token_hash=? AND attempt=? AND ? IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM audio_objects WHERE id=? AND claim_id=? AND claim_agent_id=?
+             AND claim_expires_at=? AND state='claimed')`,
+      ).bind(
+        lease.job.state, lease.job.attempt, nowIso, lease.job.id, actor.orgId, actor.userId,
+        tokenHash, lease.attempt, lease.job.kind === 'audio' ? lease.job.audioObjectId : null,
+        lease.job.audioObjectId, lease.job.id, actor.userId, lease.leaseExpiresAt,
+      ));
+      statements.push(env.DB.prepare(
+        `UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+           entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+         WHERE id=? AND org_id=? AND entity_map_lease_family='generic'
+           AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?
+           AND NOT EXISTS (SELECT 1 FROM agent_jobs WHERE id=? AND org_id=? AND state='leased'
+             AND lease_owner=? AND claim_token_hash=? AND attempt=?)`,
+      ).bind(lease.job.supportCaseId, actor.orgId, lease.job.id, lease.attempt,
+        lease.job.id, actor.orgId, actor.userId, tokenHash, lease.attempt));
+      slots.push({ lease, jobIndex, audioIndex });
     }
     const results = await programPolicyBatch(env, admissionContext, statements);
-    leases.forEach((lease, index) => {
-      const jobChanges = results[index * 2]?.meta?.changes ?? 0;
-      const audioChanges = lease.job.kind === 'audio'
-        ? results[index * 2 + 1]?.meta?.changes ?? 0
-        : 1;
-      if (jobChanges < 1 || audioChanges < 1) return;
-      claimed.push({
+    for (const { lease, jobIndex, audioIndex } of slots) {
+      const jobChanges = results[jobIndex]?.meta?.changes ?? 0;
+      const audioChanges = audioIndex === null ? 1 : results[audioIndex]?.meta?.changes ?? 0;
+      if (jobChanges < 1 || audioChanges < 1) continue;
+      const claimedJob: AgentJob = {
         jobId: lease.job.id,
         sessionId: lease.job.sessionId,
         caseId: lease.job.supportCaseId,
@@ -9319,8 +9635,9 @@ export async function claimAgentJobs(
             expiresAt: null,
           }
           : null,
-      });
-    });
+      };
+      claimed.push(claimedJob);
+    }
   }
 
   await writeAudit(env, actor, {
@@ -9384,12 +9701,21 @@ export async function heartbeatAgentJob(
   const nowIso = now();
   const leaseExpiresAt = agentLeaseExpiry(nowIso, job.claimedAt ?? nowIso, job);
   // 조회와 갱신 사이에 임대가 만료됐으면 연장하지 않는다 — 자연 만료는 되살릴 수 없다.
-  const updated = await env.DB.prepare(
-    `UPDATE agent_jobs SET lease_expires_at = ?, updated_at = ?
-     WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
-       AND lease_expires_at > ?`,
-  ).bind(leaseExpiresAt, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso).run();
-  if ((updated.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE agent_jobs SET lease_expires_at = ?, updated_at = ?
+       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+         AND lease_expires_at > ?`,
+    ).bind(leaseExpiresAt, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso),
+    env.DB.prepare(
+      `UPDATE support_cases SET entity_map_lease_expires_at=?
+       WHERE id=? AND org_id=? AND entity_map_lease_family='generic'
+         AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?
+         AND entity_map_lease_expires_at>?`,
+    ).bind(leaseExpiresAt, job.supportCaseId, actor.orgId, jobId, job.attempt, nowIso),
+  ]);
+  if ((results[0]?.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
+  if ((results[1]?.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
   return { jobId, state: 'leased', attempt: job.attempt, leaseExpiresAt };
 }
 
@@ -9527,6 +9853,13 @@ export async function releaseAgentJob(
       (results[0]?.meta?.changes ?? 0) === 0 || (results[1]?.meta?.changes ?? 0) === 0
     ) await throwAgentJobCasFailure(env, actor, jobId, request);
   }
+  const releasedLease = await env.DB.prepare(
+    `UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+       entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+     WHERE id=? AND org_id=? AND entity_map_lease_family='generic'
+       AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`,
+  ).bind(job.supportCaseId, actor.orgId, job.id, job.attempt).run();
+  if ((releasedLease.meta?.changes ?? 0) !== 1) await throwAgentJobCasFailure(env, actor, jobId, request);
   await writeAudit(env, actor, {
     action: 'update',
     targetTable: 'agent_jobs',
@@ -9544,6 +9877,161 @@ async function requireAgentJobProgramAdmission(env: Env, orgId: string, job: Age
   return admission;
 }
 
+async function textSourceBinding(
+  env: Env, actor: Actor, job: AgentJobRow, sourceText: string, generation: number,
+): Promise<EntitySourceBinding> {
+  const session = await env.DB.prepare(
+    `SELECT s.held_at,sc.beneficiary_id,sc.entity_map_revision,pv.created_at AS vault_created_at,
+       pv.version AS vault_version,pv.key_version,os.time_zone
+     FROM sessions s JOIN support_cases sc ON sc.id=s.support_case_id AND sc.org_id=s.org_id
+     JOIN participant_pii_vault pv ON pv.beneficiary_id=sc.beneficiary_id AND pv.org_id=sc.org_id
+     JOIN organization_settings os ON os.org_id=sc.org_id
+     WHERE s.id=? AND s.org_id=? AND pv.purged_at IS NULL`,
+  ).bind(job.sessionId, actor.orgId).first<DbRow>();
+  if (session === null) throw new AgentJobContractError('consent_not_effective', job.id);
+  const consultationDateTime = stringValue(session.held_at);
+  const consultationDate = consultationDateTime.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(consultationDate)) {
+    throw new AgentJobContractError('result_schema_invalid', job.id);
+  }
+  const points = Array.from(sourceText);
+  const sources: EntitySourceDescriptor[] = [];
+  let start = 0;
+  for (const line of sourceText.split('\n')) {
+    const end = start + Array.from(line).length;
+    if (end > start) sources.push({
+      sourceId: job.sessionId,
+      sourceRevision: String(generation),
+      sourceKind: 'session',
+      start,
+      end,
+      sha256: await sha256Hex(line),
+      consultationDate,
+      dateRevision: consultationDateTime,
+    });
+    start = end + 1;
+  }
+  if (points.length > 0 && sources.length === 0) {
+    sources.push({
+      sourceId: job.sessionId, sourceRevision: String(generation), sourceKind: 'session',
+      start: 0, end: points.length, sha256: await sha256Hex(sourceText),
+      consultationDate, dateRevision: consultationDateTime,
+    });
+  }
+  const sourceBundleRevision = await sha256Hex(canonicalizeJcs({
+    version: 1, generation, sourceSha256: await sha256Hex(sourceText), sources,
+  }));
+  return {
+    version: 1,
+    sourceBundleRevision,
+    orgId: actor.orgId,
+    supportCaseId: job.supportCaseId,
+    beneficiaryId: stringValue(session.beneficiary_id),
+    vaultCreatedAt: stringValue(session.vault_created_at),
+    vaultVersion: Number(session.vault_version),
+    keyVersion: Number(session.key_version),
+    family: 'generic',
+    jobId: job.id,
+    attempt: job.attempt,
+    claimTokenHash: job.claimTokenHash!,
+    generation,
+    mapRevision: Number(session.entity_map_revision),
+    consentRevision: job.consentRevision!,
+    sources,
+    audio: null,
+  };
+}
+async function audioSourceBinding(
+  env: Env,
+  actor: Actor,
+  job: AgentJobRow,
+  attempt: number,
+  claimTokenHash: string,
+): Promise<EntitySourceBinding> {
+  const row = await env.DB.prepare(
+    `SELECT s.held_at,sc.beneficiary_id,sc.entity_map_revision,cmc.generation,pv.created_at AS vault_created_at,
+       pv.version AS vault_version,pv.key_version
+     FROM sessions s JOIN support_cases sc ON sc.id=s.support_case_id AND sc.org_id=s.org_id
+     JOIN counseling_memory_cases cmc ON cmc.org_id=sc.org_id AND cmc.support_case_id=sc.id
+     JOIN participant_pii_vault pv ON pv.beneficiary_id=sc.beneficiary_id AND pv.org_id=sc.org_id
+     WHERE s.id=? AND s.org_id=? AND s.support_case_id=? AND pv.purged_at IS NULL`,
+  ).bind(job.sessionId, actor.orgId, job.supportCaseId).first<DbRow>();
+  if (row === null || job.audioGenerationId === null) throw new AgentJobContractError('consent_not_effective', job.id);
+  const consultationDateTime = stringValue(row.held_at);
+  const consultationDate = consultationDateTime.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(consultationDate)) throw new AgentJobContractError('result_schema_invalid', job.id);
+  const rawSha256 = job.rawAudioSha256;
+  const sources: EntitySourceDescriptor[] = rawSha256 === null ? [] : [{
+    sourceId: job.sessionId,
+    sourceRevision: job.audioGenerationId,
+    sourceKind: 'transcript',
+    start: 0,
+    end: 0,
+    sha256: rawSha256,
+    consultationDate,
+    dateRevision: consultationDateTime,
+  }];
+  const sourceBundleRevision = await sha256Hex(canonicalizeJcs({
+    version: 1, generation: Number(row.generation), rawSha256, sources,
+  }));
+  const binding: EntitySourceBinding = {
+    version: 1,
+    sourceBundleRevision,
+    orgId: actor.orgId,
+    supportCaseId: job.supportCaseId,
+    beneficiaryId: stringValue(row.beneficiary_id),
+    vaultCreatedAt: stringValue(row.vault_created_at),
+    vaultVersion: Number(row.vault_version),
+    keyVersion: Number(row.key_version),
+    family: 'generic',
+    jobId: job.id,
+    attempt,
+    claimTokenHash,
+    generation: Number(row.generation),
+    mapRevision: Number(row.entity_map_revision),
+    consentRevision: job.consentRevision!,
+    sources,
+    audio: { generationId: job.audioGenerationId, rawSha256 },
+  };
+  const stored = await env.DB.prepare(
+    `UPDATE agent_jobs SET entity_source_binding=?
+     WHERE id=? AND org_id=? AND kind='audio' AND state='leased' AND claim_token_hash=? AND attempt=?
+       AND lease_expires_at>? AND audio_generation_id=?`,
+  ).bind(JSON.stringify(binding), job.id, actor.orgId, claimTokenHash, attempt, now(), job.audioGenerationId).run();
+  if ((stored.meta?.changes ?? 0) !== 1) throw new AgentJobContractError('stale_claim', job.id);
+  return binding;
+}
+
+
+
+async function sourceBindingForJob(
+  env: Env,
+  actor: Actor,
+  job: AgentJobRow,
+  sourceText: string,
+  generation: number,
+): Promise<EntitySourceBinding> {
+  const saved = parseJson<EntitySourceBinding>(job.entitySourceBinding);
+  if (saved !== null) {
+    if (saved.orgId !== actor.orgId || saved.supportCaseId !== job.supportCaseId
+      || saved.jobId !== job.id || saved.attempt !== job.attempt
+      || saved.generation !== generation || job.sourceSha256 !== await sha256Hex(sourceText)) {
+      throw new AgentJobContractError('stale_claim', job.id);
+    }
+    return saved;
+  }
+  const binding = await textSourceBinding(env, actor, job, sourceText, generation);
+  const stored = await env.DB.prepare(
+    `UPDATE agent_jobs SET entity_source_binding=?
+     WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=?
+       AND lease_expires_at>? AND source_generation=? AND source_sha256=?`,
+  ).bind(JSON.stringify(binding), job.id, actor.orgId, job.claimTokenHash, job.attempt, now(),
+    generation, await sha256Hex(sourceText)).run();
+  if ((stored.meta?.changes ?? 0) !== 1) throw new AgentJobContractError('stale_claim', job.id);
+  return binding;
+}
+
+
 /** claim 에 묶인 텍스트 원문. 1차 치환까지 끝난 공식 텍스트만 나간다. */
 export async function getAgentJobSource(
   env: Env,
@@ -9553,6 +10041,38 @@ export async function getAgentJobSource(
   attempt: number,
 ): Promise<SourceResponse> {
   const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
+  if (job.kind === 'audio') {
+    await requireAgentJobProgramAdmission(env, actor.orgId, job);
+    await agentJobConsentRevision(env, actor.orgId, job);
+    await assertAgentJobQualificationCurrent(env, actor, job);
+    const audio = await env.DB.prepare(
+      'SELECT generation_id,raw_sha256,state FROM audio_objects WHERE id=? AND org_id=?',
+    ).bind(job.audioObjectId, actor.orgId).first<DbRow>();
+    if (audio === null || stringValue(audio.generation_id) !== job.audioGenerationId
+      || stringValue(audio.raw_sha256) !== (job.rawAudioSha256 ?? '')
+      || stringValue(audio.state) !== 'claimed') {
+      throw new AgentJobContractError('stale_claim', jobId);
+    }
+    const binding = parseJson<EntitySourceBinding>(job.entitySourceBinding)
+      ?? await audioSourceBinding(env, actor, job, attempt, job.claimTokenHash!);
+    if (binding.jobId !== job.id || binding.attempt !== attempt
+      || binding.generation !== await textSourceGeneration(env, actor.orgId, job.supportCaseId)
+      || binding.audio?.generationId !== job.audioGenerationId
+      || binding.audio.rawSha256 !== job.rawAudioSha256) {
+      throw new AgentJobContractError('stale_claim', jobId);
+    }
+    return {
+      text: '',
+      sessionId: job.sessionId,
+      sourceRevision: job.audioGenerationId!,
+      sourceSha256: await sha256Hex(''),
+      sourceLength: 0,
+      sourceBundleRevision: binding.sourceBundleRevision,
+      expectedMapRevision: binding.mapRevision,
+      sources: binding.sources,
+      audio: { generationId: job.audioGenerationId!, rawSha256: job.rawAudioSha256 },
+    };
+  }
   if (job.kind !== 'text') throw new AgentJobContractError('forbidden', jobId);
   await requireAgentJobProgramAdmission(env, actor.orgId, job);
   const generation = await textSourceGeneration(env, actor.orgId, job.supportCaseId);
@@ -9568,7 +10088,17 @@ export async function getAgentJobSource(
   ).bind(generation, hash, length, jobId, actor.orgId, job.claimTokenHash, attempt, now(),
     generation, hash, generation).run();
   if ((saved.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
-  return { ...source, sourceRevision: String(generation), sourceSha256: hash, sourceLength: length };
+  const bound = await sourceBindingForJob(env, actor, { ...job, sourceGeneration: generation, sourceSha256: hash, sourceLength: length }, source.text, generation);
+  return {
+    ...source,
+    sourceRevision: String(generation),
+    sourceSha256: hash,
+    sourceLength: length,
+    sourceBundleRevision: bound.sourceBundleRevision,
+    expectedMapRevision: bound.mapRevision,
+    sources: bound.sources,
+    audio: null,
+  };
 }
 
 /** Same context-generation fence used by memory work; no independent revision counter. */
@@ -9588,6 +10118,158 @@ async function assertTextJobSourceCurrent(env: Env, actor: Actor, job: AgentJobR
     || await sha256Hex((await buildAgentJobSourceText(env, actor, job.sessionId)).text) !== job.sourceSha256) {
     throw new AgentJobContractError('stale_claim', job.id);
   }
+}
+/**
+ * Atomically closes a live registration claim after the encrypted receipt
+ * lookup has established a map/source mismatch. This path intentionally does
+ * not inspect expectedMapRevision; callers perform replay lookup first.
+ */
+export async function supersedeEntityRegistration(
+  env: Env,
+  actor: Actor,
+  request: EntityRegistrationRequest,
+): Promise<void> {
+  assertAgentActor(actor);
+  if (request.family === 'generic') {
+    const job = await loadClaimedAgentJob(env, actor, request.jobId, request.claimToken, request.attempt);
+    const at = now();
+    const results = await env.DB.batch([
+      env.DB.prepare(`UPDATE agent_jobs SET state='failed',terminal_failure_code='stale_claim',
+        lease_owner=NULL,claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+        WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=?`).bind(at,job.id,actor.orgId,job.claimTokenHash,job.attempt),
+      env.DB.prepare(`UPDATE ai_text_work_queue SET status='pending',lease_owner=NULL,lease_expires_at=NULL
+        WHERE org_id=? AND id=? AND status='processing'`).bind(actor.orgId,job.sourceTextWorkItemId),
+      env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+        entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+        WHERE id=? AND org_id=? AND entity_map_lease_family='generic'
+          AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`).bind(job.supportCaseId,actor.orgId,job.id,job.attempt),
+    ]);
+    if ((results[0]?.meta?.changes ?? 0) !== 1) throw new AgentJobContractError('stale_claim', job.id);
+    return;
+  }
+  const { row } = await memoryClaim(env, actor, request.jobId, request.claimToken, request.attempt);
+  const at = now();
+  const results = await env.DB.batch([
+    env.DB.prepare(`UPDATE counseling_memory_materials SET status='failed',valid=0,lease_token=NULL,lease_until=NULL,
+      actor_id=NULL,entity_source_binding=NULL
+      WHERE id=? AND org_id=? AND status='leased' AND lease_token=? AND attempt=? AND valid=1`)
+      .bind(row.id,actor.orgId,row.lease_token,row.attempt),
+    env.DB.prepare(`UPDATE counseling_memory_sources SET dirty=1 WHERE org_id=? AND support_case_id=?
+      AND kind=? AND source_id=? AND revision=?`).bind(actor.orgId,row.support_case_id,row.kind,row.source_id,row.source_revision),
+    env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+      entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+      WHERE id=? AND org_id=? AND entity_map_lease_family='memory'
+        AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`).bind(row.support_case_id,actor.orgId,row.id,row.attempt),
+  ]);
+  if ((results[0]?.meta?.changes ?? 0) !== 1) throw new AgentJobContractError('stale_claim', row.id);
+}
+
+/** Shared currentness seam for the F2 registration operation. */
+export async function entityRegistrationContext(
+  env: Env,
+  actor: Actor,
+  request: EntityRegistrationRequest,
+): Promise<{ binding: EntitySourceBinding; texts: Array<{ sourceId: string; sourceRevision: string; text: string; start: number }>; programAdmission: ProgramAdmissionGrant; guard: { sql: string; bindings: Bindable[] } } | null> {
+  assertAgentActor(actor);
+  if (request.family === 'generic') {
+    const job = await loadClaimedAgentJob(env, actor, request.jobId, request.claimToken, request.attempt);
+    const binding = parseJson<EntitySourceBinding>(job.entitySourceBinding);
+    if (binding === null || binding.family !== 'generic') throw new AgentJobContractError('result_schema_invalid', job.id);
+    if (request.sourceBundleRevision !== binding.sourceBundleRevision) throw new AgentJobContractError('result_schema_invalid', job.id);
+    const generation = await textSourceGeneration(env, actor.orgId, job.supportCaseId);
+    const currentCase = await env.DB.prepare('SELECT entity_map_revision FROM support_cases WHERE id=? AND org_id=?')
+      .bind(job.supportCaseId, actor.orgId).first<{ entity_map_revision: number }>();
+    let sourceText = '';
+    if (job.kind === 'audio') {
+      const audio = await env.DB.prepare('SELECT generation_id,raw_sha256,state FROM audio_objects WHERE id=? AND org_id=?')
+        .bind(job.audioObjectId, actor.orgId).first<DbRow>();
+      if (audio === null || stringValue(audio.generation_id) !== job.audioGenerationId
+        || stringValue(audio.raw_sha256) !== (job.rawAudioSha256 ?? '') || stringValue(audio.state) !== 'claimed') {
+        await supersedeEntityRegistration(env, actor, request);
+        return null;
+      }
+    } else {
+      const source = await buildAgentJobSourceText(env, actor, job.sessionId);
+      sourceText = source.text;
+    }
+    if (currentCase === null || generation !== binding.generation || Number(currentCase.entity_map_revision) !== binding.mapRevision
+      || (job.kind === 'text' && job.sourceSha256 !== await sha256Hex(sourceText))) {
+      await supersedeEntityRegistration(env, actor, request);
+      return null;
+    }
+    const admission = await requireAgentJobProgramAdmission(env, actor.orgId, job);
+    await agentJobConsentRevision(env, actor.orgId, job);
+    await assertAgentJobQualificationCurrent(env, actor, job);
+    return {
+      binding,
+      texts: job.kind === 'audio' ? [] : [{ sourceId: job.sessionId, sourceRevision: String(generation), text: sourceText, start: 0 }],
+      programAdmission: admission,
+      guard: {
+        sql: `SELECT 1 FROM agent_jobs j JOIN support_cases c ON c.id=j.support_case_id AND c.org_id=j.org_id
+          JOIN counseling_memory_cases m ON m.org_id=j.org_id AND m.support_case_id=j.support_case_id
+          JOIN participant_pii_vault pv ON pv.org_id=c.org_id AND pv.beneficiary_id=c.beneficiary_id AND pv.purged_at IS NULL
+          JOIN ner_release_qualification_receipts n ON n.id=j.release_qualification_receipt_id AND n.org_id=j.org_id
+          WHERE j.id=? AND j.org_id=? AND j.state='leased' AND j.lease_owner=? AND j.claim_token_hash=?
+            AND j.attempt=? AND j.lease_expires_at>? AND c.entity_map_revision=?
+            AND c.entity_map_lease_family='generic' AND c.entity_map_lease_job_id=j.id
+            AND c.entity_map_lease_attempt=j.attempt AND c.entity_map_lease_expires_at>?
+            AND m.generation=? AND pv.created_at=? AND pv.version=? AND pv.key_version=?
+            AND n.status='passed' AND n.expires_at>? AND n.result_hash=j.ner_attestation_result_hash
+            AND (
+              (j.kind='text' AND j.source_generation=? AND j.source_sha256=?)
+              OR (j.kind='audio' AND EXISTS (SELECT 1 FROM audio_objects a
+                WHERE a.id=j.audio_object_id AND a.state='claimed' AND a.generation_id=j.audio_generation_id
+                  AND a.object_sha256 IS NOT DISTINCT FROM ?))
+            )`,
+        bindings: [job.id,actor.orgId,actor.userId,binding.claimTokenHash,binding.attempt,now(),binding.mapRevision,now(),binding.generation,
+          binding.vaultCreatedAt,binding.vaultVersion,binding.keyVersion,now(),binding.generation,job.sourceSha256,job.rawAudioSha256],
+      },
+    };
+  }
+  const { row, programAdmission } = await memoryClaim(env, actor, request.jobId, request.claimToken, request.attempt);
+  const binding = parseJson<EntitySourceBinding>(row.entity_source_binding);
+  if (binding === null || binding.family !== 'memory') throw new AgentJobContractError('result_schema_invalid', row.id);
+  if (request.sourceBundleRevision !== binding.sourceBundleRevision) throw new AgentJobContractError('result_schema_invalid', row.id);
+  const source = await env.DB.prepare('SELECT * FROM counseling_memory_sources WHERE org_id=? AND support_case_id=? AND kind=? AND source_id=? AND revision=?')
+    .bind(actor.orgId,row.support_case_id,row.kind,row.source_id,row.source_revision).first<MemorySourceRow>();
+  const body = source === null ? null : await memorySourceBody(env, source);
+  if (body === null) { await supersedeEntityRegistration(env, actor, request); return null; }
+  const raw = Array.from(body.text).slice(row.start_offset,row.end_offset).join('');
+  if (await sha256Hex(raw) !== row.source_hash) { await supersedeEntityRegistration(env, actor, request); return null; }
+  const pii = await memoryPii(env, actor.orgId, row.support_case_id);
+  let delivered = raw;
+  for (const value of Object.values(pii)) if (value) delivered = delivered.replaceAll(value, row.support_case_id);
+  if (binding.sources.length !== 1 || binding.sources[0]!.sha256 !== await sha256Hex(delivered)
+    || binding.sources[0]!.start !== 0 || binding.sources[0]!.end !== Array.from(delivered).length) {
+    await supersedeEntityRegistration(env, actor, request);
+    return null;
+  }
+  const currentCase = await memoryCase(env, actor.orgId, row.support_case_id);
+  const map = await env.DB.prepare('SELECT entity_map_revision FROM support_cases WHERE id=? AND org_id=?')
+    .bind(row.support_case_id,actor.orgId).first<{entity_map_revision:number}>();
+  if (map === null || currentCase.generation !== binding.generation || Number(map.entity_map_revision) !== binding.mapRevision) {
+    await supersedeEntityRegistration(env, actor, request); return null;
+  }
+  return {
+    binding,
+    texts: [{ sourceId: row.source_id, sourceRevision: String(row.source_revision), text: delivered, start: 0 }],
+    programAdmission,
+    guard: {
+      sql: `SELECT 1 FROM counseling_memory_materials m JOIN support_cases c ON c.id=m.support_case_id AND c.org_id=m.org_id
+        JOIN counseling_memory_cases k ON k.org_id=m.org_id AND k.support_case_id=m.support_case_id
+        JOIN participant_pii_vault pv ON pv.org_id=c.org_id AND pv.beneficiary_id=c.beneficiary_id AND pv.purged_at IS NULL
+        JOIN ner_release_qualification_receipts n ON n.id=m.receipt_id AND n.org_id=m.org_id
+        WHERE m.id=? AND m.org_id=? AND m.status='leased' AND m.actor_id=? AND m.lease_token=?
+          AND m.attempt=? AND m.lease_until>? AND m.entity_source_binding=?
+          AND c.entity_map_revision=? AND c.entity_map_lease_family='memory'
+          AND c.entity_map_lease_job_id=m.id AND c.entity_map_lease_attempt=m.attempt
+          AND c.entity_map_lease_expires_at>? AND k.generation=?
+          AND pv.created_at=? AND pv.version=? AND pv.key_version=?
+          AND n.status='passed' AND n.expires_at>?`,
+      bindings: [row.id,actor.orgId,actor.userId,row.lease_token,row.attempt,now(),row.entity_source_binding,binding.mapRevision,now(),binding.generation,
+        binding.vaultCreatedAt,binding.vaultVersion,binding.keyVersion,now()],
+    },
+  };
 }
 
 export async function getSessionTextProcessing(
@@ -22308,6 +22990,7 @@ interface MemoryMaterialRow {
   status: string; attempt: number; lease_token: string | null; lease_until: string | null; actor_id: string | null;
   attestation_json: string | null; attestation_expires_at: string | null; receipt_id: string | null; snapshot_id: string | null; masked_text: string | null;
   sha256: string | null; proof_json: string | null; payload_hash: string | null; processed: number; valid: number;
+  entity_source_binding: string | null;
 }
 interface MemorySourceBody { text: string; sessionId: string | null; occurredAt: string }
 const memoryEligibleSql = `EXISTS (SELECT 1 FROM support_cases sc
@@ -22644,10 +23327,18 @@ async function prepareMemoryWork(env: Env, limit: number, scope?: { orgId: strin
 }
 
 async function expireMemoryMaskLeases(env: Env, orgId: string, supportCaseId?: string): Promise<void> {
-  await env.DB.prepare(`UPDATE counseling_memory_materials SET status='failed',lease_token=NULL,lease_until=NULL
-    WHERE org_id=? AND (CAST(? AS TEXT) IS NULL OR support_case_id=?) AND valid=1
-    AND status='leased' AND attempt>=3 AND lease_until<=?`)
-    .bind(orgId, supportCaseId ?? null, supportCaseId ?? null, now()).run();
+  const at = now();
+  await env.DB.batch([
+    env.DB.prepare(`UPDATE counseling_memory_materials SET status='failed',lease_token=NULL,lease_until=NULL
+      WHERE org_id=? AND (CAST(? AS TEXT) IS NULL OR support_case_id=?) AND valid=1
+      AND status='leased' AND attempt>=3 AND lease_until<=?`)
+      .bind(orgId, supportCaseId ?? null, supportCaseId ?? null, at),
+    env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+      entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+      WHERE org_id=? AND entity_map_lease_family='memory' AND entity_map_lease_expires_at<=?
+        AND (CAST(? AS TEXT) IS NULL OR id=?)`)
+      .bind(orgId, at, supportCaseId ?? null, supportCaseId ?? null),
+  ]);
 }
 
 export async function claimCounselingMemorySources(env:Env,actor:Actor,request:ClaimRequest):Promise<MemoryMaskJob[]> {
@@ -22669,17 +23360,35 @@ export async function claimCounselingMemorySources(env:Env,actor:Actor,request:C
     ORDER BY m.occurred_at,m.id LIMIT ?`).bind(actor.orgId,at,...admission,normalizeClaimLimit(request.limit)).all<MemoryMaterialRow>();
   const jobs:MemoryMaskJob[]=[];
   for(const row of rows.results) {
-    const token=newId(),expires=new Date(Date.now()+300000).toISOString();
-    const [result]=await programPolicyBatch(env,context,[env.DB.prepare(`UPDATE counseling_memory_materials AS m SET status='leased',attempt=attempt+1,lease_token=?,lease_until=?,actor_id=?,attestation_json=?,attestation_expires_at=?,receipt_id=?
-      WHERE id=? AND org_id=? AND valid=1 AND attempt=? AND (status='pending' OR(status='leased' AND lease_until<=?))
-      AND EXISTS(SELECT 1 FROM support_cases admitted WHERE admitted.id=m.support_case_id AND admitted.org_id=m.org_id AND admitted.program_id IN (${ADMITTED_PROGRAM_SQL}))
-      AND EXISTS(SELECT 1 FROM counseling_memory_cases c WHERE c.support_case_id=m.support_case_id AND c.org_id=m.org_id AND ${memoryEligibleSql})`)
-      .bind(await sha256Hex(token),expires,actor.userId,attestationJson,attestationExpiresAt,request.releaseQualificationReceiptId,row.id,actor.orgId,row.attempt,now(),...admission)]);
-    if(result?.meta.changes) jobs.push({jobId:row.id,caseId:row.support_case_id,sessionId:row.session_id,kind:'text',purpose:'counseling_memory',sttEngine:null,sttEngineId:null,sourceKind:row.kind,sourceId:row.source_id,sourceRevision:String(row.source_revision),sourceStart:row.start_offset,sourceEnd:row.end_offset,claimToken:token,attempt:row.attempt+1,leaseExpiresAt:expires});
+    const token=newId(),expires=new Date(Date.now()+300000).toISOString(),attempt=row.attempt+1;
+    const tokenHash=await sha256Hex(token);
+    const results=await programPolicyBatch(env,context,[
+      env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family='memory',entity_map_lease_job_id=?,
+        entity_map_lease_attempt=?,entity_map_lease_expires_at=?
+        WHERE id=? AND org_id=? AND status='active'
+        AND ((entity_map_lease_family IS NULL AND entity_map_lease_job_id IS NULL
+          AND entity_map_lease_attempt IS NULL AND entity_map_lease_expires_at IS NULL)
+          OR entity_map_lease_expires_at<=?)`).bind(row.id,attempt,expires,row.support_case_id,actor.orgId,at),
+      env.DB.prepare(`UPDATE counseling_memory_materials AS m SET status='leased',attempt=attempt+1,lease_token=?,lease_until=?,actor_id=?,attestation_json=?,attestation_expires_at=?,receipt_id=?,entity_source_binding=NULL
+        WHERE id=? AND org_id=? AND valid=1 AND attempt=? AND (status='pending' OR(status='leased' AND lease_until<=?))
+        AND EXISTS(SELECT 1 FROM support_cases leased WHERE leased.id=m.support_case_id AND leased.org_id=m.org_id
+          AND leased.entity_map_lease_family='memory' AND leased.entity_map_lease_job_id=m.id
+          AND leased.entity_map_lease_attempt=? AND leased.entity_map_lease_expires_at>?)
+        AND EXISTS(SELECT 1 FROM support_cases admitted WHERE admitted.id=m.support_case_id AND admitted.org_id=m.org_id AND admitted.program_id IN (${ADMITTED_PROGRAM_SQL}))
+        AND EXISTS(SELECT 1 FROM counseling_memory_cases c WHERE c.support_case_id=m.support_case_id AND c.org_id=m.org_id AND ${memoryEligibleSql})`)
+        .bind(tokenHash,expires,actor.userId,attestationJson,attestationExpiresAt,request.releaseQualificationReceiptId,row.id,actor.orgId,row.attempt,at,attempt,at,...admission),
+      env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+        entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+        WHERE id=? AND org_id=? AND entity_map_lease_family='memory' AND entity_map_lease_job_id=?
+          AND entity_map_lease_attempt=? AND NOT EXISTS(SELECT 1 FROM counseling_memory_materials
+            WHERE id=? AND org_id=? AND status='leased' AND lease_token=? AND attempt=?)`)
+        .bind(row.support_case_id,actor.orgId,row.id,attempt,row.id,actor.orgId,tokenHash,attempt),
+    ]);
+    if((results[1]?.meta.changes ?? 0)) jobs.push({jobId:row.id,caseId:row.support_case_id,sessionId:row.session_id,kind:'text',purpose:'counseling_memory',sttEngine:null,sttEngineId:null,sourceKind:row.kind,sourceId:row.source_id,sourceRevision:String(row.source_revision),sourceStart:row.start_offset,sourceEnd:row.end_offset,claimToken:token,attempt,leaseExpiresAt:expires});
   }
-  await writeAudit(env,actor,{action:'poll_pipeline',targetTable:'counseling_memory_materials',detail:{claimed:jobs.length}});
   return jobs;
 }
+
 async function readMemoryClaim(env:Env,actor:Actor,id:string,token:string,attempt:number,replay=false):Promise<MemoryMaterialRow> {
   assertAgentActor(actor);
   const row=await env.DB.prepare(`SELECT m.* FROM counseling_memory_materials m JOIN counseling_memory_sources s
@@ -22694,7 +23403,53 @@ async function memoryClaim(env:Env,actor:Actor,id:string,token:string,attempt:nu
   await memoryNerQualification(env,actor.orgId,JSON.parse(row.attestation_json!),row.receipt_id!,id);
   return {row,programAdmission};
 }
-export async function getCounselingMemorySource(env:Env,actor:Actor,id:string,token:string,attempt:number):Promise<{text:string;sessionId:string|null}> {
+async function memorySourceBinding(
+  env: Env,
+  actor: Actor,
+  row: MemoryMaterialRow,
+  deliveredText: string,
+): Promise<EntitySourceBinding> {
+  const scope = await env.DB.prepare(
+    `SELECT sc.beneficiary_id,sc.entity_map_revision,pv.created_at AS vault_created_at,
+       pv.version AS vault_version,pv.key_version,c.generation,c.consent_revision
+     FROM support_cases sc JOIN participant_pii_vault pv
+       ON pv.beneficiary_id=sc.beneficiary_id AND pv.org_id=sc.org_id
+     JOIN counseling_memory_cases c ON c.support_case_id=sc.id AND c.org_id=sc.org_id
+     WHERE sc.id=? AND sc.org_id=? AND pv.purged_at IS NULL`,
+  ).bind(row.support_case_id, actor.orgId).first<DbRow>();
+  if (scope === null || row.lease_token === null || row.lease_until === null || row.receipt_id === null) {
+    throw new AgentJobContractError('consent_not_effective', row.id);
+  }
+  const occurred = row.occurred_at;
+  const consultationDate = occurred.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(consultationDate)) throw new AgentJobContractError('result_schema_invalid', row.id);
+  const source: EntitySourceDescriptor = {
+    sourceId: row.source_id,
+    sourceRevision: String(row.source_revision),
+    sourceKind: row.kind,
+    start: 0,
+    end: Array.from(deliveredText).length,
+    sha256: await sha256Hex(deliveredText),
+    consultationDate,
+    dateRevision: occurred,
+  };
+  const sourceBundleRevision = await sha256Hex(canonicalizeJcs({
+    version: 1, generation: Number(scope.generation), sources: [source],
+  }));
+  return {
+    version: 1, sourceBundleRevision, orgId: actor.orgId, supportCaseId: row.support_case_id,
+    beneficiaryId: stringValue(scope.beneficiary_id), vaultCreatedAt: stringValue(scope.vault_created_at),
+    vaultVersion: Number(scope.vault_version), keyVersion: Number(scope.key_version), family: 'memory',
+    jobId: row.id, attempt: row.attempt, claimTokenHash: await sha256Hex(row.lease_token),
+    generation: Number(scope.generation), mapRevision: Number(scope.entity_map_revision),
+    consentRevision: stringValue(scope.consent_revision), sources: [source], audio: null,
+  };
+}
+
+export async function getCounselingMemorySource(env:Env,actor:Actor,id:string,token:string,attempt:number):Promise<{
+  text:string;sessionId:string|null;sourceRevision:string;sourceSha256:string;sourceLength:number;
+  sourceBundleRevision:string;expectedMapRevision:number;sources:EntitySourceDescriptor[];
+}> {
   const {row}=await memoryClaim(env,actor,id,token,attempt);
   const source=await env.DB.prepare('SELECT * FROM counseling_memory_sources WHERE org_id=? AND support_case_id=? AND kind=? AND source_id=? AND revision=?').bind(actor.orgId,row.support_case_id,row.kind,row.source_id,row.source_revision).first<MemorySourceRow>();
   const body=source?await memorySourceBody(env,source):null;
@@ -22705,7 +23460,31 @@ export async function getCounselingMemorySource(env:Env,actor:Actor,id:string,to
   await writeAudit(env,actor,{action:'read',targetTable:'counseling_memory_materials',targetId:id,caseId:row.support_case_id});
   let text=chunk;
   for(const value of Object.values(pii)) if(value) text=text.replaceAll(value,row.support_case_id);
-  return {text,sessionId:row.session_id};
+  const binding = parseJson<EntitySourceBinding>(row.entity_source_binding)
+    ?? await memorySourceBinding(env, actor, row, text);
+  if (binding.jobId !== row.id || binding.attempt !== row.attempt
+    || binding.supportCaseId !== row.support_case_id
+    || binding.sources.length !== 1
+    || binding.sources[0]!.sha256 !== await sha256Hex(text)
+    || binding.sources[0]!.start !== 0
+    || binding.sources[0]!.end !== Array.from(text).length) {
+    throw new AgentJobContractError('stale_claim', id);
+  }
+  const currentCase = await memoryCase(env, actor.orgId, row.support_case_id);
+  const map = await env.DB.prepare('SELECT entity_map_revision FROM support_cases WHERE id=? AND org_id=?')
+    .bind(row.support_case_id,actor.orgId).first<{entity_map_revision:number}>();
+  if (map === null || currentCase.generation !== binding.generation || Number(map.entity_map_revision) !== binding.mapRevision) {
+    throw new AgentJobContractError('stale_claim', id);
+  }
+  if (row.entity_source_binding === null) {
+    const stored = await env.DB.prepare(`UPDATE counseling_memory_materials SET entity_source_binding=?
+      WHERE id=? AND org_id=? AND status='leased' AND lease_token=? AND attempt=? AND lease_until>?`)
+      .bind(JSON.stringify(binding),id,actor.orgId,row.lease_token,row.attempt,now()).run();
+    if ((stored.meta?.changes ?? 0) !== 1) throw new AgentJobContractError('stale_claim', id);
+  }
+  return {text,sessionId:row.session_id,sourceRevision:String(row.source_revision),sourceSha256:await sha256Hex(text),
+    sourceLength:Array.from(text).length,sourceBundleRevision:binding.sourceBundleRevision,
+    expectedMapRevision:binding.mapRevision,sources:binding.sources};
 }
 export async function issueCounselingMemoryDictionary(env:Env,actor:Actor,id:string,request:MaskDictionaryRequest):Promise<MaskDictionaryResponse> {
   const {row}=await memoryClaim(env,actor,id,request.claimToken,request.attempt);
@@ -22748,14 +23527,23 @@ export async function acceptCounselingMemorySource(env:Env,actor:Actor,id:string
       AND m.lease_until>? AND m.attestation_expires_at>?
       AND EXISTS(SELECT 1 FROM ner_release_qualification_receipts r WHERE r.id=m.receipt_id AND r.org_id=m.org_id AND r.status='passed' AND r.expires_at>?)
       AND ${memoryEligibleSql}) THEN 1 ELSE 0 END)`).bind(marker,actor.orgId,id,row.lease_token,row.attempt,c.generation,at,at,at),
-    env.DB.prepare("UPDATE counseling_memory_materials SET status='ready',snapshot_id=?,masked_text=?,sha256=?,proof_json=?,payload_hash=? WHERE id=? AND valid=1 AND status='leased' AND lease_token=? AND attempt=?").bind(newId(),request.result.maskedText,request.result.sha256,JSON.stringify(request.result),request.payloadSha256,id,row.lease_token,row.attempt),
+    env.DB.prepare("UPDATE counseling_memory_materials SET status='ready',snapshot_id=?,masked_text=?,sha256=?,proof_json=?,payload_hash=?,entity_source_binding=COALESCE(entity_source_binding,?) WHERE id=? AND valid=1 AND status='leased' AND lease_token=? AND attempt=?").bind(newId(),request.result.maskedText,request.result.sha256,JSON.stringify(request.result),request.payloadSha256,row.entity_source_binding,id,row.lease_token,row.attempt),
     memoryAuditStatement(env,actor,row.support_case_id,'create',{materialId:id,sourceRevision:row.source_revision}),
-    env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(marker),
+    env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+      entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+      WHERE id=? AND org_id=? AND entity_map_lease_family='memory'
+        AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`).bind(row.support_case_id,actor.orgId,row.id,row.attempt),
   ],programAdmission);
 }
 export async function releaseCounselingMemorySource(env:Env,actor:Actor,id:string,request:ReleaseRequest):Promise<void> {
   const row=await readMemoryClaim(env,actor,id,request.claimToken,request.attempt);
-  await env.DB.prepare("UPDATE counseling_memory_materials SET status=CASE WHEN attempt<3 AND ?='transient' THEN 'pending' ELSE 'failed' END,lease_token=NULL,lease_until=NULL WHERE id=? AND org_id=? AND valid=1 AND lease_token=? AND attempt=?").bind(request.outcome,id,actor.orgId,row.lease_token,row.attempt).run();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE counseling_memory_materials SET status=CASE WHEN attempt<3 AND ?='transient' THEN 'pending' ELSE 'failed' END,lease_token=NULL,lease_until=NULL WHERE id=? AND org_id=? AND valid=1 AND lease_token=? AND attempt=?").bind(request.outcome,id,actor.orgId,row.lease_token,row.attempt),
+    env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+      entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+      WHERE id=? AND org_id=? AND entity_map_lease_family='memory'
+        AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`).bind(row.support_case_id,actor.orgId,row.id,row.attempt),
+  ]);
 }
 
 function memoryWorkGuard(env:Env,work:MemoryWork,id:string,egress:string|null):PreparedStatement {

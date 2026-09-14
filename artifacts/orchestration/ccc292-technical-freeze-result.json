@@ -1,0 +1,1561 @@
+{
+  "marker": "CORE_RESULT CCC292-REFREEZE-20260914",
+  "assignmentId": "CCC292-REFREEZE-20260914",
+  "recipient": "ORCHESTRATOR",
+  "writerPane": "w14:p2",
+  "status": "TECHNICALLY_REFROZEN_INTEGRATION_AND_RESTORE_BLOCKED",
+  "implementationReady": false,
+  "requiresIndependentReview": true,
+  "productFilesModified": 0,
+  "testsRun": 0,
+  "externalAction": 0,
+  "recordCount": 6,
+  "scope": "검토 전문과 /tmp 정본 사본을 읽고 기존 JSON 하나만 재동결한다. 제품 소스/레포 문서/테스트/migration 변경 0, 테스트 실행 0, commit/push/merge/배포/provider 호출 0이다. 아래 신규 내부 계약 이름은 구현 제안의 정확한 형식이지 이미 발행된 API/DB 심볼이 아니다. 새 migration 번호는 배정하지 않는다.",
+  "sourceAvailability": {
+    "readOnlyCanonicalRoot": "/tmp/ccc-canonical",
+    "requiredButUnavailable": [],
+    "read": [
+      {
+        "file": "2026-09-12-relayer-card-ai-contract-design.md",
+        "sections": [
+          "2",
+          "3",
+          "5",
+          "6",
+          "7"
+        ]
+      },
+      {
+        "file": "0010-archive-before-purge.md",
+        "sections": [
+          "2026-09-13 후속 결정"
+        ]
+      },
+      {
+        "file": "S10-cccx-format.md",
+        "sections": [
+          "4",
+          "5",
+          "6",
+          "6.1"
+        ]
+      },
+      {
+        "file": "S5-agent-job-contract-v2.md",
+        "sections": [
+          "1",
+          "2.1",
+          "2.2",
+          "2.4",
+          "2.5",
+          "2.6",
+          "2.7",
+          "3",
+          "4",
+          "5",
+          "6"
+        ]
+      },
+      {
+        "file": "S6-privacy-packet.md",
+        "sections": [
+          "1",
+          "2.1",
+          "2.2",
+          "2.3",
+          "2.4",
+          "2.5",
+          "2.6",
+          "2.7",
+          "3",
+          "4",
+          "5",
+          "6"
+        ]
+      }
+    ],
+    "interpretation": "이번 배정의 다섯 정본을 모두 읽어 문서 전달 blocker를 해소했다. 이전 준비 보고의 수신이나 제품 구현 완료를 주장하지 않는다. exactPathsAndSymbols의 제품 코드 관측은 이전 동결 조사 근거를 유지하고, 문서 판정은 canonicalEvidence의 /tmp 사본을 사용한다.",
+    "s10": {
+      "path": "/tmp/ccc-canonical/S10-cccx-format.md",
+      "sha256": "5d30a1465388598b8b29000c8596e00fd360d0db6d104c26e1374a975fdd1122",
+      "sections": "§4~6, §6.1 166~180행",
+      "result": "맥북 사본 hash와 일치하며 최신 파기 선반영 5단계를 다시 대조했다."
+    }
+  },
+  "records": [
+    {
+      "id": "F1",
+      "topic": "storage",
+      "decisionCategory": "technical",
+      "minimumShape": {
+        "storageUnit": "기존 support_cases의 encrypted mapping aggregate 하나. person/institution/alias/counter 별도 표는 만들지 않는다. 독립 파기 이력만 sharedPurgeHistoryContract의 신규 privacy_purge_events 한 표를 허용한다.",
+        "scope": "인증된 actor의 기관과 서버에서 확인한 supportCaseId로만 찾는다. beneficiary 단위 PII 금고와 case 단위 namespace를 같은 식별자로 취급하지 않는다. 다른 사례와 namespace를 공유하지 않는다.",
+        "authenticatedEnvelope": "기존 encryptPii/decryptPii를 그대로 암호화 primitive로 재사용한다. 암호화 JSON 안에 기관, 사례, 불투명 namespace identity, mapping revision, key version, lifecycle binding을 포함하고 복호화 후 현재 요청 scope와 대조한다. 현재 helper에는 AAD 인자가 없으므로 이미 AAD가 적용된 것으로 주장하지 않는다.",
+        "contents": "인물과 기관의 분리된 단조 증가 counter, 발급 번호, 등록값, 명시적 alias와 결정적 증거 참조를 같은 암호화 payload 안에 두는 최소 기술안이다. 같은 사례에서 번호를 재사용하지 않는다. G7은 사례별 번호 공간을 승인했지만 구체적인 표시 토큰 문법이나 저장 컬럼은 지정하지 않았다.",
+        "revisionAndCas": "기관/사례 scope와 현재 mapping revision을 CAS한다. counter 배정·암호문·허용된 현재 claim의 map revision 결속·감사를 한 batch에 쓴다. 같은 사례에서 map 소비 job은 하나만 active로 임대한다. 자신이 등록한 새 값으로 자기 claim을 무효화하지 않고, 아직 결과를 봉인하기 전 map binding을 같은 CAS로 갱신한다. 외부 source/PII/alias 정정은 F3 supersede를 거친다.",
+        "keyOwnership": "키는 코어 SecretStore에만 둔다. 기존 PII_ENC_KEY와 activePiiKeyVersion의 검사를 재사용하며 Agent에 금고키나 암호문 저장소 접근권을 주지 않는다.",
+        "lifecycleBinding": "G7에 따라 기존 beneficiary 금고의 보존·파기 절차에 연결하되 번호 공간은 사례별이다. 새 사례에 과거 번호를 승계하지 않는다. 미파기 보관본은 S10 검증 아래 복원할 수 있지만 이미 파기한 표와 연결은 늦은 결과나 복원으로 재생하지 않는다. ADR의 승인 범위 안에서 원문과 연결 가능한 파생자료도 함께 제거하고, 다른 활성 사례의 자료는 귀속 확인 없이 지우지 않는다.",
+        "newPlaintextLookupHashes": 0,
+        "sameCaseConcurrency": "claimAgentJobs와 claimCounselingMemorySources가 같은 support_cases 행의 owner job identity/claim hash/attempt/lease expiry를 CAS하여 generic text/audio와 memory 중 한 job만 map 소비권을 갖는다. 별도 lock 표는 없다. 다른 회차는 기존 pending으로 남고 claim/attempt를 소비하지 않는다. S5 audio/text 교대는 임대 가능한 case head들 사이에서 그대로 적용한다. lease release/terminal/expiry/supersede는 소유 tuple을 같은 transaction에서 clear하며 다음 대기 job이 진행한다. 만료 시간과 SG8 원음 상한은 늘리지 않는다."
+      },
+      "exactPathsAndSymbols": [
+        {
+          "path": "packages/core/src/gateway.ts",
+          "symbols": [
+            "encryptPii",
+            "decryptPii",
+            "piiKey",
+            "activePiiKeyVersion"
+          ],
+          "evidence": "AES-GCM, 12-byte nonce, 버전 확인, SecretStore key import가 존재한다. scope AAD 인자는 없다.",
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "symbols": [
+            "resolveSessionScope",
+            "assertSupportCaseAccess",
+            "assertSupportCaseWriteAccess",
+            "writeCanonicalAudit"
+          ],
+          "evidence": "기관 및 담당 범위와 canonical 감사의 재사용 지점이다. 새 mapping operation은 아직 없다.",
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "symbols": [
+            "archiveParticipantPii",
+            "reviewParticipantPiiRetention",
+            "purgeParticipantPii",
+            "reRegisterParticipantPii"
+          ],
+          "evidence": "현행 생애주기 연결 지점이다. case mapping 저장이 이미 연결됐다는 뜻은 아니다.",
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "migrations/sqlite/0041_pii_retention_lifecycle.sql",
+          "symbols": [
+            "participant_pii_archives",
+            "participant_pii_retention_decisions",
+            "participant_pii_archives_approved_purge"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+          "evidence": "초기 생성/역사 근거만. 현재 lifecycle trigger 정의와 이후 forward migration의 참조 정본은 0047_timestamp_normalization.sql이다."
+        },
+        {
+          "path": "migrations/sqlite/0047_timestamp_normalization.sql",
+          "symbols": [
+            "participant_pii_archive_re_register_cleanup",
+            "participant_pii_archives_approved_purge"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+          "evidence": "0041 생성 후 DROP/재정의한 현재 SQLite trigger 정본. 337~349행의 archive 삭제 때문에 archive/purged_at을 독립 파기 이력으로 사용할 수 없다. 기존 적용 migration을 수정하는 지시가 아니다."
+        }
+      ],
+      "noSideEffects": [
+        "이번 단계에서 암호화, 복호화, DB 접근을 실행하지 않았다.",
+        "일반 브라우저 map API와 새로운 포트를 만들지 않는다.",
+        "등록값과 alias는 로그, 오류, 평문 인덱스, 이름의 무키 hash에 남기지 않는다.",
+        "범위 및 CAS 거부 시 aggregate와 counter는 바뀌지 않는다. 필요한 거부 감사는 유지한다."
+      ],
+      "refusalTable": [
+        {
+          "condition": "service 권한 또는 scope 불일치",
+          "response": "기존 인증/403 forbidden; 어떤 복호화/쓰기 권한도 추가하지 않음"
+        },
+        {
+          "condition": "현재 claim token/attempt 불일치 또는 자연 임대 만료",
+          "response": "기존 409 stale_claim 또는 lease_expired"
+        },
+        {
+          "condition": "mapping/source revision 변화",
+          "response": "F2의 operation 전용 superseded 응답. bare stale_claim으로 방치하지 않고 F3 CAS로 실제 old lease를 먼저 폐기함"
+        },
+        {
+          "condition": "키 없음/버전 불일치",
+          "response": "기존 내부 secret_missing/secret_invalid, 외부에 키 정보 노출 없음"
+        }
+      ],
+      "migrationNeed": {
+        "requiredForImplementation": true,
+        "newTableCountTarget": 1,
+        "mappingTablesAdded": 0,
+        "purgeHistoryTablesAdded": 1,
+        "minimum": "기존 case aggregate/CAS metadata와 sharedPurgeHistoryContract의 privacy_purge_events만 추가한다. 현재 applied lifecycle trigger는 새 forward migration에서 좁은 파기 경계에 연결한다. 기존 CHECK/감사 보호는 일반 쓰기에 유지한다.",
+        "numbersAssigned": false,
+        "sqlitePostgresParityRequired": true
+      },
+      "tests": {
+        "run": 0,
+        "planned": [
+          "다른 기관 또는 사례의 ciphertext 치환 거부",
+          "동일 revision의 동시 등록에서 하나만 counter 증가",
+          "같은 입력 재전송의 번호 재발급 없음",
+          "키 버전 불일치 시 복호화와 mutation 차단",
+          "archive, purge, re-registration 경계를 넘어 namespace 부활 없음",
+          "같은 case의 generic/memory 두 job은 하나만 임대되며 대기자는 attempt 증가 없음",
+          "파기 event는 archive 삭제 및 재등록/restore pointer 교체 뒤에도 남음"
+        ]
+      },
+      "consumers": [
+        "코어의 source 구성과 claim-bound dictionary 발급",
+        "기관 내부 identity 등록 operation",
+        "원문 생애주기 및 CCCX restore 소유자"
+      ],
+      "canonicalEvidence": [
+        {
+          "file": "/tmp/ccc-canonical/2026-09-12-relayer-card-ai-contract-design.md",
+          "section": "§2 공통 규칙 및 인물·기관 번호, §7 G7",
+          "lines": "20-26,46,159-164",
+          "conclusion": "금고 수준 암호화, 일반 화면 비노출, 사례별 namespace, 신규 사례 번호 비승계와 기존 보존·파기 연동은 승인됐다. 영속 대응표와 일회성 사전은 다른 저장물이다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/0010-archive-before-purge.md",
+          "section": "2026-09-13 후속 결정",
+          "lines": "44-54",
+          "conclusion": "파기 대상은 금고만이 아니라 연결 가능한 원문과 파생자료다. 기존 보존 사유 검토와 관리자 승인 절차는 유지한다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/S10-cccx-format.md",
+          "section": "§4, §6.1",
+          "lines": "114-122,168-180",
+          "conclusion": "대상 설치 키로 재암호화하고 독립된 최신 파기 내역을 업무 공개 전에 반영한다."
+        }
+      ],
+      "implementationCautions": [
+        "encryptPii/decryptPii의 기존 scope AAD나 문자열 전체 zeroization 완료를 주장하지 않는다."
+      ],
+      "unresolved": []
+    },
+    {
+      "id": "F2",
+      "topic": "identity",
+      "decisionCategory": "technical",
+      "minimumShape": {
+        "operationBoundary": "G7에 꼭 필요한 신규 내부 transport 한 개 POST /pipeline/entity-registrations를 구현 계약으로 배정한다(현재 코드에 존재한다는 뜻이 아님). generic/memory가 같은 operation을 쓰며 ResultRequest·mask-dictionary는 확장하지 않는다. handleRequest의 인증된 pipeline dispatch에서 memory/jobs 분기 이전에 처리하고 service allowlist에 이 한 경계를 명시한다. 새 bearer/claim token, public UI, 설정은 없다.",
+        "requestContract": {
+          "representation": "내부 wire 의미와 정확한 키는 proposedWire에 고정한다. sourceBundleRevision은 서버가 발행한 현재 ordered source revision 결속이며 원문 hash를 client identity로 쓰지 않는다.",
+          "sourceWitness": "항목은 person/institution 종류, 정확 등록값, 같은 bundle의 모든 code-point occurrence 범위 및 명시적 기존 entity/alias reference를 포함한다. source text면 코어가 현재 원천으로 span/값을 검증한다. audio면 trusted generation/raw hash와 해당 claim의 NER attestation에 결속한 Agent의 신규 탐지 증거이며 코어가 원전사를 독립 재검증했다고 주장하지 않는다. 원전사 전체 제출은 없다.",
+          "sensitiveInput": "정확 등록값은 TLS 보호 경계에서만 받고 암호화 aggregate 외에 persist하지 않는다. 기관/사례와 권한은 서버가 job에서 도출한다. 외부 AI, 일반 result, error/log에 포함하지 않는다.",
+          "result": "proposedWire의 HTTP 200 no-store 닫힌 합을 사용한다. applied 안 미등록 항목은 원문/후보를 돌려주지 않고 번호도 할당하지 않는다. parser 400/S5 결과 422/identity 미등록/서버가 종료한 superseded를 서로 섞지 않는다.",
+          "proposedWire": {
+            "request": "{family:\"generic\"|\"memory\",jobId,claimToken,attempt,sourceBundleRevision,expectedMapRevision,entries:[{kind:\"person\"|\"institution\",sourceValue,occurrences:[{sourceId,sourceRevision,start,end}],entityReference:null|string}]}",
+            "response": "{outcome:\"applied\",mapRevision,entries:[{index,number:null|integer,reason:null|\"ambiguous_identity\"|\"missing_identity_evidence\"}]} 또는 {outcome:\"superseded\"}",
+            "constraints": "requireOnlyKeys가 각 계층 allowlist를 검사한다. org/case는 request에서 받지 않는다. 모든 occurrence index/bounds/source revision과 entityReference의 case scope를 검증한다. entries 결과 순서는 request 순서이고 미등록만 number=null이다. applied 응답에는 원문/사전이 없다. 현재 code·공개 S5 타입인 척하지 않는 신규 내부 wire 계약이며 구현 때 core/HTTP/Agent를 한 번에 맞춘다."
+          }
+        },
+        "firstRegistration": "현재 claim/source bundle 안 정확 등록값과 종류가 같으면 모든 offset에 같은 번호를 한 번 배정한다. 순서는 검증된 source 순서와 첫 occurrence로 결정한다. 명시적 기존 entity reference가 있는 경우 해당 case 번호를 검증해 사용한다. 나중 회차의 같은 문자열만으로 과거 entity를 병합하지 않는다.",
+        "repeatReference": "같은 claim의 같은 source bundle 안 동일 종류/등록값은 항상 같은 번호다. 명시 증거로 동명이인 충돌이 드러나면 해당 동일 값 그룹은 전부 미등록/generic mask로 처리하고 한 번호에 합치지 않는다. 회차 간 재참조는 기존 stable entity 결속 또는 명시적 alias 증거가 필요하다.",
+        "aliasLink": "새 alias는 이미 검증된 같은 case entity reference와 명시적 원천 결속이 있을 때만 연결한다. 모호함, 철자 유사도, LLM 동일인 추정은 번호 연결을 만들지 않는다.",
+        "ambiguity": "해당 항목/동일값 그룹만 미등록으로 응답한다. Agent는 그 영역의 기존 generic 인명/기관 마스킹을 유지하고 나머지 항목 처리를 계속한다. job permanent release, 임대 종료, 자동 새 번호 또는 사람 확인 UI를 만들지 않는다. 최종 packet은 나머지 S6 검사를 모두 통과해야 한다.",
+        "replay": "같은 claim/source bundle/정확 항목 재전송은 같은 번호와 이미 commit한 revision을 돌려준다. 번호 재발급/재감사 mutation이 없다. 사전 유실 응답도 S5 300행의 동일 live tuple 재생만 허용하며 S6 첫 fetch 이후 금지는 새 소비/다른 tuple 재사용 금지로 적용한다. TTL 연장과 일반 조회는 없다. 등록 receipt는 새 표 없이 F1 암호문 안에 claim hash/attempt/sourceBundleRevision/항목별 결과와 resulting map revision을 저장한다. 등록 request의 미마스킹 hash를 평문 저장하지 않는다. 같은 tuple의 다른 항목 요청은 source bundle witness를 검증해 추가/미등록 처리하고 이미 발급한 값의 번호는 변경하지 않는다.",
+        "agentHandling": "ApiClient의 등록 전용 decoder가 HTTP 200 합을 해석한다. 미등록은 일반 ApiError로 throw하지 않아 _release_failed_job에 들어가지 않는다. superseded는 서버가 old credentials를 원자 폐기하고 필요한 successor를 pending으로 만든 뒤 보내며 Agent는 local 사전/미제출 packet을 폐기하고 해당 job을 끝낸다. 새 polling만 허용하며 같은 old attempt에 STT 재실행하지 않는다. malformed 400은 등록 client가 명시적으로 permanent result_schema_invalid release 1회로 닫는 프로토콜 오류다. 기존 결과용 422 result_schema_invalid 처리와 같은 뜻이며 identity 모호성에는 적용하지 않는다."
+      },
+      "exactPathsAndSymbols": [
+        {
+          "path": "docs/specs/S5-agent-job-contract-v2.md",
+          "symbols": [
+            "2.5 자격증명과 접근 경계",
+            "2.6 JobError"
+          ],
+          "evidence": "service와 사람 권한 분리 및 기존 거부 코드의 근거"
+        },
+        {
+          "path": "docs/specs/S6-privacy-packet.md",
+          "symbols": [
+            "2.4 Agent와 코어의 경계",
+            "MaskDictionaryRequest",
+            "MaskDictionaryResponse"
+          ],
+          "evidence": "일반 result에 미가림 전사, 감지 원문과 스팬을 넣을 수 없고 dictionary는 live claim에 결속된다."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "symbols": [
+            "loadClaimedAgentJob",
+            "issueAgentJobMaskDictionary",
+            "resolveSessionScope",
+            "writeCanonicalAudit"
+          ],
+          "evidence": "인증 및 전달 경계 재사용 후보. identity 등록 operation이 이미 있다는 뜻이 아니다.",
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "apps/pipeline/ccc_pipeline/worker.py",
+          "symbols": [
+            "_mask_with_dictionary"
+          ],
+          "evidence": "현재는 dictionary 문자열 치환만 하며 동일인/alias 등록 증거 계약을 구현하지 않는다.",
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "apps/pipeline/ccc_pipeline/api_client.py",
+          "symbols": [
+            "ApiClient.get_mask_dictionary"
+          ],
+          "evidence": "현재 존재하는 dictionary client. 새로운 등록 endpoint의 근거로 확대하지 않는다.",
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "symbols": [
+            "handleRequest",
+            "requestBody",
+            "requireOnlyKeys",
+            "parseClaimCredentials",
+            "parseAgentResultRequest",
+            "errorResponse"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+          "evidence": "ordinary라는 함수는 이 base에 없다. ordinary dispatch는 handleRequest를 뜻한다. 등록 전용 분기를 인증된 pipeline memory/jobs 분기 이전에 배치하고 현재 service allowlist에도 명시 반영한다. parseClaimCredentials에 등록 extra body를 그대로 넣지 않고 자격만 strict projection한다."
+        },
+        {
+          "path": "apps/pipeline/ccc_pipeline/worker.py",
+          "symbols": [
+            "_release_failed_job",
+            "process_text_job",
+            "process_audio_job"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+          "evidence": "780~789행의 result_schema_invalid permanent 처리를 registration 미등록 결과에 적용하지 않는다."
+        }
+      ],
+      "noSideEffects": [
+        "이번 단계에서 namespace나 alias를 등록하지 않았다.",
+        "모호한 항목은 해당 counter/alias/entity 결속을 바꾸지 않는다. 같은 요청의 명확한 다른 항목은 등록할 수 있다. 외부 revision 변경 supersede는 F3에 명시한 old claim 종료와 successor만 만들고 등록값은 쓰지 않는다.",
+        "Agent에 금고키를 주거나 결과 제출 경로로 평문을 우회 전송하지 않는다.",
+        "별도의 사용자 확인 화면이나 새로운 사용자 입력 의무를 기술 결정으로 도입하지 않는다."
+      ],
+      "refusalTable": [
+        {
+          "condition": "unknown key, JSON/필드형식, schema parse 실패",
+          "http": 400,
+          "response": "ValidationError → invalid_request",
+          "jobEffect": "서버는 parser 실패로 mutation 없음. 등록 client는 protocol failure로 permanent result_schema_invalid release 1회; identity 미등록은 여기로 보내지 않음"
+        },
+        {
+          "condition": "payload 형태는 맞지만 S5 결과 계약 자체가 잘못됨",
+          "http": 422,
+          "response": "AgentJobContractError(result_schema_invalid) → jobErrorHttpStatus",
+          "jobEffect": "기존 결과 경로와 worker 종단 의미 그대로"
+        },
+        {
+          "condition": "동명이인 모호성 또는 alias 결속 증거 없음",
+          "http": 200,
+          "response": "전용 applied 응답 내 미등록 항목",
+          "jobEffect": "job/attempt/lease 유지, 번호 연결 없음, Agent generic mask 유지"
+        },
+        {
+          "condition": "원천/map binding이 외부 정정으로 달라짐",
+          "http": 200,
+          "response": "전용 superseded",
+          "jobEffect": "F3 원자 supersede 후 응답. bare 409로 임대 방치 없음"
+        },
+        {
+          "condition": "이미 폐기됐거나 다른 token/attempt 요청",
+          "http": 409,
+          "response": "기존 stale_claim",
+          "jobEffect": "이미 무효화된 자격, 추가 release 없음"
+        },
+        {
+          "condition": "현재 token/attempt의 자연 만료",
+          "http": 409,
+          "response": "기존 lease_expired",
+          "jobEffect": "기존 lease recovery만, map 충돌을 만료로 가장하지 않음"
+        },
+        {
+          "condition": "동의 철회",
+          "http": 409,
+          "response": "기존 consent_not_effective",
+          "jobEffect": "기존 cancelled 및 credential clear CAS; supersede가 동의를 회복하지 않음"
+        },
+        {
+          "condition": "권한 없음/다른 기관/없는 job",
+          "response": "기존 401/403/404 경계",
+          "jobEffect": "등록 및 PII 공개 없음"
+        }
+      ],
+      "migrationNeed": {
+        "separateTables": false,
+        "minimum": "F1 aggregate 내부의 번호, alias, occurrence/identity 증거 및 멱등 근거. F2만을 위한 별도 표나 포트는 만들지 않는다.",
+        "numbersAssigned": false
+      },
+      "tests": {
+        "run": 0,
+        "planned": [
+          "동일 occurrence 재전송과 CAS 경합에서 번호 한 번만 배정",
+          "이름이 같은 두 entity의 자동 병합 거부",
+          "명시적 alias 근거와 target 번호 불일치 거부",
+          "문자열 유사도와 Agent 동일인 선언만으로 연결 불가",
+          "다른 사례 번호, 오래된 claim, 브라우저 actor 거부",
+          "등록 평문이 result, 로그, 오류에 없음"
+        ]
+      },
+      "consumers": [
+        "기관 내부 등록 caller와 source builder",
+        "claim-bound dictionary 소비 Agent",
+        "F1 encrypted namespace",
+        "F3 및 F4 proof 검증"
+      ],
+      "canonicalEvidence": [
+        {
+          "file": "/tmp/ccc-canonical/2026-09-12-relayer-card-ai-contract-design.md",
+          "section": "§2 인물·기관 번호, §7 G7",
+          "lines": "46,159-164",
+          "conclusion": "기관 내부 신규 개체 등록은 승인됐다. 대응표/원문을 기존 결과 객체나 외부 AI에 싣지 않고 Agent에게 금고키를 복제하지 않으며 모호한 동명이인은 합치지 않는다. 구체적 registration wire나 alias 증거 형식은 없다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/S5-agent-job-contract-v2.md",
+          "section": "§2.1 dictionary, §2.5, §2.6, §5 F8",
+          "lines": "283-300,364-421,474",
+          "conclusion": "service/live claim 경계와 기존 오류 목록을 유지한다. S5는 응답 유실 뒤 동일 live tuple 재전송에 동일 응답 재생을 명시한다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/S6-privacy-packet.md",
+          "section": "§2.4",
+          "lines": "117-150",
+          "conclusion": "dictionary는 transient/no-store이고 일반 결과에 미가림 원문·스팬을 싣지 않는다. 135행의 첫 성공 fetch 뒤 재사용 금지 문구는 S5의 동일 tuple 응답 재생 예외와 기술적으로 정합화해야 한다."
+        }
+      ],
+      "unresolved": []
+    },
+    {
+      "id": "F3",
+      "topic": "sourceBinding",
+      "decisionCategory": "technical",
+      "minimumShape": {
+        "bundle": "코어가 source를 읽을 때 확정한 ordered source identities와 각각의 revision, kind, 원래 순서 및 검사 범위를 하나의 bundle로 결속한다. 결과를 받은 시점의 최신 source로 과거 bundle을 다시 만드는 것은 금지한다.",
+        "consultationDate": "각 source가 속한 원래 상담일 및 그 날짜의 해석 근거를 결속한다. 현재 처리 시각, 백업 시각, Agent timezone을 상담일로 쓰지 않는다. 날짜 또는 해석 규칙이 바뀌면 원문 글자가 같아도 binding이 달라진다.",
+        "dateLimits": "후속 의미는 dateAnchor/dateConflictResolution에 고정한다. 생년월일, 모호한 연도와 의미의 추정을 제외하고 옛 본문·인용·offset·hash는 변경하지 않는다.",
+        "sharedBinding": "기관, 사례, namespace identity와 mapping revision, 현재 동의 revision/효력/목적, 현재 job 및 attempt를 결속한다. scope와 동의는 caller 선언이 아니라 서버가 확인한다.",
+        "audioProvenance": "audioObjectId 또는 기존 audio generation identity와 검증된 rawAudioSha256, 원래 session 및 attempt를 유지한다. 보관 기한이 끝난 원음이 여전히 존재한다고 가정하지 않는다. 삭제된 원음을 hash로 재구성하지 않는다.",
+        "memoryProvenance": "기억 생성·저장·정정·파기 경로 자체의 source kind/id/revision, start/end offset, generation과 snapshot lineage는 유지한다. G4 기억 그림자에 따라 제품 preview·생성·재생성 입력에서는 기억을 제외한다. sourceBinding에 memory provenance가 있다는 이유로 제품 AI 재료에 기억을 다시 넣거나 사용 이력을 만들지 않는다.",
+        "staleRule": "source 추가/삭제/재정렬/수정, 상담일 또는 해석 변경, map revision 변경, 동의 변경, job/attempt 교체 중 하나라도 있으면 old binding으로 새 결과를 수락하지 않는다. 검증과 결과 저장 사이에서도 같은 case/job CAS가 이를 강제해야 한다.",
+        "currentReuse": "CCC-291의 case generation fence는 baseCommit 로컬 의존 hunk이며 승인 baseline에 존재하는 것으로 주장하지 않는다. 승인 통합 뒤 이를 보수적 fence로 재사용하면서 ordered bundle, map revision, 날짜와 audio/memory provenance를 추가한다. relayer §2~3대로 결과 수락·승인·현재 조회에서 의존 원천을 검사하고 뒤 회차 비교를 비현재화한다. 원문 hash와 대응표는 외부 payload/log에 추가하지 않는다.",
+        "dateAnchor": "새 G7 pipeline에서는 원천이 확정한 상담일(기관 시간대의 calendar date)을 기준일로 한다. 생년월일은 먼저 S6 직접 식별자 규칙으로 처리하며 상대화하지 않는다. 맥락이 명시적인 사건일/기한이고 연월일을 원천만으로 확정할 수 있을 때 calendar-day 차이를 계산해 [상담일], [상담일 N일 전], [상담일 N일 후]로 마스킹한다. 24시간 milliseconds 차이로 DST 오차를 만들지 않는다. 상대 표현도 같은 원천이 상담일 기준임을 명시한 경우만 그 차이를 보존/정규화하며 연도나 기준이 모호하면 기존 전체 후보 generic 마스킹을 적용한다. 처리일/입력일/오늘을 추정 anchor로 쓰지 않는다.",
+        "dateConflictResolution": {
+          "status": "RESOLVED_CONFLICT",
+          "evidence": [
+            "/tmp/ccc-canonical/2026-09-12-relayer-card-ai-contract-design.md:164",
+            "/tmp/ccc-canonical/S6-privacy-packet.md:158,162,165"
+          ],
+          "decision": "S6 §2.5의 절대 날짜 연월만 유지 및 상대 날짜 원문 유지와 신규 G7 규칙은 충돌한다. 후속 승인 정본 relayer §7의 상담일 기준 사건일/기한 상대화를 새 G7 pair에 우선 적용한다. 기존 ner-mask-v2 결과는 옛 의미 그대로 보존하며 사후 hash/offset을 고치지 않는다. S6 규정과 producer/consumer/manifest는 실제 cutover 커밋에서 같은 의미로 개정해야 한다. 이번에는 정본을 수정하지 않는다.",
+          "qDecisionRequired": false
+        },
+        "bundleContract": "current bundle은 기관/사례 namespace, lifecycle identity, map revision, 상담일 revision, source kind/id/revision 및 source code-point 경계의 ordered 목록에 결속한다. 원천 구성 함수가 발행한 순서를 권위로 삼고 producer/consumer는 재정렬하지 않는다. 같은 bundle의 첫 occurrence 순서가 F2 번호 배정 순서다. 원문 hash는 core/Agent 내부 source 확인에만 존재하며 외부 provider/log에 보내지 않는다. Packet의 본문 hash와 근거 좌표는 masking 완료 본문에서만 계산한다.",
+        "supersedeTransaction": {
+          "boundary": "gateway의 실제 원천 쓰기 batch가 source generation/currentness 증가, 종속 결과 비현재 표시, old job credentials 폐기, 기존 큐 재활성화 및 successor 보장을 함께 수행한다. onRecordOfficialized/onGoalRevised의 best-effort 후행 훅은 이 원자 경계를 대체하지 않는다. textWorkEnqueueStatements의 현재 ON CONFLICT DO NOTHING 앞에 이 작업을 넣거나 같은 transaction의 equivalent CAS로 구현한다.",
+          "oldState": "변화한 source generation/map/date/PII/goal revision에 결속된 old pending/leased/blocked job은 failed + 기존 terminal_failure_code=stale_claim, lease_owner/claim_token_hash/claimed_at/lease_expires_at=NULL. queue의 processing→pending에서도 lease_owner/lease_expires_at=NULL이다. 실제 claim 폐기 후의 종단 기록에만 stale_claim을 사용하고 단순 등록 충돌 응답에 빌려 쓰지 않는다.",
+          "successor": "동일 source queue를 pending으로 재사용하고 새 agent_jobs row를 state=pending, attempt=0, current generation, 새 job ID로 정확히 하나 만든다. 이미 동일 current generation의 open job이 있으면 그것을 유지한다. queue가 terminal이면 기존 unique scope에 새 pending queue row를 하나 만들되 두 번째 queue 체계를 신설하지 않는다. memory source/material은 동일 transaction에서 dirty/invalid 및 현재 source revision의 pending 경로를 갱신한다.",
+          "eligibility": "기존 consent/program/AI gate를 통과하는 남아 있는 원천에만 successor를 만든다. AI off/withdrawal/purged/원천 없음에는 old 결과 무효화와 lease 종료만 하며 무효 dirty 상태를 남겨 후속 허용 시 기존 큐가 발견하도록 한다. 자동 consent 재승격은 없다. 수기 저장 즉시 공식화는 유지하되 이 필수 정합성 transaction이 실패한 쓰기를 성공으로 응답하지 않는다.",
+          "noLoop": "같은 case의 다른 회차는 F1 임대 직렬화 때문에 map 등록 중 작업하지 않는다. 자기 신규 등록은 own map binding을 새 revision에 결속하고 해당 result 봉인 전 source snapshot을 새로 읽는다. 다른 원천 변경이 온 job만 원자 supersede한다. lease expiry/retry_exhausted 또는 반복 STT 실행으로 충돌을 해결하지 않는다.",
+          "coverage": "getAgentJobSource와 result acceptance만이 아니라 ai source material read, reviewGeneratedAiDraft의 현재성, briefing/generation/approval/read, memoryMaterialReady 및 beginCounselingMemoryEgress에 같은 generation/map/date 조건이 전달돼야 한다. 과거 승인 결과도 현재 입력에서 제외하며 승인 이력을 지우거나 승인 상태를 자동 변경하지 않는다."
+        }
+      },
+      "exactPathsAndSymbols": [
+        {
+          "path": "packages/core/src/gateway.ts",
+          "symbols": [
+            "buildAgentJobSourceText",
+            "getAgentJobSource",
+            "textSourceGeneration",
+            "assertTextJobSourceCurrent",
+            "acceptAgentJobResult"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "packages/contracts/src/agent-jobs.ts",
+          "symbols": [
+            "SourceResponse",
+            "CheckedTextSource",
+            "ResultRequest",
+            "AgentJob"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "symbols": [
+            "getCounselingMemorySource",
+            "acceptCounselingMemorySource",
+            "beginCounselingMemoryEgress"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "migrations/sqlite/0049_counseling_memory.sql",
+          "symbols": [
+            "counseling_memory_sources",
+            "counseling_memory_materials",
+            "counseling_memory_cases"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "migrations/sqlite/0065_agent_text_source_fence.sql",
+          "symbols": [
+            "agent_text_source_superseded",
+            "agent_a_text_result_source_guard",
+            "agent_text_review_source_guard"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "symbols": [
+            "textWorkEnqueueStatements",
+            "enqueueTextWorkItem",
+            "enqueueTextWorkForGoalChange",
+            "claimAgentJobs",
+            "claimCounselingMemorySources"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+          "evidence": "7373~7412행 기존 중복 흡수와 7430~7481행 승인 AI 없는 회차 필터를 알고 구현한다. 해당 필터만으로 전체 목표/PII/날짜 정정 후 모든 종속 회차를 처리했다고 볼 수 없다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "symbols": [
+            "onRecordOfficialized",
+            "onGoalRevised",
+            "handleRequest"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+          "evidence": "1757~1786행은 예외를 삼키는 best-effort queue 훅이다. 필수 supersede는 core 원천 transaction에 둔다."
+        }
+      ],
+      "noSideEffects": [
+        "이번 단계에서 source를 DB에서 읽거나 claim하지 않았다.",
+        "새 AI 재생성 endpoint를 만들지 않는다.",
+        "stale 판정으로 수기 원문을 수정하거나 이미 승인된 기록을 임의로 재작성하지 않는다.",
+        "거부된 결과는 새 snapshot, draft, provider 호출을 만들지 않는다."
+      ],
+      "refusalTable": [
+        {
+          "condition": "원래 bundle, 날짜, map revision이 외부 변경으로 달라짐",
+          "existingCode": "등록 응답은 F2 operation superseded, 실제로 폐기된 old credentials의 후속 result는 stale_claim",
+          "effect": "F3 원자 transition으로 lease clear와 적격 successor를 먼저 보장한다. bare map-conflict 409로 열린 job을 방치하지 않는다."
+        },
+        {
+          "condition": "현재 목적 동의가 철회, 만료 또는 revision 불일치",
+          "existingCode": "consent_not_effective",
+          "effect": "기존 취소 및 egress 경계 유지"
+        },
+        {
+          "condition": "고정 bundle의 증거 hash, quote 또는 범위 불일치",
+          "existingCode": "evidence_hash_mismatch",
+          "effect": "일부 source만 통과시키지 않음"
+        },
+        {
+          "condition": "현재 claim에 필요한 provenance 또는 필수 상담일 binding 누락",
+          "existingCode": "result_schema_invalid",
+          "effect": "caller 추정으로 필수 근거를 채우지 않음",
+          "note": "개별 날짜 언급의 모호성과 필수 binding 누락을 구별한다. 모호한 날짜는 추정하지 않는 가림 규칙의 대상이다."
+        }
+      ],
+      "migrationNeed": {
+        "requiredForImplementation": true,
+        "minimum": "기존 job/source 또는 snapshot proof 저장에 불변 bundle binding을 함께 보존한다. 별도 bundle 표를 기본값으로 추가하지 않는다.",
+        "exactStorageSlot": "S5/S6 proof 저장 소유자와 F4 검토에서 확정",
+        "numbersAssigned": false
+      },
+      "tests": {
+        "run": 0,
+        "planned": [
+          "동일 본문이라도 source 순서 또는 revision 변경 시 stale",
+          "상담일/해석 변경 뒤 old result 거부",
+          "mapping revision 변경과 result CAS 경합",
+          "동의 철회와 result/egress 순서 경쟁",
+          "audio attempt 교체 및 원음 삭제 뒤 provenance 오용 거부",
+          "memory의 부분 범위와 derived lineage 유지",
+          "열린 queue가 있을 때 source 수정은 old lease 종료와 fresh job 정확히 하나를 한 transaction으로 생성",
+          "같은 case 두 회차 등록은 순차 진행하고 attempt 소진/서로 supersede 반복 없음",
+          "동일 입력값이 bundle 여러 offset에 나오면 번호 같음, 후속 회차 동명이인은 문자열만으로 병합하지 않음"
+        ]
+      },
+      "consumers": [
+        "일반 text Agent",
+        "audio Agent",
+        "memory masking",
+        "결과 수락 및 provider material 검증",
+        "기존 재생성 흐름"
+      ],
+      "canonicalEvidence": [
+        {
+          "file": "/tmp/ccc-canonical/2026-09-12-relayer-card-ai-contract-design.md",
+          "section": "§2 revision/hash·정정·상담일, §3 처리 상태, §5 기억 그림자",
+          "lines": "22-26,36-39,75-98,110-112",
+          "conclusion": "원천 revision과 가림 hash를 구별하고 실제 검사 범위를 결속한다. 상담일을 입력 시각으로 대체하지 않으며 늦은 입력·날짜 정정은 뒤 회차 영향까지 전파한다. 기억 수명주기는 유지하지만 제품 생성·재생성 재료에서는 제외한다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/2026-09-12-relayer-card-ai-contract-design.md",
+          "section": "§6 Agent/S5/S6, §7 G4·G7",
+          "lines": "127,156,162-164",
+          "conclusion": "생년월일 제외, 명확한 사건일·기한의 상담일 기준 상대 날짜 처리, 모호한 날짜 추정 금지와 새 버전 재마스킹은 승인됐다. 정확한 직렬화나 날짜 단위는 발행하지 않았다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/S5-agent-job-contract-v2.md",
+          "section": "§2.1, §2.2",
+          "lines": "149-178,217-262,300-358",
+          "conclusion": "job/attempt, trusted audio generation/hash, code-point 근거와 결과 CAS를 사용한다. S5 SourceResponse의 sessionId/text만으로 relayer 원천 결합이 완성되는 것은 아니다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/S6-privacy-packet.md",
+          "section": "§2.5~2.7",
+          "lines": "152-220",
+          "conclusion": "기존 날짜 일반화, 전체 재료 검증 및 현재 동의/egress CAS를 유지하면서 G7 버전을 별도 검증한다."
+        }
+      ],
+      "unresolved": []
+    },
+    {
+      "id": "F4",
+      "topic": "proof",
+      "decisionCategory": "technical",
+      "minimumShape": {
+        "pair": "S5의 현재 ResultRequest.schemaVersion=2와 S6의 기존 ner-mask-v2/49d44dbc50067341ff4ec63c1d76bdbf49d6ee9d9a730dbb707c147259de77dd 쌍은 확인된 구 계약이다. 이것을 새 G7 번호/상대 날짜 규칙의 승인 hash로 재사용하지 않는다. relayer §6에 따라 새 source/target 지원 조합과 거부를 독립 검토하고 한 출고 단위로 묶는다. 새 version literal/hash는 배정하지 않는다.",
+        "manifest": "정적 규칙과 모델/라벨/health/질환 사전 구성으로 canonical manifest를 만들고 자기 hash 필드를 제외한 JCS UTF-8 bytes의 SHA-256을 계산한다. 실제 이름, alias, 감지 원문, 상담 내용과 개별 사례 값을 manifest에 넣지 않는다. F3의 사례별 binding은 packet proof에 결속하며 정적 pipeline manifest와 혼동하지 않는다.",
+        "singleConfigurationSource": "기존 worker.masking_pipeline_version/hash 구성 지점과 MEMORY_MASKING_PIPELINES를 한 canonical manifest source로 수렴한다. 정본 S6의 static rule/model/health 항목과 신규 G7 규칙을 manifest 입력으로 삼고 producer/consumer가 같은 exact digest를 비교한다. 둘의 현재 차이를 설명 없이 그대로 허용하지 않는다. 신규 manifest bytes와 계산 hash의 실제 build 검증은 구현 완료 조건이지 새 Q 결정이 아니다.",
+        "fullPersistence": "검증한 전체 result proof와 F3 binding을 일반 snapshot lineage와 같은 수락 transaction에 불변 저장한다. memory의 counseling_memory_materials.proof_json은 request.result 전체를 이미 담으므로 그 실제 패턴을 재사용한다. 없는 full_proof_json 컬럼을 호출하지 않으며 version/본문 hash만 저장하고 나머지 proof를 버리지 않는다.",
+        "recheck": "requested, counterpart, historical, derived 모든 material을 provider 직전에 다시 검증한다. 본문 hash, evidence hash 및 quote/code-point offset, pipeline 쌍, NER attestation과 release receipt, 현재 동의, source/map binding이 모두 맞아야 한다.",
+        "replay": "S5대로 succeeded의 동일 payload hash 재전송은 resultId가 달라도 멱등 204이고 새 저장·호출은 없다. 다른 hash는 result_conflict다. 멱등 응답은 과거 결과를 현재 원천에 유효하다고 선언하지 않으며, stale·철회·파기 뒤 새 결과 수락이나 공식 소비를 허용하지 않는다.",
+        "currentGap": "일반 RecordMaskedSourceSnapshotInput/저장 경로는 full proof를 보존하지 못한다. memory는 이 base의 acceptCounselingMemorySource 22558행에서 request.result 전체를 counseling_memory_materials.proof_json에 저장하고 memoryMaterialReady 22611~22616행에서 다시 verifyMemoryProof로 확인한다. full_proof_json이라는 컬럼과 validatePersistedSnapshotProof라는 함수는 이 base에 없다. 일반 snapshot에도 기존 행의 proof JSON과 F3 binding을 추가하고 acceptAgentJobResult/recordMaskedSourceSnapshot/assertAgentJobResultIntegrity 및 소비 시 재검증을 같은 전체 증명 계약으로 맞춘다. 새 표는 없다.",
+        "ownerBinding": "CCC-292 core/DB가 persistence와 generic/memory consumer 검증을 소유한다. Agent packet/registration producer와 HTTP parser는 같은 cutover 묶음의 필수 공동 변경이다. 별도 endpoint나 설정을 추가해서 혼재를 허용하지 않는다.",
+        "versionAllocation": "등록된 MEMORY_MASKING_PIPELINES의 exact pipelineVersion→canonical manifest SHA-256 pair를 단일 registry로 사용한다. 신규 pair의 실제 digest는 Agent rules/model/health의 canonical manifest bytes로 계산하며 이 문서에서 가짜 digest를 배정하지 않는다. 새 규칙을 ner-mask-v2 hash로 발행하지 않는다. 신구 pair 읽기/쓰기 허용 목록은 같은 release artifact에서 명시하고 미등록 pair는 read/write 모두 거부한다. packet schema version은 S5에서 정의한 v2를 유지하되 필요한 source/map binding 필드와 proof 계약은 core/parser/Agent를 원자 cutover한다."
+      },
+      "exactPathsAndSymbols": [
+        {
+          "path": "docs/specs/S6-privacy-packet.md",
+          "symbols": [
+            "2.3 masking pipeline hash와 저장 증명",
+            "2.6 코어의 전 재료 검증",
+            "2.7 결과 시점 동의와 egress linearization",
+            "4. 일곱 fail-closed 계약"
+          ]
+        },
+        {
+          "path": "packages/contracts/src/agent-jobs.ts",
+          "symbols": [
+            "MaskedSource",
+            "ResultRequest"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "apps/pipeline/ccc_pipeline/worker.py",
+          "symbols": [
+            "masking_pipeline_version",
+            "masking_pipeline_hash",
+            "process_audio_job",
+            "process_text_job"
+          ],
+          "evidence": "333~359의 현행 manifest는 모델/라벨 구성이다. S6 정본과 동일하다고 주장하지 않는다.",
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "apps/pipeline/ccc_pipeline/results.py",
+          "symbols": [
+            "SCHEMA_VERSION",
+            "canonical_sha256",
+            "build_result",
+            "build_result_request"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "symbols": [
+            "Env.MEMORY_MASKING_PIPELINES",
+            "assertAgentJobResultIntegrity",
+            "verifyMemoryProof",
+            "acceptCounselingMemorySource",
+            "memoryMaterialReady",
+            "MaskedSourceSnapshot",
+            "RecordMaskedSourceSnapshotInput"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "packages/contracts/src/jcs.ts",
+          "symbols": [
+            "canonicalizeJcs"
+          ],
+          "evidence": "기존 코어와 결과 hash 계약이 소비하는 canonical serializer",
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        }
+      ],
+      "noSideEffects": [
+        "새 manifest나 운영 allowlist를 발급하거나 활성화하지 않았다.",
+        "불일치 proof를 보정해서 수락하지 않는다. 코어는 attested Packet bytes를 재치환하지 않는다.",
+        "legacy proof 없는 행은 완료된 현재 material로 자동 승격하지 않는다.",
+        "검사 기준, NER qualification, 동의 및 egress 선형화 규칙을 완화하지 않는다."
+      ],
+      "refusalTable": [
+        {
+          "condition": "packet 계약 또는 필수 proof 모양 불일치",
+          "existingCode": "result_schema_invalid"
+        },
+        {
+          "condition": "허용 pipeline version/hash 쌍 불일치",
+          "existingCode": "masking_pipeline_version_mismatch"
+        },
+        {
+          "condition": "본문, material, evidence, quote 또는 offset 불일치",
+          "existingCode": "evidence_hash_mismatch"
+        },
+        {
+          "condition": "snapshot 또는 full proof 부재",
+          "existingCode": "masking_snapshot_missing"
+        },
+        {
+          "condition": "NER/qualification 부재, 만료 또는 불일치",
+          "existingCode": "local_ner_unavailable"
+        },
+        {
+          "condition": "등록 개인정보 잔류 또는 독립 식별자 blocker 검출",
+          "existingCode": [
+            "registered_pii_detected",
+            "unmasked_identifier_detected"
+          ]
+        },
+        {
+          "condition": "현재 동의 또는 source binding 불일치",
+          "existingCode": [
+            "consent_not_effective",
+            "stale_claim"
+          ]
+        },
+        {
+          "condition": "동일 결과 자리에 다른 payload 재전송",
+          "existingCode": "result_conflict"
+        },
+        {
+          "condition": "필수 full proof 또는 현재 source/map/date binding이 저장되지 않음",
+          "response": "기존 masking_snapshot_missing/evidence_hash_mismatch/masking_pipeline_version_mismatch 중 실제 실패 검사에 맞는 기존 S6 code로 거부. 없는 proof를 새로 합성하거나 옛 산출물을 새 pair로 다시 표기하지 않음"
+        }
+      ],
+      "migrationNeed": {
+        "requiredForImplementation": true,
+        "minimum": "generic snapshot의 전체 proof 보존 빈틈을 기존 저장 행에서 닫는다. memory proof_json을 별도 proof 표로 복제하지 않는다.",
+        "ownerCoordination": "S5/S6 및 snapshot 저장 소유자",
+        "numbersAssigned": false
+      },
+      "tests": {
+        "run": 0,
+        "planned": [
+          "동일 manifest의 Python/TypeScript canonical bytes와 hash 일치",
+          "packet과 pipeline 쌍의 교차 불일치 거부",
+          "generic full proof 저장/재조회 시 누락 또는 변조 검출",
+          "같은 hash replay와 다른 hash conflict",
+          "counterpart/historical/derived 한 재료만 오래돼도 호출 전체 차단",
+          "새 map/date 규칙과 구 pipeline proof 혼용 거부"
+        ]
+      },
+      "consumers": [
+        "Agent results.build_result_request",
+        "일반 결과 수락",
+        "memory 결과 수락",
+        "전체 provider material 검증",
+        "기존 활성화 설정 소유자"
+      ],
+      "canonicalEvidence": [
+        {
+          "file": "/tmp/ccc-canonical/S5-agent-job-contract-v2.md",
+          "section": "§2.1 MaskedSource·ResultRequest, §2.2",
+          "lines": "217-257,307,330-337",
+          "conclusion": "packet v2, full proof 운반, JCS payload 검증과 동일 hash 멱등/다른 hash 거부가 확정돼 있다. 처리 성공은 회차 승인과 다르다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/S6-privacy-packet.md",
+          "section": "§2.2~2.3, §2.6~2.7, §4",
+          "lines": "43-113,167-245",
+          "conclusion": "manifest의 입력과 canonical hash, 필수 불변 저장 증거, 정확한 허용 쌍과 전 재료 검증은 확정돼 있다. 일곱 fail-closed 경계를 바꾸지 않는다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/2026-09-12-relayer-card-ai-contract-design.md",
+          "section": "§2 공식화, §6 버전 전환, §7 G7",
+          "lines": "20-26,62-73,114-143,159-164",
+          "conclusion": "새 원문/가림 의미는 새 검증 조합으로 전환한다. old Agent/attempt/source/manifest를 거부하고 packet 없는 부분 배포나 옛 승인을 새 결과에 복사하는 경로는 금지한다."
+        }
+      ],
+      "unresolved": []
+    },
+    {
+      "id": "F5",
+      "topic": "remasking",
+      "decisionCategory": "technical",
+      "minimumShape": {
+        "eligibleSource": "relayer §6에 따라 보존 중이며 현재 권한·동의·원천 revision이 유효한 원천만 새 claim에서 재마스킹한다. 수기 메모, 인테이크, 목표와 유효한 녹음 원천은 각 기존 경로의 공식화/처리 자격을 따른다. 미승인 AI 출력을 공식 재료로 승격하지 않고 수기에 재승인을 요구하지 않는다.",
+        "audio": "원음은 S5/SG8의 유효한 audio object와 보존 기한 안에서만 재처리할 수 있다. 이미 삭제한 원음이나 보존하지 않는 미마스킹 전사를 있다고 가정하지 않는다. 마스킹된 text에서 이름이나 날짜를 역산해 remasking source를 만들지 않는다.",
+        "derived": "기존 masked snapshot과 derived-summary는 보존 이력과 새 재료 자격을 구별한다. 새로운 G7 규칙의 원본으로 역변환하지 않는다. 살아 있는 유효 원천이 없으면 재마스킹할 수 없다고 남긴다. 기억 생성·저장·정정·파기는 계속 유지하지만 제품 preview·생성·재생성에는 기억 입력을 다시 넣지 않는다.",
+        "invalidationScope": [
+          "PII 변경은 그 당사자 PII를 소비한 연결 사례 namespace와 source bundle, dictionary, claim 및 derived lineage를 비현재화한다. 다른 기관까지 퍼뜨리지 않는다.",
+          "mapping 또는 alias revision 변경은 해당 case namespace의 이전 revision을 사용한 모든 claim, 결과 및 derived lineage에 적용한다.",
+          "상담일/날짜 해석 변경과 늦은 입력은 해당 source bundle뿐 아니라 영향받는 뒤 회차의 비교·결과 연결과 조립을 비현재화하고 다시 계산한다.",
+          "전체/세부/세션 목표 변경은 해당 목표를 포함한 source bundle과 memory의 기존 source-link 범위에 적용한다. 현재 case-generation 보수적 fence보다 느슨하게 만들지 않는다."
+        ],
+        "atomicBoundary": "원천 정정은 F3 supersedeTransaction과 같은 gateway batch다. 승인 파기는 sharedPurgeHistoryContract의 intent append와 case lifecycle/current read·claim·결과·egress 차단을 먼저 원자 commit한다. 이미 in_flight에 선형화된 호출의 기존 동의 의미는 바꾸지 않지만 돌아온 결과의 새 저장/승인/사용은 차단한다.",
+        "deletionOrder": "승인된 기관/당사자/생애주기/사례 범위를 고정하고 inventoryOwnership의 모든 reference를 조사한다. 공유 또는 귀속 불명은 삭제 전에 전체 해당 파기 실행을 중지한다. 그 뒤 sharedPurgeHistoryContract intent와 현재성 차단을 commit하고 보호 사본을 저장한다. 하위 인용/연결/이력/파생물부터 소유 원문/대응표/금고·아카이브까지 FK 순서로 제거하며 원음은 SG8 삭제 증거를 소비한다. Agent 임시물/클라이언트 캐시 폐기를 포함한 잔존물 검증과 별도 보호 이력 저장 확인 후에만 complete event 및 파기 완료를 기록한다. 중단은 intent 상태에서 재개하며 완료로 가장하지 않는다.",
+        "retentionLimit": "ADR 9월 13일 승인 범위는 금고/아카이브, 수기 메모, 전사, 인테이크 자유 글, 목표 문장, 인용, AI 결과, 상담 기억 등 연결 가능한 원문과 파생자료다. relayer §2는 카드·연결·색인, §7은 G7 대응표도 결속한다. 남길 수 있는 것은 재식별 위험을 점검한 집계와 내용 없는 감사뿐이며 사례별 가명 기록은 집계가 아니다. 기존 보존기간·보존 사유 검토·관리자 승인과 다른 활성 사례의 경계는 유지한다. 단순 AI-off/외부 AI 동의 철회로 수기 정본을 파기하지 않는다.",
+        "regeneration": "F3 원자 supersede + 동일 기존 큐의 current-generation successor만 사용한다. 현재 best-effort enqueueTextWorkItem/onRecordOfficialized/onGoalRevised만 호출하고 열린 job 중복 흡수에 맡기는 구현은 금지한다. 새 AI 재생성 endpoint와 별도 재마스킹 큐는 없다.",
+        "inventoryOwnership": {
+          "approvalBoundary": "기관 관리자 기존 보존 검토 승인은 같은 기관 당사자의 승인된 lifecycle과 명시적으로 확정한 사례/원천 집합만 포함한다. beneficiary_id 같음만으로 모든 시대/다른 활성 사례를 삭제하지 않는다. 각 행은 org와 직접 case scope 또는 검증된 session/goal/schedule/work/snapshot/draft/source FK closure로 소유권을 판정한다.",
+          "inventory": [
+            {
+              "group": "금고/대응표",
+              "items": [
+                "participant_pii_vault 암호문 8칸",
+                "participant_pii_archives 암호문 사본",
+                "F1 case mapping envelope와 등록 receipt/alias/counter"
+              ],
+              "ownership": "승인된 beneficiary lifecycle과 case namespace. 재등록 새 lifecycle 및 다른 활성 case는 포함하지 않음"
+            },
+            {
+              "group": "상담 원문과 revision",
+              "items": [
+                "sessions.memo/transcript/record_details/intake_details/extra/intake_question_lifecycle 및 AI 복제 필드",
+                "manual_record_revisions.memo/details",
+                "intake_record_revisions.details/question_lifecycle",
+                "상담 입력 submission hash 등 원문에 연결 가능한 파생 identifier"
+              ],
+              "ownership": "sessions.org_id/support_case_id로 시작해 session_id로 모든 revision을 포함"
+            },
+            {
+              "group": "목표와 질문",
+              "items": [
+                "support_cases.overall_goal",
+                "goals 문구",
+                "goal_revisions의 전체/세부 목표 과거 문구",
+                "schedule_session_goals",
+                "schedule_custom_questions",
+                "schedule_question_revisions.body"
+              ],
+              "ownership": "case 또는 검증된 schedule/goal scope; 다른 case와 공유되면 자동 삭제 금지"
+            },
+            {
+              "group": "액션과 결과",
+              "items": [
+                "action_items.description/owner/resolution_note/stop_reason 및 개별 상담 연결",
+                "action_item_revisions",
+                "manual_action_outcomes.reason",
+                "manual_question_outcomes.source_text/answer"
+              ],
+              "ownership": "case + session/action/question/source revision closure. 복사한 과거 source_text도 현재 원문과 함께 포함"
+            },
+            {
+              "group": "인용 및 불일치",
+              "items": [
+                "session_goal_scores.evidence_quote와 개별 점수행",
+                "flags.quote 및 개별 flag행",
+                "session_discrepancies.left_quote/right_quote 및 처리 이력",
+                "ai_masked_source_evidence_items.evidence_quote",
+                "ai_evidence_links.evidence_quote"
+              ],
+              "ownership": "좌우/출처 모든 참조를 조사한다. 하나가 다른 활성 case/다른 기관에 속하거나 식별 못하면 해당 실행 차단. 처리 완료/불변 이력도 파기 승인 예외에서 제외하지 않음"
+            },
+            {
+              "group": "AI source/result/history",
+              "items": [
+                "ai_masked_source_snapshots.masked_text 및 proof/source hash",
+                "ai_draft_versions의 summary_text/questions_json/claims_json/one_liner 및 전 version",
+                "ai_draft_contrast_axes",
+                "ai_draft_source_materials",
+                "ai_work_items 및 ai_text_work_queue의 해당 source 참조",
+                "agent_jobs의 source/result/dictionary 연결 metadata 및 저장 결과 receipt"
+              ],
+              "ownership": "work/session/snapshot/draft FK로 승인 대상 closure. 승인/미승인/old version 모두 포함. contentless job deletion evidence만 별도 허용"
+            },
+            {
+              "group": "상담 기억",
+              "items": [
+                "counseling_memory_cases.request_json/summary_json",
+                "counseling_memory_sources",
+                "counseling_memory_materials의 masked_text/proof_json(전체 result)/attestation/source_hash",
+                "counseling_memory_items",
+                "counseling_memory_history",
+                "counseling_memory_links",
+                "counseling_memory_corrections.body",
+                "counseling_memory_derived.body",
+                "counseling_memory_draft_context"
+              ],
+              "ownership": "org_id/support_case_id에 더해 link source ownership을 검사. memory shadow는 product input 제외일 뿐 파기 제외가 아님"
+            },
+            {
+              "group": "카드/검색/운영 사본",
+              "items": [
+                "relayer card 투영/연결/색인과 해당 캐시",
+                "audio_objects의 원음 및 원음 key 연결",
+                "Agent dictionary/탐지 span/다운로드/임시 생성물",
+                "브라우저에 노출된 해당 대상 캐시"
+              ],
+              "ownership": "source lineage와 SG8 generation/stable key. 없는 relayer 저장표를 이미 구현됐다고 주장하지 않으며 구현된 해당 파생물은 같은 inventory 등록이 필수"
+            }
+          ],
+          "sharedMaterialRefusal": "다른 기관, 다른 활성 사례, 승인 밖 lifecycle과 연결된 공유 자료 또는 귀속이 불명확한 참조가 하나라도 있으면 현재 파기 범위 전체를 실행 전 거부한다. 외래키 cascade로 확대 삭제하거나 연결만 끊고 본문을 남긴 뒤 완료 처리하지 않는다. 구현자가 증거로 소유권을 확정해 원래 승인 범위 안에서 재평가하며 새로운 Q 정책을 요구하지 않는다.",
+          "retained": "내용 없는 감사 및 sharedPurgeHistoryContract의 삭제 의무/검증 증거, 재식별 위험이 검토된 집계만 남긴다. 개인별 session/score/가명 경과를 통계로 간주하지 않는다. 현재 audit 상세가 내용/원문 hash를 포함하면 보존 면제하지 않고 승인 scope와 불변 감사 제약을 함께 만족하는 명시적 privacy erasure 경로가 필요하다. 일반 audit UPDATE/DELETE 권한은 열지 않는다.",
+          "evidence": [
+            "/tmp/ccc-canonical/0010-archive-before-purge.md:48-54",
+            "/tmp/ccc-review/ccc292-freeze-review-result.json: findings[7]의 preparation 97/99 인용",
+            "migrations/sqlite/0006_participant_support_case_cutover.sql:326-520",
+            "migrations/sqlite/0027_session_discrepancies.sql:31-84",
+            "migrations/sqlite/0031_goal_revisions_d62.sql",
+            "migrations/sqlite/0035_ai_draft_materials_contrast.sql",
+            "migrations/sqlite/0049_counseling_memory.sql:2-12",
+            "migrations/sqlite/0062_intake_versions.sql:7-18",
+            "migrations/sqlite/0063_manual_record_lifecycle.sql:7-44",
+            "migrations/sqlite/0064_intake_question_lifecycle.sql:48-52"
+          ]
+        },
+        "durableTombstone": "sharedPurgeHistoryContract가 F5 writer/F6 reader의 유일한 durable purge/tombstone 계약이다. archive row와 vault.purged_at은 재등록 cleanup 및 갱신으로 사라질 수 있어 단독 근거로 쓰지 않는다. 파기 intent는 기존 lifecycle checks와 등록/result/read/egress를 막으며 새 등록 request가 같은 namespace를 부활시킬 수 없다."
+      },
+      "exactPathsAndSymbols": [
+        {
+          "path": "packages/core/src/gateway.ts",
+          "symbols": [
+            "updateParticipantPii",
+            "buildAgentJobSourceText",
+            "enqueueTextWorkItem",
+            "textSnapshotCurrentSql",
+            "acceptAgentJobResult",
+            "reviewGeneratedAiDraft",
+            "memoryMaterialReady",
+            "beginCounselingMemoryEgress"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "migrations/sqlite/0049_counseling_memory.sql",
+          "symbols": [
+            "counseling_memory_sources",
+            "counseling_memory_links",
+            "counseling_memory_materials",
+            "counseling_memory_cases"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "migrations/sqlite/0065_agent_text_source_fence.sql",
+          "symbols": [
+            "agent_text_source_superseded",
+            "agent_a_text_result_source_guard",
+            "agent_text_review_source_guard"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "migrations/sqlite/0041_pii_retention_lifecycle.sql",
+          "symbols": [
+            "participant_pii_archives_approved_purge",
+            "participant_pii_retention_decisions_no_update",
+            "participant_pii_retention_decisions_no_delete",
+            "participant_pii_archive_re_register_cleanup"
+          ],
+          "evidence": "초기 생성/역사 근거만. 현재 lifecycle trigger 정의와 이후 forward migration의 참조 정본은 0047_timestamp_normalization.sql이다.",
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "docs/specs/S5-agent-job-contract-v2.md",
+          "symbols": [
+            "2.2 상태 전이와 원자성",
+            "AudioDeletionEnqueue"
+          ]
+        },
+        {
+          "path": "migrations/sqlite/0047_timestamp_normalization.sql",
+          "symbols": [
+            "participant_pii_archive_re_register_cleanup",
+            "participant_pii_archives_approved_purge"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+          "evidence": "0041 생성 후 DROP/재정의한 현재 SQLite trigger 정본. 337~349행의 archive 삭제 때문에 archive/purged_at을 독립 파기 이력으로 사용할 수 없다. 기존 적용 migration을 수정하는 지시가 아니다."
+        }
+      ],
+      "noSideEffects": [
+        "원음, source, mapping, snapshot 또는 파기 이력을 삭제하지 않았다.",
+        "보존 원문이 없을 때 자동 provider 전환, 추론 복원 또는 원음 재업로드를 실행하지 않는다.",
+        "stale 결과를 공식 기록으로 자동 대체하지 않는다.",
+        "기존 수기 기록과 승인 정책, 감사 및 검사 기준은 유지한다."
+      ],
+      "refusalTable": [
+        {
+          "condition": "원래 claim 또는 source/map/date revision이 변경됨",
+          "existingCode": "stale_claim"
+        },
+        {
+          "condition": "원음 삭제 또는 원음 객체 없음",
+          "existingCode": [
+            "audio_deleted",
+            "audio_object_missing"
+          ]
+        },
+        {
+          "condition": "검증 가능한 현재 snapshot/재료 없음",
+          "existingCode": "masking_snapshot_missing"
+        },
+        {
+          "condition": "이전 의미의 pipeline으로 새 mask 결과 제출",
+          "existingCode": "masking_pipeline_version_mismatch"
+        },
+        {
+          "condition": "동의가 더 이상 유효하지 않음",
+          "existingCode": "consent_not_effective"
+        },
+        {
+          "condition": "늦은 초안을 현재 원문에 대해 승인하려 함",
+          "existingCode": "stale_draft_version"
+        },
+        {
+          "condition": "shared material 또는 source ownership 불명/다른 활성 사례/다른 기관",
+          "response": "삭제 실행 전 거부. 0행 삭제, 승인 밖 cascade 없음, 완료 표시 없음. 사람이 정책을 다시 고르는 대신 소유권 증거가 확보된 원래 scope만 재평가"
+        },
+        {
+          "condition": "독립 보호 purge history append/사본 확인 실패",
+          "response": "intent 차단 유지, complete 기록 금지, 복구 개방은 RECOVERY_BLOCKED"
+        }
+      ],
+      "migrationNeed": {
+        "requiredForImplementation": true,
+        "minimum": "F1의 신규 privacy_purge_events 한 표를 공유한다. 새 두 번째 표는 없다. 현재 0047의 lifecycle trigger와 해당 snapshot/revision/discrepancy 불변 제약은 새로운 forward migration에서 승인된 intent scope의 privacy erasure에만 좁게 연결한다. 일반 수정/삭제 금지와 audit append-only는 보존한다. 새 migration 번호는 배정하지 않는다.",
+        "currentTriggerDefinition": "migrations/sqlite/0047_timestamp_normalization.sql:337-390",
+        "historicalOriginOnly": "migrations/sqlite/0041_pii_retention_lifecycle.sql",
+        "newAdditionalTables": 0,
+        "sqlitePostgresParityRequired": true
+      },
+      "tests": {
+        "run": 0,
+        "planned": [
+          "PII/map/date/goal 변경 각각에서 old result와 derived eligibility 차단",
+          "변경과 result/approval/egress CAS의 양쪽 commit 순서",
+          "삭제된 원음 및 masked-only source에서 새 원문 생성 불가",
+          "파기 승인 대상에 연결된 원문·대응표·파생자료·Agent 임시물의 잔존 없음과 다른 활성 사례 보존",
+          "늦은 입력과 상담일 수정이 뒤 회차 비교·결과 연결에 전파됨",
+          "정정은 허용된 이력을 보존하고 최종 파기는 내용 있는 이력까지 승인 범위에서 제거",
+          "AI-off/외부 AI 동의 철회와 최종 파기를 혼동하지 않음",
+          "session_goal_scores.evidence_quote, *_revisions, manual_question_outcomes.source_text와 memory full proof까지 잔존물 검사",
+          "공유 자료/다른 활성 case/다른 기관은 파기 전 0변경 거부",
+          "intent 저장 뒤 crash와 archive 삭제/재등록 뒤에도 늦은 등록/result/restore 부활 거부"
+        ]
+      },
+      "consumers": [
+        "PII와 목표 수정 gateway",
+        "Agent source 및 결과 흐름",
+        "memory 및 provider material 검증",
+        "보존/파기 소유자",
+        "기존 재생성 caller"
+      ],
+      "canonicalEvidence": [
+        {
+          "file": "/tmp/ccc-canonical/0010-archive-before-purge.md",
+          "section": "2026-09-13 후속 결정",
+          "lines": "44-54",
+          "conclusion": "연결 가능한 원문과 파생자료를 파기하고 검증된 집계·내용 없는 감사만 남기는 정책이 승인됐다. 공유 자료의 귀속과 다른 활성 사례의 보존 경계는 구현 전에 명시해야 한다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/2026-09-12-relayer-card-ai-contract-design.md",
+          "section": "§2 정정·철회·파기, §3 현재성, §5, §6 Agent 경계, §7 G7",
+          "lines": "23-26,36,53-58,81-88,110-112,127,162-164",
+          "conclusion": "정정의 과거 이력 보존과 최종 파기를 구별한다. 뒤 회차 영향, 늦은 결과 차단, Agent 임시물 폐기와 유효 원천의 새 버전 재마스킹을 요구한다. 기억 그림자는 계속 유지한다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/S5-agent-job-contract-v2.md",
+          "section": "§2.2",
+          "lines": "312-358",
+          "conclusion": "현재 claim과 동의 CAS, terminal 뒤 원음 삭제 조정 및 hard cap을 재마스킹을 위해 느슨하게 만들지 않는다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/S6-privacy-packet.md",
+          "section": "§2.6~2.7",
+          "lines": "167-220",
+          "conclusion": "파생 재료까지 현재 증거를 검사하며 material 변경에는 새 authorization이 필요하다."
+        }
+      ],
+      "unresolved": []
+    },
+    {
+      "id": "F6",
+      "topic": "restore",
+      "decisionCategory": "technical",
+      "minimumShape": {
+        "implementationStatus": "실제 restore implementation은 현재 없다. 이 사실은 배정의 명시적 전제이며 S10의 확정 상태를 구현 완료로 바꾸지 않는다. placeholder, callback, 성공 flag만으로 이 blocker를 닫지 않는다.",
+        "ownership": "실제 restore/CCCX import, 별도 보호 purge history 사본의 복구 transport와 최신성 검증은 CCC-224/E3-7 소유다. CCC-292 core/DB는 sharedPurgeHistoryContract의 durable writer/DB lifecycle fence를 구현한다. 같은 이력의 writer/reader 계약을 분리하거나 존재하지 않는 restore callback을 완료물로 삼지 않는다.",
+        "independentPurgeHistory": "sharedPurgeHistoryContract를 그대로 읽는다. 새 테이블/설정/키를 F6에서 추가하지 않는다. live 설치 control 표와 별도 보호된 authenticated history 사본의 현재 head 증거가 authority이고 business shadow/old .cccx/imported audit/archive는 authority가 아니다. 새 설치에서 current head 증거를 얻지 못하면 RECOVERY_BLOCKED이며 파일 날짜/가장 큰 sequence만으로 최신이라고 추정하지 않는다.",
+        "reencryption": "source key와 Agent 키를 반출하지 않는다. 인증된 import payload 안에서만 logical mapping을 복호화하고 target SecretStore의 활성 PII key/version으로 즉시 재암호화한다. scope remap은 injective identity mapping과 FK 검증을 거치며 무작위 이름 병합이나 ciphertext 복사로 대체하지 않는다.",
+        "hiddenStaging": "durable journal과 lease/fencing token을 먼저 확보한다. 정상 query/audit/trigger에서 보이지 않는 비어 있는 shadow namespace에만 재암호화한 aggregate와 참조를 준비한다. staging 중 브라우저와 Agent에 mapping을 제공하지 않는다.",
+        "visibilityCas": "원본 백업 무결성 검증을 먼저 끝내고 hidden namespace에 최신 파기를 반영한다. 허가된 삭제 차이와 남은 자료·참조 보존 및 대상 본문·파생자료·임시물 부재를 검증한다. 마지막 조회가 아닌 pointer/complete 공개 시점의 최신성을 보장한다. 그 사이 새 파기가 있으면 추가 반영·재검증하고 보장 불가 시 RECOVERY_BLOCKED다. active pointer, complete marker, manifest hash와 mapping metadata를 하나의 DB CAS/transaction에서 함께 공개한다. sharedPurgeHistoryContract와 같은 기관 직렬화 행/현재 head를 잡아 intent append와 공개 cutover를 선형화한다. read-then-write 사이의 외부 DB 경쟁을 허용하지 않으며 별도 authority를 해당 DB transaction에 결속할 수 없는 복구 구현은 완료될 수 없다.",
+        "recovery": "S10 §6.1의 원본 검증·파기 반영·결과 검증·공개 시점 최신성까지 포함한 완료 근거와 pointer/complete/manifest가 있을 때만 journal을 finalize한다. 이후 정상 write의 hash 차이를 rollback하지 않는다. 완료 근거가 없으면 RECOVERY_BLOCKED이며, commit 전에는 검증된 파기 차이를 반영한 immutable shadow/provenance로 재개 또는 폐기한다.",
+        "blockedConditions": [
+          "독립된 최신 파기 내역이 없거나 진위·최신성·기관/대상 대응이 불명확함",
+          "원본 백업 손상을 파기 차이로 면제하려 함",
+          "업무 공개 전 파기 대상 본문·대응표·파생자료·임시물이 남거나 설명되지 않는 차이가 있음",
+          "target key/version 또는 검증된 identity/FK mapping을 확보하지 못함",
+          "journal frame, checksum, sequence 또는 lease fencing 불일치",
+          "pointer/complete 전환 시점 최신성과 원자 공개를 증명할 수 없음",
+          "cleanup 손상 또는 평문 residue 부재를 증명할 수 없음",
+          "실제 restore implementation 및 crash recovery가 없는 상태"
+        ]
+      },
+      "exactPathsAndSymbols": [
+        {
+          "path": "/tmp/ccc-canonical/S10-cccx-format.md",
+          "symbols": [
+            "4. export snapshot, PII 재암호화와 import 경계",
+            "5. staging, durable journal와 atomic visibility",
+            "6. crash recovery와 실패 규칙",
+            "6.1 최신 파기 내역을 반영하는 복원"
+          ],
+          "evidence": "원본 검증 → 격리 복원 → 최신 파기 반영 → 허가된 차이/잔존물 검증 → 공개 시점 최신성의 순서가 명시돼 있다."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "symbols": [
+            "encryptPii",
+            "decryptPii",
+            "activePiiKeyVersion",
+            "archiveParticipantPii",
+            "purgeParticipantPii",
+            "reRegisterParticipantPii"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "migrations/sqlite/0041_pii_retention_lifecycle.sql",
+          "symbols": [
+            "participant_pii_retention_decisions",
+            "participant_pii_retention_decisions_no_update",
+            "participant_pii_retention_decisions_no_delete",
+            "participant_pii_archive_re_register_cleanup"
+          ],
+          "evidence": "초기 생성/역사 근거만. 현재 lifecycle trigger 정의와 이후 forward migration의 참조 정본은 0047_timestamp_normalization.sql이다.",
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "packages/contracts/src/runtime.ts",
+          "symbols": [
+            "RecoverySecretStore",
+            "SecretStore"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+          "evidence": "이 로컬 base에서 RecoverySecretStore 105행 확인. reviewer 워크트리의 존재 여부와 구별한다."
+        },
+        {
+          "path": "packages/contracts/src/database.ts",
+          "symbols": [
+            "Database",
+            "PreparedStatement"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+        },
+        {
+          "path": "migrations/sqlite/0047_timestamp_normalization.sql",
+          "symbols": [
+            "participant_pii_archive_re_register_cleanup",
+            "participant_pii_archives_approved_purge"
+          ],
+          "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+          "evidence": "0041 생성 후 DROP/재정의한 현재 SQLite trigger 정본. 337~349행의 archive 삭제 때문에 archive/purged_at을 독립 파기 이력으로 사용할 수 없다. 기존 적용 migration을 수정하는 지시가 아니다."
+        }
+      ],
+      "noSideEffects": [
+        "restore, import, export, 재암호화, key 조회를 실행하지 않았다.",
+        "CCC-224/E3-7 소유 코드를 대신 만들거나 stub을 추가하지 않는다.",
+        "active namespace와 현재 purge 이력을 변경하지 않는다.",
+        "shared VM, Docker, 디스크, migrations/parity.yaml을 조작하지 않는다."
+      ],
+      "refusalTable": [
+        {
+          "condition": "최신 파기 내역 진위·최신성·기관/대상 대응, 완료 근거 또는 공개 시점 최신성을 증명할 수 없음",
+          "existingCode": "RECOVERY_BLOCKED",
+          "effect": "업무 개방과 복구 완료 보고 금지",
+          "note": "S10 §6 및 §6.1에서 확정된 거부다. 백업에 과거 파기 대상이 들어 있다는 사실 자체는 거부 사유가 아니며 공개 전에 제거·검증한다."
+        },
+        {
+          "condition": "target 키 없음",
+          "existingCode": "TARGET_KEY_UNAVAILABLE",
+          "effect": "dependent staging 이전 중단"
+        },
+        {
+          "condition": "stable identity mapping 부재 또는 모호함",
+          "existingCode": "IDENTITY_MAPPING_REQUIRED",
+          "effect": "임의 식별자/이름 병합 금지"
+        },
+        {
+          "condition": "FK mapping 누락 또는 모호함",
+          "existingCode": "REFERENCE_MAPPING_INVALID",
+          "effect": "부분 import 금지"
+        },
+        {
+          "condition": "원본 검증 후 파기 반영 결과에 허가된 삭제로 설명되지 않는 행/참조 차이가 있음",
+          "existingCode": "ROW_LOSS_DETECTED",
+          "effect": "shadow/pending rollback. 원본 검증 오류는 기존 header/hash/형식 오류로 먼저 거부한다."
+        },
+        {
+          "condition": "검증된 파기 차이 외 active state가 diverged/deleted/corrupt",
+          "existingCode": "IMPORT_CONFLICT",
+          "effect": "부분 merge 금지. repair도 fresh empty shadow에서 §6.1 전체를 다시 적용한다."
+        }
+      ],
+      "migrationNeed": {
+        "requiredForImplementation": true,
+        "minimum": "F1/F5가 소유한 privacy_purge_events를 그대로 소비한다. importer 전용 두 번째 표/새 설정은 없다. 실제 E3-7 restore journal/namespace와 허용 파기 차이 검증의 필수 변경은 해당 소유자가 실제 구현과 함께 제출한다.",
+        "newAdditionalTables": 0
+      },
+      "tests": {
+        "run": 0,
+        "plannedForOwner": [
+          "정상 과거 백업의 파기 대상만 제거하고 나머지 자료/참조 유지",
+          "최신 내역 누락·변조·다른 기관·모호한 대상 대응 시 업무 개방 거부",
+          "원본 hash 오류를 파기 내역으로 면제하지 않음",
+          "파기 반영 중 중단/재시도와 공개 직전 새 파기 경쟁",
+          "target key rotation 및 다른 scope의 ciphertext 거부",
+          "staging, 파일 승격, pointer commit 전후 crash와 늦은 job 결과",
+          "검증된 완료 근거가 있는 marker 뒤 정상 write를 rollback하지 않음",
+          "실제 restore로 세 모드에서 대상 본문·파생자료·임시물 잔존 없음 및 나머지 보존 확인",
+          "F5 작성 intent/complete를 그대로 읽은 오래된 정상 backup 복원에서 파기 자료만 제거",
+          "원천 authority가 없고 오래된 보존 사본만 있을 때 최신성 추정 대신 RECOVERY_BLOCKED",
+          "새 파기 intent와 pointer/complete 동시 경쟁에서 같은 기관 head로 직렬화",
+          "파기 후 재등록/다른 활성 case의 namespace를 옛 파기 scope로 잘못 지우지 않음"
+        ]
+      },
+      "consumers": [
+        "CCC-224/E3-7 실제 restore 작성자",
+        "현재 purge-history 소유자",
+        "target SecretStore 및 DB/파일 어댑터",
+        "F1 namespace 및 F3/F4 검증"
+      ],
+      "canonicalEvidence": [
+        {
+          "file": "/tmp/ccc-canonical/S10-cccx-format.md",
+          "section": "§4~6, §6.1",
+          "lines": "110-180",
+          "conclusion": "오래된 정상 백업 사용은 허용하되 독립 최신 파기 내역을 먼저 반영하고 공개 시점까지 최신성을 검증해야 한다. 원본 무결성과 허가된 삭제 차이 검증을 구별한다. 확보/검증 불가 시 RECOVERY_BLOCKED다. 실제 구현과 내역 형식은 복구 소유자의 후속이다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/0010-archive-before-purge.md",
+          "section": "2026-09-13 후속 결정",
+          "lines": "48-54",
+          "conclusion": "최신 파기를 반영한 뒤 오래된 백업을 여는 A안은 이미 승인됐다. 공급자 백업의 물리 삭제와 내려받은 업무 반출물 처리는 별도 운영·법률 범위다."
+        },
+        {
+          "file": "/tmp/ccc-canonical/2026-09-12-relayer-card-ai-contract-design.md",
+          "section": "§6 rollback/복원, §7 G7",
+          "lines": "127-143,159-164",
+          "conclusion": "대응표와 lease를 부활시키지 않는다. 원본 백업부터 공개 시점 최신성까지 검증한 조합과 실명 실행자·독립 검토자의 실행 패킷이 필요하며 문서 확정은 실행 승인이 아니다."
+        }
+      ],
+      "unresolved": [
+        {
+          "id": "actual-restore-absent",
+          "kind": "implementation-owner-blocker",
+          "owner": "CCC-224/E3-7",
+          "scope": "실제 CCCX restore/import와 별도 보호 이력 복구, 공개 시점 최신성 CAS, 중단 복구 증거",
+          "reason": "실제 restore가 현재 없다는 배정 전제를 보존한다. 이번 허용 범위는 JSON 하나여서 실행 경로나 실복원을 만들 수 없다. 기술 정책/공유 저장물은 동결했지만 placeholder나 문서로 실구현 부재를 닫을 수 없다.",
+          "qDecisionRequired": false
+        }
+      ]
+    }
+  ],
+  "docGapClosed": true,
+  "unresolvedSummary": {
+    "count": 1,
+    "technicalChoiceCount": 0,
+    "qDecisionCount": 0,
+    "implementationOwnerBlockerCount": 1,
+    "items": [
+      "F6 actual-restore-absent: CCC-224/E3-7, 별도 보호 파기 이력 복구와 visibility CAS를 포함한 실제 restore 부재"
+    ],
+    "note": "CCC-291 승인 통합 확인 대기는 baseline readiness 근거이지 새 기술 정책 미결로 세지 않는다. 신규 hash는 실제 canonical bytes의 계산 산출물이며 추측한 값이나 Q 질문으로 채우지 않는다."
+  },
+  "implementationBlockers": [
+    {
+      "records": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5"
+      ],
+      "owner": "CCC-291/통합 소유자",
+      "fact": "필수 CCC-291 source-fence hunk의 승인 통합/최종 parity 미확인. baseCommit과 approvedReferenceCommit을 분리했다. 사용자 보고 실패를 다시 재현하지 않았으며 이번 과제에서 tests/commit/merge를 실행하지 않는다."
+    },
+    {
+      "records": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5"
+      ],
+      "owner": "CCC-292 core/DB 및 Agent/HTTP 공동 cutover 작성자",
+      "fact": "제품 구현은 이번 산출물이 아니다. 등록 전용 operation, 일반 snapshot full proof, source/map/date 결속, atomic successor, durable purge writer는 실제 코드와 검증이 필요하다. 기술 선택의 미결이나 추가 Q 판단은 아니다."
+    },
+    {
+      "records": [
+        "F6"
+      ],
+      "owner": "CCC-224/E3-7",
+      "fact": "실제 restore와 별도 보호 purge history 복구/현재성/visibility CAS가 없다. F5-F6-current-purge-history라는 동일 저장 계약을 주었지만 실복구 성공으로 표시하지 않는다."
+    }
+  ],
+  "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+  "baseline": {
+    "workspace": "/Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND",
+    "branch": "core/relayer-domain-beta",
+    "approvedReferenceCommit": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+    "observation": "baseCommit은 이번 심볼 조사의 로컬 코드 기준이지 승인 통합본이 아니다.",
+    "ccc291Dependencies": [
+      {
+        "commit": "e8208cf",
+        "hunks": [
+          "gateway.ts: textSourceGeneration/assertTextJobSourceCurrent/textSnapshotCurrentSql 및 source/result/approval 연결",
+          "agent-jobs.ts: CheckedTextSource, SourceResponse source fence",
+          "request-handler.ts: parseAgentResultRequest의 checkedSource 처리",
+          "SQLite 0065 및 PostgreSQL 0021 source fence"
+        ]
+      },
+      {
+        "commit": "b486a8eebb8d63966d0f68e26a7aa12efe9c9f47",
+        "hunks": [
+          "proveAgentTextSourceFence processing fixture lease 설정"
+        ]
+      },
+      {
+        "commit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+        "hunks": [
+          "0065/0021 큐 pending 전환에서 lease 두 값 NULL"
+        ]
+      }
+    ],
+    "acceptance": "CCC-291 parity 최종 통과와 승인 통합을 확인한 상태가 아니다. 이 의존 hunk를 승인 baseline에 이미 존재하는 기능으로 표시하지 않는다."
+  },
+  "reviewSource": {
+    "path": "/tmp/ccc-review/ccc292-freeze-review-result.json",
+    "sha256": "bde6e08384ca2683254894b7582382a70c46ad48a016a861f213c33cd7318998",
+    "indexing": "findings 배열 1-based 1~11; p1 배열의 중복 2건을 별도 집계하지 않는다.",
+    "preparationReport": "준비 보고 97/99의 추가 인벤토리는 검토 findings[8] 인용과 현재 migration을 대조했다. 준비 보고 원문 사본을 읽었다고 주장하지 않는다."
+  },
+  "sharedPurgeHistoryContract": {
+    "contractId": "F5-F6-current-purge-history",
+    "storage": "신규 물리 표 하나 privacy_purge_events. business active/shadow namespace 밖의 설치 control 영역에 둔다. 같은 설치 DB connection/transaction을 사용하지만 restore pointer 교체 및 business import가 이 표를 교체하거나 truncate할 수 없다. 표 하나를 SQLite/PostgreSQL에 동등 구현한다.",
+    "writers": "CCC-292 core/DB 작성자가 F5 파기 gateway의 intent/complete append와 현재성 차단, 세 모드의 접근/불변 제약 및 보존 연동을 구현한다. Agent와 browser는 직접 쓰지 않는다. CCC-224/E3-7은 별도 보호 복구본의 transport/검증과 importer reader를 구현하며 새 파기 사실을 백업에서 만들어내지 않는다.",
+    "minimumRow": "기관별 단조 sequence, 불투명 event/approval ID, intent 또는 complete phase, 기존 actor ID와 시각, 대상의 stable beneficiary와 생애주기 identity, 명시된 case/namespace/source identity 집합, 앞 event digest와 해당 event metadata digest, encrypted scope envelope 및 key version. 이력 payload는 본문/이름/alias/원문 hash가 없는 삭제 대상 참조와 완료 증거뿐이다. aggregate에 생애주기 identity가 없는 과거 자료는 임의 추정하지 않고 검증된 대응표를 요구한다.",
+    "constraints": "기관+sequence unique, approval+phase unique, UPDATE/DELETE 금지, 대상 업무 행에 CASCADE FK 금지. actor/org 인증과 현재 보존 승인 확인 후 gateway만 append한다. 사건 digest는 비내용 metadata의 결속용이지 이름 lookup hash가 아니다. 새 name hash 또는 키는 만들지 않는다. AES-GCM envelope의 inner scope/sequence/digest를 기존 PII_ENC_KEY로 인증한다.",
+    "atomicWriter": "기존 기관 설정 행을 공통 직렬화 행으로 사용한다. SQLite writer transaction/PostgreSQL 동일 기관 행 잠금 아래 최신 sequence 확인, intent append, 해당 case lifecycle/claim/current visibility 차단을 한 atomic batch로 commit한다. 신규 intent가 시작된 대상은 늦은 결과/등록이 다시 생성할 수 없다. 실제 물리 파기와 임시물 삭제 증거 검증 뒤 별도 complete event를 append한다. intent만 있어도 복원은 해당 파기 의무를 수행하며 원본이 남았다는 이유로 업무를 열지 않는다.",
+    "independentProtection": "live control 표는 business backup과 독립된 현재 authority다. 동일 표의 authenticated encrypted 보존 사본을 business .cccx와 별도로 보호하며 기존 SecretStore/암호화 파일 또는 private storage 경계를 사용한다. 별도 복구본은 새 표/설정이 아니다. 파기 완료 표시 전에 보존 사본의 해당 sequence 저장 확인이 필요하다. 복구본의 hash chain만으로 최신성을 증명하지 않는다. 원 설치 authority의 현재 head 또는 별도로 보호한 최신 head 증거와 대조하지 못하면 RECOVERY_BLOCKED다.",
+    "reader": "F6 importer는 원본 business backup 검증 후 동일 계약의 현재 intent/complete 전체와 scope identity 대응을 읽고 shadow에 파기를 적용한다. 현재 authority row와 동일 기관 직렬화 행을 잠근 채 sequence 재확인 및 pointer/complete 전환을 수행한다. head가 바뀌면 추가 파기 후 재검증한다. 오래된 backup의 복사본으로 authority를 덮어쓰지 않는다.",
+    "noSilentExclusion": "S10 portable user-data를 임의 제외하는 우회가 아니다. 현재 파기 authority는 별도 보호 복원 입력으로 registry/manifest에 명시하고 business snapshot의 과거 이력을 최신 authority로 승격하지 않는다. 별도 보호 보존/재해 복구의 실제 구현은 E3-7의 복구 개방 blocker로 남는다."
+  },
+  "readiness": {
+    "scope": "F1~F5의 설계 선택과 11개 finding 대응은 동결했다. 구현 완료/승인 통합/출고 가능을 뜻하지 않는다.",
+    "technicalChoicesClosedFor": [
+      "F1",
+      "F2",
+      "F3",
+      "F4",
+      "F5"
+    ],
+    "whyImplementationReadyIsFalse": "F3/HTTP/source fence의 필수 기반이 미승인 CCC-291 로컬 tree에 있고 그 parity 최종 승인과 기준 통합을 이 배정에서 확인/실행할 수 없다. 따라서 승인 baseline 위에서 즉시 전부 진행 가능하다고 단정하지 않는다. F6 actual restore 및 별도 보호 이력/개방 CAS의 실구현 부재도 출고를 차단한다. 새 Q 결정은 0건이다.",
+    "promotionCriteria": [
+      "CCC-291 의존 hunk의 승인 통합 및 source fence parity 근거가 확보된 base를 명시",
+      "현재 JSON의 F1~F5 저장·registration·source supersede·proof producer/consumer·파기 writer를 공동 구현 범위로 채택"
+    ],
+    "releaseCriteria": [
+      "F1~F5 실제 코드와 세 모드 계약/거부/동시성/파기 잔존물 검증",
+      "CCC-224/E3-7 실제 restore, 독립 최신 이력 검증 및 visibility/crash 증거"
+    ],
+    "qDecisionsRequired": 0
+  },
+  "reviewFindingsAddressed": [
+    {
+      "index": 1,
+      "severity": "P1",
+      "records": [
+        "F2",
+        "F3"
+      ],
+      "resolution": "등록 미등록/충돌을 S5 job 오류와 분리했다. HTTP 200 applied의 항목별 미등록은 generic mask로 계속 처리하고 _release_failed_job을 타지 않는다. 외부 revision 변화는 서버가 F3 원자 supersede/successor를 마친 뒤 200 superseded를 준다. invalid_request 400은 전용 client가 protocol failure release를 처리한다.",
+      "evidence": [
+        "records.F2.minimumShape.requestContract.proposedWire",
+        "records.F2.minimumShape.agentHandling",
+        "records.F2.refusalTable",
+        "records.F3.minimumShape.supersedeTransaction",
+        "apps/pipeline/ccc_pipeline/worker.py:752-793"
+      ]
+    },
+    {
+      "index": 2,
+      "severity": "P1",
+      "records": [
+        "F1",
+        "F5",
+        "F6"
+      ],
+      "resolution": "map 전용 새 표 0개는 유지하고 durable purge history용 privacy_purge_events 한 표만 허용했다. CCC-292 intent/complete writer와 E3-7 restore reader가 동일 storage/scope/authority/head contract를 소비한다. control 표는 business restore pointer로 교체되지 않고 이력은 backup과 별도로 보호한다. archive 삭제/재등록/옛 backup으로 tombstone을 잃지 않는다.",
+      "evidence": [
+        "sharedPurgeHistoryContract",
+        "records.F1.migrationNeed",
+        "records.F5.minimumShape.durableTombstone",
+        "records.F6.minimumShape.independentPurgeHistory",
+        "migrations/sqlite/0047_timestamp_normalization.sql:337-390",
+        "/tmp/ccc-canonical/S10-cccx-format.md:166-180"
+      ]
+    },
+    {
+      "index": 3,
+      "severity": "P2",
+      "records": [
+        "F3",
+        "F4",
+        "F6"
+      ],
+      "resolution": "실제 HEAD baseCommit을 기록하고 approvedReferenceCommit과 CCC-291 미승인 의존 hunk를 분리했다. RecordMaskedSourceSnapshotInput으로 바로잡고 Database는 database.ts, RecoverySecretStore는 runtime.ts의 이 로컬 base에 존재한다고 한정했다. 추가로 full_proof_json/validatePersistedSnapshotProof가 없음을 확인해 기존 proof_json 전체 result 저장과 verifyMemoryProof/memoryMaterialReady 소비를 명시했다.",
+      "evidence": [
+        "baseCommit",
+        "baseline",
+        "records.F4.exactPathsAndSymbols",
+        "records.F6.exactPathsAndSymbols",
+        "packages/core/src/gateway.ts:2762",
+        "packages/contracts/src/database.ts:1",
+        "packages/contracts/src/runtime.ts:105",
+        "packages/core/src/gateway.ts:22543-22561,22609-22617"
+      ]
+    },
+    {
+      "index": 4,
+      "severity": "P2",
+      "records": [
+        "F3",
+        "F4"
+      ],
+      "resolution": "relayer §7의 상담일 기준 명확한 사건일/기한 상대화를 새 G7 계약으로 채택하고 S6 §2.5 158/162행과의 충돌을 명시했다. 생년월일 제외, 모호성 추정 금지, calendar-day 단위와 전/후/당일 출력, 기존 산출물 불변을 고정했다. Q 미결은 없다.",
+      "evidence": [
+        "records.F3.minimumShape.dateAnchor",
+        "records.F3.minimumShape.dateConflictResolution",
+        "/tmp/ccc-canonical/2026-09-12-relayer-card-ai-contract-design.md:164",
+        "/tmp/ccc-canonical/S6-privacy-packet.md:158-165"
+      ]
+    },
+    {
+      "index": 5,
+      "severity": "P2",
+      "records": [
+        "F2"
+      ],
+      "resolution": "같은 claim/source bundle의 동일 종류·정확 등록값은 offset 수와 무관하게 같은 번호 하나를 쓴다. 실제 동명이인 충돌은 해당 그룹 generic mask로 남긴다. 다음 회차 같은 철자만으로 동일인 병합하지 않는다. 동일 live tuple 재생과 신규 처리 재사용도 구별했다.",
+      "evidence": [
+        "records.F2.minimumShape.firstRegistration",
+        "records.F2.minimumShape.repeatReference",
+        "records.F2.minimumShape.replay",
+        "/tmp/ccc-canonical/2026-09-12-relayer-card-ai-contract-design.md:162",
+        "/tmp/ccc-canonical/S5-agent-job-contract-v2.md:300",
+        "/tmp/ccc-canonical/S6-privacy-packet.md:135"
+      ]
+    },
+    {
+      "index": 6,
+      "severity": "P2",
+      "records": [
+        "F3",
+        "F5"
+      ],
+      "resolution": "textWorkEnqueueStatements의 열린 queue/job 중복 흡수 전에 원천 mutation transaction에서 old active job failed/lease NULL, queue pending/lease NULL, current generation successor 정확히 하나를 원자 처리한다. filtered best-effort 훅이나 lease expiry/retry_exhausted에 맡기지 않는다. 두 번째 queue는 없다.",
+      "evidence": [
+        "records.F3.minimumShape.supersedeTransaction",
+        "records.F5.minimumShape.regeneration",
+        "packages/core/src/gateway.ts:7373-7412,7430-7481",
+        "packages/http-api/src/request-handler.ts:1757-1786",
+        "migrations/sqlite/0065_agent_text_source_fence.sql:9-20 (미승인 CCC-291 의존)"
+      ]
+    },
+    {
+      "index": 7,
+      "severity": "P2",
+      "records": [
+        "F2",
+        "F3"
+      ],
+      "resolution": "handleRequest의 authenticated pipeline dispatch, 전용 등록 분기, requireOnlyKeys, parseClaimCredentials의 strict projection, parseAgentResultRequest와 errorResponse를 명시했다. ValidationError는 400 invalid_request, S5 AgentJobContractError의 결과 schema 실패만 기존 422다. onRecordOfficialized/onGoalRevised는 후행 훅이며 필수 source transition은 core transaction에 둔다.",
+      "evidence": [
+        "records.F2.minimumShape.operationBoundary",
+        "records.F2.minimumShape.requestContract.proposedWire",
+        "records.F2.exactPathsAndSymbols",
+        "records.F3.exactPathsAndSymbols",
+        "packages/http-api/src/request-handler.ts:1328-1370,1757-1786,2186-2225,2230,3370-3433"
+      ]
+    },
+    {
+      "index": 8,
+      "severity": "P2",
+      "records": [
+        "F5"
+      ],
+      "resolution": "금고에서 원문/모든 revision/인용/AI/memory/임시물까지 소유권 inventory를 구체화했다. session_goal_scores.evidence_quote, *_revisions, manual_question_outcomes.source_text를 포함하고 공유·귀속 불명·다른 활성 case/기관은 삭제 전 차단한다. 가명 개별 기록을 집계로 보존하지 않는다.",
+      "evidence": [
+        "records.F5.minimumShape.inventoryOwnership",
+        "records.F5.refusalTable",
+        "/tmp/ccc-canonical/0010-archive-before-purge.md:48-54",
+        "/tmp/ccc-review/ccc292-freeze-review-result.json: findings[7] (준비 보고 97/99 간접 인용)",
+        "migrations/sqlite/0006_participant_support_case_cutover.sql:403-411",
+        "migrations/sqlite/0063_manual_record_lifecycle.sql:7-44",
+        "migrations/sqlite/0064_intake_question_lifecycle.sql:48-52"
+      ]
+    },
+    {
+      "index": 9,
+      "severity": "P2",
+      "records": [
+        "F1",
+        "F2",
+        "F3"
+      ],
+      "resolution": "case 행 CAS 임대로 generic text/audio/memory 중 하나만 map 소비 작업을 진행한다. 다른 회차는 pending이고 attempt를 소비하지 않는다. 자기 등록은 자기 map binding을 같은 CAS에서 갱신하며 외부 source 변경만 supersede한다. 종료/만료에서 owner tuple을 함께 clear한다.",
+      "evidence": [
+        "records.F1.minimumShape.sameCaseConcurrency",
+        "records.F1.minimumShape.revisionAndCas",
+        "records.F3.minimumShape.supersedeTransaction.noLoop",
+        "packages/core/src/gateway.ts: claimAgentJobs/claimCounselingMemorySources"
+      ]
+    },
+    {
+      "index": 10,
+      "severity": "P3",
+      "records": [
+        "F1",
+        "F5",
+        "F6"
+      ],
+      "resolution": "0041은 초기 생성 역사로만 표시하고 현재 lifecycle trigger 정본을 0047_timestamp_normalization.sql의 재정의로 수정했다. 이후 구현은 새 forward migration이며 기존 적용 migration을 고치지 않는다.",
+      "evidence": [
+        "records.F5.migrationNeed",
+        "records.F1.exactPathsAndSymbols",
+        "migrations/sqlite/0047_timestamp_normalization.sql:337-390"
+      ]
+    },
+    {
+      "index": 11,
+      "severity": "P3",
+      "records": [
+        "F6"
+      ],
+      "resolution": "맥북 canonical S10 §6.1 사본을 다시 읽고 SHA-256 5d30a1465388598b8b29000c8596e00fd360d0db6d104c26e1374a975fdd1122 일치를 확인했다. 원본 무결성→최신 이력 인증/대상 대응→hidden 삭제→허가된 차이/잔존물→공개 시점 최신성의 5단계를 F6에 반영했다. repo S10은 수정하지 않았다.",
+      "evidence": [
+        "sourceAvailability.s10",
+        "records.F6.minimumShape",
+        "/tmp/ccc-canonical/S10-cccx-format.md:166-180"
+      ]
+    }
+  ],
+  "validation": {
+    "kind": "artifact-only",
+    "checks": [
+      "JSON parse와 F1~F6 고유 record 6개",
+      "reviewFindingsAddressed index 1~11, 각각 resolution/evidence 존재",
+      "구 marker 제거, baseCommit 40자리와 approved baseline 구별",
+      "제품 수정 0 및 테스트 실행 0, Q 결정 0",
+      "F6 실제 restore blocker CCC-224/E3-7 보존",
+      "canonical S10 파일 SHA-256 일치",
+      "최종 JSON bytes의 SHA-256 산출"
+    ],
+    "productTestsExecuted": 0,
+    "implementationEvidenceClaimed": false
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "marker": "CORE_RESULT CCC291-TRIGGER-LEASE-CLEAR-20260914",
+  "commit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+  "changedFiles": [
+    "migrations/sqlite/0065_agent_text_source_fence.sql",
+    "migrations/postgres/0021_agent_text_source_fence.sql"
+  ],
+  "change": "agent_text_source_superseded의 큐 재설정을 두 DB 모두 SET status='pending',lease_owner=NULL,lease_expires_at=NULL로 바꿨다. pending 행의 기존 CHECK를 만족하도록 상태와 임대 정보를 함께 바꾸며 WHERE, CHECK, assertion, baseline 및 migration 번호는 그대로다.",
+  "similarTriggerScan": "migrations/sqlite와 migrations/postgres의 ai_text_work_queue UPDATE를 줄바꿈 포함으로 훑었다. 같은 임대 초기화 누락은 이번 두 트리거 외에는 발견하지 못했다. SQLite 0048_agent_jobs.sql:202-204와 PostgreSQL 0004_agent_jobs.sql:82의 기존 재설정은 이미 두 임대 값을 NULL로 지운다. 나머지 SQLite 0047 및 PostgreSQL 0003은 시각 정규화이며 status를 바꾸지 않는다.",
+  "verification": "parity는 실행하지 않았다. VM, Docker와 디스크를 조작하지 않았다. 맥북 WORKER가 이 커밋으로 재검증한다. CCC292 동결 결과 파일은 보존했다."
+}

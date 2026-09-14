@@ -37,6 +37,7 @@ export const checkpoints = [
   { id: 'intake-question-lifecycle', sqlite: '0064_intake_question_lifecycle.sql', postgres: '0020_intake_question_lifecycle.sql' },
   { id: 'agent-text-source-fence', sqlite: '0065_agent_text_source_fence.sql', postgres: '0021_agent_text_source_fence.sql' },
   { id: 'case-entity-mapping', sqlite: '0066_case_entity_mapping.sql', postgres: '0022_case_entity_mapping.sql' },
+  { id: 'entity-registration-binding', sqlite: '0067_entity_registration_binding.sql', postgres: '0023_entity_registration_binding.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;
@@ -129,6 +130,17 @@ export async function proveCaseEntityMappingSchema(db: Database, supportCaseId: 
   await update('replacement', 2, 1).run();
   expect(await db.prepare('SELECT entity_map_revision FROM support_cases WHERE id=?').bind(supportCaseId).first())
     .toEqual({ entity_map_revision: 2 });
+}
+
+/** F3: lease tuples are all-or-none and source bindings have no plaintext default. */
+export async function proveEntityRegistrationBindingSchema(db: Database, supportCaseId: string): Promise<void> {
+  expect(await db.prepare(`SELECT entity_map_lease_family,entity_map_lease_job_id,entity_map_lease_attempt,entity_map_lease_expires_at
+    FROM support_cases WHERE id=?`).bind(supportCaseId).first()).toEqual({
+    entity_map_lease_family: null, entity_map_lease_job_id: null, entity_map_lease_attempt: null, entity_map_lease_expires_at: null,
+  });
+  await expect(db.prepare(`UPDATE support_cases SET entity_map_lease_family='generic' WHERE id=?`).bind(supportCaseId).run())
+    .rejects.toMatchObject({ kind: 'constraint' });
+  expect(await db.prepare('SELECT entity_source_binding FROM agent_jobs LIMIT 1').first()).toMatchObject({ entity_source_binding: null });
 }
 
 /** Seed before the display migration so historical midnight data is part of the proof. */
