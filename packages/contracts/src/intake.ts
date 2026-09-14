@@ -1,6 +1,8 @@
 import { isRecord } from './guards';
 
 export const INTAKE_SCHEMA_VERSION = 2 as const;
+export const INTAKE_WRITE_SCHEMA_VERSION = 3 as const;
+export const INTAKE_QUESTION_LIFECYCLE_VERSION = 1 as const;
 export const INTAKE_RESPONSE_CODES = ['answered', 'declined', 'unknown', 'not_applicable'] as const;
 export type IntakeResponseCode = typeof INTAKE_RESPONSE_CODES[number];
 export const INTAKE_AREA_LABELS = {
@@ -90,21 +92,70 @@ export interface IntakeQuestionnaire {
   additionalItems: IntakeTable<IntakeAdditionalItem>;
   debts: IntakeTable<IntakeDebt> | null;
 }
+export type IntakeAdditionalItemRef = {
+  rowIndex: number;
+  legacySourceRowIndex?: number;
+} & (
+  | { questionId: null; expectedRevision: null }
+  | { questionId: string; expectedRevision: number }
+);
+export interface IntakeQuestionWithdrawalInput {
+  questionId: string;
+  expectedRevision: number;
+}
+export interface IntakeQuestionWithdrawal {
+  actorId: string;
+  recordedAt: string;
+  fromRevision: number;
+}
+export interface IntakeQuestionOrigin {
+  schemaVersion: 1 | 2;
+  sourceRevision: number;
+  sourceRowIndex: number;
+}
+export interface IntakeQuestionLifecycleItem {
+  id: string;
+  revision: number;
+  sourceRevision: number;
+  sourceRowIndex: number;
+  createdBy: string;
+  createdAt: string;
+  withdrawn: IntakeQuestionWithdrawal | null;
+  origin: IntakeQuestionOrigin | null;
+}
+export interface IntakeQuestionLifecycleConversion {
+  sourceSchemaVersion: 1 | 2;
+  sourceRevision: number;
+  mechanical: {
+    recordedAt: string;
+    mappings: Array<{ questionId: string; sourceRowIndex: number }>;
+  };
+  confirmation: { actorId: string; recordedAt: string };
+}
+export interface IntakeQuestionLifecycle {
+  version: 1;
+  items: IntakeQuestionLifecycleItem[];
+  conversion: IntakeQuestionLifecycleConversion | null;
+}
 export interface IntakeCreateRequest {
-  schemaVersion: 2;
+  schemaVersion: 3;
   submissionId: string;
   heldAt: string;
   channel: 'in_person' | 'phone' | 'video';
   questionnaire: IntakeQuestionnaire;
+  additionalItemRefs: IntakeAdditionalItemRef[];
+  questionWithdrawals: IntakeQuestionWithdrawalInput[];
   scheduleId?: string;
   expectedScheduleVersion?: number;
 }
 export interface IntakeUpdateRequest {
-  schemaVersion: 2;
+  schemaVersion: 3;
   expectedRevision: number;
   heldAt: string;
   channel: 'in_person' | 'phone' | 'video';
   questionnaire: IntakeQuestionnaire;
+  additionalItemRefs: IntakeAdditionalItemRef[];
+  questionWithdrawals: IntakeQuestionWithdrawalInput[];
   conversion?: { confirmed: true; sourceRevision: number };
 }
 
@@ -177,9 +228,101 @@ export function parseIntakeQuestionnaire(value: unknown): IntakeQuestionnaire {
   return form as unknown as IntakeQuestionnaire;
 }
 
+function identifier(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.length <= 200;
+}
+function revision(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) >= 1;
+}
+function rowIndex(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) >= 0;
+}
+function timestamp(value: unknown): value is string {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value))
+    && new Date(value).toISOString() === value;
+}
+
+/** Structural validation only. Source ownership, history bounds and CAS belong to the gateway. */
+function questionBindings(request: Record<string, unknown>, create: boolean): void {
+  const form = request.questionnaire as IntakeQuestionnaire;
+  const count = form.additionalItems.response === 'answered' ? form.additionalItems.rows.length : 0;
+  if (!Array.isArray(request.additionalItemRefs) || request.additionalItemRefs.length !== count
+    || !Array.isArray(request.questionWithdrawals) || (create && request.questionWithdrawals.length !== 0)) throw new IntakeContractError();
+  const rows = new Set<number>(), ids = new Set<string>(), origins = new Set<number>();
+  for (const raw of request.additionalItemRefs) {
+    const ref = object(raw, ['rowIndex', 'questionId', 'expectedRevision', 'legacySourceRowIndex']);
+    if (!rowIndex(ref.rowIndex) || ref.rowIndex >= count || rows.has(ref.rowIndex)) throw new IntakeContractError();
+    rows.add(ref.rowIndex);
+    if (ref.questionId === null) {
+      if (ref.expectedRevision !== null) throw new IntakeContractError();
+    } else {
+      if (create || !identifier(ref.questionId) || !revision(ref.expectedRevision) || ids.has(ref.questionId)) throw new IntakeContractError();
+      ids.add(ref.questionId);
+    }
+    if (Object.hasOwn(ref, 'legacySourceRowIndex')) {
+      if (create || !Object.hasOwn(request, 'conversion') || ref.questionId !== null
+        || !rowIndex(ref.legacySourceRowIndex) || origins.has(ref.legacySourceRowIndex)) throw new IntakeContractError();
+      origins.add(ref.legacySourceRowIndex);
+    }
+  }
+  const withdrawn = new Set<string>();
+  for (const raw of request.questionWithdrawals) {
+    const item = object(raw, ['questionId', 'expectedRevision']);
+    if (!identifier(item.questionId) || !revision(item.expectedRevision) || withdrawn.has(item.questionId)) throw new IntakeContractError();
+    withdrawn.add(item.questionId);
+  }
+}
+
+export function parseIntakeQuestionLifecycle(value: unknown): IntakeQuestionLifecycle {
+  const lifecycle = object(value, ['version', 'items', 'conversion']);
+  if (lifecycle.version !== INTAKE_QUESTION_LIFECYCLE_VERSION || !Array.isArray(lifecycle.items)) throw new IntakeContractError();
+  const items = new Map<string, IntakeQuestionLifecycleItem>(), pointers = new Set<string>();
+  for (const raw of lifecycle.items) {
+    const item = object(raw, ['id', 'revision', 'sourceRevision', 'sourceRowIndex', 'createdBy', 'createdAt', 'withdrawn', 'origin']);
+    if (!identifier(item.id) || items.has(item.id) || !revision(item.revision) || !revision(item.sourceRevision)
+      || !rowIndex(item.sourceRowIndex) || !identifier(item.createdBy) || !timestamp(item.createdAt)) throw new IntakeContractError();
+    const pointer = `${item.sourceRevision}:${item.sourceRowIndex}`;
+    if (pointers.has(pointer)) throw new IntakeContractError();
+    pointers.add(pointer);
+    if (item.withdrawn !== null) {
+      const withdrawal = object(item.withdrawn, ['actorId', 'recordedAt', 'fromRevision']);
+      if (!identifier(withdrawal.actorId) || !timestamp(withdrawal.recordedAt)
+        || !revision(withdrawal.fromRevision) || withdrawal.fromRevision !== item.revision - 1) throw new IntakeContractError();
+    }
+    if (item.origin !== null) {
+      const origin = object(item.origin, ['schemaVersion', 'sourceRevision', 'sourceRowIndex']);
+      if (origin.schemaVersion !== 1 && origin.schemaVersion !== 2
+        || !revision(origin.sourceRevision) || !rowIndex(origin.sourceRowIndex)) throw new IntakeContractError();
+    }
+    items.set(item.id, item as unknown as IntakeQuestionLifecycleItem);
+  }
+  const mapped = new Set<string>();
+  if (lifecycle.conversion !== null) {
+    const conversion = object(lifecycle.conversion, ['sourceSchemaVersion', 'sourceRevision', 'mechanical', 'confirmation']);
+    if ((conversion.sourceSchemaVersion !== 1 && conversion.sourceSchemaVersion !== 2) || !revision(conversion.sourceRevision)) throw new IntakeContractError();
+    const mechanical = object(conversion.mechanical, ['recordedAt', 'mappings']);
+    const confirmation = object(conversion.confirmation, ['actorId', 'recordedAt']);
+    if (!timestamp(mechanical.recordedAt) || !Array.isArray(mechanical.mappings)
+      || !identifier(confirmation.actorId) || !timestamp(confirmation.recordedAt)) throw new IntakeContractError();
+    const sourceRows = new Set<number>();
+    for (const raw of mechanical.mappings) {
+      const mapping = object(raw, ['questionId', 'sourceRowIndex']);
+      if (!identifier(mapping.questionId) || mapped.has(mapping.questionId)
+        || !rowIndex(mapping.sourceRowIndex) || sourceRows.has(mapping.sourceRowIndex)) throw new IntakeContractError();
+      const origin = items.get(mapping.questionId)?.origin;
+      if (origin == null || origin.schemaVersion !== conversion.sourceSchemaVersion
+        || origin.sourceRevision !== conversion.sourceRevision || origin.sourceRowIndex !== mapping.sourceRowIndex) throw new IntakeContractError();
+      mapped.add(mapping.questionId);
+      sourceRows.add(mapping.sourceRowIndex);
+    }
+  }
+  for (const item of items.values()) if ((item.origin !== null) !== mapped.has(item.id)) throw new IntakeContractError();
+  return lifecycle as unknown as IntakeQuestionLifecycle;
+}
+
 function requestBase(value: unknown, keys: readonly string[]): Record<string, unknown> {
   const request = object(value, keys);
-  if (request.schemaVersion !== 2 || !text(request.heldAt)
+  if (request.schemaVersion !== INTAKE_WRITE_SCHEMA_VERSION || !text(request.heldAt)
     || !Number.isFinite(Date.parse(request.heldAt))
     || new Date(request.heldAt).toISOString() !== request.heldAt
     || typeof request.channel !== 'string'
@@ -188,20 +331,22 @@ function requestBase(value: unknown, keys: readonly string[]): Record<string, un
   return request;
 }
 export function parseIntakeCreateRequest(value: unknown): IntakeCreateRequest {
-  const request = requestBase(value, ['schemaVersion', 'submissionId', 'heldAt', 'channel', 'questionnaire', 'scheduleId', 'expectedScheduleVersion']);
+  const request = requestBase(value, ['schemaVersion', 'submissionId', 'heldAt', 'channel', 'questionnaire', 'additionalItemRefs', 'questionWithdrawals', 'scheduleId', 'expectedScheduleVersion']);
   if (!text(request.submissionId)) throw new IntakeContractError();
   if (Object.hasOwn(request, 'scheduleId') || Object.hasOwn(request, 'expectedScheduleVersion')) {
     if (!text(request.scheduleId) || !Number.isSafeInteger(request.expectedScheduleVersion) || Number(request.expectedScheduleVersion) < 1) throw new IntakeContractError();
   }
+  questionBindings(request, true);
   return request as unknown as IntakeCreateRequest;
 }
 export function parseIntakeUpdateRequest(value: unknown): IntakeUpdateRequest {
-  const request = requestBase(value, ['schemaVersion', 'expectedRevision', 'heldAt', 'channel', 'questionnaire', 'conversion']);
+  const request = requestBase(value, ['schemaVersion', 'expectedRevision', 'heldAt', 'channel', 'questionnaire', 'additionalItemRefs', 'questionWithdrawals', 'conversion']);
   if (!Number.isSafeInteger(request.expectedRevision) || Number(request.expectedRevision) < 1) throw new IntakeContractError();
   if (Object.hasOwn(request, 'conversion')) {
     const conversion = object(request.conversion, ['confirmed', 'sourceRevision']);
-    if (conversion.confirmed !== true || conversion.sourceRevision !== request.expectedRevision) throw new IntakeContractError();
+    if (conversion.confirmed !== true || !revision(conversion.sourceRevision)) throw new IntakeContractError();
   }
+  questionBindings(request, false);
   return request as unknown as IntakeUpdateRequest;
 }
 export interface IntakeRevision {
@@ -215,6 +360,7 @@ export interface IntakeRevision {
   convertedFromRevision: number | null;
   /** Exact stored JSON, including historical keys and values not in the new questionnaire. */
   detailsJson: string | null;
+  questionLifecycle: IntakeQuestionLifecycle | null;
 }
 export type IntakeSavedRecord = {
   sessionId: string;
@@ -222,6 +368,7 @@ export type IntakeSavedRecord = {
   channel: 'in_person' | 'phone' | 'video';
   revision: number;
   history: IntakeRevision[];
+  questionLifecycle: IntakeQuestionLifecycle | null;
 } & (
   | { schemaVersion: 1; questionnaire: null; legacyDetailsJson: string | null }
   | { schemaVersion: 2; questionnaire: IntakeQuestionnaire; legacyDetailsJson: null }
@@ -238,7 +385,7 @@ export function intakeAnswerDisplayText(answer: IntakeAnswer): string | null {
 }
 
 export interface IntakeMutationResponse {
-  schemaVersion: 2;
+  schemaVersion: 3;
   revision: number;
   record: { id: string; heldAt: string; channel: 'in_person' | 'phone' | 'video'; kind: 'intake' };
   replayed: boolean;

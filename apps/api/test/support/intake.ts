@@ -1,7 +1,7 @@
 import type { Actor, CounselingRecord } from '@ccc/core/gateway';
 import type { Database } from '@ccc/contracts/database';
 import { sha256Hex } from '@ccc/contracts/consent';
-import { requiredIntakeQuestionKeys, type IntakeAnswer, type IntakeArea, type IntakeCreateRequest, type IntakeModuleSnapshot, type IntakeQuestionnaire } from '@ccc/contracts/intake';
+import { INTAKE_WRITE_SCHEMA_VERSION, requiredIntakeQuestionKeys, type IntakeAnswer, type IntakeArea, type IntakeAdditionalItemRef, type IntakeCreateRequest, type IntakeModuleSnapshot, type IntakeQuestionnaire } from '@ccc/contracts/intake';
 
 type Environment = { DB: Database };
 
@@ -20,20 +20,32 @@ export function intakeQuestionnaire(moduleSnapshot: IntakeModuleSnapshot, overri
   };
 }
 
+export function newIntakeQuestionRefs(questionnaire: IntakeQuestionnaire): IntakeAdditionalItemRef[] {
+  return questionnaire.additionalItems.response === 'answered'
+    ? questionnaire.additionalItems.rows.map((_, rowIndex) => ({ rowIndex, questionId: null, expectedRevision: null }))
+    : [];
+}
+
+export function legacyIntakeQuestionRefs(mappings: Array<{ rowIndex: number; legacySourceRowIndex: number }>): IntakeAdditionalItemRef[] {
+  return mappings.map(mapping => ({ ...mapping, questionId: null, expectedRevision: null }));
+}
+
 /** Fixture lookup avoids adding a product PII-read audit to mutation tests. */
 export async function intakeInput(env: Environment, actor: Actor, supportCaseId: string, overrides: Partial<IntakeCreateRequest> = {}): Promise<IntakeCreateRequest> {
   const program = await env.DB.prepare(`SELECT p.id, p.version, p.financial_support_enabled FROM programs AS p
     JOIN support_cases AS sc ON sc.program_id = p.id AND sc.org_id = p.org_id WHERE sc.id = ? AND sc.org_id = ?`)
     .bind(supportCaseId, actor.orgId).first<{ id: string; version: number; financial_support_enabled: number }>();
   if (program === null) throw new Error('intake fixture program is missing');
+  const questionnaire = overrides.questionnaire
+    ?? intakeQuestionnaire({ programId: program.id, programVersion: program.version, financialSupportEnabled: program.financial_support_enabled === 1 });
   return {
-    schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-09-01T09:00:00.000Z', channel: 'in_person',
-    questionnaire: intakeQuestionnaire({ programId: program.id, programVersion: program.version, financialSupportEnabled: program.financial_support_enabled === 1 }),
+    schemaVersion: INTAKE_WRITE_SCHEMA_VERSION, submissionId: crypto.randomUUID(), heldAt: '2026-09-01T09:00:00.000Z', channel: 'in_person',
+    questionnaire, additionalItemRefs: newIntakeQuestionRefs(questionnaire), questionWithdrawals: [],
     ...overrides,
   };
 }
 
-/** Historical fixtures are inserted as v1, never passed through the v2 write API or converted. */
+/** Historical fixtures are inserted as v1, never passed through the current writer or converted. */
 export async function seedLegacyIntake(env: Environment, actor: Actor, supportCaseId: string, input: {
   submissionId: string; heldAt: string; channel: 'in_person' | 'phone' | 'video';
   lifeAreas?: Array<{ areaKey: string; status: string; note?: string }>;

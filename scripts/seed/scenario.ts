@@ -19,6 +19,9 @@
  */
 import {
   createBeneficiaryWithInitialSupportCase,
+  createProgram,
+  listPrograms,
+  issueRegistrationConsentDisclosures,
   createCounselingSchedule,
   createCounselingRecord,
   createIntakeRecord,
@@ -37,8 +40,10 @@ import {
   type CounselingRecordFlagInput,
   type CreateScheduleSessionGoalInput,
 } from '@ccc/core/gateway';
-import { requiredIntakeQuestionKeys, type IntakeAnswer } from '@ccc/contracts/intake';
+import { INTAKE_SCHEMA_VERSION, INTAKE_WRITE_SCHEMA_VERSION, requiredIntakeQuestionKeys, type IntakeAnswer } from '@ccc/contracts/intake';
+import type { AppendConsentEventInput } from '@ccc/contracts/consent';
 import type { D1Capture } from './capture';
+import { installPreviewConsentProviderRegistry } from './harness';
 import { ADMIN_ACTOR_ID, ORG_ID } from './preload-data';
 import {
   PARTICIPANTS,
@@ -49,7 +54,6 @@ import {
   type Trajectory,
 } from './content';
 
-const FINANCIAL_SUPPORT_V1 = 'financial_support_v1' as const;
 
 const TRAJECTORY_SEQUENCES: Record<Trajectory, number[]> = {
   improving: [-1, 0, 1, 2, 2],
@@ -115,12 +119,55 @@ async function provisionVirtualCounselors(env: Env, adminActor: Actor, capture: 
   }
 }
 
+async function provisionSyntheticProgram(env: Env, adminActor: Actor, capture: D1Capture): Promise<string> {
+  capture.mark('setup', VIRTUAL_COUNSELORS.length + 1);
+  const context = await listPrograms(env, adminActor);
+  const program = await createProgram(env, adminActor, {
+    displayName: '합성 금전 지원 사업',
+    financialSupportEnabled: true,
+    ...(context.installation.deploymentMode === 'community-cloud' ? { storageMode: 'supabase_seoul' as const } : {}),
+    processingMode: 'external_allowed',
+    confirmation: {
+      copyVersion: context.admissionCopy.version,
+      copyHash: context.admissionCopy.hash,
+      installationPolicyVersion: context.installation.policyVersion,
+      installationConfigHash: context.installation.configHash,
+    },
+  });
+  return program.id;
+}
+
+async function participantConsentEvents(
+  env: Env, actor: Actor, programId: string, participant: SeedParticipant,
+): Promise<AppendConsentEventInput[]> {
+  const disclosures = await issueRegistrationConsentDisclosures(env, actor, programId);
+  const effectiveAt = new Date().toISOString();
+  // 가상 당사자의 신규 동의다. 운영 동의 이력을 변환하거나 기존 승인을 승격하지 않는다.
+  return disclosures.map(snapshot => {
+    const granted = snapshot.domain === 'personal_data_collection_use'
+      || snapshot.domain === 'sensitive_information_processing' || participant.consent.recordingAi;
+    return {
+      domain: snapshot.domain, decision: granted ? 'grant' : 'decline',
+      provider: granted ? snapshot.provider : null,
+      providerLegalRecipient: granted ? snapshot.providerLegalRecipient : null,
+      providerCountry: granted ? snapshot.country : null,
+      purpose: granted ? snapshot.purpose : null,
+      retentionDuration: granted && snapshot.domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null,
+      copyVersion: snapshot.copyVersion, copyHash: snapshot.copyHash,
+      disclosureSnapshotId: snapshot.snapshotId, effectiveAt,
+      idempotencyKey: `${snapshot.snapshotId}:${snapshot.domain}`,
+      correctionOfEventId: null, expectedRevision: null,
+    };
+  });
+}
+
 async function runParticipant(
   env: Env,
   adminActor: Actor,
   capture: D1Capture,
   participant: SeedParticipant,
   index: number,
+  programId: string,
 ): Promise<number> {
   const participantId = `p${String(index + 1).padStart(2, '0')}`;
   let step = 0;
@@ -137,7 +184,9 @@ async function runParticipant(
     env,
     adminActor,
     {
-      programType: FINANCIAL_SUPPORT_V1,
+      programId,
+      idempotencyKey: crypto.randomUUID(),
+      consentEvents: await participantConsentEvents(env, adminActor, programId, participant),
       // intakeAt 없음(CCC-56): 등록 시점의 intake_at 은 NULL 이고, 아래 인테이크 기록
       // 저장(createIntakeRecord)이 실흐름과 같은 배선으로 채운다.
       initialAssigneeUserId: participant.assigneeUserId,
@@ -145,9 +194,6 @@ async function runParticipant(
       phone: participant.phone,
       email: participant.email,
     },
-    undefined,
-    // G1: ① 개인정보 동의는 등록의 하드 게이트다. 시드는 가상 데이터라 동의를 받은 것으로 둔다.
-    { privacy: true, recordingAi: participant.consent.recordingAi },
   );
   const { beneficiaryId, supportCaseId } = creation;
 
@@ -222,14 +268,16 @@ async function runParticipant(
     : { key, response: 'unknown' });
   mark();
   await createIntakeRecord(env, primaryActor, supportCaseId, {
-    schemaVersion: 2,
+    schemaVersion: INTAKE_WRITE_SCHEMA_VERSION,
     submissionId: crypto.randomUUID(),
     heldAt: participant.intakeAt,
     channel: 'in_person',
     questionnaire: {
-      schemaVersion: 2, moduleSnapshot: intakeContext.moduleSnapshot, answers: intakeAnswers,
+      schemaVersion: INTAKE_SCHEMA_VERSION, moduleSnapshot: intakeContext.moduleSnapshot, answers: intakeAnswers,
       linkedOrgs: { response: 'unknown' }, additionalItems: { response: 'unknown' }, debts: null,
     },
+    additionalItemRefs: [],
+    questionWithdrawals: [],
     scheduleId: intakeSchedule.id,
     expectedScheduleVersion: 1,
   });
@@ -253,17 +301,15 @@ async function runParticipant(
     });
 
     mark();
-    await createCounselingRecord(env, primaryActor, supportCaseId, {
-      submissionId: crypto.randomUUID(),
-      heldAt: regular.heldAt,
-      channel: 'in_person',
-      memo: regular.memo,
-      gasScores: scoreActiveGoals(active, participant.trajectory, sessionIndex),
-      actionItems: toRecordActionItems(regular.actionItems),
-      flags: toRecordFlags(regular.flags),
-      scheduleId: schedule.id,
-      expectedScheduleVersion: 1,
-    });
+    await createCounselingRecord(env, primaryActor, supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(),
+    heldAt: regular.heldAt,
+    channel: 'in_person',
+    memo: regular.memo,
+    gasScores: scoreActiveGoals(active, participant.trajectory, sessionIndex),
+    actionItems: toRecordActionItems(regular.actionItems),
+    flags: toRecordFlags(regular.flags),
+    scheduleId: schedule.id,
+    expectedScheduleVersion: 1, });
     sessions += 1;
 
     await applyReplacementAfter(sessionIndex);
@@ -311,10 +357,13 @@ async function runParticipant(
 export async function runScenario(env: Env, capture: D1Capture): Promise<ScenarioSummary> {
   const adminActor: Actor = { userId: ADMIN_ACTOR_ID, orgId: ORG_ID, role: 'admin' };
   await provisionVirtualCounselors(env, adminActor, capture);
+  const programId = await provisionSyntheticProgram(env, adminActor, capture);
+  capture.mark('setup', VIRTUAL_COUNSELORS.length + 2);
+  await installPreviewConsentProviderRegistry(env, adminActor);
 
   let sessions = 0;
   for (let index = 0; index < PARTICIPANTS.length; index += 1) {
-    sessions += await runParticipant(env, adminActor, capture, PARTICIPANTS[index]!, index);
+    sessions += await runParticipant(env, adminActor, capture, PARTICIPANTS[index]!, index, programId);
   }
 
   return {

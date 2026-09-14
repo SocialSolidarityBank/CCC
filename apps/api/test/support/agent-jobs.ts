@@ -56,7 +56,6 @@ export async function seedCanonicalSttConsent(
     'external_stt_processing', 'external_llm_cross_border_processing',
   ],
 ): Promise<void> {
-  const at = new Date().toISOString();
   env.CCC_KR_BUSINESS_CALENDAR = JSON.stringify({
     version: 'kr-business-days-v1',
     validFrom: '2025-01-01',
@@ -93,7 +92,7 @@ export async function seedCanonicalSttConsent(
       copyVersion: disclosure.copyVersion,
       copyHash: disclosure.copyHash,
       disclosureSnapshotId: disclosure.snapshotId,
-      effectiveAt: at,
+      effectiveAt: new Date().toISOString(),
       idempotencyKey: crypto.randomUUID(),
       correctionOfEventId: null,
       expectedRevision: null,

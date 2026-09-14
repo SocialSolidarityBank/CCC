@@ -230,6 +230,16 @@ describe('GET /staff-invites/token/:token (공개 조회)', () => {
   });
 });
 
+// 이 파일은 역할과 초대 수명을 검증한다. 실제 JWT 서명 검증은 invite-identity-binding.test.ts가 맡는다.
+function acceptanceEnv(email: string) {
+  return {
+    ...t.env,
+    verifyIdentityLinkClaims: async () => ({
+      subject: 'synthetic-invited-staff', email, issuedAt: new Date().toISOString(),
+    }),
+  };
+}
+
 describe('POST /staff-invites/token/:token/accept (공개 수락)', () => {
   it('이메일이 다르면 404 — 무엇이 틀렸는지 알려주지 않고 계정도 만들지 않는다', async () => {
     await t.reset();
@@ -239,11 +249,11 @@ describe('POST /staff-invites/token/:token/accept (공개 수락)', () => {
     });
 
     const res = await worker.fetch(
-      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json' }, {
+      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json', authorization: 'Bearer synthetic-invite-credential' }, {
         name: '다른 사람',
         email: 'someone.else@example.invalid',
       }),
-      t.env,
+      acceptanceEnv('someone.else@example.invalid'),
     );
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({ error: 'not_found' });
@@ -261,11 +271,11 @@ describe('POST /staff-invites/token/:token/accept (공개 수락)', () => {
     });
 
     const res = await worker.fetch(
-      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json' }, {
+      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json', authorization: 'Bearer synthetic-invite-credential' }, {
         name: '수락한 직원',
         email: 'accepted.staff@example.invalid',
       }),
-      t.env,
+      acceptanceEnv('accepted.staff@example.invalid'),
     );
     expect(res.status).toBe(201);
     const body = await res.json() as { userId: string; email: string; roleWaiting: boolean };
@@ -298,11 +308,11 @@ describe('POST /staff-invites/token/:token/accept (공개 수락)', () => {
     });
 
     const res = await worker.fetch(
-      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json' }, {
+      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json', authorization: 'Bearer synthetic-invite-credential' }, {
         name: '새 관리자',
         email: 'new.admin@example.invalid',
       }),
-      t.env,
+      acceptanceEnv('new.admin@example.invalid'),
     );
     expect(res.status).toBe(201);
     const body = await res.json() as { userId: string };
@@ -322,12 +332,12 @@ describe('POST /staff-invites/token/:token/accept (공개 수락)', () => {
     });
     const accept = (name: string): Request => postJson(
       `/staff-invites/token/${token}/accept`,
-      { 'content-type': 'application/json' },
+      { 'content-type': 'application/json', authorization: 'Bearer synthetic-invite-credential' },
       { name, email: 'once.staff@example.invalid' },
     );
 
-    expect((await worker.fetch(accept('첫 수락'), t.env)).status).toBe(201);
-    const second = await worker.fetch(accept('두 번째 수락'), t.env);
+    expect((await worker.fetch(accept('첫 수락'), acceptanceEnv('once.staff@example.invalid'))).status).toBe(201);
+    const second = await worker.fetch(accept('두 번째 수락'), acceptanceEnv('once.staff@example.invalid'));
     expect([404, 409]).toContain(second.status);
     expect(await countUsers('once.staff@example.invalid')).toBe(1);
   });
@@ -347,11 +357,11 @@ describe('POST /staff-invites/token/:token/accept (공개 수락)', () => {
     expect(await inviteRow(invite.id)).toMatchObject({ status: 'revoked', revoked_by: admin.userId });
 
     const res = await worker.fetch(
-      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json' }, {
+      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json', authorization: 'Bearer synthetic-invite-credential' }, {
         name: '회수 뒤 수락',
         email: 'revoked.staff@example.invalid',
       }),
-      t.env,
+      acceptanceEnv('revoked.staff@example.invalid'),
     );
     expect(res.status).toBe(404);
     expect(await countUsers('revoked.staff@example.invalid')).toBe(0);
@@ -371,11 +381,11 @@ describe('POST /staff-invites/token/:token/accept (공개 수락)', () => {
     expect(info.status).toBe(404);
 
     const accept = await worker.fetch(
-      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json' }, {
+      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json', authorization: 'Bearer synthetic-invite-credential' }, {
         name: '만료 뒤 수락',
         email: 'expired.staff@example.invalid',
       }),
-      t.env,
+      acceptanceEnv('expired.staff@example.invalid'),
     );
     expect(accept.status).toBe(404);
     expect(await countUsers('expired.staff@example.invalid')).toBe(0);
@@ -399,11 +409,11 @@ describe('기술 관리자 전용 발급(역할 대기)', () => {
     await expect(info.json()).resolves.toMatchObject({ roles: [] });
 
     const res = await worker.fetch(
-      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json' }, {
+      postJson(`/staff-invites/token/${token}/accept`, { 'content-type': 'application/json', authorization: 'Bearer synthetic-invite-credential' }, {
         name: '역할 대기 직원',
         email: 'waiting.staff@example.invalid',
       }),
-      t.env,
+      acceptanceEnv('waiting.staff@example.invalid'),
     );
     expect(res.status).toBe(201);
     const body = await res.json() as { userId: string; roleWaiting: boolean };

@@ -24,8 +24,9 @@ import {
 } from './support/d1';
 import { registrationInput } from './support/registration';
 import { seedLegacyIntake } from './support/intake';
-import { intakeInput, intakeQuestionnaire } from './support/intake';
-import { createIntakeRecord } from '@ccc/core/gateway';
+import { seedLegacyManualRecord } from './support/manual-record';
+import { intakeInput, intakeQuestionnaire, newIntakeQuestionRefs } from './support/intake';
+import { createIntakeRecord, updateIntakeRecord, getIntakeRecordContext } from '@ccc/core/gateway';
 
 function withLegacyIntakeVersions(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(withLegacyIntakeVersions);
@@ -170,42 +171,33 @@ describe('GET /support-cases/:id/report', () => {
     const beneficiaryAction = openActions.find((item) => item.description === '당사자 임대차 서류 준비');
     if (beneficiaryAction === undefined) throw new Error('missing beneficiary action fixture');
 
-    const third = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
-      submissionId: '10000000-0000-4000-8000-000000000003',
-      heldAt: '2026-07-03T09:00:00.000Z',
-      channel: 'video',
-      memo: '셋째 회차 수기 요약',
-      gasScores: [],
-      actionItems: [{ description: '실무자 후속 전화', owner: 'counselor' }],
-      flags: [{ flagType: 'housing_livelihood_shock', quote: '퇴거 통지를 받았다고 확인함' }],
-      actionItemResolutions: [{
-        actionItemId: beneficiaryAction.id,
-        status: 'hold',
-        note: '임대차 계약서 도착 대기',
-      }],
-      lifeAreas: [
-        { areaKey: 'economy', changed: true, status: 'strained', note: '이번 달 수입이 감소했습니다' },
-        { areaKey: 'housing', changed: false },
-        { areaKey: 'employment', changed: false },
-        { areaKey: 'health', changed: false },
-        { areaKey: 'mental_health', changed: false },
-        { areaKey: 'family', changed: false },
-      ],
-      details: {
-        sessionGoalNote: '주거 지원 신청 방향을 확인한다',
-        changeSinceLast: '임대인에게 퇴거 통지를 받았습니다',
-        safetyNote: '오늘 머물 곳은 확보했습니다',
-      },
-    });
-    const second = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
-      submissionId: '10000000-0000-4000-8000-000000000002',
-      heldAt: '2026-07-02T09:00:00.000Z',
-      channel: 'in_person',
-      memo: '둘째 회차 수기 요약',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-    });
+    const third = await seedLegacyManualRecord(t.env, counselor, created.supportCaseId, { submissionId: '10000000-0000-4000-8000-000000000003',
+    heldAt: '2026-07-03T09:00:00.000Z',
+    channel: 'video',
+    memo: '셋째 회차 수기 요약',
+    gasScores: [],
+    actionItems: [{ description: '실무자 후속 전화', owner: 'counselor' }],
+    flags: [{ flagType: 'housing_livelihood_shock', quote: '퇴거 통지를 받았다고 확인함' }],
+    actionItemResolutions: [{
+      actionItemId: beneficiaryAction.id,
+      status: 'hold',
+      note: '임대차 계약서 도착 대기',
+    }],
+    lifeAreas: [
+      { areaKey: 'economy', status: 'strained', note: '이번 달 수입이 감소했습니다' },
+    ],
+    details: {
+      sessionGoalNote: '주거 지원 신청 방향을 확인한다',
+      changeSinceLast: '임대인에게 퇴거 통지를 받았습니다',
+      safetyNote: '오늘 머물 곳은 확보했습니다',
+    }, });
+    const second = await createCounselingRecord(t.env, counselor, created.supportCaseId, { schemaVersion: 2, submissionId: '10000000-0000-4000-8000-000000000002',
+    heldAt: '2026-07-02T09:00:00.000Z',
+    channel: 'in_person',
+    memo: '둘째 회차 수기 요약',
+    gasScores: [],
+    actionItems: [],
+    flags: [], });
     await setSupportCaseOverallGoal(t.env, counselor, created.supportCaseId, 'MUTABLE_OVERALL_GOAL_CANARY');
 
     const flag = await t.db.prepare('SELECT id FROM flags WHERE session_id = ?')
@@ -455,6 +447,40 @@ describe('GET /support-cases/:id/report', () => {
     expect(body.sections.riskSignals?.entries).toContainEqual(expect.objectContaining({ text: '주의', intakeSchemaVersion: 2, intakeRevision: 1 }));
   });
 
+  it('reports only open intake identities with their immutable evidence revision after omission and later answers', async () => {
+    const created = await seedCase(), caseId = created.supportCaseId;
+    const input = await intakeInput(t.env, counselor, caseId);
+    input.questionnaire.additionalItems = { response: 'answered', rows: [{ item: '확인할 첫 질문' }, { item: '남겨 둔 질문', dueNote: '원래 기한' }] };
+    input.additionalItemRefs = newIntakeQuestionRefs(input.questionnaire);
+    const intake = await createIntakeRecord(t.env, counselor, caseId, input);
+    const saved = (await getIntakeRecordContext(t.env, counselor, caseId)).saved!;
+    const a = saved.questionLifecycle!.items.find(item => item.sourceRowIndex === 0)!;
+    const b = saved.questionLifecycle!.items.find(item => item.sourceRowIndex === 1)!;
+    await updateIntakeRecord(t.env, counselor, caseId, {
+      schemaVersion: 3, expectedRevision: 1, heldAt: '2026-09-02T09:00:00.000Z', channel: input.channel,
+      questionnaire: { ...input.questionnaire, additionalItems: { response: 'answered', rows: [{ item: '수정한 첫 질문' }] } },
+      additionalItemRefs: [{ rowIndex: 0, questionId: a.id, expectedRevision: 1 }], questionWithdrawals: [],
+    });
+    const current = await report(counselor, caseId);
+    expect(current.nextConfirmations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ item: '수정한 첫 질문', evidence: expect.objectContaining({ intakeRevision: 2, source: 'intake_details.additionalItems.0.item' }) }),
+      expect.objectContaining({ item: '남겨 둔 질문', dueNote: '원래 기한', evidence: expect.objectContaining({
+        sessionId: intake.record.id, heldAt: input.heldAt, intakeSchemaVersion: 2, intakeRevision: 1, source: 'intake_details.additionalItems.1.item',
+      }) }),
+    ]));
+    await createCounselingRecord(t.env, counselor, caseId, { schemaVersion: 2, submissionId: crypto.randomUUID(),
+      heldAt: '2026-09-03T09:00:00.000Z', channel: 'in_person', memo: '수기로 확인',
+      questionAnswers: [{ kind: 'intake', questionId: b.id, sourceId: intake.record.id, expectedRevision: 1, answer: '확인한 답' }],
+    });
+    expect((await report(counselor, caseId)).nextConfirmations?.map(item => item.item)).toEqual(['수정한 첫 질문']);
+    await updateIntakeRecord(t.env, counselor, caseId, {
+      schemaVersion: 3, expectedRevision: 2, heldAt: '2026-09-02T09:00:00.000Z', channel: input.channel,
+      questionnaire: { ...input.questionnaire, additionalItems: { response: 'unknown' } }, additionalItemRefs: [],
+      questionWithdrawals: [{ questionId: a.id, expectedRevision: 2 }],
+    });
+    expect((await report(counselor, caseId)).nextConfirmations).toBeUndefined();
+  });
+
   it('keeps an evidence-free intake session while omitting every fabricated section and summary', async () => {
     const created = await seedCase();
     const intake = await seedLegacyIntake(t.env, counselor, created.supportCaseId, {
@@ -489,15 +515,13 @@ describe('GET /support-cases/:id/report', () => {
     t.env.TEXT_AI_PILOT_ENABLED = '1';
     const created = await seedCase();
     await seedCanonicalSttConsent(t.env, counselor, created.supportCaseId);
-    const session = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
-      submissionId: '30000000-0000-4000-8000-000000000001',
-      heldAt: '2026-07-06T09:00:00.000Z',
-      channel: 'in_person',
-      memo: '승인 전에는 이 수기 요약만 보입니다',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-    });
+    const session = await createCounselingRecord(t.env, counselor, created.supportCaseId, { schemaVersion: 2, submissionId: '30000000-0000-4000-8000-000000000001',
+    heldAt: '2026-07-06T09:00:00.000Z',
+    channel: 'in_person',
+    memo: '승인 전에는 이 수기 요약만 보입니다',
+    gasScores: [],
+    actionItems: [],
+    flags: [], });
     const config = await registerAiProviderConfiguration(t.env, admin, {
       adapterId: 'codex',
       adapterVersion: 'v1',

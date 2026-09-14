@@ -133,15 +133,13 @@ let sequence = 0;
 
 async function fixtureSession(supportCaseId: string): Promise<string> {
   sequence += 1;
-  const created = await createCounselingRecord(t.env, counselor, supportCaseId, {
-    submissionId: crypto.randomUUID(),
-    heldAt: `2026-07-0${sequence % 9 + 1}T10:00:00.000Z`,
-    channel: 'in_person',
-    memo: `Agent job fixture memo ${sequence}.`,
-    gasScores: [],
-    actionItems: [],
-    flags: [],
-  });
+  const created = await createCounselingRecord(t.env, counselor, supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(),
+  heldAt: `2026-07-0${sequence % 9 + 1}T10:00:00.000Z`,
+  channel: 'in_person',
+  memo: `Agent job fixture memo ${sequence}.`,
+  gasScores: [],
+  actionItems: [],
+  flags: [], });
   return created.record.id;
 }
 

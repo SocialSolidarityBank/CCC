@@ -14,6 +14,7 @@ import { createD1Database } from '@ccc/db-d1';
 import worker from './support/local-worker';
 import { SQLITE_MIGRATIONS_PATH, seedHistoricalParticipant, seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import { seedLegacyIntake } from './support/intake';
+import { seedLegacyManualRecord } from './support/manual-record';
 import {
   activateAiProviderConfiguration,
   approveGeneratedAiDraft,
@@ -92,24 +93,20 @@ async function saveRecord(
   supportCaseId: string,
   memo: string,
   options?: {
-    details?: { sessionGoalNote?: string };
     heldAt?: string;
     schedule?: { id: string; version: number };
   },
 ): Promise<string> {
-  const result = await createCounselingRecord(t.env, counselor, supportCaseId, {
-    submissionId: crypto.randomUUID(),
-    heldAt: options?.heldAt ?? '2026-07-08T10:00:00.000Z',
-    channel: 'in_person',
-    memo,
-    gasScores: [],
-    actionItems: [],
-    flags: [],
-    ...(options?.details === undefined ? {} : { details: options.details }),
-    ...(options?.schedule === undefined
-      ? {}
-      : { scheduleId: options.schedule.id, expectedScheduleVersion: options.schedule.version }),
-  });
+  const result = await createCounselingRecord(t.env, counselor, supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(),
+  heldAt: options?.heldAt ?? '2026-07-08T10:00:00.000Z',
+  channel: 'in_person',
+  memo,
+  gasScores: [],
+  actionItems: [],
+  flags: [],
+  ...(options?.schedule === undefined
+    ? {}
+    : { scheduleId: options.schedule.id, expectedScheduleVersion: options.schedule.version }), });
   return result.record.id;
 }
 
@@ -226,11 +223,12 @@ describe('getAgentJobSource — AI 재료 배선 (CCC-73 · D62 §7)', () => {
         { key: 'summary_direction', response: 'answered', text: '긴급 주거비 지원 연계' },
       ],
     });
-    const sessionId = await saveRecord(
-      supportCaseId,
-      '보증금 마련 계획을 함께 세웠다',
-      { details: { sessionGoalNote: '대출 서류 준비 여부 확인' } },
-    );
+    const legacy = await seedLegacyManualRecord(t.env, counselor, supportCaseId, {
+      heldAt: '2026-07-08T10:00:00.000Z', channel: 'in_person',
+      memo: '보증금 마련 계획을 함께 세웠다',
+      details: { sessionGoalNote: '대출 서류 준비 여부 확인' },
+    });
+    const sessionId = legacy.record.id;
 
     const text = await sourceForSession(sessionId);
     const lines = text.split('\n');

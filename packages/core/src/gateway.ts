@@ -21,7 +21,9 @@ import type { Bindable, Database, DatabaseResult, PreparedStatement } from '@ccc
 import type { AudioDeletionEvidence, AudioStore, CoreSecretStore } from '@ccc/contracts/runtime';
 import type { InstitutionReadiness, OrganizationProfile, OrganizationOnboardingInput, OrganizationOnboardingResponse } from '@ccc/contracts/institution';
 import type { ReportEvidence, SupportCaseReport } from '@ccc/contracts/report';
-import { parseIntakeQuestionnaire, parseIntakeCreateRequest, parseIntakeUpdateRequest, requiredIntakeQuestionKeys, intakeAnswerDisplayText, IntakeContractError, type IntakeArea, type IntakeCreateRequest, type IntakeUpdateRequest, type IntakeModuleSnapshot, type IntakeSavedRecord, type IntakeRevision, type IntakeResponseCode, type IntakeDebt, type IntakeLinkedOrg } from '@ccc/contracts/intake';
+import { isRecord } from '@ccc/contracts/guards';
+import { INTAKE_WRITE_SCHEMA_VERSION, parseIntakeQuestionLifecycle, parseIntakeCreateRequest, parseIntakeUpdateRequest, requiredIntakeQuestionKeys, intakeAnswerDisplayText, IntakeContractError, type IntakeArea, type IntakeCreateRequest, type IntakeUpdateRequest, type IntakeModuleSnapshot, type IntakeSavedRecord, type IntakeRevision, type IntakeResponseCode, type IntakeDebt, type IntakeLinkedOrg, type IntakeQuestionnaire, type IntakeAdditionalItem, type IntakeQuestionLifecycle, type IntakeQuestionLifecycleItem } from '@ccc/contracts/intake';
+import { MANUAL_RECORD_CONTEXT_SCHEMA_VERSION, parseCreateManualRecord, ManualRecordContractError, type CreateManualRecordInput, type ManualRecordDetails, type ManualRecordProjection, type ManualRecordContext, type ManualOpenAction, type ManualPendingQuestion, type ManualActionOutcome, type ManualQuestionOutcome } from '@ccc/contracts/manual-record';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import {
@@ -6342,6 +6344,7 @@ export async function createManualSession(
 ): Promise<Session> {
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   const result = await createCounselingRecord(env, actor, context.supportCaseId, {
+    schemaVersion: 2,
     submissionId: input.submissionId,
     heldAt: input.heldAt,
     channel: input.channel,
@@ -7487,7 +7490,8 @@ function intakeAnswerText(rawDetails: unknown, key: string): string | null {
 function intakeReadView(raw: unknown): { schemaVersion: 1 | 2; details: Record<string, unknown> } {
   const details = parseJson<Record<string, unknown>>(raw) ?? {};
   if (details.schemaVersion === undefined || details.schemaVersion === 1) return { schemaVersion: 1, details };
-  const form = parseIntakeQuestionnaire(details);
+  // Writes are strict; historical version-2 extension keys remain literal on reads.
+  const form = details as unknown as IntakeQuestionnaire;
   const selection = form.answers.find(answer => answer.key === 'difficulty_areas');
   const areas = selection?.response === 'answered' && 'choices' in selection ? selection.choices as IntakeArea[] : [];
   const applicable = new Set(requiredIntakeQuestionKeys(areas));
@@ -18365,6 +18369,7 @@ export interface CounselingRecordDiscrepancy {
 }
 
 export interface CounselingRecordDetails extends CounselingRecord {
+  manual: ManualRecordProjection | null;
   completedSchedule: CounselingRecordCompletedSchedule | null;
   gasScores: CounselingRecordGasScore[];
   actionItems: ActionItem[];
@@ -18412,12 +18417,6 @@ export interface CounselingRecordFlagInput {
 export const ACTION_ITEM_RESOLUTION_STATUSES = ['done', 'in_progress', 'not_done', 'hold'] as const;
 export type ActionItemResolutionStatus = (typeof ACTION_ITEM_RESOLUTION_STATUSES)[number];
 
-export interface CounselingRecordActionItemResolutionInput {
-  actionItemId: string;
-  status: ActionItemResolutionStatus;
-  note?: string;
-
-}
 
 /**
  * 생활 6영역 스냅샷 (CCC-8). 키·상태값의 유일 출처.
@@ -18444,16 +18443,6 @@ export const LIFE_AREA_STATUSES = [
 ] as const;
 export type LifeAreaStatus = (typeof LIFE_AREA_STATUSES)[number];
 
-/**
- * 회차별 6영역 입력. changed=false('변화 없음')면 직전 세션 스냅샷 값을 복사한다
- * (직전 없으면 미기록 — 행 미생성). changed=true 면 제출된 status(+note)로 기록한다.
- */
-export interface CounselingRecordLifeAreaInput {
-  areaKey: LifeAreaKey;
-  changed: boolean;
-  status?: LifeAreaStatus;
-  note?: string;
-}
 
 /** 저장·조회되는 한 영역의 스냅샷 값. */
 export interface LifeAreaSnapshotEntry {
@@ -18462,50 +18451,9 @@ export interface LifeAreaSnapshotEntry {
   note: string | null;
 }
 
-/**
- * 정기 기록지 서술형 항목(CCC-10 · 0016 record_details). 전부 선택이며, 하나라도 채워진
- * 경우에만 details 를 보낸다(빈 객체는 거부). 값은 서술 기록일 뿐 자동 판정 입력이
- * 아니다 — 플래그 확정·GAS 점수는 여전히 실무자 몫이다(D6·D9·R5).
- */
-export interface CounselingRecordDetailsInput {
-  /** 이번 상담 목표 — 일정에 세션 목표가 연결되지 않은 회차에서만 기록한다(D28). */
-  sessionGoalNote?: string;
-  /** 지난 상담 이후 달라진 일. */
-  changeSinceLast?: string;
-  /** 위기·안전 확인 서술. */
-  safetyNote?: string;
-  /** 담당 실무자 의견(당사자 발언과 구분). */
-  counselorOpinion?: string;
-}
-
-export interface CreateCounselingRecordInput {
-  submissionId: string;
-  heldAt: string;
-  channel: Session['channel'];
-  memo: string;
-  gasScores: CounselingRecordGasScoreInput[];
-  actionItems: CounselingRecordActionItemInput[];
-  flags: CounselingRecordFlagInput[];
-  actionItemResolutions?: CounselingRecordActionItemResolutionInput[];
-  // 6영역 전체 스냅샷(CCC-8). 구 클라이언트 호환을 위해 옵션 — 생략 시 스냅샷 미저장.
-  lifeAreas?: CounselingRecordLifeAreaInput[];
-  // 서술형 항목(CCC-10). 생략 시 record_details 는 NULL.
-  details?: CounselingRecordDetailsInput;
-  // 구 목표 종료+신설(goalTransition)은 D62 §5 로 폐지. 닫기는 closeGoal 단일 관문이다.
-  scheduleId?: string;
-  expectedScheduleVersion?: number;
-}
-
-/** record_details 에 담기는 서술형 키 목록(CCC-10 · 0016). 유일 출처. */
-export const COUNSELING_RECORD_DETAIL_KEYS = [
-  'sessionGoalNote',
-  'changeSinceLast',
-  'safetyNote',
-  'counselorOpinion',
-] as const;
 
 export interface CounselingRecordResult {
-  record: CounselingRecord;
+  record: CounselingRecord & { manual: Pick<ManualRecordProjection, 'schemaVersion' | 'revision' | 'details'> };
   replayed: boolean;
 }
 
@@ -18524,134 +18472,15 @@ function mapCounselingRecord(row: DbRow, aiSummary: string | null = null, approv
   };
 }
 
-function assertCounselingRecordInput(input: CreateCounselingRecordInput): void {
-  const hasSchedule = input.scheduleId !== undefined || input.expectedScheduleVersion !== undefined;
-  const hasResolutions = input.actionItemResolutions !== undefined;
-  const hasLifeAreas = input.lifeAreas !== undefined;
-  const expectedKeys = ['submissionId', 'heldAt', 'channel', 'memo', 'gasScores', 'actionItems', 'flags'];
-  if (hasResolutions) expectedKeys.push('actionItemResolutions');
-  if (hasLifeAreas) expectedKeys.push('lifeAreas');
-  if (input.details !== undefined) expectedKeys.push('details');
-  if (hasSchedule) expectedKeys.push('scheduleId', 'expectedScheduleVersion');
-  assertExactKeys(input, expectedKeys);
+function assertCounselingRecordInput(input: CreateManualRecordInput): void {
+  try {
+    parseCreateManualRecord(input);
+  } catch (error) {
+    if (error instanceof ManualRecordContractError) throw new ValidationError(error.message);
+    throw error;
+  }
   assertCanonicalSubmissionId(input.submissionId);
-  canonicalUtcInstant(input.heldAt, 'record time');
-  if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
-    throw new ValidationError('record channel is invalid');
-  }
-  assertNonBlankText(input.memo, 'record memo');
-  assertBoundedArray(input.gasScores, 'GAS scores', MAX_ACTIVE_GOALS);
-  assertBoundedArray(input.actionItems, 'action items', 20);
-  assertBoundedArray(input.flags, 'flags', 20);
-  if (hasSchedule) {
-    assertOpaqueIdentifier(input.scheduleId, 'schedule id');
-    if (
-      typeof input.expectedScheduleVersion !== 'number'
-      || !Number.isInteger(input.expectedScheduleVersion)
-      || input.expectedScheduleVersion < 1
-    ) {
-      throw new ValidationError('schedule version is invalid');
-    }
-  }
-
-  const goalIds = new Set<string>();
-  for (const score of input.gasScores) {
-    assertExactKeys(score, ['goalId', 'score']);
-    assertOpaqueIdentifier(score.goalId, 'goal id');
-    if (!Number.isInteger(score.score) || score.score < -2 || score.score > 2) {
-      throw new ValidationError('GAS score is invalid');
-    }
-    if (goalIds.has(score.goalId)) {
-      throw new ValidationError('GAS score is duplicated');
-    }
-    goalIds.add(score.goalId);
-  }
-  for (const action of input.actionItems) {
-    assertExactKeys(action, action.dueDate === undefined ? ['description', 'owner'] : ['description', 'owner', 'dueDate']);
-    assertNonBlankText(action.description, 'action description');
-    if (action.owner !== 'counselor' && action.owner !== 'beneficiary' && action.owner !== 'org') {
-      throw new ValidationError('action owner is invalid');
-    }
-    if (action.dueDate !== undefined) assertDateOnly(action.dueDate);
-  }
-  for (const flag of input.flags) {
-    assertExactKeys(flag, flag.quote === undefined ? ['flagType'] : ['flagType', 'quote']);
-    toFlagType(flag.flagType);
-    if (flag.quote !== undefined) assertNonBlankText(flag.quote, 'flag quote');
-  }
-  if (input.actionItemResolutions !== undefined) {
-    assertBoundedArray(input.actionItemResolutions, 'action item resolutions', 20);
-    const resolvedActionIds = new Set<string>();
-    for (const resolution of input.actionItemResolutions) {
-      assertExactKeys(resolution, resolution.note === undefined ? ['actionItemId', 'status'] : ['actionItemId', 'status', 'note']);
-      assertOpaqueIdentifier(resolution.actionItemId, 'action item id');
-      if (!(ACTION_ITEM_RESOLUTION_STATUSES as readonly string[]).includes(resolution.status)) {
-        throw new ValidationError('action item resolution status is invalid');
-      }
-      if (resolution.note !== undefined) assertNonBlankText(resolution.note, 'action item resolution note');
-      if (resolvedActionIds.has(resolution.actionItemId)) {
-        throw new ValidationError('action item resolution is duplicated');
-      }
-      resolvedActionIds.add(resolution.actionItemId);
-    }
-  }
-  if (input.lifeAreas !== undefined) assertLifeAreaInputs(input.lifeAreas);
-  if (input.details !== undefined) assertCounselingRecordDetails(input.details);
-}
-
-/**
- * 서술형 항목 검증(CCC-10). 알려진 키만 허용하고 값은 공백이 아닌 문자열이어야 한다.
- * 빈 객체는 거부한다 — 채운 항목이 없으면 details 자체를 생략한다(제출 해시 정합).
- */
-function assertCounselingRecordDetails(details: CounselingRecordDetailsInput): void {
-  if (details === null || typeof details !== 'object' || Array.isArray(details)) {
-    throw new ValidationError('record details is invalid');
-  }
-  const keys = Object.keys(details);
-  if (keys.length === 0) throw new ValidationError('record details is empty');
-  for (const key of keys) {
-    if (!(COUNSELING_RECORD_DETAIL_KEYS as readonly string[]).includes(key)) {
-      throw new ValidationError('record details is invalid');
-    }
-    assertNonBlankText((details as Record<string, unknown>)[key], `record detail ${key}`);
-  }
-}
-
-/**
- * 6영역 입력 검증(CCC-8). 6영역 전부 포함(누락 거부)·중복 금지·알 수 없는 키 거부.
- * changed=true 면 유효한 status 필수(note 선택), changed=false 면 status/note 불허
- * (직전 스냅샷을 복사하므로 값을 받지 않는다).
- */
-function assertLifeAreaInputs(lifeAreas: CounselingRecordLifeAreaInput[]): void {
-  assertBoundedArray(lifeAreas, 'life areas', LIFE_AREA_KEYS.length);
-  const seen = new Set<string>();
-  for (const area of lifeAreas) {
-    if (typeof area !== 'object' || area === null || typeof area.changed !== 'boolean') {
-      throw new ValidationError('life area is invalid');
-    }
-    assertExactKeys(
-      area,
-      area.changed
-        ? (area.note === undefined ? ['areaKey', 'changed', 'status'] : ['areaKey', 'changed', 'status', 'note'])
-        : ['areaKey', 'changed'],
-    );
-    if (!(LIFE_AREA_KEYS as readonly string[]).includes(area.areaKey)) {
-      throw new ValidationError('life area key is invalid');
-    }
-    if (seen.has(area.areaKey)) {
-      throw new ValidationError('life area is duplicated');
-    }
-    seen.add(area.areaKey);
-    if (area.changed) {
-      if (area.status === undefined || !(LIFE_AREA_STATUSES as readonly string[]).includes(area.status)) {
-        throw new ValidationError('life area status is invalid');
-      }
-      if (area.note !== undefined) assertNonBlankText(area.note, 'life area note');
-    }
-  }
-  if (seen.size !== LIFE_AREA_KEYS.length) {
-    throw new ValidationError('life areas must cover all six areas');
-  }
+  for (const flag of input.flags ?? []) toFlagType(flag.flagType);
 }
 
 async function assertRecordGoalsBelongToSupportCase(
@@ -18671,29 +18500,12 @@ async function assertRecordGoalsBelongToSupportCase(
     throw new ForbiddenError('record context is unavailable');
   }
 }
-async function assertActionResolutionsAreOpenInSupportCase(
-  env: Env,
-  orgId: string,
-  supportCaseId: string,
-  resolutions: CounselingRecordActionItemResolutionInput[],
-): Promise<void> {
-  if (resolutions.length === 0) return;
-  const actionItemIds = resolutions.map((resolution) => resolution.actionItemId);
-  const placeholders = actionItemIds.map(() => '?').join(', ');
-  const found = await env.DB.prepare(
-    `SELECT id FROM action_items
-     WHERE org_id = ? AND support_case_id = ? AND resolved_at IS NULL AND id IN (${placeholders})`,
-  ).bind(orgId, supportCaseId, ...actionItemIds).all<{ id: string }>();
-  if (found.results.length !== actionItemIds.length) {
-    throw new ForbiddenError('record context is unavailable');
-  }
-}
 
 async function recordReplay(
   env: Env,
   actor: Actor,
   supportCaseId: string,
-  input: CreateCounselingRecordInput,
+  input: Pick<CreateManualRecordInput, 'submissionId'>,
   submissionHash: string,
 ): Promise<CounselingRecordResult | null> {
   const row = await env.DB.prepare(
@@ -18706,7 +18518,7 @@ async function recordReplay(
   if (row.submitted_by !== actor.userId || row.submission_hash !== submissionHash) {
     throw new ConflictError('submission conflicts with an existing official operation');
   }
-  return { record: mapCounselingRecord(row), replayed: true };
+  return { record: { ...mapCounselingRecord(row), manual: { schemaVersion: 2, revision: integerValue(row.manual_revision)!, details: storedManualDetails(row) } }, replayed: true };
 }
 
 function mapLifeAreaSnapshotRow(row: DbRow): LifeAreaSnapshotEntry {
@@ -18717,32 +18529,150 @@ function mapLifeAreaSnapshotRow(row: DbRow): LifeAreaSnapshotEntry {
   };
 }
 
-/**
- * 직전 6영역 스냅샷(CCC-8): 해당 support case 의 세션 중 스냅샷을 보유한 최신 회차의
- * 값. '변화 없음' 복사원본이자, 기록 작성 폼의 "직전 상태" 표시원이다. 순서는
- * listCounselingRecords 와 같은 held_at DESC, id DESC — 복사원본과 표시값이 일치한다.
- */
-async function getLatestLifeAreaSnapshot(
-  env: Env,
-  orgId: string,
-  supportCaseId: string,
-): Promise<LifeAreaSnapshotEntry[]> {
-  const rows = await env.DB.prepare(
-    `SELECT snapshot.area_key, snapshot.status, snapshot.note
-     FROM session_life_area_snapshots AS snapshot
-     WHERE snapshot.org_id = ? AND snapshot.session_id = (
-       SELECT session.id FROM sessions AS session
-       WHERE session.org_id = ? AND session.support_case_id = ?
-         AND EXISTS (
-           SELECT 1 FROM session_life_area_snapshots AS latest
-           WHERE latest.session_id = session.id
-         )
-       ORDER BY session.held_at DESC, session.id DESC
-       LIMIT 1
-     )
-     ORDER BY snapshot.area_key`,
-  ).bind(orgId, orgId, supportCaseId).all<DbRow>();
-  return rows.results.map(mapLifeAreaSnapshotRow);
+
+function storedManualDetails(row: DbRow): ManualRecordDetails | null {
+  if (integerValue(row.manual_schema_version) !== 2) return null;
+  return JSON.parse(stringValue(row.record_details)) as ManualRecordDetails;
+}
+
+/** Canonical manual entities only. AI drafts and derived memory cards are not sources. */
+async function loadManualWork(env: Env, orgId: string, supportCaseId: string) {
+  // One statement selects all source IDs/revisions and result-owning sessions.
+  // Independent adapter reads after this point may observe later commits.
+  const sources = await env.DB.prepare(`SELECT * FROM (
+    SELECT 'action' AS source_kind, a.id, a.revision, NULL AS source_id,
+      a.session_id AS source_session_id, s.held_at AS source_held_at, NULL AS source_scheduled_at,
+      a.created_at, a.description AS body, a.owner, a.due_date, a.resolved_at, a.stop_reason,
+      NULL AS record_details, CAST(NULL AS BIGINT) AS manual_schema_version, NULL AS ordinal,
+      NULL AS intake_details, NULL AS intake_question_lifecycle, CAST(NULL AS BIGINT) AS intake_schema_version
+    FROM action_items a LEFT JOIN sessions s ON s.id = a.session_id AND s.org_id = a.org_id
+    WHERE a.org_id = ? AND a.support_case_id = ?
+    UNION ALL
+    SELECT 'schedule', q.id, q.revision, q.schedule_id, s.completed_session_id,
+      origin.held_at, s.scheduled_at, q.created_at, q.body, NULL, NULL, NULL, NULL, NULL, NULL, q.ordinal, NULL, NULL, NULL
+    FROM schedule_custom_questions q
+    JOIN counseling_schedules s ON s.id = q.schedule_id AND s.org_id = q.org_id
+    LEFT JOIN sessions origin ON origin.id = s.completed_session_id AND origin.org_id = s.org_id
+    WHERE q.org_id = ? AND q.support_case_id = ?
+    UNION ALL
+    SELECT 'record', s.id, s.manual_revision, NULL, s.id, s.held_at, NULL, s.created_at,
+      NULL, NULL, NULL, NULL, NULL, s.record_details, s.manual_schema_version, NULL, NULL, NULL, NULL
+    FROM sessions s WHERE s.org_id = ? AND s.support_case_id = ? AND s.kind = 'regular' AND s.manual_schema_version = 2
+    UNION ALL
+    SELECT 'intake', s.id, s.intake_revision, NULL, s.id, s.held_at, NULL, s.created_at,
+      NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, s.intake_details, s.intake_question_lifecycle, s.intake_schema_version
+    FROM sessions s WHERE s.org_id = ? AND s.support_case_id = ? AND s.kind = 'intake'
+  ) AS manual_work_sources
+  ORDER BY COALESCE(source_held_at, source_scheduled_at, created_at), created_at, ordinal, id`)
+    .bind(orgId, supportCaseId, orgId, supportCaseId, orgId, supportCaseId, orgId, supportCaseId).all<DbRow>();
+  const actions = new Map<string, ManualOpenAction>();
+  const questions = new Map<string, ManualPendingQuestion>();
+  const selectedRecordIds = new Set<string>();
+  let intake: Awaited<ReturnType<typeof loadIntakeQuestionHistory>> | null = null;
+  for (const row of sources.results) {
+    const id = stringValue(row.id);
+    if (row.source_kind === 'action') {
+      actions.set(id, {
+        id, revision: integerValue(row.revision)!, sourceSessionId: nullableString(row.source_session_id),
+        sourceHeldAt: nullableString(row.source_held_at), createdAt: stringValue(row.created_at),
+        description: stringValue(row.body), owner: stringValue(row.owner) as ActionItem['owner'], dueDate: nullableString(row.due_date),
+        state: row.resolved_at == null ? 'open' : row.stop_reason == null ? 'done' : 'stopped', history: [], outcomes: [],
+      });
+    } else if (row.source_kind === 'schedule') {
+      questions.set(`schedule:${id}`, {
+        kind: 'schedule', id, sourceId: stringValue(row.source_id), sourceRevision: integerValue(row.revision)!,
+        sourceSessionId: nullableString(row.source_session_id), sourceHeldAt: nullableString(row.source_held_at),
+        sourceScheduledAt: stringValue(row.source_scheduled_at), createdAt: stringValue(row.created_at),
+        body: stringValue(row.body), state: 'open', outcomes: [],
+      });
+    } else if (row.source_kind === 'intake') {
+      if (intake !== null) throw new ConflictError('intake source is ambiguous');
+      intake = await loadIntakeQuestionHistory(env, orgId, { ...row, intake_revision: row.revision, held_at: row.source_held_at });
+      for (const { item, value } of intake.references.values()) {
+        questions.set(`intake:${item.id}`, {
+          kind: 'intake', id: item.id, sourceId: id, sourceRevision: item.revision,
+          sourceSessionId: id, sourceHeldAt: stringValue(row.source_held_at), sourceScheduledAt: null,
+          createdAt: item.createdAt, body: value.item, state: item.withdrawn === null ? 'open' : 'withdrawn', outcomes: [],
+        });
+      }
+    } else {
+      selectedRecordIds.add(id);
+      for (const question of storedManualDetails(row)!.nextQuestions) {
+        questions.set(`record:${question.id}`, {
+          kind: 'record', id: question.id, sourceId: id, sourceRevision: integerValue(row.revision)!,
+          sourceSessionId: id, sourceHeldAt: stringValue(row.source_held_at), sourceScheduledAt: null,
+          createdAt: stringValue(row.created_at), body: question.body, state: 'open', outcomes: [],
+        });
+      }
+    }
+  }
+  const [actionHistory, actionOutcomes, questionOutcomes] = await Promise.all([
+    env.DB.prepare(`SELECT h.* FROM action_item_revisions h JOIN action_items a ON a.id = h.action_item_id AND a.org_id = h.org_id
+      WHERE a.org_id = ? AND a.support_case_id = ? ORDER BY h.revision`).bind(orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, s.held_at FROM manual_action_outcomes o JOIN manual_record_revisions s ON s.session_id = o.session_id AND s.org_id = o.org_id AND s.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? ORDER BY s.held_at, s.session_id`).bind(orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, s.held_at FROM manual_question_outcomes o JOIN manual_record_revisions s ON s.session_id = o.session_id AND s.org_id = o.org_id AND s.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? ORDER BY s.held_at, s.session_id`).bind(orgId, supportCaseId).all<DbRow>(),
+  ]);
+  for (const row of actionHistory.results) {
+    const action = actions.get(stringValue(row.action_item_id));
+    if (action === undefined || integerValue(row.revision)! > action.revision) continue;
+    action.history.push({
+      revision: integerValue(row.revision)!, description: stringValue(row.description), owner: stringValue(row.owner) as ActionItem['owner'],
+      dueDate: nullableString(row.due_date), resolutionStatus: nullableString(row.resolution_status) as ActionItemResolutionStatus | null,
+      resolutionNote: nullableString(row.resolution_note), sourceSessionId: nullableString(row.resolution_session_id),
+      resolvedAt: nullableString(row.resolved_at), stopReason: nullableString(row.stop_reason),
+    });
+  }
+  for (const row of actionOutcomes.results) {
+    const action = actions.get(stringValue(row.action_item_id));
+    if (action === undefined || integerValue(row.source_revision)! > action.revision
+      || !selectedRecordIds.has(stringValue(row.session_id))) continue;
+    action.outcomes.push({
+      actionItemId: stringValue(row.action_item_id), sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at),
+      sourceRevision: integerValue(row.source_revision)!, outcome: stringValue(row.outcome) as ManualActionOutcome['outcome'],
+      continuation: nullableString(row.continuation) as ManualActionOutcome['continuation'], reason: nullableString(row.reason),
+    });
+  }
+  for (const row of questionOutcomes.results) {
+    const question = questions.get(`${stringValue(row.kind)}:${stringValue(row.question_id)}`);
+    if (question === undefined || integerValue(row.source_revision)! > question.sourceRevision
+      || !selectedRecordIds.has(stringValue(row.session_id))) continue;
+    const outcome = stringValue(row.outcome) as ManualQuestionOutcome['outcome'];
+    question.outcomes.push({
+      sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at), outcome, answer: nullableString(row.answer),
+      sourceRevision: integerValue(row.source_revision)!, sourceText: stringValue(row.source_text),
+    });
+    if (outcome === 'confirmed' && question.state !== 'withdrawn') question.state = 'confirmed';
+  }
+  return {
+    intake,
+    actions: [...actions.values()],
+    questions: [...questions.values()].sort((a, b) =>
+      (a.sourceHeldAt ?? a.sourceScheduledAt ?? a.createdAt).localeCompare(b.sourceHeldAt ?? b.sourceScheduledAt ?? b.createdAt) || a.id.localeCompare(b.id)),
+  };
+}
+
+export async function getManualRecordContext(env: Env, actor: Actor, supportCaseId: string): Promise<ManualRecordContext> {
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const [work, scheduleRow, canWrite] = await Promise.all([
+    loadManualWork(env, actor.orgId, supportCaseId),
+    env.DB.prepare(`SELECT * FROM counseling_schedules WHERE org_id = ? AND support_case_id = ?
+      AND status = 'scheduled' AND session_kind = 'regular' ORDER BY scheduled_at, id LIMIT 1`)
+      .bind(actor.orgId, supportCaseId).first<DbRow>(),
+    canWriteIntake(env, actor, supportCaseId),
+  ]);
+  const schedule = scheduleRow === null ? null : mapCounselingSchedule(scheduleRow);
+  await writeCanonicalAudit(env, actor, { action: 'read', targetTable: 'sessions', beneficiaryId: supportCase.beneficiaryId, supportCaseId });
+  return {
+    schemaVersion: MANUAL_RECORD_CONTEXT_SCHEMA_VERSION, supportCaseId, canWrite,
+    defaults: { heldAt: schedule?.scheduledAt ?? null, channel: schedule?.channel ?? null, reason: null, scheduleId: schedule?.id ?? null, scheduleVersion: schedule?.version ?? null },
+    actions: work.actions.filter(action => action.state === 'open'),
+    questions: work.questions.filter(question => question.state === 'open'),
+    closedActions: work.actions.filter(action => action.state !== 'open'),
+    confirmedQuestions: work.questions.filter(question => question.state === 'confirmed'),
+    withdrawnQuestions: work.questions.filter(question => question.state === 'withdrawn'),
+  };
 }
 
 /**
@@ -18752,331 +18682,220 @@ async function getLatestLifeAreaSnapshot(
  * record without another audit.
  */
 export async function createCounselingRecord(
-  env: Env,
-  actor: Actor,
-  supportCaseId: string,
-  input: CreateCounselingRecordInput,
+  env: Env, actor: Actor, supportCaseId: string, input: CreateManualRecordInput,
 ): Promise<CounselingRecordResult> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
   assertCounselingRecordInput(input);
   const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
-  if (supportCase.status !== 'active') {
-    throw new ConflictError('support case is unavailable');
-  }
-  await assertRecordGoalsBelongToSupportCase(env, actor.orgId, supportCaseId, input.gasScores);
-  const actionItemResolutions = input.actionItemResolutions ?? [];
-
-  const submissionHash = await canonicalSha256({
-    actionItemResolutions,
-    actionItems: input.actionItems,
-    actorId: actor.userId,
-    channel: input.channel,
-    details: input.details ?? null,
-    flags: input.flags,
-    gasScores: input.gasScores,
-    heldAt: input.heldAt,
-    lifeAreas: input.lifeAreas ?? null,
-    memo: input.memo,
-    orgId: actor.orgId,
-    scheduleId: input.scheduleId ?? null,
-    scheduleVersion: input.expectedScheduleVersion ?? null,
-    supportCaseId,
-  });
+  const program = await programForOrg(env, actor.orgId, supportCase.programId);
+  if (supportCase.status !== 'active' || program.status !== 'active') throw new ConflictError('support case is unavailable');
+  await assertRecordGoalsBelongToSupportCase(env, actor.orgId, supportCaseId, input.gasScores ?? []);
+  const submissionHash = await canonicalSha256({ input, actorId: actor.userId, orgId: actor.orgId, supportCaseId });
   const replay = await recordReplay(env, actor, supportCaseId, input, submissionHash);
   if (replay !== null) return replay;
-  await assertActionResolutionsAreOpenInSupportCase(env, actor.orgId, supportCaseId, actionItemResolutions);
-
   let schedule: CounselingSchedule | null = null;
   if (input.scheduleId !== undefined) {
     schedule = await getCounselingScheduleForOrg(env, actor.orgId, input.scheduleId);
     await assertScheduleMutationAccess(env, actor, schedule);
-    if (
-      schedule.beneficiaryId !== supportCase.beneficiaryId
-      || schedule.supportCaseId !== supportCaseId
-      || schedule.status !== 'scheduled'
-      || schedule.version !== input.expectedScheduleVersion
-    ) {
+    if (schedule.supportCaseId !== supportCaseId || schedule.status !== 'scheduled'
+      || schedule.version !== input.expectedScheduleVersion || schedule.sessionKind !== 'regular') {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
       throw new ConflictError('counseling schedule is unavailable');
     }
   }
-
-  // 6영역 스냅샷 해석(CCC-8): changed=true 는 제출값, changed=false 는 직전 스냅샷 복사.
-  // 직전 없는(콜드스타트) '변화 없음' 영역은 미기록 — 행을 만들지 않는다.
-  const lifeAreaRows: LifeAreaSnapshotEntry[] = [];
-  if (input.lifeAreas !== undefined) {
-    const priorByArea = new Map(
-      (await getLatestLifeAreaSnapshot(env, actor.orgId, supportCaseId)).map((entry) => [entry.areaKey, entry] as const),
-    );
-    for (const area of input.lifeAreas) {
-      if (area.changed && area.status !== undefined) {
-        lifeAreaRows.push({ areaKey: area.areaKey, status: area.status, note: area.note ?? null });
-      } else if (!area.changed) {
-        const prior = priorByArea.get(area.areaKey);
-        if (prior !== undefined) {
-          lifeAreaRows.push({ areaKey: area.areaKey, status: prior.status, note: prior.note });
-        }
-      }
+  const work = await loadManualWork(env, actor.orgId, supportCaseId);
+  const heldAt = Date.parse(input.heldAt);
+  const actions = work.actions.filter(action => action.state === 'open'
+    && Date.parse(action.sourceHeldAt ?? action.createdAt) <= heldAt);
+  const questions = work.questions.filter(question => question.state === 'open'
+    && ((question.kind === 'schedule' && question.sourceId === schedule?.id)
+      || Date.parse(question.sourceHeldAt ?? question.sourceScheduledAt ?? question.createdAt) <= heldAt));
+  const outcomes = new Map((input.actionOutcomes ?? []).map(outcome => [outcome.actionItemId, outcome]));
+  const answers = new Map((input.questionAnswers ?? []).map(answer => [`${answer.kind}:${answer.questionId}`, answer]));
+  for (const outcome of outcomes.values()) {
+    const action = actions.find(candidate => candidate.id === outcome.actionItemId);
+    if (action === undefined || action.revision !== outcome.expectedRevision) {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
+      if (action === undefined) throw new ForbiddenError('manual action source is unavailable');
+      throw new ConflictError('manual action revision changed');
     }
-
   }
-
+  for (const answer of answers.values()) {
+    if (answer.kind === 'intake') {
+      const source = work.questions.find(question => question.kind === 'intake' && question.id === answer.questionId);
+      if (source === undefined || source.sourceId !== answer.sourceId) throw new ForbiddenError('manual question source is unavailable');
+      if (source.state !== 'open' || source.sourceRevision !== answer.expectedRevision
+        || Date.parse(source.sourceHeldAt!) > heldAt) throw new ConflictError('manual question context changed');
+    }
+    const question = questions.find(candidate => candidate.kind === answer.kind && candidate.id === answer.questionId);
+    if (question === undefined || question.sourceId !== answer.sourceId || question.sourceRevision !== answer.expectedRevision) {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
+      if (question === undefined || question.sourceId !== answer.sourceId) throw new ForbiddenError('manual question source is unavailable');
+      throw new ConflictError('manual question revision changed');
+    }
+  }
   const id = newId();
   const createdAt = now();
-  // 서술형 항목(CCC-10 · 0016): 채운 항목이 없으면 컬럼을 NULL 로 둔다.
-  const recordDetails = input.details === undefined ? null : stringifyJson({ ...input.details });
-  const activeSupportCaseGuard = `EXISTS (
-    SELECT 1 FROM support_cases
-    WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND status = 'active'
+  const details: ManualRecordDetails = {
+    schemaVersion: 2, method: input.channel, reason: input.reason ?? null, urgency: input.urgency ?? null,
+    changes: input.changes ?? [], counselorOpinion: input.counselorOpinion ?? null,
+    nextQuestions: (input.nextQuestions ?? []).map(body => ({ id: newId(), body })),
+  };
+  // The legacy transport column stays compatible with intake. Visit is explicit in versioned manual metadata.
+  const channel = input.channel === 'visit' ? 'in_person' : input.channel;
+  const guard = `EXISTS (
+    SELECT 1 FROM support_cases sc
+    JOIN programs p ON p.id = sc.program_id AND p.org_id = sc.org_id
+    JOIN users u ON u.id = ? AND u.org_id = sc.org_id AND u.active = 1
+    JOIN user_role_assignments r ON r.user_id = u.id AND r.org_id = u.org_id AND r.role = 'practitioner' AND r.revoked_at IS NULL
+    JOIN support_case_assignees a ON a.user_id = u.id AND a.org_id = sc.org_id AND a.support_case_id = sc.id
+    WHERE sc.id = ? AND sc.org_id = ? AND sc.status = 'active' AND p.status = 'active'
+      AND p.version = ? AND a.status = 'active' AND a.unassigned_at IS NULL
   )`;
-  const activeSupportCaseBindings = [supportCaseId, actor.orgId, supportCase.beneficiaryId];
-  const sessionExistsClause = `EXISTS (
-    SELECT 1 FROM sessions
-    WHERE id = ? AND org_id = ? AND support_case_id = ?
-  )`;
-  const sessionExistsBindings = [id, actor.orgId, supportCaseId];
-  const sessionStatement = schedule === null
-    ? env.DB.prepare(
-      `INSERT INTO sessions (
-         id, org_id, support_case_id, counselor_id, held_at, channel, memo, record_details,
-         submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?
-       WHERE ${activeSupportCaseGuard}`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-      input.heldAt,
-      input.channel,
-      input.memo,
-      recordDetails,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-      createdAt,
-      createdAt,
-      ...activeSupportCaseBindings,
-    )
-    : env.DB.prepare(
-      `INSERT INTO sessions (
-         id, org_id, support_case_id, counselor_id, held_at, channel, memo, record_details,
-         submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?
-       WHERE EXISTS (
-         SELECT 1 FROM counseling_schedules
-         WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND support_case_id = ?
-           AND status = 'scheduled' AND version = ?
-       )
-       AND ${activeSupportCaseGuard}`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-      input.heldAt,
-      input.channel,
-      input.memo,
-      recordDetails,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-      createdAt,
-      createdAt,
-      schedule.id,
-      actor.orgId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      input.expectedScheduleVersion ?? null,
-      ...activeSupportCaseBindings,
-    );
-
-  const statements: PreparedStatement[] = [sessionStatement];
-
-  for (const score of input.gasScores) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO session_goal_scores (
-         id, org_id, session_id, goal_id, score, evidence_quote, scored_by, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, NULL, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      id,
-      score.goalId,
-      score.score,
-      actor.userId,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
+  const guardBindings: Bindable[] = [actor.userId, supportCaseId, actor.orgId, program.version];
+  const preconditions = [guard];
+  const preconditionBindings: Bindable[] = [...guardBindings];
+  // 각 출처를 별도 문장으로 확인해 누적 미해결 건수가 SQL 식 깊이와 바인딩 한도에 걸리지 않게 한다.
+  const sourceAssertions: PreparedStatement[] = [];
+  const statements: PreparedStatement[] = [
+    env.DB.prepare('UPDATE programs SET version = version WHERE id = ? AND org_id = ?').bind(program.id, actor.orgId),
+    env.DB.prepare('UPDATE support_cases SET status = status WHERE id = ? AND org_id = ?').bind(supportCaseId, actor.orgId),
+  ];
+  if (work.intake !== null && questions.some(question => question.kind === 'intake')) {
+    const source = work.intake.source;
+    statements.push(intakeSourceLock(env, actor.orgId, supportCaseId, stringValue(source.id)));
+    sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND NOT EXISTS (
+      SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake'
+        AND intake_revision = ? AND held_at = ? AND held_at <= ? AND intake_question_lifecycle = ?)`)
+      .bind(id, stringValue(source.id), actor.orgId, supportCaseId, integerValue(source.intake_revision)!,
+        stringValue(source.held_at), input.heldAt, stringValue(source.intake_question_lifecycle)));
   }
-  for (const action of input.actionItems) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO action_items (
-         id, org_id, support_case_id, session_id, description, owner, due_date, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      supportCaseId,
-      id,
-      action.description,
-      action.owner,
-      action.dueDate ?? null,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
+  for (const action of actions) {
+    statements.push(env.DB.prepare('UPDATE action_items SET revision = revision WHERE id = ? AND org_id = ?').bind(action.id, actor.orgId));
+    sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+      NOT EXISTS (SELECT 1 FROM action_items a LEFT JOIN sessions origin ON origin.id = a.session_id AND origin.org_id = a.org_id
+        WHERE a.id = ? AND a.org_id = ? AND a.support_case_id = ? AND a.revision = ? AND a.resolved_at IS NULL
+          AND COALESCE(origin.held_at, a.created_at) = ?)`)
+      .bind(id, action.id, actor.orgId, supportCaseId, action.revision, action.sourceHeldAt ?? action.createdAt));
   }
-  for (const flag of input.flags) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO flags (
-         id, org_id, support_case_id, session_id, flag_type, quote, source, review_status,
-         reviewed_by, reviewed_at, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, 'counselor', 'confirmed', ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      supportCaseId,
-      id,
-      flag.flagType,
-      flag.quote ?? null,
-      actor.userId,
-      createdAt,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-  }
-  for (const area of lifeAreaRows) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO session_life_area_snapshots (
-         id, org_id, session_id, area_key, status, note, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      id,
-      area.areaKey,
-      area.status,
-      area.note,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-  }
-  for (const resolution of actionItemResolutions) {
-    const resolvedAt = resolution.status === 'done' ? createdAt : null;
-    const resolvedBy = resolution.status === 'done' ? actor.userId : null;
-    const operationMarker = newId();
-    statements.push(env.DB.prepare(
-      `UPDATE action_items
-       SET resolution_status = ?, resolution_note = ?, resolution_at = ?, resolution_session_id = ?,
-           resolved_at = ?, resolved_by = ?, operation_marker = ?
-       WHERE id = ? AND org_id = ? AND support_case_id = ? AND resolved_at IS NULL
-         AND ${sessionExistsClause}`,
-    ).bind(
-      resolution.status,
-      resolution.note ?? null,
-      createdAt,
-      id,
-      resolvedAt,
-      resolvedBy,
-      operationMarker,
-      resolution.actionItemId,
-      actor.orgId,
-      supportCaseId,
-      ...sessionExistsBindings,
-    ));
-    statements.push(env.DB.prepare(
-      `INSERT INTO audit_log (
-         org_id, actor_id, actor_role, action, target_table, target_id, case_id,
-         beneficiary_id, support_case_id, detail, created_at
-       )
-       SELECT ?, ?, ?, 'update', 'action_items', ?, NULL, ?, ?, ?, ?
-       WHERE EXISTS (
-         SELECT 1 FROM action_items
-         WHERE id = ? AND org_id = ? AND operation_marker = ?
-       )`,
-    ).bind(
-      actor.orgId,
-      actor.userId,
-      actor.role,
-      resolution.actionItemId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      stringifyJson({ resolutionStatus: resolution.status }),
-      createdAt,
-      resolution.actionItemId,
-      actor.orgId,
-      operationMarker,
-    ));
+  for (const question of questions) {
+    if (question.kind === 'schedule') {
+      statements.push(env.DB.prepare('UPDATE schedule_custom_questions SET revision = revision WHERE id = ? AND org_id = ?').bind(question.id, actor.orgId));
+      sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+        NOT EXISTS (SELECT 1 FROM schedule_custom_questions q
+          JOIN counseling_schedules s ON s.id = q.schedule_id AND s.org_id = q.org_id
+          LEFT JOIN sessions origin ON origin.id = s.completed_session_id AND origin.org_id = s.org_id
+          WHERE q.id = ? AND q.org_id = ? AND q.support_case_id = ? AND q.schedule_id = ? AND q.revision = ?
+            AND COALESCE(origin.held_at, s.scheduled_at, q.created_at) = ?)`)
+        .bind(id, question.id, actor.orgId, supportCaseId, question.sourceId, question.sourceRevision,
+          question.sourceHeldAt ?? question.sourceScheduledAt ?? question.createdAt));
+    } else if (question.kind === 'record') {
+      statements.push(env.DB.prepare('UPDATE sessions SET manual_revision = manual_revision WHERE id = ? AND org_id = ?').bind(question.sourceId, actor.orgId));
+      sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+        NOT EXISTS (SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND support_case_id = ? AND manual_revision = ?)`)
+        .bind(id, question.sourceId, actor.orgId, supportCaseId, question.sourceRevision));
+    }
+    sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+      EXISTS (SELECT 1 FROM manual_question_outcomes WHERE org_id = ? AND support_case_id = ? AND kind = ? AND question_id = ? AND outcome = 'confirmed')`)
+      .bind(id, actor.orgId, supportCaseId, question.kind, question.id));
   }
   if (schedule !== null) {
-    statements.push(env.DB.prepare(
-      `UPDATE counseling_schedules
-       SET status = 'completed', completed_session_id = ?, completed_by_actor_id = ?,
-           completed_at = ?, updated_by_actor_id = ?, version = version + 1, updated_at = ?
-       WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND support_case_id = ?
-         AND status = 'scheduled' AND version = ?
-         AND ${sessionExistsClause}`,
-    ).bind(
-      id,
-      actor.userId,
-      createdAt,
-      actor.userId,
-      createdAt,
-      schedule.id,
-      actor.orgId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      input.expectedScheduleVersion ?? null,
-      ...sessionExistsBindings,
-    ));
+    preconditions.push("EXISTS (SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND support_case_id = ? AND status = 'scheduled' AND version = ?)");
+    preconditionBindings.push(schedule.id, actor.orgId, supportCaseId, schedule.version);
   }
-
+  const exists = 'EXISTS (SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND support_case_id = ?)';
+  const existsBindings = [id, actor.orgId, supportCaseId];
+  statements.push(env.DB.prepare(`INSERT INTO sessions (
+    id, org_id, support_case_id, counselor_id, held_at, channel, memo, record_details,
+    submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at, manual_schema_version
+  ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?, 2 WHERE ${preconditions.join(' AND ')}`)
+    .bind(id, actor.orgId, supportCaseId, actor.userId, input.heldAt, channel, input.memo, stringifyJson(details),
+      input.submissionId, submissionHash, actor.userId, createdAt, createdAt, ...preconditionBindings));
+  for (const assertion of sourceAssertions) statements.push(assertion);
+  for (const score of input.gasScores ?? []) {
+    statements.push(env.DB.prepare(`INSERT INTO session_goal_scores
+      (id, org_id, session_id, goal_id, score, evidence_quote, scored_by, created_at)
+      SELECT ?, ?, ?, ?, ?, NULL, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, id, score.goalId, score.score, actor.userId, createdAt, ...existsBindings));
+  }
+  for (const action of input.actionItems ?? []) {
+    statements.push(env.DB.prepare(`INSERT INTO action_items (id, org_id, support_case_id, session_id, description, owner, due_date, created_at)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, id, action.description, action.owner, action.dueDate ?? null, createdAt, ...existsBindings));
+  }
+  for (const flag of input.flags ?? []) {
+    statements.push(env.DB.prepare(`INSERT INTO flags
+      (id, org_id, support_case_id, session_id, flag_type, quote, source, review_status, reviewed_by, reviewed_at, created_at)
+      SELECT ?, ?, ?, ?, ?, ?, 'counselor', 'confirmed', ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, id, flag.flagType, flag.quote ?? null, actor.userId, createdAt, createdAt, ...existsBindings));
+  }
+  for (const action of actions) {
+    const outcome = outcomes.get(action.id);
+    const stop = outcome?.outcome === 'not_done' && outcome.continuation === 'stop';
+    const reason = stop ? outcome.reason : null;
+    statements.push(env.DB.prepare(`INSERT INTO manual_action_outcomes
+      (id, org_id, support_case_id, action_item_id, session_id, source_revision, outcome, continuation, reason)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, action.id, id, action.revision, outcome?.outcome ?? 'unconfirmed',
+        outcome?.outcome === 'not_done' ? outcome.continuation : null, reason, ...existsBindings));
+    if (outcome === undefined) continue;
+    const closes = outcome.outcome === 'done' || stop;
+    const dueDate = outcome.update !== undefined && Object.hasOwn(outcome.update, 'dueDate') ? outcome.update.dueDate ?? null : action.dueDate;
+    statements.push(env.DB.prepare(`UPDATE action_items SET description = ?, due_date = ?, resolution_status = ?, resolution_note = ?,
+      resolution_at = ?, resolution_session_id = ?, resolved_at = ?, resolved_by = ?, stop_reason = ?
+      WHERE id = ? AND org_id = ? AND revision = ? AND resolved_at IS NULL AND ${exists}`)
+      .bind(outcome.update?.description ?? action.description, dueDate, outcome.outcome, reason, createdAt, id,
+        closes ? createdAt : null, closes ? actor.userId : null, reason, action.id, actor.orgId, action.revision, ...existsBindings));
+    statements.push(env.DB.prepare(`INSERT INTO audit_log
+      (org_id, actor_id, actor_role, action, target_table, target_id, beneficiary_id, support_case_id, detail, created_at)
+      SELECT ?, ?, ?, 'update', 'action_items', ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(actor.orgId, actor.userId, actor.role, action.id, supportCase.beneficiaryId, supportCaseId,
+        stringifyJson({ outcome: outcome.outcome, sessionId: id }), createdAt, ...existsBindings));
+  }
+  for (const question of questions) {
+    const answer = answers.get(`${question.kind}:${question.id}`);
+    statements.push(env.DB.prepare(`INSERT INTO manual_question_outcomes
+      (id, org_id, support_case_id, kind, question_id, source_id, source_revision, source_text, session_id, outcome, answer)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, question.kind, question.id, question.sourceId, question.sourceRevision,
+        question.body, id, answer === undefined ? 'unconfirmed' : 'confirmed', answer?.answer ?? null, ...existsBindings));
+  }
+  if (schedule !== null) {
+    statements.push(env.DB.prepare(`UPDATE counseling_schedules SET status = 'completed', completed_session_id = ?, completed_by_actor_id = ?,
+      completed_at = ?, updated_by_actor_id = ?, version = version + 1, updated_at = ?
+      WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND ${exists}`)
+      .bind(id, actor.userId, createdAt, actor.userId, createdAt, schedule.id, actor.orgId, schedule.version, ...existsBindings));
+    // A lost schedule CAS must roll the entire batch back, not leave an unattached official record.
+    statements.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND NOT EXISTS (
+      SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND completed_session_id = ? AND status = 'completed')`)
+      .bind(id, schedule.id, actor.orgId, id));
+  }
+  statements.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND NOT (${guard})`).bind(id, ...guardBindings));
   try {
     await env.DB.batch(statements);
-    const persisted = await env.DB.prepare(
-      `SELECT id FROM sessions
-       WHERE id = ? AND org_id = ? AND support_case_id = ?
-         AND submission_id = ? AND submission_hash = ? AND submitted_by = ?
-       LIMIT 1`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-    ).first<{ id: string }>();
-    if (persisted === null) {
-      throw new ConflictError('counseling record is unavailable');
-    }
   } catch (error) {
-    if (!isUniqueConstraintError(error)) throw error;
-    const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
-    if (matched !== null) return matched;
+    if (isUniqueConstraintError(error)) {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
+      throw new ConflictError('manual source changed');
+    }
+    if (isManualContextConstraint(error)) {
+      throw new ConflictError('manual record context changed');
+    }
     throw error;
   }
+  const persisted = await env.DB.prepare('SELECT id FROM sessions WHERE id = ? AND org_id = ?').bind(id, actor.orgId).first<DbRow>();
+  if (persisted === null) {
+    const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+    if (matched !== null) return matched;
+    throw new ConflictError('manual record context changed');
+  }
   return {
-    record: {
-      id,
-      supportCaseId,
-      counselorId: actor.userId,
-      heldAt: input.heldAt,
-      channel: input.channel,
-      memo: input.memo,
-      kind: 'regular',
-      aiSummary: null,
-      approvedAt: null,
-      createdAt,
-    },
+    record: { id, supportCaseId, counselorId: actor.userId, heldAt: input.heldAt, channel, memo: input.memo, kind: 'regular',
+      aiSummary: null, approvedAt: null, createdAt, manual: { schemaVersion: 2, revision: 1, details } },
     replayed: false,
   };
 }
@@ -19126,7 +18945,7 @@ interface LegacyIntakeAdditionalItem {
 export interface IntakeRecordResult {
   record: CounselingRecord;
   replayed: boolean;
-  schemaVersion: 2;
+  schemaVersion: 3;
   revision: number;
 }
 
@@ -19142,7 +18961,7 @@ export interface IntakeRecordContext {
   hasIntake: boolean;
   // Current mutation authority, independent of whether a saved intake is readable.
   canWrite: boolean;
-  writeSchemaVersion: 2;
+  writeSchemaVersion: 3;
   moduleSnapshot: IntakeModuleSnapshot;
   // 1-1 기본정보 표시용 금고 값(D42 ① — 인테이크 화면은 읽기만 한다). 감사는 화면 조회 1건에 합산.
   extendedPii: IntakeExtendedPii;
@@ -19182,7 +19001,7 @@ async function intakeRecordReplay(
   if (row.kind !== 'intake' || row.intake_schema_version !== 2 || row.submitted_by !== actor.userId || row.submission_hash !== submissionHash) {
     throw new ConflictError('submission conflicts with an existing official operation');
   }
-  return { record: mapCounselingRecord(row), replayed: true, schemaVersion: 2, revision: Number(row.intake_revision) };
+  return { record: mapCounselingRecord(row), replayed: true, schemaVersion: INTAKE_WRITE_SCHEMA_VERSION, revision: Number(row.intake_revision) };
 }
 
 /**
@@ -19217,6 +19036,96 @@ async function readIntakeExtendedPii(
     emergencyContact: await decryptPii(env, row.enc_emergency_contact),
     gender: await decryptPii(env, row.enc_gender),
   };
+}
+
+function storedIntakeLifecycle(value: unknown): IntakeQuestionLifecycle | null {
+  if (value === null) return null;
+  try { return parseIntakeQuestionLifecycle(parseJson(value)); } catch {
+    throw new ConflictError('intake question history is unavailable');
+  }
+}
+
+/** Read only the named source rows. Historical JSON, including unknown keys, is never rewritten. */
+function intakeSourceRows(schemaVersion: number, detailsJson: unknown): IntakeAdditionalItem[] {
+  const details = parseJson<Record<string, unknown>>(detailsJson);
+  let rows: unknown;
+  if (schemaVersion === 1) {
+    if (detailsJson !== null && !isRecord(details)) throw new ConflictError('intake question source is unavailable');
+    if (details === null || details === undefined || !Object.hasOwn(details, 'additionalItems')) return [];
+    rows = details.additionalItems;
+  } else if (schemaVersion === 2 && isRecord(details) && isRecord(details.additionalItems)) {
+    if (typeof details.additionalItems.response === 'string' && ['declined', 'unknown', 'not_applicable'].includes(details.additionalItems.response)) return [];
+    if (details.additionalItems.response !== 'answered') throw new ConflictError('intake question source is unavailable');
+    rows = details.additionalItems.rows;
+  } else {
+    throw new ConflictError('intake question source is unavailable');
+  }
+  if (!Array.isArray(rows) || rows.some(row => !isRecord(row) || typeof row.item !== 'string' || row.item.trim() === ''
+    || (Object.hasOwn(row, 'dueNote') && typeof row.dueNote !== 'string'))) throw new ConflictError('intake question source is unavailable');
+  return rows as IntakeAdditionalItem[];
+}
+
+type IntakeQuestionReference = {
+  item: IntakeQuestionLifecycleItem;
+  value: IntakeAdditionalItem;
+  schemaVersion: 1 | 2;
+};
+
+/** Bound all secondary reads to the intake row already selected by the caller's source snapshot. */
+async function loadIntakeQuestionHistory(env: Env, orgId: string, source: DbRow) {
+  const revision = integerValue(source.intake_revision)!;
+  if (!Number.isSafeInteger(revision) || revision < 1) throw new ConflictError('intake revision is unavailable');
+  const history = await env.DB.prepare(
+    'SELECT * FROM intake_record_revisions WHERE session_id = ? AND org_id = ? AND revision <= ? ORDER BY revision',
+  ).bind(stringValue(source.id), orgId, revision).all<DbRow>();
+  const byRevision = new Map(history.results.map(row => [integerValue(row.revision)!, row]));
+  const rowsByRevision = new Map<number, IntakeAdditionalItem[]>();
+  const sourceRows = (sourceRevision: number, sourceRowIndex: number, schemaVersion?: number) => {
+    const row = byRevision.get(sourceRevision);
+    if (row === undefined || (schemaVersion !== undefined && row.schema_version !== schemaVersion)) throw new ConflictError('intake question source is unavailable');
+    let rows = rowsByRevision.get(sourceRevision);
+    if (rows === undefined) {
+      rows = intakeSourceRows(Number(row.schema_version), row.details);
+      rowsByRevision.set(sourceRevision, rows);
+    }
+    const value = rows[sourceRowIndex];
+    if (value === undefined) throw new ConflictError('intake question source is unavailable');
+    return { value, schemaVersion: Number(row.schema_version) as 1 | 2 };
+  };
+  const resolve = (lifecycle: IntakeQuestionLifecycle | null, bound: number) => {
+    const references = new Map<string, IntakeQuestionReference>();
+    if (lifecycle === null) return references;
+    for (const item of lifecycle.items) {
+      if (item.sourceRevision > bound) throw new ConflictError('intake question source is unavailable');
+      references.set(item.id, { item, ...sourceRows(item.sourceRevision, item.sourceRowIndex) });
+      if (item.origin !== null) {
+        if (item.origin.sourceRevision >= bound) throw new ConflictError('intake question origin is unavailable');
+        sourceRows(item.origin.sourceRevision, item.origin.sourceRowIndex, item.origin.schemaVersion);
+      }
+    }
+    if (lifecycle.conversion !== null) {
+      const conversion = lifecycle.conversion;
+      const origin = byRevision.get(conversion.sourceRevision);
+      if (origin === undefined || conversion.sourceRevision >= bound || origin.schema_version !== conversion.sourceSchemaVersion
+        || intakeSourceRows(conversion.sourceSchemaVersion, origin.details).length !== conversion.mechanical.mappings.length) {
+        throw new ConflictError('intake question conversion is unavailable');
+      }
+    }
+    return references;
+  };
+  const lifecycle = storedIntakeLifecycle(source.intake_question_lifecycle);
+  const references = resolve(lifecycle, revision);
+  const revisions: IntakeRevision[] = history.results.map(row => {
+    const questionLifecycle = storedIntakeLifecycle(row.question_lifecycle);
+    resolve(questionLifecycle, Number(row.revision));
+    return {
+      revision: Number(row.revision), schemaVersion: Number(row.schema_version) as 1 | 2,
+      heldAt: stringValue(row.held_at), channel: stringValue(row.channel) as Session['channel'],
+      actorId: nullableString(row.actor_id), recordedAt: stringValue(row.recorded_at),
+      convertedFromRevision: integerValue(row.converted_from_revision), detailsJson: nullableString(row.details), questionLifecycle,
+    };
+  });
+  return { source, lifecycle, references, revisions };
 }
 
 /**
@@ -19271,23 +19180,19 @@ export async function getIntakeRecordContext(
   let saved: IntakeSavedRecord | null = null;
   if (hasIntake) {
     const intakeRow = await env.DB.prepare(
-      `SELECT id, held_at, channel, intake_details, intake_schema_version, intake_revision FROM sessions
+      `SELECT id, held_at, channel, intake_details, intake_schema_version, intake_revision, intake_question_lifecycle FROM sessions
        WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
-    ).bind(actor.orgId, supportCaseId).first<{ id: string; held_at: string; channel: Session['channel']; intake_details: string | null; intake_schema_version: 1 | 2; intake_revision: number }>();
+    ).bind(actor.orgId, supportCaseId).first<DbRow>();
     if (intakeRow !== null) {
-      const revisions = await env.DB.prepare(
-        'SELECT * FROM intake_record_revisions WHERE session_id = ? AND org_id = ? AND revision < ? ORDER BY revision',
-      ).bind(intakeRow.id, actor.orgId, intakeRow.intake_revision).all<DbRow>();
-      const history: IntakeRevision[] = revisions.results.map(row => ({
-        revision: Number(row.revision), schemaVersion: Number(row.schema_version) as 1 | 2,
-        heldAt: stringValue(row.held_at), channel: stringValue(row.channel) as Session['channel'],
-        actorId: nullableString(row.actor_id), recordedAt: stringValue(row.recorded_at),
-        convertedFromRevision: integerValue(row.converted_from_revision), detailsJson: nullableString(row.details),
-      }));
-      const common = { sessionId: intakeRow.id, heldAt: intakeRow.held_at, channel: intakeRow.channel, revision: intakeRow.intake_revision, history };
+      const snapshot = await loadIntakeQuestionHistory(env, actor.orgId, intakeRow);
+      const common = {
+        sessionId: stringValue(intakeRow.id), heldAt: stringValue(intakeRow.held_at), channel: stringValue(intakeRow.channel) as Session['channel'],
+        revision: Number(intakeRow.intake_revision), questionLifecycle: snapshot.lifecycle,
+        history: snapshot.revisions.filter(row => row.revision < Number(intakeRow.intake_revision)),
+      };
       saved = intakeRow.intake_schema_version === 1
-        ? { ...common, schemaVersion: 1, questionnaire: null, legacyDetailsJson: intakeRow.intake_details }
-        : { ...common, schemaVersion: 2, questionnaire: parseIntakeQuestionnaire(parseJson(intakeRow.intake_details)), legacyDetailsJson: null };
+        ? { ...common, schemaVersion: 1, questionnaire: null, legacyDetailsJson: nullableString(intakeRow.intake_details) }
+        : { ...common, schemaVersion: 2, questionnaire: parseJson<IntakeQuestionnaire>(intakeRow.intake_details)!, legacyDetailsJson: null };
     }
   }
   const program = await programForOrg(env, actor.orgId, supportCase.programId);
@@ -19295,7 +19200,7 @@ export async function getIntakeRecordContext(
     beneficiaryId: supportCase.beneficiaryId,
     supportCaseId,
     canWrite: await canWriteIntake(env, actor, supportCaseId),
-    writeSchemaVersion: 2,
+    writeSchemaVersion: INTAKE_WRITE_SCHEMA_VERSION,
     moduleSnapshot: { programId: program.id, programVersion: program.version, financialSupportEnabled: program.financialSupportEnabled },
     participant: {
       name: contact?.name ?? null,
@@ -19313,6 +19218,7 @@ export async function getIntakeRecordContext(
 }
 
 async function assertIntakeModuleSnapshot(env: Env, actor: Actor, supportCase: SupportCase, snapshot: IntakeModuleSnapshot): Promise<void> {
+  if (snapshot.programId !== supportCase.programId) throw new ForbiddenError('intake program is unavailable');
   const program = await programForOrg(env, actor.orgId, supportCase.programId);
   if (snapshot.programId !== program.id || snapshot.programVersion !== program.version
     || snapshot.financialSupportEnabled !== program.financialSupportEnabled || program.status !== 'active') {
@@ -19327,6 +19233,7 @@ function intakeWriteGuard(actor: Actor, supportCaseId: string, snapshot: IntakeM
       JOIN programs AS p ON p.id = sc.program_id AND p.org_id = sc.org_id
       JOIN support_case_assignees AS a ON a.support_case_id = sc.id AND a.org_id = sc.org_id
       JOIN user_role_assignments AS r ON r.user_id = a.user_id AND r.org_id = a.org_id
+      JOIN users AS u ON u.id = a.user_id AND u.org_id = a.org_id AND u.active = 1
       WHERE sc.id = ? AND sc.org_id = ? AND sc.status = 'active'
         AND p.id = ? AND p.version = ? AND p.financial_support_enabled = ? AND p.status = 'active'
         AND a.user_id = ? AND a.status = 'active' AND a.unassigned_at IS NULL
@@ -19342,6 +19249,16 @@ function intakeProgramLock(env: Env, actor: Actor, snapshot: IntakeModuleSnapsho
     .bind(snapshot.programId, actor.orgId);
 }
 
+function intakeSourceLock(env: Env, orgId: string, supportCaseId: string, id: string): PreparedStatement {
+  return env.DB.prepare("UPDATE sessions SET intake_revision = intake_revision WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake'")
+    .bind(id, orgId, supportCaseId);
+}
+
+function isManualContextConstraint(error: unknown): boolean {
+  return error !== null && typeof error === 'object' && 'kind' in error && error.kind === 'constraint'
+    && 'constraintSubtype' in error && ['check', 'trigger', 'foreign_key'].includes(String(error.constraintSubtype));
+}
+
 /** Versioned manual intake. Goal editing remains the dedicated audited goal operation. */
 export async function createIntakeRecord(
   env: Env, actor: Actor, supportCaseId: string, input: IntakeCreateRequest,
@@ -19354,6 +19271,7 @@ export async function createIntakeRecord(
   assertCanonicalSubmissionId(input.submissionId);
   const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
   if (supportCase.status !== 'active') throw new ConflictError('support case is unavailable');
+  if ((await programForOrg(env, actor.orgId, supportCase.programId)).status !== 'active') throw new ConflictError('support case is unavailable');
   const submissionHash = await canonicalSha256({ input, actorId: actor.userId, orgId: actor.orgId, supportCaseId });
   const replay = await intakeRecordReplay(env, actor, supportCaseId, input.submissionId, submissionHash);
   if (replay !== null) return replay;
@@ -19363,11 +19281,21 @@ export async function createIntakeRecord(
     assertOpaqueIdentifier(input.scheduleId, 'schedule id');
     schedule = await getCounselingScheduleForOrg(env, actor.orgId, input.scheduleId);
     await assertScheduleMutationAccess(env, actor, schedule);
-    if (schedule.beneficiaryId !== supportCase.beneficiaryId || schedule.supportCaseId !== supportCaseId
-      || schedule.status !== 'scheduled' || schedule.version !== input.expectedScheduleVersion) throw new ConflictError('counseling schedule is unavailable');
+    if (schedule.beneficiaryId !== supportCase.beneficiaryId || schedule.supportCaseId !== supportCaseId) throw new ForbiddenError('intake schedule source is unavailable');
+    if (schedule.status !== 'scheduled' || schedule.version !== input.expectedScheduleVersion) throw new ConflictError('counseling schedule is unavailable');
   }
+  if (await env.DB.prepare("SELECT id FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake'")
+    .bind(actor.orgId, supportCaseId).first() !== null) throw new ConflictError('intake record already exists');
   const id = newId();
   const createdAt = now();
+  // Candidates have no durable identity until this guarded batch commits.
+  const lifecycle: IntakeQuestionLifecycle = {
+    version: 1, conversion: null,
+    items: input.additionalItemRefs.map(ref => ({
+      id: newId(), revision: 1, sourceRevision: 1, sourceRowIndex: ref.rowIndex,
+      createdBy: actor.userId, createdAt, withdrawn: null, origin: null,
+    })),
+  };
   const guard = intakeWriteGuard(actor, supportCaseId, input.questionnaire.moduleSnapshot);
   const scheduleGuard = schedule === null ? '' : `AND EXISTS (
     SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND support_case_id = ? AND status = 'scheduled' AND version = ?
@@ -19377,14 +19305,15 @@ export async function createIntakeRecord(
   const existsBindings = [id, actor.orgId, supportCaseId];
   const statements = [
     intakeProgramLock(env, actor, input.questionnaire.moduleSnapshot),
+    env.DB.prepare('UPDATE support_cases SET status = status WHERE id = ? AND org_id = ?').bind(supportCaseId, actor.orgId),
     env.DB.prepare(
       `INSERT INTO sessions (id, org_id, support_case_id, counselor_id, held_at, channel, memo, kind,
-        intake_details, intake_schema_version, intake_revision, intake_updated_by, submission_id, submission_hash, submitted_by,
+        intake_details, intake_question_lifecycle, intake_schema_version, intake_revision, intake_updated_by, submission_id, submission_hash, submitted_by,
         ai_status, created_at, updated_at)
-      SELECT ?, ?, ?, ?, ?, ?, NULL, 'intake', ?, 2, 1, ?, ?, ?, ?, 'none', ?, ?
+      SELECT ?, ?, ?, ?, ?, ?, NULL, 'intake', ?, ?, 2, 1, ?, ?, ?, ?, 'none', ?, ?
       WHERE ${guard.sql} ${scheduleGuard}
         AND NOT EXISTS (SELECT 1 FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake')`,
-    ).bind(id, actor.orgId, supportCaseId, actor.userId, input.heldAt, input.channel, stringifyJson(input.questionnaire),
+    ).bind(id, actor.orgId, supportCaseId, actor.userId, input.heldAt, input.channel, stringifyJson(input.questionnaire), stringifyJson(lifecycle),
       actor.userId, input.submissionId, submissionHash, actor.userId, createdAt, createdAt,
       ...guard.bindings, ...scheduleBindings, actor.orgId, supportCaseId),
     env.DB.prepare(`UPDATE support_cases SET intake_at = ?, updated_at = ? WHERE id = ? AND org_id = ? AND ${exists}`)
@@ -19395,9 +19324,14 @@ export async function createIntakeRecord(
       completed_at = ?, updated_by_actor_id = ?, version = version + 1, updated_at = ?
      WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND ${exists}`,
   ).bind(id, actor.userId, createdAt, actor.userId, createdAt, schedule.id, actor.orgId, input.expectedScheduleVersion ?? null, ...existsBindings));
+  if (schedule !== null) statements.push(env.DB.prepare(`UPDATE sessions SET intake_revision = 0 WHERE id = ? AND NOT EXISTS (
+    SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND completed_session_id = ? AND status = 'completed')`)
+    .bind(id, schedule.id, actor.orgId, id));
+  statements.push(env.DB.prepare(`UPDATE sessions SET intake_revision = 0 WHERE id = ? AND NOT (${guard.sql})`).bind(id, ...guard.bindings));
   try {
     await env.DB.batch(statements);
   } catch (error) {
+    if (isManualContextConstraint(error)) throw new ConflictError('intake record context changed');
     if (!isUniqueConstraintError(error)) throw error;
     const matched = await intakeRecordReplay(env, actor, supportCaseId, input.submissionId, submissionHash);
     if (matched !== null) return matched;
@@ -19424,45 +19358,113 @@ export async function updateIntakeRecord(
     `SELECT * FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
   ).bind(actor.orgId, supportCaseId).first<DbRow>();
   if (intakeRow === null) throw new ConflictError('intake record does not exist');
-  const revision = integerValue(intakeRow.intake_revision);
-  if (revision !== input.expectedRevision) throw new ConflictError('intake revision changed');
-  const legacy = intakeRow.intake_schema_version === 1;
-  if (legacy ? input.conversion?.confirmed !== true || input.conversion.sourceRevision !== revision : input.conversion !== undefined) {
-    throw new ConflictError('intake conversion confirmation is required only for a legacy source');
+  const snapshot = await loadIntakeQuestionHistory(env, actor.orgId, intakeRow);
+  const existing = snapshot.references;
+  const converting = snapshot.lifecycle === null;
+  if (!converting && input.additionalItemRefs.some(ref => ref.legacySourceRowIndex !== undefined)) {
+    throw new ValidationError('legacy source rows are only allowed during conversion');
   }
-  const id = stringValue(intakeRow.id);
-  const updatedAt = now();
+  for (const questionId of [
+    ...input.additionalItemRefs.flatMap(ref => ref.questionId === null ? [] : [ref.questionId]),
+    ...input.questionWithdrawals.map(item => item.questionId),
+  ]) {
+    if (!existing.has(questionId)) throw new ForbiddenError('intake question source is unavailable');
+  }
+  const revision = integerValue(intakeRow.intake_revision)!;
+  if (revision !== input.expectedRevision || !Number.isSafeInteger(revision + 1)) throw new ConflictError('intake revision changed');
+  if (converting ? input.conversion?.confirmed !== true || input.conversion.sourceRevision !== revision : input.conversion !== undefined) {
+    throw new ConflictError('intake conversion confirmation changed');
+  }
+  const legacyRows = converting ? intakeSourceRows(Number(intakeRow.intake_schema_version), intakeRow.intake_details) : [];
+  const mappings = input.additionalItemRefs.filter(ref => ref.legacySourceRowIndex !== undefined);
+  if (converting && (mappings.length !== legacyRows.length || mappings.some(ref => ref.legacySourceRowIndex! >= legacyRows.length))) {
+    throw new ConflictError('intake conversion requires every source row exactly once');
+  }
+  const rows = input.questionnaire.additionalItems.response === 'answered' ? input.questionnaire.additionalItems.rows : [];
+  const withdrawals = new Map(input.questionWithdrawals.map(item => [item.questionId, item]));
+  const bindings = new Map(input.additionalItemRefs.flatMap(ref => ref.questionId === null ? [] : [[ref.questionId, ref] as const]));
+  for (const ref of input.additionalItemRefs) {
+    if (ref.questionId === null) continue;
+    const source = existing.get(ref.questionId)!;
+    if (source.item.withdrawn !== null || ref.expectedRevision !== source.item.revision) throw new ConflictError('intake question revision changed');
+    const submitted = rows[ref.rowIndex]!;
+    if (withdrawals.has(ref.questionId) && (submitted.item !== source.value.item || submitted.dueNote !== source.value.dueNote)) {
+      throw new ConflictError('intake question edit and withdrawal conflict');
+    }
+  }
+  for (const withdrawal of withdrawals.values()) {
+    const source = existing.get(withdrawal.questionId)!;
+    if (source.item.withdrawn !== null || source.item.revision !== withdrawal.expectedRevision) throw new ConflictError('intake question revision changed');
+  }
+  const id = stringValue(intakeRow.id), updatedAt = now();
+  const items: IntakeQuestionLifecycleItem[] = (snapshot.lifecycle?.items ?? []).map(item => {
+    const ref = bindings.get(item.id), withdrawal = withdrawals.get(item.id);
+    if (ref === undefined && withdrawal === undefined) return item;
+    const source = existing.get(item.id)!.value;
+    const submitted = ref === undefined ? source : rows[ref.rowIndex]!;
+    const changed = submitted.item !== source.item || submitted.dueNote !== source.dueNote;
+    if ((changed || withdrawal !== undefined) && !Number.isSafeInteger(item.revision + 1)) throw new ConflictError('intake question revision changed');
+    return {
+      ...item, revision: item.revision + (changed || withdrawal !== undefined ? 1 : 0),
+      sourceRevision: ref === undefined ? item.sourceRevision : revision + 1,
+      sourceRowIndex: ref === undefined ? item.sourceRowIndex : ref.rowIndex,
+      withdrawn: withdrawal === undefined ? item.withdrawn : { actorId: actor.userId, recordedAt: updatedAt, fromRevision: item.revision },
+    };
+  });
+  const allocatedMappings: Array<{ questionId: string; sourceRowIndex: number }> = [];
+  for (const ref of input.additionalItemRefs) {
+    if (ref.questionId !== null) continue;
+    const questionId = newId();
+    const origin = ref.legacySourceRowIndex === undefined ? null : {
+      schemaVersion: Number(intakeRow.intake_schema_version) as 1 | 2, sourceRevision: revision, sourceRowIndex: ref.legacySourceRowIndex,
+    };
+    items.push({ id: questionId, revision: 1, sourceRevision: revision + 1, sourceRowIndex: ref.rowIndex,
+      createdBy: actor.userId, createdAt: updatedAt, withdrawn: null, origin });
+    if (origin !== null) allocatedMappings.push({ questionId, sourceRowIndex: origin.sourceRowIndex });
+  }
+  const lifecycle: IntakeQuestionLifecycle = {
+    version: 1, items,
+    conversion: converting ? {
+      sourceSchemaVersion: Number(intakeRow.intake_schema_version) as 1 | 2, sourceRevision: revision,
+      mechanical: { recordedAt: updatedAt, mappings: allocatedMappings },
+      confirmation: { actorId: actor.userId, recordedAt: updatedAt },
+    } : snapshot.lifecycle!.conversion,
+  };
   const operationMarker = newId();
   const guard = intakeWriteGuard(actor, supportCaseId, input.questionnaire.moduleSnapshot);
-  const results = await env.DB.batch([
-    intakeProgramLock(env, actor, input.questionnaire.moduleSnapshot),
-    env.DB.prepare(
-      `UPDATE sessions SET held_at = ?, channel = ?, intake_details = ?, updated_at = ?, operation_marker = ?,
-        intake_schema_version = 2, intake_revision = intake_revision + 1, intake_updated_by = ?, intake_converted_from_revision = ?
-       WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake' AND intake_revision = ?
-         AND intake_schema_version = ? AND ${guard.sql}`,
-    ).bind(input.heldAt, input.channel, stringifyJson(input.questionnaire), updatedAt, operationMarker, actor.userId,
-      legacy ? revision : null, id, actor.orgId, supportCaseId, revision, legacy ? 1 : 2, ...guard.bindings),
-    conditionalCanonicalAuditStatement(env, actor, {
-      action: 'update', targetTable: 'sessions', targetId: id, beneficiaryId: supportCase.beneficiaryId, supportCaseId,
-      detail: { kind: 'intake', schemaVersion: 2, revision: revision + 1, convertedFromRevision: legacy ? revision : null },
-    }, {
-      sql: 'SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND operation_marker = ?',
-      bindings: [id, actor.orgId, operationMarker],
-    }, updatedAt),
-    env.DB.prepare(
-      `UPDATE support_cases SET intake_at = ?, updated_at = ? WHERE id = ? AND org_id = ? AND EXISTS (
+  let results;
+  try {
+    results = await env.DB.batch([
+      intakeProgramLock(env, actor, input.questionnaire.moduleSnapshot),
+      env.DB.prepare('UPDATE support_cases SET status = status WHERE id = ? AND org_id = ?').bind(supportCaseId, actor.orgId),
+      intakeSourceLock(env, actor.orgId, supportCaseId, id),
+      env.DB.prepare(
+        `UPDATE sessions SET held_at = ?, channel = ?, intake_details = ?, intake_question_lifecycle = ?, updated_at = ?, operation_marker = ?,
+          intake_schema_version = 2, intake_revision = intake_revision + 1, intake_updated_by = ?, intake_converted_from_revision = ?
+         WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake' AND intake_revision = ?
+           AND intake_schema_version = ? AND held_at = ? AND COALESCE(intake_question_lifecycle, 'null') = ? AND ${guard.sql}`,
+      ).bind(input.heldAt, input.channel, stringifyJson(input.questionnaire), stringifyJson(lifecycle), updatedAt, operationMarker, actor.userId,
+        converting ? revision : null, id, actor.orgId, supportCaseId, revision, intakeRow.intake_schema_version as Bindable,
+        stringValue(intakeRow.held_at), nullableString(intakeRow.intake_question_lifecycle) ?? 'null', ...guard.bindings),
+      conditionalCanonicalAuditStatement(env, actor, {
+        action: 'update', targetTable: 'sessions', targetId: id, beneficiaryId: supportCase.beneficiaryId, supportCaseId,
+        detail: { kind: 'intake', schemaVersion: 2, revision: revision + 1, convertedFromRevision: converting ? revision : null },
+      }, {
+        sql: 'SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND operation_marker = ?',
+        bindings: [id, actor.orgId, operationMarker],
+      }, updatedAt),
+      env.DB.prepare(`UPDATE support_cases SET intake_at = ?, updated_at = ? WHERE id = ? AND org_id = ? AND EXISTS (
         SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND operation_marker = ?
-      )`,
-    ).bind(input.heldAt, updatedAt, supportCaseId, actor.orgId, id, actor.orgId, operationMarker),
-  ]);
-  const updated = results[1] as unknown as { meta?: { changes?: number } };
-  if ((updated.meta?.changes ?? 0) < 1) throw new ConflictError('intake revision or program settings changed');
+      )`).bind(input.heldAt, updatedAt, supportCaseId, actor.orgId, id, actor.orgId, operationMarker),
+    ]);
+  } catch (error) {
+    if (isManualContextConstraint(error)) throw new ConflictError('intake record context changed');
+    throw error;
+  }
+  if ((results[3]?.meta.changes ?? 0) < 1) throw new ConflictError('intake revision or program settings changed');
   return {
     record: { ...mapCounselingRecord(intakeRow), heldAt: input.heldAt, channel: input.channel },
-    replayed: false,
-    schemaVersion: 2,
-    revision: revision + 1,
+    replayed: false, schemaVersion: INTAKE_WRITE_SCHEMA_VERSION, revision: revision + 1,
   };
 }
 
@@ -19490,7 +19492,7 @@ export async function listCounselingRecords(
   }
 
   const placeholders = sessionIds.map(() => '?').join(', ');
-  const [approved, scores, actionItems, confirmedFlags, completedSchedules, lifeAreas, discrepancyRows] = await Promise.all([
+  const [approved, scores, actionItems, confirmedFlags, completedSchedules, lifeAreas, discrepancyRows, manualActionOutcomes, manualQuestionOutcomes, manualHistory] = await Promise.all([
     env.DB.prepare(
       // one_liner 는 D47 접힌 줄의 핵심 한 줄(0025) — 브리핑 영역 ②와 같은 승인 경로에서 읽는다(R2).
       `SELECT session_id, summary_text, approved_at, one_liner
@@ -19543,7 +19545,54 @@ export async function listCounselingRecords(
        WHERE resolution_status IS NULL OR resolved_rank <= ${DISCREPANCY_RESOLVED_HISTORY_LIMIT}
        ORDER BY (resolution_status IS NULL) DESC, detected_at DESC, id`,
     ).bind(actor.orgId, supportCaseId, ...sessionIds, ...sessionIds).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, h.held_at FROM manual_action_outcomes o
+      JOIN manual_record_revisions h ON h.session_id = o.session_id AND h.org_id = o.org_id AND h.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? AND o.session_id IN (${placeholders})
+      ORDER BY h.held_at, o.session_id, o.action_item_id`)
+      .bind(actor.orgId, supportCaseId, ...sessionIds).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, h.held_at FROM manual_question_outcomes o
+      JOIN manual_record_revisions h ON h.session_id = o.session_id AND h.org_id = o.org_id AND h.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? AND o.session_id IN (${placeholders})
+      ORDER BY h.held_at, o.session_id, o.kind, o.question_id`)
+      .bind(actor.orgId, supportCaseId, ...sessionIds).all<DbRow>(),
+    env.DB.prepare(`SELECT h.* FROM manual_record_revisions h JOIN sessions s ON s.id = h.session_id AND s.org_id = h.org_id
+      WHERE s.org_id = ? AND s.support_case_id = ? AND h.session_id IN (${placeholders})
+      ORDER BY h.revision`).bind(actor.orgId, supportCaseId, ...sessionIds).all<DbRow>(),
   ]);
+  const manualBySession = new Map<string, ManualRecordProjection>();
+  for (const row of sessions.results) {
+    if (row.kind !== 'regular') continue;
+    const schemaVersion = integerValue(row.manual_schema_version) === 2 ? 2 : 1;
+    manualBySession.set(stringValue(row.id), {
+      schemaVersion, revision: integerValue(row.manual_revision)!, details: storedManualDetails(row),
+      legacyDetailsJson: schemaVersion === 1 ? nullableString(row.record_details) : null,
+      history: [], actionOutcomes: [], questionOutcomes: [],
+    });
+  }
+  for (const row of manualHistory.results) {
+    // 최초 조회한 회차 revision 이후의 수정 이력은 다음 조회에서만 보인다.
+    const selected = manualBySession.get(stringValue(row.session_id))!;
+    if (integerValue(row.revision)! > selected.revision) continue;
+    selected.history.push({
+      revision: integerValue(row.revision)!, schemaVersion: integerValue(row.schema_version) === 2 ? 2 : 1,
+      heldAt: stringValue(row.held_at), channel: toChannel(row.channel), memo: nullableString(row.memo),
+      detailsJson: nullableString(row.details), recordedAt: stringValue(row.recorded_at), actorId: nullableString(row.actor_id),
+    });
+  }
+  for (const row of manualActionOutcomes.results) {
+    manualBySession.get(stringValue(row.session_id))!.actionOutcomes.push({
+      actionItemId: stringValue(row.action_item_id), sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at),
+      sourceRevision: integerValue(row.source_revision)!, outcome: stringValue(row.outcome) as ManualActionOutcome['outcome'],
+      continuation: nullableString(row.continuation) as ManualActionOutcome['continuation'], reason: nullableString(row.reason),
+    });
+  }
+  for (const row of manualQuestionOutcomes.results) {
+    manualBySession.get(stringValue(row.session_id))!.questionOutcomes.push({
+      kind: stringValue(row.kind) as ManualPendingQuestion['kind'], questionId: stringValue(row.question_id), sourceId: stringValue(row.source_id),
+      sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at), outcome: stringValue(row.outcome) as ManualQuestionOutcome['outcome'],
+      answer: nullableString(row.answer), sourceRevision: integerValue(row.source_revision)!, sourceText: stringValue(row.source_text),
+    });
+  }
   const approvedBySession = new Map(
     approved.results.map((row) => [
       stringValue(row.session_id),
@@ -19657,6 +19706,7 @@ export async function listCounselingRecords(
       : sessionGoalNoteLines(nullableString(row.record_details));
     return {
       ...mapCounselingRecord(row, projected?.summaryText ?? null, projected?.approvedAt ?? null),
+      manual: manualBySession.get(sessionId) ?? null,
       completedSchedule,
       gasScores: scoresBySession.get(sessionId) ?? [],
       actionItems: actionsBySession.get(sessionId) ?? [],
@@ -19687,7 +19737,7 @@ export async function getSupportCaseReport(
   env: Env, actor: Actor, supportCaseId: string,
 ): Promise<SupportCaseReport> {
   const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
-  const [records, detailRows, actionRows, program] = await Promise.all([
+  const [records, detailRows, actionRows, program, work] = await Promise.all([
     listCounselingRecords(env, actor, supportCaseId),
     env.DB.prepare(`SELECT id, record_details, intake_details, intake_schema_version, intake_revision FROM sessions
       WHERE org_id=? AND support_case_id=?`).bind(actor.orgId, supportCaseId).all<DbRow>(),
@@ -19697,6 +19747,7 @@ export async function getSupportCaseReport(
       ORDER BY created_at, id`).bind(actor.orgId, supportCaseId).all<DbRow>(),
     env.DB.prepare('SELECT display_name FROM programs WHERE org_id=? AND id=?')
       .bind(actor.orgId, supportCase.programId).first<DbRow>(),
+    loadManualWork(env, actor.orgId, supportCaseId),
   ]);
   // Existing record projection is newest-first (held_at, id); reverse both axes.
   records.reverse();
@@ -19763,7 +19814,21 @@ export async function getSupportCaseReport(
         }
       }
     }
-    if (record.kind === 'intake' && Array.isArray(intake.additionalItems)) {
+    if (record.kind === 'intake' && work.intake !== null && work.intake.lifecycle !== null && work.intake.source.id === record.id) {
+      for (const question of work.questions) {
+        if (question.kind !== 'intake' || question.state !== 'open') continue;
+        const reference = work.intake.references.get(question.id)!;
+        const sourceRevision = reference.item.sourceRevision;
+        const source = work.intake.revisions.find(revision => revision.revision === sourceRevision)!;
+        const evidence = reportEvidence({
+          ...record, heldAt: source.heldAt, intakeSchemaVersion: reference.schemaVersion, intakeRevision: sourceRevision,
+        }, number, `intake_details.additionalItems.${reference.item.sourceRowIndex}.item`, reference.value.item)!;
+        nextConfirmations.push({
+          item: reference.value.item, evidence,
+          ...(reference.value.dueNote === undefined ? {} : { dueNote: reference.value.dueNote }),
+        });
+      }
+    } else if (record.kind === 'intake' && work.intake?.lifecycle === null && Array.isArray(intake.additionalItems)) {
       for (const [itemIndex, item] of (intake.additionalItems as LegacyIntakeAdditionalItem[]).entries()) {
         const evidence = reportEvidence(record, number, `intake_details.additionalItems.${itemIndex}.item`, item?.item);
         if (evidence === undefined) continue;
@@ -21697,18 +21762,18 @@ export interface StaffInviteAcceptResult {
  * 초대 수락(원자). 토큰 소비, users 등재, 초대에 적힌 역할 부여, legacy 자동 부여 역할 회수를
  * 한 배치에 묶는다. 이메일이 초대와 다르면 소비하지 않고 미존재와 같은 ForbiddenError다.
  *
- * 계정 결속(D90): 수락자가 이미 만든 Auth 계정의 검증된 `subject` 를 등재와 같은 배치에서 채운다.
+ * 계정 결속(D90): 초대로 받은 Auth 계정의 검증된 `subject` 를 등재와 같은 배치에서 채운다.
  * 초대 토큰은 한 번만 쓰는 비밀이고 subject 는 서명으로 검증된 값이라, 연결 근거가 이메일 claim 이
  * 아니라 이 둘이다. 연결되지 않은 users 행을 남기지 않으므로 나중에 가로챌 자리도 없다.
  */
 export async function acceptStaffInvite(
   env: Env,
   input: { token: string; name: string; email: string },
-  authSubject: string | null = null,
+  authSubject: string,
 ): Promise<StaffInviteAcceptResult> {
   assertExactKeys(input, ['token', 'name', 'email']);
   assertNonBlankText(input.name, 'name');
-  if (authSubject !== null) assertOpaqueIdentifier(authSubject, 'auth subject');
+  assertOpaqueIdentifier(authSubject, 'auth subject');
   const name = input.name.trim();
   const email = normalizedStaffEmail(input.email);
   const row = await liveStaffInviteByToken(env, input.token);
