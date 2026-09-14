@@ -1,11 +1,23 @@
 // 합성 전용 업무 API와 인증 서버. 실제 기관 자료, 실제 인증, 실제 사업자 연결은 없다.
 // 미리보기와 브라우저 검수가 같은 응답을 쓰도록 한 곳에 둔다.
 
+import {
+  INTAKE_WRITE_SCHEMA_VERSION, IntakeContractError, parseIntakeCreateRequest, parseIntakeQuestionnaire, parseIntakeUpdateRequest,
+} from '@ccc/contracts/intake';
+import {
+  MANUAL_RECORD_CONTEXT_SCHEMA_VERSION, MANUAL_RECORD_SCHEMA_VERSION, ManualRecordContractError, parseCreateManualRecord,
+} from '@ccc/contracts/manual-record';
+import { canonicalizeJcs } from '@ccc/contracts/jcs';
 const USER_ID = 'a800424b-7cb1-49f5-8bb4-8989d586c455';
 const CASE_ID = '2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10';
+const REGISTERED_CASE_ID = '9bd2a1c4-3f57-4a26-8e19-0b4c6d8e1f20';
 const CLOSED_CASE_ID = '7c1f5b02-9a2e-4d8b-9f6a-1c3b5d7e9f21';
 const SCHEDULE_ID = '5b8d3c14-6f2a-4c19-8d3e-9a1b2c4d6e80';
 const SESSION_ID = '91ac47d2-38b5-4f0c-9a71-2d5e6f8a0b13';
+const INTAKE_QUESTION_ID = '2a91b3c4-5d6e-4f70-8a12-3b4c5d6e7f80';
+const RECORD_QUESTION_ID = '3b02c4d5-6e7f-4081-9a23-4c5d6e7f8091';
+const SCHEDULE_QUESTION_ID = '4c13d5e6-7f80-4192-8a34-5d6e7f8091a2';
+const WITHDRAWN_QUESTION_ID = '5d24e6f7-8091-42a3-9b45-6e7f8091a2b3';
 
 export function createSyntheticState() {
   return {
@@ -15,6 +27,13 @@ export function createSyntheticState() {
     planVersion: 2,
     overallGoal: '월세 체납을 정리하고 안정적인 소득을 만든다',
     admissionCopyHash: null,
+    programVersion: 3,
+    financialSupportEnabled: false,
+    intakeSubmissions: new Map(),
+    intakeRevisionMetadata: new Map(),
+    orgName: '합성 기관',
+    programName: '금전 지원',
+    extraPrograms: [],
     admissionConfirmed: false,
     assignmentRequested: false,
     goals: [{ id: 'a7f1c9d2-4b6e-4a30-8c52-1d3e5f70b284', title: '월세 체납 정리', status: 'active', closedReason: null, closedAt: null,
@@ -24,8 +43,44 @@ export function createSyntheticState() {
     discrepancyResolution: null,
     caseClosed: null,
     intake: null,
+    registeredIntake: null,
+    registrationKey: null,
+    registeredAssigneeId: null,
     submissions: new Map(),
     records: [],
+    manualQuestions: [
+      {
+        kind: 'schedule', id: SCHEDULE_QUESTION_ID, sourceId: SCHEDULE_ID, sourceRevision: 1,
+        sourceSessionId: null, sourceHeldAt: null, sourceScheduledAt: '2026-09-20T01:00:00.000Z',
+        createdAt: '2026-09-10T01:00:00.000Z', body: '예정된 상담에서 확인할 내용', state: 'open', outcomes: [],
+      },
+      {
+        kind: 'record', id: RECORD_QUESTION_ID, sourceId: SESSION_ID, sourceRevision: 1,
+        sourceSessionId: SESSION_ID, sourceHeldAt: '2026-09-02T01:00:00.000Z', sourceScheduledAt: null,
+        createdAt: '2026-09-02T02:00:00.000Z', body: '지난 상담에서 남긴 질문', state: 'open', outcomes: [],
+      },
+      {
+        kind: 'intake', id: INTAKE_QUESTION_ID, sourceId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', sourceRevision: 1,
+        sourceSessionId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', sourceHeldAt: '2026-09-01T01:00:00.000Z',
+        sourceScheduledAt: null, createdAt: '2026-09-01T02:00:00.000Z',
+        body: '첫 상담 뒤 확인할 내용', state: 'open', outcomes: [],
+      },
+      {
+        kind: 'record', id: '6e35f708-91a2-43b4-8c56-7f8091a2b3c4', sourceId: SESSION_ID, sourceRevision: 1,
+        sourceSessionId: SESSION_ID, sourceHeldAt: '2026-09-02T01:00:00.000Z', sourceScheduledAt: null,
+        createdAt: '2026-09-02T02:00:00.000Z', body: '이미 확인한 상담 질문', state: 'confirmed',
+        outcomes: [{ sessionId: '7f460819-a2b3-44c5-9d67-8091a2b3c4d5', heldAt: '2026-09-09T01:00:00.000Z',
+          outcome: 'confirmed', answer: '확인한 답', sourceRevision: 1, sourceText: '이미 확인한 상담 질문' }],
+      },
+      {
+        kind: 'intake', id: WITHDRAWN_QUESTION_ID, sourceId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', sourceRevision: 1,
+        sourceSessionId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', sourceHeldAt: '2026-09-01T01:00:00.000Z',
+        sourceScheduledAt: null, createdAt: '2026-09-01T02:00:00.000Z',
+        body: '철회된 첫 상담 질문', state: 'withdrawn',
+        outcomes: [{ sessionId: SESSION_ID, heldAt: '2026-09-02T01:00:00.000Z',
+          outcome: 'confirmed', answer: '철회 전 확정 답', sourceRevision: 1, sourceText: '철회된 첫 상담 질문' }],
+      },
+    ],
     draftDecision: null,
     scheduleVersion: 2,
     consentEvents: new Map(),
@@ -56,6 +111,53 @@ export function createSyntheticState() {
     }],
     calls: [],
   };
+}
+
+/** Seed a migrated legacy revision with its original updated_at, never the conversion time. */
+export function seedSyntheticLegacyIntake(state, supportCaseId, saved, recordedAt) {
+  if ((supportCaseId !== CASE_ID && supportCaseId !== REGISTERED_CASE_ID) || saved.schemaVersion !== 1
+    || typeof recordedAt !== 'string' || !Number.isFinite(Date.parse(recordedAt))) {
+    throw new Error('invalid_synthetic_legacy_intake');
+  }
+  const key = `${supportCaseId}:${saved.revision}`;
+  if (state.intakeRevisionMetadata.has(key)) throw new Error('synthetic_revision_already_exists');
+  state.intakeRevisionMetadata.set(key, { actorId: null, recordedAt, convertedFromRevision: null });
+  if (supportCaseId === CASE_ID) state.intake = structuredClone(saved);
+  else state.registeredIntake = structuredClone(saved);
+}
+
+function intakeSourceRows(schemaVersion, detailsJson) {
+  const details = typeof detailsJson === 'string' ? JSON.parse(detailsJson) : detailsJson;
+  if (schemaVersion === 1) {
+    if (details === null || details === undefined || !Object.hasOwn(details, 'additionalItems')) return [];
+    const rows = details.additionalItems;
+    if (!Array.isArray(rows) || rows.some((row) => row === null || typeof row !== 'object' || Array.isArray(row)
+      || typeof row.item !== 'string' || !row.item.trim() || (Object.hasOwn(row, 'dueNote') && typeof row.dueNote !== 'string'))) {
+      throw new Error('invalid_intake_source');
+    }
+    return rows;
+  }
+  const questionnaire = parseIntakeQuestionnaire(details);
+  return questionnaire.additionalItems.response === 'answered' ? questionnaire.additionalItems.rows : [];
+}
+
+function intakeRevisionRows(saved, revision) {
+  if (revision === saved.revision) {
+    return intakeSourceRows(saved.schemaVersion, saved.schemaVersion === 1 ? saved.legacyDetailsJson : saved.questionnaire);
+  }
+  const historical = saved.history.find((entry) => entry.revision === revision);
+  if (!historical) throw new Error('invalid_intake_source');
+  return intakeSourceRows(historical.schemaVersion, historical.detailsJson);
+}
+
+function intakeQuestionReferences(saved) {
+  const references = new Map();
+  for (const item of saved.questionLifecycle?.items ?? []) {
+    const value = intakeRevisionRows(saved, item.sourceRevision)[item.sourceRowIndex];
+    if (!value) throw new Error('invalid_intake_source');
+    references.set(item.id, { item, value });
+  }
+  return references;
 }
 
 const CONSENT_DOMAINS = [
@@ -209,13 +311,14 @@ export function handleAuth(request, state, clientOrigin) {
 
 function readiness(state) {
   return {
-    orgId: 'org-1', orgName: '합성 기관', settingsState: 'present', creatorLinkState: 'linked',
-    initialSetupState: 'complete',
+    orgId: 'org-1', orgName: state.orgName, settingsState: 'present', creatorLinkState: 'linked',
+    initialSetupState: state.orgName === null ? 'not_set_up' : 'complete',
     firstProgramAdmissionState: state.admissionConfirmed ? 'admitted' : 'not_admitted',
     firstProgram: {
-      id: 'program-1', displayName: '금전 지원', programType: 'financial_support_v1',
+      id: 'program-1', displayName: state.programName, programType: 'financial_support_v1',
       admissionState: state.admissionConfirmed ? 'ready' : 'confirmation_required',
-      status: 'active', version: state.admissionConfirmed ? 4 : 3,
+      status: 'active', version: state.programVersion,
+      financialSupportEnabled: state.financialSupportEnabled,
     },
     installationState: 'available', retentionPolicyStatus: 'configured',
     consentCopy: {
@@ -287,6 +390,19 @@ export function handleApi(request, state, options) {
       role: state.role === 'worker' ? 'counselor' : 'admin', lastProgramType: null,
       roles: [state.role === 'worker' ? 'worker' : 'institution-admin'], institution: readiness(state),
     }, 200, cors);
+  }
+  if (path === '/organization/onboarding' && request.method === 'POST') {
+    return request.json().then((body) => {
+      if (state.role !== 'institution-admin') return json({ error: 'forbidden' }, 403, cors);
+      if (typeof body.orgName !== 'string' || !body.orgName.trim() || typeof body.programDisplayName !== 'string'
+        || !body.programDisplayName.trim() || (body.financialSupportEnabled !== undefined && typeof body.financialSupportEnabled !== 'boolean')) return json({ error: 'invalid_request' }, 400, cors);
+      if (state.orgName !== null) return json({ error: 'conflict' }, 409, cors);
+      state.orgName = body.orgName;
+      state.programName = body.programDisplayName;
+      state.financialSupportEnabled = body.financialSupportEnabled ?? state.financialSupportEnabled;
+      state.programVersion += 1;
+      return json({ orgId: 'org-1', orgName: state.orgName, programDisplayName: state.programName, institution: readiness(state) }, 200, cors);
+    });
   }
   if (path === '/assignment-requests') return json({ requests: [] }, 200, cors);
   if (path === '/auth/logout') return new Response(null, { status: 204, headers: cors });
@@ -434,10 +550,16 @@ export function handleApi(request, state, options) {
       if (privacy?.decision !== 'grant' && !emergency) {
         return json({ error: 'privacy_consent_required' }, 422, cors);
       }
+      const replayed = state.registrationKey === body.idempotencyKey;
+      if (!replayed) {
+        state.registrationKey = body.idempotencyKey;
+        state.registeredAssigneeId = body.initialAssigneeUserId ?? USER_ID;
+      }
       return json({
-        beneficiaryId: 'otter-011', supportCaseId: '9bd2a1c4-3f57-4a26-8e19-0b4c6d8e1f20',
-        assignmentRole: 'primary', replayed: false,
-      }, 201, cors);
+        beneficiaryId: 'otter-011', supportCaseId: REGISTERED_CASE_ID,
+        assignmentRole: 'primary', replayed,
+        canWriteIntake: state.role === 'worker' && state.registeredAssigneeId === USER_ID,
+      }, replayed ? 200 : 201, cors);
     });
   }
   if (path === '/debug/last-registration' && request.method === 'GET') {
@@ -476,7 +598,7 @@ export function handleApi(request, state, options) {
       sessionId: SESSION_ID, sessionNumber: number, heldAt: '2026-09-02T01:00:00.000Z', source, text,
     });
     return json({
-      schemaVersion: 1, supportCaseId: CASE_ID, beneficiaryId: 'swallow-003',
+      schemaVersion: 2, supportCaseId: CASE_ID, beneficiaryId: 'swallow-003',
       programId: 'program-1', programName: '합성 사업', status: state.caseClosed === null ? 'active' : 'closed',
       sessions: [
         { sessionId: SESSION_ID, sessionNumber: 1, heldAt: '2026-09-02T01:00:00.000Z', kind: 'intake',
@@ -487,7 +609,9 @@ export function handleApi(request, state, options) {
       firstIntakeGoal: ev('intake.overallGoal', '월세 체납을 정리하고 안정적인 소득을 만든다'),
       nextConfirmations: [{
         item: '전체 채무 잔액', reason: '채무조정 가능성 판단', method: '신용정보조회서 확인',
-        dueNote: '다음 상담 전', evidence: ev('intake.additionalItems[0]', '전체 채무 잔액 확인 필요'),
+        dueNote: '다음 상담 전', questionRef: { kind: 'intake', questionId: INTAKE_QUESTION_ID,
+          sourceId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', sourceRevision: 1 },
+        evidence: ev('intake.additionalItems[0]', '전체 채무 잔액 확인 필요'),
       }],
       sections: {
         situationChanges: { entries: [ev('records.memo', '월세 2개월 체납이 1개월로 줄었습니다', 2)] },
@@ -610,17 +734,39 @@ export function handleApi(request, state, options) {
       focusUpcomingSchedule: {
         id: SCHEDULE_ID, scheduledAt: '2026-09-20T01:00:00.000Z', sessionKind: 'regular', channel: 'in_person',
         sessionGoals: [{ body: '체납 정리 진행 상황 확인', caseGoalId: null, caseGoalTitle: null, caseGoalStatus: null }],
-        customQuestions: [{ body: '지난주 상담 이후 달라진 점이 있나요' }],
+        customQuestions: ['지난주 상담 이후 달라진 점이 있나요'],
       },
+    }, 200, cors);
+  }
+  if (path === `/support-cases/${CASE_ID}/records/context` && request.method === 'GET') {
+    return json({
+      schemaVersion: MANUAL_RECORD_CONTEXT_SCHEMA_VERSION, supportCaseId: CASE_ID,
+      canWrite: state.role === 'worker' && state.caseClosed === null,
+      defaults: { heldAt: null, channel: 'in_person', reason: null,
+        scheduleId: SCHEDULE_ID, scheduleVersion: state.scheduleVersion },
+      actions: [], closedActions: [],
+      questions: state.manualQuestions.filter((question) => question.state === 'open'),
+      confirmedQuestions: state.manualQuestions.filter((question) => question.state === 'confirmed'),
+      withdrawnQuestions: state.manualQuestions.filter((question) => question.state === 'withdrawn'),
     }, 200, cors);
   }
   if (path === `/support-cases/${CASE_ID}/records` && request.method === 'GET') {
     const approved = state.draftDecision === 'approved';
+    const withdrawn = state.manualQuestions.find((question) => question.id === WITHDRAWN_QUESTION_ID);
     return json({
       records: [
         {
           id: SESSION_ID, supportCaseId: CASE_ID, heldAt: '2026-09-02T01:00:00.000Z', channel: 'in_person',
           memo: '고지서를 아직 확인하지 못했다고 함', kind: 'regular', createdAt: '2026-09-02T02:00:00.000Z',
+          manual: {
+            schemaVersion: MANUAL_RECORD_SCHEMA_VERSION, revision: 1,
+            details: { schemaVersion: MANUAL_RECORD_SCHEMA_VERSION, method: 'in_person', reason: null,
+              urgency: null, changes: [], counselorOpinion: null, nextQuestions: [] },
+            legacyDetailsJson: null, history: [], actionOutcomes: [],
+            questionOutcomes: (withdrawn?.outcomes ?? []).map((outcome) => ({
+              ...outcome, kind: 'intake', questionId: WITHDRAWN_QUESTION_ID, sourceId: withdrawn.sourceId,
+            })),
+          },
           gasScores: [], actionItems: [{ id: 'action-1', description: '주민센터 서류 제출', owner: 'beneficiary', dueDate: '2026-09-18', resolved: false }],
           flags: [{ id: 'flag-1', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'confirmed', quote: '이번 달에도 이자를 못 냈어요' }],
           lifeAreaSnapshot: [], managerOpinion: null,
@@ -637,26 +783,62 @@ export function handleApi(request, state, options) {
     }, 200, cors);
   }
   if (path === `/support-cases/${CASE_ID}/records` && request.method === 'POST') {
-    return request.json().then((body) => {
+    return request.json().then((raw) => {
+      let body;
+      try { body = parseCreateManualRecord(raw); }
+      catch (error) {
+        if (error instanceof ManualRecordContractError) return json({ error: 'invalid_request' }, 400, cors);
+        throw error;
+      }
+      if (state.role !== 'worker') return json({ error: 'forbidden' }, 403, cors);
+      if (state.caseClosed !== null) return json({ error: 'conflict' }, 409, cors);
       const known = state.submissions.get(body.submissionId);
       if (known !== undefined) return json({ record: known, replayed: true }, 200, cors);
       if (body.expectedScheduleVersion !== undefined && body.expectedScheduleVersion !== state.scheduleVersion) {
         return json({ error: 'conflict' }, 409, cors);
       }
-      const saved = { id: `record-${state.submissions.size + 1}`, heldAt: body.heldAt, channel: body.channel, memo: body.memo };
+      const answers = [];
+      for (const answer of body.questionAnswers ?? []) {
+        const question = state.manualQuestions.find((candidate) => candidate.kind === answer.kind && candidate.id === answer.questionId);
+        if (question === undefined || question.sourceId !== answer.sourceId) return json({ error: 'forbidden' }, 403, cors);
+        if (question.state !== 'open' || question.sourceRevision !== answer.expectedRevision) {
+          return json({ error: 'conflict' }, 409, cors);
+        }
+        answers.push({ answer, question });
+      }
+      const questionOutcomes = answers.map(({ answer, question }) => {
+        const outcome = {
+          sessionId: `record-${state.submissions.size + 1}`, heldAt: body.heldAt, outcome: 'confirmed',
+          answer: answer.answer, sourceRevision: question.sourceRevision, sourceText: question.body,
+        };
+        question.state = 'confirmed';
+        question.outcomes.push(outcome);
+        return { ...outcome, kind: question.kind, questionId: question.id, sourceId: question.sourceId };
+      });
+      const manual = {
+        schemaVersion: MANUAL_RECORD_SCHEMA_VERSION, revision: 1,
+        details: { schemaVersion: MANUAL_RECORD_SCHEMA_VERSION, method: body.channel, reason: body.reason ?? null,
+          urgency: body.urgency ?? null, changes: body.changes ?? [], counselorOpinion: body.counselorOpinion ?? null,
+          nextQuestions: (body.nextQuestions ?? []).map((question, index) => ({ id: `manual-question-${index}`, body: question })) },
+        legacyDetailsJson: null, history: [], actionOutcomes: [], questionOutcomes,
+      };
+      const saved = {
+        id: `record-${state.submissions.size + 1}`, heldAt: body.heldAt,
+        channel: body.channel === 'visit' ? 'in_person' : body.channel, memo: body.memo, manual,
+      };
       state.submissions.set(body.submissionId, saved);
       state.records.push({
-        id: saved.id, supportCaseId: CASE_ID, heldAt: body.heldAt, channel: 'in_person', memo: body.memo,
-        kind: 'regular', createdAt: new Date().toISOString(), gasScores: [],
-        actionItems: (body.actions ?? []).map((action, index) => ({
+        id: saved.id, supportCaseId: CASE_ID, heldAt: body.heldAt, channel: saved.channel, memo: body.memo,
+        kind: 'regular', createdAt: new Date().toISOString(), manual, gasScores: [],
+        actionItems: (body.actionItems ?? []).map((action, index) => ({
           id: `new-action-${index}`, description: action.description, owner: action.owner,
           dueDate: action.dueDate ?? null, resolved: false,
         })),
         flags: (body.flags ?? []).map((flag, index) => ({
-          id: `new-flag-${index}`, flagType: flag.flagType, source: 'counselor', reviewStatus: 'confirmed', quote: null,
+          id: `new-flag-${index}`, flagType: flag.flagType, source: 'counselor', reviewStatus: 'confirmed', quote: flag.quote ?? null,
         })),
-        lifeAreaSnapshot: [], managerOpinion: null, aiOneLiner: null,
-        memoExcerpt: String(body.memo).slice(0, 60), sessionGoals: [], discrepancies: [],
+        lifeAreaSnapshot: [], managerOpinion: body.counselorOpinion ?? null, aiOneLiner: null,
+        memoExcerpt: body.memo.slice(0, 60), sessionGoals: [], discrepancies: [],
       });
       return json({ record: saved, replayed: false }, 201, cors);
     });
@@ -672,8 +854,9 @@ export function handleApi(request, state, options) {
       questions: [{ title: '고지서 확인 여부', reason: '지난 회차에 미확인이라고 함' }],
       evidence: [{ id: 'evidence-1', claimKey: 'claim-1', quote: '아직 고지서를 못 봤어요' }],
       contrast: [
-        { axis: 'missing_in_memo', status: 'applied', findings: [{ description: '이자 연체 언급', materialKind: 'transcript', quote: '이자를 못 냈어요' }] },
-        { axis: 'undiscussed_goals', status: 'no_material', findings: [] },
+        { axis: 'missing_from_memo', status: 'applied', findings: [{ description: '이자 연체 언급', materialKind: 'transcript', quote: '이자를 못 냈어요' }] },
+        { axis: 'missing_from_transcript', status: 'applied', findings: [{ description: '합성 비노출 메모', materialKind: 'text_context', quote: '목록으로 표시하지 않는 합성 메모' }] },
+        { axis: 'undiscussed_session_goal', status: 'no_session_goal', findings: [] },
       ],
       regenerateAvailable: false, regenerateSourceSnapshotId: null, transcriptQuality: null,
     }, 200, cors);
@@ -870,40 +1053,190 @@ export function handleApi(request, state, options) {
       return json({ id: CASE_ID, status: 'closed', closedAt: state.caseClosed.at }, 200, cors);
     });
   }
-  if (path === `/support-cases/${CASE_ID}/records/intake` && request.method === 'GET') {
+  const intakeCaseId = path === `/support-cases/${CASE_ID}/records/intake` ? CASE_ID
+    : path === `/support-cases/${REGISTERED_CASE_ID}/records/intake` && state.registrationKey !== null ? REGISTERED_CASE_ID : null;
+  const canWriteIntake = state.role === 'worker' && (intakeCaseId === REGISTERED_CASE_ID
+    ? state.registeredAssigneeId === USER_ID
+    : state.caseClosed === null && state.assignees.some((entry) => entry.supportCaseId === CASE_ID
+      && entry.userId === USER_ID && entry.status === 'active' && entry.unassignedAt === null));
+  const savedIntake = intakeCaseId === REGISTERED_CASE_ID ? state.registeredIntake : state.intake;
+  const moduleSnapshot = { programId: 'program-1', programVersion: state.programVersion, financialSupportEnabled: state.financialSupportEnabled };
+  if (intakeCaseId !== null && request.method === 'GET') {
     return json({
-      beneficiaryId: 'swallow-003', supportCaseId: CASE_ID,
+      beneficiaryId: intakeCaseId === CASE_ID ? 'swallow-003' : 'otter-011', supportCaseId: intakeCaseId,
+      canWrite: canWriteIntake, writeSchemaVersion: INTAKE_WRITE_SCHEMA_VERSION, moduleSnapshot,
       participant: { name: '김합성', phone: '010-0000-0000', email: 'synthetic@example.invalid' },
-      sessionSequence: state.intake === null ? 1 : 2, hasIntake: state.intake !== null,
+      sessionSequence: savedIntake === null ? 1 : 2, hasIntake: savedIntake !== null,
       extendedPii: { birthDate: '1980-03-05', region: '서울', emergencyContact: null, gender: null },
-      consent: currentConsentStates(state), saved: state.intake, overallGoal: state.overallGoal,
-      schedule: { id: SCHEDULE_ID, beneficiaryId: 'swallow-003', supportCaseId: CASE_ID,
+      consent: currentConsentStates(state), saved: savedIntake, overallGoal: state.overallGoal,
+      schedule: intakeCaseId === REGISTERED_CASE_ID ? null : { id: SCHEDULE_ID, beneficiaryId: 'swallow-003', supportCaseId: CASE_ID,
         scheduledAt: '2026-09-20T01:00:00.000Z', status: 'scheduled', version: state.scheduleVersion,
         completedSessionId: null },
     }, 200, cors);
   }
-  if (path === `/support-cases/${CASE_ID}/records/intake` && (request.method === 'POST' || request.method === 'PUT')) {
-    return request.json().then((body) => {
-      const replayed = request.method === 'POST' && state.intake !== null;
-      state.intake = {
-        sessionId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', heldAt: body.heldAt, channel: 'in_person',
-        answers: body.answers ?? [], debts: body.debts ?? [], linkedOrgs: body.linkedOrgs ?? [],
-        additionalItems: body.additionalItems ?? [], managerOpinion: body.managerOpinion ?? null,
+  if (intakeCaseId !== null && (request.method === 'POST' || request.method === 'PUT')) {
+    return request.json().then((raw) => {
+      let body;
+      try { body = request.method === 'POST' ? parseIntakeCreateRequest(raw) : parseIntakeUpdateRequest(raw); }
+      catch (error) {
+        if (error instanceof IntakeContractError) return json({ error: 'invalid_request' }, 400, cors);
+        throw error;
+      }
+      if (!canWriteIntake) return intakeCaseId === CASE_ID && state.caseClosed !== null
+        ? json({ error: 'conflict' }, 409, cors) : json({ error: 'forbidden' }, 403, cors);
+      if (request.method === 'PUT' && savedIntake !== null && savedIntake.questionLifecycle !== null
+        && body.additionalItemRefs.some((ref) => ref.legacySourceRowIndex !== undefined)) {
+        return json({ error: 'invalid_request' }, 400, cors);
+      }
+      const receiptKey = `${intakeCaseId}:${body.submissionId}`;
+      const fingerprint = canonicalizeJcs(body);
+      if (request.method === 'POST') {
+        const previous = state.intakeSubmissions.get(receiptKey);
+        if (previous) return previous.fingerprint === fingerprint
+          ? json({ ...previous.result, replayed: true }, 200, cors) : json({ error: 'conflict' }, 409, cors);
+      }
+      const snapshot = body.questionnaire.moduleSnapshot;
+      if (snapshot.programId !== moduleSnapshot.programId) return json({ error: 'forbidden' }, 403, cors);
+      if (snapshot.programVersion !== moduleSnapshot.programVersion
+        || snapshot.financialSupportEnabled !== moduleSnapshot.financialSupportEnabled) return json({ error: 'conflict' }, 409, cors);
+      if (request.method === 'POST') {
+        if (savedIntake !== null) return json({ error: 'conflict' }, 409, cors);
+        if (body.scheduleId !== undefined && (body.scheduleId !== SCHEDULE_ID || body.expectedScheduleVersion !== state.scheduleVersion)) {
+          return json({ error: 'conflict' }, 409, cors);
+        }
+      } else if (savedIntake === null) return json({ error: 'conflict' }, 409, cors);
+
+      const recordedAt = new Date().toISOString();
+      let questionLifecycle;
+      if (request.method === 'POST') {
+        questionLifecycle = {
+          version: 1, conversion: null,
+          items: body.additionalItemRefs.map((ref) => ({
+            id: crypto.randomUUID(), revision: 1, sourceRevision: 1, sourceRowIndex: ref.rowIndex,
+            createdBy: USER_ID, createdAt: recordedAt, withdrawn: null, origin: null,
+          })),
+        };
+      } else {
+        let references;
+        try { references = intakeQuestionReferences(savedIntake); }
+        catch { return json({ error: 'conflict' }, 409, cors); }
+        for (const questionId of [
+          ...body.additionalItemRefs.flatMap((ref) => ref.questionId === null ? [] : [ref.questionId]),
+          ...body.questionWithdrawals.map((withdrawal) => withdrawal.questionId),
+        ]) if (!references.has(questionId)) return json({ error: 'forbidden' }, 403, cors);
+        if (body.expectedRevision !== savedIntake.revision) return json({ error: 'conflict' }, 409, cors);
+        const converting = savedIntake.questionLifecycle === null;
+        if (converting ? body.conversion?.confirmed !== true || body.conversion.sourceRevision !== savedIntake.revision
+          : body.conversion !== undefined) return json({ error: 'conflict' }, 409, cors);
+        let legacyRows = [];
+        try { legacyRows = converting ? intakeRevisionRows(savedIntake, savedIntake.revision) : []; }
+        catch { return json({ error: 'conflict' }, 409, cors); }
+        const mappings = body.additionalItemRefs.filter((ref) => ref.legacySourceRowIndex !== undefined);
+        if (converting && (mappings.length !== legacyRows.length
+          || new Set(mappings.map((ref) => ref.legacySourceRowIndex)).size !== legacyRows.length
+          || mappings.some((ref) => ref.legacySourceRowIndex >= legacyRows.length))) {
+          return json({ error: 'conflict' }, 409, cors);
+        }
+        const rows = body.questionnaire.additionalItems.response === 'answered' ? body.questionnaire.additionalItems.rows : [];
+        const withdrawals = new Map(body.questionWithdrawals.map((withdrawal) => [withdrawal.questionId, withdrawal]));
+        const bindings = new Map(body.additionalItemRefs.flatMap((ref) => ref.questionId === null ? [] : [[ref.questionId, ref]]));
+        for (const ref of body.additionalItemRefs) {
+          if (ref.questionId === null) continue;
+          const source = references.get(ref.questionId);
+          if (source.item.withdrawn !== null || ref.expectedRevision !== source.item.revision) return json({ error: 'conflict' }, 409, cors);
+          const submitted = rows[ref.rowIndex];
+          if (withdrawals.has(ref.questionId)
+            && (submitted.item !== source.value.item || submitted.dueNote !== source.value.dueNote)) {
+            return json({ error: 'conflict' }, 409, cors);
+          }
+        }
+        for (const withdrawal of withdrawals.values()) {
+          const source = references.get(withdrawal.questionId);
+          if (source.item.withdrawn !== null || source.item.revision !== withdrawal.expectedRevision) {
+            return json({ error: 'conflict' }, 409, cors);
+          }
+        }
+        const items = (savedIntake.questionLifecycle?.items ?? []).map((item) => {
+          const ref = bindings.get(item.id), withdrawal = withdrawals.get(item.id);
+          if (ref === undefined && withdrawal === undefined) return structuredClone(item);
+          const source = references.get(item.id).value;
+          const submitted = ref === undefined ? source : rows[ref.rowIndex];
+          const changed = submitted.item !== source.item || submitted.dueNote !== source.dueNote;
+          return {
+            ...structuredClone(item), revision: item.revision + (changed || withdrawal !== undefined ? 1 : 0),
+            sourceRevision: ref === undefined ? item.sourceRevision : savedIntake.revision + 1,
+            sourceRowIndex: ref === undefined ? item.sourceRowIndex : ref.rowIndex,
+            withdrawn: withdrawal === undefined ? item.withdrawn
+              : { actorId: USER_ID, recordedAt, fromRevision: item.revision },
+          };
+        });
+        const allocatedMappings = [];
+        for (const ref of body.additionalItemRefs) {
+          if (ref.questionId !== null) continue;
+          const id = crypto.randomUUID();
+          const origin = ref.legacySourceRowIndex === undefined ? null : {
+            schemaVersion: savedIntake.schemaVersion, sourceRevision: savedIntake.revision, sourceRowIndex: ref.legacySourceRowIndex,
+          };
+          items.push({
+            id, revision: 1, sourceRevision: savedIntake.revision + 1, sourceRowIndex: ref.rowIndex,
+            createdBy: USER_ID, createdAt: recordedAt, withdrawn: null, origin,
+          });
+          if (origin !== null) allocatedMappings.push({ questionId: id, sourceRowIndex: origin.sourceRowIndex });
+        }
+        questionLifecycle = {
+          version: 1, items,
+          conversion: converting ? {
+            sourceSchemaVersion: savedIntake.schemaVersion, sourceRevision: savedIntake.revision,
+            mechanical: { recordedAt, mappings: allocatedMappings },
+            confirmation: { actorId: USER_ID, recordedAt },
+          } : savedIntake.questionLifecycle.conversion,
+        };
+      }
+      const previousMetadata = savedIntake === null ? null
+        : state.intakeRevisionMetadata.get(`${intakeCaseId}:${savedIntake.revision}`);
+      if (savedIntake !== null && !previousMetadata) return json({ error: 'internal_error' }, 500, cors);
+      const history = savedIntake === null ? [] : [{
+        revision: savedIntake.revision, schemaVersion: savedIntake.schemaVersion, heldAt: savedIntake.heldAt,
+        channel: savedIntake.channel, ...previousMetadata,
+        detailsJson: savedIntake.schemaVersion === 1 ? savedIntake.legacyDetailsJson : JSON.stringify(savedIntake.questionnaire),
+        questionLifecycle: structuredClone(savedIntake.questionLifecycle),
+      }, ...savedIntake.history];
+      const intake = {
+        sessionId: savedIntake?.sessionId ?? (intakeCaseId === CASE_ID ? '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35' : '6d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35'),
+        heldAt: body.heldAt, channel: body.channel, revision: (savedIntake?.revision ?? 0) + 1,
+        schemaVersion: 2, questionnaire: structuredClone(body.questionnaire), legacyDetailsJson: null, history, questionLifecycle,
       };
-      const record = { id: state.intake.sessionId, heldAt: body.heldAt, channel: 'in_person', kind: 'intake' };
-      return request.method === 'POST'
-        ? json({ record, replayed }, replayed ? 200 : 201, cors)
-        : json({ record }, 200, cors);
+      if (intakeCaseId === REGISTERED_CASE_ID) state.registeredIntake = intake;
+      else state.intake = intake;
+      state.intakeRevisionMetadata.set(`${intakeCaseId}:${intake.revision}`, {
+        actorId: USER_ID, recordedAt, convertedFromRevision: body.conversion?.sourceRevision ?? null,
+      });
+      const result = { schemaVersion: INTAKE_WRITE_SCHEMA_VERSION, revision: intake.revision, replayed: false,
+        record: { id: intake.sessionId, heldAt: intake.heldAt, channel: intake.channel, kind: 'intake' } };
+      if (request.method === 'POST') state.intakeSubmissions.set(receiptKey, { fingerprint, result });
+      return json(result, request.method === 'POST' ? 201 : 200, cors);
+    });
+  }
+  if (path === '/programs' && request.method === 'POST') {
+    return request.json().then((body) => {
+      if (state.role !== 'institution-admin') return json({ error: 'forbidden' }, 403, cors);
+      if (typeof body.displayName !== 'string' || !body.displayName.trim()
+        || (body.financialSupportEnabled !== undefined && typeof body.financialSupportEnabled !== 'boolean')) return json({ error: 'invalid_request' }, 400, cors);
+      const program = { id: `program-created-${state.extraPrograms.length + 1}`, orgId: 'org-1', displayName: body.displayName,
+        programType: 'financial_support_v1', storageMode: 'undecided', processingMode: 'undecided', status: 'active',
+        version: 1, financialSupportEnabled: body.financialSupportEnabled ?? false, confirmation: null, admissionState: 'undecided', staff: [] };
+      state.extraPrograms.push(program);
+      return json({ program }, 201, cors);
     });
   }
   if (path === '/programs' && request.method === 'GET') {
     return json({
       programs: [{
-        id: 'program-1', orgId: 'org-1', displayName: '금전 지원', status: 'active',
+        id: 'program-1', orgId: 'org-1', displayName: state.programName, status: 'active',
         programType: 'financial_support_v1', storageMode: 'supabase_seoul', processingMode: 'external_allowed',
-        version: state.admissionConfirmed ? 4 : 3, confirmation: null,
+        version: state.programVersion, financialSupportEnabled: state.financialSupportEnabled, confirmation: null,
         admissionState: state.admissionConfirmed ? 'ready' : 'confirmation_required', staff: [],
-      }],
+      }, ...state.extraPrograms],
       staffOptions: [],
       admissionCopy: { version: admissionCopyVersion, hash: state.admissionCopyHash ?? admissionCopyHash, copy: {} },
       installation: {
@@ -914,11 +1247,27 @@ export function handleApi(request, state, options) {
   }
   if (path.startsWith('/programs/') && request.method === 'PATCH') {
     return request.json().then((body) => {
+      if (state.role !== 'institution-admin') return json({ error: 'forbidden' }, 403, cors);
+      if (path !== '/programs/program-1') {
+        const program = state.extraPrograms.find((entry) => path === `/programs/${entry.id}`);
+        if (!program) return json({ error: 'not_found' }, 404, cors);
+        if (body.expectedVersion !== program.version) return json({ error: 'conflict' }, 409, cors);
+        if (body.financialSupportEnabled !== undefined && typeof body.financialSupportEnabled !== 'boolean') return json({ error: 'invalid_request' }, 400, cors);
+        Object.assign(program, { financialSupportEnabled: body.financialSupportEnabled ?? program.financialSupportEnabled, version: program.version + 1,
+          storageMode: body.storageMode ?? program.storageMode, processingMode: body.processingMode ?? program.processingMode,
+          confirmation: body.confirmation ? { by: 'user-1', at: new Date().toISOString(), ...body.confirmation } : program.confirmation,
+          admissionState: body.confirmation ? 'ready' : program.admissionState });
+        return json({ program }, 200, cors);
+      }
+      if (body.expectedVersion !== state.programVersion) return json({ error: 'conflict' }, 409, cors);
+      if (body.financialSupportEnabled !== undefined && typeof body.financialSupportEnabled !== 'boolean') return json({ error: 'invalid_request' }, 400, cors);
+      state.financialSupportEnabled = body.financialSupportEnabled ?? state.financialSupportEnabled;
+      state.programVersion += 1;
       state.admissionConfirmed = true;
       return json({ program: {
-        id: 'program-1', orgId: 'org-1', displayName: '금전 지원', status: 'active',
+        id: 'program-1', orgId: 'org-1', displayName: state.programName, status: 'active',
         programType: 'financial_support_v1', storageMode: body.storageMode, processingMode: body.processingMode,
-        version: 4, admissionState: 'ready', staff: [],
+        version: state.programVersion, financialSupportEnabled: state.financialSupportEnabled, admissionState: 'ready', staff: [],
         confirmation: { by: 'user-1', at: new Date().toISOString(), storageMode: body.storageMode,
           processingMode: body.processingMode, ...body.confirmation },
       } }, 200, cors);

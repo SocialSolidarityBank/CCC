@@ -40,12 +40,14 @@ if (certificate.status !== 0) throw new Error('self-signed certificate generatio
 
 const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
 const rawPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey));
-const signingKeys = JSON.stringify({ preview: btoa(String.fromCharCode(...rawPublicKey)) });
+// Synthetic installer state is fixed before creating the manifest, never read back from it.
+const installationTrust = JSON.stringify({ publicKeys: { preview: btoa(String.fromCharCode(...rawPublicKey)) },
+  revokedKeyIds: [], minSequence: 1, expectedInstallationId: INSTALLATION_ID });
 
 const distDir = join(workDir, 'dist');
 const build = spawnSync('pnpm', ['--filter', '@ccc/client', 'exec', 'vite', 'build', '--outDir', distDir, '--emptyOutDir'], {
   stdio: 'inherit',
-  env: { ...process.env, VITE_CCC_INSTALL_SIGNING_KEYS: signingKeys },
+  env: { ...process.env, VITE_CCC_INSTALL_TRUST: installationTrust },
 });
 if (build.status !== 0) throw new Error('client build failed');
 

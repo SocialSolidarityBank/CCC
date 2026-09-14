@@ -30,7 +30,7 @@ import { RecordCreateScreen, RecordListScreen, RecordReviewScreen } from './scre
 import { IntakeScreen } from './screens/intake';
 import { SettingsScreen } from './screens/settings';
 import {
-  ParticipantInviteScreen, ParticipantJoinScreen, StaffInviteScreen, StaffJoinScreen,
+  FirstAdminInviteScreen, ParticipantInviteScreen, ParticipantJoinScreen, StaffInviteScreen, StaffJoinScreen,
 } from './screens/invites';
 import { ReportScreen } from './screens/report';
 import { registerShellWorker } from './business/service-worker';
@@ -72,11 +72,13 @@ function RuntimeBoundary() {
     let live = true;
     let owned: Runtime | undefined;
     // Keep the existing one-installation/one-Auth lifecycle across StrictMode effects.
-    runtimePromise ??= loadInstallation(window.location.origin, import.meta.env.VITE_CCC_INSTALL_SIGNING_KEYS)
+    runtimePromise ??= loadInstallation(window.location.origin, import.meta.env.VITE_CCC_INSTALL_TRUST)
       .then((installation) => ({ installation, auth: new CloudAuth(installation) }));
     void runtimePromise.then((value) => {
       if (live) { owned = value; setRuntime(value); }
-    }).catch((cause: unknown) => { if (live) setError(safeError(cause)); });
+    }).catch((cause: unknown) => {
+      if (live) setError(safeError(cause));
+    });
     return () => {
       live = false;
       // Public/trial routes must not retain a background refresh session.
@@ -247,8 +249,7 @@ function PublicJoinBoundary() {
   const runtime = useOutletContext<Runtime>();
   const session = useMemo<PublicSession>(() => ({
     publicJoin: new PublicJoinApi(new PublicTransport(runtime.installation)),
-    signUp: (email, password) => runtime.auth.signUpWithPassword(email, password),
-  }), [runtime.installation, runtime.auth]);
+  }), [runtime.installation]);
   return <GridContainer as="main" className="page-content">
     <PageTitle>초대</PageTitle>
     <Outlet context={session} />
@@ -268,10 +269,11 @@ export const appRoutes: RouteObject[] = [{
     { path: 'welcome', element: <PublicScreen kind="welcome" /> },
 
     { path: 'k/:code', element: <PublicScreen kind="institution" /> },
+    { path: 'staff/join', element: <StaffJoinScreen /> },
     { element: <RuntimeBoundary />, children: [
+      { path: 'auth/invite', element: <FirstAdminInviteScreen /> },
       { element: <PublicJoinBoundary />, children: [
         { path: 'join', element: <ParticipantJoinScreen /> },
-        { path: 'staff/join', element: <StaffJoinScreen /> },
       ] },
       { element: <AuthBoundary />, children: [
         { path: 'login', element: <Navigate to="/settings" replace /> },

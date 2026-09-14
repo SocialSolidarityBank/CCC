@@ -169,13 +169,13 @@ export function ScheduleScreen() {
     {view !== 'month' && byDate.map(([day, cards]) => <WireCardSection key={day} title={day}>
       {cards.map((card) => <WireItem key={card.id}
         title={card.participantName ?? card.beneficiaryId}
-        description={`${zoned(card.scheduledAt, timeZone, { hour: '2-digit', minute: '2-digit' })}, ${card.sessionKind === 'intake' ? '인테이크' : '기본 상담'}`}
+        description={`${zoned(card.scheduledAt, timeZone, { hour: '2-digit', minute: '2-digit' })}, ${card.sessionKind === 'intake' ? '첫 상담' : '기본 상담'}`}
         status={<WireBadge tone={card.status === 'scheduled' ? 'mint' : 'neutral'}>{STATUS_LABELS[card.status]}</WireBadge>}
         action={<>
           <WireButton variant="neutral" href={`/schedules/${encodeURIComponent(card.id)}/plan`}>계획 보기</WireButton>
           <WireButton variant="neutral"
             href={`/participants/${encodeURIComponent(card.beneficiaryId)}/programs/${encodeURIComponent(card.supportCaseId)}/briefing`}>
-            15초 페이지
+            상담 전 톺아보기
           </WireButton>
         </>} />)}
     </WireCardSection>)}
@@ -235,7 +235,7 @@ export function ScheduleCreateScreen() {
     }
   };
 
-  return <WireCard title="상담 일정 등록">
+  return <WireCard title="상담 등록">
     {loadError && <WireError>{loadError.message}</WireError>}
     {error && <WireError>{error.status === 403
       ? '이 사업에 담당으로 배정된 실무자만 일정을 등록할 수 있습니다. 담당 배정을 먼저 받아 주세요.'
@@ -254,18 +254,18 @@ export function ScheduleCreateScreen() {
       </WireFormField>
       {selected !== null && <WireCallout tone="info" title="상담 유형">
         {intake
-          ? '인테이크 기록이 없어 인테이크로 등록합니다. 이 회차에는 회기 목표를 붙이지 않고, 적은 목표는 이 사업의 세부 목표가 됩니다.'
-          : '인테이크가 끝난 사업이라 기본 상담으로 등록합니다.'}
+          ? '첫 상담 기록이 없어 첫 상담으로 등록해요. 이 회차에는 이번 상담 목표를 붙이지 않고, 적은 목표는 이 사업의 단기목표가 돼요.'
+          : '첫 상담 기록이 있는 사업이라 기본 상담으로 등록해요.'}
       </WireCallout>}
       <WireFormField label="일시" htmlFor="schedule-at" required hint="이 기기의 시간대로 입력합니다">
         <input id="schedule-at" type="datetime-local" value={localDateTime} required disabled={busy}
           onChange={(event) => setLocalDateTime(event.target.value)} />
       </WireFormField>
-      <WireFormField label={intake ? '이 사업의 세부 목표' : '이번 상담의 목표'} htmlFor="schedule-goals"
+      <WireFormField label={intake ? '이 사업의 단기목표' : '이번 상담 목표'} htmlFor="schedule-goals"
         control="textarea"
         hint={intake
-          ? '한 줄에 하나씩 적습니다. 비워 두어도 됩니다. 인테이크에서 적은 목표는 사업의 세부 목표로 저장됩니다'
-          : '한 줄에 하나씩 적습니다. 비워 두어도 됩니다'}>
+          ? '한 줄에 하나씩 적어요. 비워 두어도 돼요. 첫 상담에서 적은 목표는 사업의 단기목표로 저장돼요'
+          : '한 줄에 하나씩 적어요. 비워 두어도 돼요'}>
         <textarea id="schedule-goals" value={goals} rows={4} disabled={busy}
           onChange={(event) => setGoals(event.target.value)} />
       </WireFormField>
@@ -337,15 +337,15 @@ export function SchedulePlanScreen() {
     {plan !== null && <>
       <WireDataRows>
         <WireDataRow label="일시" value={plan.scheduledAt} />
-        <WireDataRow label="상담 유형" value={plan.sessionKind === 'intake' ? '인테이크' : '기본 상담'} />
+        <WireDataRow label="상담 유형" value={plan.sessionKind === 'intake' ? '첫 상담' : '기본 상담'} />
         <WireDataRow label="상태" value={STATUS_LABELS[plan.status]} />
       </WireDataRows>
       {plan.customQuestions.length > 0 && <WireCardSection title="맞춤형 질문">
         {plan.customQuestions.map((question) => <WireItem key={question.id} title={question.body} />)}
       </WireCardSection>}
       <form className="business-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
-        <WireFormField label="이번 상담의 목표" htmlFor="plan-goals" control="textarea"
-          hint="한 줄에 하나씩 적습니다. 시작 시각이 지나면 서버가 수정을 막습니다">
+        <WireFormField label="이번 상담 목표" htmlFor="plan-goals" control="textarea"
+          hint="한 줄에 하나씩 적어요. 시작 시각이 지나면 서버가 수정을 막아요">
           <textarea id="plan-goals" rows={5} value={draft ?? ''} disabled={busy}
             onChange={(event) => setDraft(event.target.value)} />
         </WireFormField>
@@ -356,7 +356,7 @@ export function SchedulePlanScreen() {
       <div className="business-actions">
         <WireButton variant="neutral"
           href={`/participants/${encodeURIComponent(plan.beneficiaryId)}/programs/${encodeURIComponent(plan.supportCaseId)}/briefing`}>
-          15초 페이지 보기
+          상담 전 톺아보기
         </WireButton>
       </div>
     </>}
@@ -455,33 +455,33 @@ export function BriefingScreen() {
       <div className="business-actions"><WireButton variant="neutral" onClick={load}>다시 불러오기</WireButton></div>
     </WireCard>;
   }
-  if (briefing === null) return <WireCard><WireEmpty live reserve>15초 페이지를 불러오고 있습니다.</WireEmpty></WireCard>;
+  if (briefing === null) return <WireCard><WireEmpty live reserve>상담 전 톺아보기를 불러오고 있어요.</WireEmpty></WireCard>;
 
   return <>
     <WireCard title={briefing.participant.name ?? briefing.beneficiaryId}>
       <div className="business-actions">
         <WireButton variant="primary"
           href={`/participants/${encodeURIComponent(briefing.beneficiaryId)}/programs/${encodeURIComponent(briefing.focusSupportCaseId)}/records/new`}>
-          상담 기록하기
+          오늘 상담 기록
         </WireButton>
         <WireButton variant="neutral"
           href={`/participants/${encodeURIComponent(briefing.beneficiaryId)}/programs/${encodeURIComponent(briefing.focusSupportCaseId)}/records`}>
-          상담 기록 확인하기
+          상담 기록
         </WireButton>
       </div>
       {error && <WireError>{error.message}</WireError>}
-      {briefing.focus.confirmedFlags.length > 0 && <WireCallout tone="info" title="확인된 리스크"
+      {briefing.focus.confirmedFlags.length > 0 && <WireCallout tone="info" title="위험 신호 알림"
         items={briefing.focus.confirmedFlags.map((flag) => `${FLAG_LABELS[flag.flagType as FlagType] ?? flag.flagType}${flag.quote === null ? '' : `: ${flag.quote}`}`)} />}
-      <WireCardSection title="전체 목표">
+      <WireCardSection title="장기목표">
         {briefing.canEditOverallGoal
           ? <form className="business-form" onSubmit={(event) => { event.preventDefault(); void saveGoal(); }}>
-            <WireFormField label="전체 목표" htmlFor="briefing-overall-goal"
-          hint="첫 상담에서 당사자와 정한 방향을 한 줄로 적습니다">
+            <WireFormField label="장기목표" htmlFor="briefing-overall-goal"
+          hint="첫 상담에서 당사자와 합의한 방향을 한 줄로 적어요">
               <input id="briefing-overall-goal" value={goalDraft ?? ''} disabled={busy}
                 onChange={(event) => setGoalDraft(event.target.value)} />
             </WireFormField>
             <div className="business-actions">
-              <WireButton type="submit" variant="primary" disabled={busy}>전체 목표 저장</WireButton>
+              <WireButton type="submit" variant="primary" disabled={busy}>장기목표 저장</WireButton>
             </div>
           </form>
           : <p className="wire-section-value">{briefing.overallGoal ?? '설정 전'}</p>}
@@ -489,7 +489,7 @@ export function BriefingScreen() {
       </WireCardSection>
     </WireCard>
     <WireCard title="오늘 만나기 전 꼭 기억할 것">
-      {briefing.upcoming !== null && <WireCardSection title="이번 상담의 목표와 질문">
+      {briefing.upcoming !== null && <WireCardSection title="이번 상담 목표와 질문">
         {briefing.upcoming.sessionGoals.map((goal, index) => <WireItem key={`goal-${index}`} title={goal.body}
           description={goal.caseGoalTitle ?? undefined} />)}
         {briefing.upcoming.customQuestions.map((question, index) => <WireItem key={`question-${index}`} title={question} />)}
@@ -521,14 +521,14 @@ export function BriefingScreen() {
       {briefing.focus.sessionRows.length === 0 && <WireEmpty>아직 기록이 없습니다.</WireEmpty>}
       {briefing.focus.sessionRows.map((row) => <WireItem key={row.sessionId}
         title={row.aiOneLiner ?? row.memoExcerpt ?? '내용 없음'}
-        description={`${row.heldAt}, ${row.kind === 'intake' ? '인테이크' : '기본 상담'}`}
+        description={`${row.heldAt}, ${row.kind === 'intake' ? '첫 상담' : '기본 상담'}`}
         status={row.aiOneLiner === null ? <WireBadge tone="neutral">수기</WireBadge> : undefined}
         action={<WireButton variant="neutral"
           href={`/participants/${encodeURIComponent(briefing.beneficiaryId)}/programs/${encodeURIComponent(briefing.focusSupportCaseId)}/records#record-${encodeURIComponent(row.sessionId)}`}>
           회차 보기
         </WireButton>} />)}
     </WireCard>
-    <WireCard title="내용 불일치">
+    <WireCard title="일치하지 않는 기록">
       {briefing.focus.discrepancies.length === 0 && <WireEmpty>검출된 불일치가 없습니다.</WireEmpty>}
       {briefing.focus.discrepancies.map((item) => <WireCardSection key={item.id}
         title={DISCREPANCY_KIND_LABELS[item.kind] ?? item.kind}>
@@ -547,16 +547,16 @@ export function BriefingScreen() {
           </WireButton>)}
         </div>}
       </WireCardSection>)}
-      <WireCallout tone="info" title="처리는 표시일 뿐입니다">
-        처리해도 원본 기록은 바뀌지 않습니다. 어느 쪽이 맞는지는 AI가 판단하지 않습니다.
+      <WireCallout tone="info" title="처리는 표시일 뿐이에요">
+        두 기록이 서로 달라요. 어느 쪽이 맞는지는 AI가 판단하지 않았어요. 처리해도 원본 기록은 바뀌지 않아요.
       </WireCallout>
     </WireCard>
-    <WireCard title="미해결 액션">
-      {briefing.focus.openActionItems.length === 0 && <WireEmpty>미해결 액션이 없습니다.</WireEmpty>}
+    <WireCard title="남은 할 일">
+      {briefing.focus.openActionItems.length === 0 && <WireEmpty>남은 할 일이 없어요.</WireEmpty>}
       {briefing.focus.openActionItems.map((item) => <WireItem key={item.id} title={item.description}
         description={`기한 ${item.dueDate ?? '없음'}`} />)}
       <form className="business-form" onSubmit={(event) => { event.preventDefault(); void addAction(); }}>
-        <WireFormField label="새 액션" htmlFor="action-new-description" required>
+        <WireFormField label="새 할 일" htmlFor="action-new-description" required>
           <input id="action-new-description" value={actionDraft.description} required disabled={busy}
             onChange={(event) => setActionDraft({ ...actionDraft, description: event.target.value })} />
         </WireFormField>
@@ -574,7 +574,7 @@ export function BriefingScreen() {
         </WireFormField>
         <div className="business-actions">
           <WireButton type="submit" variant="primary"
-            disabled={busy || actionDraft.description.trim() === ''}>액션 등록</WireButton>
+            disabled={busy || actionDraft.description.trim() === ''}>할 일 등록</WireButton>
         </div>
       </form>
     </WireCard>

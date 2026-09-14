@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router';
+import { useOutletContext, useParams } from 'react-router';
 import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireChoice, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireFormField, WireItem,
@@ -14,7 +14,7 @@ import {
 import { type BusinessError, safeError } from '../business/errors';
 import {
   BASIC_INFO_FIELDS, type BasicInfoField, type ParticipantBasicInfo, type ParticipantHub,
-  type ParticipantListItem, type ParticipantProgram, type ProgramOption,
+  type ParticipantCreationResult, type ParticipantListItem, type ParticipantProgram, type ProgramOption,
 } from '../business/participants';
 import type { Session } from '../business/session';
 
@@ -144,10 +144,30 @@ function registrationBlock(session: Session, options: ProgramOption[] | null, as
 
 interface WorkerOption { id: string; name: string | null; email: string | null }
 
+function RegistrationNextStep({ created }: { created: ParticipantCreationResult }) {
+  const participantPath = `/participants/${encodeURIComponent(created.beneficiaryId)}`;
+
+  return <WireCard title="당사자 등록 완료">
+    <WireCallout tone="info" title="등록했어요">
+      {created.replayed ? '이미 등록된 당사자와 사례를 불러왔어요. 새로 등록하지 않았어요.'
+        : '당사자와 참여 사례를 등록했어요.'}
+    </WireCallout>
+    {!created.canWriteIntake && <WireCallout tone="info" title="첫 상담 기록을 작성할 수 없어요">
+      진행 중인 사례의 담당 실무자만 작성할 수 있어요. 당사자 정보에서 참여 사업과 담당을 확인해 주세요.
+    </WireCallout>}
+    <div className="business-actions">
+      {created.canWriteIntake && <WireButton variant="primary"
+        href={`${participantPath}/programs/${encodeURIComponent(created.supportCaseId)}/records/intake`}>
+        첫 상담 기록 시작하기
+      </WireButton>}
+      <WireButton variant="neutral" href={participantPath}>당사자 정보</WireButton>
+    </div>
+  </WireCard>;
+}
+
 export function ParticipantRegisterScreen() {
   const session = useOutletContext<Session>();
   const onFailure = useSessionFailure(session);
-  const navigate = useNavigate();
   const admin = session.me.roles.includes('institution-admin');
   const load = useCallback(() => session.participants.programOptions(), [session.participants]);
   const { value: options, error: loadError } = useLoaded<ProgramOption[]>(load, onFailure);
@@ -162,6 +182,7 @@ export function ParticipantRegisterScreen() {
   const [emergencyReason, setEmergencyReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
+  const [created, setCreated] = useState<ParticipantCreationResult | null>(null);
   // 등록 전 고지문은 고른 사업에 묶여 발행된다(S7 §6). 사업을 바꾸면 결정도 비운다.
   const [disclosures, setDisclosures] = useState<ConsentDisclosureSnapshot[]>([]);
   const [decisions, setDecisions] = useState<ConsentDecisions>({});
@@ -211,7 +232,7 @@ export function ParticipantRegisterScreen() {
         ...(text('region') === undefined ? {} : { region: text('region')! }),
         ...(text('gender') === undefined ? {} : { gender: text('gender')! }),
       });
-      void navigate(`/participants/${encodeURIComponent(created.beneficiaryId)}`);
+      setCreated(created);
     } catch (cause) {
       const safe = safeError(cause);
       setError(safe);
@@ -220,6 +241,8 @@ export function ParticipantRegisterScreen() {
       setBusy(false);
     }
   };
+
+  if (created !== null) return <RegistrationNextStep created={created} />;
 
   return <WireCard title="당사자 등록">
     {loadError && <WireError>{loadError.message}</WireError>}
@@ -383,7 +406,7 @@ export function ParticipantHubScreen() {
         <WireDataRows>
           <WireDataRow label="담당 실무자"
             value={program.assigneeNames.length === 0 ? '이름이 등록된 담당 실무자가 없습니다' : program.assigneeNames.join(', ')} />
-          {program.authorized && <WireDataRow label="인테이크" value={program.intakeAt ?? '아직 없음'} />}
+          {program.authorized && <WireDataRow label="첫 상담 기록" value={program.intakeAt ?? '아직 없음'} />}
           {program.authorized && <WireDataRow label="다음 일정"
             value={program.upcomingSchedule === null ? '예정 없음' : program.upcomingSchedule.scheduledAt} />}
         </WireDataRows>
@@ -391,11 +414,11 @@ export function ParticipantHubScreen() {
           <div className="business-actions">
             <WireButton variant="neutral"
               href={`/participants/${encodeURIComponent(value.beneficiaryId)}/programs/${encodeURIComponent(program.id)}/records`}>
-              상담 기록 확인하기
+              상담 기록
             </WireButton>
             <WireButton variant="neutral"
               href={`/participants/${encodeURIComponent(value.beneficiaryId)}/programs/${encodeURIComponent(program.id)}/briefing`}>
-              15초 페이지
+              상담 전 톺아보기
             </WireButton>
           </div>
           <ConsentPanel session={session} supportCaseId={program.id} />
