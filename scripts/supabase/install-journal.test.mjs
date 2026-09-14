@@ -1306,6 +1306,18 @@ databaseTest('Auth reconciliation rejects partial or conflicting readback withou
         startedAt: "clock_timestamp() - interval '1 second'",
       });
     }],
+    ['sub-millisecond timestamp inequality', 'INSTALL_STEP_MISMATCH', async (session, fixture) => {
+      await adoptRenewedJournalPointer(session, fixture);
+      await insertReconciliationStep(session, fixture.initial.installationId, fixture.idempotencyKey, {
+        startedAt: "clock_timestamp() - interval '100 microseconds'",
+      });
+    }],
+    ['non-finite timestamp', 'INSTALL_STEP_MISMATCH', async (session, fixture) => {
+      await adoptRenewedJournalPointer(session, fixture);
+      await insertReconciliationStep(session, fixture.initial.installationId, fixture.idempotencyKey, {
+        startedAt: "'infinity'::timestamptz",
+      });
+    }],
     ['same-sequence different manifest and approval', 'INSTALL_AUTHORIZATION_MISMATCH', async (session, fixture) => {
       await adoptRenewedJournalPointer(session, fixture);
       await insertReconciliationStep(session, fixture.initial.installationId, fixture.idempotencyKey);
@@ -1360,6 +1372,18 @@ databaseTest('Auth reconciliation rejects stale and mismatched signed pairs with
       fixture.renewed,
       { priorStateFingerprint: fixture.evidence.priorStateFingerprint },
     ], 'INSTALL_JOURNAL_INVALID'],
+    ['missing journal row', async (session, fixture) => [
+      {
+        ...fixture.renewed,
+        installationId: 'installation-foreign-0002',
+        projectRefHash: '0'.repeat(64),
+      },
+      fixture.evidence,
+    ], 'INSTALL_JOURNAL_INVALID'],
+    ['foreign installation on the same project', async (session, fixture) => [
+      { ...fixture.renewed, installationId: 'installation-foreign-0002' },
+      fixture.evidence,
+    ], 'RESOURCE_OWNERSHIP_MISMATCH'],
   ];
   for (const [name, arrange, expectedCode = 'INSTALL_AUTHORIZATION_MISMATCH'] of cases) {
     await t.test(name, async () => {
@@ -1380,4 +1404,25 @@ databaseTest('Auth reconciliation rejects stale and mismatched signed pairs with
       });
     });
   }
+  await t.test('missing journal structure', async () => {
+    await withDatabase(async sql => {
+      const session = await sql.reserve();
+      try {
+        const pair = authorization({
+          runtimeManifestSha256: 'e'.repeat(64),
+          approvalSha256: 'f'.repeat(64),
+          runtimeSequence: 2,
+          expiresAt: new Date(Date.now() + 1_200_000).toISOString(),
+        });
+        await assert.rejects(
+          reconcile(session, pair, { ...reconciliationEvidence }),
+          error => error.code === 'INSTALL_JOURNAL_INVALID',
+        );
+        assert.equal(await privateSchemaExists(session), false);
+      } finally {
+        await session.release();
+      }
+    });
+  });
 });
+

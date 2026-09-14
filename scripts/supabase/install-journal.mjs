@@ -304,6 +304,14 @@ function redactFailure(error, fallbackCode) {
   return failure(fallbackCode);
 }
 
+// 정합화 API는 journal 구조 자체가 없거나(테이블/스키마 부재) journal 행이 없는
+// 경우를 모두 INSTALL_JOURNAL_INVALID로 번역한다. owner/authorization 계열의
+// 기존 code는 그대로 둔다.
+function structuralFailure(error) {
+  if (error?.code === 'INSTALL_JOURNAL_MISSING') return failure('INSTALL_JOURNAL_INVALID');
+  return redactFailure(error, 'INSTALL_JOURNAL_INVALID');
+}
+
 export function hashDatabaseInstallFingerprint(rows, providerInventory) {
   if (!Array.isArray(rows) || rows.length !== 1 || typeof rows[0]?.catalog_state !== 'string'
     || !Array.isArray(providerInventory?.objects)
@@ -1008,7 +1016,8 @@ export async function reconcileAuthConfigJournal(
     inviteTemplateSha256,
   });
   return installTransaction(session, async transaction => {
-    const current = await requireCurrentJournal(transaction, verified, true);
+    const current = await requireCurrentJournal(transaction, verified, true)
+      .catch(error => { throw structuralFailure(error); });
     if (current.phase !== 'installed') throw failure('INSTALL_JOURNAL_INVALID');
     const desired = {
       resourcesSha256: requireHash(current.resources_sha256, 'INSTALL_JOURNAL_INVALID'),
@@ -1042,7 +1051,9 @@ export async function reconcileAuthConfigJournal(
           verified.expiresAt,
         ]);
       } catch (error) {
-        throw redactFailure(error, 'INSTALL_AUTHORIZATION_MISMATCH');
+        throw error?.code === '42P01' || error?.code === '3F000'
+          ? failure('INSTALL_JOURNAL_INVALID')
+          : redactFailure(error, 'INSTALL_AUTHORIZATION_MISMATCH');
       }
       const [{ transaction_timestamp: transactionTimestamp }] = await transaction.unsafe(
         'SELECT clock_timestamp() AS transaction_timestamp',
@@ -1058,7 +1069,9 @@ export async function reconcileAuthConfigJournal(
           currentStateFingerprint, transactionTimestamp,
         ]);
       } catch (error) {
-        throw redactFailure(error, 'INSTALL_STEP_MISMATCH');
+        throw error?.code === '42P01' || error?.code === '3F000'
+          ? failure('INSTALL_JOURNAL_INVALID')
+          : redactFailure(error, 'INSTALL_STEP_MISMATCH');
       }
       await transaction.unsafe(`UPDATE private.ccc_install_journal SET
         runtime_manifest_sha256 = $2, approval_sha256 = $3, runtime_sequence = $4,
@@ -1079,7 +1092,7 @@ export async function reconcileAuthConfigJournal(
       FROM private.ccc_install_authorizations
       WHERE installation_id = $1 AND runtime_sequence = $2`, [
       verified.installationId, verified.runtimeSequence,
-    ]);
+    ]).catch(error => { throw structuralFailure(error); });
     if (authorizations.length !== 1) throw failure('INSTALL_JOURNAL_INVALID');
     const [recorded] = authorizations;
     if (recorded.runtime_manifest_sha256 !== verified.runtimeManifestSha256
@@ -1091,11 +1104,13 @@ export async function reconcileAuthConfigJournal(
     }
     const steps = await transaction.unsafe(`SELECT
       status, ownership_tags, provider_resource_id_hashes, provider_resource_digests,
-      state_fingerprint, started_at, completed_at
+      state_fingerprint,
+      isfinite(started_at) AND isfinite(completed_at)
+        AND started_at = completed_at AS timestamps_equal
       FROM private.ccc_install_steps
       WHERE installation_id = $1 AND step = 'auth_config' AND idempotency_key = $2`, [
       verified.installationId, idempotencyKey,
-    ]);
+    ]).catch(error => { throw structuralFailure(error); });
     if (steps.length !== 1) throw failure('INSTALL_JOURNAL_INVALID');
     const [step] = steps;
     if (step.status !== 'completed'
@@ -1104,8 +1119,7 @@ export async function reconcileAuthConfigJournal(
       || JSON.stringify(step.provider_resource_digests)
         !== JSON.stringify([priorStateFingerprint, currentStateFingerprint, inviteTemplateSha256])
       || step.state_fingerprint !== currentStateFingerprint
-      || step.started_at === null || step.completed_at === null
-      || normalizeTimestamp(step.started_at) !== normalizeTimestamp(step.completed_at)) {
+      || step.timestamps_equal !== true) {
       throw failure('INSTALL_STEP_MISMATCH');
     }
     await requireFreshPair();
