@@ -347,9 +347,10 @@ export function BriefingCards({
     }]),
   ];
 
-  // 처리된 항목은 접힌 이력으로 내려간다(ADR-0018) — 목록에서 사라지지도, 지워지지도 않는다.
-  const unresolvedDiscrepancies = discrepancies.filter((item) => item.resolution === null);
-  const resolvedDiscrepancies = discrepancies.filter((item) => item.resolution !== null);
+  // 첫 출고에서는 같은 회차 안 모순만 보이고 회차 간 AI 대조는 서버 차단 대상으로 남긴다.
+  const visibleDiscrepancies = discrepancies.filter((item) => item.kind !== 'cross_session');
+  const unresolvedDiscrepancies = visibleDiscrepancies.filter((item) => item.resolution === null);
+  const resolvedDiscrepancies = visibleDiscrepancies.filter((item) => item.resolution !== null);
 
   const sessionGoals = upcomingSchedule?.sessionGoals ?? [];
   const customQuestions = upcomingSchedule?.customQuestions ?? [];

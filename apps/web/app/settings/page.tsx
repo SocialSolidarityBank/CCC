@@ -224,14 +224,16 @@ export default async function SettingsPage() {
     );
   }
 
+  const assignmentRequests = await AssignmentRequestSection();
+  const directory = me.roles.includes('institution-admin') ? await DirectorySection() : null;
+
   return (
     <main className="page-content settings-page">
       <PageTitle>설정</PageTitle>
       <AccountSection name={me.name} email={me.email} role={me.role} />
-      <AssignmentRequestSection />
-      {me.roles.includes('institution-admin') ? <InstitutionMemorySettings /> : null}
-      {/* 기관 실무자 목록은 기관 관리자에게만, 관리자 설정 구역은 어드민 탭이 하나라도 있는 역할에게. */}
-      {me.roles.includes('institution-admin') ? <DirectorySection /> : null}
+      {assignmentRequests}
+      {/* 자동 상담 기억은 첫 출고 화면에서 숨긴다. 설정과 실행 API는 서버 차단 대상으로 남는다. */}
+      {directory}
       {adminMenuFor(me.roles).length > 0 ? <AdminSection roles={me.roles} /> : null}
     </main>
   );
