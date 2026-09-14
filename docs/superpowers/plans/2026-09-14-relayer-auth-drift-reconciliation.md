@@ -87,6 +87,19 @@ export async function buildAuthConfigReconciliationProof({
 
 // {
 //   mode: 'pending' | 'already-reconciled',
+//   authorization: {
+//     installationId: string,
+//     institutionIdHash: string,
+//     projectRefHash: string,
+//     expectedOwnerOrgIdHash: string,
+//     runtimeManifestSha256: string,
+//     approvalSha256: string,
+//     runtimeConfigurationSha256: string,
+//     contractVersion: string,
+//     runtimeSequence: number,
+//     expiresAt: string,
+//   },
+//   installState: object,
 //   runtimeSequence: number,
 //   priorStateFingerprint: string,
 //   currentStateFingerprint: string,
