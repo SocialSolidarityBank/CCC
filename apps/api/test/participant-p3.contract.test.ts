@@ -50,7 +50,7 @@ describe('D88 participant serialization and D86 restricted access', () => {
 
   it('exposes authorized hub birth date and record progress without widening generic record responses', async () => {
     const created = await seed();
-    await createCounselingRecord(t.env, counselor, created.supportCaseId, { submissionId: crypto.randomUUID(), heldAt: '2026-09-01T09:00:00.000Z', channel: 'in_person', memo: '합성 수기 기록', gasScores: [], actionItems: [], flags: [] });
+    await createCounselingRecord(t.env, counselor, created.supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-09-01T09:00:00.000Z', channel: 'in_person', memo: '합성 수기 기록', gasScores: [], actionItems: [], flags: [] });
     const before = await piiAuditCount();
     const response = await http(admin, `/participants/${created.beneficiaryId}/hub`);
     expect(response.status).toBe(200);
@@ -98,11 +98,9 @@ describe('D88 participant serialization and D86 restricted access', () => {
       initialAssigneeUserId: requester.userId,
       consentEvents: await registrationConsentEvents(t.env, admin, program.id),
     });
-    const record = { submissionId: crypto.randomUUID(), heldAt: '2026-09-02T09:00:00.000Z', channel: 'in_person' as const, memo: '합성 기록', gasScores: [], actionItems: [], flags: [] };
+    const record = { schemaVersion: 2 as const, submissionId: crypto.randomUUID(), heldAt: '2026-09-02T09:00:00.000Z', channel: 'in_person' as const, memo: '합성 기록', gasScores: [], actionItems: [], flags: [] };
     await createCounselingRecord(t.env, requester, other.supportCaseId, record);
-    const draft = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
-      ...record, submissionId: crypto.randomUUID(), heldAt: '2026-09-03T09:00:00.000Z',
-    });
+    const draft = await createCounselingRecord(t.env, counselor, created.supportCaseId, { ...record, submissionId: crypto.randomUUID(), heldAt: '2026-09-03T09:00:00.000Z' });
     await t.db.prepare("UPDATE sessions SET memo = NULL, ai_status = 'review_ready' WHERE id = ?")
       .bind(draft.record.id).run();
     const listing = await (await http(counselor, '/participants')).json() as { results: Array<{ programNames: string[] }> };
@@ -250,7 +248,8 @@ describe('server-authoritative intake write permission', () => {
       const auditAfter = await t.db.prepare('SELECT COUNT(*) AS count FROM audit_log').first<{ count: number }>();
       expect(auditAfter?.count).toBe(auditBefore!.count + 1);
 
-      const edit = { schemaVersion: 2, expectedRevision: 1, heldAt: saved.record.heldAt, channel: 'in_person',
+      const edit = { schemaVersion: 3, expectedRevision: 1, heldAt: saved.record.heldAt, channel: 'in_person',
+        additionalItemRefs: [], questionWithdrawals: [],
         questionnaire: intakeQuestionnaire(input.questionnaire.moduleSnapshot, [{ key: 'managerOpinion', response: 'answered', text: '합성 수정 기록' }]) };
       const updated = await http(reader, path, edit, 'PUT');
       const closed = access === 'closed' || access === 'closed-program';

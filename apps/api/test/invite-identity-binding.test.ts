@@ -1,11 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { handleRequest } from '@ccc/http-api';
-import { createStaffInvite } from '@ccc/core/gateway';
+import { acceptStaffInvite, createStaffInvite, ValidationError } from '@ccc/core/gateway';
 import { createSupabaseIdentity } from '../../../adapters/identity-supabase/src/index';
 import { setupD1, testActors, type TestApiEnv } from './support/d1';
 
 /**
- * D90 초대 결속. 수락자가 만든 Auth 계정의 검증된 subject 를 등재와 같은 배치에서 채운다.
+ * D90 초대 결속. 초대로 받은 Auth 계정의 검증된 subject 를 등재와 같은 배치에서 채운다.
  * 연결 근거는 일회용 초대 토큰과 서명으로 검증된 subject 이고, 이메일 claim 은 대조에만 쓴다.
  * 결속되지 않은 users 행을 남기지 않으므로 나중에 다른 계정이 가로챌 자리가 없다.
  */
@@ -67,10 +67,21 @@ const noActor = async (): Promise<never> => {
   throw new Error('public accept route must not resolve an actor');
 };
 
-async function subjectFor(email: string): Promise<string | null> {
-  const row = await t.db.prepare('SELECT auth_subject FROM users WHERE lower(trim(email)) = ?')
-    .bind(email).first<{ auth_subject: string | null }>();
-  return row?.auth_subject ?? null;
+async function registrationState() {
+  const [users, roles, invites] = await Promise.all([
+    t.db.prepare('SELECT * FROM users ORDER BY id').all(),
+    t.db.prepare('SELECT * FROM user_role_assignments ORDER BY id').all(),
+    t.db.prepare('SELECT * FROM staff_invites ORDER BY id').all(),
+  ]);
+  return { users: users.results, roles: roles.results, invites: invites.results };
+}
+
+async function expectRefusal(request: Request, env: TestApiEnv, status: 401 | 404) {
+  const before = await registrationState();
+  const response = await handleRequest(request, env, noActor);
+  expect(response.status).toBe(status);
+  expect(await response.json()).toEqual({ error: status === 404 ? 'not_found' : 'actor_authentication_required' });
+  expect(await registrationState()).toEqual(before);
 }
 
 beforeAll(async () => {
@@ -80,37 +91,76 @@ beforeAll(async () => {
 });
 
 describe('초대 수락이 계정을 결속한다', () => {
-  it('검증된 자격으로 수락하면 등재와 같은 배치에서 subject 가 채워진다', async () => {
+  it('검증된 subject와 정규화한 이메일이 맞으면 한 번만 등재하고 초대 역할만 부여한다', async () => {
     const { env, token: inviteToken } = await invited();
-    const response = await handleRequest(acceptRequest(inviteToken, await token()), env, noActor);
+    const credential = await token({ email: 'INVITED@Example.Invalid' });
+    const response = await handleRequest(acceptRequest(inviteToken, credential, '  Invited@Example.Invalid  '), env, noActor);
     expect(response.status).toBe(201);
-    expect(await subjectFor(invitedEmail)).toBe(subject);
+    const body = await response.json() as { userId: string; email: string; roleWaiting: boolean };
+    expect(body).toEqual({ userId: expect.any(String), email: invitedEmail, roleWaiting: false });
+    const user = await t.db.prepare('SELECT id, active, auth_subject FROM users WHERE email = ?')
+      .bind(invitedEmail).all();
+    expect(user.results).toEqual([{ id: body.userId, active: 1, auth_subject: subject }]);
+    const roles = await t.db.prepare(
+      'SELECT role, source, granted_by FROM user_role_assignments WHERE user_id = ? AND revoked_at IS NULL ORDER BY role',
+    ).bind(body.userId).all();
+    expect(roles.results).toEqual([{ role: 'practitioner', source: 'manual', granted_by: testActors.admin.userId }]);
+    const invite = await t.db.prepare('SELECT status, used_by_user_id, used_at, consumption_id FROM staff_invites').all();
+    expect(invite.results).toEqual([{
+      status: 'used', used_by_user_id: body.userId, used_at: expect.any(String), consumption_id: expect.any(String),
+    }]);
+    await expectRefusal(acceptRequest(inviteToken, credential), env, 404);
   });
 
-  it('자격의 이메일이 초대와 다르면 결속하지 않는다', async () => {
+  it('검증된 이메일이 요청 이메일과 다르면 사용자와 역할을 만들거나 초대를 소비하지 않는다', async () => {
     const { env, token: inviteToken } = await invited();
-    const response = await handleRequest(
-      acceptRequest(inviteToken, await token({ email: 'someone.else@example.invalid' })), env, noActor,
-    );
-    expect(response.status).toBe(201);
-    expect(await subjectFor(invitedEmail)).toBeNull();
+    await expectRefusal(acceptRequest(inviteToken, await token({ email: 'someone.else@example.invalid' })), env, 404);
   });
 
-  it('자격 없이 수락하면 등재만 하고 결속하지 않는다', async () => {
+  it('검증된 이메일과 요청 이메일이 같아도 초대 이메일이 다르면 모두 그대로 둔다', async () => {
     const { env, token: inviteToken } = await invited();
-    const response = await handleRequest(acceptRequest(inviteToken, null), env, noActor);
-    expect(response.status).toBe(201);
-    expect(await subjectFor(invitedEmail)).toBeNull();
+    const otherEmail = 'someone.else@example.invalid';
+    await expectRefusal(acceptRequest(inviteToken, await token({ email: otherEmail }), otherEmail), env, 404);
   });
 
-  it('서명이 깨진 자격은 수락 자체를 막고 계정도 만들지 않는다', async () => {
+  it('자격이 없으면 사용자와 역할을 만들거나 초대를 소비하지 않는다', async () => {
     const { env, token: inviteToken } = await invited();
-    const forged = `${(await token()).slice(0, -4)}AAAA`;
-    const response = await handleRequest(acceptRequest(inviteToken, forged), env, noActor);
-    expect(response.status).toBe(401);
-    expect(await subjectFor(invitedEmail)).toBeNull();
-    const row = await t.db.prepare('SELECT count(*) AS n FROM users WHERE lower(trim(email)) = ?')
-      .bind(invitedEmail).first<{ n: number }>();
-    expect(row?.n).toBe(0);
+    await expectRefusal(acceptRequest(inviteToken, null), env, 404);
+  });
+
+  it('검증 포트가 없으면 Bearer가 있어도 등록하지 않는다', async () => {
+    const { token: inviteToken } = await invited();
+    await expectRefusal(acceptRequest(inviteToken, await token()), t.env, 404);
+  });
+
+  it('검증 포트가 빈 subject를 반환해도 미존재 응답만 보낸다', async () => {
+    const { env, token: inviteToken } = await invited();
+    env.verifyIdentityLinkClaims = async () => ({ subject: ' \t ', email: invitedEmail, issuedAt: new Date(epoch * 1000).toISOString() });
+    await expectRefusal(acceptRequest(inviteToken, await token()), env, 404);
+  });
+
+  it('gateway도 누락되거나 비어 있거나 불투명 식별자가 아닌 subject를 등록하지 않는다', async () => {
+    const { env, token: inviteToken } = await invited();
+    const before = await registrationState();
+    for (const invalidSubject of [undefined, null, ' \t ', 'invalid subject']) {
+      await expect(Reflect.apply(acceptStaffInvite, undefined, [
+        env, { token: inviteToken, name: '수락한 실무자', email: invitedEmail }, invalidSubject,
+      ])).rejects.toBeInstanceOf(ValidationError);
+      expect(await registrationState()).toEqual(before);
+    }
+  });
+
+  it('서명이 깨진 자격은 인증 실패로 거부하고 등록 상태를 바꾸지 않는다', async () => {
+    const { env, token: inviteToken } = await invited();
+    const valid = await token();
+    const signatureStart = valid.lastIndexOf('.') + 1;
+    const replacement = valid[signatureStart] === 'A' ? 'B' : 'A';
+    const forged = valid.slice(0, signatureStart) + replacement + valid.slice(signatureStart + 1);
+    await expectRefusal(acceptRequest(inviteToken, forged), env, 401);
+  });
+
+  it('서명된 자격에 이메일 claim이 없어도 검증기의 인증 실패를 그대로 반환한다', async () => {
+    const { env, token: inviteToken } = await invited();
+    await expectRefusal(acceptRequest(inviteToken, await token({ email: undefined })), env, 401);
   });
 });

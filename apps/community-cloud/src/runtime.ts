@@ -23,9 +23,9 @@ export interface CommunityCloudRuntimeConfig {
     | 'EXTERNAL_AI_CALLS_ENABLED' | 'PUBLIC_SIGNUP_ENABLED' | 'PII_PURGE_ENABLED' | 'PII_KEY_VERSION'>;
 }
 
-const METHODS: Record<string, true> = { GET: true, POST: true, PUT: true, PATCH: true, DELETE: true };
+const METHODS: Record<string, true> = { GET: true, POST: true, PUT: true, PATCH: true, DELETE: true, OPTIONS: true };
 const REQUEST_HEADERS: Record<string, true> = {
-  authorization: true, 'content-type': true, 'idempotency-key': true, 'x-request-id': true, 'x-region': true,
+  authorization: true, 'content-type': true, 'if-match': true, 'idempotency-key': true, 'x-request-id': true, 'x-region': true,
 };
 const ALLOWED_REQUEST_HEADERS = Object.keys(REQUEST_HEADERS).join(', ');
 
@@ -93,13 +93,20 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
     }
     const origin = request.headers.get('origin');
     const permittedOrigin = origin !== null && allowedOrigins.has(origin);
+    const permittedCors = permittedOrigin && (request.method !== 'OPTIONS' || (
+      Object.hasOwn(METHODS, request.headers.get('access-control-request-method') ?? '')
+      && (request.headers.get('access-control-request-headers') ?? '').split(',').every(value => {
+        const name = value.trim().toLowerCase();
+        return name.length === 0 || Object.hasOwn(REQUEST_HEADERS, name);
+      })
+    ));
     const headers = new Headers({
       'cache-control': 'no-store',
       'vary': 'Origin',
       'x-ccc-installation-id': manifest.installationId,
-      ...(permittedOrigin ? {
+      ...(permittedCors ? {
         'access-control-allow-origin': origin,
-        'access-control-expose-headers': 'X-CCC-Installation-Id',
+        'access-control-expose-headers': 'ETag, X-Request-ID, X-CCC-Installation-Id',
       } : {}),
     });
     const failure = (status: number, error: string) => {
@@ -113,13 +120,10 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
       return failure(404, 'not_found');
     }
     if (request.method === 'OPTIONS') {
-      const method = request.headers.get('access-control-request-method');
-      const requestedHeaders = (request.headers.get('access-control-request-headers') ?? '')
-        .split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
-      if (!permittedOrigin || method === null || !Object.hasOwn(METHODS, method)
-        || requestedHeaders.some((value) => !Object.hasOwn(REQUEST_HEADERS, value))) return failure(403, 'forbidden');
+      if (!permittedCors) return failure(403, 'forbidden');
       headers.set('access-control-allow-methods', Object.keys(METHODS).join(', '));
       headers.set('access-control-allow-headers', ALLOWED_REQUEST_HEADERS);
+      headers.set('access-control-max-age', '600');
       return new Response(null, { status: 204, headers });
     }
     if (!Object.hasOwn(METHODS, request.method)) return failure(405, 'method_not_allowed');
