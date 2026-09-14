@@ -130,6 +130,7 @@ import {
   listAudioManualNoteFallbacks,
   getPipelineHealth,
   exportCase,
+  exportSupportCaseCsv,
   listCaseExportHistory,
   getLastProgramType,
   getOrganizationProfile,
@@ -2942,6 +2943,18 @@ export async function handleRequest(
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'report') {
         requestQuery(url, []);
         return json(await getSupportCaseReport(env, actor, supportCaseId), 200, { 'cache-control': 'no-store' });
+      }
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'export.csv') {
+        requestQuery(url, []);
+        const document = await exportSupportCaseCsv(env, actor, supportCaseId);
+        return new Response(document.csv, {
+          status: 200,
+          headers: {
+            'cache-control': 'no-store',
+            'content-disposition': `attachment; filename="${document.filename}"`,
+            'content-type': 'text/csv; charset=utf-8',
+          },
+        });
       }
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'export') {
         requestQuery(url, []);
