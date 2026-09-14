@@ -10,7 +10,7 @@ import {
   seedScheduleDisplaySchema, proveScheduleDisplaySchema,
   seedPreregistrationConsentSchema, provePreregistrationConsentSchema,
   proveStaffInvitesSchema, proveParticipantRequestLinksSchema,
-  proveCanonicalCompatibilityViews, proveAgentCredentialsSchema,
+  proveCanonicalCompatibilityViews, proveAgentCredentialsSchema, proveCaseEntityMappingSchema,
 } from './support/migration-parity';
 
 let harness: PostgresHarness;
@@ -789,6 +789,9 @@ describe('S1 live migration parity', () => {
         }
         if (checkpoint.id === 'agent-text-source-fence') {
           for (const fixture of [sqlite, postgres]) await proveAgentTextSourceFence(fixture);
+        }
+        if (checkpoint.id === 'case-entity-mapping') {
+          for (const fixture of [sqlite, postgres]) await proveCaseEntityMappingSchema(fixture.db, intakeVersionProof.supportCase);
         }
         if (checkpoint.id === 'baseline-0045') {
           inventory = timestampInventory(left);
