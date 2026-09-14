@@ -10,12 +10,14 @@ import {
   ensureAuthorization,
   readInstallState,
   readDatabaseInstallFingerprint,
+  reconcileAuthConfigJournal,
   recordInstallFailure,
   recordInstallResource,
   startInstallStep,
   updateInstallPhase,
   withInstallLock,
 } from './install-journal.mjs';
+import { hashCanonical } from './manifest-preflight.mjs';
 
 function disposableDatabaseUrl(value) {
   if (typeof value !== 'string' || value.length === 0) throw new Error('MISSING_DISPOSABLE_POSTGRES_FIXTURE');
@@ -192,6 +194,7 @@ async function assertAdvisoryLocksReleased(installerBackendPid) {
 }
 
 const fixtureCleanup = `DROP TABLE IF EXISTS
+  public.ccc_install_journal_test_reconcile,
   public.ccc_install_journal_test_transaction_commit,
   public.ccc_install_journal_test_transaction_rollback,
   public.ccc_install_journal_test_rollback,
@@ -888,4 +891,493 @@ databaseTest('accepts the public S2 manifest sequence zero without changing its 
       await session.release();
     }
   });
+});
+
+const reconciliationEvidence = Object.freeze({
+  priorStateFingerprint: '1a'.repeat(32),
+  currentStateFingerprint: '2b'.repeat(32),
+  inviteTemplateSha256: '3c'.repeat(32),
+});
+
+const reconciliationTables = Object.freeze([
+  'ccc_install_authorizations',
+  'ccc_install_journal',
+  'ccc_install_receipt',
+  'ccc_install_resources',
+  'ccc_install_steps',
+  'ccc_release_history',
+  'ccc_schema_migrations',
+]);
+
+const journalStableColumns = Object.freeze([
+  'installation_id', 'institution_id_hash', 'project_ref_hash',
+  'expected_owner_org_id_hash', 'runtime_configuration_sha256', 'contract_version',
+  'resources_sha256', 'migrations_sha256', 'phase', 'current_step',
+  'plan_fingerprint', 'database_fingerprint', 'last_error_code', 'created_at',
+]);
+
+async function snapshotTables(session) {
+  const snapshot = {};
+  for (const table of reconciliationTables) {
+    const rows = await session.unsafe(
+      `SELECT row_to_json(row) AS row FROM private.${table} AS row`,
+    );
+    snapshot[table] = rows.map(entry => JSON.stringify(entry.row)).sort();
+  }
+  return snapshot;
+}
+
+function assertTablesByteEqual(before, after) {
+  for (const table of reconciliationTables) {
+    assert.deepEqual(after[table], before[table], table);
+  }
+}
+
+function assertRowsPreserved(before, after, added = {}) {
+  for (const table of reconciliationTables) {
+    if (table === 'ccc_install_journal') {
+      assert.equal(after[table].length, before[table].length, table);
+      continue;
+    }
+    const extra = [...after[table]];
+    for (const row of before[table]) {
+      const index = extra.indexOf(row);
+      assert.notEqual(index, -1, `${table} lost or mutated a row`);
+      extra.splice(index, 1);
+    }
+    assert.equal(extra.length, added[table] ?? 0, table);
+  }
+}
+
+function assertJournalStableColumns(before, after) {
+  const pick = row => Object.fromEntries(
+    journalStableColumns.map(column => [
+      column,
+      column.endsWith('_at')
+        ? new Date(row[column]).toISOString()
+        : JSON.stringify(row[column] ?? null),
+    ]),
+  );
+  assert.deepEqual(pick(after), pick(before));
+}
+
+async function insertReceiptRow(session, installationId, releaseSequence) {
+  const row = {
+    contract: 'S11',
+    contractVersion: '0.3',
+    institutionIdHash: hashes.institution,
+    expectedOwnerOrgIdHash: hashes.owner,
+    observedOwnerOrgIdHash: hashes.owner,
+    releaseVersion: 'fixture-release',
+    releaseSequence,
+    manifestDigest: '7a'.repeat(32),
+    artifactSetDigest: '8b'.repeat(32),
+    migrationHead: '0001_reconcile.sql',
+    schemaFingerprint: '9c'.repeat(32),
+    edgeRegionEvidence: { region: 'fixture' },
+    providerResourceDigests: [],
+    status: 'installed',
+  };
+  for (const table of ['ccc_install_receipt', 'ccc_release_history']) {
+    await session.unsafe(`INSERT INTO private.${table} (
+      installation_id, contract, contract_version, institution_id_hash,
+      expected_owner_org_id_hash, observed_owner_org_id_hash, release_version,
+      release_sequence, manifest_digest, artifact_set_digest, migration_head,
+      schema_fingerprint, edge_region_evidence, provider_resource_digests, status
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`, [
+      installationId, row.contract, row.contractVersion, row.institutionIdHash,
+      row.expectedOwnerOrgIdHash, row.observedOwnerOrgIdHash, row.releaseVersion,
+      row.releaseSequence, row.manifestDigest, row.artifactSetDigest, row.migrationHead,
+      row.schemaFingerprint, JSON.stringify(row.edgeRegionEvidence),
+      JSON.stringify(row.providerResourceDigests), row.status,
+    ]);
+  }
+}
+
+async function installedAuthReconciliationFixture(session, overrides = {}) {
+  const initial = authorization();
+  await bootstrap(session, initial, desired());
+  await applyJournaledMigration(
+    session,
+    initial,
+    migration('0001_reconcile.sql', 'CREATE TABLE public.ccc_install_journal_test_reconcile (id integer)'),
+    { authorize: authorizeFresh },
+  );
+  await recordInstallResource(session, initial, {
+    resourceType: 'storage_bucket', resourceIdHash: hashes.resourceId,
+    resourceDigest: hashes.resource,
+    ownershipTag: `ccc.installation_id=${initial.installationId}`,
+  }, { authorize: authorizeFresh });
+  await updateInstallPhase(session, initial, {
+    phase: 'installed', currentStep: null,
+    stateFingerprint: reconciliationEvidence.priorStateFingerprint,
+  }, { authorize: authorizeFresh });
+  await insertReceiptRow(session, initial.installationId, 1);
+  const renewed = authorization({
+    runtimeManifestSha256: 'e'.repeat(64),
+    approvalSha256: 'f'.repeat(64),
+    runtimeSequence: 2,
+    expiresAt: new Date(Date.now() + 1_200_000).toISOString(),
+    ...overrides,
+  });
+  const evidence = { ...reconciliationEvidence };
+  const idempotencyKey = await hashCanonical({
+    operation: 'reconcile-auth-config',
+    installationId: initial.installationId,
+    priorStateFingerprint: evidence.priorStateFingerprint,
+    currentStateFingerprint: evidence.currentStateFingerprint,
+    inviteTemplateSha256: evidence.inviteTemplateSha256,
+  });
+  return {
+    initial,
+    renewed,
+    evidence,
+    idempotencyKey,
+    before: await snapshotTables(session),
+  };
+}
+
+function reconcile(session, pair, evidence, options = {}) {
+  return reconcileAuthConfigJournal(session, pair, evidence, {
+    authorize: options.authorize ?? (async () => pair),
+  });
+}
+
+async function insertReconciliationStep(session, installationId, idempotencyKey, overrides = {}) {
+  const step = {
+    status: 'completed',
+    ownershipTags: [],
+    providerResourceIdHashes: [],
+    providerResourceDigests: [
+      reconciliationEvidence.priorStateFingerprint,
+      reconciliationEvidence.currentStateFingerprint,
+      reconciliationEvidence.inviteTemplateSha256,
+    ],
+    stateFingerprint: reconciliationEvidence.currentStateFingerprint,
+    startedAt: 'clock_timestamp()',
+    completedAt: 'clock_timestamp()',
+    ...overrides,
+  };
+  await session.unsafe(`INSERT INTO private.ccc_install_steps (
+    installation_id, step, idempotency_key, status, ownership_tags,
+    provider_resource_id_hashes, provider_resource_digests, state_fingerprint,
+    started_at, completed_at
+  ) VALUES ($1,'auth_config',$2,$3,$4,$5,$6,$7,${step.startedAt},${step.completedAt})`, [
+    installationId, idempotencyKey, step.status, step.ownershipTags,
+    step.providerResourceIdHashes, step.providerResourceDigests, step.stateFingerprint,
+  ]);
+}
+
+async function adoptRenewedJournalPointer(session, fixture, { authorizationRow = true } = {}) {
+  const { renewed, evidence } = fixture;
+  if (authorizationRow) {
+    await session.unsafe(`INSERT INTO private.ccc_install_authorizations (
+      installation_id, runtime_sequence, runtime_manifest_sha256, approval_sha256,
+      runtime_configuration_sha256, contract_version, expires_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [
+      renewed.installationId, renewed.runtimeSequence, renewed.runtimeManifestSha256,
+      renewed.approvalSha256, renewed.runtimeConfigurationSha256, renewed.contractVersion,
+      renewed.expiresAt,
+    ]);
+  }
+  await session.unsafe(`UPDATE private.ccc_install_journal SET
+    runtime_manifest_sha256 = $2, approval_sha256 = $3, runtime_sequence = $4,
+    expires_at = $5, state_fingerprint = $6, updated_at = clock_timestamp()
+    WHERE installation_id = $1`, [
+    renewed.installationId, renewed.runtimeManifestSha256, renewed.approvalSha256,
+    renewed.runtimeSequence, renewed.expiresAt, evidence.currentStateFingerprint,
+  ]);
+}
+
+databaseTest('Auth reconciliation appends one authorization and completed step atomically', async () => {
+  await withDatabase(async sql => {
+    const session = await sql.reserve();
+    try {
+      const fixture = await installedAuthReconciliationFixture(session);
+      assert.deepEqual(
+        await reconcile(session, fixture.renewed, fixture.evidence),
+        { code: 'AUTH_CONFIG_RECONCILED', changed: true },
+      );
+      const after = await snapshotTables(session);
+      assertRowsPreserved(fixture.before, after, {
+        ccc_install_authorizations: 1,
+        ccc_install_steps: 1,
+      });
+      const [journal] = await session.unsafe(
+        'SELECT * FROM private.ccc_install_journal WHERE installation_id = $1',
+        [fixture.renewed.installationId],
+      );
+      assertJournalStableColumns(
+        JSON.parse(fixture.before.ccc_install_journal[0]),
+        journal,
+      );
+      assert.equal(journal.runtime_manifest_sha256, fixture.renewed.runtimeManifestSha256);
+      assert.equal(journal.approval_sha256, fixture.renewed.approvalSha256);
+      assert.equal(Number(journal.runtime_sequence), fixture.renewed.runtimeSequence);
+      assert.equal(journal.state_fingerprint, fixture.evidence.currentStateFingerprint);
+      const [authorizationRow] = await session.unsafe(
+        'SELECT * FROM private.ccc_install_authorizations WHERE installation_id = $1 AND runtime_sequence = $2',
+        [fixture.renewed.installationId, fixture.renewed.runtimeSequence],
+      );
+      assert.equal(authorizationRow.runtime_manifest_sha256, fixture.renewed.runtimeManifestSha256);
+      assert.equal(authorizationRow.approval_sha256, fixture.renewed.approvalSha256);
+      const [step] = await session.unsafe(
+        'SELECT * FROM private.ccc_install_steps WHERE installation_id = $1 AND idempotency_key = $2',
+        [fixture.renewed.installationId, fixture.idempotencyKey],
+      );
+      assert.equal(step.step, 'auth_config');
+      assert.equal(step.status, 'completed');
+      assert.deepEqual(step.ownership_tags, []);
+      assert.deepEqual(step.provider_resource_id_hashes, []);
+      assert.deepEqual(step.provider_resource_digests, [
+        fixture.evidence.priorStateFingerprint,
+        fixture.evidence.currentStateFingerprint,
+        fixture.evidence.inviteTemplateSha256,
+      ]);
+      assert.equal(step.state_fingerprint, fixture.evidence.currentStateFingerprint);
+      assert.equal(step.started_at.toISOString(), step.completed_at.toISOString());
+      const state = await readInstallState(session, fixture.renewed.installationId);
+      const reconcileStep = state.completedSteps.find(
+        item => item.idempotencyKey === fixture.idempotencyKey,
+      );
+      assert.equal(reconcileStep.startedAt, reconcileStep.completedAt);
+      assert.equal(state.journal.phase, 'installed');
+      assert.equal(state.journal.currentStep, null);
+    } finally {
+      await session.release();
+    }
+  });
+});
+
+databaseTest('Auth reconciliation preserves every existing append-only installation row', async () => {
+  await withDatabase(async sql => {
+    const session = await sql.reserve();
+    try {
+      const fixture = await installedAuthReconciliationFixture(session);
+      await reconcile(session, fixture.renewed, fixture.evidence);
+      const after = await snapshotTables(session);
+      assertRowsPreserved(fixture.before, after, {
+        ccc_install_authorizations: 1,
+        ccc_install_steps: 1,
+      });
+      const [journal] = await session.unsafe(
+        'SELECT * FROM private.ccc_install_journal WHERE installation_id = $1',
+        [fixture.renewed.installationId],
+      );
+      assertJournalStableColumns(JSON.parse(fixture.before.ccc_install_journal[0]), journal);
+      await assert.rejects(
+        session.unsafe('DELETE FROM private.ccc_install_authorizations'),
+      );
+      await assert.rejects(
+        session.unsafe('DELETE FROM private.ccc_release_history'),
+      );
+    } finally {
+      await session.release();
+    }
+  });
+});
+
+databaseTest('Auth reconciliation rolls back all three mutations when authorization changes before commit', async () => {
+  for (const [expectedCode, withdrawn] of [
+    ['OWNER_EVIDENCE_MISSING', authorization({
+      runtimeManifestSha256: 'e'.repeat(64),
+      approvalSha256: 'f'.repeat(64),
+      runtimeSequence: 2,
+      expiresAt: new Date(0).toISOString(),
+    })],
+    ['INSTALL_AUTHORIZATION_MISMATCH', authorization({
+      runtimeManifestSha256: 'e'.repeat(64),
+      approvalSha256: '0'.repeat(64),
+      runtimeSequence: 2,
+      expiresAt: new Date(Date.now() + 1_200_000).toISOString(),
+    })],
+    ['OWNER_EVIDENCE_MISSING', Object.assign(new Error('OWNER_EVIDENCE_MISSING'), {
+      code: 'OWNER_EVIDENCE_MISSING',
+    })],
+  ]) {
+    await withDatabase(async sql => {
+      const session = await sql.reserve();
+      try {
+        const fixture = await installedAuthReconciliationFixture(session);
+        let calls = 0;
+        await assert.rejects(
+          reconcile(session, fixture.renewed, fixture.evidence, {
+            authorize: async () => {
+              calls += 1;
+              if (calls === 1) return fixture.renewed;
+              if (withdrawn instanceof Error) throw withdrawn;
+              return withdrawn;
+            },
+          }),
+          error => error.code === expectedCode,
+        );
+        assert.equal(calls, 2);
+        assertTablesByteEqual(fixture.before, await snapshotTables(session));
+      } finally {
+        await session.release();
+      }
+    });
+  }
+});
+
+databaseTest('Auth reconciliation exact repeat reads durable evidence without writes', async () => {
+  await withDatabase(async sql => {
+    const session = await sql.reserve();
+    try {
+      const fixture = await installedAuthReconciliationFixture(session);
+      await reconcile(session, fixture.renewed, fixture.evidence);
+      const committed = await snapshotTables(session);
+      assert.deepEqual(
+        await reconcile(session, fixture.renewed, fixture.evidence),
+        { code: 'AUTH_CONFIG_ALREADY_RECONCILED', changed: false },
+      );
+      assertTablesByteEqual(committed, await snapshotTables(session));
+    } finally {
+      await session.release();
+    }
+  });
+});
+
+databaseTest('Auth reconciliation recovers a lost response from durable evidence without duplicate writes', async () => {
+  await withDatabase(async sql => {
+    const session = await sql.reserve();
+    try {
+      const fixture = await installedAuthReconciliationFixture(session);
+      const lostResponse = {
+        release: async () => {},
+        unsafe: async (query, parameters) => {
+          const result = await session.unsafe(query, parameters);
+          if (typeof query === 'string' && query.trim() === 'COMMIT') {
+            throw Object.assign(new Error('RESPONSE_LOST'), { code: 'RESPONSE_LOST' });
+          }
+          return result;
+        },
+      };
+      await assert.rejects(
+        reconcile(lostResponse, fixture.renewed, fixture.evidence),
+        error => error.code === 'RESPONSE_LOST',
+      );
+      const committed = await snapshotTables(session);
+      assert.deepEqual(
+        await reconcile(session, fixture.renewed, fixture.evidence),
+        { code: 'AUTH_CONFIG_ALREADY_RECONCILED', changed: false },
+      );
+      assertTablesByteEqual(committed, await snapshotTables(session));
+    } finally {
+      await session.release();
+    }
+  });
+});
+
+databaseTest('Auth reconciliation rejects partial or conflicting readback without repair', async t => {
+  const cases = [
+    ['missing authorization history', 'INSTALL_JOURNAL_INVALID', async (session, fixture) => {
+      await adoptRenewedJournalPointer(session, fixture, { authorizationRow: false });
+      await insertReconciliationStep(session, fixture.initial.installationId, fixture.idempotencyKey);
+    }],
+    ['missing step', 'INSTALL_JOURNAL_INVALID', async (session, fixture) => {
+      await adoptRenewedJournalPointer(session, fixture);
+    }],
+    ['wrong idempotency key', 'INSTALL_JOURNAL_INVALID', async (session, fixture) => {
+      await adoptRenewedJournalPointer(session, fixture);
+      await insertReconciliationStep(
+        session, fixture.initial.installationId, '9f'.repeat(32),
+      );
+    }],
+    ['wrong digest order', 'INSTALL_STEP_MISMATCH', async (session, fixture) => {
+      await adoptRenewedJournalPointer(session, fixture);
+      await insertReconciliationStep(session, fixture.initial.installationId, fixture.idempotencyKey, {
+        providerResourceDigests: [
+          reconciliationEvidence.currentStateFingerprint,
+          reconciliationEvidence.priorStateFingerprint,
+          reconciliationEvidence.inviteTemplateSha256,
+        ],
+      });
+    }],
+    ['wrong state fingerprint', 'INSTALL_STEP_MISMATCH', async (session, fixture) => {
+      await adoptRenewedJournalPointer(session, fixture);
+      await insertReconciliationStep(session, fixture.initial.installationId, fixture.idempotencyKey, {
+        stateFingerprint: '4d'.repeat(32),
+      });
+    }],
+    ['null or unequal timestamps', 'INSTALL_STEP_MISMATCH', async (session, fixture) => {
+      await adoptRenewedJournalPointer(session, fixture);
+      await insertReconciliationStep(session, fixture.initial.installationId, fixture.idempotencyKey, {
+        startedAt: "clock_timestamp() - interval '1 second'",
+      });
+    }],
+    ['same-sequence different manifest and approval', 'INSTALL_AUTHORIZATION_MISMATCH', async (session, fixture) => {
+      await adoptRenewedJournalPointer(session, fixture);
+      await insertReconciliationStep(session, fixture.initial.installationId, fixture.idempotencyKey);
+      await session.unsafe(`UPDATE private.ccc_install_journal SET
+        runtime_manifest_sha256 = $2, approval_sha256 = $3
+        WHERE installation_id = $1`, [
+        fixture.initial.installationId, '5e'.repeat(32), '6f'.repeat(32),
+      ]);
+    }],
+  ];
+  for (const [name, expectedCode, corrupt] of cases) {
+    await t.test(name, async () => {
+      await withDatabase(async sql => {
+        const session = await sql.reserve();
+        try {
+          const fixture = await installedAuthReconciliationFixture(session);
+          await corrupt(session, fixture);
+          const before = await snapshotTables(session);
+          await assert.rejects(
+            reconcile(session, fixture.renewed, fixture.evidence),
+            error => error.code === expectedCode,
+          );
+          assertTablesByteEqual(before, await snapshotTables(session));
+        } finally {
+          await session.release();
+        }
+      });
+    });
+  }
+});
+
+databaseTest('Auth reconciliation rejects stale and mismatched signed pairs without writes', async t => {
+  const cases = [
+    ['stale lower sequence', async (session, fixture) => {
+      await reconcile(session, fixture.renewed, fixture.evidence);
+      return [fixture.initial, fixture.evidence];
+    }],
+    ['same sequence without completion evidence', async (session, fixture) => [
+      fixture.initial, fixture.evidence,
+    ]],
+    ['same sequence different pair', async (session, fixture) => [
+      { ...fixture.initial, approvalSha256: '0'.repeat(64) }, fixture.evidence,
+    ]],
+    ['stable runtime configuration change', async (session, fixture) => [
+      { ...fixture.renewed, runtimeConfigurationSha256: '0'.repeat(64) }, fixture.evidence,
+    ]],
+    ['prior fingerprint mismatch', async (session, fixture) => [
+      fixture.renewed,
+      { ...fixture.evidence, priorStateFingerprint: '4d'.repeat(32) },
+    ], 'AUTH_RECONCILE_PRIOR_FINGERPRINT_MISMATCH'],
+    ['malformed evidence', async (session, fixture) => [
+      fixture.renewed,
+      { priorStateFingerprint: fixture.evidence.priorStateFingerprint },
+    ], 'INSTALL_JOURNAL_INVALID'],
+  ];
+  for (const [name, arrange, expectedCode = 'INSTALL_AUTHORIZATION_MISMATCH'] of cases) {
+    await t.test(name, async () => {
+      await withDatabase(async sql => {
+        const session = await sql.reserve();
+        try {
+          const fixture = await installedAuthReconciliationFixture(session);
+          const [pair, evidence] = await arrange(session, fixture);
+          const before = await snapshotTables(session);
+          await assert.rejects(
+            reconcile(session, pair, evidence),
+            error => error.code === expectedCode,
+          );
+          assertTablesByteEqual(before, await snapshotTables(session));
+        } finally {
+          await session.release();
+        }
+      });
+    });
+  }
 });

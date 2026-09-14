@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { canonicalizeJcs } from '../../apps/community-cloud/dist/install-manifest-verifier.js';
-import { assertAuthorizationMatches } from './manifest-preflight.mjs';
+import { assertAuthorizationMatches, hashCanonical } from './manifest-preflight.mjs';
 
 const HASH = /^[0-9a-f]{64}$/u;
 const INSTALLATION_ID_MAX_LENGTH = 256;
@@ -428,8 +428,8 @@ function normalizeSequence(value) {
   return sequence;
 }
 
-function assertCurrentAuthorization(row, authorization, desired, { renewal = false } = {}) {
-  const previous = {
+function journalAuthorization(row) {
+  return {
     installationId: row.installation_id,
     institutionIdHash: row.institution_id_hash,
     projectRefHash: row.project_ref_hash,
@@ -443,6 +443,10 @@ function assertCurrentAuthorization(row, authorization, desired, { renewal = fal
     resourcesSha256: row.resources_sha256,
     migrationsSha256: row.migrations_sha256,
   };
+}
+
+function assertCurrentAuthorization(row, authorization, desired, { renewal = false } = {}) {
+  const previous = journalAuthorization(row);
   assertAuthorizationMatches(previous, authorization, {
     renewAuthorization: renewal,
     resourcesSha256: desired.resourcesSha256,
@@ -607,6 +611,7 @@ export function buildInstallStateQuery(installationId) {
         'providerResourceIdHashes', step.provider_resource_id_hashes,
         'providerResourceDigests', step.provider_resource_digests,
         'stateFingerprint', step.state_fingerprint,
+        'startedAt', step.started_at,
         'completedAt', step.completed_at
       ) ORDER BY step.completed_at, step.step)
       FROM private.ccc_install_steps AS step
@@ -972,6 +977,139 @@ export async function ensureAuthorization(
     }
     assertFreshAuthorizationPair(verified, expected, await authorize());
     return result;
+  });
+}
+
+// 승인된 Auth 정합화는 provider 단계 프리미티브를 거치지 않는다. startInstallStep/
+// completeInstallStep은 같은 step의 두 번째 idempotency key를 거부하고 phase/
+// current_step을 바꾸므로, 여기서는 두 번째 completed auth_config 이력 행을 직접
+// 넣고 phase와 current step은 그대로 둔다.
+export async function reconcileAuthConfigJournal(
+  session,
+  authorization,
+  evidence,
+  { authorize } = {},
+) {
+  const verified = validateAuthorization(authorization);
+  if (evidence === null || typeof evidence !== 'object'
+    || Object.keys(evidence).sort().join(',')
+      !== 'currentStateFingerprint,inviteTemplateSha256,priorStateFingerprint') {
+    throw failure('INSTALL_JOURNAL_INVALID');
+  }
+  const priorStateFingerprint = requireHash(evidence.priorStateFingerprint, 'INSTALL_JOURNAL_INVALID');
+  const currentStateFingerprint = requireHash(evidence.currentStateFingerprint, 'INSTALL_JOURNAL_INVALID');
+  const inviteTemplateSha256 = requireHash(evidence.inviteTemplateSha256, 'INSTALL_JOURNAL_INVALID');
+  if (typeof authorize !== 'function') throw failure('OWNER_EVIDENCE_MISSING');
+  const idempotencyKey = await hashCanonical({
+    operation: 'reconcile-auth-config',
+    installationId: verified.installationId,
+    priorStateFingerprint,
+    currentStateFingerprint,
+    inviteTemplateSha256,
+  });
+  return installTransaction(session, async transaction => {
+    const current = await requireCurrentJournal(transaction, verified, true);
+    if (current.phase !== 'installed') throw failure('INSTALL_JOURNAL_INVALID');
+    const desired = {
+      resourcesSha256: requireHash(current.resources_sha256, 'INSTALL_JOURNAL_INVALID'),
+      migrationsSha256: requireHash(current.migrations_sha256, 'INSTALL_JOURNAL_INVALID'),
+      planFingerprint: requireHash(current.plan_fingerprint, 'INSTALL_JOURNAL_INVALID'),
+    };
+    const previous = journalAuthorization(current);
+    const renewal = verified.runtimeSequence > previous.runtimeSequence;
+    assertAuthorizationMatches(previous, verified, {
+      renewAuthorization: renewal,
+      resourcesSha256: desired.resourcesSha256,
+      migrationsSha256: desired.migrationsSha256,
+    });
+    const requireFreshPair = async () => assertFreshAuthorizationPair(
+      { ...verified, ...desired },
+      desired,
+      await authorize(),
+    );
+    await requireFreshPair();
+    if (renewal) {
+      if (current.state_fingerprint !== priorStateFingerprint) {
+        throw failure('AUTH_RECONCILE_PRIOR_FINGERPRINT_MISMATCH');
+      }
+      try {
+        await transaction.unsafe(`INSERT INTO private.ccc_install_authorizations (
+          installation_id, runtime_sequence, runtime_manifest_sha256, approval_sha256,
+          runtime_configuration_sha256, contract_version, expires_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [
+          verified.installationId, verified.runtimeSequence, verified.runtimeManifestSha256,
+          verified.approvalSha256, verified.runtimeConfigurationSha256, verified.contractVersion,
+          verified.expiresAt,
+        ]);
+      } catch (error) {
+        throw redactFailure(error, 'INSTALL_AUTHORIZATION_MISMATCH');
+      }
+      const [{ transaction_timestamp: transactionTimestamp }] = await transaction.unsafe(
+        'SELECT clock_timestamp() AS transaction_timestamp',
+      );
+      try {
+        await transaction.unsafe(`INSERT INTO private.ccc_install_steps (
+          installation_id, step, idempotency_key, status, ownership_tags,
+          provider_resource_id_hashes, provider_resource_digests, state_fingerprint,
+          started_at, completed_at
+        ) VALUES ($1,'auth_config',$2,'completed','{}','{}',$3,$4,$5,$5)`, [
+          verified.installationId, idempotencyKey,
+          [priorStateFingerprint, currentStateFingerprint, inviteTemplateSha256],
+          currentStateFingerprint, transactionTimestamp,
+        ]);
+      } catch (error) {
+        throw redactFailure(error, 'INSTALL_STEP_MISMATCH');
+      }
+      await transaction.unsafe(`UPDATE private.ccc_install_journal SET
+        runtime_manifest_sha256 = $2, approval_sha256 = $3, runtime_sequence = $4,
+        expires_at = $5, state_fingerprint = $6, updated_at = clock_timestamp()
+        WHERE installation_id = $1`, [
+        verified.installationId, verified.runtimeManifestSha256, verified.approvalSha256,
+        verified.runtimeSequence, verified.expiresAt, currentStateFingerprint,
+      ]);
+      await requireFreshPair();
+      return { code: 'AUTH_CONFIG_RECONCILED', changed: true };
+    }
+    if (current.state_fingerprint !== currentStateFingerprint) {
+      throw failure('INSTALL_AUTHORIZATION_MISMATCH');
+    }
+    const authorizations = await transaction.unsafe(`SELECT
+      runtime_manifest_sha256, approval_sha256, runtime_configuration_sha256,
+      contract_version, expires_at
+      FROM private.ccc_install_authorizations
+      WHERE installation_id = $1 AND runtime_sequence = $2`, [
+      verified.installationId, verified.runtimeSequence,
+    ]);
+    if (authorizations.length !== 1) throw failure('INSTALL_JOURNAL_INVALID');
+    const [recorded] = authorizations;
+    if (recorded.runtime_manifest_sha256 !== verified.runtimeManifestSha256
+      || recorded.approval_sha256 !== verified.approvalSha256
+      || recorded.runtime_configuration_sha256 !== verified.runtimeConfigurationSha256
+      || recorded.contract_version !== verified.contractVersion
+      || normalizeTimestamp(recorded.expires_at) !== verified.expiresAt) {
+      throw failure('INSTALL_AUTHORIZATION_MISMATCH');
+    }
+    const steps = await transaction.unsafe(`SELECT
+      status, ownership_tags, provider_resource_id_hashes, provider_resource_digests,
+      state_fingerprint, started_at, completed_at
+      FROM private.ccc_install_steps
+      WHERE installation_id = $1 AND step = 'auth_config' AND idempotency_key = $2`, [
+      verified.installationId, idempotencyKey,
+    ]);
+    if (steps.length !== 1) throw failure('INSTALL_JOURNAL_INVALID');
+    const [step] = steps;
+    if (step.status !== 'completed'
+      || JSON.stringify(step.ownership_tags) !== '[]'
+      || JSON.stringify(step.provider_resource_id_hashes) !== '[]'
+      || JSON.stringify(step.provider_resource_digests)
+        !== JSON.stringify([priorStateFingerprint, currentStateFingerprint, inviteTemplateSha256])
+      || step.state_fingerprint !== currentStateFingerprint
+      || step.started_at === null || step.completed_at === null
+      || normalizeTimestamp(step.started_at) !== normalizeTimestamp(step.completed_at)) {
+      throw failure('INSTALL_STEP_MISMATCH');
+    }
+    await requireFreshPair();
+    return { code: 'AUTH_CONFIG_ALREADY_RECONCILED', changed: false };
   });
 }
 
