@@ -598,7 +598,7 @@ export function handleApi(request, state, options) {
       sessionId: SESSION_ID, sessionNumber: number, heldAt: '2026-09-02T01:00:00.000Z', source, text,
     });
     return json({
-      schemaVersion: 1, supportCaseId: CASE_ID, beneficiaryId: 'swallow-003',
+      schemaVersion: 2, supportCaseId: CASE_ID, beneficiaryId: 'swallow-003',
       programId: 'program-1', programName: '합성 사업', status: state.caseClosed === null ? 'active' : 'closed',
       sessions: [
         { sessionId: SESSION_ID, sessionNumber: 1, heldAt: '2026-09-02T01:00:00.000Z', kind: 'intake',
@@ -609,7 +609,9 @@ export function handleApi(request, state, options) {
       firstIntakeGoal: ev('intake.overallGoal', '월세 체납을 정리하고 안정적인 소득을 만든다'),
       nextConfirmations: [{
         item: '전체 채무 잔액', reason: '채무조정 가능성 판단', method: '신용정보조회서 확인',
-        dueNote: '다음 상담 전', evidence: ev('intake.additionalItems[0]', '전체 채무 잔액 확인 필요'),
+        dueNote: '다음 상담 전', questionRef: { kind: 'intake', questionId: INTAKE_QUESTION_ID,
+          sourceId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', sourceRevision: 1 },
+        evidence: ev('intake.additionalItems[0]', '전체 채무 잔액 확인 필요'),
       }],
       sections: {
         situationChanges: { entries: [ev('records.memo', '월세 2개월 체납이 1개월로 줄었습니다', 2)] },

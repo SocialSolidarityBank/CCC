@@ -3,7 +3,7 @@
 // 근거가 없으면 구획 자체가 없다. 그것은 "위험 없음"이나 "변화 없음"이 아니라 "자료 없음"이다.
 // 화면은 빈 구획을 안전 판정으로 바꿔 읽지 않는다.
 
-import type { ReportEvidence, SupportCaseReport } from '@ccc/contracts/report';
+import type { ReportEvidence, ReportQuestionRef, SupportCaseReport } from '@ccc/contracts/report';
 import { isNullableString, isOpaqueIdentifier, record } from './api';
 import { BusinessError } from './errors';
 import type { BusinessTransport } from './transport';
@@ -60,6 +60,17 @@ function optionalText(value: unknown): string | undefined {
   return value;
 }
 
+function questionRef(value: unknown): ReportQuestionRef | null {
+  if (value === null) return null;
+  const row = record(value);
+  if ((row.kind !== 'schedule' && row.kind !== 'record' && row.kind !== 'intake')
+    || !isOpaqueIdentifier(row.questionId) || !isOpaqueIdentifier(row.sourceId)
+    || typeof row.sourceRevision !== 'number' || !Number.isSafeInteger(row.sourceRevision) || row.sourceRevision < 1) {
+    throw new BusinessError('invalid_response');
+  }
+  return { kind: row.kind, questionId: row.questionId, sourceId: row.sourceId, sourceRevision: row.sourceRevision };
+}
+
 function entries(value: unknown): { entries: ReportEvidence[] } | undefined {
   if (value === undefined) return undefined;
   const row = record(value);
@@ -70,7 +81,7 @@ function entries(value: unknown): { entries: ReportEvidence[] } | undefined {
 export function decodeReport(value: unknown): SupportCaseReport {
   const row = record(value);
   const sections = record(row.sections);
-  if (row.schemaVersion !== 1 || !isOpaqueIdentifier(row.supportCaseId)
+  if (row.schemaVersion !== 2 || !isOpaqueIdentifier(row.supportCaseId)
     || !isOpaqueIdentifier(row.beneficiaryId) || typeof row.programId !== 'string'
     || !isNullableString(row.programName) || (row.status !== 'active' && row.status !== 'closed')
     || !Array.isArray(row.sessions)) {
@@ -119,7 +130,7 @@ export function decodeReport(value: unknown): SupportCaseReport {
   })();
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     supportCaseId: row.supportCaseId, beneficiaryId: row.beneficiaryId,
     programId: row.programId, programName: row.programName, status: row.status,
     sessions: row.sessions.map((entry) => {
@@ -127,15 +138,17 @@ export function decodeReport(value: unknown): SupportCaseReport {
       if (!isOpaqueIdentifier(session.sessionId) || typeof session.sessionNumber !== 'number'
         || typeof session.heldAt !== 'string'
         || (session.kind !== 'regular' && session.kind !== 'intake')
-        || (session.channel !== 'in_person' && session.channel !== 'phone' && session.channel !== 'video')) {
+        || (session.channel !== 'in_person' && session.channel !== 'phone' && session.channel !== 'video' && session.channel !== 'visit')) {
         throw new BusinessError('invalid_response');
       }
       const summary = optionalEvidence(session.summary);
+      const counselorOpinion = optionalEvidence(session.counselorOpinion);
       return {
         sessionId: session.sessionId, sessionNumber: session.sessionNumber, heldAt: session.heldAt,
         kind: session.kind, channel: session.channel,
         ...intakeProvenance(session),
         ...(summary === undefined ? {} : { summary }),
+        ...(counselorOpinion === undefined ? {} : { counselorOpinion }),
       };
     }),
     ...(row.firstIntakeGoal === undefined ? {} : { firstIntakeGoal: evidence(row.firstIntakeGoal) }),
@@ -150,6 +163,7 @@ export function decodeReport(value: unknown): SupportCaseReport {
           ...(item.dueNote === undefined ? {} : { dueNote: optionalText(item.dueNote)! }),
           ...(item.dueDate === undefined ? {} : { dueDate: optionalText(item.dueDate)! }),
           ...(item.owner === undefined ? {} : { owner: optionalText(item.owner)! }),
+          questionRef: questionRef(item.questionRef),
           evidence: evidence(item.evidence),
         };
       }),

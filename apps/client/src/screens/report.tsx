@@ -12,7 +12,7 @@ import { type BusinessError, safeError } from '../business/errors';
 import type { Session } from '../business/session';
 
 const CHANNEL_LABELS: Record<SupportCaseReport['sessions'][number]['channel'], string> = {
-  in_person: '대면', phone: '전화', video: '화상',
+  in_person: '대면', phone: '전화', video: '화상', visit: '방문',
 };
 
 /** 근거 인용은 그 자리에서 보이고 회차로 이어진다(D73). 근거 없는 문장은 리포트에 없다. */
