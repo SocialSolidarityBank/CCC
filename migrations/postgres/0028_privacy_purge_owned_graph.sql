@@ -1,27 +1,28 @@
 -- Logical pair: SQLite 0072_privacy_purge_owned_graph.sql.
 -- F5B: bounded case-graph purge exceptions exist only while an intent is open.
 
-CREATE FUNCTION ccc_privacy_purge_case_open(p_org_id text, p_support_case_id text)
-RETURNS boolean LANGUAGE sql STABLE AS $$
-  SELECT EXISTS(
-    SELECT 1 FROM privacy_purge_events AS intent
-    WHERE intent.org_id=p_org_id
-      AND intent.phase='intent'
-      AND intent.support_case_ids_json::jsonb ? p_support_case_id
-      AND NOT EXISTS(
-        SELECT 1 FROM privacy_purge_events AS complete
-        WHERE complete.org_id=intent.org_id
-          AND complete.approval_id=intent.approval_id
-          AND complete.phase='complete'
-      )
-  )
-$$;
-REVOKE ALL ON FUNCTION ccc_privacy_purge_case_open(text,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION ccc_privacy_purge_case_open(text,text) TO ccc_api;
+CREATE VIEW privacy_purge_open_support_cases
+WITH (security_invoker=true) AS
+SELECT intent.org_id, scope.support_case_id
+FROM privacy_purge_events AS intent
+CROSS JOIN LATERAL jsonb_array_elements_text(intent.support_case_ids_json::jsonb)
+  AS scope(support_case_id)
+WHERE intent.phase='intent'
+  AND NOT EXISTS(
+    SELECT 1 FROM privacy_purge_events AS complete
+    WHERE complete.org_id=intent.org_id
+      AND complete.approval_id=intent.approval_id
+      AND complete.phase='complete'
+  );
+REVOKE ALL ON privacy_purge_open_support_cases FROM PUBLIC;
+GRANT SELECT ON privacy_purge_open_support_cases TO ccc_api;
 
 CREATE FUNCTION ccc_privacy_purge_direct_history_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF NOT ccc_privacy_purge_case_open(OLD.org_id,OLD.support_case_id) THEN
+  IF NOT EXISTS(
+    SELECT 1 FROM privacy_purge_open_support_cases AS purge
+    WHERE purge.org_id=OLD.org_id AND purge.support_case_id=OLD.support_case_id
+  ) THEN
     RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE=TG_ARGV[0];
   END IF;
   RETURN OLD;
@@ -65,31 +66,55 @@ DECLARE edge_open boolean;
 BEGIN
   CASE TG_TABLE_NAME
     WHEN 'ai_draft_versions' THEN
-      SELECT ccc_privacy_purge_case_open(work.org_id,work.support_case_id) INTO edge_open
-      FROM ai_work_items AS work WHERE work.id=OLD.work_item_id;
+      SELECT EXISTS(
+        SELECT 1 FROM ai_work_items AS work
+        JOIN privacy_purge_open_support_cases AS purge
+          ON purge.org_id=work.org_id AND purge.support_case_id=work.support_case_id
+        WHERE work.id=OLD.work_item_id
+      ) INTO edge_open;
     WHEN 'ai_evidence_links' THEN
-      SELECT ccc_privacy_purge_case_open(work.org_id,work.support_case_id) INTO edge_open
-      FROM ai_draft_versions AS draft
-      JOIN ai_work_items AS work ON work.id=draft.work_item_id
-      WHERE draft.id=OLD.draft_version_id;
+      SELECT EXISTS(
+        SELECT 1 FROM ai_draft_versions AS draft
+        JOIN ai_work_items AS work ON work.id=draft.work_item_id
+        JOIN privacy_purge_open_support_cases AS purge
+          ON purge.org_id=work.org_id AND purge.support_case_id=work.support_case_id
+        WHERE draft.id=OLD.draft_version_id
+      ) INTO edge_open;
     WHEN 'ai_review_events' THEN
-      SELECT ccc_privacy_purge_case_open(work.org_id,work.support_case_id) INTO edge_open
-      FROM ai_work_items AS work WHERE work.id=OLD.work_item_id;
+      SELECT EXISTS(
+        SELECT 1 FROM ai_work_items AS work
+        JOIN privacy_purge_open_support_cases AS purge
+          ON purge.org_id=work.org_id AND purge.support_case_id=work.support_case_id
+        WHERE work.id=OLD.work_item_id
+      ) INTO edge_open;
     WHEN 'agent_job_result_acceptances' THEN
-      SELECT ccc_privacy_purge_case_open(job.org_id,job.support_case_id) INTO edge_open
-      FROM agent_jobs AS job WHERE job.id=OLD.job_id;
+      SELECT EXISTS(
+        SELECT 1 FROM agent_jobs AS job
+        JOIN privacy_purge_open_support_cases AS purge
+          ON purge.org_id=job.org_id AND purge.support_case_id=job.support_case_id
+        WHERE job.id=OLD.job_id
+      ) INTO edge_open;
     WHEN 'audio_deletion_attempts' THEN
-      SELECT ccc_privacy_purge_case_open(audio.org_id,audio.support_case_id) INTO edge_open
-      FROM audio_objects AS audio
-      WHERE audio.id=OLD.audio_object_id AND audio.org_id=OLD.org_id;
+      SELECT EXISTS(
+        SELECT 1 FROM audio_objects AS audio
+        JOIN privacy_purge_open_support_cases AS purge
+          ON purge.org_id=audio.org_id AND purge.support_case_id=audio.support_case_id
+        WHERE audio.id=OLD.audio_object_id AND audio.org_id=OLD.org_id
+      ) INTO edge_open;
     WHEN 'action_item_revisions' THEN
-      SELECT ccc_privacy_purge_case_open(item.org_id,item.support_case_id) INTO edge_open
-      FROM action_items AS item
-      WHERE item.id=OLD.action_item_id AND item.org_id=OLD.org_id;
+      SELECT EXISTS(
+        SELECT 1 FROM action_items AS item
+        JOIN privacy_purge_open_support_cases AS purge
+          ON purge.org_id=item.org_id AND purge.support_case_id=item.support_case_id
+        WHERE item.id=OLD.action_item_id AND item.org_id=OLD.org_id
+      ) INTO edge_open;
     WHEN 'schedule_question_revisions' THEN
-      SELECT ccc_privacy_purge_case_open(question.org_id,question.support_case_id) INTO edge_open
-      FROM schedule_custom_questions AS question
-      WHERE question.id=OLD.question_id AND question.org_id=OLD.org_id;
+      SELECT EXISTS(
+        SELECT 1 FROM schedule_custom_questions AS question
+        JOIN privacy_purge_open_support_cases AS purge
+          ON purge.org_id=question.org_id AND purge.support_case_id=question.support_case_id
+        WHERE question.id=OLD.question_id AND question.org_id=OLD.org_id
+      ) INTO edge_open;
     ELSE edge_open := false;
   END CASE;
   IF NOT COALESCE(edge_open,false) THEN
@@ -125,7 +150,10 @@ EXECUTE FUNCTION ccc_privacy_purge_indirect_history_guard('manual_history_immuta
 CREATE FUNCTION ccc_privacy_purge_discrepancy_history_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF OLD.resolution_status IS NOT NULL
-     AND NOT ccc_privacy_purge_case_open(OLD.org_id,OLD.support_case_id) THEN
+     AND NOT EXISTS(
+       SELECT 1 FROM privacy_purge_open_support_cases AS purge
+       WHERE purge.org_id=OLD.org_id AND purge.support_case_id=OLD.support_case_id
+     ) THEN
     RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='session_discrepancies: resolved rows are retained history';
   END IF;
   RETURN OLD;
