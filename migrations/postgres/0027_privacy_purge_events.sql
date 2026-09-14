@@ -1,7 +1,7 @@
 -- Logical pair: SQLite 0071_privacy_purge_events.sql.
 -- F5: durable, content-free privacy purge authority shared with CCC-224/E3-7 restore.
 CREATE TABLE privacy_purge_events (
-  event_id text NOT NULL CONSTRAINT privacy_purge_events_nullable_pk UNIQUE,
+  event_id text CONSTRAINT privacy_purge_events_nullable_pk UNIQUE,
   org_id text NOT NULL,
   sequence bigint NOT NULL CHECK (sequence BETWEEN 1 AND 9007199254740991),
   approval_id text NOT NULL,

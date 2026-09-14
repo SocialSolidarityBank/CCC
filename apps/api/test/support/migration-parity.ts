@@ -42,6 +42,7 @@ export const checkpoints = [
   { id: 'masked-source-proof', sqlite: '0069_masked_source_proof.sql', postgres: '0025_masked_source_proof.sql' },
   { id: 'openai-egress', sqlite: '0070_openai_egress.sql', postgres: '0026_openai_egress.sql' },
   { id: 'privacy-purge-events', sqlite: '0071_privacy_purge_events.sql', postgres: '0027_privacy_purge_events.sql' },
+  { id: 'privacy-purge-owned-graph', sqlite: '0072_privacy_purge_owned_graph.sql', postgres: '0028_privacy_purge_owned_graph.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;
