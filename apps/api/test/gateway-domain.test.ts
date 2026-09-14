@@ -850,21 +850,40 @@ describe('gateway domain records', () => {
     await expect(reviewFlag(t.env, service, aiFlag.id, 'confirmed')).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it('keeps an unassigned institution administrator read-only across legacy counseling records', async () => {
+  it('lets an unassigned institution administrator read and export but not mutate counseling records', async () => {
     await t.reset();
-    const { caseRecord, goal, session, draft } = await createReviewReadySession();
+    const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
+    const goal = await createGoal(t.env, counselor, caseRecord.id, {
+      title: '관리자 쓰기 경계를 확인할 목표',
+    });
+    const session = await createManualSession(t.env, counselor, caseRecord.id, {
+      submissionId: '01000000-0000-4000-8000-000000000099',
+      heldAt: '2026-01-02T10:00:00.000Z',
+      channel: 'in_person',
+      memo: '관리자 읽기와 내보내기 확인용 공식 기록',
+      gasScores: [{ goalId: goal.id, score: 0 }],
+    });
+    const supportCase = await t.db.prepare(
+      'SELECT id FROM support_cases WHERE org_id = ? AND (legacy_case_id = ? OR id = ?)',
+    ).bind(admin.orgId, caseRecord.id, caseRecord.id).first<{ id: string }>();
+    if (supportCase === null) throw new Error('expected canonical support case');
+    const workItemId = 'release-role-admin-ai-work';
+    await t.db.prepare(
+      `INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at)
+       VALUES (?, ?, ?, ?, 'text_ai_briefing', ?)`,
+    ).bind(workItemId, admin.orgId, supportCase.id, session.id, '2026-01-02T10:00:00.000Z').run();
 
     await expect(getSession(t.env, admin, session.id))
       .resolves.toMatchObject({ id: session.id });
-    await expect(getCurrentGeneratedAiDraft(t.env, admin, draft.workItemId))
-      .resolves.toMatchObject({ id: draft.id });
     await expect(getSession(t.env, otherOrgAdmin, session.id))
       .rejects.toBeInstanceOf(ForbiddenError);
     await expect(approveGeneratedAiDraft(
       t.env,
       admin,
-      draft.workItemId,
-      draft.version,
+      workItemId,
+      1,
       { speakerMappingConfirmed: true },
     )).rejects.toBeInstanceOf(ForbiddenError);
     await expect(approveSession(t.env, admin, session.id, {}))
@@ -880,7 +899,15 @@ describe('gateway domain records', () => {
       sessionId: session.id,
     })).rejects.toBeInstanceOf(ForbiddenError);
     await expect(exportCase(t.env, admin, caseRecord.id))
+      .resolves.toMatchObject({ case: { id: expect.any(String) } });
+    await expect(exportCase(t.env, otherOrgAdmin, caseRecord.id))
       .rejects.toBeInstanceOf(ForbiddenError);
+    await expect(t.db.prepare(
+      `SELECT COUNT(*) AS count FROM audit_log
+       WHERE org_id = ? AND actor_id = ? AND action = 'export'
+         AND target_table = 'cases' AND case_id = ?`,
+    ).bind(admin.orgId, admin.userId, caseRecord.id).first<{ count: number }>())
+      .resolves.toEqual({ count: 1 });
   });
 
   it('manages action items and flags while excluding unapproved AI data from export', async () => {
