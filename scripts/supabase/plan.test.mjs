@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { observationAuthorization } from './fixtures/authorization.mjs';
 import { fingerprint } from './hosted-inspector.mjs';
+import { inspectAuthConfig, RELAYER_INVITE_TEMPLATE_HTML } from './auth-config.mjs';
 import { normalizeProviderInventory, providerInventoryFingerprint } from './provider-inventory.mjs';
 import {
   BETA_TRUST_DOMAIN,
@@ -17,6 +18,7 @@ import {
   buildSupabasePlan as buildPlan,
   buildSupabaseDoctor as buildDoctor,
   installationStateFingerprint as stateFingerprint,
+  buildAuthConfigReconciliationProof,
   expectedSupabaseResources,
 } from './plan.mjs';
 
@@ -1758,4 +1760,221 @@ test('installed reconciliation still blocks provider, catalog and ownership drif
     const result = await firstInstallDoctor(fixture, mutate);
     assert.ok(blockerCodes(result).includes(code), `${name}: ${blockerCodes(result).join(',')}`);
   }
+});
+
+/**
+ * 설치 당시 `disable_signup=false`였던 journal과 현재 `disable_signup=true` + 정확한
+ * 초대 템플릿만 다른 hosted 관찰을 만든다. journal 지문은 변이 전 prior 관찰로
+ * 고정하고, 그 뒤에 관찰을 바꿔야 unrelated drift가 이전 지문 불일치로 증명된다.
+ */
+async function authReconciliationFixture({
+  mutateAuthConfig = () => {},
+  mutateObserved = () => {},
+  mutateBaseline = () => {},
+  authorizationOverride,
+  samePair = false,
+  release,
+} = {}) {
+  const fixture = await firstInstallFixture();
+  const authConfig = {
+    disable_signup: true,
+    external_anonymous_users_enabled: false,
+    external_email_enabled: true,
+    mailer_autoconfirm: true,
+    mfa_max_enrolled_factors: 10,
+    mfa_totp_enroll_enabled: true,
+    mfa_totp_verify_enabled: true,
+    refresh_token_rotation_enabled: true,
+    security_captcha_enabled: false,
+    jwt_exp: 3600,
+    site_url: 'https://must-not-escape.test',
+    mailer_templates_invite_content: RELAYER_INVITE_TEMPLATE_HTML,
+    sessions_single_per_user: false,
+  };
+  const observed = structuredClone(fixture.observed);
+  // journal 지문은 설치 시점의 pristine prior 관찰로 먼저 고정한다.
+  const pristineEvidence = inspectAuthConfig(authConfig);
+  const pristinePrior = {
+    ...observed,
+    state: { ...observed.state, authFingerprint: pristineEvidence.priorAuthFingerprint },
+  };
+  observed.installState.journal.stateFingerprint =
+    await installationStateFingerprint(pristinePrior, fixture.providerBaseline);
+  mutateAuthConfig(authConfig);
+  const evidence = inspectAuthConfig(authConfig);
+  observed.state = { ...observed.state, authFingerprint: evidence.currentAuthFingerprint };
+  observed.authConfigEvidence = evidence;
+  mutateObserved(observed);
+  if (samePair) {
+    observed.installState.journal.stateFingerprint =
+      await installationStateFingerprint(observed, fixture.providerBaseline);
+  }
+  const providerBaseline = { ...fixture.providerBaseline };
+  mutateBaseline(providerBaseline);
+  const authorization = authorizationOverride ?? (samePair
+    ? fixture.authorization
+    : {
+        ...fixture.authorization,
+        runtimeManifestSha256: createHash('sha256').update('renewed-runtime').digest('hex'),
+        approvalSha256: createHash('sha256').update('renewed-approval').digest('hex'),
+        runtimeSequence: fixture.authorization.runtimeSequence + 1,
+      });
+  const releaseIndex = release === undefined
+    ? verifiedReleaseIndex(observed.installState.currentReceipt)
+    : release;
+  const proofOptions = (overrides = {}) => ({
+    target: 'hosted',
+    inspector: inspector(observed, observed, observed),
+    authorization,
+    providerBaseline,
+    release: releaseIndex,
+    ...overrides,
+  });
+  return { ...fixture, authConfig, evidence, observed, authorization, providerBaseline, release: releaseIndex, proofOptions };
+}
+
+test('Auth reconciliation proof accepts only disable_signup drift with the exact template', async () => {
+  const fixture = await authReconciliationFixture();
+  const proof = await buildAuthConfigReconciliationProof(fixture.proofOptions());
+
+  assert.equal(proof.mode, 'pending');
+  assert.equal(proof.runtimeSequence, fixture.authorization.runtimeSequence);
+  assert.equal(proof.authorization.runtimeManifestSha256, fixture.authorization.runtimeManifestSha256);
+  assert.equal(proof.authorization.approvalSha256, fixture.authorization.approvalSha256);
+  assert.equal(proof.priorStateFingerprint, fixture.observed.installState.journal.stateFingerprint);
+  assert.notEqual(proof.currentStateFingerprint, proof.priorStateFingerprint);
+  assert.equal(proof.inviteTemplateSha256, fixture.evidence.inviteTemplateSha256);
+  assert.match(proof.proofFingerprint, /^[0-9a-f]{64}$/u);
+  assert.deepEqual(Object.keys(proof.authorization).sort(), [
+    'approvalSha256', 'contractVersion', 'expectedOwnerOrgIdHash', 'expiresAt',
+    'installationId', 'institutionIdHash', 'projectRefHash', 'runtimeConfigurationSha256',
+    'runtimeManifestSha256', 'runtimeSequence',
+  ]);
+  const serialized = JSON.stringify(proof);
+  assert.ok(!serialized.includes(RELAYER_INVITE_TEMPLATE_HTML));
+  assert.ok(!serialized.includes('must-not-escape'));
+  assert.ok(!serialized.includes('test-project'));
+  assert.ok(!serialized.includes('test-organization'));
+  assert.ok(!serialized.includes('synthetic-institution'));
+});
+
+test('Auth reconciliation proof rejects unrelated state drift before any writable result', async t => {
+  const cases = [
+    ['다른 bounded Auth 키', {
+      mutateAuthConfig: authConfig => { authConfig.jwt_exp = 7200; },
+    }],
+    ['데이터베이스 지문', {
+      mutateObserved: observed => {
+        observed.databaseFingerprint = 'f'.repeat(64);
+      },
+    }],
+    ['정책 지문', {
+      mutateObserved: observed => {
+        observed.state = { ...observed.state, policyFingerprint: 'policies-drifted' };
+      },
+    }],
+    ['버킷 지문', {
+      mutateObserved: observed => {
+        observed.state = { ...observed.state, bucketFingerprint: 'buckets-drifted' };
+      },
+    }],
+    ['cron 개수', {
+      mutateObserved: observed => { observed.cronJobCount = 2; },
+    }],
+    ['공급자 객체 목록', {
+      mutateObserved: observed => {
+        observed.providerInventory.objects.push({
+          kind: 'schema', schema: 'foreign', identity: 'foreign', owner: 'postgres',
+          definitionSha256: createHash('sha256').update('foreign').digest('hex'),
+          provenance: 'supabase_managed',
+        });
+        Object.assign(
+          observed.providerInventory,
+          providerInventoryFingerprint(observed.providerInventory),
+        );
+        observed.state = {
+          ...observed.state,
+          providerObjectCount: observed.providerInventory.objects.length,
+        };
+      },
+    }],
+    ['공급자 권한 목록', {
+      mutateObserved: observed => {
+        observed.providerInventory.grants.push(providerGrant({
+          objectIdentity: 'storage.objects TABLE drifted',
+          privilege: 'INSERT',
+        }));
+        Object.assign(
+          observed.providerInventory,
+          providerInventoryFingerprint(observed.providerInventory),
+        );
+        observed.state = {
+          ...observed.state,
+          providerGrantCount: observed.providerInventory.grants.length,
+        };
+      },
+    }],
+  ];
+  for (const [name, overrides] of cases) {
+    await t.test(name, async () => {
+      const fixture = await authReconciliationFixture(overrides);
+      await assert.rejects(
+        buildAuthConfigReconciliationProof(fixture.proofOptions()),
+        error => error.code === 'AUTH_RECONCILE_PRIOR_FINGERPRINT_MISMATCH',
+      );
+    });
+  }
+});
+
+test('Auth reconciliation proof preserves the first existing non-drift doctor blocker', async t => {
+  const cases = [
+    ['PROVIDER_BASELINE_MISMATCH', {
+      mutateBaseline: baseline => { baseline.objectInventorySha256 = 'e'.repeat(64); },
+    }],
+    ['RESOURCE_OWNERSHIP_MISMATCH', {
+      mutateObserved: observed => {
+        observed.installState.resources[1].resourceType = 'foreign_provider_resource';
+      },
+    }],
+    ['MIGRATION_CHECKSUM_MISMATCH', {
+      mutateObserved: observed => {
+        observed.installState.migrations[0].checksum = 'f'.repeat(64);
+      },
+    }],
+    ['INSTALL_INCOMPLETE', {
+      mutateObserved: observed => {
+        observed.installState.currentReceipt.recordedAt = 'not-a-date';
+      },
+    }],
+    ['RELEASE_PREREQUISITES_MISSING', { release: null }],
+  ];
+  for (const [code, overrides] of cases) {
+    await t.test(code, async () => {
+      const fixture = await authReconciliationFixture(overrides);
+      await assert.rejects(
+        buildAuthConfigReconciliationProof(fixture.proofOptions()),
+        error => error.code === code,
+      );
+    });
+  }
+});
+
+test('Auth reconciliation proof accepts a clean same-pair state only as an idempotent candidate', async () => {
+  const fixture = await authReconciliationFixture({ samePair: true });
+  const proof = await buildAuthConfigReconciliationProof(fixture.proofOptions());
+
+  assert.equal(proof.mode, 'already-reconciled');
+  assert.equal(proof.currentStateFingerprint, fixture.observed.installState.journal.stateFingerprint);
+  assert.equal(proof.runtimeSequence, fixture.authorization.runtimeSequence);
+
+  const stale = await authReconciliationFixture({
+    authorizationOverride: {
+      ...observationAuthorization(),
+      runtimeSequence: 0,
+    },
+  });
+  await assert.rejects(
+    buildAuthConfigReconciliationProof(stale.proofOptions()),
+    error => error.code === 'INSTALL_AUTHORIZATION_MISMATCH',
+  );
 });

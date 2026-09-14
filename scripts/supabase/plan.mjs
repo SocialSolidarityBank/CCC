@@ -76,6 +76,9 @@ const safeFailures = Object.freeze({
   INSTALL_JOURNAL_INVALID: '설치 journal의 구조나 현재 상태가 유효하지 않습니다.',
   INSTALL_JOURNAL_MISSING: '검증된 설치 journal이 없습니다.',
   INSTALL_STEP_MISMATCH: '설치 단계의 idempotency key 또는 상태가 다릅니다.',
+  AUTH_RECONCILE_TEMPLATE_MISMATCH: '공급자 Auth 초대 템플릿이 승인된 본문과 다릅니다.',
+  AUTH_RECONCILE_AUTH_STATE_MISMATCH: '현재 Auth 상태가 정합화가 요구하는 disable_signup 구성이 아닙니다.',
+  AUTH_RECONCILE_PRIOR_FINGERPRINT_MISMATCH: '이전 설치 상태 지문을 현재 관찰에서 재현하지 못했습니다.',
   MIGRATION_APPLY_FAILED: '마이그레이션 transaction이 실패했으며 해당 변경은 반영되지 않았습니다.',
   HEALTH_FAILED: '승격한 설치 상태의 읽기 전용 확인을 통과하지 못했습니다.',
   RUNTIME_NOT_READY: '설치는 끝났고 업무 runtime이 아직 기동하지 않았습니다(차단 사유가 아닙니다).',
@@ -895,5 +898,132 @@ export async function buildSupabaseDoctor(options) {
         grantInventorySha256: providerComparison.inventory.grantInventorySha256,
       }),
     } : {}),
+  };
+}
+
+const AUTH_DRIFT_BLOCKER_CODES = new Set(['DRIFT_BLOCKED', 'DRIFT_DETECTED']);
+
+/**
+ * hosted 설치에서 허용된 Auth drift(`disable_signup`와 정확한 초대 템플릿)만
+ * 증명하는 읽기 전용 proof다. normal doctor를 그대로 실행해 blocker를 관찰하고,
+ * 관찰에서 `disable_signup` 하나만 과거 값으로 되돌린 지문이 journal과 같은지
+ * 확인한다. 어떤 provider 또는 journal write도 하지 않는다.
+ */
+export async function buildAuthConfigReconciliationProof({
+  target,
+  inspector,
+  authorization,
+  providerBaseline,
+  release,
+  now = Date.now,
+}) {
+  if (target !== 'hosted') throw new PlanFailure('TARGET_UNSUPPORTED');
+  const observations = [];
+  const doctor = await buildSupabaseDoctor({
+    target,
+    inspector: {
+      async inspect() {
+        const observation = await inspector.inspect();
+        observations.push(observation);
+        return observation;
+      },
+    },
+    authorization,
+    providerBaseline,
+    release,
+    renewAuthorization: true,
+    now,
+  });
+  const blockers = doctor.blockers.map(blocker => blocker.code);
+  const firstNonDriftBlocker = blockers.find(code => !AUTH_DRIFT_BLOCKER_CODES.has(code));
+  const journal = observations[0]?.installState?.journal;
+  if (!isRecord(journal) || journal.phase !== 'installed') {
+    // installed journal이 없으면 기존 doctor의 고정 code를 그대로 보존한다.
+    throw new PlanFailure(firstNonDriftBlocker ?? 'INSTALL_JOURNAL_INVALID');
+  }
+  const fingerprints = [];
+  const installStateDigests = [];
+  for (const observation of observations) {
+    const evidence = observation?.authConfigEvidence;
+    if (evidence?.readable !== true || evidence.disableSignup !== true
+      || !SHA256_HEX.test(evidence.currentAuthFingerprint)
+      || !SHA256_HEX.test(evidence.priorAuthFingerprint)) {
+      throw new PlanFailure('AUTH_RECONCILE_AUTH_STATE_MISMATCH');
+    }
+    if (evidence.inviteTemplateExact !== true
+      || !SHA256_HEX.test(evidence.inviteTemplateSha256)) {
+      throw new PlanFailure('AUTH_RECONCILE_TEMPLATE_MISMATCH');
+    }
+    if (evidence.currentAuthFingerprint !== observation.state?.authFingerprint) {
+      throw new PlanFailure('PLAN_STATE_CHANGED');
+    }
+    const priorObservation = structuredClone(observation);
+    priorObservation.state = {
+      ...priorObservation.state,
+      authFingerprint: evidence.priorAuthFingerprint,
+    };
+    fingerprints.push({
+      inviteTemplateSha256: evidence.inviteTemplateSha256,
+      prior: await installationStateFingerprint(priorObservation, providerBaseline),
+      current: await installationStateFingerprint(observation, providerBaseline),
+    });
+    installStateDigests.push(await hashCanonical(observation.installState ?? null));
+  }
+  const first = fingerprints[0];
+  if (fingerprints.some(entry => entry.prior !== first.prior
+      || entry.current !== first.current
+      || entry.inviteTemplateSha256 !== first.inviteTemplateSha256)
+    || installStateDigests.some(digest => digest !== installStateDigests[0])) {
+    throw new PlanFailure('PLAN_STATE_CHANGED');
+  }
+  const priorStateFingerprint = first.prior;
+  const currentStateFingerprint = first.current;
+  const inviteTemplateSha256 = first.inviteTemplateSha256;
+  const installState = observations[0].installState;
+  const samePair = journal.runtimeManifestSha256 === authorization.runtimeManifestSha256
+    && journal.approvalSha256 === authorization.approvalSha256
+    && journal.runtimeSequence === authorization.runtimeSequence;
+  let mode;
+  if (samePair) {
+    // 같은 manifest, approval과 sequence는 durable 완료 증거를 읽는 반복 후보다.
+    // 깨끗한 normal doctor만 통과하고 나머지 검증은 Task 3의 journal readback이 맡는다.
+    if (blockers.length > 0) throw new PlanFailure(blockers[0]);
+    mode = 'already-reconciled';
+  } else {
+    if (priorStateFingerprint !== journal.stateFingerprint) {
+      throw new PlanFailure('AUTH_RECONCILE_PRIOR_FINGERPRINT_MISMATCH');
+    }
+    if (currentStateFingerprint === priorStateFingerprint) {
+      throw new PlanFailure('AUTH_RECONCILE_AUTH_STATE_MISMATCH');
+    }
+    if (firstNonDriftBlocker !== undefined) throw new PlanFailure(firstNonDriftBlocker);
+    if (new Set(blockers).size !== AUTH_DRIFT_BLOCKER_CODES.size) {
+      throw new PlanFailure('PLAN_STATE_CHANGED');
+    }
+    mode = 'pending';
+  }
+  const proofBody = {
+    mode,
+    authorization: {
+      installationId: authorization.installationId,
+      institutionIdHash: authorization.institutionIdHash,
+      projectRefHash: authorization.projectRefHash,
+      expectedOwnerOrgIdHash: authorization.expectedOwnerOrgIdHash,
+      runtimeManifestSha256: authorization.runtimeManifestSha256,
+      approvalSha256: authorization.approvalSha256,
+      runtimeConfigurationSha256: authorization.runtimeConfigurationSha256,
+      contractVersion: authorization.contractVersion,
+      runtimeSequence: authorization.runtimeSequence,
+      expiresAt: authorization.expiresAt,
+    },
+    installState,
+    priorStateFingerprint,
+    currentStateFingerprint,
+    inviteTemplateSha256,
+  };
+  return {
+    ...proofBody,
+    runtimeSequence: authorization.runtimeSequence,
+    proofFingerprint: await hashCanonical(proofBody),
   };
 }

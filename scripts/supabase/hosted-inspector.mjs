@@ -4,6 +4,7 @@ import { installationStateFingerprint, PlanFailure } from './plan.mjs';
 import { buildInstallStateQuery, DATABASE_INSTALL_FINGERPRINT_QUERY, hashDatabaseInstallFingerprint, installedDatabaseFingerprint, INSTALL_METADATA_TABLES, storageBucketResourceDigest } from './install-journal.mjs';
 import { assertAuthorizationCurrent } from './manifest-preflight.mjs';
 import { normalizeProviderInventory, PROVIDER_INVENTORY_QUERY, PROVIDER_RELATION_STABILITY_PREDICATE } from './provider-inventory.mjs';
+import { inspectAuthConfig } from './auth-config.mjs';
 
 export const DATABASE_STATE_QUERY = `SELECT * FROM (
 WITH
@@ -844,12 +845,10 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
         inventoryDatabase.custom_schema_count = number(database.custom_schema_count) - installationSchemaCount;
         inventoryDatabase.unexpected_grant_count = number(database.unexpected_grant_count) - installationGrantCount;
       }
-      const authState = Object.fromEntries([
-        'disable_signup','external_anonymous_users_enabled','external_email_enabled','mailer_autoconfirm',
-        'mfa_max_enrolled_factors','mfa_totp_enroll_enabled','mfa_totp_verify_enabled',
-        'refresh_token_rotation_enabled','security_captcha_enabled','jwt_exp','site_url',
-        'sessions_single_per_user',
-      ].map(key => [key, authConfig[key] ?? null]));
+      const authEvidence = inspectAuthConfig(authConfig);
+      if (authEvidence.readable !== true || authEvidence.currentAuthFingerprint === null) {
+        throw new PlanFailure('PROVIDER_UNREADABLE');
+      }
       return {
         project: {
           region: typeof project.region === 'string' ? project.region : null,
@@ -863,12 +862,13 @@ export function createHostedInspector({ accessToken, projectRef, authorization, 
           database: inventoryDatabase,
           migration: null,
           auth,
-          authFingerprint: fingerprint(authState),
+          authFingerprint: authEvidence.currentAuthFingerprint,
           institutionDataFingerprint: '',
         }),
         providerInventory,
         installState,
         databaseFingerprint,
+        authConfigEvidence: authEvidence,
         cronJobCount: number(cron.count),
       };
     },

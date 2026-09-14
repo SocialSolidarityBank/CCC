@@ -31,6 +31,7 @@ import {
   PROVIDER_INVENTORY_QUERY,
 } from './provider-inventory.mjs';
 import { hashDatabaseInstallFingerprint, INSTALL_METADATA_TABLES } from './install-journal.mjs';
+import { RELAYER_INVITE_TEMPLATE_HTML } from './auth-config.mjs';
 import { loadReleaseIndexForDoctor } from './apply.mjs';
 import { PINNED_RELEASE_ORIGIN } from '../release/release-origin.mjs';
 import { observationAuthorization } from './fixtures/authorization.mjs';
@@ -176,6 +177,7 @@ async function withManagementApi({
         sessions_single_per_user: false,
         site_url: mutateAuth === true && authReadCount > 1 ? 'https://changed-must-not-escape.test' : 'https://must-not-escape.test',
         smtp_pass: 'must-not-escape',
+        mailer_templates_invite_content: RELAYER_INVITE_TEMPLATE_HTML,
       }));
       return;
     }
@@ -329,6 +331,42 @@ test('hosted observation blocks an installation whose Auth demands a confirmatio
     const output = await inspectPlan(origin);
     assert.equal(output.observed.auth.emailConfirmationRequired, false);
     assert.deepEqual(output.blockers, []);
+  });
+});
+
+test('hosted Auth observation exposes only reconciliation hashes and booleans', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const observation = await hostedInspector(origin).inspect();
+    const evidence = observation.authConfigEvidence;
+    assert.deepEqual(Object.keys(evidence).sort(), [
+      'currentAuthFingerprint', 'disableSignup', 'inviteTemplateExact',
+      'inviteTemplateSha256', 'priorAuthFingerprint', 'readable',
+    ]);
+    assert.equal(evidence.readable, true);
+    assert.equal(evidence.disableSignup, true);
+    assert.equal(evidence.inviteTemplateExact, true);
+    assert.equal(
+      evidence.inviteTemplateSha256,
+      '6b5639d037932528297ebba1becf112e8b10c49e85caef0b10c9e25447c72c55',
+    );
+    assert.match(evidence.currentAuthFingerprint, /^[0-9a-f]{64}$/u);
+    assert.match(evidence.priorAuthFingerprint, /^[0-9a-f]{64}$/u);
+    assert.notEqual(evidence.currentAuthFingerprint, evidence.priorAuthFingerprint);
+    assert.equal(observation.state.authFingerprint, evidence.currentAuthFingerprint);
+
+    const serialized = JSON.stringify(observation);
+    assert.ok(!serialized.includes(RELAYER_INVITE_TEMPLATE_HTML));
+    assert.ok(!serialized.includes('must-not-escape'));
+    assert.ok(!serialized.includes('test-project'));
+    assert.ok(!serialized.includes('test-organization'));
+    assert.ok(!serialized.includes(accessToken));
+
+    assert.ok(requests.length > 0);
+    assert.ok(requests.every(({ method, path }) =>
+      method === 'GET' || (method === 'POST' && path.endsWith('/database/query/read-only'))));
+    assert.ok(requests
+      .filter(({ path }) => path.endsWith('/database/query/read-only'))
+      .every(({ body }) => JSON.parse(body).query.trimStart().startsWith('SELECT')));
   });
 });
 
