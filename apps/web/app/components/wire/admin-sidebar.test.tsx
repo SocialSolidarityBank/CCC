@@ -47,6 +47,7 @@ describe('AdminSidebar', () => {
     const labels = Array.from(container.querySelectorAll('a')).map((anchor) => anchor.textContent);
     expect(labels).toEqual(['사용자·역할', '실무자 초대', 'AI·STT·연결']);
     expect(adminMenuFor(['worker']).length).toBe(0);
+    expect(adminMenuFor(['supervisor']).length).toBe(0);
     expect(adminMenuFor(['institution-admin', 'technical-admin']).map((item) => item.label))
       .toEqual(['기관', '배정', '사용자·역할', '실무자 초대', 'AI·STT·연결']);
   });

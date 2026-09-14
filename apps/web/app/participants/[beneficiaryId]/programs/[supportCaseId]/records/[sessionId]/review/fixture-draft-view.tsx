@@ -59,10 +59,9 @@ function transcriptClock(seconds: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 const REVIEW_FORM_ID = 'ai-draft-review-form';
+// 첫 출고는 회기 목표별 요약만 보여 준다. 다른 분류와 자동 액션 생성 코드는 보존한다.
 const claimSectionOrder: AiClaimSection[] = [
   'session_goal_discussion',
-  'other_topics',
-  'next_session_commitments',
 ];
 const claimSectionLabels: Record<AiClaimSection, string> = {
   session_goal_discussion: '회기 목표별 논의 내용',

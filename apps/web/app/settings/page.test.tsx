@@ -2,24 +2,31 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { AdminSection, AssignmentRequestList } from './page';
+import SettingsPage, { AdminSection, AssignmentRequestList } from './page';
 import { adminMenu, adminMenuFor } from '../admin/admin-format';
 
 afterEach(cleanup);
+
+const apiMocks = vi.hoisted(() => ({
+  getMyIdentity: vi.fn(),
+  listAssignmentRequests: vi.fn(),
+  listOrgUsers: vi.fn(),
+}));
+const displayLabelMocks = vi.hoisted(() => ({ getDisplayLabels: vi.fn() }));
 
 // page.tsx 가 lib/api 를 import 하므로 모듈 로드 자체가 @opennextjs/cloudflare 변환에 걸린다.
 // AdminSection 은 API 를 쓰지 않지만, 모듈이 로드되도록 최소 목을 둔다.
 vi.mock('../lib/api', () => ({
   ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
-  getMyIdentity: vi.fn(),
-  listAssignmentRequests: vi.fn(),
-  listOrgUsers: vi.fn(),
+  getMyIdentity: () => apiMocks.getMyIdentity(),
+  listAssignmentRequests: () => apiMocks.listAssignmentRequests(),
+  listOrgUsers: () => apiMocks.listOrgUsers(),
 }));
 vi.mock('../actions', () => ({
   acceptSupportCaseAssignmentAction: vi.fn(),
 }));
 vi.mock('../lib/display-labels', () => ({
-  getDisplayLabels: vi.fn(),
+  getDisplayLabels: () => displayLabelMocks.getDisplayLabels(),
 }));
 
 // 설정 페이지 전체는 async 서버 컴포넌트라 jsdom 에서 렌더할 수 없다.
@@ -47,6 +54,33 @@ describe('설정 화면 — 배정 요청 수락 (CCC-123)', () => {
     expect(screen.getByText('긴급생활안정자금')).toBeTruthy();
     expect(screen.getByText('공동 담당')).toBeTruthy();
     expect(screen.getByRole('button', { name: '수락' })).toBeTruthy();
+  });
+});
+
+describe('첫 출고 설정 화면', () => {
+  it('자동 상담 기억 진입점을 숨기고 필수 계정과 실무자 관리는 남긴다', async () => {
+    apiMocks.getMyIdentity.mockResolvedValue({
+      id: 'admin-1',
+      orgId: 'org-1',
+      email: 'admin@example.test',
+      role: 'admin',
+      active: true,
+      name: '관리자',
+      roles: ['institution-admin'],
+    });
+    apiMocks.listAssignmentRequests.mockResolvedValue([]);
+    apiMocks.listOrgUsers.mockResolvedValue([]);
+    displayLabelMocks.getDisplayLabels.mockResolvedValue({
+      orgLabel: '기관',
+      programLabels: { financial_support_v1: '사업' },
+    });
+
+    render(await SettingsPage());
+
+    expect(screen.queryByText('자동 상담 기억')).toBeNull();
+    expect(screen.getByRole('heading', { name: '내 계정' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '기관 실무자 목록' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: '실무자 초대' })).toBeTruthy();
   });
 });
 

@@ -195,9 +195,9 @@ describe('RecordList', () => {
     expect(section).not.toBeUndefined();
     expect(section?.textContent).toContain('상환 계획을 세우기로 했다.');
     expect(section?.textContent).toContain('부채 악화');
-    expect(section?.textContent).toContain('회차 간 불일치');
+    expect(section?.textContent).not.toContain('회차 간 불일치');
     const hrefs = [...(section?.querySelectorAll('a') ?? [])].map((link) => link.getAttribute('href'));
-    expect(hrefs).toContain('/participants/swallow-003/programs/case-1/briefing#discrepancy-discrepancy-1');
+    expect(hrefs).not.toContain('/participants/swallow-003/programs/case-1/briefing#discrepancy-discrepancy-1');
     expect(hrefs).toContain('#record-session-1');
     const quote = section?.querySelector('details[data-source-quotes]');
     expect(quote?.hasAttribute('open')).toBe(false);

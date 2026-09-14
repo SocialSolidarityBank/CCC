@@ -127,6 +127,7 @@ export function RecordCard({
   const oneLiner = record.aiOneLiner ?? record.memoExcerpt;
   const confirmedFlags = record.flags.filter((flag) => flag.reviewStatus === 'confirmed');
   const hasConfirmedFlag = confirmedFlags.length > 0;
+  const visibleDiscrepancies = record.discrepancies.filter((item) => item.kind !== 'cross_session');
 
   return <details className="surface-card" id={`record-${record.id}`} open={defaultOpen}>
     {/* 회차 앞 꺽쇠는 2026-08-06 Q 로 폐지했었다(닫힘 오른쪽 꺽쇠가 세로선으로 읽혔다).
@@ -223,7 +224,7 @@ export function RecordCard({
       </section>}
 
       <WireCardSection title="이 회차에서 나온 것" tone="mint">
-        {record.aiOneLiner === null && confirmedFlags.length === 0 && record.discrepancies.length === 0
+        {record.aiOneLiner === null && confirmedFlags.length === 0 && visibleDiscrepancies.length === 0
           ? <WireEmpty>이 회차에 연결된 승인 산출물이 없습니다.</WireEmpty>
           : <ul className="briefing-suggestions">
               {record.aiOneLiner !== null && <li className="wire-repeat-card">
@@ -246,7 +247,7 @@ export function RecordCard({
                   <WireSourceQuotes quotes={[flag.quote]} sourceHref={`#record-${record.id}`} />
                 )}
               </li>)}
-              {record.discrepancies.map((discrepancy) => <li key={discrepancy.id} className="wire-repeat-card">
+              {visibleDiscrepancies.map((discrepancy) => <li key={discrepancy.id} className="wire-repeat-card">
                 <WireItem
                   title={discrepancyKindLabels[discrepancy.kind]}
                   status={<WireBadge tone={discrepancy.resolutionStatus === null ? 'lavender' : 'neutral'}>
