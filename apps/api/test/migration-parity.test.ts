@@ -667,8 +667,8 @@ async function proveAgentTextSourceFence(fixture: ParityDatabase): Promise<void>
     VALUES ('parity-source-ner',?,'synthetic','r1',?,?,?,?,'2099-01-01T00:00:00.000Z','passed',?)`)
     .bind(p.org, digest, digest, digest, p.at, p.at).run();
   const lease = async (id: string) => {
-    await db.prepare(`INSERT INTO ai_text_work_queue (id,org_id,support_case_id,session_id,reason,status,enqueued_at)
-      VALUES (?,?,?,?,'manual_record','processing',?)`).bind(id, p.org, p.supportCase, p.session, p.at).run();
+    await db.prepare(`INSERT INTO ai_text_work_queue (id,org_id,support_case_id,session_id,reason,status,enqueued_at,lease_owner,lease_expires_at)
+      VALUES (?,?,?,?,'manual_record','processing',?,?,'2099-01-01T00:00:00.000Z')`).bind(id, p.org, p.supportCase, p.session, p.at, p.user).run();
     await db.prepare(`INSERT INTO agent_jobs
       (id,org_id,support_case_id,session_id,source_text_work_item_id,kind,state,enqueued_at,required_consent,attempt,
        lease_owner,claim_token_hash,claimed_at,lease_expires_at,ner_attestation_id,ner_model_id,ner_model_revision,
