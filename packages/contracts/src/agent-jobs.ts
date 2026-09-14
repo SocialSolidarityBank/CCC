@@ -249,8 +249,10 @@ export interface TextResult extends MaskedSource {
   checkedSource?: CheckedTextSource;
 }
 
+export const RESULT_SCHEMA_VERSION = 2 as const;
+
 export interface ResultRequest {
-  schemaVersion: 2;
+  schemaVersion: typeof RESULT_SCHEMA_VERSION;
   claimToken: string;
   attempt: number;
   resultId: string;

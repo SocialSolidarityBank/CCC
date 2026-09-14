@@ -20,7 +20,7 @@
 
 실행 조건은 `CCC_LLM_MODE=openai`, `TEXT_AI_PILOT_ENABLED=1`, 현재 유효한 동의 근거, 활성 공급자 설정, 적격 NER 증빙과 최근 폴링한 처리 Agent다. 실제 유료 호출은 기존 `EXTERNAL_AI_CALLS_ENABLED` 잠금도 통과해야 한다. 기억 prompt/schema가 설정 해시에 포함되므로 배포 후 공급자 설정 재확인이 필요할 수 있다.
 
-`MEMORY_MASKING_PIPELINES`에는 승인된 마스킹 버전과 해당 manifest SHA-256의 JSON 매핑을 배포한다. 값은 검증된 Agent 릴리스에서 가져오며 임의 hash나 테스트 증빙으로 채우지 않는다. 누락 또는 불일치 시 `masking_pipeline_version_mismatch`로 차단한다.
+`MEMORY_MASKING_PIPELINES`에는 canonical masking registry JSON을 배포한다. 활성 manifest 하나가 S6 정적 규칙, G7 상대 날짜 규칙, NER 모델과 revision, 라벨, health 증빙, 결과 스키마, 출력 version/hash를 모두 정한다. `maskingPipelineHash`는 자기 필드를 제외한 manifest의 JCS UTF-8 bytes SHA-256이다. 서버와 Agent가 같은 값을 읽으며 임의 hash, 별도 모델 설정, alias, wildcard를 허용하지 않는다. 누락, 불일치, 미지원 tuple은 `masking_pipeline_version_mismatch`로 차단한다.
 
 기억 마스킹은 `/pipeline/memory`의 claim, source, mask-dictionary, result, release 경로를 사용한다. 일반 회차 `/pipeline/jobs`와 섞지 않으며 회차가 없는 목표와 액션에 가짜 회차 ID를 만들지 않는다. 완료된 마스킹 증빙이 만료되면 같은 원본 revision을 다시 마스킹하고, 증빙 갱신 자체를 새로운 상담 사실로 세지 않는다. 안전한 과거 맥락이 없으면 현재 회차 초안에는 과거 기억을 붙이지 않는다.
 
@@ -108,7 +108,7 @@ pnpm --filter @ccc/api eval:memory --live --allow-external-ai
 | `EXTERNAL_AI_CALLS_ENABLED` | Workers 환경 변수 | `0` | 유료 외부 AI HTTPS 호출의 최종 스위치. 정확히 `1`일 때만 호출한다. 설정·키가 있어도 이 값이 없거나 `0`이면 fail closed한다. 합성 스모크와 Preview 점검은 별도 실호출 승인 없이는 켜지 않는다. |
 | `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0027). |
 | `CCC_LLM_MODE` | API 런타임 환경 변수 | (없음 = 기억 생성 중단) | 설치 LLM 축. 정확히 `openai`일 때만 자동 상담 기억의 새 처리를 허용한다. |
-| `MEMORY_MASKING_PIPELINES` | API 런타임 환경 변수(JSON 문자열) | (없음 = 차단) | 승인된 마스킹 버전을 canonical manifest SHA-256에 연결한다. 적격 Agent 릴리스의 실제 값만 사용한다. |
+| `MEMORY_MASKING_PIPELINES` | API와 Agent 런타임 환경 변수(JSON 문자열) | (없음 = 차단) | S6 정적 규칙, G7 상대 날짜 규칙, NER 모델과 revision, 라벨, health 증빙, 결과 스키마, 출력 version/hash를 묶은 canonical registry다. 활성 manifest는 자기 hash를 제외한 JCS SHA-256과 정확히 일치해야 한다. |
 | `PII_PURGE_ENABLED` | Workers 환경 변수 | (없음 = 닫힘) | 최종 관리자 승인 파기 스위치. 정확히 `1`일 때만 `decision=purge`가 실행된다. 미설정·`0`이어도 cron의 아카이브·재검토는 계속되며, 최종 파기 요청만 409 `purge_disabled`로 거절된다. |
 | `PUBLIC_SIGNUP_ENABLED` | Workers 환경 변수 (`apps/api`·`apps/web` 양쪽) | (없음) | 공개 가입 표면(CCC-112)의 스위치. 정확히 `1`일 때만 공개 초대 조회·가입 API 와 초대 발급, 웹 `/join`·`/join/*` 화면이 열린다. 없거나 `0`이면 404 로 fail closed. 미리보기 env 에만 `1`(코드 게이트 뒤 팀 검수용), 운영에는 두지 않는다. |
 
@@ -512,12 +512,12 @@ pnpm exec wrangler d1 execute ccc-preview --env preview --remote --command \
 
 `yellow` 남는 것 하나: 이 기록은 **불일치 검출(D51 ④ 두 번째 호출)** 만 덮는다. 승인 대상 초안 생성(`generateAiDraft`)은 요청-응답이라 실패가 호출자에게 그대로 돌아가므로 같은 공백이 없다.
 
-`yellow` **인명 마스킹은 NER 모델이 있어야 동작한다** — 실측에서 `[전화번호]`·`[질환]` 은 정규식·사전 계층이 잡았지만 `아들 김철수` 는 그대로 남았다(`CCC_NER_MODEL_ID` 미설정으로 돌린 결과). ADR-0027 가 인용한 바로 그 사례다.
+`yellow` **인명 마스킹은 canonical manifest가 지정한 NER 모델이 있어야 동작한다.** 실측에서 `[전화번호]`와 `[질환]`은 정규식과 사전 계층이 잡았지만 `아들 김철수`는 그대로 남았다. 인명 NER 없이 돌린 ADR-0027 사례다.
 
 **그래서 2026-07-31 Q 결정으로 두 가지를 못 박았다**(구 동작은 "경고만 내고 통과"였다):
 
-1. **인명 NER 이 없으면 그 회차를 처리하지 않는다.** 스냅샷도 만들지 않고 일감도 완료하지 않아, 큐에 남아 다음 폴링에서 다시 잡힌다. 늦는 것(D8 SLA · 브리핑은 수기 메모 폴백 D5)이 새는 것보다 낫다.
-2. **모델과 라벨 접두를 한 쌍으로 설정하고**(`CCC_NER_MODEL_ID` + `CCC_NER_LABELS`), 모델을 불러올 때 그 모델이 **선언한 라벨 목록과 대조**한다. 안 맞으면 뜨지 않는다.
+1. **인명 NER이 없으면 그 회차를 처리하지 않는다.** 스냅샷도 만들지 않고 일감도 완료하지 않아, 큐에 남아 다음 폴링에서 다시 잡힌다. 늦는 것(D8 SLA, 브리핑은 수기 메모 폴백 D5)이 새는 것보다 낫다.
+2. **모델, revision, 라벨 접두, health 증빙을 같은 canonical manifest에 묶고**, 모델을 불러올 때 그 모델이 선언한 라벨 목록과 대조한다. 별도 환경 변수로 덮어쓸 수 없고, 안 맞으면 뜨지 않는다.
 
 `red` 2번이 필요한 이유: 라벨 체계는 모델마다 다르다(KLUE 계열 `PS`/`PER` vs PII 전용 모델 `NAME` 계열). 접두가 어긋나면 파이프라인은 **정상 동작하는데 치환만 0건**이 되고, 그 결과는 "이름이 없는 상담 기록"과 구분되지 않는다 — 경고조차 남지 않는다. 사람 눈 확인에 기대지 않고 기계가 대조한다.
 

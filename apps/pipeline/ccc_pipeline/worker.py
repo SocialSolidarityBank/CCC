@@ -35,7 +35,7 @@ from .backup import BACKUP_ADAPTERS, backup_original_if_enabled
 from .config import Config
 from .diarize import build_diarizer
 from .emotion import aggregate_scores
-from .results import build_result, build_result_request, canonical_sha256
+from .results import build_result, build_result_request
 from .speaker_mapping import BENEFICIARY, assign_speakers, estimate_roles, format_transcript
 from .transcribe import (
     AZURE_ENGINE_ID,
@@ -327,47 +327,16 @@ def _build_person_and_address_ner(config: Config):  # noqa: ANN202
     것이라 R3 위반이다. 늦는 것(D8 SLA · 브리핑은 수기 메모 폴백 D5)이 새는 것보다 낫다.
     """
     if config.ner_model_id is None:
-        raise masking.MaskingConfigError("CCC_NER_MODEL_ID is not set — person-name masking is unavailable")
+        raise masking.MaskingConfigError("canonical masking manifest has no person-name model")
     # 인명과 주소는 같은 모델이 잡는다 — 한 번만 올린다(장비 메모리는 STT·감정과 나눠 쓴다).
     return masking.build_person_and_address_ner(config.ner_model_id, config.ner_labels, config.address_labels)
 
 
 def _build_condition_ner_or_none(config: Config):  # noqa: ANN202
     if config.condition_ner_model_id is None:
-        # 사전 계층(G3)은 항상 동작한다 — NER 은 사전이 놓친 표기를 줍는 보완재다.
-        # 인명과 달리 여기는 없어도 진행한다: 사전이 대체재가 아니라 **주 계층**이다.
-        logger.info("CCC_CONDITION_NER_MODEL_ID is not set — condition masking uses the dictionary only")
+        logger.info("canonical masking manifest uses condition dictionary only")
         return None
     return masking.build_condition_ner(config.condition_ner_model_id, config.condition_ner_labels)
-
-
-def masking_pipeline_version(config: Config) -> str:
-    """스냅샷에 남길 마스킹 버전. **실제로 동작한 계층**을 담는다.
-
-    고정 문자열이면 "질병명이 사전으로만 걸러졌는지 NER 까지 거쳤는지" 를 나중에 되짚을 수
-    없다 — 마스킹 문제가 발견됐을 때 어느 스냅샷이 영향권인지 가려내는 근거가 이 값이다.
-    구분자는 `-` 다: 서버의 버전 식별자 규칙이 `+` 를 받지 않는다.
-    """
-    parts = ["ner-mask-v1"]
-    parts.append("addr" if config.address_labels else "noaddr")
-    parts.append("cond-ner" if config.condition_ner_model_id is not None else "cond-dict")
-    return "-".join(parts)
-
-
-def masking_pipeline_hash(config: Config) -> str:
-    """실제로 동작한 마스킹 구성의 manifest 해시. 버전 문자열보다 정밀한 지문이다.
-
-    S6 가 canonical manifest 모양을 확정하면 그 정의로 바꾼다 — 지금은 Agent 가 쓰는
-    모델·라벨 구성이 곧 manifest 다.
-    """
-    return canonical_sha256({
-        "version": masking_pipeline_version(config),
-        "personModelId": config.ner_model_id,
-        "personLabels": sorted(config.ner_labels),
-        "addressLabels": sorted(config.address_labels),
-        "conditionModelId": config.condition_ner_model_id,
-        "conditionLabels": sorted(config.condition_ner_labels),
-    })
 
 
 def claim_request(config: Config, limit: int | None = None) -> dict[str, Any]:
@@ -816,8 +785,8 @@ def process_audio_job(
             result = build_result(
                 "audio",
                 transcript,
-                masking_pipeline_version=masking_pipeline_version(config),
-                masking_pipeline_hash=masking_pipeline_hash(config),
+                masking_pipeline_version=config.masking_pipeline_version,
+                masking_pipeline_hash=config.masking_pipeline_hash,
                 ner_attestation=config.ner_attestation,
                 release_qualification_receipt_id=config.ner_release_receipt_id,
                 source_ref=f"audio:{job_id}",
@@ -872,8 +841,8 @@ def process_text_job(
     result = build_result(
         "text",
         masked,
-        masking_pipeline_version=masking_pipeline_version(config),
-        masking_pipeline_hash=masking_pipeline_hash(config),
+        masking_pipeline_version=config.masking_pipeline_version,
+        masking_pipeline_hash=config.masking_pipeline_hash,
         ner_attestation=config.ner_attestation,
         release_qualification_receipt_id=config.ner_release_receipt_id,
         source_ref=f"text:{job_id}",
@@ -930,7 +899,7 @@ def assert_device_ready(config: Config) -> None:
             "transcription, which ADR-0024 forbids",
         )
     if config.ner_model_id is None:
-        raise masking.MaskingConfigError("CCC_NER_MODEL_ID is not set — person-name masking is unavailable")
+        raise masking.MaskingConfigError("canonical masking manifest has no person NER model")
 
 
 def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception) -> None:

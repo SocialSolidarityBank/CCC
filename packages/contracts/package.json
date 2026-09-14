@@ -10,6 +10,7 @@
     "./animal-slugs": "./src/animal-slugs.ts",
     "./consent-notice": "./src/consent-notice.ts",
     "./jcs": "./src/jcs.ts",
+    "./masking-pipeline": "./src/masking-pipeline.ts",
     "./capabilities": "./src/capabilities.ts",
     "./install-manifest": "./src/install-manifest.ts",
     "./guards": "./src/guards.ts",

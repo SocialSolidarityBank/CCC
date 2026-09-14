@@ -33,6 +33,10 @@ import {
 } from '@ccc/contracts/audio';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import {
+  hasRegisteredMaskingPipeline,
+  registeredMaskingPipeline,
+} from '@ccc/contracts/masking-pipeline';
+import {
   CONSENT_COPY,
   CONSENT_COPY_VERSION,
   CONSENT_DOMAINS,
@@ -133,7 +137,7 @@ export interface Env {
   TEXT_AI_PILOT_ENABLED?: string;
   /** 설치 LLM 축. 없거나 openai가 아니면 새 기억 처리를 중단한다. */
   CCC_LLM_MODE?: string;
-  /** Approved version -> canonical masking-manifest SHA-256. Absent means fail closed. */
+  /** Canonical masking registry JSON. Missing, malformed, or unmatched tuples fail closed. */
   MEMORY_MASKING_PIPELINES?: string;
   /**
    * 기관 관리자 최종 PII 파기 스위치(CCC-113·CCC-121). 정확히 '1'일 때만
@@ -4099,23 +4103,6 @@ const UNMASKED_RESULT_PATTERNS = [
   /(?<![\d-])\d{2,6}-\d{2,6}-\d{2,8}(?:-\d{2,8})?(?![\d-])/u,
 ] as const;
 
-function hasRegisteredMaskingPipelinePair(env: Env, version: unknown, hash: unknown): boolean {
-  if (
-    typeof version !== 'string'
-    || !VERSION_IDENTIFIER.test(version)
-    || typeof hash !== 'string'
-    || !SHA256_HEX.test(hash)
-  ) return false;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(env.MEMORY_MASKING_PIPELINES ?? '{}');
-  } catch {
-    return false;
-  }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
-  return Object.prototype.hasOwnProperty.call(parsed, version)
-    && (parsed as Record<string, unknown>)[version] === hash;
-}
 
 function assertNoRegisteredPii(text: string, pii: {
   name: string | null;
@@ -4177,7 +4164,15 @@ async function verifyPersistedSnapshotProof(
     throw openAiMaterialError('masking_snapshot_missing');
   }
   const result = capsule.result;
-  if (!hasRegisteredMaskingPipelinePair(env, result.maskingPipelineVersion, result.maskingPipelineHash)) {
+  const maskingManifest = await registeredMaskingPipeline(
+    env.MEMORY_MASKING_PIPELINES,
+    result.maskingPipelineVersion,
+    result.maskingPipelineHash,
+  );
+  if (
+    maskingManifest === null
+    || result.nerAttestationResultHash !== maskingManifest.nerHealthResultHash
+  ) {
     throw openAiMaterialError('masking_pipeline_version_mismatch');
   }
   await assertStoredProofBytes(result);
@@ -11652,7 +11647,19 @@ async function assertAgentJobResultIntegrity(
   ) {
     throw new AgentJobContractError('local_ner_unavailable', job.id);
   }
-  if (!hasRegisteredMaskingPipelinePair(env, result.maskingPipelineVersion, result.maskingPipelineHash)) {
+  const maskingManifest = await registeredMaskingPipeline(
+    env.MEMORY_MASKING_PIPELINES,
+    result.maskingPipelineVersion,
+    result.maskingPipelineHash,
+  );
+  if (
+    maskingManifest === null
+    || job.nerModelId !== maskingManifest.nerModelId
+    || job.nerModelRevision !== maskingManifest.nerModelRevision
+    || job.nerLabelSetHash !== maskingManifest.labelSetHash
+    || job.nerCorpusHash !== maskingManifest.nerHealthCorpusHash
+    || job.nerAttestationResultHash !== maskingManifest.nerHealthResultHash
+  ) {
     throw new AgentJobContractError('masking_pipeline_version_mismatch', job.id);
   }
   if (!SHA256_HEX.test(result.sha256) || await sha256Hex(result.maskedText) !== result.sha256) {
@@ -24756,15 +24763,9 @@ export async function getCounselingMemoryTrialState(env: Env, actor: Actor, supp
   await assertSupportCaseAccess(env, actor, supportCaseId);
   const c = await memoryCase(env, actor.orgId, supportCaseId);
   const blockers: string[] = [];
-  let hasMaskingPipeline = false;
-  try {
-    const pipelines: unknown = JSON.parse(env.MEMORY_MASKING_PIPELINES ?? '{}');
-    hasMaskingPipeline = pipelines !== null && typeof pipelines === 'object' && !Array.isArray(pipelines)
-      && Object.values(pipelines).some(hash => typeof hash === 'string' && SHA256_HEX.test(hash));
-  } catch {
-    // Invalid configuration is a readiness blocker, never an invented approval.
+  if (!await hasRegisteredMaskingPipeline(env.MEMORY_MASKING_PIPELINES)) {
+    blockers.push('masking_pipeline_version_mismatch');
   }
-  if (!hasMaskingPipeline) blockers.push('masking_pipeline_version_mismatch');
   const setting = await env.DB.prepare('SELECT enabled FROM counseling_memory_settings WHERE org_id=?')
     .bind(actor.orgId).first<{ enabled: number }>();
   if (setting?.enabled === 0) blockers.push('memory_setting_off');
@@ -25161,11 +25162,23 @@ async function verifyMemoryProof(env:Env,row:MemoryMaterialRow,result:ResultRequ
     throw new ValidationError('masking_snapshot_missing');
   }
   if(result.kind!=='text'||result.nerAvailable!==true) throw new ValidationError('local_ner_unavailable');
-  if (!hasRegisteredMaskingPipelinePair(env, result.maskingPipelineVersion, result.maskingPipelineHash)) {
+  const maskingManifest = await registeredMaskingPipeline(
+    env.MEMORY_MASKING_PIPELINES,
+    result.maskingPipelineVersion,
+    result.maskingPipelineHash,
+  );
+  if (maskingManifest === null) {
     throw new ValidationError('masking_pipeline_version_mismatch');
   }
   const attestation = parseJson<NerAttestation>(row.attestation_json);
   if (!attestation || !row.receipt_id) throw new ValidationError('local_ner_unavailable');
+  if (
+    attestation.modelId !== maskingManifest.nerModelId
+    || attestation.modelRevision !== maskingManifest.nerModelRevision
+    || attestation.labelSetHash !== maskingManifest.labelSetHash
+    || attestation.corpusHash !== maskingManifest.nerHealthCorpusHash
+    || attestation.resultHash !== maskingManifest.nerHealthResultHash
+  ) throw new ValidationError('masking_pipeline_version_mismatch');
   if (
     result.nerAttestationId !== attestation.id
     || result.nerAttestationResultHash !== attestation.resultHash
