@@ -267,7 +267,7 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels, recordsTarge
           <div className="participant-next-schedule-actions">
             <WireButton href="/schedules/new" icon={<NavIcon name="calendar" />}>상담 등록</WireButton>
             {recordsTarget !== undefined && (
-              <WireButton href={recordsHref(beneficiaryId, recordsTarget.id)}>상담 기록 확인</WireButton>
+              <WireButton href={recordsHref(beneficiaryId, recordsTarget.id)}>상담 기록 확인하기</WireButton>
             )}
           </div>
         </div>
@@ -377,7 +377,7 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
           actions={
             <>
               {intakeTarget !== undefined && (
-                <WireButton href={intakeHref(detail.beneficiaryId, intakeTarget.id)}>인테이크</WireButton>
+                <WireButton href={intakeHref(detail.beneficiaryId, intakeTarget.id)}>인테이크 기록</WireButton>
               )}
               {editable && (
                 <WireButton href={participantEditHref(detail.beneficiaryId)}>기본정보 수정</WireButton>

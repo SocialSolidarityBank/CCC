@@ -225,7 +225,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const { container } = render(<BriefingCards {...baseProps({ pendingReviewSessionIds: ['s-2'] })} />);
     const card = cardByTitle(container, '상담 내용 회차별 정리');
     const link = within(card).getByRole('link', {
-      name: '2026년 7월 15일 기본상담 AI 초안 검토',
+      name: '2026년 7월 15일 기본상담 AI 정리 검토',
     });
     expect(link.getAttribute('href')).toBe(`${baseProps().recordsHref}/s-2/review`);
     const pendingSection = within(card).getByTestId('pending-fixture-reviews');
@@ -244,7 +244,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
       sessionRows: [],
     })} />);
     const card = cardByTitle(container, '상담 내용 회차별 정리');
-    const link = within(card).getByRole('link', { name: /AI 초안 검토/ });
+    const link = within(card).getByRole('link', { name: /AI 정리 검토/ });
     expect(link.getAttribute('href')).toBe(
       `${baseProps().recordsHref}/fixture%2Fsession%20older/review`,
     );
@@ -400,17 +400,19 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
 });
 
 describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D38·D9)', () => {
-  it('HERO 우상단은 행동 3개(당사자 정보, 상담 기록 확인, 상담 기록)다', () => {
+  it('HERO 우상단 행동은 각각 실제 목적지 이름과 경로를 쓴다', () => {
     const { container, queryByText } = render(<BriefingCards {...baseProps()} />);
     const actions = hero(container).querySelector('.page-actions');
-    expect([...(actions?.querySelectorAll('a') ?? [])].map((a) => a.textContent))
-      .toEqual(['당사자 정보', '상담 기록 확인', '상담 기록']);
-    // 이 화면만 D38 상한을 3개로 넓혔다(2026-08-06 Q). 프라이머리는 여전히 오른쪽 끝 1개다.
+    const links = [...(actions?.querySelectorAll('a') ?? [])];
+    expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
+      ['당사자 정보', baseProps().participantHref],
+      ['상담 기록 확인하기', baseProps().recordsHref],
+      ['상담 기록하기', baseProps().recordNewHref],
+    ]);
     expect(actions?.children).toHaveLength(3);
 
     const more = container.querySelector('.briefing-more');
     expect(more?.getAttribute('href')).toBe(baseProps().recordsHref);
-    expect(more?.textContent).toContain('상담 기록 확인');
     // 구 맨 아래 링크가 되살아나면 이 테스트가 잡는다.
     expect(queryByText('자세한 상담 기록 보기')).toBeNull();
     expect(queryByText('← 목록으로')).toBeNull();

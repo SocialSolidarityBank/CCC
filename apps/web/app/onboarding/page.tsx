@@ -64,7 +64,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
     return (
       <main className="page-content">
         <GridContainer>
-          <PageTitle>기관 온보딩</PageTitle>
+          <PageTitle>기관 준비</PageTitle>
           <WireError>
             {unavailable
               ? '온보딩 화면을 열 수 없습니다. 다시 로그인한 뒤 시도하세요.'
@@ -80,7 +80,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   return (
     <main className="page-content">
       <GridContainer>
-        <PageTitle>기관 온보딩</PageTitle>
+        <PageTitle>기관 준비</PageTitle>
 
         {errorCode !== undefined ? (
           <WireError>{errorMessages[errorCode] ?? '저장하지 못했습니다.'}</WireError>

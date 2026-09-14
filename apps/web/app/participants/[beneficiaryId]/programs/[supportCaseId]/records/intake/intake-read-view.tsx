@@ -395,7 +395,7 @@ export function IntakeReadView(props: IntakeReadViewProps) {
 
   return (
     <main className="page-content">
-      <div className="page-header"><PageTitle>인테이크</PageTitle></div>
+      <div className="page-header"><PageTitle>인테이크 기록</PageTitle></div>
       <ParticipantHeroCard
         name={props.participant.name}
         beneficiaryId={props.beneficiaryId}
@@ -411,7 +411,7 @@ export function IntakeReadView(props: IntakeReadViewProps) {
         ]}
         actions={(
           <>
-            <WireButton variant="secondary" href={props.recordsHref}>상담 기록 확인</WireButton>
+            <WireButton variant="secondary" href={props.recordsHref}>상담 기록 확인하기</WireButton>
             {props.canWrite === false ? null : <WireButton variant="primary" href={props.editHref}>수정</WireButton>}
           </>
         )}
