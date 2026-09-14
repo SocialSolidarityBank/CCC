@@ -96,6 +96,7 @@ async function fixtureSupportCase(): Promise<{ caseId: string; supportCaseId: st
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected an initial support case');
   t.env.TEXT_AI_PILOT_ENABLED = '1';
+  t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
   return { caseId: beneficiary.id, supportCaseId };
 }
 

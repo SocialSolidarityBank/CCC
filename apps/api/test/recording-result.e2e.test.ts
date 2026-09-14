@@ -243,6 +243,10 @@ async function postResult(
       },
     ), agentEnv);
     if (verified.status !== 200) throw new Error('expected Agent audio verification');
+    const source = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/source`, {
+      headers: { ...AGENT_SERVICE_HEADERS, 'X-CCC-Job-Claim': job.claimToken, 'X-CCC-Job-Attempt': String(job.attempt) },
+    }), agentEnv);
+    if (source.status !== 200) throw new Error('expected verified audio source binding');
   }
   const result = {
     ...body,
@@ -375,6 +379,7 @@ function runDeviceClient(
     '    client.verify_audio(job["jobId"], {"claimToken":job["claimToken"],"attempt":job["attempt"],"generationId":job["audio"]["generationId"],"agentComputedSha256":audio_sha256})',
     'finally:',
     '    audio_path.unlink(missing_ok=True)',
+    'client.get_source_bundle(job["jobId"], job["claimToken"], job["attempt"])',
     'result = build_result(',
     '    "audio",',
     `    ${JSON.stringify(MASKED_FIXTURE)},`,
@@ -713,7 +718,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     });
   });
 
-  it('reclaims an expired downstream claim after an interrupted Worker request', async () => {
+  it('reclaims expired downstream leases without upgrading legacy snapshots through S5', async () => {
     await t.reset();
     const env = await agentManifestEnv({
       ...t.env,
@@ -746,23 +751,18 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     expect(currentClaim?.downstream_claimed_at).toBe(reclaimed);
     await releaseRecordingResultDownstream(env, service, session.id, reclaimed);
 
-    expect((await postResult(env, session.id, result)).status).toBe(204);
-
-    const recovered = await t.db.prepare(
-      `SELECT session.ai_status,
-              (SELECT COUNT(*) FROM ai_work_items WHERE session_id = session.id) AS work_items,
-              (SELECT origin FROM ai_draft_versions AS draft
-               JOIN ai_work_items AS work ON work.id = draft.work_item_id
-               WHERE work.session_id = session.id
-               ORDER BY draft.version DESC LIMIT 1) AS origin
-       FROM sessions AS session
-       WHERE session.id = ?`,
-    ).bind(session.id).first<{ ai_status: string; work_items: number; origin: string | null }>();
-    expect(recovered).toEqual({
-      ai_status: 'review_ready',
-      work_items: 1,
-      origin: 'fixture_generated',
-    });
+    const rejected = await postResult(env, session.id, result);
+    expect(rejected.status).toBe(422);
+    expect(await rejected.json()).toMatchObject({ error: 'masking_snapshot_missing' });
+    await expect(t.db.prepare(
+      `SELECT proof_json,entity_source_binding FROM ai_masked_source_snapshots WHERE session_id=?`,
+    ).bind(session.id).first()).resolves.toEqual({ proof_json: null, entity_source_binding: null });
+    await expect(t.db.prepare(
+      `SELECT
+        (SELECT COUNT(*) FROM ai_work_items WHERE session_id=?) AS work_items,
+        (SELECT COUNT(*) FROM agent_job_result_acceptances a
+         JOIN agent_jobs j ON j.id=a.job_id WHERE j.session_id=?) AS acceptances`,
+    ).bind(session.id, session.id).first()).resolves.toEqual({ work_items: 0, acceptances: 0 });
   });
 
   it('rejects unauthorized, cross-organization, malformed, unsafe, and non-numeric results without mutation', async () => {
@@ -881,7 +881,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     expect(draft).toEqual({ origin: 'generated', creation_mode: 'provider_generated' });
   });
 
-  it('keeps one accepted result pending when provider work fails and resumes it on the same retry', async () => {
+  it('keeps an accepted result pending without repeating provider work on payload replay', async () => {
     await t.reset();
     const provider = new FixtureAiProvider();
     provider.failure = new Error('fixture provider unavailable');
@@ -922,12 +922,12 @@ describe('recording result end-to-end contract (CCC-95)', () => {
        WHERE session.id = ?`,
     ).bind(session.id).first<{ ai_status: string; finalized_at: string | null; snapshots: number; work_items: number }>();
     expect(completed).toEqual({
-      ai_status: 'review_ready',
-      finalized_at: expect.any(String),
+      ai_status: 'uploaded',
+      finalized_at: null,
       snapshots: 1,
-      work_items: 1,
+      work_items: 0,
     });
-    expect(provider.calls).toBe(2);
+    expect(provider.calls).toBe(1);
   });
 });
 describe('recording result transcript quality (CCC-124)', () => {
