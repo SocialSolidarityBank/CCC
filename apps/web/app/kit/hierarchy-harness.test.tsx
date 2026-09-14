@@ -356,7 +356,7 @@ const SCREENS: Screen[] = [
   },
   {
     id: 'session-plan',
-    label: '세션 목표 수정',
+    label: '상담 계획',
     node: <SessionPlanEditor
       scheduleId="s1"
       beneficiaryId="swallow-003"
@@ -373,7 +373,7 @@ const SCREENS: Screen[] = [
     label: '당사자 등록',
     node: <RegisterForm currentUser={{ name: '이지은', email: 'staff@example.test' } as never} action={noop as never} />,
   },
-  { id: 'review', label: 'AI 초안 검토', node: <DraftReviewView {...reviewProps} /> },
+  { id: 'review', label: 'AI 정리 검토', node: <DraftReviewView {...reviewProps} /> },
 ];
 
 // ---------------------------------------------------------------------------

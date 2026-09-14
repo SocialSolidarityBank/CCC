@@ -202,14 +202,14 @@ export function DraftReviewView({
     <div data-testid="ai-draft-review">
       <GridContainer as="main" className="page-content">
         <div className="page-header">
-          <PageTitle>AI 초안 검토</PageTitle>
+          <PageTitle>AI 정리 검토</PageTitle>
         </div>
 
         <ParticipantHeroCard
           name={participantName}
           beneficiaryId={beneficiaryId}
           details={[...details, { label: 'AI 검토 상태', value: reviewStatus, tone: 'lavender' }]}
-          actions={<WireButton href={recordsHref} variant="secondary">상담 기록 확인</WireButton>}
+          actions={<WireButton href={recordsHref} variant="secondary">상담 기록 확인하기</WireButton>}
         />
 
         {isFixture && (

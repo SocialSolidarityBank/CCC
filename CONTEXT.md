@@ -8,6 +8,22 @@
 
 ## Language
 
+### 화면 표시명과 개념명
+
+**화면 표시명**은 사람이 목적지를 찾고 이동할 때 보는 이름이다. 같은 목적지의 메뉴, `PageTitle`, 이동 링크는 아래 이름을 그대로 쓴다. **개념명**은 화면 안에서 다루는 업무 개념이고 **식별자**는 URL, 코드, API, DB에서 쓰는 값이다. 화면 표시명을 맞추더라도 개념명과 식별자는 바꾸지 않는다.
+
+| 화면 표시명 | 화면이 다루는 개념 | 기존 식별자 예시 |
+| --- | --- | --- |
+| 일정 | 상담 일정의 일간·주간·월간 조회 | `/schedule`, `/programs/:programType/schedule` |
+| 상담 계획 | 일정에 연결된 세션 목표 확인·수정 | `/schedules/:scheduleId/plan` |
+| 상담 기록 확인하기 | 한 참여 사업의 쌓인 상담 기록 조회 | `/participants/:beneficiaryId/programs/:supportCaseId/records` |
+| 상담 기록하기 | 기본 상담 기록 작성 | `/participants/:beneficiaryId/programs/:supportCaseId/records/new` |
+| 인테이크 기록 | 첫 회차인 인테이크의 작성·조회·수정 | `/participants/:beneficiaryId/programs/:supportCaseId/records/intake`, `kind: intake` |
+| AI 정리 검토 | AI 초안의 근거 확인과 승인·반려 | `/participants/:beneficiaryId/programs/:supportCaseId/records/:sessionId/review` |
+| 기관 준비 | 기관의 첫 온보딩 절차 | `/onboarding` |
+
+표시명은 업무 상태를 지우지 않는다. 쓰는 자리의 `상담 기록하기`, 읽는 자리의 `상담 기록 확인하기`, 종결 화면의 미완료 액션은 서로 다른 과제이므로 같은 말로 합치지 않는다.
+
 ### 케이스와 사람
 
 **기관**:

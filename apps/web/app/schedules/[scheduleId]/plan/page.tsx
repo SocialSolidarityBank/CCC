@@ -58,7 +58,7 @@ export default async function ScheduleSessionPlanPage({
 
   const frame = (body: ReactNode) => (
     <GridContainer as="main" className="page-content">
-      <div className="page-header"><PageTitle>세션 목표 수정</PageTitle></div>
+      <div className="page-header"><PageTitle>상담 계획</PageTitle></div>
       {body}
     </GridContainer>
   );

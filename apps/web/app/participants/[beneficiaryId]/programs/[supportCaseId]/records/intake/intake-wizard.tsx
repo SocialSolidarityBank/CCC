@@ -1092,8 +1092,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
 
   return (
     <main className="page-content">
-      {/* 페이지 타이틀(2026-08-08 Q — 화면 이름은 '인테이크'다. 작성·수정 모두 같은 이름). */}
-      <div className="page-header"><PageTitle>인테이크</PageTitle></div>
+      {/* 작성과 수정은 같은 목적지 이름 '인테이크 기록'을 쓴다. */}
+      <div className="page-header"><PageTitle>인테이크 기록</PageTitle></div>
           <ParticipantHeroCard
             name={props.participant.name}
             beneficiaryId={props.beneficiaryId}

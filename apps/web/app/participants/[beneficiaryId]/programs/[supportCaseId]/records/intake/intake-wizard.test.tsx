@@ -127,6 +127,11 @@ function fillAllQuestions(scoped: ReturnType<typeof within>): void {
   }
 }
 
+  it('화면 제목은 인테이크 기록 목적지 이름을 쓴다', () => {
+    const { container } = renderWizard();
+    expect(within(container).getByRole('heading', { level: 1, name: '인테이크 기록' })).toBeTruthy();
+  });
+
 function completeButton(scoped: ReturnType<typeof within>): HTMLButtonElement {
   return scoped.getByRole('button', { name: '완료' }) as HTMLButtonElement;
 }

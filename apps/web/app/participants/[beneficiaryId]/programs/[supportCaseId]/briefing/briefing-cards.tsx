@@ -369,12 +369,11 @@ export function BriefingCards({
         beneficiaryId={beneficiaryId}
         details={heroDetails}
         actions={<>
-          {/* '전체 상담 기록'은 2026-08-06 Q 로 페이지 맨 아래(구 '자세한 상담 기록 보기')에서
-              여기로 올라왔다 — D38 의 행동 2개 상한은 이 화면에 한해 3개로 넓힌다.
-              HERO 행동 줄은 전부 40 이다(2026-08-26 Q "상담 기록만 크다" — 구 보조 32 폐지). */}
+          {/* 상담 기록 확인하기는 2026-08-06 Q 결정으로 페이지 맨 아래에서 여기로 올라왔다.
+              D38의 행동 2개 상한은 이 화면에 한해 3개로 넓힌다. */}
           <WireButton href={participantHref} variant="secondary">당사자 정보</WireButton>
-          <WireButton className="briefing-more" href={recordsHref} variant="secondary">상담 기록 확인</WireButton>
-          <WireButton href={recordNewHref} variant="primary">상담 기록</WireButton>
+          <WireButton className="briefing-more" href={recordsHref} variant="secondary">상담 기록 확인하기</WireButton>
+          <WireButton href={recordNewHref} variant="primary">상담 기록하기</WireButton>
         </>}
       />
 
@@ -505,10 +504,8 @@ export function BriefingCards({
           title="상담 내용 회차별 정리"
           badge={pendingApprovalCount > 0 ? <WireBadge tone="lavender">승인 대기 {pendingApprovalCount}건</WireBadge> : null}
         >
-          {/* 이 문은 이제 프리뷰 fixture 만이 아니라 실제 생성 초안도 담는다(D69 · ADR-0036
-              · CCC-100 — 검토 화면이 "AI 초안 검토"로 넓어진 뒤 문구도 그 성격을 따라간다.
-              구획 카드(.briefing-memo-item)는 2026-08-30 Q "div 컴포넌트화" — 영역 ① 과
-              같은 반복 행 카드다. */}
+          {/* 이 문은 프리뷰 fixture와 실제 생성 초안을 함께 담는다(D69, ADR-0036, CCC-100).
+              목적지는 AI 정리 검토이고, 구획 카드는 영역 ①과 같은 반복 행 카드다. */}
           {pendingReviewRows.length > 0 && (
             <div className="briefing-memo-item wire-repeat-card">
             <WireCardSection
@@ -526,9 +523,9 @@ export function BriefingCards({
                     action={(
                       <Link
                         href={`${recordsHref}/${encodeURIComponent(row.sessionId)}/review`}
-                        aria-label={`${row.heldAtLabel} ${row.kindLabel} AI 초안 검토`}
+                        aria-label={`${row.heldAtLabel} ${row.kindLabel} AI 정리 검토`}
                       >
-                        AI 초안 검토
+                        AI 정리 검토
                       </Link>
                     )}
                   />

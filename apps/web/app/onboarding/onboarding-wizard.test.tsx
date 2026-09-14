@@ -21,6 +21,7 @@ function buttonByText(container: HTMLElement, text: string): HTMLButtonElement {
 describe('OnboardingWizard (CCC-32 · 스펙 #78 US 1)', () => {
   it('1단계 기관 이름 → 2단계 사업 이름 순서로 진행하고, 빈 값이면 다음이 잠긴다', () => {
     const { container } = render(<OnboardingWizard action={vi.fn()} />);
+    expect(container.querySelector('form')?.getAttribute('aria-label')).toBe('기관 준비');
 
     // 1단계: 기관 이름. 비어 있으면 다음 버튼이 눌리지 않는다.
     expect(container.textContent).toContain('1단계 / 2단계');

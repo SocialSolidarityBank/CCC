@@ -194,7 +194,7 @@ export function SessionPlanEditor({
       {/* 카드 밖 페이지 제목 줄 + 저장(기본정보 수정 화면과 같은 문법). 자동 저장 상태는
           별도 임시 저장 버튼이 없으므로 저장 옆에 상시 보여준다(상담 기록지와 같은 이유). */}
       <div className="page-header">
-        <PageTitle>세션 목표 수정</PageTitle>
+        <PageTitle>상담 계획</PageTitle>
         <div className="page-actions">
           <DraftStatus savedAt={draft.savedAt} available={draft.available} />
           <WireButton type="submit" variant="primary" form="session-plan-form" disabled={busy} icon={<Icon name="check" />}>저장</WireButton>

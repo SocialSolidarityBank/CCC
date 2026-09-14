@@ -79,8 +79,8 @@ export default async function NewIntakePage({
   if (context.error !== null) {
     return (
       <PageError
-        title="인테이크"
-        action={<WireButton variant="secondary" href={recordsHref}>상담 기록 확인</WireButton>}
+        title="인테이크 기록"
+        action={<WireButton variant="secondary" href={recordsHref}>상담 기록 확인하기</WireButton>}
       >
         {messages[context.error]}
       </PageError>
@@ -146,8 +146,8 @@ export default async function NewIntakePage({
   if (!context.data.canWrite) {
     return (
       <PageError
-        title="인테이크"
-        action={<WireButton variant="secondary" href={recordsHref}>상담 기록 확인</WireButton>}
+        title="인테이크 기록"
+        action={<WireButton variant="secondary" href={recordsHref}>상담 기록 확인하기</WireButton>}
       >
         지금은 읽기만 할 수 있어요. 새 인테이크 기록을 작성할 수 없습니다.
       </PageError>
