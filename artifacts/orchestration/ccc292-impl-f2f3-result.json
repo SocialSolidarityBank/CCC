@@ -1,133 +1,101 @@
 {
-  "assignmentId": "CCC292-IMPL-F2-ONLY-20260914",
-  "status": "BLOCKED_F2_F3_SEPARATION",
-  "baseCommit": "9a09f9443a87f569c691f86c2c26046324076204",
-  "commit": null,
-  "committedFiles": [],
-  "completedRepairs": [
-    "gateway.ts textSourceBinding의 고립된 SQL과 중복 조회를 하나의 함수와 조회로 수리했다. 인접 getAgentJobSource의 누락된 닫는 중괄호도 복구했다.",
-    "이전 편집에서 빠진 assertTextJobSourceCurrent, readMemoryClaim, memoryClaim, claimCounselingMemorySources의 return, EgressAuthorizationRequest 및 listGoals import를 기존 코드에서 복구했다. 삭제된 F1 checkpoint도 원래대로 추가해 F3 checkpoint와 함께 보존했다.",
-    "registerCaseEntities는 sourceId와 sourceRevision뿐 아니라 code-point 범위까지 맞는 descriptor와 본문을 선택한다. 뒤쪽 줄과 비BMP 문자 뒤 occurrence, 같은 값의 여러 entry가 번호 하나를 받는 회귀 검사를 추가했다.",
-    "형식이 유효하지만 인용 또는 범위가 잘못된 witness는 evidence_hash_mismatch 422로 거부한다. generic은 기존 closeJobOnResultRejection으로 claim을 닫고, memory는 기존 permanent release 경로를 쓴다. parser 형식 오류 400은 유지했다.",
-    "등록 guard가 실제 존재하지 않는 audio_objects.raw_sha256을 참조하던 오류를 기존 object_sha256 컬럼으로 수리했다.",
-    "기존 감사 assertion을 유지하고 새 테스트의 조회 키만 폐기된 case_id에서 canonical support_case_id로 수정했다.",
-    "Python에서 누락된 build_result 닫는 괄호, 기존 masking/repetition/Azure import, source fixture의 필수 반환 필드를 복구했다."
+  "assignmentId": "CCC292-COMMIT-F2-PARTIAL-20260914",
+  "status": "COMMITTED_F2_CLOSED_F3_PARTIAL",
+  "commit": "6f6e334cb4e5e693f7aede38240f9ca0b8443562",
+  "title": "개체 등록 F2를 마감하고 F3 부분 진행을 보존",
+  "body": "F2는 닫혔고 F3는 부분 진행이며 새 G7 치환은 제품 AI 경로에 연결되지 않았다.",
+  "fileCount": 25,
+  "committedFiles": [
+    "apps/api/test/agent-source-fence.contract.test.ts",
+    "apps/api/test/entity-registration.contract.test.ts",
+    "apps/api/test/entity-registration.routes.test.ts",
+    "apps/api/test/migration-parity.test.ts",
+    "apps/api/test/support/migration-parity.ts",
+    "apps/pipeline/ccc_pipeline/api_client.py",
+    "apps/pipeline/ccc_pipeline/masking.py",
+    "apps/pipeline/ccc_pipeline/worker.py",
+    "apps/pipeline/tests/test_api_client_worker.py",
+    "apps/pipeline/tests/test_masking.py",
+    "artifacts/orchestration/.ccc291-smoke.ts",
+    "artifacts/orchestration/ccc291-core-result.json",
+    "artifacts/orchestration/ccc291-fixture-result.json",
+    "artifacts/orchestration/ccc291-trigger-result.json",
+    "artifacts/orchestration/ccc292-impl-f1-result.json",
+    "artifacts/orchestration/ccc292-impl-f2f3-result.json",
+    "artifacts/orchestration/ccc292-technical-freeze-result.json",
+    "artifacts/orchestration/ccc301-core-result.json",
+    "migrations/postgres/0023_entity_registration_binding.sql",
+    "migrations/sqlite/0067_entity_registration_binding.sql",
+    "packages/contracts/package.json",
+    "packages/contracts/src/agent-jobs.ts",
+    "packages/contracts/src/entity-registration.ts",
+    "packages/core/src/gateway.ts",
+    "packages/http-api/src/request-handler.ts"
   ],
-  "commitBlocker": {
-    "reason": "현재 F2 구현은 F3 전용 저장 구조와 함수에 직접 의존하므로, 기존 변경을 단순 부분 staging하는 것만으로 독립 동작하는 F2 커밋이 되지 않는다.",
-    "dependencyChain": [
-      "registerCaseEntities -> entityRegistrationContext / supersedeEntityRegistration",
-      "등록 transaction -> agent_jobs.entity_source_binding / counseling_memory_materials.entity_source_binding",
-      "등록 currentness guard -> support_cases.entity_map_lease_family/job_id/attempt/expires_at",
-      "위 컬럼과 동작 -> 미커밋 0067_entity_registration_binding.sql / 0023_entity_registration_binding.sql"
-    ],
-    "decision": "F3를 포함하지 말라는 지시를 지켜 이 의존 코드를 몰래 커밋하지 않았다. F2를 P2만으로 축소하거나 깨진 독립 커밋을 완료로 보고하지 않았다. staging과 로컬 commit은 하지 않았다.",
-    "requiredNextBoundary": "F3 저장 구조를 제외한 F2 독립 경계를 먼저 정리하거나, 필요한 공유 저장 경계를 다음 F3 배정에서 완료해야 한다. 이번에는 새 독립화 구현을 추가하지 않았다."
-  },
+  "newMigrations": [
+    { "database": "sqlite", "number": "0067", "file": "migrations/sqlite/0067_entity_registration_binding.sql" },
+    { "database": "postgres", "number": "0023", "file": "migrations/postgres/0023_entity_registration_binding.sql" }
+  ],
+  "f2Closed": [
+    "단일 POST /pipeline/entity-registrations와 엄격한 parser, service actor 경계",
+    "code-point 범위까지 일치하는 occurrence 선택과 같은 bundle 동일 kind/value의 단일 번호",
+    "명시적 alias 증거, 모호성 및 증거 부족의 번호 미배정, 기존 generic mask 유지",
+    "암호화 receipt 재생과 중복 번호 및 중복 변경 감사 방지",
+    "형식 오류 400과 witness 부적합 422 evidence_hash_mismatch의 분리 및 기존 claim 종료 경로",
+    "MemoryApiClient의 정확한 공용 등록 경로 허용과 등록 HTTP 400의 permanent result_schema_invalid release 1회 처리",
+    "gateway 인접 문법 및 누락된 기존 선언 복구"
+  ],
+  "f3Remaining": [
+    "기관 시간대의 상담일과 dateRevision 결속을 완료해야 한다. UTC 문자열 앞 10자리나 처리 시각을 원래 상담일로 대신하지 않는다.",
+    "memory material의 실제 원래 상담 lineage와 PII 치환 전후 본문 좌표, 코어와 Agent metadata의 일치를 종단 검증해야 한다.",
+    "audio source getter의 검증된 원음 hash 컬럼, verify_audio 이후 상태 및 generation 결속을 확인해야 한다.",
+    "공유 사례 임대, source/map/date 변경의 원자 supersede와 적격 successor 재개, 자기 등록 예외를 완료하고 검증해야 한다.",
+    "동의/NER/vault 변경과 결과 수락 사이의 원자성 및 승인, 브리핑, memory 소비 경계까지의 현재성 전파가 남아 있다.",
+    "새 PostgreSQL migration과 SQLite/PostgreSQL parity는 실행 검증하지 않았다."
+  ],
+  "remainingProblems": [
+    "F3는 부분 구현을 보존한 상태이며 완료나 운영 준비 상태로 보지 않는다.",
+    "기관명 자동 감지는 현행 attested person/address NER의 자격 범위 밖이다. institution 입력 계약과 Agent 기관명 감지의 종단 완료를 구분한다.",
+    "신규 G7 치환과 제품 AI cutover는 이번 커밋 범위가 아니다. 기존 v2 산출물의 hash/offset을 사후 변경하지 않는다."
+  ],
+  "originalFiveBlockers": [
+    { "id": 1, "status": "CLOSED", "point": "gateway 인접 문법과 기존 선언 복구" },
+    { "id": 2, "status": "CLOSED", "point": "범위 없는 첫 ID/revision occurrence 선택" },
+    { "id": 3, "status": "CLOSED", "point": "witness 부적합을 parser 400으로 보내던 거부 경계" },
+    { "id": 4, "status": "F3_REMAINING", "point": "memory 좌표, 원래 상담 lineage, 기관 시간대 및 audio metadata" },
+    { "id": 5, "status": "F3_REMAINING", "point": "원자 supersede/successor와 전체 currentness 전파", "commitSeparation": "사용자 승인으로 부분 F3를 같은 커밋에 포함해 분리 차단은 해소" }
+  ],
   "verification": {
-    "targetedApi": {
-      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/entity-registration.routes.test.ts apps/api/test/entity-registration.contract.test.ts --maxWorkers 1 -t 'HTTP boundary|assigns one|selects a later|rejects a well-formed|allocates numbers|serializes simultaneous|returns ambiguous|requires an explicit|does not allocate|denies non-service'",
-      "finalExitCode": 0,
-      "filesPassed": 2,
-      "testsPassed": 13,
-      "testsFailed": 0,
-      "testsSkipped": 1,
-      "skipReason": "F3 원천 변경/successor 검사는 배정 범위 밖이라 이름 필터로 제외했다. assertion을 제거하거나 완화하지 않았다.",
-      "invocations": 3,
-      "earlierResults": ["8 failed / 5 passed / 1 skipped", "2 failed / 11 passed / 1 skipped"],
-      "limitation": "미커밋 F3 코드와 SQLite 0067을 포함한 현재 작업 파일에서 실행했다. F2-only 커밋이나 F1-only 스키마의 독립 통과 증거가 아니다."
-    },
-    "apiTypecheck": {
-      "command": "pnpm --filter @ccc/api typecheck",
-      "finalExitCode": 0,
-      "successfulRuns": 1,
-      "invocations": 4,
-      "earlierFailures": "누락 중괄호, 기존 선언/import 소실 및 새 테스트의 unknown 접근을 수리했다. 검사 설정과 기존 assertion은 완화하지 않았다."
-    },
-    "python": {
-      "command": "python3 -m unittest tests.test_api_client_worker tests.test_masking",
-      "cwd": "apps/pipeline",
-      "invocations": 2,
-      "importOnlyFailureInvocations": 1,
-      "actualSuiteExecutions": 1,
-      "testsRun": 106,
-      "errors": 26,
-      "exitCode": 1,
-      "passingClaim": false,
-      "observedFailures": "첫 호출은 닫히지 않은 build_result 때문에 import 단계에서 중단됐다. 괄호 수리 뒤 기존 모듈 106건을 한 번 실행했고, 누락된 masking/Azure import와 불완전한 F3 source fixture가 오류를 냈다.",
-      "afterRun": "누락 import와 fixture 필드를 수리했지만 요청한 unittest 실행 횟수를 더 늘리지 않았다. 수정 후 106건 통과는 주장하지 않는다."
+    "apiTypecheck": { "status": "PASS_PREVIOUS_EVIDENCE", "successfulRuns": 1, "rerunThisAssignment": false },
+    "targetedApi": { "status": "PASS_PREVIOUS_EVIDENCE", "filesPassed": 2, "testsPassed": 13, "f3TestsExcluded": 1, "rerunThisAssignment": false },
+    "pythonUnittest": { "status": "PASS_USER_REPORTED_AND_ACCEPTED", "evidenceSource": "이번 사용자 배정에서 통과 근거를 수락했다고 명시", "rerunThisAssignment": false },
+    "normalCommitHooks": {
+      "executions": 1,
+      "exitCode": 0,
+      "checks": ["guard:db", "guard:core-imports", "guard:doc-numbers", "guard:secrets", "guard:tokens", "guard:align", "guard:hierarchy", "guard:hierarchy:test"]
     },
     "globalTests": "NOT_RUN",
     "lint": "NOT_RUN",
-    "parity": "NOT_RUN",
-    "commitHooks": "NOT_RUN_NO_COMMIT"
+    "parity": "NOT_RUN"
   },
-  "originalFiveBlockers": [
-    {
-      "id": 1,
-      "status": "RESOLVED_IN_WORKING_TREE",
-      "file": "packages/core/src/gateway.ts",
-      "point": "textSourceBinding / getAgentJobSource 및 빠진 기존 선언",
-      "evidence": "문법과 타입 복구 뒤 API typecheck exit 0. F3 함수 본체를 커밋한 것은 아니다."
-    },
-    {
-      "id": 2,
-      "status": "RESOLVED_IN_WORKING_TREE",
-      "file": "packages/core/src/gateway.ts",
-      "point": "registerCaseEntities occurrence 선택",
-      "evidence": "ID/revision와 code-point 범위를 함께 선택한다. 뒤쪽 줄, 비BMP 문자 뒤 위치, 동일값 여러 entry의 단일 번호 표적 검사 통과."
-    },
-    {
-      "id": 3,
-      "status": "RESOLVED_IN_WORKING_TREE",
-      "file": "packages/core/src/gateway.ts",
-      "point": "registerCaseEntities witness 거부",
-      "evidence": "정상 형식의 잘못된 quote/range는 422 evidence_hash_mismatch와 failed/credential clear를 확인했다. parser 400 검사도 통과."
-    },
-    {
-      "id": 4,
-      "status": "DEFERRED_TO_F3",
-      "files": ["packages/core/src/gateway.ts", "apps/pipeline/ccc_pipeline/api_client.py", "apps/pipeline/ccc_pipeline/worker.py"],
-      "point": "memory 좌표와 source bundle, 기관 시간대 상담일, 실제 원래 상담 lineage",
-      "evidence": "F3 계약과 종단 검증은 완료하지 않았다. Python 전체 변경 모듈의 통과 증거도 없다."
-    },
-    {
-      "id": 5,
-      "status": "DEFERRED_TO_F3_AND_BLOCKS_F2_COMMIT",
-      "files": ["packages/core/src/gateway.ts", "migrations/sqlite/0067_entity_registration_binding.sql", "migrations/postgres/0023_entity_registration_binding.sql", "apps/api/test/agent-source-fence.contract.test.ts"],
-      "point": "공유 임대와 source/map/date supersede, successor 및 전체 소비 경계의 currentness",
-      "evidence": "구현과 스키마는 미커밋 보존했다. F3를 제거한 독립 F2 커밋 경계는 아직 없다. parity나 F3 회귀 검사는 실행하지 않았다."
-    }
-  ],
-  "f3OnlyUncommittedFiles": [
-    "migrations/sqlite/0067_entity_registration_binding.sql",
-    "migrations/postgres/0023_entity_registration_binding.sql",
-    "apps/api/test/agent-source-fence.contract.test.ts",
-    "apps/api/test/migration-parity.test.ts",
-    "apps/api/test/support/migration-parity.ts",
-    "apps/pipeline/ccc_pipeline/masking.py",
-    "apps/pipeline/tests/test_masking.py",
-    "packages/contracts/src/agent-jobs.ts"
-  ],
-  "mixedF2F3UncommittedFiles": [
-    "packages/core/src/gateway.ts",
-    "packages/contracts/src/entity-registration.ts",
-    "apps/api/test/entity-registration.contract.test.ts",
-    "apps/pipeline/ccc_pipeline/api_client.py",
-    "apps/pipeline/ccc_pipeline/worker.py",
-    "apps/pipeline/tests/test_api_client_worker.py"
-  ],
-  "otherF2UncommittedFiles": [
-    "packages/contracts/package.json",
-    "packages/http-api/src/request-handler.ts",
-    "apps/api/test/entity-registration.routes.test.ts"
-  ],
+  "parityHandoff": {
+    "targetCheckpoint": "entity-registration-binding",
+    "predecessorCheckpoints": ["agent-text-source-fence", "case-entity-mapping"],
+    "checkpointMigrations": [
+      { "checkpoint": "agent-text-source-fence", "sqlite": "0065", "postgres": "0021" },
+      { "checkpoint": "case-entity-mapping", "sqlite": "0066", "postgres": "0022" },
+      { "checkpoint": "entity-registration-binding", "sqlite": "0067", "postgres": "0023" }
+    ],
+    "instruction": "맥북 parity 실행에서 위 checkpoint 결과를 확인하고 F3 후속에 전달한다. 이번 배정에서는 실행하지 않았다."
+  },
   "operations": {
-    "preexistingUncommittedWorkDeletedOrReverted": false,
-    "stagedFiles": 0,
+    "localCommitsCreated": 1,
+    "implementationEditsThisAssignment": 0,
+    "uncommittedWorkDeletedOrReverted": false,
     "pushMergeDeploy": false,
     "productionDatabaseOrProviderAccess": false,
-    "migrationManifestChanged": false
+    "reportUpdatedAfterCommit": true,
+    "reportUpdateCommitted": false
   },
-  "completionMarker": "CORE_RESULT CCC292-IMPL-F2-ONLY-20260914"
+  "completionMarker": "CORE_RESULT CCC292-COMMIT-F2-PARTIAL-20260914"
 }

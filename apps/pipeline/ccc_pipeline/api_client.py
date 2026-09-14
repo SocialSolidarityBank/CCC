@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -459,6 +460,10 @@ class ApiClient:
             or payload["sourceRevision"] == ""
             or not isinstance(payload.get("sourceSha256"), str)
             or (payload["sourceSha256"] == "" and audio is None)
+            or (
+                audio is None
+                and payload["sourceSha256"] != hashlib.sha256(payload["text"].encode("utf-8")).hexdigest()
+            )
             or not _is_safe_integer(payload.get("sourceLength"))
             or payload["sourceLength"] != len(payload["text"])
             or not isinstance(payload.get("sourceBundleRevision"), str)
@@ -482,6 +487,13 @@ class ApiClient:
                 or not _is_safe_integer(source.get("end"))
                 or source["end"] < source["start"]
                 or source["end"] > len(payload["text"])
+            ):
+                raise ApiError(200, "result_schema_invalid")
+            if (
+                audio is None
+                and source["sha256"] != hashlib.sha256(
+                    payload["text"][source["start"]:source["end"]].encode("utf-8")
+                ).hexdigest()
             ):
                 raise ApiError(200, "result_schema_invalid")
         return payload
