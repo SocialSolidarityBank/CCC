@@ -64,6 +64,9 @@ import {
   completeRecordingUploadStorageWrite,
   failAgentJobAudioTargetMint,
   authorizeSessionTextAiEgress,
+  authorizeOpenAiEgress,
+  beginOpenAiEgress,
+  finishOpenAiEgress,
   approveSession,
   activateAiProviderConfiguration,
   collectDiscrepancyDetectionSources,
@@ -1723,16 +1726,12 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
   let sourceCount: number | null = null;
   let storedCount: number | null = null;
   let model: string | null = null;
+  let egressAuthorizationId: string | undefined;
 
   try {
     const material = await collectDiscrepancyDetectionSources(env, actor, sessionId);
     caseId = material.caseId;
     sourceCount = material.sources.length;
-    if (!material.sources.some((source) => source.sessionId === material.triggerSessionId)) {
-      // 가장 흔한 상태다 — 장비가 아직 2차 마스킹 스냅샷을 올리지 않았다(대기 중, D8).
-      outcome = 'skipped_no_snapshot';
-      return;
-    }
     // 텍스트 AI 동의 게이트 (D15 · D44) — 파일럿 중지·동의 부재면 여기서 던져 스킵된다.
     // 서비스 역할(장비 스냅샷 직후 경로)은 수집 단계에서 이미 같은 게이트를 통과했다.
     if (actor.role !== 'service') await assertPilotTextAiConsent(env, actor, material.caseId);
@@ -1751,7 +1750,13 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
           outcome = 'skipped_unsupported';
           return;
         }
-        await authorizeSessionTextAiEgress(env, actor, sessionId);
+        const authorization = await authorizeOpenAiEgress(env, actor, sessionId, {
+          operation: 'detect_discrepancies',
+          configHash: await canonicalAiProviderConfigHash(config),
+          materials: material.materialRefs,
+        });
+        egressAuthorizationId = authorization.egressAuthorizationId;
+        await beginOpenAiEgress(env, actor, egressAuthorizationId, 'detect_discrepancies');
         rawOutput = await adapter.detectDiscrepancies(providerRequest);
       }
     } else {
@@ -1761,7 +1766,13 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
         outcome = 'skipped_unsupported';
         return;
       }
-      await authorizeSessionTextAiEgress(env, actor, sessionId);
+      const authorization = await authorizeOpenAiEgress(env, actor, sessionId, {
+        operation: 'detect_discrepancies',
+        configHash: await canonicalAiProviderConfigHash(config),
+        materials: material.materialRefs,
+      });
+      egressAuthorizationId = authorization.egressAuthorizationId;
+      await beginOpenAiEgress(env, actor, egressAuthorizationId, 'detect_discrepancies');
       rawOutput = await adapter.detectDiscrepancies(providerRequest);
     }
     const output = validateDiscrepancyDetectionOutput(rawOutput, providerRequest);
@@ -1771,13 +1782,15 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
       leftQuote: item.leftQuote,
       rightSessionId: item.rightRef,
       rightQuote: item.rightQuote,
-    })));
+    })), egressAuthorizationId);
     storedCount = output.discrepancies.length;
     outcome = storedCount === 0 ? 'empty' : 'stored';
   } catch (error) {
     // 내용 무로깅(R3) — 실패는 스킵이 계약이다(D8). 기록 저장은 이미 성공했다.
     // 분류만 갈라 둔다: 어느 실패인지 모르면 고칠 자리도 알 수 없다(CCC-47).
-    if (error instanceof PilotTextAiConsentRequiredError) {
+    if (error instanceof AgentJobContractError && error.code === 'masking_snapshot_missing') {
+      outcome = 'skipped_no_snapshot';
+    } else if (error instanceof PilotTextAiConsentRequiredError) {
       outcome = 'skipped_consent';
     } else if (error instanceof TextAiPilotDisabledError) {
       outcome = 'skipped_pilot_disabled';
@@ -1795,6 +1808,11 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
   } finally {
     // 게이트웨이 안에서도 삼키지만, finally 에서 새어 나가는 예외는 성공한 기록 저장의
     // 201 을 500 으로 바꾼다 — 관측 때문에 그럴 수는 없다(D8).
+    try {
+      if (egressAuthorizationId !== undefined) await finishOpenAiEgress(env, actor, egressAuthorizationId);
+    } catch {
+      // 완료 표시 실패가 이미 저장된 상담을 실패로 바꾸지는 않는다. 시작 장부는 보존한다.
+    }
     try {
       await recordAiCallOutcome(env, actor, {
         kind: 'discrepancy_detection',
@@ -1969,6 +1987,8 @@ async function generateAiDraft(
   let reason: AiCallFailureReason | null = null;
   let status: number | null = null;
   let model: string | null = null;
+  let egressAuthorizationId: string | undefined;
+  const operation = actor.role === 'service' ? 'generate' : 'regenerate';
   const { sourceSnapshotId } = parseAiDraftGeneration(body);
   try {
     // 요청은 스냅샷 하나만 지목하고, 반대편 재료는 게이트웨이가 붙인다(ADR-0036 결정 2).
@@ -1980,12 +2000,28 @@ async function generateAiDraft(
       contrastAxes: contrastAxisStates(materials),
     });
     const materialRefs = draftMaterialRefs(materialSet.materials);
+    const egressMaterials = materialSet.materials.map(({ snapshot }) => ({
+      kind: 'snapshot' as const,
+      id: snapshot.id,
+      sha256: snapshot.sha256,
+    }));
 
     if (previewModeEnabled(env)) {
-      await authorizeSessionTextAiEgress(env, actor, sessionId);
-      const rawOutput = env.AI_PROVIDER_ADAPTER === undefined
-        ? generatePreviewFixtureAiDraft(providerRequest)
-        : await (await resolveAiProviderAdapter(env)).adapter.generate(providerRequest);
+      let rawOutput: unknown;
+      if (env.AI_PROVIDER_ADAPTER === undefined) {
+        await authorizeSessionTextAiEgress(env, actor, sessionId);
+        rawOutput = generatePreviewFixtureAiDraft(providerRequest);
+      } else {
+        const { adapter, config } = await resolveAiProviderAdapter(env);
+        const authorization = await authorizeOpenAiEgress(env, actor, sessionId, {
+          operation,
+          configHash: await canonicalAiProviderConfigHash(config),
+          materials: egressMaterials,
+        });
+        egressAuthorizationId = authorization.egressAuthorizationId;
+        await beginOpenAiEgress(env, actor, egressAuthorizationId, operation);
+        rawOutput = await adapter.generate(providerRequest);
+      }
       const output = validateAiProviderOutput(rawOutput, providerRequest);
       const draft = await createFixtureGeneratedAiDraftForService(env, actor, sessionId, {
         origin: 'fixture_generated',
@@ -2010,7 +2046,7 @@ async function generateAiDraft(
         evidence: providerEvidenceLinks(output),
         materials: materialRefs,
         contrast: draftContrastAxes(output, providerRequest.contrastAxes),
-      });
+      }, egressAuthorizationId);
       outcome = 'stored';
       return draft;
     }
@@ -2019,7 +2055,13 @@ async function generateAiDraft(
     // 구분하며, 실제 provider와 같은 활성 설정·동의·스냅샷 검증을 그대로 거친다.
     const { adapter, config, activeProvider } = await resolveActiveSessionAiProvider(env, actor, sessionId);
     model = config.model;
-    await authorizeSessionTextAiEgress(env, actor, sessionId);
+    const authorization = await authorizeOpenAiEgress(env, actor, sessionId, {
+      operation,
+      configHash: await canonicalAiProviderConfigHash(config),
+      materials: egressMaterials,
+    });
+    egressAuthorizationId = authorization.egressAuthorizationId;
+    await beginOpenAiEgress(env, actor, egressAuthorizationId, operation);
     const output = validateAiProviderOutput(await adapter.generate(providerRequest), providerRequest);
     const draft = await createGeneratedAiDraftForService(env, actor, sessionId, {
       summaryText: validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n')),
@@ -2047,7 +2089,7 @@ async function generateAiDraft(
       evidence: providerEvidenceLinks(output),
       materials: materialRefs,
       contrast: draftContrastAxes(output, providerRequest.contrastAxes),
-    });
+    }, egressAuthorizationId);
     outcome = 'stored';
     return draft;
   } catch (error) {
@@ -2062,16 +2104,20 @@ async function generateAiDraft(
     }
     throw error;
   } finally {
-    await recordAiCallOutcome(env, actor, {
-      kind: 'draft_generation',
-      outcome,
-      sessionId,
-      reason,
-      status,
-      durationMs: Date.now() - startedAt,
-      model,
-      promptVersion: AI_DRAFT_PROMPT_VERSION,
-    });
+    try {
+      if (egressAuthorizationId !== undefined) await finishOpenAiEgress(env, actor, egressAuthorizationId);
+    } finally {
+      await recordAiCallOutcome(env, actor, {
+        kind: 'draft_generation',
+        outcome,
+        sessionId,
+        reason,
+        status,
+        durationMs: Date.now() - startedAt,
+        model,
+        promptVersion: AI_DRAFT_PROMPT_VERSION,
+      });
+    }
   }
 }
 

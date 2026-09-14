@@ -40,6 +40,7 @@ export const checkpoints = [
   { id: 'entity-registration-binding', sqlite: '0067_entity_registration_binding.sql', postgres: '0023_entity_registration_binding.sql' },
   { id: 'entity-source-invalidation', sqlite: '0068_entity_source_invalidation.sql', postgres: '0024_entity_source_invalidation.sql' },
   { id: 'masked-source-proof', sqlite: '0069_masked_source_proof.sql', postgres: '0025_masked_source_proof.sql' },
+  { id: 'openai-egress', sqlite: '0070_openai_egress.sql', postgres: '0026_openai_egress.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;
