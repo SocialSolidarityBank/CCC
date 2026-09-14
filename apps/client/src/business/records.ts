@@ -1,6 +1,15 @@
 // 상담 기록 확인하기와 상담 기록하기의 API 경계 (P5 첫 묶음).
 // 수기 기록은 저장 즉시 공식 기록이고(D5), AI 초안은 승인 전까지 이 화면에 오르지 않는다(R2).
 
+import { INTAKE_AREAS } from '@ccc/contracts/intake';
+import {
+  MANUAL_RECORD_CONTEXT_SCHEMA_VERSION, MANUAL_RECORD_METHODS, MANUAL_RECORD_REASONS, MANUAL_RECORD_SCHEMA_VERSION,
+  MANUAL_RECORD_URGENCIES, ManualRecordContractError, parseCreateManualRecord,
+  type CreateManualRecordInput, type ManualActionOutcome, type ManualActionRevision, type ManualOpenAction,
+  type ManualPendingQuestion, type ManualQuestionAnswerInput, type ManualQuestionOutcome,
+  type ManualRecordContext as ContractManualRecordContext, type ManualRecordDetails, type ManualRecordProjection,
+  type ManualRecordRevision,
+} from '@ccc/contracts/manual-record';
 import { isNullableString, isOpaqueIdentifier, record } from './api';
 import { BusinessError } from './errors';
 import type { BusinessTransport } from './transport';
@@ -20,13 +29,10 @@ export const FLAG_LABELS: Record<FlagType, string> = {
   violence_exploitation: '폭력, 착취 피해',
 };
 
-export const RECORD_DETAIL_KEYS = ['sessionGoalNote', 'changeSinceLast', 'safetyNote', 'counselorOpinion'] as const;
+export const RECORD_DETAIL_KEYS = ['counselorOpinion'] as const;
 export type RecordDetailKey = (typeof RECORD_DETAIL_KEYS)[number];
 export const RECORD_DETAIL_LABELS: Record<RecordDetailKey, string> = {
-  sessionGoalNote: '이번 상담 목표',
-  changeSinceLast: '지난 회차 이후 달라진 점',
-  safetyNote: '안전과 위기 관련 메모',
-  counselorOpinion: '담당 실무자 의견',
+  counselorOpinion: '담당 실무자 종합의견',
 };
 
 export type ActionOwner = 'counselor' | 'beneficiary' | 'org';
@@ -40,6 +46,9 @@ export interface RecordActionInput {
   dueDate?: string;
 }
 
+export type ManualRecordContext = ContractManualRecordContext;
+export type { ManualPendingQuestion, ManualQuestionAnswerInput };
+
 export interface CounselingRecordRow {
   id: string;
   heldAt: string;
@@ -48,6 +57,7 @@ export interface CounselingRecordRow {
   /** 승인된 AI 한 줄만 온다. null이면 화면은 수기 발췌로 낮추고 수기 배지를 단다(R2·D5). */
   aiOneLiner: string | null;
   memoExcerpt: string | null;
+  manual: ManualRecordProjection | null;
   actionItems: Array<{ id: string; description: string; owner: string; dueDate: string | null; resolved: boolean }>;
   flags: Array<{ id: string; flagType: string; reviewStatus: string; quote: string | null }>;
 }
@@ -67,6 +77,167 @@ function utcInstant(value: unknown): value is string {
     && Number.isFinite(Date.parse(value));
 }
 
+const positiveInteger = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
+const nullableInstant = (value: unknown): value is string | null => value === null || utcInstant(value);
+const oneOf = <Values extends readonly string[]>(value: unknown, values: Values): value is Values[number] =>
+  typeof value === 'string' && values.includes(value);
+
+function decodeQuestionOutcome(value: unknown): ManualQuestionOutcome {
+  const row = record(value);
+  if (!isOpaqueIdentifier(row.sessionId) || !utcInstant(row.heldAt)
+    || (row.outcome !== 'confirmed' && row.outcome !== 'unconfirmed') || !isNullableString(row.answer)
+    || !positiveInteger(row.sourceRevision) || typeof row.sourceText !== 'string') throw new BusinessError('invalid_response');
+  return {
+    sessionId: row.sessionId, heldAt: row.heldAt, outcome: row.outcome, answer: row.answer,
+    sourceRevision: row.sourceRevision, sourceText: row.sourceText,
+  };
+}
+
+function decodeQuestion(value: unknown): ManualPendingQuestion {
+  const row = record(value);
+  if (!oneOf(row.kind, ['schedule', 'record', 'intake'] as const) || !isOpaqueIdentifier(row.id)
+    || !isOpaqueIdentifier(row.sourceId) || !positiveInteger(row.sourceRevision)
+    || !(row.sourceSessionId === null || isOpaqueIdentifier(row.sourceSessionId))
+    || !nullableInstant(row.sourceHeldAt) || !nullableInstant(row.sourceScheduledAt) || !utcInstant(row.createdAt)
+    || typeof row.body !== 'string' || !oneOf(row.state, ['open', 'confirmed', 'withdrawn'] as const)
+    || !Array.isArray(row.outcomes)) throw new BusinessError('invalid_response');
+  return {
+    kind: row.kind, id: row.id, sourceId: row.sourceId, sourceRevision: row.sourceRevision,
+    sourceSessionId: row.sourceSessionId, sourceHeldAt: row.sourceHeldAt, sourceScheduledAt: row.sourceScheduledAt,
+    createdAt: row.createdAt, body: row.body, state: row.state, outcomes: row.outcomes.map(decodeQuestionOutcome),
+  };
+}
+
+function decodeActionOutcome(value: unknown): ManualActionOutcome {
+  const row = record(value);
+  if (!isOpaqueIdentifier(row.actionItemId) || !isOpaqueIdentifier(row.sessionId) || !utcInstant(row.heldAt)
+    || !positiveInteger(row.sourceRevision) || !oneOf(row.outcome, ['done', 'in_progress', 'not_done', 'unconfirmed'] as const)
+    || !(row.continuation === null || oneOf(row.continuation, ['continue', 'stop'] as const)) || !isNullableString(row.reason)) {
+    throw new BusinessError('invalid_response');
+  }
+  return {
+    actionItemId: row.actionItemId, sessionId: row.sessionId, heldAt: row.heldAt, sourceRevision: row.sourceRevision,
+    outcome: row.outcome, continuation: row.continuation, reason: row.reason,
+  };
+}
+
+function decodeActionRevision(value: unknown): ManualActionRevision {
+  const row = record(value);
+  if (!positiveInteger(row.revision) || typeof row.description !== 'string'
+    || !oneOf(row.owner, ['counselor', 'beneficiary', 'org'] as const) || !isNullableString(row.dueDate)
+    || !(row.resolutionStatus === null || oneOf(row.resolutionStatus, ['done', 'in_progress', 'not_done', 'hold'] as const))
+    || !isNullableString(row.resolutionNote) || !(row.sourceSessionId === null || isOpaqueIdentifier(row.sourceSessionId))
+    || !nullableInstant(row.resolvedAt) || !isNullableString(row.stopReason)) throw new BusinessError('invalid_response');
+  return {
+    revision: row.revision, description: row.description, owner: row.owner, dueDate: row.dueDate,
+    resolutionStatus: row.resolutionStatus, resolutionNote: row.resolutionNote,
+    sourceSessionId: row.sourceSessionId, resolvedAt: row.resolvedAt, stopReason: row.stopReason,
+  };
+}
+
+function decodeOpenAction(value: unknown): ManualOpenAction {
+  const row = record(value);
+  if (!isOpaqueIdentifier(row.id) || !positiveInteger(row.revision)
+    || !(row.sourceSessionId === null || isOpaqueIdentifier(row.sourceSessionId))
+    || !nullableInstant(row.sourceHeldAt) || !utcInstant(row.createdAt) || typeof row.description !== 'string'
+    || !oneOf(row.owner, ['counselor', 'beneficiary', 'org'] as const) || !isNullableString(row.dueDate)
+    || !oneOf(row.state, ['open', 'done', 'stopped'] as const) || !Array.isArray(row.history)
+    || !Array.isArray(row.outcomes)) throw new BusinessError('invalid_response');
+  return {
+    id: row.id, revision: row.revision, sourceSessionId: row.sourceSessionId, sourceHeldAt: row.sourceHeldAt,
+    createdAt: row.createdAt, description: row.description, owner: row.owner, dueDate: row.dueDate, state: row.state,
+    history: row.history.map(decodeActionRevision), outcomes: row.outcomes.map(decodeActionOutcome),
+  };
+}
+
+function decodeManualDetails(value: unknown): ManualRecordDetails {
+  const row = record(value);
+  if (row.schemaVersion !== MANUAL_RECORD_SCHEMA_VERSION || !oneOf(row.method, MANUAL_RECORD_METHODS)
+    || !(row.reason === null || oneOf(row.reason, MANUAL_RECORD_REASONS))
+    || !(row.urgency === null || oneOf(row.urgency, MANUAL_RECORD_URGENCIES))
+    || !Array.isArray(row.changes) || !isNullableString(row.counselorOpinion) || !Array.isArray(row.nextQuestions)) {
+    throw new BusinessError('invalid_response');
+  }
+  const changes = row.changes.map((entry) => {
+    const change = record(entry);
+    if (!oneOf(change.area, INTAKE_AREAS) || typeof change.text !== 'string') throw new BusinessError('invalid_response');
+    return { area: change.area, text: change.text };
+  });
+  const nextQuestions = row.nextQuestions.map((entry) => {
+    const question = record(entry);
+    if (!isOpaqueIdentifier(question.id) || typeof question.body !== 'string') throw new BusinessError('invalid_response');
+    return { id: question.id, body: question.body };
+  });
+  return {
+    schemaVersion: MANUAL_RECORD_SCHEMA_VERSION, method: row.method, reason: row.reason, urgency: row.urgency,
+    changes, counselorOpinion: row.counselorOpinion, nextQuestions,
+  };
+}
+
+function decodeManualRevision(value: unknown): ManualRecordRevision {
+  const row = record(value);
+  if (!positiveInteger(row.revision) || (row.schemaVersion !== 1 && row.schemaVersion !== 2)
+    || !utcInstant(row.heldAt) || !oneOf(row.channel, ['in_person', 'phone', 'video'] as const)
+    || !isNullableString(row.memo) || !isNullableString(row.detailsJson) || !utcInstant(row.recordedAt)
+    || !isNullableString(row.actorId)) throw new BusinessError('invalid_response');
+  return {
+    revision: row.revision, schemaVersion: row.schemaVersion, heldAt: row.heldAt, channel: row.channel,
+    memo: row.memo, detailsJson: row.detailsJson, recordedAt: row.recordedAt, actorId: row.actorId,
+  };
+}
+
+function decodeManualProjection(value: unknown): ManualRecordProjection {
+  const row = record(value);
+  if ((row.schemaVersion !== 1 && row.schemaVersion !== 2) || !positiveInteger(row.revision)
+    || !Array.isArray(row.history) || !Array.isArray(row.actionOutcomes) || !Array.isArray(row.questionOutcomes)) {
+    throw new BusinessError('invalid_response');
+  }
+  const details = row.details === null ? null : decodeManualDetails(row.details);
+  if ((row.schemaVersion === 1 && details !== null) || (row.schemaVersion === 2 && details === null)
+    || !isNullableString(row.legacyDetailsJson) || (row.schemaVersion === 2 && row.legacyDetailsJson !== null)) {
+    throw new BusinessError('invalid_response');
+  }
+  return {
+    schemaVersion: row.schemaVersion, revision: row.revision, details, legacyDetailsJson: row.legacyDetailsJson,
+    history: row.history.map(decodeManualRevision), actionOutcomes: row.actionOutcomes.map(decodeActionOutcome),
+    questionOutcomes: row.questionOutcomes.map((entry) => {
+      const outcome = record(entry);
+      if (!oneOf(outcome.kind, ['schedule', 'record', 'intake'] as const)
+        || !isOpaqueIdentifier(outcome.questionId) || !isOpaqueIdentifier(outcome.sourceId)) {
+        throw new BusinessError('invalid_response');
+      }
+      return { ...decodeQuestionOutcome(outcome), kind: outcome.kind, questionId: outcome.questionId, sourceId: outcome.sourceId };
+    }),
+  };
+}
+
+export function decodeManualRecordContext(value: unknown, supportCaseId: string): ManualRecordContext {
+  const row = record(value);
+  const defaults = record(row.defaults);
+  if (row.schemaVersion !== MANUAL_RECORD_CONTEXT_SCHEMA_VERSION || row.supportCaseId !== supportCaseId
+    || typeof row.canWrite !== 'boolean' || !Array.isArray(row.actions) || !Array.isArray(row.questions)
+    || !Array.isArray(row.closedActions) || !Array.isArray(row.confirmedQuestions) || !Array.isArray(row.withdrawnQuestions)
+    || !nullableInstant(defaults.heldAt) || !(defaults.channel === null || oneOf(defaults.channel, MANUAL_RECORD_METHODS))
+    || defaults.reason !== null || !(defaults.scheduleId === null || isOpaqueIdentifier(defaults.scheduleId))
+    || !(defaults.scheduleVersion === null || positiveInteger(defaults.scheduleVersion))
+    || ((defaults.scheduleId === null) !== (defaults.scheduleVersion === null))) throw new BusinessError('invalid_response');
+  const questions = row.questions.map(decodeQuestion);
+  const confirmedQuestions = row.confirmedQuestions.map(decodeQuestion);
+  const withdrawnQuestions = row.withdrawnQuestions.map(decodeQuestion);
+  if (questions.some((question) => question.state !== 'open')
+    || confirmedQuestions.some((question) => question.state !== 'confirmed')
+    || withdrawnQuestions.some((question) => question.state !== 'withdrawn')
+    || new Set([...questions, ...confirmedQuestions, ...withdrawnQuestions].map((question) => `${question.kind}:${question.id}`)).size
+      !== questions.length + confirmedQuestions.length + withdrawnQuestions.length) throw new BusinessError('invalid_response');
+  return {
+    schemaVersion: MANUAL_RECORD_CONTEXT_SCHEMA_VERSION, supportCaseId, canWrite: row.canWrite,
+    defaults: { heldAt: defaults.heldAt, channel: defaults.channel, reason: null,
+      scheduleId: defaults.scheduleId, scheduleVersion: defaults.scheduleVersion },
+    actions: row.actions.map(decodeOpenAction), questions, closedActions: row.closedActions.map(decodeOpenAction),
+    confirmedQuestions, withdrawnQuestions,
+  };
+}
+
 export function decodeRecordList(value: unknown): CounselingRecordList {
   const row = record(value);
   if (!Array.isArray(row.records) || !Array.isArray(row.goals) || !Array.isArray(row.recordErrorSessionIds)
@@ -81,8 +252,11 @@ export function decodeRecordList(value: unknown): CounselingRecordList {
         || typeof item.memo !== 'string' || !isNullableString(item.aiOneLiner)
         || !isNullableString(item.memoExcerpt) || !Array.isArray(item.actionItems)
         || !Array.isArray(item.flags)) throw new BusinessError('invalid_response');
+      const manual = item.manual === null ? null : decodeManualProjection(item.manual);
+      // 서버는 모든 기본 상담에 수기 projection을 싣고 첫 상담에만 null을 싣는다.
+      if ((item.kind === 'regular') !== (manual !== null)) throw new BusinessError('invalid_response');
       return {
-        id: item.id, heldAt: item.heldAt, kind: item.kind, memo: item.memo,
+        id: item.id, heldAt: item.heldAt, kind: item.kind, memo: item.memo, manual,
         aiOneLiner: item.aiOneLiner, memoExcerpt: item.memoExcerpt,
         actionItems: item.actionItems.map((action) => {
           const value = record(action);
@@ -135,6 +309,13 @@ export class RecordsApi {
     ));
   }
 
+  async context(supportCaseId: string): Promise<ManualRecordContext> {
+    if (!isOpaqueIdentifier(supportCaseId)) throw new BusinessError('invalid_request', 400);
+    return decodeManualRecordContext(await this.transport.request(
+      `/support-cases/${encodeURIComponent(supportCaseId)}/records/context`,
+    ), supportCaseId);
+  }
+
   /**
    * 저장은 `submissionId`로 재생 안전하다. 같은 값으로 다시 보내면 서버가 같은 회차를 돌려주고
    * 두 번 저장하지 않는다. 일정에 연결하면 `expectedScheduleVersion`으로 충돌을 잡는다.
@@ -146,35 +327,37 @@ export class RecordsApi {
     details: Partial<Record<RecordDetailKey, string>>;
     actions: RecordActionInput[];
     flagTypes: FlagType[];
+    questionAnswers: ManualQuestionAnswerInput[];
     schedule?: { id: string; expectedVersion: number };
   }): Promise<{ id: string; replayed: boolean }> {
     if (!isOpaqueIdentifier(supportCaseId) || !isOpaqueIdentifier(input.submissionId)
       || !utcInstant(input.heldAt) || input.memo.trim() === '') {
       throw new BusinessError('invalid_request', 400);
     }
-    const details: Record<string, string> = {};
-    for (const key of RECORD_DETAIL_KEYS) {
-      const value = input.details[key];
-      if (value !== undefined && value.trim() !== '') details[key] = value.trim();
-    }
-    const body: Record<string, unknown> = {
+    const counselorOpinion = input.details.counselorOpinion?.trim();
+    const body: CreateManualRecordInput = {
+      schemaVersion: MANUAL_RECORD_SCHEMA_VERSION,
       submissionId: input.submissionId,
       heldAt: input.heldAt,
-      // D4: v1은 대면만이다. 전화와 화상은 수기 경로로 남는다.
       channel: 'in_person',
-      memo: input.memo,
-      // D43: GAS 채점은 보류다. 빈 배열만 보낸다.
+      memo: input.memo.trim(),
       gasScores: [],
-      actions: input.actions.map((action) => ({
+      actionItems: input.actions.map((action) => ({
         description: action.description, owner: action.owner,
         ...(action.dueDate === undefined || action.dueDate === '' ? {} : { dueDate: action.dueDate }),
       })),
+      questionAnswers: input.questionAnswers,
       flags: input.flagTypes.map((flagType) => ({ flagType })),
-      ...(Object.keys(details).length === 0 ? {} : { details }),
+      ...(counselorOpinion === undefined || counselorOpinion === '' ? {} : { counselorOpinion }),
       ...(input.schedule === undefined ? {} : {
         scheduleId: input.schedule.id, expectedScheduleVersion: input.schedule.expectedVersion,
       }),
     };
+    try { parseCreateManualRecord(body); }
+    catch (error) {
+      if (error instanceof ManualRecordContractError) throw new BusinessError('invalid_request', 400);
+      throw error;
+    }
     const response = record(await this.transport.request(
       `/support-cases/${encodeURIComponent(supportCaseId)}/records`, 'POST', body,
     ));

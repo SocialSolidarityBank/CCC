@@ -4,6 +4,9 @@
 import {
   INTAKE_WRITE_SCHEMA_VERSION, IntakeContractError, parseIntakeCreateRequest, parseIntakeQuestionnaire, parseIntakeUpdateRequest,
 } from '@ccc/contracts/intake';
+import {
+  MANUAL_RECORD_CONTEXT_SCHEMA_VERSION, MANUAL_RECORD_SCHEMA_VERSION, ManualRecordContractError, parseCreateManualRecord,
+} from '@ccc/contracts/manual-record';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 const USER_ID = 'a800424b-7cb1-49f5-8bb4-8989d586c455';
 const CASE_ID = '2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10';
@@ -11,6 +14,10 @@ const REGISTERED_CASE_ID = '9bd2a1c4-3f57-4a26-8e19-0b4c6d8e1f20';
 const CLOSED_CASE_ID = '7c1f5b02-9a2e-4d8b-9f6a-1c3b5d7e9f21';
 const SCHEDULE_ID = '5b8d3c14-6f2a-4c19-8d3e-9a1b2c4d6e80';
 const SESSION_ID = '91ac47d2-38b5-4f0c-9a71-2d5e6f8a0b13';
+const INTAKE_QUESTION_ID = '2a91b3c4-5d6e-4f70-8a12-3b4c5d6e7f80';
+const RECORD_QUESTION_ID = '3b02c4d5-6e7f-4081-9a23-4c5d6e7f8091';
+const SCHEDULE_QUESTION_ID = '4c13d5e6-7f80-4192-8a34-5d6e7f8091a2';
+const WITHDRAWN_QUESTION_ID = '5d24e6f7-8091-42a3-9b45-6e7f8091a2b3';
 
 export function createSyntheticState() {
   return {
@@ -41,6 +48,39 @@ export function createSyntheticState() {
     registeredAssigneeId: null,
     submissions: new Map(),
     records: [],
+    manualQuestions: [
+      {
+        kind: 'schedule', id: SCHEDULE_QUESTION_ID, sourceId: SCHEDULE_ID, sourceRevision: 1,
+        sourceSessionId: null, sourceHeldAt: null, sourceScheduledAt: '2026-09-20T01:00:00.000Z',
+        createdAt: '2026-09-10T01:00:00.000Z', body: '예정된 상담에서 확인할 내용', state: 'open', outcomes: [],
+      },
+      {
+        kind: 'record', id: RECORD_QUESTION_ID, sourceId: SESSION_ID, sourceRevision: 1,
+        sourceSessionId: SESSION_ID, sourceHeldAt: '2026-09-02T01:00:00.000Z', sourceScheduledAt: null,
+        createdAt: '2026-09-02T02:00:00.000Z', body: '지난 상담에서 남긴 질문', state: 'open', outcomes: [],
+      },
+      {
+        kind: 'intake', id: INTAKE_QUESTION_ID, sourceId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', sourceRevision: 1,
+        sourceSessionId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', sourceHeldAt: '2026-09-01T01:00:00.000Z',
+        sourceScheduledAt: null, createdAt: '2026-09-01T02:00:00.000Z',
+        body: '첫 상담 뒤 확인할 내용', state: 'open', outcomes: [],
+      },
+      {
+        kind: 'record', id: '6e35f708-91a2-43b4-8c56-7f8091a2b3c4', sourceId: SESSION_ID, sourceRevision: 1,
+        sourceSessionId: SESSION_ID, sourceHeldAt: '2026-09-02T01:00:00.000Z', sourceScheduledAt: null,
+        createdAt: '2026-09-02T02:00:00.000Z', body: '이미 확인한 상담 질문', state: 'confirmed',
+        outcomes: [{ sessionId: '7f460819-a2b3-44c5-9d67-8091a2b3c4d5', heldAt: '2026-09-09T01:00:00.000Z',
+          outcome: 'confirmed', answer: '확인한 답', sourceRevision: 1, sourceText: '이미 확인한 상담 질문' }],
+      },
+      {
+        kind: 'intake', id: WITHDRAWN_QUESTION_ID, sourceId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', sourceRevision: 1,
+        sourceSessionId: '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35', sourceHeldAt: '2026-09-01T01:00:00.000Z',
+        sourceScheduledAt: null, createdAt: '2026-09-01T02:00:00.000Z',
+        body: '철회된 첫 상담 질문', state: 'withdrawn',
+        outcomes: [{ sessionId: SESSION_ID, heldAt: '2026-09-02T01:00:00.000Z',
+          outcome: 'confirmed', answer: '철회 전 확정 답', sourceRevision: 1, sourceText: '철회된 첫 상담 질문' }],
+      },
+    ],
     draftDecision: null,
     scheduleVersion: 2,
     consentEvents: new Map(),
@@ -696,13 +736,35 @@ export function handleApi(request, state, options) {
       },
     }, 200, cors);
   }
+  if (path === `/support-cases/${CASE_ID}/records/context` && request.method === 'GET') {
+    return json({
+      schemaVersion: MANUAL_RECORD_CONTEXT_SCHEMA_VERSION, supportCaseId: CASE_ID,
+      canWrite: state.role === 'worker' && state.caseClosed === null,
+      defaults: { heldAt: null, channel: 'in_person', reason: null,
+        scheduleId: SCHEDULE_ID, scheduleVersion: state.scheduleVersion },
+      actions: [], closedActions: [],
+      questions: state.manualQuestions.filter((question) => question.state === 'open'),
+      confirmedQuestions: state.manualQuestions.filter((question) => question.state === 'confirmed'),
+      withdrawnQuestions: state.manualQuestions.filter((question) => question.state === 'withdrawn'),
+    }, 200, cors);
+  }
   if (path === `/support-cases/${CASE_ID}/records` && request.method === 'GET') {
     const approved = state.draftDecision === 'approved';
+    const withdrawn = state.manualQuestions.find((question) => question.id === WITHDRAWN_QUESTION_ID);
     return json({
       records: [
         {
           id: SESSION_ID, supportCaseId: CASE_ID, heldAt: '2026-09-02T01:00:00.000Z', channel: 'in_person',
           memo: '고지서를 아직 확인하지 못했다고 함', kind: 'regular', createdAt: '2026-09-02T02:00:00.000Z',
+          manual: {
+            schemaVersion: MANUAL_RECORD_SCHEMA_VERSION, revision: 1,
+            details: { schemaVersion: MANUAL_RECORD_SCHEMA_VERSION, method: 'in_person', reason: null,
+              urgency: null, changes: [], counselorOpinion: null, nextQuestions: [] },
+            legacyDetailsJson: null, history: [], actionOutcomes: [],
+            questionOutcomes: (withdrawn?.outcomes ?? []).map((outcome) => ({
+              ...outcome, kind: 'intake', questionId: WITHDRAWN_QUESTION_ID, sourceId: withdrawn.sourceId,
+            })),
+          },
           gasScores: [], actionItems: [{ id: 'action-1', description: '주민센터 서류 제출', owner: 'beneficiary', dueDate: '2026-09-18', resolved: false }],
           flags: [{ id: 'flag-1', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'confirmed', quote: '이번 달에도 이자를 못 냈어요' }],
           lifeAreaSnapshot: [], managerOpinion: null,
@@ -719,26 +781,62 @@ export function handleApi(request, state, options) {
     }, 200, cors);
   }
   if (path === `/support-cases/${CASE_ID}/records` && request.method === 'POST') {
-    return request.json().then((body) => {
+    return request.json().then((raw) => {
+      let body;
+      try { body = parseCreateManualRecord(raw); }
+      catch (error) {
+        if (error instanceof ManualRecordContractError) return json({ error: 'invalid_request' }, 400, cors);
+        throw error;
+      }
+      if (state.role !== 'worker') return json({ error: 'forbidden' }, 403, cors);
+      if (state.caseClosed !== null) return json({ error: 'conflict' }, 409, cors);
       const known = state.submissions.get(body.submissionId);
       if (known !== undefined) return json({ record: known, replayed: true }, 200, cors);
       if (body.expectedScheduleVersion !== undefined && body.expectedScheduleVersion !== state.scheduleVersion) {
         return json({ error: 'conflict' }, 409, cors);
       }
-      const saved = { id: `record-${state.submissions.size + 1}`, heldAt: body.heldAt, channel: body.channel, memo: body.memo };
+      const answers = [];
+      for (const answer of body.questionAnswers ?? []) {
+        const question = state.manualQuestions.find((candidate) => candidate.kind === answer.kind && candidate.id === answer.questionId);
+        if (question === undefined || question.sourceId !== answer.sourceId) return json({ error: 'forbidden' }, 403, cors);
+        if (question.state !== 'open' || question.sourceRevision !== answer.expectedRevision) {
+          return json({ error: 'conflict' }, 409, cors);
+        }
+        answers.push({ answer, question });
+      }
+      const questionOutcomes = answers.map(({ answer, question }) => {
+        const outcome = {
+          sessionId: `record-${state.submissions.size + 1}`, heldAt: body.heldAt, outcome: 'confirmed',
+          answer: answer.answer, sourceRevision: question.sourceRevision, sourceText: question.body,
+        };
+        question.state = 'confirmed';
+        question.outcomes.push(outcome);
+        return { ...outcome, kind: question.kind, questionId: question.id, sourceId: question.sourceId };
+      });
+      const manual = {
+        schemaVersion: MANUAL_RECORD_SCHEMA_VERSION, revision: 1,
+        details: { schemaVersion: MANUAL_RECORD_SCHEMA_VERSION, method: body.channel, reason: body.reason ?? null,
+          urgency: body.urgency ?? null, changes: body.changes ?? [], counselorOpinion: body.counselorOpinion ?? null,
+          nextQuestions: (body.nextQuestions ?? []).map((question, index) => ({ id: `manual-question-${index}`, body: question })) },
+        legacyDetailsJson: null, history: [], actionOutcomes: [], questionOutcomes,
+      };
+      const saved = {
+        id: `record-${state.submissions.size + 1}`, heldAt: body.heldAt,
+        channel: body.channel === 'visit' ? 'in_person' : body.channel, memo: body.memo, manual,
+      };
       state.submissions.set(body.submissionId, saved);
       state.records.push({
-        id: saved.id, supportCaseId: CASE_ID, heldAt: body.heldAt, channel: 'in_person', memo: body.memo,
-        kind: 'regular', createdAt: new Date().toISOString(), gasScores: [],
-        actionItems: (body.actions ?? []).map((action, index) => ({
+        id: saved.id, supportCaseId: CASE_ID, heldAt: body.heldAt, channel: saved.channel, memo: body.memo,
+        kind: 'regular', createdAt: new Date().toISOString(), manual, gasScores: [],
+        actionItems: (body.actionItems ?? []).map((action, index) => ({
           id: `new-action-${index}`, description: action.description, owner: action.owner,
           dueDate: action.dueDate ?? null, resolved: false,
         })),
         flags: (body.flags ?? []).map((flag, index) => ({
-          id: `new-flag-${index}`, flagType: flag.flagType, source: 'counselor', reviewStatus: 'confirmed', quote: null,
+          id: `new-flag-${index}`, flagType: flag.flagType, source: 'counselor', reviewStatus: 'confirmed', quote: flag.quote ?? null,
         })),
-        lifeAreaSnapshot: [], managerOpinion: null, aiOneLiner: null,
-        memoExcerpt: String(body.memo).slice(0, 60), sessionGoals: [], discrepancies: [],
+        lifeAreaSnapshot: [], managerOpinion: body.counselorOpinion ?? null, aiOneLiner: null,
+        memoExcerpt: body.memo.slice(0, 60), sessionGoals: [], discrepancies: [],
       });
       return json({ record: saved, replayed: false }, 201, cors);
     });

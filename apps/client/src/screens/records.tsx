@@ -10,11 +10,15 @@ import {
   ACTION_OWNER_LABELS, FLAG_LABELS, FLAG_TYPES, GOAL_CLOSE_LABELS, GOAL_CLOSE_REASONS,
   RECORD_DETAIL_KEYS, RECORD_DETAIL_LABELS,
   type ActionOwner, type ClosureInfo, type CounselingRecordList, type FlagType,
-  type GoalCloseReason, type GoalTreeCase, type RecordDetailKey,
+  type GoalCloseReason, type GoalTreeCase, type ManualPendingQuestion, type ManualRecordContext,
+  type RecordDetailKey,
 } from '../business/records';
 import type { Session } from '../business/session';
 
 interface ActionDraft { description: string; owner: ActionOwner; dueDate: string }
+const QUESTION_KIND_LABELS: Record<ManualPendingQuestion['kind'], string> = {
+  schedule: '일정 질문', record: '상담 질문', intake: '첫 상담 질문',
+};
 
 function useRecordList(session: Session, supportCaseId: string) {
   const [value, setValue] = useState<CounselingRecordList | null>(null);
@@ -24,6 +28,30 @@ function useRecordList(session: Session, supportCaseId: string) {
     const own = ++generation.current;
     setError(null);
     void session.records.list(supportCaseId).then((next) => {
+      if (own === generation.current) setValue(next);
+    }).catch((cause: unknown) => {
+      if (own !== generation.current) return;
+      const safe = safeError(cause);
+      if (safe.code === 'session_changed') return;
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    });
+  }, [session.records, session.auth, supportCaseId]);
+  useEffect(() => {
+    reload();
+    return () => { generation.current += 1; };
+  }, [reload]);
+  return { value, error, reload };
+}
+
+function useManualContext(session: Session, supportCaseId: string) {
+  const [value, setValue] = useState<ManualRecordContext | null>(null);
+  const [error, setError] = useState<BusinessError | null>(null);
+  const generation = useRef(0);
+  const reload = useCallback(() => {
+    const own = ++generation.current;
+    setError(null);
+    void session.records.context(supportCaseId).then((next) => {
       if (own === generation.current) setValue(next);
     }).catch((cause: unknown) => {
       if (own !== generation.current) return;
@@ -283,6 +311,13 @@ export function RecordListScreen() {
         title={`${row.heldAt}, ${row.kind === 'intake' ? '첫 상담' : '기본 상담'}`}
         action={row.aiOneLiner === null ? <WireBadge tone="neutral">수기</WireBadge> : <WireBadge tone="lavender">AI 승인</WireBadge>}>
         <p className="wire-section-value">{row.aiOneLiner ?? row.memoExcerpt ?? row.memo}</p>
+        {row.manual && row.manual.questionOutcomes.length > 0 && <WireCardSection title="다음 회차 확인 결과">
+          {row.manual.questionOutcomes.map((outcome) => <WireItem
+            key={`${outcome.kind}-${outcome.questionId}-${outcome.sessionId}`}
+            title={outcome.sourceText}
+            description={outcome.outcome === 'confirmed' ? outcome.answer ?? '확인한 답 없음' : '확인하지 않음'}
+            status={<WireBadge tone="neutral">{QUESTION_KIND_LABELS[outcome.kind]}</WireBadge>} />)}
+        </WireCardSection>}
         {value.recordErrorSessionIds.includes(row.id)
           && <WireCallout tone="info" title="기록 오류로 처리된 회차">
             원본은 그대로 두고 처리 표시만 붙습니다.
@@ -308,25 +343,30 @@ export function RecordCreateScreen() {
   const { beneficiaryId = '', supportCaseId = '' } = useParams();
   const [params] = useSearchParams();
   const scheduleId = params.get('scheduleId');
-  const { value: list, error: listError } = useRecordList(session, supportCaseId);
+  const { value: manualContext, error: contextError, reload: reloadContext } = useManualContext(session, supportCaseId);
   // 재전송해도 회차가 두 번 생기지 않도록 이 폼 한 벌이 같은 제출 ID를 계속 쓴다.
   const submissionId = useMemo(() => crypto.randomUUID(), []);
   const [heldAt, setHeldAt] = useState('');
   const [memo, setMemo] = useState('');
-  const [details, setDetails] = useState<Record<RecordDetailKey, string>>({
-    sessionGoalNote: '', changeSinceLast: '', safetyNote: '', counselorOpinion: '',
-  });
+  const [details, setDetails] = useState<Record<RecordDetailKey, string>>({ counselorOpinion: '' });
   const [actions, setActions] = useState<ActionDraft[]>([]);
   const [flags, setFlags] = useState<FlagType[]>([]);
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
   const [replayed, setReplayed] = useState(false);
 
-  const schedule = list?.nextSchedule ?? null;
-  const linked = scheduleId !== null && schedule !== null && schedule.id === scheduleId ? schedule : null;
+  const linked = scheduleId !== null && manualContext?.defaults.scheduleId === scheduleId
+    && manualContext.defaults.scheduleVersion !== null
+    ? { id: scheduleId, version: manualContext.defaults.scheduleVersion } : null;
+  const questionCanAnswer = (question: ManualPendingQuestion) => {
+    if (heldAt === '') return false;
+    if (question.kind === 'schedule') return question.sourceId === linked?.id;
+    return Date.parse(question.sourceHeldAt ?? question.createdAt) <= Date.parse(new Date(heldAt).toISOString());
+  };
 
   const submit = async () => {
-    if (busy || heldAt === '' || memo.trim() === '') return;
+    if (busy || manualContext?.canWrite !== true || heldAt === '' || memo.trim() === '') return;
     setBusy(true);
     setError(null);
     try {
@@ -340,6 +380,12 @@ export function RecordCreateScreen() {
           ...(action.dueDate === '' ? {} : { dueDate: action.dueDate }),
         })),
         flagTypes: flags,
+        questionAnswers: manualContext.questions.flatMap((question) => {
+          const answer = questionAnswers[`${question.kind}:${question.id}`]?.trim();
+          return answer && questionCanAnswer(question)
+            ? [{ kind: question.kind, questionId: question.id, sourceId: question.sourceId,
+              expectedRevision: question.sourceRevision, answer }] : [];
+        }),
         ...(linked === null ? {} : { schedule: { id: linked.id, expectedVersion: linked.version } }),
       });
       setReplayed(result.replayed);
@@ -353,19 +399,28 @@ export function RecordCreateScreen() {
     }
   };
 
+  if (contextError !== null && manualContext === null) return <WireCard>
+    <WireError>{contextError.message}</WireError>
+    <div className="business-actions"><WireButton variant="neutral" onClick={reloadContext}>다시 불러오기</WireButton></div>
+  </WireCard>;
+  if (manualContext === null) return <WireCard><WireEmpty live reserve>다음 회차 확인 항목을 불러오고 있습니다.</WireEmpty></WireCard>;
+
   return <WireCard title="오늘 상담 기록">
-    {listError && <WireError>{listError.message}</WireError>}
+    {contextError && <WireError>{contextError.message}</WireError>}
     {error && <WireError>{error.message}</WireError>}
     {replayed && <WireCallout tone="info" title="이미 저장된 제출입니다">
       같은 제출을 다시 보냈고 서버가 기존 회차를 그대로 돌려줬습니다. 회차가 두 번 생기지 않았습니다.
     </WireCallout>}
-    <WireCallout tone="info" title="저장하면 바로 공식 기록이에요">
+    {!manualContext.canWrite && <WireCallout tone="info" title="읽기 전용이에요">
+      저장은 진행 중인 사례의 담당 실무자만 할 수 있어요.
+    </WireCallout>}
+    {manualContext.canWrite && <WireCallout tone="info" title="저장하면 바로 공식 기록이에요">
       직접 쓴 기록은 저장 즉시 공식 기록이에요. AI 정리는 승인 전까지 이 기록을 대신하지 않아요.
-    </WireCallout>
+    </WireCallout>}
     {scheduleId !== null && linked === null && <WireCallout tone="info" title="일정 연결 없음">
       주소가 가리키는 일정을 이 사업의 다음 일정으로 확인하지 못해 일정 없이 기록합니다.
     </WireCallout>}
-    <form className="business-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+    {manualContext.canWrite && <form className="business-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <WireFormField label="상담 일시" htmlFor="record-held-at" required hint="이 기기의 시간대로 입력합니다">
         <input id="record-held-at" type="datetime-local" value={heldAt} required disabled={busy}
           onChange={(event) => setHeldAt(event.target.value)} />
@@ -378,6 +433,36 @@ export function RecordCreateScreen() {
         <textarea id={`record-${key}`} rows={3} value={details[key]} disabled={busy}
           onChange={(event) => setDetails({ ...details, [key]: event.target.value })} />
       </WireFormField>)}
+      {manualContext.questions.length > 0 && <WireCardSection title="다음 회차에 확인할 질문">
+        {manualContext.questions.map((question) => {
+          const key = `${question.kind}:${question.id}`;
+          const canAnswer = questionCanAnswer(question);
+          return <WireCardSection key={key} title={question.body}
+            action={<WireBadge tone="neutral">{QUESTION_KIND_LABELS[question.kind]}</WireBadge>}>
+            <p className="record-writing-help">{canAnswer
+              ? '답을 적지 않으면 열린 질문으로 남아요.'
+              : question.kind === 'schedule' ? '이 질문은 연결된 일정으로 기록할 때 답할 수 있어요.'
+                : '상담 일시가 질문의 출처보다 빠르면 답을 저장하지 않아요.'}</p>
+            <WireFormField label="확인한 답" htmlFor={`question-answer-${question.kind}-${question.id}`} control="textarea">
+              <textarea id={`question-answer-${question.kind}-${question.id}`} rows={3}
+                value={questionAnswers[key] ?? ''} disabled={busy || !canAnswer}
+                onChange={(event) => setQuestionAnswers({ ...questionAnswers, [key]: event.target.value })} />
+            </WireFormField>
+          </WireCardSection>;
+        })}
+      </WireCardSection>}
+      {manualContext.confirmedQuestions.length > 0 && <WireCardSection title="확정된 질문">
+        {manualContext.confirmedQuestions.map((question) => <WireItem key={`${question.kind}:${question.id}`}
+          title={question.body}
+          description={question.outcomes.findLast((outcome) => outcome.outcome === 'confirmed')?.answer ?? '확인한 답 없음'}
+          status={<WireBadge tone="neutral">{QUESTION_KIND_LABELS[question.kind]} 확정</WireBadge>} />)}
+      </WireCardSection>}
+      {manualContext.withdrawnQuestions.length > 0 && <WireCardSection title="철회된 질문">
+        {manualContext.withdrawnQuestions.map((question) => <WireItem key={`${question.kind}:${question.id}`}
+          title={question.body}
+          description={question.outcomes.findLast((outcome) => outcome.outcome === 'confirmed')?.answer ?? '확정된 답 없음'}
+          status={<WireBadge tone="neutral">{QUESTION_KIND_LABELS[question.kind]} 철회</WireBadge>} />)}
+      </WireCardSection>}
       {actions.map((action, index) => <WireCardSection key={`action-${index}`} title={`할 일 ${index + 1}`}>
         <WireFormField label="할 일" htmlFor={`action-description-${index}`} required>
           <input id={`action-description-${index}`} value={action.description} disabled={busy}
@@ -417,7 +502,7 @@ export function RecordCreateScreen() {
           기록 저장
         </WireButton>
       </div>
-    </form>
+    </form>}
   </WireCard>;
 }
 
