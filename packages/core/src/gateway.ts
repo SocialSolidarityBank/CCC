@@ -3219,11 +3219,22 @@ export interface MaskedSourceEvidenceItemInput {
   sourceEnd: number;   // exclusive Unicode code-point offset in maskedText
 }
 
+interface PersistedMaskedSourceProof {
+  schemaVersion: 2;
+  attempt: number;
+  payloadSha256: string;
+  result: ResultRequest['result'];
+}
+
 export interface RecordMaskedSourceSnapshotInput {
   maskedText: string;
   sha256: string;
   maskingPipelineVersion: string;
   evidence: MaskedSourceEvidenceItemInput[];
+  /** Internal acceptance proof; legacy callers intentionally omit it. */
+  proof?: PersistedMaskedSourceProof;
+  /** Internal F3 source binding; legacy callers intentionally omit it. */
+  entitySourceBinding?: EntitySourceBinding;
 }
 
 export interface RecordingResultInput extends RecordMaskedSourceSnapshotInput {
@@ -4068,6 +4079,35 @@ const UNMASKED_RESULT_PATTERNS = [
   /(?<![\d-])\d{2,6}-\d{2,6}-\d{2,8}(?:-\d{2,8})?(?![\d-])/u,
 ] as const;
 
+function hasRegisteredMaskingPipelinePair(env: Env, version: unknown, hash: unknown): boolean {
+  if (
+    typeof version !== 'string'
+    || !VERSION_IDENTIFIER.test(version)
+    || typeof hash !== 'string'
+    || !SHA256_HEX.test(hash)
+  ) return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(env.MEMORY_MASKING_PIPELINES ?? '{}');
+  } catch {
+    return false;
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+  return Object.prototype.hasOwnProperty.call(parsed, version)
+    && (parsed as Record<string, unknown>)[version] === hash;
+}
+
+function assertNoRegisteredPii(text: string, pii: {
+  name: string | null;
+  phone: string | null;
+  account: string | null;
+  email: string | null;
+}): void {
+  if (Object.values(pii).some((value) => value !== null && value.length > 0 && text.includes(value))) {
+    throw new ValidationError('registered_pii_detected');
+  }
+}
+
 function assertNoObviousUnmaskedPii(maskedText: string): void {
   if (UNMASKED_RESULT_PATTERNS.some((pattern) => pattern.test(maskedText))) {
     throw new ValidationError('masked source contains an unmasked sensitive pattern');
@@ -4095,8 +4135,7 @@ interface MaskedResultGrant {
 }
 
 /**
- * 텍스트와 녹음 결과가 함께 쓰는 마스킹 결과 커밋 관문이다. 호출자는 동의 종류만
- * 고르고, 해시·근거 구간·등록 PII 재치환·스냅샷 저장·감사는 이 함수가 맡는다.
+ * 본문을 재치환하지 않는다. 해시, 근거 구간과 등록 PII를 검사하고 스냅샷과 감사를 저장한다.
  */
 async function commitMaskedResult(
   env: Env,
@@ -4129,10 +4168,9 @@ async function commitMaskedResult(
     targetId: grant.session.caseId,
     caseId: grant.session.caseId,
   });
-  const mask = (text: string): string => maskRegisteredPii(text, grant.session.caseId, pii);
-
-  const maskedText = mask(input.maskedText);
-  assertNoObviousUnmaskedPii(maskedText);
+  assertNoRegisteredPii(input.maskedText, pii);
+  assertNoObviousUnmaskedPii(input.maskedText);
+  const maskedText = input.maskedText;
   const snapshotHash = await sha256Hex(maskedText);
   if (snapshotHash !== input.sha256) {
     await writePhase1Denial(env, actor, {
@@ -4146,10 +4184,9 @@ async function commitMaskedResult(
   const evidence: MaskedSourceEvidenceItem[] = [];
   try {
     for (const item of input.evidence) {
-      const evidenceQuote = mask(item.evidenceQuote);
       if (
         item.sourceSha256 !== snapshotHash
-        || sourceTextSpan(maskedText, item.sourceStart, item.sourceEnd) !== evidenceQuote
+        || sourceTextSpan(maskedText, item.sourceStart, item.sourceEnd) !== item.evidenceQuote
       ) {
         throw new ValidationError('masked source evidence is invalid');
       }
@@ -4158,7 +4195,7 @@ async function commitMaskedResult(
         snapshotId: '',
         sourceRef: item.sourceRef,
         sourceSha256: snapshotHash,
-        evidenceQuote,
+        evidenceQuote: item.evidenceQuote,
         sourceStart: item.sourceStart,
         sourceEnd: item.sourceEnd,
         createdAt: '',
@@ -4190,10 +4227,13 @@ async function commitMaskedResult(
       createdAt,
     })),
   };
+  const proofJson = input.proof === undefined ? null : canonicalizeJcs(input.proof);
+  const entitySourceBindingJson = input.entitySourceBinding === undefined
+    ? null : canonicalizeJcs(input.entitySourceBinding);
   try {
     await programPolicyBatch(env, grant.programAdmission.context, [
       env.DB.prepare(
-        'INSERT INTO ai_masked_source_snapshots (id, org_id, support_case_id, session_id, masked_text, sha256, masking_pipeline_version, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO ai_masked_source_snapshots (id, org_id, support_case_id, session_id, masked_text, sha256, masking_pipeline_version, proof_json, entity_source_binding, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ).bind(
         snapshot.id,
         actor.orgId,
@@ -4202,6 +4242,8 @@ async function commitMaskedResult(
         snapshot.maskedText,
         snapshot.sha256,
         snapshot.maskingPipelineVersion,
+        proofJson,
+        entitySourceBindingJson,
         actor.userId,
         snapshot.createdAt,
       ),
@@ -9954,7 +9996,7 @@ async function textSourceBinding(
     audio: null,
   };
 }
-async function audioSourceBinding(
+async function buildAudioSourceBinding(
   env: Env,
   actor: Actor,
   job: AgentJobRow,
@@ -9986,7 +10028,7 @@ async function audioSourceBinding(
   const sourceBundleRevision = await sha256Hex(canonicalizeJcs({
     version: 1, generation: Number(row.generation), rawSha256, sources,
   }));
-  const binding: EntitySourceBinding = {
+  return {
     version: 1,
     sourceBundleRevision,
     orgId: actor.orgId,
@@ -10005,6 +10047,16 @@ async function audioSourceBinding(
     sources,
     audio: { generationId: job.audioGenerationId, rawSha256 },
   };
+}
+
+async function audioSourceBinding(
+  env: Env,
+  actor: Actor,
+  job: AgentJobRow,
+  attempt: number,
+  claimTokenHash: string,
+): Promise<EntitySourceBinding> {
+  const binding = await buildAudioSourceBinding(env, actor, job, attempt, claimTokenHash);
   const stored = await env.DB.prepare(
     `UPDATE agent_jobs SET entity_source_binding=?
      WHERE id=? AND org_id=? AND kind='audio' AND state='leased' AND claim_token_hash=? AND attempt=?
@@ -10131,6 +10183,30 @@ async function assertTextJobSourceCurrent(env: Env, actor: Actor, job: AgentJobR
     || await sha256Hex((await buildAgentJobSourceText(env, actor, job.sessionId)).text) !== job.sourceSha256) {
     throw new AgentJobContractError('stale_claim', job.id);
   }
+}
+async function assertAgentJobSourceBindingCurrent(
+  env: Env,
+  actor: Actor,
+  job: AgentJobRow,
+): Promise<EntitySourceBinding> {
+  const binding = parseJson<unknown>(job.entitySourceBinding);
+  if (binding === null || typeof binding !== 'object' || Array.isArray(binding)) {
+    throw new AgentJobContractError('stale_claim', job.id);
+  }
+  const saved = binding as EntitySourceBinding;
+  const expected = job.kind === 'audio'
+    ? await buildAudioSourceBinding(env, actor, job, job.attempt, job.claimTokenHash!)
+    : await textSourceBinding(
+      env,
+      actor,
+      job,
+      (await buildAgentJobSourceText(env, actor, job.sessionId)).text,
+      job.sourceGeneration!,
+    );
+  if (canonicalizeJcs(saved) !== canonicalizeJcs(expected)) {
+    throw new AgentJobContractError('stale_claim', job.id);
+  }
+  return saved;
 }
 /**
  * Atomically closes a live registration claim after the encrypted receipt
@@ -11215,9 +11291,6 @@ async function assertAgentJobResultIntegrity(
 ): Promise<void> {
   const result = request.result;
   if (result.nerAvailable !== true) throw new AgentJobContractError('local_ner_unavailable', job.id);
-  if (!SHA256_HEX.test(result.maskingPipelineHash)) {
-    throw new AgentJobContractError('masking_pipeline_version_mismatch', job.id);
-  }
   if (
     result.nerAttestationId !== job.nerAttestationId
     || result.nerAttestationResultHash !== job.nerAttestationResultHash
@@ -11239,15 +11312,30 @@ async function assertAgentJobResultIntegrity(
   ) {
     throw new AgentJobContractError('local_ner_unavailable', job.id);
   }
+  if (!hasRegisteredMaskingPipelinePair(env, result.maskingPipelineVersion, result.maskingPipelineHash)) {
+    throw new AgentJobContractError('masking_pipeline_version_mismatch', job.id);
+  }
   if (!SHA256_HEX.test(result.sha256) || await sha256Hex(result.maskedText) !== result.sha256) {
     throw new AgentJobContractError('result_schema_invalid', job.id);
   }
   if (
-    !SHA256_HEX.test(result.evidenceHash)
+    !Array.isArray(result.evidence)
+    || !SHA256_HEX.test(result.evidenceHash)
     || await sha256Hex(canonicalizeJcs(result.evidence)) !== result.evidenceHash
-    || result.evidence.some((item) => item.sourceSha256 !== result.sha256)
+    || result.evidence.some((item) => item === null || typeof item !== 'object' || item.sourceSha256 !== result.sha256)
   ) {
     throw new AgentJobContractError('evidence_hash_mismatch', job.id);
+  }
+  const pii = await readPiiValues(env, job.orgId, job.supportCaseId);
+  try {
+    assertNoRegisteredPii(result.maskedText, pii);
+  } catch {
+    throw new AgentJobContractError('registered_pii_detected', job.id);
+  }
+  try {
+    assertNoObviousUnmaskedPii(result.maskedText);
+  } catch {
+    throw new AgentJobContractError('unmasked_identifier_detected', job.id);
   }
   const payloadSha256 = await sha256Hex(canonicalizeJcs({
     schemaVersion: request.schemaVersion,
@@ -11294,15 +11382,15 @@ const MALFORMED_RESULT_JOB_ERRORS: Readonly<Partial<Record<JobErrorCode, true>>>
  * 소모하지 않는 `blocked` 이고, 오디오는 그 attempt 의 STT 를 이미 쓴 뒤라 재큐잉으로
  * attempt 를 소모한다 - 같은 attempt 로 두 번 STT 를 돌리지 않기 위한 구분이다(S5 §2.2).
  */
-async function closeJobOnResultRejection(
+async function closeJobOnResultRejection<T>(
   env: Env,
   actor: Actor,
   job: AgentJobRow,
   claimToken: string,
-  verify: () => Promise<void> | void,
-): Promise<void> {
+  verify: () => Promise<T> | T,
+): Promise<T> {
   try {
-    await verify();
+    return await verify();
   } catch (error) {
     if (!(error instanceof AgentJobContractError)) throw error;
     let state: AgentJobState | null = null;
@@ -11388,34 +11476,30 @@ export async function acceptAgentJobResult(
     if (stored.resultPayloadSha256 !== request.payloadSha256) {
       throw new AgentJobContractError('result_conflict', jobId);
     }
-    if (stored.kind === 'text') await assertTextJobSourceCurrent(env, actor, stored);
-    // 같은 payload 재전송은 새 결과를 만들지 않는다. 다만 결과 수락 뒤 후속 초안 단계가
-    // 실패했을 수 있어, 오디오는 멱등 재생 결과를 돌려 호출부가 그 단계를 이어가게 한다.
-    const replayedRecording = request.result.kind === 'audio'
-      ? await commitRecordingResult(env, actor, stored.sessionId, {
-        maskedText: request.result.maskedText,
-        sha256: request.result.sha256,
-        maskingPipelineVersion: request.result.maskingPipelineVersion,
-        evidence: request.result.evidence,
-        emotionScores: request.result.emotionScores,
-        transcriptReliable: request.result.transcriptReliable,
-        transcriptWarnings: request.result.transcriptWarnings,
-      })
+    const recomputedPayloadSha256 = request.schemaVersion === 2
+      ? await sha256Hex(canonicalizeJcs({
+        schemaVersion: request.schemaVersion,
+        attempt: request.attempt,
+        result: request.result,
+      }))
       : null;
+    if (recomputedPayloadSha256 === null || recomputedPayloadSha256 !== request.payloadSha256) {
+      throw new AgentJobContractError('result_schema_invalid', jobId);
+    }
     return {
       jobId,
       kind: stored.kind,
       sessionId: stored.sessionId,
       replayed: true,
       audioObjectId: stored.audioObjectId,
-      recording: replayedRecording,
+      recording: null,
     };
   }
 
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
   const currentConsentRevision = await agentJobConsentRevision(env, actor.orgId, job);
   await requireAgentJobProgramAdmission(env, actor.orgId, job);
-  await closeJobOnResultRejection(env, actor, job, request.claimToken, async () => {
+  const acceptedBinding = await closeJobOnResultRejection(env, actor, job, request.claimToken, async () => {
     if (request.schemaVersion !== 2 || request.result.kind !== job.kind) {
       throw new AgentJobContractError('result_schema_invalid', jobId);
     }
@@ -11438,6 +11522,7 @@ export async function acceptAgentJobResult(
         throw new AgentJobContractError('result_schema_invalid', jobId);
       }
     }
+    const binding = await assertAgentJobSourceBindingCurrent(env, actor, job);
     if (job.sttEngine === 'azure') {
       const egress = await env.DB.prepare(
         `SELECT 1 AS present FROM agent_job_egress_records
@@ -11449,15 +11534,66 @@ export async function acceptAgentJobResult(
       ).first<{ present: number }>();
       if (egress === null) throw new AgentJobContractError('route_mismatch', jobId);
     }
+    return binding;
   });
   const result = request.result;
   const acceptedAt = now();
   const deletionAttemptId = job.kind === 'audio' ? newId() : null;
   const resultReceipt = parseJson<ConsentGateReceipt>(job.consentReceiptJson);
+  const proof: PersistedMaskedSourceProof = {
+    schemaVersion: 2,
+    attempt: request.attempt,
+    payloadSha256: request.payloadSha256,
+    result,
+  };
   if (resultReceipt === null) throw new AgentJobContractError('consent_not_effective', jobId);
   const resultConsentGuard = consentSqlGuard(resultReceipt, 'audio_objects');
+  if (job.entitySourceBinding === null) {
+    throw new AgentJobContractError('stale_claim', jobId);
+  }
+  const bindingJson = job.entitySourceBinding;
+  const sessionConsentGuard = consentSqlGuard(resultReceipt, 'sessions');
+  const guardMarker = newId();
   const transition = (snapshot: MaskedSourceSnapshot): PreparedStatement[] => [
-    // The acceptance trigger aborts the whole batch if claim, attempt, consent or clocks lost.
+    env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok)
+      VALUES(?,?,CASE WHEN EXISTS(
+        SELECT 1 FROM agent_jobs j
+        JOIN counseling_memory_cases c ON c.org_id=j.org_id AND c.support_case_id=j.support_case_id
+        JOIN support_cases sc ON sc.org_id=j.org_id AND sc.id=j.support_case_id
+        JOIN participant_pii_vault pv ON pv.org_id=sc.org_id AND pv.beneficiary_id=sc.beneficiary_id
+        JOIN sessions ON sessions.org_id=j.org_id AND sessions.id=j.session_id
+        WHERE j.id=? AND j.org_id=? AND j.state='leased' AND j.claim_token_hash=? AND j.attempt=?
+          AND j.lease_expires_at>? AND j.entity_source_binding=?
+          AND j.consent_revision=? AND c.generation=? AND sc.entity_map_revision=?
+          AND sc.entity_map_lease_family='generic' AND sc.entity_map_lease_job_id=j.id
+          AND sc.entity_map_lease_attempt=j.attempt AND sc.entity_map_lease_expires_at>?
+          AND pv.purged_at IS NULL AND pv.created_at=? AND pv.version=? AND pv.key_version=?
+          AND ((j.kind='audio' AND j.audio_generation_id=? AND j.raw_audio_sha256 IS NOT DISTINCT FROM ?)
+            OR (j.kind='text' AND j.source_generation=? AND j.source_sha256=? AND j.source_length=?))
+          AND ${sessionConsentGuard.sql}
+      ) THEN 1 ELSE 0 END)`).bind(
+      guardMarker,
+      actor.orgId,
+      jobId,
+      actor.orgId,
+      job.claimTokenHash,
+      job.attempt,
+      acceptedAt,
+      bindingJson,
+      acceptedBinding.consentRevision,
+      acceptedBinding.generation,
+      acceptedBinding.mapRevision,
+      acceptedAt,
+      acceptedBinding.vaultCreatedAt,
+      acceptedBinding.vaultVersion,
+      acceptedBinding.keyVersion,
+      job.audioGenerationId,
+      job.rawAudioSha256,
+      job.sourceGeneration,
+      job.sourceSha256,
+      job.sourceLength,
+      ...sessionConsentGuard.bindings,
+    ),
     env.DB.prepare(
       `INSERT INTO agent_job_result_acceptances (job_id, attempt, claim_token_hash, payload_sha256, accepted_at)
        VALUES (?, ?, ?, ?, ?)`,
@@ -11504,6 +11640,7 @@ export async function acceptAgentJobResult(
       `UPDATE agent_job_egress_records SET status = 'completed', completed_at = ?
        WHERE org_id = ? AND job_id = ? AND attempt = ? AND status = 'in_flight'`,
     ).bind(acceptedAt, actor.orgId, jobId, job.attempt),
+    env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(guardMarker),
   ];
 
   let recording: RecordingResultCommit | null = null;
@@ -11517,16 +11654,30 @@ export async function acceptAgentJobResult(
         emotionScores: result.emotionScores,
         transcriptReliable: result.transcriptReliable,
         transcriptWarnings: result.transcriptWarnings,
+        proof,
+        entitySourceBinding: acceptedBinding,
       }, transition);
-      // 결과가 이미 커밋돼 있으면(멱등 재전송) 새 스냅샷을 쓰지 않으므로 전이 문장이
-      // 실행되지 않는다. 이미 있는 스냅샷으로 작업만 닫는다 — terminal 은 여전히 하나다.
-      if (recording.replayed) await env.DB.batch(transition(recording.snapshot));
+      // 성공한 S5 재전송은 위에서 끝난다. 기존 녹음 결과를 새 작업의 proof로 승격하지 않는다.
+      if (recording.replayed) {
+        const stored = await env.DB.prepare(
+          'SELECT proof_json,entity_source_binding FROM ai_masked_source_snapshots WHERE id=? AND org_id=?',
+        ).bind(recording.snapshot.id, actor.orgId)
+          .first<{ proof_json: string | null; entity_source_binding: string | null }>();
+        throw new AgentJobContractError(
+          stored?.proof_json == null || stored.entity_source_binding === null
+            ? 'masking_snapshot_missing'
+            : 'result_conflict',
+          jobId,
+        );
+      }
     } else {
       await recordMaskedSourceSnapshot(env, actor, job.sessionId, {
         maskedText: result.maskedText,
         sha256: result.sha256,
         maskingPipelineVersion: result.maskingPipelineVersion,
         evidence: result.evidence,
+        proof,
+        entitySourceBinding: acceptedBinding,
       }, transition);
     }
   } catch (error) {
@@ -23538,17 +23689,22 @@ export async function issueCounselingMemoryDictionary(env:Env,actor:Actor,id:str
 }
 async function verifyMemoryProof(env:Env,row:MemoryMaterialRow,result:ResultRequest['result']):Promise<void> {
   if(result.kind!=='text'||result.nerAvailable!==true) throw new ValidationError('local_ner_unavailable');
-  let pipelines:Record<string,string>;
-  try { pipelines=JSON.parse(env.MEMORY_MASKING_PIPELINES??'{}') as Record<string,string>; } catch { throw new ValidationError('masking_pipeline_version_mismatch'); }
-  if(!pipelines||!SHA256_HEX.test(result.maskingPipelineHash)||pipelines[result.maskingPipelineVersion]!==result.maskingPipelineHash) throw new ValidationError('masking_pipeline_version_mismatch');
+  if (!hasRegisteredMaskingPipelinePair(env, result.maskingPipelineVersion, result.maskingPipelineHash)) {
+    throw new ValidationError('masking_pipeline_version_mismatch');
+  }
   const attestation=JSON.parse(row.attestation_json!) as NerAttestation;
   await memoryNerQualification(env,row.org_id,attestation,row.receipt_id!,row.id);
-  if(result.nerAttestationId!==attestation.id||result.nerAttestationResultHash!==attestation.resultHash||result.releaseQualificationReceiptId!==row.receipt_id) throw new ValidationError('local_ner_unavailable');
-  if(await sha256Hex(result.maskedText)!==result.sha256||await sha256Hex(canonicalizeJcs(result.evidence))!==result.evidenceHash) throw new ValidationError('evidence_hash_mismatch');
+  if (
+    !SHA256_HEX.test(result.sha256)
+    || !Array.isArray(result.evidence)
+    || !SHA256_HEX.test(result.evidenceHash)
+    || await sha256Hex(result.maskedText) !== result.sha256
+    || await sha256Hex(canonicalizeJcs(result.evidence)) !== result.evidenceHash
+  ) throw new ValidationError('evidence_hash_mismatch');
   const points=Array.from(result.maskedText);
   if(!points.length||points.length>24000||!result.evidence.length) throw new ValidationError('evidence_hash_mismatch');
   for(const evidence of result.evidence) {
-    if(!Number.isSafeInteger(evidence.sourceStart)||!Number.isSafeInteger(evidence.sourceEnd)||evidence.sourceStart<0||evidence.sourceEnd<=evidence.sourceStart||evidence.sourceEnd>points.length||evidence.sourceSha256!==result.sha256||points.slice(evidence.sourceStart,evidence.sourceEnd).join('')!==evidence.evidenceQuote) throw new ValidationError('evidence_hash_mismatch');
+    if(evidence===null||typeof evidence!=='object'||!Number.isSafeInteger(evidence.sourceStart)||!Number.isSafeInteger(evidence.sourceEnd)||evidence.sourceStart<0||evidence.sourceEnd<=evidence.sourceStart||evidence.sourceEnd>points.length||evidence.sourceSha256!==result.sha256||points.slice(evidence.sourceStart,evidence.sourceEnd).join('')!==evidence.evidenceQuote) throw new ValidationError('evidence_hash_mismatch');
   }
   const pii=await memoryPii(env,row.org_id,row.support_case_id);
   if(Object.values(pii).some(value=>value&&result.maskedText.includes(value))) throw new ValidationError('registered_pii_detected');

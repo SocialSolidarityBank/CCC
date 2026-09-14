@@ -274,6 +274,11 @@ export async function agentManifestEnv<T extends ApiEnv>(
   });
   return {
     ...env,
+    MEMORY_MASKING_PIPELINES: env.MEMORY_MASKING_PIPELINES ?? JSON.stringify({
+      'ner-mask-v1-addr-cond-dict': 'd'.repeat(64),
+      'fixture-mask-v1': 'd'.repeat(64),
+      'local-ner-v1': 'd'.repeat(64),
+    }),
     CCC_INSTALL_MANIFEST: JSON.stringify(manifest),
     CCC_INSTALL_SIGNING_KEYS: JSON.stringify(signer.publicKeys),
     CCC_STT_MODE: options.stt ?? 'off',

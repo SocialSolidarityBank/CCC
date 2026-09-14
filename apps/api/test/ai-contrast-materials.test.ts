@@ -493,6 +493,10 @@ async function postRecordingResult(env: ApiEnv, sessionId: string): Promise<Resp
     },
   ), agentEnv);
   if (verified.status !== 200) throw new Error('expected Agent audio verification');
+  const source = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/source`, {
+    headers: { ...serviceHeaders, 'X-CCC-Job-Claim': job.claimToken, 'X-CCC-Job-Attempt': String(job.attempt) },
+  }), agentEnv);
+  if (source.status !== 200) throw new Error('expected verified audio source binding');
   return worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/result`, {
     method: 'POST',
     headers: serviceHeaders,

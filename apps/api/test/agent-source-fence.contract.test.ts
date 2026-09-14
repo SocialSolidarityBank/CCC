@@ -23,6 +23,7 @@ function http(actor: Actor, path: string, body?: unknown) {
 async function fixture() {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, { sttMode: 'off', llmMode: 'openai' });
   t.env.CCC_STT_MODE = 'off'; t.env.CCC_LLM_MODE = 'openai'; t.env.TEXT_AI_PILOT_ENABLED = '1';
+  t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
   const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
   const supportCaseId = (await listSupportCasesForBeneficiary(t.env, counselor, created.id)).programs[0]!.supportCase.id;
   await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
@@ -62,7 +63,7 @@ describe('generic text source fence', () => {
     const rejected = await http(service, `/pipeline/jobs/${f.job.jobId}/result`, request);
     expect(rejected.status).toBe(409);
     expect(await rejected.json()).toMatchObject({ error: 'stale_claim' });
-    expect(await status(f.sessionId)).toMatchObject({ state: 'stale', sourceRevision: f.source.sourceRevision, sourceChanged: true, checkedRange: null });
+    expect(await status(f.sessionId)).toMatchObject({ state: 'pending', sourceChanged: false, checkedRange: null });
     expect(await t.db.prepare('SELECT COUNT(*) AS count FROM ai_masked_source_snapshots WHERE session_id=?').bind(f.sessionId).first()).toEqual({ count: 0 });
     expect((await http(counselor, `/sessions/${f.sessionId}/processing`, {})).status).toBe(202);
     const fresh = (await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(f.qualification))).jobs[0]!;
