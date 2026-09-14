@@ -12,6 +12,8 @@ import {
   registerAiProviderConfiguration,
   setSupportCaseOverallGoal,
   updateParticipantPii,
+  getManualRecordContext,
+  createCounselingSchedule,
   type Actor,
 } from '@ccc/core/gateway';
 import { handleRequest } from '@ccc/http-api';
@@ -120,6 +122,73 @@ async function createDraft(sessionId: string, oneLiner: string) {
 }
 
 describe('GET /support-cases/:id/report', () => {
+  it('projects stored changes, urgency and session-local opinion with complete open-question references', async () => {
+    const created = await seedCase();
+    const schedule = await createCounselingSchedule(t.env, counselor, {
+      beneficiaryId: created.beneficiaryId, supportCaseId: created.supportCaseId,
+      scheduledAt: '2026-09-01T09:00:00.000Z', customQuestions: ['COMPLETED_SCHEDULE_QUESTION'],
+    });
+    const first = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
+      schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-09-01T09:00:00.000Z',
+      channel: 'visit', reason: 'walk_in', urgency: 'caution', memo: 'SOURCE_MANUAL_MEMO',
+      changes: [{ area: 'housing', text: 'RECORDED_HOUSING_CHANGE' }],
+      counselorOpinion: 'OPINION_ONLY_IN_SOURCE_SESSION', nextQuestions: ['SAME_QUESTION', 'SAME_QUESTION'],
+      actionItems: [{ description: 'STAFF_ACTION', owner: 'counselor', dueDate: '2026-09-20' }],
+      scheduleId: schedule.id, expectedScheduleVersion: schedule.version,
+    });
+    const initial = await getManualRecordContext(t.env, counselor, created.supportCaseId);
+    const [question, omitted] = initial.questions.filter(item => item.kind === 'record');
+    const scheduled = initial.questions.find(item => item.kind === 'schedule')!;
+    const action = initial.actions[0]!;
+    await createCounselingSchedule(t.env, counselor, {
+      beneficiaryId: created.beneficiaryId, supportCaseId: created.supportCaseId,
+      scheduledAt: '2099-01-01T09:00:00.000Z', customQuestions: ['FUTURE_WITHOUT_SESSION'],
+    });
+    const second = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
+      schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-09-02T09:00:00.000Z',
+      channel: 'phone', memo: 'ANSWER_SESSION',
+      questionAnswers: [{ kind: 'record', questionId: question!.id, sourceId: first.record.id, expectedRevision: 1, answer: 'HUMAN_CONFIRMED_ANSWER' }],
+      actionOutcomes: [{ actionItemId: action.id, expectedRevision: 1, outcome: 'not_done', continuation: 'stop', reason: 'HUMAN_STOP_REASON' }],
+    });
+    const body = await report(counselor, created.supportCaseId);
+    expect(body.schemaVersion).toBe(2);
+    expect(body.sessions.find(session => session.sessionId === first.record.id)).toMatchObject({
+      channel: 'visit', counselorOpinion: { sessionId: first.record.id,
+        source: 'record_details.counselorOpinion', text: 'OPINION_ONLY_IN_SOURCE_SESSION' },
+    });
+    expect(body.sessions.find(session => session.sessionId === second.record.id)).not.toHaveProperty('counselorOpinion');
+    expect(body.nextConfirmations).toHaveLength(2);
+    expect(body.nextConfirmations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ item: 'SAME_QUESTION',
+        questionRef: { kind: 'record', questionId: omitted!.id, sourceId: first.record.id, sourceRevision: 1 } }),
+      expect.objectContaining({ item: 'COMPLETED_SCHEDULE_QUESTION',
+        questionRef: { kind: 'schedule', questionId: scheduled.id, sourceId: schedule.id, sourceRevision: 1 },
+        evidence: expect.objectContaining({ sessionId: first.record.id }) }),
+    ]));
+    expect(JSON.stringify(body.sections)).not.toContain('OPINION_ONLY_IN_SOURCE_SESSION');
+    expect(JSON.stringify(body)).not.toContain('FUTURE_WITHOUT_SESSION');
+    expect(JSON.stringify(body)).not.toContain('STAFF_ACTION');
+    expect(body.sections.situationChanges?.entries).toContainEqual(expect.objectContaining({
+      sessionId: first.record.id, source: 'record_details.changes.0.text', area: 'housing', text: 'RECORDED_HOUSING_CHANGE',
+    }));
+    expect(body.sections.riskSignals?.entries).toEqual([expect.objectContaining({
+      sessionId: first.record.id, source: 'record_details.urgency', text: 'caution',
+    })]);
+  });
+
+  it('rejects an incomplete bound question identity instead of silently dropping its reference', async () => {
+    const target = await seedCase();
+    const record = await seedLegacyManualRecord(t.env, counselor, target.supportCaseId, {
+      heldAt: '2026-09-01T09:00:00.000Z', channel: 'in_person', memo: 'BOUND_QUESTION_SOURCE',
+    });
+    await t.db.prepare('UPDATE sessions SET manual_schema_version = 2, record_details = ? WHERE id = ?')
+      .bind(JSON.stringify({ schemaVersion: 2, method: 'in_person', reason: null, urgency: null,
+        changes: [], counselorOpinion: null, nextQuestions: [{ id: '', body: 'BOUND_QUESTION' }] }), record.record.id).run();
+    const response = await http(counselor, `/support-cases/${target.supportCaseId}/report`);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: 'conflict' });
+  });
+
   it('returns chronological sourced evidence for all five sections without replacing the first intake plan', async () => {
     const created = await seedCase();
     await updateParticipantPii(t.env, counselor, created.beneficiaryId, {
@@ -213,7 +282,7 @@ describe('GET /support-cases/:id/report', () => {
       text: '첫 인테이크 주거 안정 계획',
     };
     expect(body).toEqual(withLegacyIntakeVersions({
-      schemaVersion: 1,
+      schemaVersion: 2,
       supportCaseId: created.supportCaseId,
       beneficiaryId: created.beneficiaryId,
       programId: testProgramId(counselor.orgId),
@@ -271,6 +340,7 @@ describe('GET /support-cases/:id/report', () => {
         dueNote: '다음 상담 전',
         dueDate: '2026-07-09',
         owner: '당사자',
+        questionRef: null,
         evidence: {
           sessionId: intake.record.id,
           sessionNumber: 1,
@@ -463,8 +533,10 @@ describe('GET /support-cases/:id/report', () => {
     });
     const current = await report(counselor, caseId);
     expect(current.nextConfirmations).toEqual(expect.arrayContaining([
-      expect.objectContaining({ item: '수정한 첫 질문', evidence: expect.objectContaining({ intakeRevision: 2, source: 'intake_details.additionalItems.0.item' }) }),
-      expect.objectContaining({ item: '남겨 둔 질문', dueNote: '원래 기한', evidence: expect.objectContaining({
+      expect.objectContaining({ item: '수정한 첫 질문', questionRef: { kind: 'intake', questionId: a.id, sourceId: intake.record.id, sourceRevision: 2 },
+        evidence: expect.objectContaining({ intakeRevision: 2, source: 'intake_details.additionalItems.0.item' }) }),
+      expect.objectContaining({ item: '남겨 둔 질문', dueNote: '원래 기한',
+        questionRef: { kind: 'intake', questionId: b.id, sourceId: intake.record.id, sourceRevision: 1 }, evidence: expect.objectContaining({
         sessionId: intake.record.id, heldAt: input.heldAt, intakeSchemaVersion: 2, intakeRevision: 1, source: 'intake_details.additionalItems.1.item',
       }) }),
     ]));
@@ -476,9 +548,10 @@ describe('GET /support-cases/:id/report', () => {
     await updateIntakeRecord(t.env, counselor, caseId, {
       schemaVersion: 3, expectedRevision: 2, heldAt: '2026-09-02T09:00:00.000Z', channel: input.channel,
       questionnaire: { ...input.questionnaire, additionalItems: { response: 'unknown' } }, additionalItemRefs: [],
-      questionWithdrawals: [{ questionId: a.id, expectedRevision: 2 }],
+      questionWithdrawals: [{ questionId: a.id, expectedRevision: 2 }, { questionId: b.id, expectedRevision: 1 }],
     });
-    expect((await report(counselor, caseId)).nextConfirmations).toBeUndefined();
+    const withdrawn = await report(counselor, caseId);
+    expect(withdrawn.nextConfirmations).toBeUndefined();
   });
 
   it('keeps an evidence-free intake session while omitting every fabricated section and summary', async () => {
