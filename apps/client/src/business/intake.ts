@@ -1,8 +1,8 @@
 // Versioned intake HTTP boundary. The shared contract owns the questionnaire and writes.
 import type { CurrentConsentState } from '@ccc/contracts/consent';
 import {
-  INTAKE_SCHEMA_VERSION, IntakeContractError, parseIntakeCreateRequest, parseIntakeUpdateRequest,
-  parseIntakeQuestionnaire, type IntakeCreateRequest, type IntakeUpdateRequest,
+  INTAKE_WRITE_SCHEMA_VERSION, IntakeContractError, parseIntakeCreateRequest, parseIntakeQuestionLifecycle,
+  parseIntakeUpdateRequest, parseIntakeQuestionnaire, type IntakeCreateRequest, type IntakeUpdateRequest,
   type IntakeModuleSnapshot, type IntakeSavedRecord, type IntakeRevision, type IntakeMutationResponse,
 } from '@ccc/contracts/intake';
 import { isNullableString, isOpaqueIdentifier, record } from './api';
@@ -17,7 +17,7 @@ export interface IntakeContext {
   sessionSequence: number;
   hasIntake: boolean;
   canWrite: boolean;
-  writeSchemaVersion: 2;
+  writeSchemaVersion: typeof INTAKE_WRITE_SCHEMA_VERSION;
   moduleSnapshot: IntakeModuleSnapshot;
   extendedPii: { birthDate: string | null; region: string | null; emergencyContact: string | null; gender: string | null };
   consent: CurrentConsentState[];
@@ -50,11 +50,17 @@ function savedRecord(value: unknown): IntakeSavedRecord | null {
       || !channel(item.channel) || !isNullableString(item.actorId) || !instant(item.recordedAt)
       || !(item.convertedFromRevision === null || positiveInteger(item.convertedFromRevision))
       || !isNullableString(item.detailsJson)) throw new BusinessError('invalid_response');
+    let questionLifecycle;
+    try { questionLifecycle = item.questionLifecycle === null ? null : parseIntakeQuestionLifecycle(item.questionLifecycle); }
+    catch { throw new BusinessError('invalid_response'); }
     return { revision: item.revision, schemaVersion: item.schemaVersion, heldAt: item.heldAt,
       channel: item.channel, actorId: item.actorId, recordedAt: item.recordedAt,
-      convertedFromRevision: item.convertedFromRevision, detailsJson: item.detailsJson };
+      convertedFromRevision: item.convertedFromRevision, detailsJson: item.detailsJson, questionLifecycle };
   });
-  const base = { sessionId: row.sessionId, heldAt: row.heldAt, channel: row.channel, revision, history };
+  let questionLifecycle;
+  try { questionLifecycle = row.questionLifecycle === null ? null : parseIntakeQuestionLifecycle(row.questionLifecycle); }
+  catch { throw new BusinessError('invalid_response'); }
+  const base = { sessionId: row.sessionId, heldAt: row.heldAt, channel: row.channel, revision, history, questionLifecycle };
   if (row.schemaVersion === 1 && row.questionnaire === null && isNullableString(row.legacyDetailsJson)) {
     return { ...base, schemaVersion: 1, questionnaire: null, legacyDetailsJson: row.legacyDetailsJson };
   }
@@ -71,7 +77,7 @@ export function decodeIntakeContext(value: unknown, supportCaseId: string): Inta
   const pii = record(row.extendedPii);
   if (row.supportCaseId !== supportCaseId || !isOpaqueIdentifier(row.beneficiaryId)
     || !positiveInteger(row.sessionSequence) || typeof row.hasIntake !== 'boolean'
-    || typeof row.canWrite !== 'boolean' || row.writeSchemaVersion !== INTAKE_SCHEMA_VERSION
+    || typeof row.canWrite !== 'boolean' || row.writeSchemaVersion !== INTAKE_WRITE_SCHEMA_VERSION
     || !isNullableString(row.overallGoal) || !isNullableString(participant.name)
     || !isNullableString(participant.phone) || !isNullableString(participant.email)) throw new BusinessError('invalid_response');
   const saved = savedRecord(row.saved);
@@ -89,7 +95,7 @@ export function decodeIntakeContext(value: unknown, supportCaseId: string): Inta
     beneficiaryId: row.beneficiaryId, supportCaseId,
     participant: { name: participant.name, phone: participant.phone, email: participant.email },
     sessionSequence: row.sessionSequence, hasIntake: row.hasIntake, canWrite: row.canWrite,
-    writeSchemaVersion: INTAKE_SCHEMA_VERSION, moduleSnapshot: moduleSnapshot(row.moduleSnapshot),
+    writeSchemaVersion: INTAKE_WRITE_SCHEMA_VERSION, moduleSnapshot: moduleSnapshot(row.moduleSnapshot),
     extendedPii: { birthDate: piiValue('birthDate'), region: piiValue('region'), emergencyContact: piiValue('emergencyContact'), gender: piiValue('gender') },
     consent: decodeConsentStates({ consent: row.consent }), overallGoal: row.overallGoal,
     schedule: schedule === null ? null : { id: schedule.id as string, version: schedule.version as number, scheduledAt: schedule.scheduledAt as string },
@@ -100,11 +106,11 @@ export function decodeIntakeContext(value: unknown, supportCaseId: string): Inta
 function mutationResponse(value: unknown): IntakeMutationResponse {
   const row = record(value);
   const saved = record(row.record);
-  if (row.schemaVersion !== INTAKE_SCHEMA_VERSION || !positiveInteger(row.revision) || typeof row.replayed !== 'boolean'
+  if (row.schemaVersion !== INTAKE_WRITE_SCHEMA_VERSION || !positiveInteger(row.revision) || typeof row.replayed !== 'boolean'
     || !isOpaqueIdentifier(saved.id) || !instant(saved.heldAt) || !channel(saved.channel) || saved.kind !== 'intake') {
     throw new BusinessError('invalid_response');
   }
-  return { schemaVersion: INTAKE_SCHEMA_VERSION, revision: row.revision, replayed: row.replayed,
+  return { schemaVersion: INTAKE_WRITE_SCHEMA_VERSION, revision: row.revision, replayed: row.replayed,
     record: { id: saved.id, heldAt: saved.heldAt, channel: saved.channel, kind: 'intake' } };
 }
 

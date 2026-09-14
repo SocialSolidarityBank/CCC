@@ -2,23 +2,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext, useParams } from 'react-router';
 import {
   Icon, WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireChoice, WireDataRow, WireDataRows,
-  WireEmpty, WireError, WireFormField,
+  WireEmpty, WireError, WireFormField, WireItem,
 } from '@ccc/wire';
 import {
-  INTAKE_AREAS, INTAKE_AREA_LABELS, INTAKE_QUESTIONS, INTAKE_RESPONSE_CODES, INTAKE_SCHEMA_VERSION,
+  INTAKE_AREAS, INTAKE_AREA_LABELS, INTAKE_QUESTIONS, INTAKE_RESPONSE_CODES, INTAKE_WRITE_SCHEMA_VERSION,
   intakeAnswerDisplayText, requiredIntakeQuestionKeys, type IntakeQuestion, type IntakeQuestionKey,
   type IntakeResponseCode, type IntakeCreateRequest,
 } from '@ccc/contracts/intake';
 import { CONSENT_DOMAIN_LABELS, CONSENT_STATE_LABELS } from '../business/consent';
 import { BusinessError, safeError } from '../business/errors';
 import {
-  INTAKE_RESPONSE_LABELS, INTAKE_TABLE_FIELDS, buildIntakeQuestionnaire, emptyAnswer, intakeDraft, selectedIntakeAreas,
-  type AnswerDraft, type IntakeDraft, type IntakeTableName, type TableDraft,
+  INTAKE_RESPONSE_LABELS, INTAKE_TABLE_FIELDS, buildIntakeMutationMetadata, buildIntakeQuestionnaire, emptyAnswer,
+  intakeDraft, intakeDraftFromSaved, newIntakeTableRow, selectedIntakeAreas,
+  type AnswerDraft, type IntakeDraft, type IntakeRowStatus, type IntakeTableName, type TableDraft,
 } from '../business/intake-form';
 import type { IntakeContext } from '../business/intake';
 import type { Session } from '../business/session';
 
 const CHANNEL_LABELS = { in_person: '대면', phone: '전화', video: '화상' } as const;
+const INTAKE_ROW_STATUS_LABELS: Record<IntakeRowStatus, string> = {
+  new: '새 질문', retained: '유지', withdrawn: '철회', confirmed: '확정', confirmation_required: '확정 필요',
+};
 const localDateTime = (instant: string) => {
   if (!instant) return '';
   const date = new Date(instant);
@@ -58,31 +62,77 @@ function QuestionField({ questionKey, draft, disabled, onChange }: {
   </WireCardSection>;
 }
 
-function TableEditor({ name, draft, disabled, readOnly, onChange }: {
-  name: IntakeTableName; draft: TableDraft; disabled: boolean; readOnly: boolean; onChange: (next: TableDraft) => void;
+function TableEditor({ name, draft, disabled, readOnly, conversionConfirmed, onChange }: {
+  name: IntakeTableName; draft: TableDraft; disabled: boolean; readOnly: boolean; conversionConfirmed: boolean;
+  onChange: (next: TableDraft) => void;
 }) {
   const table = INTAKE_TABLE_FIELDS[name];
+  const currentIds = new Set(draft.rows.flatMap((row) => row.questionId === null ? [] : [row.questionId]));
+  const historicalRows = name === 'additionalItems'
+    ? draft.lifecycleRows.filter((row) => row.questionId === null || !currentIds.has(row.questionId)) : [];
+  const needsResponseChoice = name === 'additionalItems' && draft.response === 'answered' && draft.rows.length === 0
+    && historicalRows.some((row) => row.status === 'withdrawn');
   return <WireCardSection title={table.title}>
     {readOnly ? <WireDataRows><WireDataRow label="응답" value={draft.response === '' ? '기록 없음' : INTAKE_RESPONSE_LABELS[draft.response]} /></WireDataRows>
       : <WireFormField label={`${table.title} 응답 종류`} htmlFor={`intake-${name}-response`} control="select" required>
-        <select id={`intake-${name}-response`} value={draft.response} disabled={disabled}
-          onChange={(event) => onChange({ response: event.target.value as IntakeResponseCode | '', rows: event.target.value === 'answered' ? [{}] : [] })}>
+        <select id={`intake-${name}-response`} value={draft.response}
+          disabled={disabled || (name === 'additionalItems' && draft.rows.some((row) => row.legacySourceRowIndex !== undefined))}
+          onChange={(event) => {
+            if (name === 'additionalItems' && draft.rows.some((row) => row.legacySourceRowIndex !== undefined)) return;
+            onChange({ ...draft, response: event.target.value as IntakeResponseCode | '',
+              rows: event.target.value === 'answered' && draft.rows.length === 0 ? [newIntakeTableRow()] : draft.rows });
+          }}>
           <option value="">응답 종류를 고르세요</option>
           {INTAKE_RESPONSE_CODES.map((response) => <option key={response} value={response}>{INTAKE_RESPONSE_LABELS[response]}</option>)}
         </select>
       </WireFormField>}
-    {draft.response === 'answered' && draft.rows.map((row, index) => <WireCardSection key={index} title={`${index + 1}번째 줄`}>
-      {readOnly ? <WireDataRows>{table.columns.map(([key, label]) => <WireDataRow key={key} label={label} value={row[key] ?? '기록 없음'} />)}</WireDataRows>
+    {draft.response === 'answered' && draft.rows.map((row, index) => {
+      const withdrawal = row.withdrawalRequested;
+      const status = withdrawal ? INTAKE_ROW_STATUS_LABELS.withdrawn
+        : row.status === 'confirmation_required' && conversionConfirmed ? INTAKE_ROW_STATUS_LABELS.confirmed
+          : row.status === 'new' ? null : INTAKE_ROW_STATUS_LABELS[row.status];
+      const cannotRemove = row.questionId === null && row.legacySourceRowIndex !== undefined;
+      return <WireCardSection key={row.questionId ?? `new-${index}`} title={`${index + 1}번째 줄`}
+        action={status === null ? undefined : <WireBadge tone="neutral">{status}</WireBadge>}>
+      {readOnly ? <WireDataRows>{table.columns.map(([key, label]) => <WireDataRow key={key} label={label} value={row.values[key] ?? '기록 없음'} />)}</WireDataRows>
         : table.columns.map(([key, label], column) => <WireFormField key={key} label={label} htmlFor={`${name}-${index}-${key}`} required={column === 0}>
-          <input id={`${name}-${index}-${key}`} value={row[key] ?? ''} maxLength={4000} disabled={disabled}
-            onChange={(event) => onChange({ ...draft, rows: draft.rows.map((entry, position) => position === index ? { ...entry, [key]: event.target.value } : entry) })} />
+          <input id={`${name}-${index}-${key}`} value={row.values[key] ?? ''} maxLength={4000} disabled={disabled || withdrawal}
+            onChange={(event) => onChange({ ...draft, rows: draft.rows.map((entry, position) => position === index
+              ? { ...entry, values: { ...entry.values, [key]: event.target.value } } : entry) })} />
         </WireFormField>)}
-      {!readOnly && <div className="business-actions"><WireButton variant="neutral" disabled={disabled}
-        onClick={() => onChange({ ...draft, rows: draft.rows.filter((_, position) => position !== index) })}>줄 삭제</WireButton></div>}
-    </WireCardSection>)}
+      {!readOnly && <div className="business-actions"><WireButton variant="neutral" disabled={disabled || cannotRemove}
+        onClick={() => onChange(row.questionId === null
+          ? { ...draft, rows: draft.rows.filter((_, position) => position !== index) }
+          : { ...draft, rows: draft.rows.map((entry, position) => position === index
+            ? { ...entry, withdrawalRequested: !entry.withdrawalRequested,
+              values: !entry.withdrawalRequested && entry.originalValues !== null ? { ...entry.originalValues } : entry.values }
+            : entry) })}>{withdrawal ? '철회 취소' : row.questionId === null ? '줄 삭제' : '철회'}</WireButton></div>}
+    </WireCardSection>;
+    })}
+    {historicalRows.map((row) => <WireItem key={row.questionId ?? `${row.status}-${row.legacySourceRowIndex}`}
+      title={row.values.item ?? '보존된 질문'} description={row.values.dueNote}
+      status={<WireBadge tone="neutral">{row.withdrawalRequested
+        ? INTAKE_ROW_STATUS_LABELS.withdrawn : INTAKE_ROW_STATUS_LABELS[row.status]}</WireBadge>}
+      action={!readOnly && row.status !== 'withdrawn' && row.questionId !== null ? <div className="business-actions">
+        <WireButton variant="neutral" disabled={disabled || row.withdrawalRequested || draft.rows.length >= 20}
+          onClick={() => onChange({
+            ...draft, response: 'answered',
+            rows: [...draft.rows, { ...row, withdrawalRequested: false }],
+            lifecycleRows: draft.lifecycleRows.map((entry) => entry.questionId === row.questionId
+              ? { ...entry, withdrawalRequested: false } : entry),
+          })}>다시 넣기</WireButton>
+        <WireButton variant="neutral" disabled={disabled}
+          onClick={() => onChange({ ...draft, lifecycleRows: draft.lifecycleRows.map((entry) =>
+            entry.questionId === row.questionId ? { ...entry, withdrawalRequested: !entry.withdrawalRequested } : entry) })}>
+          {row.withdrawalRequested ? '철회 취소' : '철회'}
+        </WireButton>
+      </div> : undefined} />)}
+    {needsResponseChoice && <WireCallout tone="info" title="응답 종류를 확인해 주세요">
+      철회된 질문만 남아 있어요. 새 질문을 추가하거나 응답 종류를 모름, 답변 거부, 해당 없음 중 하나로 바꿔 주세요.
+    </WireCallout>}
     {!readOnly && draft.response === 'answered' && <div className="business-actions">
       <WireButton variant="neutral" disabled={disabled || draft.rows.length >= 20}
-        onClick={() => onChange({ ...draft, rows: [...draft.rows, {}] })}>{table.title} 줄 추가</WireButton>
+        onClick={() => onChange({ ...draft, rows: [...draft.rows, newIntakeTableRow()] })}>{table.title} 줄 추가</WireButton>
     </div>}
   </WireCardSection>;
 }
@@ -128,7 +178,7 @@ function IntakeForm({ beneficiaryId, supportCaseId }: { beneficiaryId: string; s
       if (own !== generation.current) return;
       if (value.beneficiaryId !== beneficiaryId) throw new BusinessError('invalid_response');
       setContext(value);
-      setDraft(intakeDraft(value.saved?.schemaVersion === 2 ? value.saved.questionnaire : null));
+      setDraft(value.saved === null ? intakeDraft(null) : intakeDraftFromSaved(value.saved));
       setHeldAt(value.saved?.heldAt ?? '');
       setChannel(value.saved?.channel ?? 'in_person');
       setConversionConfirmed(false);
@@ -144,22 +194,27 @@ function IntakeForm({ beneficiaryId, supportCaseId }: { beneficiaryId: string; s
   }, [session, beneficiaryId, supportCaseId]);
   useEffect(() => { load(); return () => { generation.current += 1; }; }, [load]);
 
+  const converting = context?.saved !== null && context?.saved.questionLifecycle === null;
   const legacy = context?.saved?.schemaVersion === 1;
-  const editable = context?.canWrite === true && (!legacy || conversionConfirmed);
+  const editable = context?.canWrite === true && (!converting || conversionConfirmed);
   const areas = selectedIntakeAreas(draft);
   const requiredKeys = requiredIntakeQuestionKeys(areas);
+  const additionalItemsNeedChoice = draft.tables.additionalItems.response === 'answered'
+    && draft.tables.additionalItems.rows.length === 0
+    && draft.tables.additionalItems.lifecycleRows.some((row) => row.status === 'withdrawn');
   const submit = async () => {
-    if (busyRef.current || !editable || conflict || context === null || heldAt === '') return;
+    if (busyRef.current || !editable || conflict || additionalItemsNeedChoice || context === null || heldAt === '') return;
     busyRef.current = true;
     setBusy(true); setError(null); setSaved(null);
     try {
-      const common = { schemaVersion: INTAKE_SCHEMA_VERSION, heldAt, channel,
-        questionnaire: buildIntakeQuestionnaire(draft, context.moduleSnapshot) };
+      const metadata = buildIntakeMutationMetadata(draft);
+      const common = { schemaVersion: INTAKE_WRITE_SCHEMA_VERSION, heldAt, channel,
+        questionnaire: buildIntakeQuestionnaire(draft, context.moduleSnapshot), ...metadata };
       const result = context.saved === null
         ? await session.intake.create(supportCaseId, { ...common, submissionId,
           ...(context.schedule === null ? {} : { scheduleId: context.schedule.id, expectedScheduleVersion: context.schedule.version }) })
         : await session.intake.update(supportCaseId, { ...common, expectedRevision: context.saved.revision,
-          ...(context.saved.schemaVersion === 1 ? { conversion: { confirmed: true as const, sourceRevision: context.saved.revision } } : {}) });
+          ...(converting ? { conversion: { confirmed: true as const, sourceRevision: context.saved.revision } } : {}) });
       setSaved(result.replayed ? 'replayed' : 'saved');
       load();
     } catch (cause) {
@@ -176,7 +231,8 @@ function IntakeForm({ beneficiaryId, supportCaseId }: { beneficiaryId: string; s
   </> : <WireEmpty live reserve>첫 상담 기록을 불러오고 있어요.</WireEmpty>}</WireCard>;
 
   const table = (name: IntakeTableName, readOnly: boolean) => <TableEditor name={name} draft={draft.tables[name]}
-    disabled={busy || conflict} readOnly={readOnly} onChange={(next) => setDraft({ ...draft, tables: { ...draft.tables, [name]: next } })} />;
+    disabled={busy || conflict} readOnly={readOnly} conversionConfirmed={conversionConfirmed}
+    onChange={(next) => setDraft({ ...draft, tables: { ...draft.tables, [name]: next } })} />;
   const question = (key: IntakeQuestionKey) => <QuestionField key={key} questionKey={key}
     draft={draft.answers[key] ?? emptyAnswer()} disabled={busy || conflict}
     onChange={(next) => setDraft({ ...draft, answers: { ...draft.answers, [key]: next } })} />;
@@ -209,19 +265,22 @@ function IntakeForm({ beneficiaryId, supportCaseId }: { beneficiaryId: string; s
         {context.saved && <WireDataRow label="저장된 기록 버전" value={`${context.saved.schemaVersion}형식, 수정 ${context.saved.revision}`} />}
         {context.saved && <WireDataRow label="저장된 상담일시" value={context.saved.heldAt} />}
         {context.saved && <WireDataRow label="저장된 상담 방식" value={CHANNEL_LABELS[context.saved.channel]} />}
+        {context.saved?.questionLifecycle && <>
+          <WireDataRow label="다음에 물어볼 것 유지" value={`${draft.lifecycleCounts.retained}개`} />
+          <WireDataRow label="다음에 물어볼 것 철회" value={`${draft.lifecycleCounts.withdrawn}개`} />
+          <WireDataRow label="이전 질문 연결 확정" value={`${draft.lifecycleCounts.confirmed}개`} />
+        </>}
       </WireDataRows>
       <div className="business-actions"><WireButton variant="neutral" href={`${base}/records`}>상담 기록</WireButton>
         <WireButton variant="neutral" href={`/participants/${encodeURIComponent(beneficiaryId)}`}>당사자 정보</WireButton></div>
     </WireCard>
-    {context.saved?.schemaVersion === 1 && <WireCard title="이전 양식 원본">
-      <WireCallout tone="info" title="이전 값은 그대로 보존해요">저장 당시의 항목 이름과 값을 그대로 보여 줘요. 현재 영역이나 위기도로 자동 분류하지 않아요.</WireCallout>
-      {storedRows(context.saved.legacyDetailsJson)}
+    {converting && <WireCard title={legacy ? '이전 양식 원본' : '저장된 질문 연결'}>
+      <WireCallout tone="info" title="이전 값은 그대로 보존해요">저장 당시의 항목 이름과 값을 그대로 보여 주고, 질문 연결은 확인 뒤 저장해요.</WireCallout>
+      {legacy && storedRows(context.saved!.legacyDetailsJson)}
       {context.canWrite && <WireChoice type="checkbox" id="intake-conversion" checked={conversionConfirmed} disabled={busy || conflict}
-        label="이전 원본을 보존하고 새 양식에 직접 작성해 전환할 것을 확인했어요" onChange={(checked) => {
-          setConversionConfirmed(checked); setDraft(intakeDraft(null));
-        }} />}
+        label="이전 원본과 질문 연결을 확인하고 새 양식으로 저장할게요" onChange={setConversionConfirmed} />}
     </WireCard>}
-    {editable && <WireCard title={legacy ? '새 양식으로 전환' : context.saved ? '첫 상담 기록 수정' : '첫 상담 기록 작성'}>
+    {editable && <WireCard title={converting ? '새 양식으로 전환' : context.saved ? '첫 상담 기록 수정' : '첫 상담 기록 작성'}>
       <form className="business-form" noValidate onSubmit={(event) => { event.preventDefault(); void submit(); }}>
         <WireFormField label="상담일시" htmlFor="intake-held-at" required hint="이 기기의 시간대로 입력해요">
           <input id="intake-held-at" type="datetime-local" step="0.001" value={localDateTime(heldAt)} disabled={busy || conflict}
@@ -249,7 +308,8 @@ function IntakeForm({ beneficiaryId, supportCaseId }: { beneficiaryId: string; s
         </WireCardSection>)}
         {table('linkedOrgs', false)}{table('additionalItems', false)}
         {context.moduleSnapshot.financialSupportEnabled && areas.includes('economy') && table('debts', false)}
-        <div className="business-actions"><WireButton type="submit" variant="primary" icon={<Icon name="check" />} disabled={busy || conflict || heldAt === ''}>저장</WireButton></div>
+        <div className="business-actions"><WireButton type="submit" variant="primary" icon={<Icon name="check" />}
+          disabled={busy || conflict || additionalItemsNeedChoice || heldAt === ''}>저장</WireButton></div>
       </form>
     </WireCard>}
     {!editable && context.saved?.schemaVersion === 2 && <WireCard title="저장된 첫 상담 기록">

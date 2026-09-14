@@ -1,7 +1,9 @@
 // 합성 전용 업무 API와 인증 서버. 실제 기관 자료, 실제 인증, 실제 사업자 연결은 없다.
 // 미리보기와 브라우저 검수가 같은 응답을 쓰도록 한 곳에 둔다.
 
-import { IntakeContractError, parseIntakeCreateRequest, parseIntakeUpdateRequest } from '@ccc/contracts/intake';
+import {
+  INTAKE_WRITE_SCHEMA_VERSION, IntakeContractError, parseIntakeCreateRequest, parseIntakeQuestionnaire, parseIntakeUpdateRequest,
+} from '@ccc/contracts/intake';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 const USER_ID = 'a800424b-7cb1-49f5-8bb4-8989d586c455';
 const CASE_ID = '2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10';
@@ -82,6 +84,40 @@ export function seedSyntheticLegacyIntake(state, supportCaseId, saved, recordedA
   state.intakeRevisionMetadata.set(key, { actorId: null, recordedAt, convertedFromRevision: null });
   if (supportCaseId === CASE_ID) state.intake = structuredClone(saved);
   else state.registeredIntake = structuredClone(saved);
+}
+
+function intakeSourceRows(schemaVersion, detailsJson) {
+  const details = typeof detailsJson === 'string' ? JSON.parse(detailsJson) : detailsJson;
+  if (schemaVersion === 1) {
+    if (details === null || details === undefined || !Object.hasOwn(details, 'additionalItems')) return [];
+    const rows = details.additionalItems;
+    if (!Array.isArray(rows) || rows.some((row) => row === null || typeof row !== 'object' || Array.isArray(row)
+      || typeof row.item !== 'string' || !row.item.trim() || (Object.hasOwn(row, 'dueNote') && typeof row.dueNote !== 'string'))) {
+      throw new Error('invalid_intake_source');
+    }
+    return rows;
+  }
+  const questionnaire = parseIntakeQuestionnaire(details);
+  return questionnaire.additionalItems.response === 'answered' ? questionnaire.additionalItems.rows : [];
+}
+
+function intakeRevisionRows(saved, revision) {
+  if (revision === saved.revision) {
+    return intakeSourceRows(saved.schemaVersion, saved.schemaVersion === 1 ? saved.legacyDetailsJson : saved.questionnaire);
+  }
+  const historical = saved.history.find((entry) => entry.revision === revision);
+  if (!historical) throw new Error('invalid_intake_source');
+  return intakeSourceRows(historical.schemaVersion, historical.detailsJson);
+}
+
+function intakeQuestionReferences(saved) {
+  const references = new Map();
+  for (const item of saved.questionLifecycle?.items ?? []) {
+    const value = intakeRevisionRows(saved, item.sourceRevision)[item.sourceRowIndex];
+    if (!value) throw new Error('invalid_intake_source');
+    references.set(item.id, { item, value });
+  }
+  return references;
 }
 
 const CONSENT_DOMAINS = [
@@ -928,7 +964,7 @@ export function handleApi(request, state, options) {
   if (intakeCaseId !== null && request.method === 'GET') {
     return json({
       beneficiaryId: intakeCaseId === CASE_ID ? 'swallow-003' : 'otter-011', supportCaseId: intakeCaseId,
-      canWrite: canWriteIntake, writeSchemaVersion: 2, moduleSnapshot,
+      canWrite: canWriteIntake, writeSchemaVersion: INTAKE_WRITE_SCHEMA_VERSION, moduleSnapshot,
       participant: { name: '김합성', phone: '010-0000-0000', email: 'synthetic@example.invalid' },
       sessionSequence: savedIntake === null ? 1 : 2, hasIntake: savedIntake !== null,
       extendedPii: { birthDate: '1980-03-05', region: '서울', emergencyContact: null, gender: null },
@@ -939,14 +975,18 @@ export function handleApi(request, state, options) {
     }, 200, cors);
   }
   if (intakeCaseId !== null && (request.method === 'POST' || request.method === 'PUT')) {
-    if (!canWriteIntake) return intakeCaseId === CASE_ID && state.caseClosed !== null
-      ? json({ error: 'conflict' }, 409, cors) : json({ error: 'forbidden' }, 403, cors);
     return request.json().then((raw) => {
       let body;
       try { body = request.method === 'POST' ? parseIntakeCreateRequest(raw) : parseIntakeUpdateRequest(raw); }
       catch (error) {
         if (error instanceof IntakeContractError) return json({ error: 'invalid_request' }, 400, cors);
         throw error;
+      }
+      if (!canWriteIntake) return intakeCaseId === CASE_ID && state.caseClosed !== null
+        ? json({ error: 'conflict' }, 409, cors) : json({ error: 'forbidden' }, 403, cors);
+      if (request.method === 'PUT' && savedIntake !== null && savedIntake.questionLifecycle !== null
+        && body.additionalItemRefs.some((ref) => ref.legacySourceRowIndex !== undefined)) {
+        return json({ error: 'invalid_request' }, 400, cors);
       }
       const receiptKey = `${intakeCaseId}:${body.submissionId}`;
       const fingerprint = canonicalizeJcs(body);
@@ -956,36 +996,122 @@ export function handleApi(request, state, options) {
           ? json({ ...previous.result, replayed: true }, 200, cors) : json({ error: 'conflict' }, 409, cors);
       }
       const snapshot = body.questionnaire.moduleSnapshot;
-      if (snapshot.programId !== moduleSnapshot.programId || snapshot.programVersion !== moduleSnapshot.programVersion
+      if (snapshot.programId !== moduleSnapshot.programId) return json({ error: 'forbidden' }, 403, cors);
+      if (snapshot.programVersion !== moduleSnapshot.programVersion
         || snapshot.financialSupportEnabled !== moduleSnapshot.financialSupportEnabled) return json({ error: 'conflict' }, 409, cors);
       if (request.method === 'POST') {
         if (savedIntake !== null) return json({ error: 'conflict' }, 409, cors);
         if (body.scheduleId !== undefined && (body.scheduleId !== SCHEDULE_ID || body.expectedScheduleVersion !== state.scheduleVersion)) {
           return json({ error: 'conflict' }, 409, cors);
         }
-      } else if (savedIntake === null || body.expectedRevision !== savedIntake.revision
-        || (savedIntake.schemaVersion === 1 ? body.conversion?.sourceRevision !== savedIntake.revision || body.conversion?.confirmed !== true
-          : body.conversion !== undefined)) return json({ error: 'conflict' }, 409, cors);
+      } else if (savedIntake === null) return json({ error: 'conflict' }, 409, cors);
+
+      const recordedAt = new Date().toISOString();
+      let questionLifecycle;
+      if (request.method === 'POST') {
+        questionLifecycle = {
+          version: 1, conversion: null,
+          items: body.additionalItemRefs.map((ref) => ({
+            id: crypto.randomUUID(), revision: 1, sourceRevision: 1, sourceRowIndex: ref.rowIndex,
+            createdBy: USER_ID, createdAt: recordedAt, withdrawn: null, origin: null,
+          })),
+        };
+      } else {
+        let references;
+        try { references = intakeQuestionReferences(savedIntake); }
+        catch { return json({ error: 'conflict' }, 409, cors); }
+        for (const questionId of [
+          ...body.additionalItemRefs.flatMap((ref) => ref.questionId === null ? [] : [ref.questionId]),
+          ...body.questionWithdrawals.map((withdrawal) => withdrawal.questionId),
+        ]) if (!references.has(questionId)) return json({ error: 'forbidden' }, 403, cors);
+        if (body.expectedRevision !== savedIntake.revision) return json({ error: 'conflict' }, 409, cors);
+        const converting = savedIntake.questionLifecycle === null;
+        if (converting ? body.conversion?.confirmed !== true || body.conversion.sourceRevision !== savedIntake.revision
+          : body.conversion !== undefined) return json({ error: 'conflict' }, 409, cors);
+        let legacyRows = [];
+        try { legacyRows = converting ? intakeRevisionRows(savedIntake, savedIntake.revision) : []; }
+        catch { return json({ error: 'conflict' }, 409, cors); }
+        const mappings = body.additionalItemRefs.filter((ref) => ref.legacySourceRowIndex !== undefined);
+        if (converting && (mappings.length !== legacyRows.length
+          || new Set(mappings.map((ref) => ref.legacySourceRowIndex)).size !== legacyRows.length
+          || mappings.some((ref) => ref.legacySourceRowIndex >= legacyRows.length))) {
+          return json({ error: 'conflict' }, 409, cors);
+        }
+        const rows = body.questionnaire.additionalItems.response === 'answered' ? body.questionnaire.additionalItems.rows : [];
+        const withdrawals = new Map(body.questionWithdrawals.map((withdrawal) => [withdrawal.questionId, withdrawal]));
+        const bindings = new Map(body.additionalItemRefs.flatMap((ref) => ref.questionId === null ? [] : [[ref.questionId, ref]]));
+        for (const ref of body.additionalItemRefs) {
+          if (ref.questionId === null) continue;
+          const source = references.get(ref.questionId);
+          if (source.item.withdrawn !== null || ref.expectedRevision !== source.item.revision) return json({ error: 'conflict' }, 409, cors);
+          const submitted = rows[ref.rowIndex];
+          if (withdrawals.has(ref.questionId)
+            && (submitted.item !== source.value.item || submitted.dueNote !== source.value.dueNote)) {
+            return json({ error: 'conflict' }, 409, cors);
+          }
+        }
+        for (const withdrawal of withdrawals.values()) {
+          const source = references.get(withdrawal.questionId);
+          if (source.item.withdrawn !== null || source.item.revision !== withdrawal.expectedRevision) {
+            return json({ error: 'conflict' }, 409, cors);
+          }
+        }
+        const items = (savedIntake.questionLifecycle?.items ?? []).map((item) => {
+          const ref = bindings.get(item.id), withdrawal = withdrawals.get(item.id);
+          if (ref === undefined && withdrawal === undefined) return structuredClone(item);
+          const source = references.get(item.id).value;
+          const submitted = ref === undefined ? source : rows[ref.rowIndex];
+          const changed = submitted.item !== source.item || submitted.dueNote !== source.dueNote;
+          return {
+            ...structuredClone(item), revision: item.revision + (changed || withdrawal !== undefined ? 1 : 0),
+            sourceRevision: ref === undefined ? item.sourceRevision : savedIntake.revision + 1,
+            sourceRowIndex: ref === undefined ? item.sourceRowIndex : ref.rowIndex,
+            withdrawn: withdrawal === undefined ? item.withdrawn
+              : { actorId: USER_ID, recordedAt, fromRevision: item.revision },
+          };
+        });
+        const allocatedMappings = [];
+        for (const ref of body.additionalItemRefs) {
+          if (ref.questionId !== null) continue;
+          const id = crypto.randomUUID();
+          const origin = ref.legacySourceRowIndex === undefined ? null : {
+            schemaVersion: savedIntake.schemaVersion, sourceRevision: savedIntake.revision, sourceRowIndex: ref.legacySourceRowIndex,
+          };
+          items.push({
+            id, revision: 1, sourceRevision: savedIntake.revision + 1, sourceRowIndex: ref.rowIndex,
+            createdBy: USER_ID, createdAt: recordedAt, withdrawn: null, origin,
+          });
+          if (origin !== null) allocatedMappings.push({ questionId: id, sourceRowIndex: origin.sourceRowIndex });
+        }
+        questionLifecycle = {
+          version: 1, items,
+          conversion: converting ? {
+            sourceSchemaVersion: savedIntake.schemaVersion, sourceRevision: savedIntake.revision,
+            mechanical: { recordedAt, mappings: allocatedMappings },
+            confirmation: { actorId: USER_ID, recordedAt },
+          } : savedIntake.questionLifecycle.conversion,
+        };
+      }
       const previousMetadata = savedIntake === null ? null
         : state.intakeRevisionMetadata.get(`${intakeCaseId}:${savedIntake.revision}`);
-      // Manually seeded revisions must include their original provenance rather than inventing it here.
       if (savedIntake !== null && !previousMetadata) return json({ error: 'internal_error' }, 500, cors);
       const history = savedIntake === null ? [] : [{
         revision: savedIntake.revision, schemaVersion: savedIntake.schemaVersion, heldAt: savedIntake.heldAt,
         channel: savedIntake.channel, ...previousMetadata,
         detailsJson: savedIntake.schemaVersion === 1 ? savedIntake.legacyDetailsJson : JSON.stringify(savedIntake.questionnaire),
+        questionLifecycle: structuredClone(savedIntake.questionLifecycle),
       }, ...savedIntake.history];
       const intake = {
         sessionId: savedIntake?.sessionId ?? (intakeCaseId === CASE_ID ? '4d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35' : '6d2b6f81-9c3a-4e57-8b16-2f7d9a0c1e35'),
         heldAt: body.heldAt, channel: body.channel, revision: (savedIntake?.revision ?? 0) + 1,
-        schemaVersion: 2, questionnaire: structuredClone(body.questionnaire), legacyDetailsJson: null, history,
+        schemaVersion: 2, questionnaire: structuredClone(body.questionnaire), legacyDetailsJson: null, history, questionLifecycle,
       };
       if (intakeCaseId === REGISTERED_CASE_ID) state.registeredIntake = intake;
       else state.intake = intake;
       state.intakeRevisionMetadata.set(`${intakeCaseId}:${intake.revision}`, {
-        actorId: USER_ID, recordedAt: new Date().toISOString(), convertedFromRevision: body.conversion?.sourceRevision ?? null,
+        actorId: USER_ID, recordedAt, convertedFromRevision: body.conversion?.sourceRevision ?? null,
       });
-      const result = { schemaVersion: 2, revision: intake.revision, replayed: false,
+      const result = { schemaVersion: INTAKE_WRITE_SCHEMA_VERSION, revision: intake.revision, replayed: false,
         record: { id: intake.sessionId, heldAt: intake.heldAt, channel: intake.channel, kind: 'intake' } };
       if (request.method === 'POST') state.intakeSubmissions.set(receiptKey, { fingerprint, result });
       return json(result, request.method === 'POST' ? 201 : 200, cors);
