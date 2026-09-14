@@ -35,6 +35,59 @@ class MaskPatternsTest(unittest.TestCase):
         self.assertEqual(masking.mask_patterns(text), text)
 
 
+
+class DateNormalizationTest(unittest.TestCase):
+    def test_normalizes_explicit_event_dates_by_calendar_days(self):
+        self.assertEqual(
+            masking.normalize_event_date(
+                "2026-09-10",
+                "2026-09-14",
+                date_kind="event",
+                anchor_explicit=True,
+                date_explicit=True,
+                year_explicit=True,
+            ),
+            "[상담일 4일 전]",
+        )
+        self.assertEqual(
+            masking.normalize_event_date(
+                "2026-09-14",
+                "2026-09-14",
+                date_kind="deadline",
+                anchor_explicit=True,
+                date_explicit=True,
+                year_explicit=True,
+            ),
+            "[상담일]",
+        )
+        self.assertEqual(
+            masking.normalize_event_date(
+                "2026-09-20",
+                "2026-09-14",
+                date_kind="event",
+                anchor_explicit=True,
+                date_explicit=True,
+                year_explicit=True,
+            ),
+            "[상담일 6일 후]",
+        )
+
+    def test_rejects_birth_ambiguous_and_unanchored_dates(self):
+        self.assertIsNone(
+            masking.normalize_event_date(
+                "1990-01-02",
+                "2026-09-14",
+                date_kind="birth",
+                anchor_explicit=True,
+                date_explicit=True,
+                year_explicit=True,
+            ),
+        )
+        self.assertIsNone(masking.normalize_event_date("2026-09", "2026-09-14"))
+        self.assertIsNone(
+            masking.normalize_event_date("2026-09-10", "2026-09-14", anchor_explicit=False),
+        )
+
 class MaskTextWithNerTest(unittest.TestCase):
     def test_applies_ner_spans_from_end_to_keep_offsets(self):
         text = "김철수 씨가 박영희 씨에게 전화했다"

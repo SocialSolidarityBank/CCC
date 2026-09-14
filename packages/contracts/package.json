@@ -18,6 +18,7 @@
     "./stt-readiness": "./src/stt-readiness.ts",
     "./counseling-memory": "./src/counseling-memory.ts",
     "./program-admission": "./src/program-admission.ts",
+    "./entity-registration": "./src/entity-registration.ts",
     "./intake": "./src/intake.ts",
     "./manual-record": "./src/manual-record.ts",
     "./institution": "./src/institution.ts",

@@ -20,6 +20,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import date
 
 from .condition_terms import ALL_TERMS
 from .model_registry import ModelRegistryError, model_spec
@@ -32,6 +33,58 @@ ACCOUNT_TOKEN = "[계좌번호]"
 PERSON_TOKEN = "[인명]"
 ADDRESS_TOKEN = "[주소]"
 CONDITION_TOKEN = "[질환]"
+
+def calendar_day_delta(
+    event_date: str,
+    consultation_date: str,
+    *,
+    date_kind: str | None = None,
+    anchor_explicit: bool = False,
+    date_explicit: bool = False,
+    year_explicit: bool = False,
+) -> int | None:
+    """Return an explicit event/deadline delta in calendar days, or ``None`` to generic-mask."""
+    if (
+        not isinstance(date_kind, str)
+        or date_kind.lower() not in ("event", "deadline")
+        or not anchor_explicit
+        or not date_explicit
+        or not year_explicit
+    ):
+        return None
+    try:
+        event = date.fromisoformat(event_date)
+        consultation = date.fromisoformat(consultation_date)
+    except (TypeError, ValueError):
+        return None
+    return (event - consultation).days
+
+
+def normalize_event_date(
+    event_date: str,
+    consultation_date: str,
+    *,
+    date_kind: str | None = None,
+    anchor_explicit: bool = False,
+    date_explicit: bool = False,
+    year_explicit: bool = False,
+) -> str | None:
+    """Render the approved calendar-day token; ``None`` means retain generic masking."""
+    delta = calendar_day_delta(
+        event_date,
+        consultation_date,
+        date_kind=date_kind,
+        anchor_explicit=anchor_explicit,
+        date_explicit=date_explicit,
+        year_explicit=year_explicit,
+    )
+    if delta is None:
+        return None
+    if delta == 0:
+        return "[상담일]"
+    return f"[상담일 {abs(delta)}일 {'후' if delta > 0 else '전'}]"
+
+
 
 # 태깅 접두(BIO·BIOES·BILOU). 라벨 대조 전에 떼어 낸다.
 _TAG_PREFIXES = ("B-", "I-", "E-", "S-", "L-", "U-")

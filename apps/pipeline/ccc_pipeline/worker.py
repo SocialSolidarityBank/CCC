@@ -23,7 +23,13 @@ from datetime import datetime, timezone
 from typing import Any
 
 from . import masking, repetition
-from .api_client import ApiClient, ApiError, AudioDownloadError, MemoryApiClient
+from .api_client import (
+    ApiClient,
+    ApiError,
+    AudioDownloadError,
+    EntityRegistrationProtocolError,
+    MemoryApiClient,
+)
 from .azure_stt import AzureSttError, preflight_azure, transcribe_azure
 from .backup import BACKUP_ADAPTERS, backup_original_if_enabled
 from .config import Config
@@ -53,8 +59,13 @@ _HEARTBEAT_INTERVAL_SECONDS = 5 * 60
 _READINESS_INTERVAL_SECONDS = 5 * 60
 
 
+class _EntityRegistrationProtocolFailure(Exception):
+    """The registration parser rejected a claim payload; close it permanently once."""
+
+
 class _RouteMismatchError(Exception):
     pass
+
 
 def _engine_binding(config: Config) -> tuple[str, str | None]:
     if config.stt_engine == ENGINE_OFF:
@@ -467,6 +478,147 @@ def _mask_with_dictionary(
         layers.address_ner,
     )
 
+def _read_source_for_registration(
+    client: ApiClient,
+    job: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    """Read the server-issued F3 source bundle; missing metadata fails closed."""
+    bundle = client.get_source_bundle(job["jobId"], job["claimToken"], job["attempt"])
+    if not isinstance(bundle, dict) or not isinstance(bundle.get("text"), str):
+        raise ApiError(200, "result_schema_invalid")
+    return bundle["text"], bundle
+
+
+def _entity_spans(
+    text: str,
+    layers: MaskingLayers,
+) -> list[tuple[str, int, int]]:
+    """Collect evidence from the qualified local person detector only.
+
+    The shipped NER qualification covers person/address labels, not institutions. An
+    institution detector must not be guessed from aliases or injected as an unqualified
+    callback; ORG registration remains gated on a future attested model.
+    """
+    detector = getattr(layers, "person_ner", None)
+    if not callable(detector):
+        return []
+    candidates: list[tuple[str, int, int]] = []
+    for span in detector(text):
+        if (
+            isinstance(span, (tuple, list))
+            and len(span) == 2
+            and type(span[0]) is int
+            and type(span[1]) is int
+            and 0 <= span[0] < span[1] <= len(text)
+        ):
+            candidates.append(("person", span[0], span[1]))
+    return candidates
+
+
+def _build_entity_registration_request(
+    job: dict[str, Any],
+    text: str,
+    bundle: dict[str, Any],
+    layers: MaskingLayers,
+) -> dict[str, Any] | None:
+    """Build registration witnesses from exact local spans and server source metadata."""
+    sources = bundle.get("sources")
+    if (
+        not isinstance(bundle.get("sourceBundleRevision"), str)
+        or not isinstance(bundle.get("expectedMapRevision"), int)
+        or type(bundle.get("expectedMapRevision")) is not int
+        or not isinstance(sources, list)
+    ):
+        return None
+    entries: list[dict[str, Any]] = []
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    audio_bound = isinstance(bundle.get("audio"), dict)
+    for kind, start, end in _entity_spans(text, layers):
+        source = next(
+            (
+                candidate for candidate in sources
+                if (
+                    isinstance(candidate, dict)
+                    and type(candidate.get("start")) is int
+                    and type(candidate.get("end")) is int
+                    and (
+                        (
+                            audio_bound
+                            and candidate.get("sourceKind") == "transcript"
+                            and candidate["start"] == candidate["end"] == 0
+                        )
+                        or (
+                            not audio_bound
+                            and candidate["start"] <= start
+                            and end <= candidate["end"]
+                        )
+                    )
+                )
+            ),
+            None,
+        )
+        if source is None:
+            continue
+        source_value = text[start:end]
+        key = (kind, source_value)
+        entry = by_key.get(key)
+        occurrence = {
+            "sourceId": source.get("sourceId"),
+            "sourceRevision": source.get("sourceRevision"),
+            "start": start,
+            "end": end,
+        }
+        if (
+            not isinstance(occurrence["sourceId"], str)
+            or not isinstance(occurrence["sourceRevision"], str)
+            or occurrence in (entry or {}).get("occurrences", [])
+        ):
+            continue
+        if entry is None:
+            entry = {
+                "kind": kind,
+                "sourceValue": source_value,
+                "occurrences": [],
+                "entityReference": None,
+            }
+            by_key[key] = entry
+            entries.append(entry)
+        entry["occurrences"].append(occurrence)
+    if not entries:
+        return None
+    return {
+        "family": "memory" if job.get("purpose") == "counseling_memory" else "generic",
+        "jobId": job["jobId"],
+        "claimToken": job["claimToken"],
+        "attempt": job["attempt"],
+        "sourceBundleRevision": bundle["sourceBundleRevision"],
+        "expectedMapRevision": bundle["expectedMapRevision"],
+        "entries": entries,
+    }
+
+
+def _register_entities_if_bound(
+    client: ApiClient,
+    job: dict[str, Any],
+    text: str,
+    bundle: dict[str, Any] | None,
+    layers: MaskingLayers,
+) -> bool:
+    if bundle is None:
+        return False
+    request = _build_entity_registration_request(job, text, bundle, layers)
+    if request is None:
+        return False
+    try:
+        response = client.register_entities(request)
+    except EntityRegistrationProtocolError as error:
+        raise _EntityRegistrationProtocolFailure from error
+    except ApiError as error:
+        if error.status == 400:
+            raise _EntityRegistrationProtocolFailure from error
+        raise
+    return isinstance(response, dict) and response.get("outcome") == "superseded"
+
 
 def process_audio_job(
     client: ApiClient,
@@ -538,6 +690,19 @@ def process_audio_job(
                 generation_id=audio.get("generationId"),
                 computed_sha256=computed_sha256,
             )
+            try:
+                _, source_bundle = _read_source_for_registration(client, job)
+            except ApiError as error:
+                if error.status == 200:
+                    raise ApiError(200, "result_schema_invalid") from error
+                raise
+            audio_binding = source_bundle.get("audio")
+            if (
+                not isinstance(audio_binding, dict)
+                or audio_binding.get("generationId") != audio.get("generationId")
+                or audio_binding.get("rawSha256") != raw_audio_sha256
+            ):
+                raise ApiError(200, "result_schema_invalid")
             lease.assert_owned()
 
             backup_status = backup_original_if_enabled(
@@ -637,11 +802,14 @@ def process_audio_job(
                 )
                 emotion_scores = aggregate_scores(speech_scores, text_scores)
 
+            transcript_text = format_transcript(segments, roles)
+            if _register_entities_if_bound(client, job, transcript_text, source_bundle, layers):
+                return
             transcript, mask_report = _mask_with_dictionary(
                 client,
                 layers,
                 job,
-                format_transcript(segments, roles),
+                transcript_text,
             )
             logger.info("job %s: masked total=%d detail=%s", job_id, mask_report.total, mask_report.as_mapping())
 
@@ -693,7 +861,10 @@ def process_text_job(
     claim_token = job["claimToken"]
     attempt = job["attempt"]
     layers = runtime.layers if runtime is not None else MaskingLayers(config)
-    source = client.get_source(job_id, claim_token, attempt)
+    source, bundle = _read_source_for_registration(client, job)
+    if _register_entities_if_bound(client, job, source, bundle, layers):
+        # The server atomically superseded this claim; no result or release follows.
+        return
     masked, report = _mask_with_dictionary(client, layers, job, source)
     # 건수만 남긴다 — 치환된 원문은 로그에 쓰지 않는다(R3, G3 검증용).
     logger.info("text job %s: masked total=%d detail=%s", job_id, report.total, report.as_mapping())
@@ -707,6 +878,19 @@ def process_text_job(
         release_qualification_receipt_id=config.ner_release_receipt_id,
         source_ref=f"text:{job_id}",
     )
+    if (
+        not isinstance(bundle.get("sourceRevision"), str)
+        or not isinstance(bundle.get("sourceSha256"), str)
+        or type(bundle.get("sourceLength")) is not int
+        or bundle["sourceLength"] != len(source)
+    ):
+        raise ApiError(200, "result_schema_invalid")
+    result["checkedSource"] = {
+        "sourceRevision": bundle["sourceRevision"],
+        "sourceSha256": bundle["sourceSha256"],
+        "sourceStart": 0,
+        "sourceEnd": bundle["sourceLength"],
+    }
     _submit_result(client, job_id, build_result_request(claim_token, attempt, result))
 
 
@@ -755,6 +939,9 @@ def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception
     claim_token = job["claimToken"]
     attempt = job["attempt"]
     try:
+        if isinstance(error, _EntityRegistrationProtocolFailure):
+            client.release(job_id, claim_token, attempt, "permanent", "result_schema_invalid")
+            return
         if isinstance(error, masking.MaskingConfigError):
             # NER 계층 부재는 attempt 를 소모하지 않는 차단 신호다(S5 F7).
             client.release(job_id, claim_token, attempt, "blocked", "local_ner_unavailable")

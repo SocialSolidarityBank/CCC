@@ -1,0 +1,187 @@
+{
+  "marker": "CORE_RESULT CCC292-IMPL-F1-20260914",
+  "assignment": "CCC292-IMPL-F1-20260914",
+  "status": "F1_MINIMUM_IMPLEMENTED_LOCAL_COMMIT",
+  "worktree": "/Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND",
+  "branch": "core/relayer-domain-beta",
+  "baseCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+  "commit": "9a09f9443a87f569c691f86c2c26046324076204",
+  "commitTitle": "feat: 사례별 식별 대응표를 암호화해 저장",
+  "scope": {
+    "implemented": [
+      "canonical support_cases.id에 귀속된 암호화 대응표 aggregate",
+      "인증된 service Actor의 기관과 서버 조회 사례 범위 검사 및 일반 사람 Actor 거부",
+      "암호화 본문 안 기관, 사례, beneficiary, 금고 생성 시각과 version, key version, mapping revision 결속",
+      "person과 institution의 분리된 단조 증가 counter, 발급 번호, 등록값, 명시적 alias와 근거의 암호화 저장",
+      "기존 piiKey, encryptPii, decryptPii 재사용 및 기존 SecretStore 키 버전 검사",
+      "현재 revision과 이전 암호문을 비교하는 DB CAS 및 counter, 암호문, 성공 감사의 원자적 batch",
+      "source kind/id/revision, code-point 범위, 인용문으로 된 근거 계약과 동일 기관 및 사례 소유권 검사",
+      "SQLite와 PostgreSQL forward migration 한 쌍 및 공용 checkpoint/semantic proof 연결"
+    ],
+    "notImplementedByThisAssignment": [
+      "F2 등록 endpoint, HTTP parser, Agent 사전 전달, live claim 검증, 같은 bundle 재전송 receipt와 멱등 처리",
+      "F2 동일인 근거의 의미 판정, source 본문과 occurrence 대조, 사례별 처리 동의 검증 및 map 소비 job 임대 직렬화",
+      "F3 source supersede 및 claim, source bundle, 날짜, mapping revision의 공동 결속",
+      "F4 proof producer/consumer 및 기존 AI 호출부 연결",
+      "F5 privacy_purge_events 표, 파기 writer와 실제 암호문 제거",
+      "F6 CCC-224/E3-7 실제 restore와 최신 파기 이력 적용",
+      "화면, 신규 endpoint, 신규 키, 설정, 표시 토큰 문법"
+    ],
+    "newTables": 0,
+    "newPlaintextLookupHashes": 0,
+    "newKeysOrConfiguration": 0,
+    "newEndpoints": 0,
+    "providerCalls": 0
+  },
+  "files": [
+    {
+      "path": "packages/core/src/gateway.ts",
+      "change": "CaseEntityEvidence, CaseEntityMapping, AppendCaseEntityMappingInput 및 readCaseEntityMapping/appendCaseEntityMapping 구현. 암호화 scope 검증, CAS 저장, 감사와 F2 호출 경계의 동의 및 claim 의무 명시."
+    },
+    {
+      "path": "migrations/sqlite/0066_case_entity_mapping.sql",
+      "change": "support_cases에 enc_entity_map, entity_map_revision, entity_map_key_version 추가. NULL 초기 상태와 안전 정수 범위 검사, 변경 시 revision 한 단계 증가 및 암호문 교체 강제."
+    },
+    {
+      "path": "migrations/postgres/0022_case_entity_mapping.sql",
+      "change": "SQLite와 같은 의미의 CHECK 및 revision trigger. 정수는 기존 PostgreSQL 물리 규칙에 따라 bigint 사용."
+    },
+    {
+      "path": "apps/api/test/case-entity-mapping.contract.test.ts",
+      "change": "경쟁 CAS, 번호 및 alias, 암호문 사례 치환, 감사 비노출, 사람 권한 및 다른 사례 근거 거부, 금고/키 version 거부, 공용 저장 전이 proof를 실제 D1 fixture로 검증."
+    },
+    {
+      "path": "apps/api/test/support/migration-parity.ts",
+      "change": "case-entity-mapping checkpoint와 proveCaseEntityMappingSchema 공용 proof 추가. 초기 상태, revision 건너뛰기, 동일 암호문 재사용, 초기화 및 잘못된 키 거부와 batch rollback 검증."
+    },
+    {
+      "path": "apps/api/test/migration-parity.test.ts",
+      "change": "새 checkpoint에서 기존 parity-intake-case를 대상으로 SQLite 및 PostgreSQL 양쪽 공용 proof 실행 연결. 이 세션에서는 실행하지 않음."
+    }
+  ],
+  "migrations": {
+    "sqlite": "0066_case_entity_mapping.sql",
+    "postgres": "0022_case_entity_mapping.sql",
+    "allocationBasis": "이 워크트리의 실제 디렉터리에서 기존 최고 번호 0065와 0021을 확인한 뒤 배정했다.",
+    "existingMigrationsModified": false,
+    "checkpoint": "case-entity-mapping",
+    "parityManifest": {
+      "path": "migrations/parity.yaml",
+      "modified": false,
+      "reason": "실제 양쪽 DB 실행 없이 지문이나 parity 완료를 만들지 않았다. 기존 agent-text-source-fence checkpoint도 manifest 갱신 대기 상태다."
+    }
+  },
+  "checks": [
+    {
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/case-entity-mapping.contract.test.ts --maxWorkers 1",
+      "status": "PASS",
+      "testFiles": 1,
+      "tests": 5,
+      "finalDurationSeconds": 11.15,
+      "redEvidence": "구현 전에 신규 함수와 컬럼 부재로 5건 실패를 확인했다. service Actor를 사람 users 표로 검사하던 초기 구현 오류는 기존 인증 경계에 맞게 제거했고, 최종 실행은 5건 모두 통과했다."
+    },
+    {
+      "command": "pnpm --filter @ccc/api typecheck",
+      "status": "PASS",
+      "detail": "초기 실행의 test helper exactOptionalPropertyTypes 오류를 수정한 뒤 tsc --noEmit --project apps/api/tsconfig.json 통과."
+    },
+    {
+      "command": "bun artifacts/orchestration/.ccc292-f1-smoke.ts",
+      "status": "PASS",
+      "runtime": "독립 Miniflare D1 인스턴스에 forward migrations를 적용한 뒤 실제 gateway 직접 실행. Vitest 밖에서 실행했으며 production 데이터와 키는 사용하지 않았다.",
+      "output": {
+        "proof": "CCC292_F1_RUNTIME_SMOKE",
+        "canonicalCases": 2,
+        "raceWinners": 1,
+        "revision": 2,
+        "ciphertextScopeRejected": true,
+        "auditFailureRolledBack": true,
+        "providerCalls": 0
+      },
+      "cleanup": "임시 smoke 파일을 삭제하고 Miniflare를 dispose했다.",
+      "runnerNotes": "Node strip-only는 parameter property를 처리하지 못했고 transform-types는 extensionless import를 해결하지 못했다. tsx는 설치되어 있지 않았다. 저장소 설정이나 의존성을 바꾸지 않고 Bun으로 실행해 통과했다."
+    },
+    {
+      "command": "git -c core.hooksPath=.githooks commit --amend --no-edit",
+      "status": "PASS",
+      "detail": "core.hooksPath 미설정을 확인해 첫 로컬 커밋을 정식 저장소 훅이 실행되는 상태로 갱신했다. 훅 우회와 전역 Git 설정 변경은 하지 않았다.",
+      "guards": [
+        "guard:db",
+        "guard:core-imports",
+        "guard:doc-numbers",
+        "guard:secrets",
+        "guard:tokens",
+        "guard:align",
+        "guard:hierarchy",
+        "guard:hierarchy:test"
+      ],
+      "notes": "위계 감사는 새 위반 0건, 기존 baseline 2건이다. amend 때 staged secret 검사가 0 bytes여서 아래 실제 커밋 범위를 별도로 검사했다."
+    },
+    {
+      "command": "gitleaks git --redact --no-banner --log-opts='HEAD^..HEAD' .",
+      "status": "PASS",
+      "commitsScanned": 1,
+      "bytesScannedApproximately": 21991,
+      "leaksFound": 0
+    }
+  ],
+  "review": {
+    "schema": {
+      "status": "NO_BLOCKING_FINDINGS",
+      "method": "읽기 전용 독립 검수. paired CHECK와 trigger, 기존 trigger 간섭, checkpoint fixture, portable proof와 adapter 정수 변환 및 batch 계약 확인. PostgreSQL 실제 실행 증거는 아님."
+    },
+    "security": {
+      "status": "REVIEWED_WITH_RESIDUAL_RISK",
+      "scope": "암호문 내 scope 결속, service 인증 경계, 키와 금고 version, 평문 비노출, CAS 및 감사 원자성",
+      "callerObligation": "F2가 호출 전에 유효한 claim, 사례별 처리 동의와 동일인 근거를 검증해야 함을 코드 주석과 다음 선행 조건에 명시했다.",
+      "residualRisk": {
+        "severity": "low",
+        "evidenceType": "static_code_review_not_runtime_exploit",
+        "description": "[INFERENCE] DB 임의 쓰기 권한을 가진 공격자가 대응표 암호문을 일반 enc_name 같은 PII 컬럼에 옮기면, 같은 키와 AAD 없는 기존 decryptPii를 사용하는 일반 PII 읽기가 대응표 JSON을 복호화할 수 있다. 대응표 관문 자체의 다른 기관 및 사례 암호문 치환 거부와는 별개다.",
+        "disposition": "동결된 기존 encryptPii/decryptPii 재사용과 본문 scope binding 결정을 유지했다. 별도 암호화 함수, AAD 변형이나 새 키를 임의로 도입하지 않았다. 이 방어 한계를 해소했다고 주장하지 않는다."
+      }
+    }
+  },
+  "notRun": [
+    "Docker 및 PostgreSQL migration parity",
+    "전체 테스트와 전체 lint",
+    "push, merge, deploy",
+    "운영 DB 및 provider 접근"
+  ],
+  "remainingGaps": [
+    "F1의 최소 저장 계약만 완료했다. CCC-292 전체 구현이나 제품 활성화 완료가 아니다.",
+    "PostgreSQL 실제 적용 및 SQLite/PostgreSQL 지문과 의미 parity는 MacBook 실행 대기다.",
+    "F1 근거 검사는 소유권과 형태 검사다. sourceRevision 최신성, 원문과 인용의 일치 및 동일인 판단을 완료한 것으로 볼 수 없다.",
+    "금고 version이나 key version이 달라지면 기존 대응표를 읽거나 수정하지 않는다. F3의 명시적 정정 및 재결속은 아직 없다.",
+    "archive 및 purged_at 상태에서는 F1 접근을 거부하지만, 대응표 암호문 제거와 독립 파기 이력, 복원 후 부활 방지는 F5/F6 구현 대기다.",
+    "등록 재전송 멱등 receipt, case 단위 map 소비 임대와 own-claim revision 갱신은 F2/F3 공동 구현 대기다.",
+    "기존 공유 PII 암호화 방식의 DB 변조 시 컬럼 간 ciphertext 치환 방어 한계가 남는다."
+  ],
+  "nextPrerequisites": [
+    {
+      "owner": "MacBook integration",
+      "requirement": "이 커밋을 기준으로 실제 PostgreSQL과 SQLite migration parity를 실행하고 통과한 결과로만 manifest를 갱신한다.",
+      "command": "CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1"
+    },
+    {
+      "owner": "CCC-292 F2/F3",
+      "requirement": "원천 및 job에서 기관/사례를 도출하고 동의와 live claim을 검증한다. 같은 bundle occurrence와 동일인 증거, 멱등 receipt, 사례별 임대 및 자신의 map revision 결속을 함께 연결한다. F1 함수를 일반 사전 조회 endpoint로 노출하지 않는다."
+    },
+    {
+      "owner": "CCC-292 F3/F4",
+      "requirement": "금고/원천/날짜/map revision 변경의 supersede와 proof producer/consumer cutover를 완료한 뒤에만 제품 AI 경로에 연결한다."
+    },
+    {
+      "owner": "CCC-292 F5 및 CCC-224/E3-7 F6",
+      "requirement": "독립 privacy_purge_events writer/reader와 실제 파기/restore를 같은 계약으로 구현하고 잔존물 및 부활 방지 증거를 확보한다. 현재 실제 restore 부재를 완료 처리하지 않는다."
+    }
+  ],
+  "delivery": {
+    "reportPath": "artifacts/orchestration/ccc292-impl-f1-result.json",
+    "reportIncludedInCommit": false,
+    "reason": "요청한 결과 파일은 최종 커밋 hash를 포함하는 로컬 산출물이다. 구현 커밋에는 소유한 여섯 파일만 포함했다.",
+    "otherPreexistingArtifactsModified": false,
+    "otherWorktreesModified": false,
+    "remoteChanges": false
+  }
+}

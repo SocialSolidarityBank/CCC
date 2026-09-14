@@ -12,7 +12,14 @@ from tempfile import TemporaryDirectory
 from unittest import mock
 
 from ccc_pipeline import api_client as api_client_module
-from ccc_pipeline.api_client import ApiClient, ApiError, AudioDownloadError, USER_AGENT
+from ccc_pipeline.api_client import (
+    ApiClient,
+    ApiError,
+    AudioDownloadError,
+    EntityRegistrationProtocolError,
+    MemoryApiClient,
+    USER_AGENT,
+)
 from ccc_pipeline.azure_stt import AzureSttError
 from ccc_pipeline.backup import BackupPolicy
 from ccc_pipeline.config import Config, ConfigError, load_config
@@ -24,6 +31,7 @@ from ccc_pipeline.worker import (
     masking_pipeline_version,
     process_text_job,
     run_once,
+    run_memory_once,
 )
 
 ATTESTATION = {
@@ -117,6 +125,40 @@ def dictionary_client(entries: list[dict] | None = None) -> mock.Mock:
         "oneTime": True,
         "entries": entries or [],
     }
+
+    def source_bundle(*_args):
+        configured = client.get_source_bundle._mock_return_value
+        if isinstance(configured, dict):
+            return configured
+        source = client.get_source.return_value
+        is_audio = not isinstance(source, str)
+        source = source if isinstance(source, str) else ""
+        payload = {
+            "text": source,
+            "sessionId": "session-1",
+            "sourceRevision": "source-r1",
+            "sourceSha256": "" if is_audio else hashlib.sha256(source.encode()).hexdigest(),
+            "sourceLength": len(source),
+            "sourceBundleRevision": "bundle-r1",
+            "expectedMapRevision": 0,
+            "sources": [{
+                "sourceId": "session-1",
+                "sourceRevision": "source-r1",
+                "sourceKind": "transcript" if is_audio else "session",
+                "start": 0,
+                "end": 0 if is_audio else len(source),
+                "sha256": hashlib.sha256(b"synthetic-audio").hexdigest() if is_audio else "a" * 64,
+                "consultationDate": "2026-09-14",
+                "dateRevision": "date-r1",
+            }],
+        }
+        if is_audio:
+            payload["audio"] = {
+                "generationId": "generation-1",
+                "rawSha256": hashlib.sha256(b"synthetic-audio").hexdigest(),
+            }
+        return payload
+    client.get_source_bundle.side_effect = source_bundle
     return client
 
 
@@ -167,6 +209,32 @@ class ApiClientTest(unittest.TestCase):
         self.assertNotIn("Cf-access-client-id", claim_http_request.headers)
         self.assertNotIn("Cf-access-client-secret", claim_http_request.headers)
         self.assertEqual(claim_http_request.get_header("Cookie"), "ccc_preview=preview-token")
+
+    def test_memory_registration_uses_exact_shared_route(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        scoped = MemoryApiClient(client)
+        body = {"family": "memory", "jobId": "job-1"}
+        request = scoped._request("POST", "/pipeline/entity-registrations", body)
+        self.assertEqual(request.full_url, "https://api.example/pipeline/entity-registrations")
+        self.assertEqual(json.loads(request.data), body)
+
+    def test_registration_decoder_rejects_unknown_response_keys(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        payload = {
+            "outcome": "applied",
+            "mapRevision": 1,
+            "entries": [{"index": 0, "number": 1, "reason": None}],
+            "unexpected": True,
+        }
+        with mock.patch.object(client, "_open", return_value=FakeResponse(json.dumps(payload).encode())):
+            with self.assertRaises(ApiError):
+                client.register_entities({"family": "generic"})
+
+    def test_registration_http_400_becomes_protocol_failure_even_for_unknown_code(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        with mock.patch.object(client, "_open", side_effect=ApiError(400, "unknown_code")):
+            with self.assertRaises(EntityRegistrationProtocolError):
+                client.register_entities({"family": "generic"})
 
     def test_claim_requires_schema_version_two(self):
         client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
@@ -588,6 +656,77 @@ class RunOnceTest(unittest.TestCase):
         self.assertEqual(client.post_result.call_count, 1)
         client.release.assert_not_called()
 
+    def test_memory_registration_http_400_unknown_code_releases_once_permanently(self):
+        from ccc_pipeline import worker
+
+        scoped = mock.Mock()
+        scoped.claim_jobs.return_value = [{**text_job(), "purpose": "counseling_memory"}]
+        source = "김철수의 기한은 2026년 9월 20일이다."
+        scoped.get_source_bundle.return_value = {
+            "text": source,
+            "sourceRevision": "source-r1",
+            "sourceSha256": hashlib.sha256(source.encode()).hexdigest(),
+            "sourceLength": len(source),
+            "sourceBundleRevision": "bundle-r1",
+            "expectedMapRevision": 0,
+            "sources": [{
+                "sourceId": "session-1",
+                "sourceRevision": "source-r1",
+                "sourceKind": "session",
+                "start": 0,
+                "end": len(source),
+                "sha256": "a" * 64,
+                "consultationDate": "2026-09-14",
+                "dateRevision": "date-r1",
+            }],
+        }
+        scoped.register_entities.side_effect = ApiError(400, "server_specific_unknown")
+        with TemporaryDirectory() as tmp, mock.patch.object(worker, "MemoryApiClient", return_value=scoped):
+            with mock.patch.object(
+                worker,
+                "_build_person_and_address_ner",
+                return_value=(lambda text: [(0, 3)], None),
+            ):
+                self.assertEqual(run_memory_once(mock.Mock(), make_config(Path(tmp))), 0)
+        scoped.release.assert_called_once_with(
+            "job-text-1", "t" * 64, 1, "permanent", "result_schema_invalid",
+        )
+
+    def test_memory_registration_superseded_skips_result_and_release(self):
+        from ccc_pipeline import worker
+
+        scoped = mock.Mock()
+        scoped.claim_jobs.return_value = [{**text_job(), "purpose": "counseling_memory"}]
+        source = "김철수 source"
+        scoped.get_source_bundle.return_value = {
+            "text": source,
+            "sourceRevision": "source-r1",
+            "sourceSha256": hashlib.sha256(source.encode()).hexdigest(),
+            "sourceLength": len(source),
+            "sourceBundleRevision": "bundle-r1",
+            "expectedMapRevision": 0,
+            "sources": [{
+                "sourceId": "session-1",
+                "sourceRevision": "source-r1",
+                "sourceKind": "session",
+                "start": 0,
+                "end": len(source),
+                "sha256": "a" * 64,
+                "consultationDate": "2026-09-14",
+                "dateRevision": "date-r1",
+            }],
+        }
+        scoped.register_entities.return_value = {"outcome": "superseded"}
+        with TemporaryDirectory() as tmp, mock.patch.object(worker, "MemoryApiClient", return_value=scoped):
+            with mock.patch.object(
+                worker,
+                "_build_person_and_address_ner",
+                return_value=(lambda text: [(0, 3)], None),
+            ):
+                self.assertEqual(run_memory_once(mock.Mock(), make_config(Path(tmp))), 1)
+        scoped.post_result.assert_not_called()
+        scoped.release.assert_not_called()
+
     def test_azure_transport_and_provider_failures_use_safe_release_semantics(self):
         for error, outcome in (
             (AzureSttError("provider_transport_error", transient=True), "transient"),
@@ -645,6 +784,46 @@ class ResultReplayTest(unittest.TestCase):
 
 
 class TextJobTest(unittest.TestCase):
+    def test_ambiguous_registration_keeps_generic_mask_and_continues(self):
+        client = dictionary_client()
+        source = "김철수에게 연락함"
+        client.get_source.return_value = source
+        client.get_source_bundle.return_value = {
+            "text": source,
+            "sourceRevision": "source-r1",
+            "sourceSha256": hashlib.sha256(source.encode()).hexdigest(),
+            "sourceLength": len(source),
+            "sourceBundleRevision": "bundle-r1",
+            "expectedMapRevision": 0,
+            "sources": [{
+                "sourceId": "session-1",
+                "sourceRevision": "source-r1",
+                "sourceKind": "session",
+                "start": 0,
+                "end": len(source),
+                "sha256": "a" * 64,
+                "consultationDate": "2026-09-14",
+                "dateRevision": "date-r1",
+            }],
+        }
+        client.register_entities.return_value = {
+            "outcome": "applied",
+            "mapRevision": 0,
+            "entries": [{"index": 0, "number": None, "reason": "ambiguous_identity"}],
+        }
+
+        with TemporaryDirectory() as tmp, mock.patch(
+            "ccc_pipeline.worker._build_person_and_address_ner",
+            return_value=(lambda text: [(0, 3)], None),
+        ):
+            process_text_job(client, replace(make_config(Path(tmp)), stt_engine="off"), text_job())
+
+        client.release.assert_not_called()
+        result = client.post_result.call_args.args[1]["result"]
+        self.assertIn("[인명]", result["maskedText"])
+        self.assertNotIn("김철수", result["maskedText"])
+        client.register_entities.assert_called_once()
+
     def test_masks_source_and_posts_a_v2_result_with_contract_hashes(self):
         client = dictionary_client([
             {"field": "phone", "sourceValue": "010-1234-5678", "replacement": "swallow-003"},
@@ -675,6 +854,12 @@ class TextJobTest(unittest.TestCase):
         self.assertIn("swallow-003", result["maskedText"])
         self.assertNotIn("김철수", result["maskedText"])
         self.assertIn("[인명]", result["maskedText"])
+        self.assertEqual(result["checkedSource"], {
+            "sourceRevision": "source-r1",
+            "sourceSha256": hashlib.sha256(client.get_source.return_value.encode()).hexdigest(),
+            "sourceStart": 0,
+            "sourceEnd": len(client.get_source.return_value),
+        })
         # hash 3종은 서버가 다시 계산해 대조한다.
         self.assertEqual(result["sha256"], sha256_hex(result["maskedText"]))
         self.assertEqual(result["evidenceHash"], canonical_sha256(result["evidence"]))
@@ -754,7 +939,13 @@ class TextJobTest(unittest.TestCase):
 
 
 class AudioJobTest(unittest.TestCase):
-    def _run_audio_job(self, client: mock.Mock, config: Config, backup_adapters=None) -> None:
+    def _run_audio_job(
+        self,
+        client: mock.Mock,
+        config: Config,
+        backup_adapters=None,
+        person_spans: list[tuple[int, int]] | None = None,
+    ) -> None:
         from ccc_pipeline.speaker_mapping import Segment, Turn
         from ccc_pipeline.transcribe import TranscriptionResult
         from ccc_pipeline.worker import process_audio_job
@@ -778,7 +969,7 @@ class AudioJobTest(unittest.TestCase):
             mock.patch("ccc_pipeline.emotion.build_speech_scorer", return_value=lambda path, spans: [0.1]),
             mock.patch(
                 "ccc_pipeline.worker._build_person_and_address_ner",
-                return_value=(lambda text: [], None),
+                return_value=(lambda text: person_spans or [], None),
             ),
         ):
             if backup_adapters is None:
@@ -802,6 +993,27 @@ class AudioJobTest(unittest.TestCase):
         self.assertTrue(result["transcriptReliable"])
         self.assertEqual(result["transcriptWarnings"], [])
 
+    def test_registers_audio_transcript_spans_against_zero_span_descriptor(self):
+        client = dictionary_client()
+        client.register_entities.return_value = {
+            "outcome": "applied",
+            "mapRevision": 1,
+            "entries": [{"index": 0, "number": None, "reason": "ambiguous_identity"}],
+        }
+        with TemporaryDirectory() as tmp:
+            self._run_audio_job(client, make_config(Path(tmp)), person_spans=[(0, 2)])
+
+        request = client.register_entities.call_args.args[0]
+        self.assertEqual(request["entries"][0]["sourceValue"], "합성")
+        self.assertEqual(request["entries"][0]["occurrences"], [{
+            "sourceId": "session-1",
+            "sourceRevision": "source-r1",
+            "start": 0,
+            "end": 2,
+        }])
+        client.get_mask_dictionary.assert_called_once()
+
+
     def test_cleans_work_dir_on_failure(self):
         # D13: 다운로드 후 어떤 단계가 실패해도 중간 파일은 남지 않는다.
         from ccc_pipeline.worker import process_audio_job
@@ -812,12 +1024,12 @@ class AudioJobTest(unittest.TestCase):
         def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path, *, delivery: str) -> Path:
             self.assertEqual(delivery, "api-stream")
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(b"audio")
+            dest.write_bytes(b"synthetic-audio")
             created_dirs.append(dest.parent)
             return dest
 
         client.download_audio.side_effect = fake_download
-        client.verify_audio.return_value = verified_audio_response(b"audio")
+        client.verify_audio.return_value = verified_audio_response(b"synthetic-audio")
         with TemporaryDirectory() as tmp:
             engine = mock.Mock()
             config = make_config(Path(tmp))

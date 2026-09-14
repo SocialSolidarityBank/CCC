@@ -1,0 +1,41 @@
+{
+  "marker": "CORE_RESULT CCC301-CORE-AUDIT-SUMMARY-20260914",
+  "recipient": "ORCHESTRATOR",
+  "branch": "core/relayer-domain-beta",
+  "commit": "1caa2a4e165c4a9a73a09a401983fcfb73cdaccf",
+  "parent": "46e32f8a85bf9142d76063b86f65bc96ded72a7f",
+  "files": [
+    "packages/core/src/gateway.ts: MonthlyAuditSummary, getMonthlyAuditSummary",
+    "packages/http-api/src/request-handler.ts: 새 GET 읽기 경로",
+    "apps/api/test/audit-monthly-summary.contract.test.ts: 표적 검사 8건",
+    "artifacts/orchestration/ccc289-core-result.json: 선행 배정 보고"
+  ],
+  "endpoint": "GET /audit-log/monthly-summary?month=YYYY-MM",
+  "contract": {
+    "scope": "기관은 인증된 Actor.orgId로 고정한다. 활성 institution_admin 배정이 필요하며 기술 관리자만으로는 열리지 않는다. month는 필수다.",
+    "fields": {
+      "month": "요청한 YYYY-MM",
+      "timeZone": "기관 시간대. 사용자 개인 시간대는 적용하지 않는다.",
+      "startUtc": "기관 현지 월 첫날의 UTC 시각, 포함",
+      "endUtc": "다음 달 첫날의 UTC 시각, 제외",
+      "nonAssignedReadEvents": "null. 원장에 당시 담당 여부가 없어 0으로 단정하지 않는다.",
+      "unclassifiedReadEvents": "서비스를 제외한 read, read_participant_pii, decrypt_pii 감사 행 수. 당시 담당 여부를 판정할 수 없는 열람이며 비담당 열람 확정 건수가 아니다.",
+      "piiDecryptEvents": "decrypt_pii와 read_participant_pii 감사 행 수. 서비스 행도 포함하며 필드 수나 당사자 수가 아니다.",
+      "exportEvents": "export 감사 행 수. 파일 수나 전송 완료 건수가 아니다."
+    },
+    "invariants": "기존 assertMonthOnly, daysInMonth, addCalendarDays, localDateStartUtc를 재사용한다. 현재 담당 표 결합과 자기 조회 감사 쓰기는 없다. 응답은 no-store다. 원문, 사용자 ID, 대상 ID와 detail은 반환하지 않는다."
+  },
+  "verification": [
+    {"command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/audit-monthly-summary.contract.test.ts --maxWorkers 1", "result": "구현 전 404로 8건 실패, 구현 후 8/8 통과. 관리자 및 기관 경계, 재조회 부증가, 윤년과 평년 2월, 연말, 서울 UTC 경계, 뉴욕 DST, 개인 시간대 배제, 잘못된 월과 기관 덮어쓰기 거부."},
+    {"command": "pnpm --filter @ccc/api typecheck", "result": "정확히 1회 실행, exit 0"},
+    {"command": "bun run /tmp/ccc301-audit-smoke.ts", "result": "합성 DB와 실제 handleRequest에서 HTTP 200, no-store, 윤년 경계와 export 1건 확인. 실무자 403, 다른 기관 export 0건, 재조회 뒤 감사 증가 0건. 임시 실행 파일 삭제."},
+    {"command": "git -c core.hooksPath=.githooks commit -m \"feat: 기관 월간 감사 사건 집계 추가\"", "result": "정상 레포 훅 8개 통과. 스테이징 11687바이트 시크릿 검사 유출 0건. 기존 위계 baseline 2건 유지, 새 위반 0건. 영구 hook 설정 변경 없음."}
+  ],
+  "migrations": "0건. 새 인덱스 없음. SQLite/PostgreSQL 동등성 검사는 실행하지 않았다.",
+  "unmet_and_risks": [
+    "비담당 열람의 확정 숫자는 산출할 수 없다. 현재와 과거 감사 행 모두 당시 담당 근거가 없으므로 null과 판정 불가 건수를 반환한다. 새 기록 필드나 현재 배정으로 과거를 추정하는 코드는 추가하지 않았다.",
+    "판정 불가 열람에는 당사자 외 대상의 일반 read도 포함된다. 이 값을 비담당 당사자 열람 수로 표시하면 안 된다.",
+    "화면과 월간 보고서 다운로드 연결은 소유 범위 밖이며 변경하지 않았다. 새 의존성, push, merge, 배포, 운영 DB 변경, 외부 provider 호출과 AI/STT 활성화는 없다."
+  ],
+  "report_storage": "이 파일은 위 코드 커밋을 식별하는 납품 산출물로 워크트리에 별도로 남긴다."
+}

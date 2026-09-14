@@ -143,4 +143,32 @@ describe('generic text source fence', () => {
     expect((await http(service, `/pipeline/jobs/${f.job.jobId}/result`, request)).status).toBe(422);
     expect(await status(f.sessionId)).toMatchObject({ state: 'failed', checkedRange: null });
   });
+
+  it('persists an immutable source binding and serializes one map consumer per case', async () => {
+    const f = await fixture();
+    const binding = await t.db.prepare(
+      'SELECT entity_map_lease_family,entity_map_lease_job_id,entity_map_lease_attempt,entity_source_binding FROM support_cases JOIN agent_jobs ON agent_jobs.id=entity_map_lease_job_id WHERE support_cases.id=?',
+    ).bind(f.supportCaseId).first<{ entity_map_lease_family: string; entity_map_lease_job_id: string; entity_map_lease_attempt: number; entity_source_binding: string | null }>();
+    expect(binding?.entity_map_lease_family).toBe('generic');
+    expect(binding?.entity_map_lease_job_id).toBe(f.job.jobId);
+    expect(binding?.entity_map_lease_attempt).toBe(f.job.attempt);
+    expect(JSON.parse(binding?.entity_source_binding ?? 'null')).toMatchObject({
+      version: 1, supportCaseId: f.supportCaseId, jobId: f.job.jobId, attempt: f.job.attempt,
+      sourceBundleRevision: f.source.sourceBundleRevision, mapRevision: f.source.expectedMapRevision,
+      sources: expect.any(Array),
+    });
+    expect((await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(f.qualification))).jobs).toEqual([]);
+  });
+
+  it('reopens one current successor when a leased source generation changes', async () => {
+    const f = await fixture();
+    await t.db.prepare('UPDATE support_cases SET overall_goal=? WHERE id=?').bind('새 목표', f.supportCaseId).run();
+    const jobs = await t.db.prepare(
+      `SELECT state,attempt,source_generation,claim_token_hash,lease_owner
+       FROM agent_jobs WHERE session_id=? ORDER BY enqueued_at,id`,
+    ).bind(f.sessionId).all();
+    expect(jobs.results.filter((row) => row.state === 'failed')).toHaveLength(1);
+    expect(jobs.results.filter((row) => row.state === 'pending')).toHaveLength(1);
+    expect(jobs.results.find((row) => row.state === 'pending')).toMatchObject({ attempt: 0, claim_token_hash: null, lease_owner: null });
+  });
 });
