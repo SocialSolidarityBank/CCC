@@ -276,7 +276,11 @@ describe('entity registration against the live source bundle', () => {
     await t.db.prepare('UPDATE sessions SET memo=? WHERE id=?').bind('새 원천 텍스트 𠀀', f.sessionId).run();
     const response = await http(service, '/pipeline/entity-registrations', body);
     expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({ error: 'stale_claim' });
+    await expect(response.json()).resolves.toEqual({
+      error: 'stale_claim',
+      jobId: expect.any(String),
+      retryable: false,
+    });
     expect(await t.db.prepare('SELECT state,lease_owner,claim_token_hash FROM agent_jobs WHERE id=?').bind(f.job.jobId).first())
       .toMatchObject({ state: 'failed', lease_owner: null, claim_token_hash: null });
     expect(await t.db.prepare(
