@@ -225,8 +225,18 @@ export interface AudioResult extends MaskedSource {
   transcriptWarnings: Array<{ startSeconds: number; endSeconds: number; reason: string }>;
 }
 
+export interface CheckedTextSource {
+  sourceRevision: string;
+  sourceSha256: string;
+  /** Half-open Unicode code-point offsets in SourceResponse.text, before second masking. */
+  sourceStart: number;
+  sourceEnd: number;
+}
+
 export interface TextResult extends MaskedSource {
   kind: 'text';
+  /** Required for generic jobs; memory jobs already bind revision and range in their claim. */
+  checkedSource?: CheckedTextSource;
 }
 
 export interface ResultRequest {
@@ -241,6 +251,21 @@ export interface ResultRequest {
 export interface SourceResponse {
   sessionId: string;
   text: string;
+  sourceRevision: string;
+  sourceSha256: string;
+  sourceLength: number;
+}
+
+export interface TextProcessingStatus {
+  state: AgentJobState | 'not_started' | 'partial' | 'stale' | 'unknown';
+  jobId: string | null;
+  jobState: AgentJobState | null;
+  sourceRevision: string | null;
+  currentSourceRevision: string;
+  sourceChanged: boolean | null;
+  sourceLength: number | null;
+  checkedRange: { start: number; end: number } | null;
+  failureCode: string | null;
 }
 
 export interface SignedGetResponse {

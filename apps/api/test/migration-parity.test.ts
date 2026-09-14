@@ -658,6 +658,58 @@ async function proveDrift(fixture: ParityDatabase, original: Catalog): Promise<v
   }
 }
 
+async function proveAgentTextSourceFence(fixture: ParityDatabase): Promise<void> {
+  const db = fixture.db, p = intakeVersionProof, digest = 'c'.repeat(64);
+  const generation = (await db.prepare('SELECT generation FROM counseling_memory_cases WHERE support_case_id=?')
+    .bind(p.supportCase).first<{ generation: number }>())!.generation;
+  await db.prepare(`INSERT INTO ner_release_qualification_receipts
+    (id,org_id,model_id,model_revision,label_set_hash,corpus_hash,result_hash,validated_at,expires_at,status,created_at)
+    VALUES ('parity-source-ner',?,'synthetic','r1',?,?,?,?,'2099-01-01T00:00:00.000Z','passed',?)`)
+    .bind(p.org, digest, digest, digest, p.at, p.at).run();
+  const lease = async (id: string) => {
+    await db.prepare(`INSERT INTO ai_text_work_queue (id,org_id,support_case_id,session_id,reason,status,enqueued_at)
+      VALUES (?,?,?,?,'manual_record','processing',?)`).bind(id, p.org, p.supportCase, p.session, p.at).run();
+    await db.prepare(`INSERT INTO agent_jobs
+      (id,org_id,support_case_id,session_id,source_text_work_item_id,kind,state,enqueued_at,required_consent,attempt,
+       lease_owner,claim_token_hash,claimed_at,lease_expires_at,ner_attestation_id,ner_model_id,ner_model_revision,
+       ner_label_set_hash,ner_corpus_hash,ner_attestation_result_hash,ner_attestation_validated_at,
+       ner_attestation_expires_at,release_qualification_receipt_id,updated_at)
+      VALUES (?,?,?,?,?,'text','leased',?,'[]',1,?,?,?,'2099-01-01T00:00:00.000Z','synthetic','synthetic','r1',
+        ?,?,?,?,'2099-01-01T00:00:00.000Z','parity-source-ner',?)`)
+      .bind(id, p.org, p.supportCase, p.session, id, p.at, p.user, digest, p.at, digest, digest, digest, p.at, p.at).run();
+  };
+  const accept = (id: string) => db.prepare(`INSERT INTO agent_job_result_acceptances
+    (job_id,attempt,claim_token_hash,payload_sha256,accepted_at) VALUES (?,1,?,?,?)`).bind(id, digest, digest, p.at);
+  await lease('parity-source-first');
+  await expect(accept('parity-source-first').run()).rejects.toMatchObject({ kind: 'constraint' });
+  await db.prepare(`UPDATE agent_jobs SET source_generation=?,source_sha256=?,source_length=10,
+    checked_start=0,checked_end=7 WHERE id='parity-source-first'`).bind(generation, digest).run();
+  await expect(db.prepare("UPDATE agent_jobs SET checked_end=11 WHERE id='parity-source-first'").run())
+    .rejects.toMatchObject({ kind: 'constraint' });
+  await db.batch([
+    accept('parity-source-first'),
+    db.prepare(`UPDATE agent_jobs SET state='succeeded',result_id='synthetic-result',result_payload_sha256=?,
+      result_accepted_at=?,lease_owner=NULL,claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL
+      WHERE id='parity-source-first'`).bind(digest, p.at),
+    db.prepare("UPDATE ai_text_work_queue SET status='done',completed_at=? WHERE id='parity-source-first'").bind(p.at),
+  ]);
+  expect(await db.prepare("SELECT state,checked_start,checked_end FROM agent_jobs WHERE id='parity-source-first'").first())
+    .toEqual({ state: 'succeeded', checked_start: 0, checked_end: 7 });
+  await lease('parity-source-second');
+  await db.prepare("UPDATE agent_jobs SET source_generation=?,source_sha256=?,source_length=10 WHERE id='parity-source-second'")
+    .bind(generation, digest).run();
+  await expect(db.batch([
+    db.prepare('UPDATE counseling_memory_cases SET generation=generation+1 WHERE support_case_id=?').bind(p.supportCase),
+    accept('parity-source-second'),
+  ])).rejects.toMatchObject({ kind: 'constraint' });
+  expect(await db.prepare("SELECT state FROM agent_jobs WHERE id='parity-source-second'").first()).toEqual({ state: 'leased' });
+  await db.prepare('UPDATE support_cases SET overall_goal=? WHERE id=?').bind('synthetic changed source', p.supportCase).run();
+  expect(await db.prepare("SELECT state,terminal_failure_code,claim_token_hash FROM agent_jobs WHERE id='parity-source-second'").first())
+    .toEqual({ state: 'failed', terminal_failure_code: 'stale_claim', claim_token_hash: null });
+  expect(await db.prepare("SELECT status FROM ai_text_work_queue WHERE id='parity-source-second'").first()).toEqual({ status: 'pending' });
+  await expect(accept('parity-source-second').run()).rejects.toMatchObject({ kind: 'constraint' });
+}
+
 describe('S1 live migration parity', () => {
   it('verifies every checkpoint read-only, or explicitly generates only after semantic proofs pass', async () => {
     const update = process.env.CCC_UPDATE_MIGRATION_PARITY === '1';
@@ -734,6 +786,9 @@ describe('S1 live migration parity', () => {
         }
         if (checkpoint.id === 'intake-question-lifecycle') {
           for (const fixture of [sqlite, postgres]) await proveIntakeQuestionLifecycle(fixture, intakeLifecycleBefore.get(fixture)!);
+        }
+        if (checkpoint.id === 'agent-text-source-fence') {
+          for (const fixture of [sqlite, postgres]) await proveAgentTextSourceFence(fixture);
         }
         if (checkpoint.id === 'baseline-0045') {
           inventory = timestampInventory(left);

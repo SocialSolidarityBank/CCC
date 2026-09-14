@@ -150,6 +150,8 @@ import {
   heartbeatAgentJob,
   releaseAgentJob,
   getAgentJobSource,
+  getSessionTextProcessing,
+  retrySessionTextProcessing,
   issueAgentJobMaskDictionary,
   verifyAgentJobAudio,
   authorizeAgentJobEgress,
@@ -1334,9 +1336,11 @@ function parseAgentResultRequest(body: JsonObject): ResultRequest {
     raw,
     kind === 'audio'
       ? [...AGENT_MASKED_SOURCE_KEYS, 'emotionScores', 'transcriptReliable', 'transcriptWarnings']
-      : AGENT_MASKED_SOURCE_KEYS,
+      : [...AGENT_MASKED_SOURCE_KEYS, 'checkedSource'],
   );
   const masked = parseAgentMaskedSource(raw);
+  const checked = kind === 'text' && raw.checkedSource !== undefined ? asObject(raw.checkedSource) : null;
+  if (checked !== null) requireOnlyKeys(checked, ['sourceRevision', 'sourceSha256', 'sourceStart', 'sourceEnd']);
   const result = kind === 'audio'
     ? {
       ...masked,
@@ -1345,7 +1349,12 @@ function parseAgentResultRequest(body: JsonObject): ResultRequest {
       transcriptReliable: requiredBoolean(raw, 'transcriptReliable'),
       transcriptWarnings: parseTranscriptWarnings(raw),
     }
-    : { ...masked, kind: 'text' as const };
+    : { ...masked, kind: 'text' as const, ...(checked === null ? {} : { checkedSource: {
+      sourceRevision: requiredString(checked, 'sourceRevision'),
+      sourceSha256: requiredString(checked, 'sourceSha256'),
+      sourceStart: requiredInteger(checked, 'sourceStart'),
+      sourceEnd: requiredInteger(checked, 'sourceEnd'),
+    } }) };
   return {
     schemaVersion: 2,
     claimToken: requiredString(body, 'claimToken'),
@@ -3170,6 +3179,15 @@ export async function handleRequest(
     }
     if (parts[0] === 'sessions' && parts[1] !== undefined) {
       const sessionId = parts[1];
+      if (parts.length === 3 && parts[2] === 'processing') {
+        requestQuery(url, []);
+        if (request.method === 'GET') return json(await getSessionTextProcessing(env, actor, sessionId));
+        if (request.method === 'POST') {
+          requireOnlyKeys(await requestBody(request), []);
+          await retrySessionTextProcessing(env, actor, sessionId);
+          return json(await getSessionTextProcessing(env, actor, sessionId), 202);
+        }
+      }
       if (request.method === 'GET' && parts.length === 2) return json(sessionResponse(await getSession(env, actor, sessionId)));
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'ai') {
         requireAiDraftReviewActor(actor);

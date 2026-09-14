@@ -11,7 +11,7 @@ import {
   type Actor,
   type AgentRuntime,
 } from '@ccc/core/gateway';
-import type { AgentJob, NerAttestation, ResultRequest } from '@ccc/contracts/agent-jobs';
+import type { AgentJob, CheckedTextSource, NerAttestation, ResultRequest, SourceResponse } from '@ccc/contracts/agent-jobs';
 import type { DeploymentMode } from '@ccc/contracts/runtime';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import worker from './local-worker';
@@ -213,6 +213,7 @@ export interface AgentResultOptions {
   maskingPipelineVersion?: string;
   emotionScores?: Record<string, unknown>;
   transcriptReliable?: boolean;
+  checkedSource?: CheckedTextSource;
 }
 
 /** Agent 가 만드는 결과 payload. hash 3종을 계약대로 계산한다. */
@@ -246,7 +247,8 @@ export async function agentResultRequest(options: AgentResultOptions): Promise<R
       transcriptReliable: options.transcriptReliable ?? true,
       transcriptWarnings: [],
     }
-    : { ...masked, kind: 'text' as const };
+    : { ...masked, kind: 'text' as const,
+      ...(options.checkedSource === undefined ? {} : { checkedSource: options.checkedSource }) };
   return {
     schemaVersion: 2,
     claimToken: options.claimToken,
@@ -322,8 +324,8 @@ export async function runAgentTextJobs(
       headers: { ...headers, 'X-CCC-Job-Claim': job.claimToken, 'X-CCC-Job-Attempt': String(job.attempt) },
     }), env);
     if (sourceResponse.status !== 200) throw new Error(`job source failed: ${sourceResponse.status}`);
-    const { text } = await sourceResponse.json() as { text: string };
-    const masked = mask(text);
+    const source = await sourceResponse.json() as SourceResponse;
+    const masked = mask(source.text);
     const response = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/result`, {
       method: 'POST',
       headers,
@@ -333,6 +335,8 @@ export async function runAgentTextJobs(
         attempt: job.attempt,
         maskedText: masked.trim().length === 0 ? 'MASKED_SOURCE_BASELINE' : masked,
         qualification,
+        checkedSource: { sourceRevision: source.sourceRevision, sourceSha256: source.sourceSha256,
+          sourceStart: 0, sourceEnd: source.sourceLength },
       })),
     }), env);
     if (response.status !== 204) {

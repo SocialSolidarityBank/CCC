@@ -362,6 +362,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
     if (claimed === undefined) throw new Error('expected a claimed job');
 
+    const source = await getAgentJobSource(t.env, service, claimed.jobId, claimed.claimToken, claimed.attempt);
     const maskedText = 'MASKED idempotent result text';
     const first = await agentResultRequest({
       kind: 'text',
@@ -369,6 +370,8 @@ describe('S5 Agent 작업 계약 v2', () => {
       attempt: 1,
       maskedText,
       qualification,
+      checkedSource: { sourceRevision: source.sourceRevision, sourceSha256: source.sourceSha256,
+        sourceStart: 0, sourceEnd: source.sourceLength },
     });
     const accepted = await acceptAgentJobResult(t.env, service, claimed.jobId, first);
     expect(accepted.replayed).toBe(false);

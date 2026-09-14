@@ -86,6 +86,7 @@ import {
   type ReleaseRequest,
   type ResultRequest,
   type SourceResponse,
+  type TextProcessingStatus,
   type SttEngine as AgentSttEngine,
 } from '@ccc/contracts/agent-jobs';
 import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision } from './access-policy';
@@ -1967,13 +1968,23 @@ async function getMaskedSourceSnapshotForOrg(
     `SELECT snapshot.*, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
      FROM ai_masked_source_snapshots AS snapshot
      JOIN support_cases AS support_case ON support_case.id = snapshot.support_case_id
-     WHERE snapshot.id = ? AND snapshot.org_id = ? AND snapshot.support_case_id = ? AND snapshot.session_id = ?`,
+     WHERE snapshot.id = ? AND snapshot.org_id = ? AND snapshot.support_case_id = ? AND snapshot.session_id = ?
+       AND ${textSnapshotCurrentSql('snapshot')}`,
   ).bind(snapshotId, orgId, context.supportCaseId, sessionId).first<DbRow>();
   if (row === null) {
     throw new ForbiddenError('masked source snapshot is not available in this session');
   }
 
   return mapMaskedSourceSnapshot(row, await listMaskedSourceEvidenceItems(env, snapshotId));
+}
+
+function textSnapshotCurrentSql(alias: 'snapshot' | 'candidate'): string {
+  return `NOT EXISTS (
+    SELECT 1 FROM ai_text_work_queue q JOIN agent_jobs j ON j.source_text_work_item_id=q.id
+    WHERE q.org_id=${alias}.org_id AND q.completed_snapshot_id=${alias}.id AND j.state='succeeded'
+      AND NOT EXISTS (SELECT 1 FROM counseling_memory_cases c WHERE c.org_id=j.org_id
+        AND c.support_case_id=j.support_case_id AND c.generation=j.source_generation AND j.checked_end IS NOT NULL)
+  )`;
 }
 
 async function getCurrentAiDraftVersion(env: Env, orgId: string, workItemId: string): Promise<AiDraftVersion> {
@@ -5513,6 +5524,7 @@ export async function collectDiscrepancyDetectionSources(
        JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id = (
          SELECT candidate.id FROM ai_masked_source_snapshots AS candidate
          WHERE candidate.org_id = session.org_id AND candidate.session_id = session.id
+           AND ${textSnapshotCurrentSql('candidate')}
          ORDER BY candidate.created_at DESC, candidate.id DESC
          LIMIT 1
        )
@@ -5543,6 +5555,7 @@ export async function collectDiscrepancyDetectionSources(
        LEFT JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id = (
          SELECT candidate.id FROM ai_masked_source_snapshots AS candidate
          WHERE candidate.org_id = session.org_id AND candidate.session_id = session.id
+           AND ${textSnapshotCurrentSql('candidate')}
          ORDER BY candidate.created_at DESC, candidate.id DESC
          LIMIT 1
        )
@@ -7533,7 +7546,7 @@ async function buildAgentJobSourceText(
   env: Env,
   actor: Actor,
   sessionId: string,
-): Promise<SourceResponse> {
+): Promise<Pick<SourceResponse, 'sessionId' | 'text'>> {
   const scope = await resolveSessionScope(env, actor.orgId, sessionId);
 
   const [sessionRow, approvedRow, caseRow, intakeRow, detailGoalRows, sessionGoalRows] = await Promise.all([
@@ -8509,6 +8522,11 @@ interface AgentJobRow {
   leaseExpiresAt: string | null;
   terminalFailureCode: string | null;
   resultPayloadSha256: string | null;
+  sourceGeneration: number | null;
+  sourceSha256: string | null;
+  sourceLength: number | null;
+  checkedStart: number | null;
+  checkedEnd: number | null;
   releaseQualificationReceiptId: string | null;
   nerAttestationId: string | null;
   nerAttestationResultHash: string | null;
@@ -8552,6 +8570,11 @@ function mapAgentJobRow(row: DbRow): AgentJobRow {
     leaseExpiresAt: nullableString(row.lease_expires_at),
     terminalFailureCode: nullableString(row.terminal_failure_code),
     resultPayloadSha256: nullableString(row.result_payload_sha256),
+    sourceGeneration: integerValue(row.source_generation),
+    sourceSha256: nullableString(row.source_sha256),
+    sourceLength: integerValue(row.source_length),
+    checkedStart: integerValue(row.checked_start),
+    checkedEnd: integerValue(row.checked_end),
     releaseQualificationReceiptId: nullableString(row.release_qualification_receipt_id),
     nerAttestationId: nullableString(row.ner_attestation_id),
     nerAttestationResultHash: nullableString(row.ner_attestation_result_hash),
@@ -9339,7 +9362,87 @@ export async function getAgentJobSource(
   const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
   if (job.kind !== 'text') throw new AgentJobContractError('forbidden', jobId);
   await requireAgentJobProgramAdmission(env, actor.orgId, job);
-  return buildAgentJobSourceText(env, actor, job.sessionId);
+  const generation = await textSourceGeneration(env, actor.orgId, job.supportCaseId);
+  const source = await buildAgentJobSourceText(env, actor, job.sessionId);
+  const hash = await sha256Hex(source.text);
+  const length = Array.from(source.text).length;
+  const saved = await env.DB.prepare(
+    `UPDATE agent_jobs SET source_generation=?,source_sha256=?,source_length=?
+     WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=? AND lease_expires_at>?
+       AND (source_generation IS NULL OR (source_generation=? AND source_sha256=?))
+       AND EXISTS (SELECT 1 FROM counseling_memory_cases c WHERE c.org_id=agent_jobs.org_id
+         AND c.support_case_id=agent_jobs.support_case_id AND c.generation=?)`,
+  ).bind(generation, hash, length, jobId, actor.orgId, job.claimTokenHash, attempt, now(),
+    generation, hash, generation).run();
+  if ((saved.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
+  return { ...source, sourceRevision: String(generation), sourceSha256: hash, sourceLength: length };
+}
+
+/** Same context-generation fence used by memory work; no independent revision counter. */
+async function textSourceGeneration(env: Env, orgId: string, supportCaseId: string): Promise<number> {
+  const row = await env.DB.prepare(
+    'SELECT generation FROM counseling_memory_cases WHERE org_id=? AND support_case_id=?',
+  ).bind(orgId, supportCaseId).first<{ generation: number }>();
+  if (row === null) throw new ConflictError('source revision is unavailable');
+  return Number(row.generation);
+}
+
+async function assertTextJobSourceCurrent(env: Env, actor: Actor, job: AgentJobRow): Promise<void> {
+  if (job.sourceGeneration === null || job.sourceSha256 === null || job.sourceLength === null) {
+    throw new AgentJobContractError('result_schema_invalid', job.id);
+  }
+  if (await textSourceGeneration(env, actor.orgId, job.supportCaseId) !== job.sourceGeneration
+    || await sha256Hex((await buildAgentJobSourceText(env, actor, job.sessionId)).text) !== job.sourceSha256) {
+    throw new AgentJobContractError('stale_claim', job.id);
+  }
+}
+
+export async function getSessionTextProcessing(
+  env: Env, actor: Actor, sessionId: string,
+): Promise<TextProcessingStatus> {
+  const scope = await resolveSessionScope(env, actor.orgId, sessionId);
+  await assertSupportCaseAccess(env, actor, scope.supportCaseId);
+  const generation = await textSourceGeneration(env, actor.orgId, scope.supportCaseId);
+  const row = await env.DB.prepare(
+    `SELECT * FROM agent_jobs WHERE org_id=? AND session_id=? AND kind='text'
+     ORDER BY enqueued_at DESC, id DESC LIMIT 1`,
+  ).bind(actor.orgId, sessionId).first<DbRow>();
+  const job = row === null ? null : mapAgentJobRow(row);
+  const previous = job !== null && job.sourceGeneration === null ? await env.DB.prepare(
+    `SELECT * FROM agent_jobs WHERE org_id=? AND session_id=? AND kind='text' AND source_generation IS NOT NULL
+     ORDER BY enqueued_at DESC, id DESC LIMIT 1`,
+  ).bind(actor.orgId, sessionId).first<DbRow>() : null;
+  const inspected = previous === null ? job : mapAgentJobRow(previous);
+  const changed = inspected?.sourceGeneration == null ? null
+    : inspected.sourceGeneration !== generation || inspected.terminalFailureCode === 'stale_claim';
+  const checkedRange = inspected?.checkedStart == null || inspected.checkedEnd === null ? null
+    : { start: inspected.checkedStart, end: inspected.checkedEnd };
+  const state = job === null ? 'not_started' : changed ? 'stale'
+    : job.state !== 'succeeded' ? job.state : checkedRange === null ? 'unknown'
+    : checkedRange.start !== 0 || checkedRange.end !== job.sourceLength ? 'partial' : 'succeeded';
+  await writeCanonicalAudit(env, actor, {
+    action: 'read', targetTable: 'agent_jobs', supportCaseId: scope.supportCaseId,
+    targetId: job?.id ?? null, beneficiaryId: scope.beneficiaryId,
+    detail: { purpose: 'text_processing_status' },
+  });
+  return {
+    state, jobId: job?.id ?? null, jobState: job?.state ?? null,
+    sourceRevision: inspected?.sourceGeneration == null ? null : String(inspected.sourceGeneration),
+    currentSourceRevision: String(generation), sourceChanged: changed,
+    sourceLength: inspected?.sourceLength ?? null, checkedRange, failureCode: inspected?.terminalFailureCode ?? null,
+  };
+}
+
+export async function retrySessionTextProcessing(env: Env, actor: Actor, sessionId: string): Promise<void> {
+  const scope = await resolveSessionScope(env, actor.orgId, sessionId);
+  await assertSupportCaseWriteAccess(env, actor, scope.supportCaseId);
+  await assertPilotTextAiConsent(env, actor, scope.supportCaseId);
+  await enqueueTextWorkItem(env, actor, sessionId, 'manual_record');
+  await writeCanonicalAudit(env, actor, {
+    action: 'create', targetTable: 'agent_jobs', supportCaseId: scope.supportCaseId,
+    targetId: sessionId, beneficiaryId: scope.beneficiaryId,
+    detail: { purpose: 'text_processing_retry' },
+  });
 }
 
 /**
@@ -10380,6 +10483,7 @@ export async function acceptAgentJobResult(
     if (stored.resultPayloadSha256 !== request.payloadSha256) {
       throw new AgentJobContractError('result_conflict', jobId);
     }
+    if (stored.kind === 'text') await assertTextJobSourceCurrent(env, actor, stored);
     // 같은 payload 재전송은 새 결과를 만들지 않는다. 다만 결과 수락 뒤 후속 초안 단계가
     // 실패했을 수 있어, 오디오는 멱등 재생 결과를 돌려 호출부가 그 단계를 이어가게 한다.
     const replayedRecording = request.result.kind === 'audio'
@@ -10418,6 +10522,17 @@ export async function acceptAgentJobResult(
       )
     ) throw new AgentJobContractError('route_mismatch', jobId);
     await assertAgentJobResultIntegrity(env, job, request);
+    if (job.kind === 'text') {
+      await assertTextJobSourceCurrent(env, actor, job);
+      const checked = request.result.kind === 'text' ? request.result.checkedSource : undefined;
+      if (checked === undefined || checked.sourceRevision !== String(job.sourceGeneration)
+        || checked.sourceSha256 !== job.sourceSha256
+        || !Number.isSafeInteger(checked.sourceStart) || !Number.isSafeInteger(checked.sourceEnd)
+        || checked.sourceStart < 0 || checked.sourceEnd <= checked.sourceStart
+        || checked.sourceEnd > job.sourceLength!) {
+        throw new AgentJobContractError('result_schema_invalid', jobId);
+      }
+    }
     if (job.sttEngine === 'azure') {
       const egress = await env.DB.prepare(
         `SELECT 1 AS present FROM agent_job_egress_records
@@ -10460,13 +10575,15 @@ export async function acceptAgentJobResult(
       `UPDATE agent_jobs
        SET state = 'succeeded', result_id = ?, result_payload_sha256 = ?, result_accepted_at = ?,
            lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
-           updated_at = ?
+           checked_start=?, checked_end=?, updated_at = ?
        WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
          AND lease_expires_at > ?`,
     ).bind(
       request.resultId,
       request.payloadSha256,
       acceptedAt,
+      result.kind === 'text' ? result.checkedSource!.sourceStart : null,
+      result.kind === 'text' ? result.checkedSource!.sourceEnd : null,
       acceptedAt,
       jobId,
       actor.orgId,
