@@ -625,7 +625,8 @@ export function RecordReviewScreen() {
       </WireCallout>}
       <WireCardSection title="요약">
         <p className="wire-section-value">{draft.summaryText}</p>
-        {draft.claims.map((claim) => <WireItem key={claim.claimKey}
+        {/* 첫 출고는 회기 목표별 요약만 보인다. 다른 분류와 할 일 등록 코드는 보존한다. */}
+        {draft.claims.filter((claim) => claim.section === 'session_goal_discussion').map((claim) => <WireItem key={claim.claimKey}
           title={CLAIM_SECTION_LABELS[claim.section] ?? claim.section} description={claim.text}
           action={claim.section === 'next_session_commitments'
             ? <WireButton variant="neutral" disabled={busy}

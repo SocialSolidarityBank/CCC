@@ -33,6 +33,8 @@ export function ReportScreen() {
   const [report, setReport] = useState<SupportCaseReport | null>(null);
   const [error, setError] = useState<BusinessError | null>(null);
   const generation = useRef(0);
+  const [exportError, setExportError] = useState<BusinessError | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(() => {
     const own = ++generation.current;
@@ -53,6 +55,28 @@ export function ReportScreen() {
     return () => { generation.current += 1; };
   }, [load]);
 
+
+  const exportCsv = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const file = await session.report.exportCsv(supportCaseId);
+      const url = URL.createObjectURL(file.blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = file.filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (cause) {
+      const safe = safeError(cause);
+      if (safe.code === 'session_changed') return;
+      setExportError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    } finally {
+      setExporting(false);
+    }
+  };
   const base = `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
 
   if (error !== null) {
@@ -74,6 +98,10 @@ export function ReportScreen() {
         <WireDataRow label="상태" value={report.status === 'active' ? '진행 중' : '종결'} />
         <WireDataRow label="회차 수" value={`${report.sessions.length}회`} />
       </WireDataRows>
+      {exportError && <WireError>{exportError.message}</WireError>}
+      <div className="business-actions">
+        <WireButton variant="neutral" disabled={exporting} onClick={() => { void exportCsv(); }}>CSV 내려받기</WireButton>
+      </div>
       {report.firstIntakeGoal === undefined
         ? <WireCallout tone="info" title="첫 상담의 목표 기록이 없어요">
           지금 목표를 첫 목표로 대신 적지 않아요.

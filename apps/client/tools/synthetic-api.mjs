@@ -243,7 +243,7 @@ function corsHeaders(origin) {
     'access-control-allow-origin': origin,
     'access-control-allow-headers': '*',
     'access-control-allow-methods': '*',
-    'access-control-expose-headers': 'X-CCC-Installation-Id',
+    'access-control-expose-headers': 'X-CCC-Installation-Id, Content-Disposition',
     'access-control-max-age': '60',
   };
 }
@@ -591,6 +591,17 @@ export function handleApi(request, state, options) {
       name: '김합성', phone: '010-0000-0000', email: null, account: null,
       birthDate: '1980-03-05', region: '서울', gender: null,
     }, 200, cors);
+  }
+  if (path === `/support-cases/${CASE_ID}/export.csv` && request.method === 'GET') {
+    // 전제한 계약: 관리자와 담당 실무자만 200 text/csv. 서버가 정한 파일 이름을 그대로 쓴다.
+    if (state.role !== 'worker' && state.role !== 'institution-admin') return json({ error: 'forbidden' }, 403, cors);
+    if (state.caseClosed !== null) return json({ error: 'conflict' }, 409, cors);
+    const rows = [['회차', '상담일', '요약'], ['1', '2026-09-02', '체납 정리 계획을 함께 세웠습니다']];
+    const csv = `\uFEFF${rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(',')).join('\r\n')}\r\n`;
+    return new Response(csv, { status: 200, headers: {
+      ...cors, 'content-type': 'text/csv; charset=utf-8',
+      'content-disposition': `attachment; filename="case.csv"; filename*=UTF-8''${encodeURIComponent('경과-swallow-003.csv')}`,
+    } });
   }
   if (path === `/support-cases/${CASE_ID}/report` && request.method === 'GET') {
     // 저장된 근거만 투영한다. riskSignals 는 근거가 없어 일부러 빠진다("자료 없음").
