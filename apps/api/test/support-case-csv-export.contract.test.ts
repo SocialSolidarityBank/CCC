@@ -237,13 +237,15 @@ async function seedExportFixture() {
   return { ...created, selectedSessionId: record.record.id, otherSupportCaseId: other.supportCaseId };
 }
 
-describe('POST /support-cases/:id/export.csv', () => {
+describe('GET /support-cases/:id/export.csv', () => {
   it('exports every selected-case section and complete session content without drafts, audio, or another program', async () => {
     const fixture = await seedExportFixture();
-    const response = await http(counselor, `/support-cases/${fixture.supportCaseId}/export.csv`, { method: 'POST' });
+    const response = await http(counselor, `/support-cases/${fixture.supportCaseId}/export.csv`);
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('text/csv; charset=utf-8');
-    expect(response.headers.get('content-disposition')).toContain('.csv');
+    expect(response.headers.get('content-disposition')).toBe(
+      `attachment; filename*=UTF-8''ccc-support-case-${fixture.supportCaseId}.csv; filename="ccc-support-case-${fixture.supportCaseId}.csv"`,
+    );
     expect(response.headers.get('cache-control')).toBe('no-store');
 
     const bytes = new Uint8Array(await response.arrayBuffer());
@@ -279,12 +281,12 @@ describe('POST /support-cases/:id/export.csv', () => {
   it('denies unauthorized exports and records one successful download audit', async () => {
     const fixture = await seedExportFixture();
     for (const actor of [unassignedCounselor, otherOrgAdmin, service]) {
-      expect((await http(actor, `/support-cases/${fixture.supportCaseId}/export.csv`, { method: 'POST' })).status).toBe(403);
+      expect((await http(actor, `/support-cases/${fixture.supportCaseId}/export.csv`)).status).toBe(403);
     }
     const before = await t.db.prepare(
       "SELECT COUNT(*) AS count FROM audit_log WHERE action = 'export' AND support_case_id = ?",
     ).bind(fixture.supportCaseId).first<{ count: number }>();
-    expect((await http(admin, `/support-cases/${fixture.supportCaseId}/export.csv`, { method: 'POST' })).status).toBe(200);
+    expect((await http(admin, `/support-cases/${fixture.supportCaseId}/export.csv`)).status).toBe(200);
     const audits = await t.db.prepare(
       "SELECT actor_id, target_table, support_case_id, detail FROM audit_log WHERE action = 'export' AND support_case_id = ? ORDER BY id",
     ).bind(fixture.supportCaseId).all<{ actor_id: string; target_table: string; support_case_id: string; detail: string }>();
