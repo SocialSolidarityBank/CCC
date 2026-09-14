@@ -13678,7 +13678,7 @@ export async function listAuditLog(
 
 /**
  * 케이스 내보내기(보고서 등 외부 반출). PII는 포함하지 않는다.
- * R2: 승인된 기록만 포함. 권한: 담당 실무자 배정. 감사: export (D14).
+ * R2: 승인된 기록만 포함. 권한: 담당 실무자 또는 같은 기관 관리자 읽기. 감사: export (D14).
  */
 export interface CaseExportResponse {
   schemaVersion: 1;
@@ -13701,7 +13701,7 @@ export async function exportCase(
   caseId: string,
 ): Promise<CaseExportResponse> {
   assertHuman(actor);
-  const caseRecord = await assertCaseWriteAccess(env, actor, caseId);
+  const caseRecord = await assertCaseAccess(env, actor, caseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   // 서로 독립적인 조회는 병렬로 실행한다.
   const [goals, sessionRows, gasScores, approvedBriefings] = await Promise.all([
@@ -13856,7 +13856,7 @@ export async function listCaseExportHistory(
   filter?: ExportHistoryFilter,
 ): Promise<ExportHistoryPage> {
   assertHuman(actor);
-  const caseRecord = await assertCaseWriteAccess(env, actor, caseId);
+  const caseRecord = await assertCaseAccess(env, actor, caseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   const limit = filter?.limit ?? DEFAULT_EXPORT_HISTORY_LIMIT;
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_EXPORT_HISTORY_LIMIT) {
@@ -15134,32 +15134,6 @@ async function resolveSupportCaseContentAccessDecision(
        ) AS has_active_assignment,
        EXISTS (
          SELECT 1
-         FROM team_supervisor_grants AS supervisor_grant
-         JOIN teams AS team
-           ON team.id = supervisor_grant.team_id
-          AND team.org_id = supervisor_grant.org_id
-          AND team.archived_at IS NULL
-         JOIN team_memberships AS membership
-           ON membership.team_id = team.id
-          AND membership.org_id = team.org_id
-          AND membership.ended_at IS NULL
-         JOIN support_case_assignees AS team_assignment
-           ON team_assignment.user_id = membership.user_id
-          AND team_assignment.org_id = membership.org_id
-          AND team_assignment.support_case_id = ?
-          AND team_assignment.unassigned_at IS NULL
-          AND team_assignment.status = 'active'
-         JOIN user_role_assignments AS team_practitioner_role
-           ON team_practitioner_role.org_id = team_assignment.org_id
-          AND team_practitioner_role.user_id = team_assignment.user_id
-          AND team_practitioner_role.role = 'practitioner'
-          AND team_practitioner_role.revoked_at IS NULL
-         WHERE supervisor_grant.org_id = ?
-           AND supervisor_grant.supervisor_user_id = ?
-           AND supervisor_grant.revoked_at IS NULL
-       ) AS has_active_team_supervision,
-       EXISTS (
-         SELECT 1
          FROM user_role_assignments AS admin_role
          WHERE admin_role.org_id = ?
            AND admin_role.user_id = ?
@@ -15170,30 +15144,25 @@ async function resolveSupportCaseContentAccessDecision(
     actor.orgId,
     supportCaseId,
     actor.userId,
-    supportCaseId,
-    actor.orgId,
-    actor.userId,
     actor.orgId,
     actor.userId,
   ).first<{
     has_active_assignment: number;
-    has_active_team_supervision: number;
     has_active_institution_admin_role: number;
   }>();
 
   return decideSupportCaseContentAccess({
     hasActiveAssignment: row?.has_active_assignment === 1,
-    hasActiveTeamSupervision: row?.has_active_team_supervision === 1,
     hasActiveInstitutionAdminRole: row?.has_active_institution_admin_role === 1,
   });
 }
 
 /**
  * Authorizes SupportCase content without granting mutation authority over a
- * closed participation. Access requires an active assignment, an active team
- * supervision grant, or an active institution administrator role. Mutation
- * requires both an active practitioner role and an active assignment. All
- * paths reject non-published beneficiaries.
+ * closed participation. Access requires an active assignment or an active
+ * institution administrator role. Mutation requires both an active
+ * practitioner role and an active assignment. All paths reject non-published
+ * beneficiaries.
  */
 export async function assertSupportCaseAccess(env: Env, actor: Actor, supportCaseId: string): Promise<SupportCase> {
   try {
@@ -15690,13 +15659,12 @@ async function programStaffOptions(env: Env, orgId: string): Promise<Array<{ use
   const rows = await env.DB.prepare(
     `SELECT directory.id, directory.name FROM users AS directory
      WHERE directory.org_id = ? AND directory.active = 1 AND directory.role IN ('admin', 'counselor')
-       AND (
-         EXISTS (SELECT 1 FROM user_role_assignments AS held
-           WHERE held.org_id = directory.org_id AND held.user_id = directory.id
-             AND held.role IN ('institution_admin', 'practitioner') AND held.revoked_at IS NULL)
-         OR EXISTS (SELECT 1 FROM team_supervisor_grants AS supervision
-           JOIN teams AS team ON team.id = supervision.team_id AND team.org_id = supervision.org_id AND team.archived_at IS NULL
-           WHERE supervision.org_id = directory.org_id AND supervision.supervisor_user_id = directory.id AND supervision.revoked_at IS NULL)
+       AND EXISTS (
+         SELECT 1 FROM user_role_assignments AS held
+         WHERE held.org_id = directory.org_id
+           AND held.user_id = directory.id
+           AND held.role IN ('institution_admin', 'practitioner')
+           AND held.revoked_at IS NULL
        )
      ORDER BY directory.name, directory.id`,
   ).bind(orgId).all<DbRow>();
@@ -16998,32 +16966,6 @@ export async function listAuthorizedSupportCaseIdsForBeneficiary(
          )
           OR EXISTS (
             SELECT 1
-            FROM team_supervisor_grants AS supervisor_grant
-            JOIN teams AS team
-              ON team.id = supervisor_grant.team_id
-             AND team.org_id = supervisor_grant.org_id
-             AND team.archived_at IS NULL
-            JOIN team_memberships AS membership
-              ON membership.team_id = team.id
-             AND membership.org_id = team.org_id
-             AND membership.ended_at IS NULL
-            JOIN support_case_assignees AS team_assignment
-              ON team_assignment.user_id = membership.user_id
-             AND team_assignment.org_id = membership.org_id
-             AND team_assignment.support_case_id = support_cases.id
-             AND team_assignment.unassigned_at IS NULL
-             AND team_assignment.status = 'active'
-            JOIN user_role_assignments AS team_practitioner_role
-              ON team_practitioner_role.org_id = team_assignment.org_id
-             AND team_practitioner_role.user_id = team_assignment.user_id
-             AND team_practitioner_role.role = 'practitioner'
-             AND team_practitioner_role.revoked_at IS NULL
-            WHERE supervisor_grant.org_id = support_cases.org_id
-              AND supervisor_grant.supervisor_user_id = ?
-              AND supervisor_grant.revoked_at IS NULL
-          )
-          OR EXISTS (
-            SELECT 1
             FROM user_role_assignments AS admin_role
             WHERE admin_role.org_id = support_cases.org_id
               AND admin_role.user_id = ?
@@ -17036,7 +16978,6 @@ export async function listAuthorizedSupportCaseIdsForBeneficiary(
   ).bind(
     actor.orgId,
     beneficiaryId,
-    actor.userId,
     actor.userId,
     actor.userId,
   ).all<{ id: string }>();
@@ -17070,8 +17011,8 @@ async function listPiiAuthorizedSupportCaseIdsForBeneficiary(
 
 /**
  * 당사자 정보 페이지(허브)가 보여주는 참여 사업 한 건 (D36 · ADR-0014 '개정' 1번).
- * `authorized` 가 false 면 이 사용자가 상담 내용을 읽을 수 없는 사업이다. 담당 배정,
- * 팀 감독, 기관 관리자 역할 중 하나가 있으면 true다.
+ * `authorized` 가 false 면 이 사용자가 상담 내용을 읽을 수 없는 사업이다. 담당 배정이나
+ * 기관 관리자 역할이 있으면 true다.
  */
 export interface ParticipantProgramEntry {
   supportCase: SupportCase;

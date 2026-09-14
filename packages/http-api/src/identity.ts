@@ -84,7 +84,7 @@ export function gatewayActorFromIdentity(actor: IdentityActor): GatewayActor {
   }
   if (actor.roles.includes('service')) return { userId: actor.userId, orgId: actor.orgId, role: 'service' };
   if (actor.roles.includes('institution-admin')) return { userId: actor.userId, orgId: actor.orgId, role: 'admin' };
-  if (actor.roles.includes('worker') || actor.roles.includes('supervisor')) {
+  if (actor.roles.includes('worker')) {
     return { userId: actor.userId, orgId: actor.orgId, role: 'counselor' };
   }
   throw new ForbiddenError('identity has no business role');
