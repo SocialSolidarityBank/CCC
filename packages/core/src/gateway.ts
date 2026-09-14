@@ -23932,7 +23932,10 @@ async function memoryDeliveredText(env: Env, actor: Actor, row: MemoryMaterialRo
   ).bind(actor.orgId, row.support_case_id, row.kind, row.source_id, row.source_revision).first<MemorySourceRow>();
   const body = source === null ? null : await memorySourceBody(env, source);
   if (body === null || body.sessionId !== row.session_id) return null;
-  const chunk = Array.from(body.text).slice(row.start_offset, row.end_offset).join('');
+  const points = Array.from(body.text);
+  if (!Number.isSafeInteger(row.start_offset) || !Number.isSafeInteger(row.end_offset)
+    || row.start_offset < 0 || row.end_offset <= row.start_offset || row.end_offset > points.length) return null;
+  const chunk = points.slice(row.start_offset, row.end_offset).join('');
   if (await sha256Hex(chunk) !== row.source_hash) return null;
   const pii = await memoryPii(env, actor.orgId, row.support_case_id);
   let delivered = chunk;
@@ -23945,6 +23948,7 @@ async function memorySourceBinding(
   row: MemoryMaterialRow,
   deliveredText: string,
   consentRevision: string,
+  sourceGeneration?: number,
 ): Promise<EntitySourceBinding> {
   const scope = await env.DB.prepare(
     `SELECT sc.beneficiary_id,sc.entity_map_revision,pv.created_at AS vault_created_at,
@@ -23959,6 +23963,12 @@ async function memorySourceBinding(
   if (scope === null || row.lease_token === null || row.lease_until === null || row.receipt_id === null) {
     throw new AgentJobContractError('consent_not_effective', row.id);
   }
+  // Ready historical materials retain their accepted source epoch. The work lease
+  // separately fences the current case generation; source revisions still must match.
+  const generation = sourceGeneration ?? Number(scope.generation);
+  if (!Number.isSafeInteger(generation) || generation < 0 || generation > Number(scope.generation)) {
+    throw new AgentJobContractError('stale_claim', row.id);
+  }
   const deliveredSha256 = await sha256Hex(deliveredText);
   // Unattributed goals/actions keep ordinary masking; creation time cannot supply G7 evidence.
   const sources: EntitySourceDescriptor[] = row.session_id === null ? [] : [{
@@ -23971,7 +23981,7 @@ async function memorySourceBinding(
     ...await entityConsultationDate(scope.held_at, scope.time_zone, row.id),
   }];
   const sourceBundleRevision = await sha256Hex(canonicalizeJcs({
-    version: 1, generation: Number(scope.generation), sources, deliveredSha256,
+    version: 1, generation, sources, deliveredSha256,
     sourceId: row.source_id, sourceRevision: row.source_revision, sourceKind: row.kind,
     sessionId: row.session_id, start: row.start_offset, end: row.end_offset, rawSha256: row.source_hash,
   }));
@@ -23980,7 +23990,7 @@ async function memorySourceBinding(
     beneficiaryId: stringValue(scope.beneficiary_id), vaultCreatedAt: stringValue(scope.vault_created_at),
     vaultVersion: Number(scope.vault_version), keyVersion: Number(scope.key_version), family: 'memory',
     jobId: row.id, attempt: row.attempt, claimTokenHash: row.lease_token,
-    generation: Number(scope.generation), mapRevision: Number(scope.entity_map_revision),
+    generation, mapRevision: Number(scope.entity_map_revision),
     consentRevision, sources, audio: null,
   };
 }
@@ -24028,11 +24038,15 @@ export async function issueCounselingMemoryDictionary(env:Env,actor:Actor,id:str
   return {dictionaryId:id,jobId:id,expiresAt:row.lease_until!,oneTime:true,entries};
 }
 async function verifyMemoryProof(env:Env,row:MemoryMaterialRow,result:ResultRequest['result']):Promise<void> {
+  if (result === null || typeof result !== 'object' || typeof result.maskedText !== 'string') {
+    throw new ValidationError('masking_snapshot_missing');
+  }
   if(result.kind!=='text'||result.nerAvailable!==true) throw new ValidationError('local_ner_unavailable');
   if (!hasRegisteredMaskingPipelinePair(env, result.maskingPipelineVersion, result.maskingPipelineHash)) {
     throw new ValidationError('masking_pipeline_version_mismatch');
   }
-  const attestation=JSON.parse(row.attestation_json!) as NerAttestation;
+  const attestation = parseJson<NerAttestation>(row.attestation_json);
+  if (!attestation || !row.receipt_id) throw new ValidationError('local_ner_unavailable');
   if (
     result.nerAttestationId !== attestation.id
     || result.nerAttestationResultHash !== attestation.resultHash
@@ -24055,20 +24069,36 @@ async function verifyMemoryProof(env:Env,row:MemoryMaterialRow,result:ResultRequ
   if(Object.values(pii).some(value=>value&&result.maskedText.includes(value))) throw new ValidationError('registered_pii_detected');
   try { assertNoObviousUnmaskedPii(result.maskedText); } catch { throw new ValidationError('unmasked_identifier_detected'); }
 }
-async function verifyMemoryMaterialBinding(env: Env, row: MemoryMaterialRow, actor: Actor): Promise<void> {
+async function verifyMemoryMaterialBinding(env: Env, row: MemoryMaterialRow, actor: Actor): Promise<string> {
   const stored = parseJson<EntitySourceBinding>(row.entity_source_binding);
-  if (stored === null || stored.family !== 'memory') throw new AgentJobContractError('stale_claim', row.id);
+  if (stored === null) throw new ValidationError('masking_snapshot_missing');
+  if (stored.family !== 'memory') throw new AgentJobContractError('stale_claim', row.id);
   const authorization = await memoryAuthorization(env, actor.orgId, row.support_case_id);
   const delivered = await memoryDeliveredText(env, actor, row);
   if (delivered === null) throw new AgentJobContractError('stale_claim', row.id);
-  const current = await memorySourceBinding(env, actor, row, delivered, authorization.revision);
+  const current = await memorySourceBinding(env, actor, row, delivered, authorization.revision,
+    row.status === 'ready' ? stored.generation : undefined);
   if (canonicalizeJcs(stored) !== canonicalizeJcs(current)) {
     throw new AgentJobContractError('stale_claim', row.id);
+  }
+  return delivered;
+}
+
+async function verifyMemoryCheckedSource(
+  row: MemoryMaterialRow, result: ResultRequest['result'], delivered: string,
+): Promise<void> {
+  const checked = result.kind === 'text' ? result.checkedSource : undefined;
+  if (!checked || checked.sourceRevision !== String(row.source_revision)
+    || checked.sourceStart !== 0 || checked.sourceEnd !== Array.from(delivered).length
+    || checked.sourceSha256 !== await sha256Hex(delivered)) {
+    throw new ValidationError('evidence_hash_mismatch');
   }
 }
 export async function acceptCounselingMemorySource(env:Env,actor:Actor,id:string,request:ResultRequest):Promise<void> {
   const {row,programAdmission}=await memoryClaim(env,actor,id,request.claimToken,request.attempt,true);
   await verifyMemoryProof(env,row,request.result);
+  const delivered = await verifyMemoryMaterialBinding(env, row, actor);
+  await verifyMemoryCheckedSource(row, request.result, delivered);
   if(request.schemaVersion!==2||await sha256Hex(canonicalizeJcs({schemaVersion:request.schemaVersion,attempt:request.attempt,result:request.result}))!==request.payloadSha256) throw new ValidationError('evidence_hash_mismatch');
   if(row.status==='ready') {
     if(row.payload_hash!==request.payloadSha256) throw new AgentJobContractError('result_conflict',id);
@@ -24137,7 +24167,7 @@ async function verifiedMemoryMaterials(env:Env,orgId:string,supportCaseId:string
 }
 /** A ready material is immutable evidence; invalid proof is never repaired or skipped. */
 async function memoryMaterialReady(env: Env, row: MemoryMaterialRow): Promise<boolean> {
-  if (!row.proof_json || !row.snapshot_id || row.masked_text === null || row.sha256 === null) {
+  if (!row.proof_json || !row.entity_source_binding || !row.payload_hash || !row.snapshot_id || row.masked_text === null || row.sha256 === null) {
     throw new ValidationError('masking_snapshot_missing');
   }
   let proof: ResultRequest['result'];
@@ -24146,10 +24176,18 @@ async function memoryMaterialReady(env: Env, row: MemoryMaterialRow): Promise<bo
   } catch {
     throw new ValidationError('masking_snapshot_missing');
   }
+  if (proof === null || typeof proof !== 'object') throw new ValidationError('masking_snapshot_missing');
   if (proof.maskedText !== row.masked_text || proof.sha256 !== row.sha256) {
     throw new ValidationError('evidence_hash_mismatch');
   }
   await verifyMemoryProof(env, row, proof);
+  if (await sha256Hex(canonicalizeJcs({schemaVersion: 2, attempt: row.attempt, result: proof})) !== row.payload_hash) {
+    throw new ValidationError('evidence_hash_mismatch');
+  }
+  const delivered = await verifyMemoryMaterialBinding(env, row, {
+    userId: row.actor_id!, orgId: row.org_id, role: 'service',
+  });
+  await verifyMemoryCheckedSource(row, proof, delivered);
   return true;
 }
 export async function beginCounselingMemoryEgress(env:Env,work:MemoryWork,configHash:string):Promise<MemoryGenerationRequest> {
