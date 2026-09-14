@@ -95,6 +95,7 @@ import {
 } from '@ccc/contracts/agent-jobs';
 import type { EntitySourceBinding, EntitySourceDescriptor } from '@ccc/contracts/entity-registration';
 import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision } from './access-policy';
+import { serializeSupportCaseCsv, type SupportCaseCsvSection } from './support-case-csv';
 import {
   CONSENT_PRIVACY_NOTICE_TEXT,
   CONSENT_PRIVACY_NOTICE_VERSION,
@@ -13673,6 +13674,410 @@ export async function listAuditLog(
   return {
     items,
     nextCursor: hasNext && items.length > 0 ? encodeAuditCursor(items[items.length - 1]!.id) : null,
+  };
+}
+
+export interface SupportCaseCsvExportResponse {
+  filename: string;
+  csv: string;
+  rowCount: number;
+}
+
+function csvJson(value: unknown): unknown {
+  const text = nullableString(value);
+  return text === null ? null : parseJson<unknown>(text) ?? text;
+}
+
+/**
+ * 선택한 참여 사업 한 건의 현재 서버 읽기 모델을 CSV로 묶는다.
+ *
+ * 기존 JSON exportCase는 호환성 때문에 그대로 둔다. 이 생산자는 선택한 support_case_id로
+ * 모든 원시 조회를 고정하고, AI 내용은 approved_ai_briefing_v1만 읽는다. sessions의 원음
+ * 위치와 전사, ai_draft_versions의 미승인 내용, provider 설정은 CSV 재료가 아니다.
+ */
+export async function exportSupportCaseCsv(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<SupportCaseCsvExportResponse> {
+  assertHuman(actor);
+  assertOpaqueIdentifier(supportCaseId, 'support case id');
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const [
+    records,
+    report,
+    vault,
+    caseRow,
+    programRow,
+    assigneeRows,
+    consentRows,
+    goalRows,
+    goalRevisionRows,
+    scheduleRows,
+    scheduleGoalRows,
+    scheduleQuestionRows,
+    scheduleQuestionRevisionRows,
+    intakeRows,
+    intakeRevisionRows,
+    actionRows,
+    actionRevisionRows,
+    flagRows,
+    discrepancyRows,
+    approvedRows,
+    approvedEvidenceRows,
+    siblingActive,
+  ] = await Promise.all([
+    listCounselingRecords(env, actor, supportCaseId),
+    getSupportCaseReport(env, actor, supportCaseId),
+    env.DB.prepare(
+      `SELECT beneficiary_id, version, enc_name, enc_phone, enc_account, enc_email,
+              enc_birth_date, enc_region, enc_emergency_contact, enc_gender, purge_due, purged_at
+       FROM participant_pii_vault AS vault
+       WHERE vault.org_id = ? AND vault.beneficiary_id = ? AND vault.purged_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM participant_pii_archives AS archive
+           WHERE archive.org_id = vault.org_id AND archive.beneficiary_id = vault.beneficiary_id
+             AND archive.review_status <> 'purged'
+         )`,
+    ).bind(actor.orgId, supportCase.beneficiaryId).first<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, beneficiary_id, program_id, program_type, status, intake_at,
+              consent_recording_at, consent_text_ai_at, consent_privacy_at, overall_goal,
+              closed_at, closed_reason, creation_kind, emergency_registration_at,
+              emergency_registration_reason, consent_privacy_due_at, extra, created_at, updated_at
+       FROM support_cases WHERE org_id = ? AND id = ?`,
+    ).bind(actor.orgId, supportCaseId).first<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, display_name, status, program_type, storage_mode, processing_mode,
+              financial_support_enabled, created_at, updated_at
+       FROM programs WHERE org_id = ? AND id = ?`,
+    ).bind(actor.orgId, supportCase.programId).first<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, user_id, role, status, acceptance_requested_by, accepted_at,
+              transfer_reason, notified_by, notified_at, assigned_at, unassigned_at
+       FROM support_case_assignees
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY assigned_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, domain, decision, provider, provider_legal_recipient, provider_country,
+              purpose, retention_duration, copy_version, copy_hash, disclosure_snapshot_id,
+              effective_at, recorded_by, recorded_at, revision, event_sequence,
+              correction_of_event_id
+       FROM consent_events
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY event_sequence, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, title, scale_criteria, status, closed_reason, closed_at,
+              replaced_by_goal_id, created_at
+       FROM goals WHERE org_id = ? AND support_case_id = ?
+       ORDER BY created_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, goal_id, title, edited_by, edited_at
+       FROM goal_revisions WHERE org_id = ? AND support_case_id = ?
+       ORDER BY id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, scheduled_at, status, session_kind, channel, all_day, display_color,
+              version, completed_session_id, created_by_actor_id, updated_by_actor_id,
+              completed_by_actor_id, completed_at, created_at, updated_at
+       FROM counseling_schedules
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY scheduled_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, schedule_id, case_goal_id, body, ordinal, created_by, created_at
+       FROM schedule_session_goals
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY schedule_id, ordinal, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, schedule_id, body, ordinal, revision, created_by, created_at
+       FROM schedule_custom_questions
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY schedule_id, ordinal, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT revision.question_id, revision.revision, revision.body, revision.schedule_id
+       FROM schedule_question_revisions AS revision
+       JOIN schedule_custom_questions AS question
+         ON question.id = revision.question_id AND question.org_id = revision.org_id
+       WHERE question.org_id = ? AND question.support_case_id = ?
+       ORDER BY revision.question_id, revision.revision`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, held_at, channel, memo, intake_details, intake_schema_version,
+              intake_revision, intake_updated_by, intake_converted_from_revision,
+              intake_question_lifecycle, created_at, updated_at
+       FROM sessions
+       WHERE org_id = ? AND support_case_id = ? AND kind = 'intake'
+       ORDER BY held_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT revision.session_id, revision.revision, revision.schema_version,
+              revision.held_at, revision.channel, revision.details, revision.recorded_at,
+              revision.actor_id, revision.converted_from_revision, revision.question_lifecycle
+       FROM intake_record_revisions AS revision
+       JOIN sessions AS session
+         ON session.id = revision.session_id AND session.org_id = revision.org_id
+       WHERE session.org_id = ? AND session.support_case_id = ?
+       ORDER BY revision.session_id, revision.revision`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, session_id, description, owner, due_date, resolved_at, resolved_by,
+              resolution_status, resolution_note, resolution_at, resolution_session_id,
+              revision, stop_reason, created_at
+       FROM action_items
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY created_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT revision.action_item_id, revision.revision, revision.description,
+              revision.owner, revision.due_date, revision.resolution_status,
+              revision.resolution_note, revision.resolution_session_id,
+              revision.resolved_at, revision.stop_reason
+       FROM action_item_revisions AS revision
+       JOIN action_items AS item
+         ON item.id = revision.action_item_id AND item.org_id = revision.org_id
+       WHERE item.org_id = ? AND item.support_case_id = ?
+       ORDER BY revision.action_item_id, revision.revision`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, session_id, flag_type, quote, source, review_status,
+              reviewed_by, reviewed_at, created_at
+       FROM flags
+       WHERE org_id = ? AND support_case_id = ? AND review_status = 'confirmed'
+       ORDER BY created_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, kind, trigger_session_id, left_session_id, left_quote,
+              right_session_id, right_quote, detected_at, resolution_status,
+              resolved_by, resolved_at, created_at
+       FROM session_discrepancies
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY detected_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT draft_version_id, draft_version, session_id, kind, summary_text,
+              claims_json, questions_json, one_liner, model_id, prompt_version,
+              schema_version, approved_by, approved_at
+       FROM approved_ai_briefing_v1
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY approved_at, draft_version_id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT approved.draft_version_id, evidence.id, evidence.claim_key,
+              evidence.evidence_quote, evidence.source_ref,
+              evidence.source_start, evidence.source_end, evidence.created_at
+       FROM approved_ai_briefing_v1 AS approved
+       JOIN ai_evidence_links AS evidence ON evidence.draft_version_id = approved.draft_version_id
+       WHERE approved.org_id = ? AND approved.support_case_id = ?
+       ORDER BY approved.approved_at, approved.draft_version_id, evidence.claim_key, evidence.id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT 1 AS present FROM support_cases
+       WHERE org_id = ? AND beneficiary_id = ? AND status = 'active' AND id <> ?
+       LIMIT 1`,
+    ).bind(actor.orgId, supportCase.beneficiaryId, supportCaseId).first<DbRow>(),
+  ]);
+
+  if (caseRow === null || programRow === null) {
+    throw new ConflictError('support case export context is unavailable');
+  }
+
+  const pii = vault === null ? {
+    beneficiaryId: supportCase.beneficiaryId,
+    version: null,
+    name: null,
+    phone: null,
+    email: null,
+    account: null,
+    birthDate: null,
+    region: null,
+    emergencyContact: null,
+    gender: null,
+  } : {
+    beneficiaryId: supportCase.beneficiaryId,
+    version: integerValue(vault.version),
+    name: await decryptPii(env, nullableString(vault.enc_name)),
+    phone: await decryptPii(env, nullableString(vault.enc_phone)),
+    email: await decryptPii(env, nullableString(vault.enc_email)),
+    account: await decryptPii(env, nullableString(vault.enc_account)),
+    birthDate: await decryptPii(env, nullableString(vault.enc_birth_date)),
+    region: await decryptPii(env, nullableString(vault.enc_region)),
+    emergencyContact: await decryptPii(env, nullableString(vault.enc_emergency_contact)),
+    gender: await decryptPii(env, nullableString(vault.enc_gender)),
+  };
+  if (vault !== null) {
+    const contacts = new Map<string, ParticipantContact>([[
+      supportCase.beneficiaryId,
+      { name: pii.name, phone: pii.phone, email: pii.email, birthDate: pii.birthDate },
+    ]]);
+    const extraFields = ([
+      ['email', pii.email],
+      ['account', pii.account],
+      ['birth_date', pii.birthDate],
+      ['region', pii.region],
+      ['emergency_contact', pii.emergencyContact],
+      ['gender', pii.gender],
+    ] as const).filter(([, value]) => value !== null).map(([field]) => field);
+    await auditParticipantPiiRead(env, actor, contacts, {
+      targetId: supportCase.beneficiaryId,
+      supportCaseId,
+      extraFields,
+    });
+  }
+
+  const selectedCase = {
+    program: {
+      id: stringValue(programRow.id),
+      displayName: nullableString(programRow.display_name),
+      status: stringValue(programRow.status),
+      programType: stringValue(programRow.program_type),
+      storageMode: stringValue(programRow.storage_mode),
+      processingMode: stringValue(programRow.processing_mode),
+      financialSupportEnabled: integerValue(programRow.financial_support_enabled) === 1,
+      createdAt: stringValue(programRow.created_at),
+      updatedAt: stringValue(programRow.updated_at),
+    },
+    supportCase: {
+      id: stringValue(caseRow.id),
+      beneficiaryId: stringValue(caseRow.beneficiary_id),
+      programId: stringValue(caseRow.program_id),
+      programType: stringValue(caseRow.program_type),
+      status: stringValue(caseRow.status),
+      intakeAt: nullableString(caseRow.intake_at),
+      consentRecordingAt: nullableString(caseRow.consent_recording_at),
+      consentTextAiAt: nullableString(caseRow.consent_text_ai_at),
+      consentPrivacyAt: nullableString(caseRow.consent_privacy_at),
+      overallGoal: nullableString(caseRow.overall_goal),
+      closedAt: nullableString(caseRow.closed_at),
+      closedReason: nullableString(caseRow.closed_reason),
+      creationKind: stringValue(caseRow.creation_kind),
+      emergencyRegistrationAt: nullableString(caseRow.emergency_registration_at),
+      emergencyRegistrationReason: nullableString(caseRow.emergency_registration_reason),
+      consentPrivacyDueAt: nullableString(caseRow.consent_privacy_due_at),
+      extra: csvJson(caseRow.extra),
+      createdAt: stringValue(caseRow.created_at),
+      updatedAt: stringValue(caseRow.updated_at),
+    },
+  };
+  const schedules = {
+    schedules: scheduleRows.results,
+    sessionGoals: scheduleGoalRows.results,
+    customQuestions: scheduleQuestionRows.results,
+    customQuestionRevisions: scheduleQuestionRevisionRows.results,
+  };
+  const intake = {
+    records: intakeRows.results.map((row) => ({
+      id: stringValue(row.id),
+      heldAt: stringValue(row.held_at),
+      channel: stringValue(row.channel),
+      memo: nullableString(row.memo),
+      schemaVersion: integerValue(row.intake_schema_version),
+      revision: integerValue(row.intake_revision),
+      updatedBy: nullableString(row.intake_updated_by),
+      convertedFromRevision: nullableInteger(row.intake_converted_from_revision),
+      questionnaire: csvJson(row.intake_details),
+      questionLifecycle: csvJson(row.intake_question_lifecycle),
+      createdAt: stringValue(row.created_at),
+      updatedAt: stringValue(row.updated_at),
+    })),
+    history: intakeRevisionRows.results.map((row) => ({
+      ...row,
+      details: csvJson(row.details),
+      question_lifecycle: csvJson(row.question_lifecycle),
+    })),
+  };
+  const approvedAi = {
+    briefings: approvedRows.results.map((row) => ({
+      draftVersionId: stringValue(row.draft_version_id),
+      draftVersion: integerValue(row.draft_version),
+      sessionId: stringValue(row.session_id),
+      kind: stringValue(row.kind),
+      summaryText: stringValue(row.summary_text),
+      claims: csvJson(row.claims_json),
+      questions: csvJson(row.questions_json),
+      oneLiner: nullableString(row.one_liner),
+      modelId: nullableString(row.model_id),
+      promptVersion: nullableString(row.prompt_version),
+      schemaVersion: nullableString(row.schema_version),
+      approvedBy: nullableString(row.approved_by),
+      approvedAt: nullableString(row.approved_at),
+    })),
+    evidence: approvedEvidenceRows.results,
+  };
+
+  const item = (
+    kind: string,
+    value: unknown,
+    id: string | null = null,
+    sessionId: string | null = null,
+    ordinal: number | null = null,
+  ) => ({ kind, value, id, sessionId, ordinal });
+  const sections: SupportCaseCsvSection[] = [
+    { name: '당사자 기본정보', items: [item('당사자', pii, supportCase.beneficiaryId)] },
+    { name: '선택 사업과 사례', items: [item('사업과 사례', selectedCase, supportCaseId)] },
+    { name: '담당 이력', items: assigneeRows.results.map((row, index) => item('담당', row, nullableString(row.id), null, index + 1)) },
+    { name: '동의 이력', items: consentRows.results.map((row, index) => item('동의', row, nullableString(row.id), null, index + 1)) },
+    { name: '목표', items: [
+      item('현재 전체 목표', { overallGoal: supportCase.overallGoal }, supportCaseId),
+      ...goalRows.results.map((row, index) => item('세부 목표', row, nullableString(row.id), null, index + 1)),
+      ...goalRevisionRows.results.map((row, index) => item('목표 수정 이력', row, nullableString(row.goal_id), null, index + 1)),
+    ] },
+    { name: '일정', items: [item('일정 전체', schedules, supportCaseId)] },
+    { name: '인테이크 기록', items: [item('인테이크 전체', intake, supportCaseId)] },
+    { name: '상담 기록', items: records.map((record, index) => item('회차', record, record.id, record.id, index + 1)) },
+    { name: '액션', items: [
+      ...actionRows.results.map((row, index) => item('액션', row, nullableString(row.id), nullableString(row.session_id), index + 1)),
+      ...actionRevisionRows.results.map((row, index) => item('액션 수정 이력', row, nullableString(row.action_item_id), null, index + 1)),
+    ] },
+    { name: '리스크 플래그', items: flagRows.results.map((row, index) => item('확정 플래그', row, nullableString(row.id), nullableString(row.session_id), index + 1)) },
+    { name: '불일치', items: discrepancyRows.results.map((row, index) => item('불일치', row, nullableString(row.id), nullableString(row.trigger_session_id), index + 1)) },
+    { name: '승인 AI 기록', items: [item('승인 AI 전체', approvedAi, supportCaseId)] },
+    { name: '리포트', items: [item('사례 리포트', report, supportCaseId)] },
+    { name: '종결과 보관', items: [item('종결 상태', {
+      supportCaseId,
+      beneficiaryId: supportCase.beneficiaryId,
+      status: supportCase.status,
+      closedAt: supportCase.closedAt,
+      closedReason: supportCase.closedReason,
+      purgeDue: vault === null ? null : nullableString(vault.purge_due),
+      purgedAt: vault === null ? null : nullableString(vault.purged_at),
+      hasOtherActiveSupportCase: siblingActive !== null,
+    }, supportCaseId)] },
+  ];
+  const document = serializeSupportCaseCsv(supportCase.programId, supportCaseId, sections);
+  await env.DB.prepare(
+    `INSERT INTO audit_log (
+       org_id, actor_id, actor_role, action, target_table, target_id, case_id,
+       beneficiary_id, support_case_id, detail, created_at
+     ) VALUES (?, ?, ?, 'export', 'cases', ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    actor.orgId,
+    actor.userId,
+    actor.role,
+    supportCaseId,
+    supportCaseId,
+    supportCase.beneficiaryId,
+    supportCaseId,
+    stringifyJson({
+      schemaVersion: 1,
+      prepared: true,
+      format: 'csv',
+      rowCount: document.rowCount,
+      goalCount: goalRows.results.length,
+      sessionCount: records.length,
+      gasScoreCount: records.reduce((count, record) => count + record.gasScores.length, 0),
+    }),
+    now(),
+  ).run();
+  return {
+    filename: `ccc-support-case-${supportCaseId}.csv`,
+    csv: document.csv,
+    rowCount: document.rowCount,
   };
 }
 

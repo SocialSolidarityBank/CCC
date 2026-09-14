@@ -9,10 +9,12 @@ import {
   StaleDraftVersionError,
   ValidationError,
   activateAiProviderConfiguration,
+  acceptAgentJobResult,
   approveGeneratedAiDraft,
   approveSession,
   assignSupportCase,
   cancelCounselingSchedule,
+  claimAgentJobs,
   closeCase,
   closeGoal,
   closeSupportCase,
@@ -31,8 +33,10 @@ import {
   createManualSession,
   createSupportCase,
   editAiDraftForSession,
+  enqueueTextWorkItem,
   exportCase,
   getActiveAiProviderRuntimeMetadataForService,
+  getAgentJobSource,
   getApprovedAiBriefing,
   getBriefing,
   getCurrentGeneratedAiDraft,
@@ -70,7 +74,13 @@ import {
 } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId, seedTestProgramWithRuntimeModes } from './support/d1';
 import { registrationConsentEvents, registrationInput } from './support/registration';
-import { registerFixtureRecording, seedCanonicalSttConsent } from './support/agent-jobs';
+import {
+  agentResultRequest,
+  claimRequest,
+  registerFixtureRecording,
+  seedCanonicalSttConsent,
+  TEXT_ONLY_RUNTIME,
+} from './support/agent-jobs';
 
 /**
  * 재료 하나(텍스트 맥락)뿐인 초안의 재료 증빙과 대조 3종 (D69 · ADR-0036).
@@ -222,6 +232,147 @@ async function seedMaskedSourceSnapshot(
     })),
   });
   if (snapshot.caseId !== caseId) throw new Error('masked source snapshot case mismatch');
+  return {
+    snapshotId: snapshot.id,
+    snapshotHash: snapshot.sha256,
+    evidenceByKey,
+  };
+}
+async function seedProvenMaskedSourceSnapshot(
+  caseId: string,
+  sessionId: string,
+  idPrefix: string,
+  sources: ReadonlyArray<Readonly<{ key: string; sourceRef: string; evidenceQuote: string }>>,
+): Promise<SeededMaskedSource> {
+  const maskedText = sources.length === 0
+    ? 'MASKED_SOURCE_BASELINE'
+    : sources.map((source) => source.evidenceQuote).join('\n');
+  const evidenceByKey: Record<string, SeededSourceEvidence> = {};
+  let sourceStart = 0;
+  for (const source of sources) {
+    const sourceEnd = sourceStart + source.evidenceQuote.length;
+    evidenceByKey[source.key] = {
+      id: `${idPrefix}-evidence-${source.key}`,
+      sourceRef: source.sourceRef,
+      evidenceQuote: source.evidenceQuote,
+      sourceStart,
+      sourceEnd,
+    };
+    sourceStart = sourceEnd + 1;
+  }
+
+  const qualification = {
+    receiptId: `pilot-receipt-${crypto.randomUUID()}`,
+    attestation: {
+      id: `pilot-attestation-${crypto.randomUUID()}`,
+      modelId: 'FrameByFrame/korean-pii-e5-base',
+      modelRevision: 'a308c54b4407819624a5661e31e162a269f39818',
+      labelSetHash: 'b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc',
+      corpusHash: '10265475ed38dbdc8f902cd78fb29654a948c96ddb9c9daeda3b485d4cdd46a5',
+      resultHash: 'fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72',
+      validatedAt: '2026-09-01T00:00:00.000Z',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      status: 'passed' as const,
+    },
+  };
+  await t.db.prepare(
+    `INSERT INTO ner_release_qualification_receipts (
+       id, org_id, model_id, model_revision, label_set_hash, corpus_hash,
+       result_hash, validated_at, expires_at, status, created_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'passed', ?)`,
+  ).bind(
+    qualification.receiptId,
+    service.orgId,
+    qualification.attestation.modelId,
+    qualification.attestation.modelRevision,
+    qualification.attestation.labelSetHash,
+    qualification.attestation.corpusHash,
+    qualification.attestation.resultHash,
+    qualification.attestation.validatedAt,
+    qualification.attestation.expiresAt,
+    qualification.attestation.validatedAt,
+  ).run();
+  const unsignedManifest = {
+    schemaVersion: 2,
+    resultSchemaVersion: 2,
+    maskingPipelineVersion: 'ner-mask-v3',
+    directIdentifierRulesVersion: 'direct-v1',
+    regexRulesVersion: 'regex-v2',
+    conditionDictionaryVersion: 'condition-dict-v1',
+    quasiIdentifierRulesVersion: 'quasi-v1',
+    g7RelativeDateRulesVersion: 'calendar-day-v1',
+    nerModelId: qualification.attestation.modelId,
+    nerModelRevision: qualification.attestation.modelRevision,
+    personLabels: ['PRIVATE_PERSON'],
+    addressLabels: ['PRIVATE_ADDRESS'],
+    conditionNerModelId: null,
+    conditionNerModelRevision: null,
+    conditionLabels: [],
+    labelSetHash: qualification.attestation.labelSetHash,
+    nerHealthCorpusHash: qualification.attestation.corpusHash,
+    nerHealthResultHash: qualification.attestation.resultHash,
+  };
+  const maskingPipelineHash = await sha256Hex(canonicalizeJcs(unsignedManifest));
+  t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({
+    schemaVersion: 1,
+    activeMaskingPipelineVersion: unsignedManifest.maskingPipelineVersion,
+    pipelines: [{ ...unsignedManifest, maskingPipelineHash }],
+  });
+  await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
+  const claimed = (await claimAgentJobs(
+    t.env,
+    service,
+    TEXT_ONLY_RUNTIME,
+    claimRequest(qualification),
+  )).jobs.find((job) => job.sessionId === sessionId && job.kind === 'text');
+  if (claimed === undefined) throw new Error('expected claimed pilot text job');
+  const checkedSource = await getAgentJobSource(
+    t.env,
+    service,
+    claimed.jobId,
+    claimed.claimToken,
+    claimed.attempt,
+  );
+  const request = await agentResultRequest({
+    kind: 'text',
+    claimToken: claimed.claimToken,
+    attempt: claimed.attempt,
+    maskedText,
+    qualification,
+    maskingPipelineVersion: unsignedManifest.maskingPipelineVersion,
+    checkedSource: {
+      sourceRevision: checkedSource.sourceRevision,
+      sourceSha256: checkedSource.sourceSha256,
+      sourceStart: 0,
+      sourceEnd: checkedSource.sourceLength,
+    },
+  });
+  request.result.maskingPipelineHash = maskingPipelineHash;
+  request.result.evidence = Object.values(evidenceByKey).map((evidence) => ({
+    id: evidence.id,
+    sourceRef: evidence.sourceRef,
+    sourceSha256: request.result.sha256,
+    evidenceQuote: evidence.evidenceQuote,
+    sourceStart: evidence.sourceStart,
+    sourceEnd: evidence.sourceEnd,
+  }));
+  request.result.evidenceHash = await sha256Hex(canonicalizeJcs(request.result.evidence));
+  request.payloadSha256 = await sha256Hex(canonicalizeJcs({
+    schemaVersion: request.schemaVersion,
+    attempt: request.attempt,
+    result: request.result,
+  }));
+  await acceptAgentJobResult(t.env, service, claimed.jobId, request);
+  const snapshot = await t.db.prepare(
+    `SELECT snapshot.id, snapshot.sha256, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
+     FROM ai_masked_source_snapshots AS snapshot
+     JOIN support_cases AS support_case
+       ON support_case.id = snapshot.support_case_id AND support_case.org_id = snapshot.org_id
+     WHERE snapshot.org_id = ? AND snapshot.session_id = ?
+     ORDER BY snapshot.created_at DESC, snapshot.id DESC LIMIT 1`,
+  ).bind(service.orgId, sessionId).first<{ id: string; sha256: string; case_id: string }>();
+  if (snapshot === null) throw new Error('expected proven pilot source snapshot');
+  if (snapshot.case_id !== caseId) throw new Error('proven source snapshot case mismatch');
   return {
     snapshotId: snapshot.id,
     snapshotHash: snapshot.sha256,
@@ -394,6 +545,12 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
 }
 
 async function createReviewReadySession() {
+  t.env.installationMode = 'local-single';
+  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_LLM_MODE = 'openai';
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
+    deploymentMode: 'local-single', sttMode: 'local', llmMode: 'openai',
+  });
   // 녹음 동의는 이제 컬럼이 아니라 등록 6종 동의의 counseling_recording grant 다(기본 grant).
   const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
   await enablePilotForCase(caseRecord.id);
@@ -416,7 +573,7 @@ async function createReviewReadySession() {
     approvalRefs: ['privacy-security-approval'],
   });
   await activateAiProviderConfiguration(t.env, admin, config.id);
-  const source = await seedMaskedSourceSnapshot(
+  const source = await seedProvenMaskedSourceSnapshot(
     caseRecord.id,
     session.id,
     'review-ready-source',
@@ -527,8 +684,11 @@ async function createPilotDraft(
   }],
 ) {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
-    sttMode: 'off', llmMode: 'openai',
+    deploymentMode: 'local-single', sttMode: 'off', llmMode: 'openai',
   });
+  t.env.installationMode = 'local-single';
+  t.env.CCC_STT_MODE = 'off';
+  t.env.CCC_LLM_MODE = 'openai';
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   const config = await registerAiProviderConfiguration(t.env, admin, {
     adapterId: 'codex',
@@ -547,7 +707,7 @@ async function createPilotDraft(
     gasScores: [],
   });
   await seedCanonicalLlmConsent(caseRecord.id);
-  const source = await seedMaskedSourceSnapshot(
+  const source = await seedProvenMaskedSourceSnapshot(
     caseRecord.id,
     session.id,
     'pilot-source',
