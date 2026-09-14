@@ -7537,7 +7537,7 @@ async function buildAgentJobSourceText(
   const scope = await resolveSessionScope(env, actor.orgId, sessionId);
 
   const [sessionRow, approvedRow, caseRow, intakeRow, detailGoalRows, sessionGoalRows] = await Promise.all([
-    env.DB.prepare('SELECT memo, record_details FROM sessions WHERE id = ? AND org_id = ?')
+    env.DB.prepare('SELECT id, memo, record_details, manual_schema_version, manual_revision FROM sessions WHERE id = ? AND org_id = ?')
       .bind(sessionId, actor.orgId).first<DbRow>(),
     env.DB.prepare(
       `SELECT summary_text FROM approved_ai_briefing_v1
@@ -7609,6 +7609,9 @@ async function buildAgentJobSourceText(
     parts.push(`${SESSION_GOAL_MATERIAL_LABEL} ${sessionGoalLines.join('\n')}`);
   }
   if (memo !== null) parts.push(memo);
+  if (sessionRow !== null) {
+    await appendManualSourceText(parts, env, actor.orgId, scope.supportCaseId, sessionRow);
+  }
   if (summary !== null) parts.push(summary);
   // 워크인 폴백 자유 글(D62 §7): 일정 없이 쓴 회차의 '이번 상담에서 확인할 것'.
   const goalNoteLines = sessionGoalNoteLines(sessionRow === null ? null : nullableString(sessionRow.record_details));
@@ -18535,6 +18538,57 @@ function storedManualDetails(row: DbRow): ManualRecordDetails | null {
   return JSON.parse(stringValue(row.record_details)) as ManualRecordDetails;
 }
 
+/** Internal identities select rows and order them; they never enter provider text. */
+async function appendManualSourceText(
+  parts: string[], env: Env, orgId: string, supportCaseId: string, row: DbRow,
+): Promise<void> {
+  const details = storedManualDetails(row);
+  if (details === null) return;
+  const sessionId = stringValue(row.id);
+  const [actions, actionOutcomes, questionOutcomes] = await Promise.all([
+    env.DB.prepare(`SELECT description, owner, due_date, resolution_status, resolution_note, resolved_at, stop_reason
+      FROM action_items WHERE org_id = ? AND support_case_id = ? AND session_id = ? ORDER BY created_at, id`)
+      .bind(orgId, supportCaseId, sessionId).all<DbRow>(),
+    env.DB.prepare(`SELECT a.description, a.owner, o.outcome, o.continuation, o.reason
+      FROM manual_action_outcomes o JOIN action_items a ON a.id = o.action_item_id
+        AND a.org_id = o.org_id AND a.support_case_id = o.support_case_id
+      WHERE o.org_id = ? AND o.support_case_id = ? AND o.session_id = ? ORDER BY o.action_item_id`)
+      .bind(orgId, supportCaseId, sessionId).all<DbRow>(),
+    env.DB.prepare(`SELECT kind, source_text, outcome, answer FROM manual_question_outcomes
+      WHERE org_id = ? AND support_case_id = ? AND session_id = ? ORDER BY kind, question_id`)
+      .bind(orgId, supportCaseId, sessionId).all<DbRow>(),
+  ]);
+  parts.push(`[상담 방식] ${details.method}`);
+  if (details.reason !== null) parts.push(`[상담 사유] ${details.reason}`);
+  if (details.urgency !== null) parts.push(`[긴급도] ${details.urgency}`);
+  for (const change of details.changes) parts.push(`[영역 변화 ${change.area}] ${change.text}`);
+  if (details.counselorOpinion !== null) parts.push(`[이 회차 실무자 의견] ${details.counselorOpinion}`);
+  for (const question of details.nextQuestions) parts.push(`[다음 질문] ${question.body}`);
+  for (const action of actions.results) {
+    parts.push(`[액션] ${stringValue(action.description)}`, `[액션 담당] ${stringValue(action.owner)}`);
+    for (const [field, label] of [
+      ['due_date', '액션 기한'], ['resolution_status', '액션 상태'], ['resolution_note', '액션 처리 메모'],
+      ['resolved_at', '액션 해결 시각'], ['stop_reason', '액션 중단 사유'],
+    ] as const) {
+      const value = nullableString(action[field]);
+      if (value !== null) parts.push(`[${label}] ${value}`);
+    }
+  }
+  for (const outcome of actionOutcomes.results) {
+    parts.push(`[액션 결과] ${stringValue(outcome.description)}`, `[액션 담당] ${stringValue(outcome.owner)}`,
+      `[처리 결과] ${stringValue(outcome.outcome)}`);
+    const continuation = nullableString(outcome.continuation), reason = nullableString(outcome.reason);
+    if (continuation !== null) parts.push(`[계속 여부] ${continuation}`);
+    if (reason !== null) parts.push(`[처리 사유] ${reason}`);
+  }
+  for (const outcome of questionOutcomes.results) {
+    parts.push(`[질문 ${stringValue(outcome.kind)}] ${stringValue(outcome.source_text)}`,
+      `[질문 처리] ${stringValue(outcome.outcome)}`);
+    const answer = nullableString(outcome.answer);
+    if (answer !== null) parts.push(`[확정 답변] ${answer}`);
+  }
+}
+
 /** Canonical manual entities only. AI drafts and derived memory cards are not sources. */
 async function loadManualWork(env: Env, orgId: string, supportCaseId: string) {
   // One statement selects all source IDs/revisions and result-owning sessions.
@@ -19764,7 +19818,10 @@ export async function getSupportCaseReport(
     const row = detailsById.get(originalRecord.id);
     const record = { ...originalRecord, ...(originalRecord.kind === 'intake'
       ? { intakeSchemaVersion: Number(row?.intake_schema_version ?? 1) as 1 | 2, intakeRevision: Number(row?.intake_revision ?? 1) } : {}) };
-    const details = parseJson<Record<string, unknown>>(row?.record_details) ?? {};
+    const manual = originalRecord.manual?.details ?? null;
+    const details = manual === null ? parseJson<Record<string, unknown>>(row?.record_details) ?? {} : {};
+    const opinion = manual === null ? undefined
+      : reportEvidence(record, number, 'record_details.counselorOpinion', manual.counselorOpinion);
     const intake = intakeReadView(row?.intake_details).details;
     const answers = Array.isArray(intake.answers) ? intake.answers as IntakeReadAnswer[] : [];
     const answer = (key: string) => answers.find((item) => item?.key === key && item.response === 'answered')?.text;
@@ -19788,11 +19845,16 @@ export async function getSupportCaseReport(
     }
     sessions.push({
       sessionId: record.id, sessionNumber: number, heldAt: record.heldAt, kind: record.kind,
-      channel: record.channel, ...(summary === undefined ? {} : { summary }),
+      channel: manual?.method ?? record.channel, ...(summary === undefined ? {} : { summary }),
       ...(record.kind === 'intake' ? { intakeSchemaVersion: record.intakeSchemaVersion, intakeRevision: record.intakeRevision } : {}),
+      ...(opinion === undefined ? {} : { counselorOpinion: opinion }),
     });
     const change = reportEvidence(record, number, 'record_details.changeSinceLast', details.changeSinceLast);
     if (change !== undefined) situations.push(change);
+    for (const [changeIndex, change] of (manual?.changes ?? []).entries()) {
+      const evidence = reportEvidence(record, number, `record_details.changes.${changeIndex}.text`, change.text);
+      if (evidence !== undefined) situations.push({ ...evidence, area: change.area });
+    }
     for (const area of record.lifeAreaSnapshot) {
       const status = reportEvidence(record, number, `session_life_area_snapshots.${area.areaKey}.status`, area.status);
       if (status !== undefined) situations.push(status);
@@ -19814,25 +19876,11 @@ export async function getSupportCaseReport(
         }
       }
     }
-    if (record.kind === 'intake' && work.intake !== null && work.intake.lifecycle !== null && work.intake.source.id === record.id) {
-      for (const question of work.questions) {
-        if (question.kind !== 'intake' || question.state !== 'open') continue;
-        const reference = work.intake.references.get(question.id)!;
-        const sourceRevision = reference.item.sourceRevision;
-        const source = work.intake.revisions.find(revision => revision.revision === sourceRevision)!;
-        const evidence = reportEvidence({
-          ...record, heldAt: source.heldAt, intakeSchemaVersion: reference.schemaVersion, intakeRevision: sourceRevision,
-        }, number, `intake_details.additionalItems.${reference.item.sourceRowIndex}.item`, reference.value.item)!;
-        nextConfirmations.push({
-          item: reference.value.item, evidence,
-          ...(reference.value.dueNote === undefined ? {} : { dueNote: reference.value.dueNote }),
-        });
-      }
-    } else if (record.kind === 'intake' && work.intake?.lifecycle === null && Array.isArray(intake.additionalItems)) {
+    if (record.kind === 'intake' && work.intake?.lifecycle === null && Array.isArray(intake.additionalItems)) {
       for (const [itemIndex, item] of (intake.additionalItems as LegacyIntakeAdditionalItem[]).entries()) {
         const evidence = reportEvidence(record, number, `intake_details.additionalItems.${itemIndex}.item`, item?.item);
         if (evidence === undefined) continue;
-        const entry: typeof nextConfirmations[number] = { item: item.item, evidence };
+        const entry: typeof nextConfirmations[number] = { item: item.item, evidence, questionRef: null };
         for (const field of ['reason', 'method', 'dueNote', 'dueDate', 'owner'] as const) {
           if (typeof item[field] === 'string' && item[field].trim() !== '') entry[field] = item[field];
         }
@@ -19845,6 +19893,8 @@ export async function getSupportCaseReport(
     }
     const safety = reportEvidence(record, number, 'record_details.safetyNote', details.safetyNote);
     if (safety !== undefined) risks.push(safety);
+    const manualUrgency = reportEvidence(record, number, 'record_details.urgency', manual?.urgency);
+    if (manualUrgency !== undefined) risks.push(manualUrgency);
     const urgency = reportEvidence(record, number, 'intake_details.answers.summary_urgency', answer('summary_urgency'));
     if (urgency !== undefined) risks.push(urgency);
     for (const flag of record.confirmedFlags) {
@@ -19865,6 +19915,41 @@ export async function getSupportCaseReport(
       }
     }
   }
+  for (const question of work.questions) {
+    if (question.state !== 'open') continue;
+    // An uncompleted schedule has no report-session evidence.
+    if (question.kind === 'schedule' && question.sourceSessionId === null) continue;
+    const origin = question.sourceSessionId === null ? undefined : bySession.get(question.sourceSessionId);
+    if (origin === undefined || typeof question.id !== 'string' || !question.id || !question.sourceId
+      || !Number.isSafeInteger(question.sourceRevision) || question.sourceRevision < 1) {
+      throw new ConflictError('report question source is inconsistent');
+    }
+    if (question.kind === 'intake') {
+      const reference = work.intake?.references.get(question.id);
+      const source = work.intake?.revisions.find(revision => revision.revision === reference?.item.sourceRevision);
+      if (reference === undefined || source === undefined || work.intake?.source.id !== question.sourceId
+        || question.sourceId !== origin.record.id || reference.item.revision !== question.sourceRevision) {
+        throw new ConflictError('report intake question source is inconsistent');
+      }
+      const evidence = reportEvidence({
+        ...origin.record, heldAt: source.heldAt, intakeSchemaVersion: reference.schemaVersion, intakeRevision: source.revision,
+      }, origin.number, `intake_details.additionalItems.${reference.item.sourceRowIndex}.item`, reference.value.item);
+      if (evidence === undefined) throw new ConflictError('report question evidence is missing');
+      nextConfirmations.push({
+        item: reference.value.item, evidence,
+        questionRef: { kind: question.kind, questionId: question.id, sourceId: question.sourceId, sourceRevision: question.sourceRevision },
+        ...(reference.value.dueNote === undefined ? {} : { dueNote: reference.value.dueNote }),
+      });
+      continue;
+    }
+    const source = question.kind === 'record'
+      ? `record_details.nextQuestions.${question.id}.body` : `schedule_custom_questions.${question.id}.body`;
+    const evidence = reportEvidence(origin.record, origin.number, source, question.body);
+    if (evidence === undefined) throw new ConflictError('report question evidence is missing');
+    nextConfirmations.push({ item: question.body, evidence, questionRef: {
+      kind: question.kind, questionId: question.id, sourceId: question.sourceId, sourceRevision: question.sourceRevision,
+    } });
+  }
   const actions: NonNullable<SupportCaseReport['sections']['actionItems']>['items'] = [];
   for (const row of actionRows.results) {
     const origin = bySession.get(stringValue(row.session_id));
@@ -19883,7 +19968,7 @@ export async function getSupportCaseReport(
     });
   }
   return {
-    schemaVersion: 1, supportCaseId, beneficiaryId: supportCase.beneficiaryId,
+    schemaVersion: 2, supportCaseId, beneficiaryId: supportCase.beneficiaryId,
     programId: supportCase.programId, programName: nullableString(program?.display_name),
     status: supportCase.status, sessions,
     ...(firstIntakeGoal === undefined ? {} : { firstIntakeGoal }),

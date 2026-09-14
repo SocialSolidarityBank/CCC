@@ -30,6 +30,9 @@ import {
   getActiveAiProviderRuntimeMetadataForService,
   claimAgentJobs,
   getAgentJobSource,
+  getManualRecordContext,
+  getSupportCaseReport,
+  loadAiCallMaterialsForService,
   listSupportCasesForBeneficiary,
   recordMaskedSourceSnapshot,
   registerAiProviderConfiguration,
@@ -241,12 +244,12 @@ describe('getAgentJobSource — AI 재료 배선 (CCC-73 · D62 §7)', () => {
     expect(text).not.toContain('지원욕구 2순위');
   });
 
-  it('컨텍스트가 비어 있으면 회차 텍스트만 나간다(빈 라벨 없음)', async () => {
+  it('케이스 맥락이 비어 있어도 회차 메모와 수기 방식은 보낸다', async () => {
     const { supportCaseId } = await fixtureCase();
     const sessionId = await saveRecord(supportCaseId, '오늘 상담 내용을 수기로 남긴다');
 
     const text = await sourceForSession(sessionId);
-    expect(text).toBe('오늘 상담 내용을 수기로 남긴다');
+    expect(text).toBe('오늘 상담 내용을 수기로 남긴다\n[상담 방식] in_person');
   });
 
   it('전체 목표의 이전 문구(이력)는 재료에 싣지 않는다', async () => {
@@ -280,6 +283,92 @@ describe('getAgentJobSource — AI 재료 배선 (CCC-73 · D62 §7)', () => {
     const text = await sourceForSession(sessionId);
     expect(text).toContain('[전체 목표]');
     expect(text).not.toContain('홍길동');
+  });
+
+  it('orders approved summary after manual facts without appending raw fields to provider materials', async () => {
+    const { caseId, supportCaseId } = await fixtureCase();
+    const record = await createCounselingRecord(t.env, counselor, supportCaseId, {
+      schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-07-01T10:00:00.000Z',
+      channel: 'visit', memo: 'RAW_OFFICIAL_MEMO', counselorOpinion: 'RAW_OFFICIAL_OPINION',
+    });
+    await approveBriefingFor(caseId, record.record.id);
+    expect(await sourceForSession(record.record.id)).toBe(
+      'RAW_OFFICIAL_MEMO\n[상담 방식] visit\n[이 회차 실무자 의견] RAW_OFFICIAL_OPINION\nAPPROVED_AI_SUMMARY',
+    );
+    const snapshot = await t.db.prepare('SELECT id FROM ai_masked_source_snapshots WHERE session_id = ?')
+      .bind(record.record.id).first<{ id: string }>();
+    const material = await loadAiCallMaterialsForService(t.env, service, record.record.id, snapshot!.id);
+    expect(material.materials.map(item => ({ kind: item.kind, text: item.snapshot.maskedText }))).toEqual([
+      { kind: 'text_context', text: 'MASKED_EVIDENCE_FOR_APPROVAL' },
+    ]);
+    expect(JSON.stringify(material)).not.toContain('RAW_OFFICIAL');
+  });
+
+  it('includes every manual v2 field and immutable action/question outcome before masking', async () => {
+    const { caseId, supportCaseId } = await fixtureCase();
+    await updateParticipantPii(t.env, counselor, caseId, { supportCaseContextId: supportCaseId, expectedVersion: 1, name: '홍길동' });
+    const first = await createCounselingRecord(t.env, counselor, supportCaseId, {
+      schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-07-01T10:00:00.000Z',
+      channel: 'visit', memo: 'FIRST_MANUAL_MEMO',
+      nextQuestions: ['DUPLICATE_QUESTION 홍길동', 'DUPLICATE_QUESTION 홍길동'],
+      actionItems: [
+        { description: 'DONE_ACTION', owner: 'beneficiary' },
+        { description: 'STOP_ACTION', owner: 'counselor' },
+        { description: 'OMITTED_ACTION', owner: 'org' },
+      ],
+    });
+    const context = await getManualRecordContext(t.env, counselor, supportCaseId);
+    const done = context.actions.find(action => action.description === 'DONE_ACTION')!;
+    const stop = context.actions.find(action => action.description === 'STOP_ACTION')!;
+    const omitted = context.actions.find(action => action.description === 'OMITTED_ACTION')!;
+    const chosen = context.questions[1]!, unanswered = context.questions[0]!;
+    const second = await createCounselingRecord(t.env, counselor, supportCaseId, {
+      schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-07-02T10:00:00.000Z',
+      channel: 'visit', reason: 'urgent', urgency: 'caution', memo: 'SECOND_MANUAL_MEMO',
+      changes: [{ area: 'physical_health', text: 'HUMAN_HEALTH_CHANGE 홍길동' }, { area: 'housing', text: 'HUMAN_HOUSING_CHANGE 홍길동' }],
+      counselorOpinion: 'SESSION_SCOPED_OPINION 홍길동', nextQuestions: ['NEXT_QUESTION 홍길동'],
+      actionItems: [{ description: 'NEXT_ACTION 홍길동', owner: 'org', dueDate: '2026-07-20' }],
+      actionOutcomes: [
+        { actionItemId: done.id, expectedRevision: done.revision, outcome: 'done', update: { description: 'UPDATED_ACTION 홍길동', dueDate: '2026-07-19' } },
+        { actionItemId: stop.id, expectedRevision: stop.revision, outcome: 'not_done', continuation: 'stop', reason: 'HUMAN_STOP_REASON 홍길동' },
+      ],
+      questionAnswers: [{ kind: chosen.kind, questionId: chosen.id, sourceId: first.record.id, expectedRevision: chosen.sourceRevision, answer: 'CONFIRMED_ANSWER 홍길동' }],
+    });
+    const text = await sourceForSession(second.record.id);
+    expect(text.split('\n').slice(0, 11)).toEqual([
+      'SECOND_MANUAL_MEMO', '[상담 방식] visit', '[상담 사유] urgent', '[긴급도] caution',
+      expect.stringContaining('[영역 변화 physical_health] HUMAN_HEALTH_CHANGE'),
+      expect.stringContaining('[영역 변화 housing] HUMAN_HOUSING_CHANGE'),
+      expect.stringContaining('[이 회차 실무자 의견] SESSION_SCOPED_OPINION'),
+      expect.stringContaining('[다음 질문] NEXT_QUESTION'),
+      expect.stringContaining('[액션] NEXT_ACTION'), '[액션 담당] org', '[액션 기한] 2026-07-20',
+    ]);
+    expect(text.split('\n').filter(line => line.startsWith('[액션 결과]'))).toEqual(
+      [done, stop, omitted].sort((a, b) => a.id.localeCompare(b.id))
+        .map(action => expect.stringContaining(`[액션 결과] ${action.id === done.id ? 'UPDATED_ACTION' : action.description}`)),
+    );
+    for (const value of [
+      'SECOND_MANUAL_MEMO', 'visit', 'urgent', 'caution', 'physical_health', 'HUMAN_HEALTH_CHANGE',
+      'housing', 'HUMAN_HOUSING_CHANGE', 'SESSION_SCOPED_OPINION', 'NEXT_QUESTION',
+      'NEXT_ACTION', 'org', '2026-07-20', 'done', 'not_done', 'unconfirmed', 'HUMAN_STOP_REASON',
+      'DUPLICATE_QUESTION', 'CONFIRMED_ANSWER', 'UPDATED_ACTION', 'OMITTED_ACTION',
+    ]) expect(text).toContain(value);
+    expect(text).not.toContain('FIRST_MANUAL_MEMO');
+    expect(text).not.toContain('홍길동');
+    for (const id of [done.id, stop.id, omitted.id, chosen.id, unanswered.id, first.record.id, second.record.id, counselor.userId]) {
+      expect(text).not.toContain(id);
+    }
+    expect(text).not.toMatch(/sourceRevision|revision|sourceId|questionId/u);
+    const projected = await getSupportCaseReport(t.env, counselor, supportCaseId);
+    expect(projected.sessions.find(session => session.sessionId === second.record.id)?.counselorOpinion?.text)
+      .toBe('SESSION_SCOPED_OPINION 홍길동');
+    expect(projected.sections.situationChanges?.entries.map(entry => ({ area: entry.area, text: entry.text }))).toEqual([
+      { area: 'physical_health', text: 'HUMAN_HEALTH_CHANGE 홍길동' }, { area: 'housing', text: 'HUMAN_HOUSING_CHANGE 홍길동' },
+    ]);
+    const after = await getManualRecordContext(t.env, counselor, supportCaseId);
+    expect(after.questions.map(question => question.id)).toContain(unanswered.id);
+    expect(after.confirmedQuestions.map(question => question.id)).toContain(chosen.id);
+    expect(after.actions.find(action => action.id === omitted.id)?.state).toBe('open');
   });
 });
 
@@ -319,6 +408,7 @@ describe('getAgentJobSource: 목표 3층 재료 (CCC-103 · D69 · ADR-0036)', (
       '[회기 목표] 저축 통장 개설 확인',
       '지출 항목 정리',
       '통장을 개설하고 지출을 정리했다',
+      '[상담 방식] in_person',
     ]);
     expect(text).not.toContain('CLOSED_GOAL_PHRASE');
   });
@@ -336,7 +426,7 @@ describe('getAgentJobSource: 목표 3층 재료 (CCC-103 · D69 · ADR-0036)', (
     const sessionId = await saveRecord(supportCaseId, '일정 없이 들른 상담을 적었다');
 
     const text = await sourceForSession(sessionId);
-    expect(text).toBe('일정 없이 들른 상담을 적었다');
+    expect(text).toBe('일정 없이 들른 상담을 적었다\n[상담 방식] in_person');
     expect(text).not.toContain('회기 목표');
     expect(text).not.toContain('UNLINKED_SESSION_GOAL_PHRASE');
   });
@@ -351,7 +441,7 @@ describe('텍스트 일감 큐: 녹음 회차와 목표 수정 (CCC-103 · D69)'
     await t.db.prepare('UPDATE sessions SET audio_r2_key = ?, ai_status = ? WHERE id = ?')
       .bind(`audio/${sessionId}/fixture`, 'uploaded', sessionId).run();
 
-    expect(await sourceForSession(sessionId)).toBe('녹음과 함께 수기 메모도 남겼다');
+    expect(await sourceForSession(sessionId)).toBe('녹음과 함께 수기 메모도 남겼다\n[상담 방식] in_person');
   });
 
   it('목표 수정은 미승인 공식 텍스트 회차만 goal_revised 로 올린다', async () => {
