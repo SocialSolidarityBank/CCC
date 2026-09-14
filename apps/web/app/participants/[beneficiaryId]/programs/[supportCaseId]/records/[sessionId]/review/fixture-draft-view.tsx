@@ -1,3 +1,21 @@
+import {
+  GridContainer,
+  PageTitle,
+  ParticipantHeroCard,
+  WireBadge,
+  WireButton,
+  WireCallout,
+  WireCard,
+  WireCardSection,
+  WireChoice,
+  WireEmpty,
+  WireError,
+  WireFormField,
+  WireItem,
+  WireSourceQuotes,
+  type ParticipantHeroDetail,
+  type WireBadgeTone,
+} from '@ccc/wire';
 import type {
   AiContrastAxis,
   AiContrastAxisStatus,
@@ -9,16 +27,6 @@ import type {
   AiMaterialKind,
   TranscriptQuality,
 } from '../../../../../../../lib/api';
-import { GridContainer } from '../../../../../../../components/wire/grid-container';
-import { PageTitle } from '../../../../../../../components/wire/page-title';
-import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../../../components/wire/participant-hero-card';
-import { WireCallout, WireSourceQuotes } from '../../../../../../../components/wire/wire-callout';
-import { WireCard } from '../../../../../../../components/wire/wire-card';
-import { WireBadge, type WireBadgeTone } from '../../../../../../../components/wire/wire-badge';
-import { WireButton } from '../../../../../../../components/wire/wire-button';
-import { WireCardSection, WireItem } from '../../../../../../../components/wire/wire-section';
-import { WireChoice, WireFormField } from '../../../../../../../components/wire/wire-form-field';
-import { WireEmpty, WireError } from '../../../../../../../components/wire/wire-state';
 
 // 대조 3종 축 표시 순서 + 한글 라벨(D69 · ADR-0036 결정 1·3, CCC-100).
 const contrastAxisOrder: AiContrastAxis[] = ['missing_from_memo', 'missing_from_transcript', 'undiscussed_session_goal'];

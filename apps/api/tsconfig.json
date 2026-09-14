@@ -11,7 +11,10 @@
   "include": [
     "src/**/*.ts",
     "test/**/*.ts",
-    "../../packages/*/src/**/*.ts",
+    "../../packages/contracts/src/**/*.ts",
+    "../../packages/core/src/**/*.ts",
+    "../../packages/http-api/src/**/*.ts",
+    "../../packages/ai-runtime/src/**/*.ts",
     "../../adapters/*/src/**/*.ts"
   ],
   "exclude": [

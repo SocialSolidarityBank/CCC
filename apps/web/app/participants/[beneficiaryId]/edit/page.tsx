@@ -1,14 +1,16 @@
-import { WireBadge } from '../../../components/wire/wire-badge';
-import { WireError } from '../../../components/wire/wire-state';
+import {
+  GridContainer,
+  Icon,
+  PageTitle,
+  ParticipantHeroCard,
+  WireBadge,
+  WireButton,
+  WireError,
+} from '@ccc/wire';
 import { Suspense } from 'react';
 import { ApiError, getParticipantBasicInfo, type ParticipantBasicInfo } from '../../../lib/api';
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
-import { GridContainer } from '../../../components/wire/grid-container';
 import { PageLoading } from '../../../components/wire/page-loading';
-import { ParticipantHeroCard } from '../../../components/wire/participant-hero-card';
-import { PageTitle } from '../../../components/wire/page-title';
-import { WireButton } from '../../../components/wire/wire-button';
-import { Icon } from '../../../components/wire/wire-icon';
 import { updateParticipantBasicInfoAction } from '../../../actions';
 import { ErrorState, type ErrorKind } from '../error-state';
 import { BasicInfoForm } from './basic-info-form';

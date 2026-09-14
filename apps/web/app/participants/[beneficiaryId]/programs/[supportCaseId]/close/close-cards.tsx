@@ -1,11 +1,14 @@
 'use client';
 
-import { WireBadge } from '../../../../../components/wire/wire-badge';
+import {
+  WireBadge,
+  WireButton,
+  WireCard,
+  WireEmpty,
+  WireField,
+  WireFormField,
+} from '@ccc/wire';
 import { TimeAxisBadge } from '../../../../../components/wire/time-axis-badge';
-import { WireButton } from '../../../../../components/wire/wire-button';
-import { WireCard, WireField } from '../../../../../components/wire/wire-card';
-import { WireFormField } from '../../../../../components/wire/wire-form-field';
-import { WireEmpty } from '../../../../../components/wire/wire-state';
 import { formatKoreanDate } from '../../../../../lib/format-korean-date';
 import type { OpenActionItem, SupportCaseClosureInfo } from '../../../../../lib/api';
 

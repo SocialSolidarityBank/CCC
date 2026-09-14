@@ -1,9 +1,11 @@
+import {
+  GridContainer,
+  PageTitle,
+  WireError,
+} from '@ccc/wire';
 import { ApiError, getMyIdentity, type MyIdentity } from '../../lib/api';
 import { getDisplayLabels } from '../../lib/display-labels';
 import { createInitialParticipantProgramAction } from '../../actions';
-import { GridContainer } from '../../components/wire/grid-container';
-import { PageTitle } from '../../components/wire/page-title';
-import { WireError } from '../../components/wire/wire-state';
 import { RegisterForm } from './register-form';
 
 const noticeMessages: Record<string, string> = {

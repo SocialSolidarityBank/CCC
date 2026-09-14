@@ -1,11 +1,14 @@
-import { WireBadge } from '../../../../../components/wire/wire-badge';
-import { WireError } from '../../../../../components/wire/wire-state';
+import {
+  GridContainer,
+  PageTitle,
+  ParticipantHeroCard,
+  WireBadge,
+  WireButton,
+  WireCard,
+  WireError,
+  type ParticipantHeroDetail,
+} from '@ccc/wire';
 import Link from 'next/link';
-import { GridContainer } from '../../../../../components/wire/grid-container';
-import { PageTitle } from '../../../../../components/wire/page-title';
-import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../components/wire/participant-hero-card';
-import { WireButton } from '../../../../../components/wire/wire-button';
-import { WireCard } from '../../../../../components/wire/wire-card';
 import { getDisplayLabels } from '../../../../../lib/display-labels';
 import {
   ApiError,

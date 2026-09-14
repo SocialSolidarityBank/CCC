@@ -1,15 +1,18 @@
+import {
+  DisclosureChevron,
+  Icon,
+  WireBadge,
+  WireButton,
+  WireCard,
+  WireCardSection,
+  WireEmpty,
+  WireItem,
+  WireSourceQuotes,
+} from '@ccc/wire';
 import Link from 'next/link';
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
-import { Icon } from '../../../../../components/wire/wire-icon';
 import { ConsultationTypeBadge } from '../../../../../components/wire/consultation-type-badge';
-import { WireBadge } from '../../../../../components/wire/wire-badge';
-import { WireButton } from '../../../../../components/wire/wire-button';
-import { WireCard } from '../../../../../components/wire/wire-card';
-import { WireSourceQuotes } from '../../../../../components/wire/wire-callout';
-import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
-import { WireEmpty } from '../../../../../components/wire/wire-state';
-import { DisclosureChevron } from '../../../../../components/wire/chevron';
 import { lifeAreaOrder, lifeAreaStatusLabels } from '../../../../../lib/life-area-labels';
 import type { FlagType, LifeAreaKey, SupportCaseRecord } from '../../../../../lib/api';
 

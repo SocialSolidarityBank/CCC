@@ -1,8 +1,8 @@
 'use client';
 
+import { Icon } from '@ccc/wire';
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
-import { Icon } from './wire-icon';
 import { NavIcon } from './shell-icons';
 
 // 기관 선택창 (2026-08-05 Q 2차 — Infisical·OpenAI 플랫폼 레퍼런스).

@@ -1,9 +1,11 @@
 'use client';
 
+import {
+  WireBadge,
+  WireCallout,
+  WireCard,
+} from '@ccc/wire';
 import { useActionState } from 'react';
-import { WireCallout } from '../../components/wire/wire-callout';
-import { WireBadge } from '../../components/wire/wire-badge';
-import { WireCard } from '../../components/wire/wire-card';
 import {
   activateAiProviderRuntimeAction,
 } from '../../actions';

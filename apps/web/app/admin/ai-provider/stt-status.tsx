@@ -1,7 +1,10 @@
-import { WireBadge } from '../../components/wire/wire-badge';
-import { WireCallout } from '../../components/wire/wire-callout';
-import { WireCard } from '../../components/wire/wire-card';
-import { WireCardSection, WireItem } from '../../components/wire/wire-section';
+import {
+  WireBadge,
+  WireCallout,
+  WireCard,
+  WireCardSection,
+  WireItem,
+} from '@ccc/wire';
 import type { SttCapabilities } from '../../lib/api';
 
 // STT 설정 상태(D77 · S2 §2.8). 읽기 전용이다 — STT 모드를 쓰는 엔드포인트가 없고,

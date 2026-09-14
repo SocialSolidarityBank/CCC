@@ -1,3 +1,11 @@
+import {
+  ParticipantHeroCard,
+  WireBadge,
+  WireButton,
+  WireCard,
+  WireChoice,
+  WireFormField,
+} from '@ccc/wire';
 import { describe, expect, it, vi } from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -18,13 +26,8 @@ import { ScheduleWizard, type ScheduleWizardCandidate } from '../schedules/new/s
 import { ScheduleBody, ScheduleNav } from '../programs/[programType]/schedule/schedule-view';
 import { AppSidebar } from '../components/wire/app-sidebar';
 import { BackLink } from '../components/wire/back-link';
-import { WireChoice, WireFormField } from '../components/wire/wire-form-field';
 import { DatePickerControl } from '../components/wire/date-picker-control';
 import { GoalSection } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/goal-section';
-import { WireBadge } from '../components/wire/wire-badge';
-import { ParticipantHeroCard } from '../components/wire/participant-hero-card';
-import { WireButton } from '../components/wire/wire-button';
-import { WireCard } from '../components/wire/wire-card';
 import { IntakeReadView } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view';
 import { IntakeStepRail } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-step-rail';
 import { ACTIVE_QUESTIONS, STEP_TITLES } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-questions';

@@ -1,9 +1,11 @@
 'use client';
 
+import {
+  WireButton,
+  WireError,
+} from '@ccc/wire';
 import { useState } from 'react';
-import { WireError } from '../../../components/wire/wire-state';
 import { signupWorkerAction, type WorkerSignupResult } from '../../../actions';
-import { WireButton } from '../../../components/wire/wire-button';
 import { SearchInput } from '../../../components/wire/search-input';
 
 // 공개 실무자 초대 가입 폼(CCC-108 · CCC-33). participant 가입 폼(signup-form.tsx)과 같은

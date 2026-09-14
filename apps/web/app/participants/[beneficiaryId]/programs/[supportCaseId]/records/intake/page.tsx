@@ -1,5 +1,7 @@
+import {
+  WireButton,
+} from '@ccc/wire';
 import { PageError } from '../../../../../../components/wire/page-error';
-import { WireButton } from '../../../../../../components/wire/wire-button';
 import { ApiError, getIntakeRecordContext, getMyIdentity, type IntakeRecordContext } from '../../../../../../lib/api';
 import { createIntakeRecordAction, updateIntakeRecordAction } from '../../../../../../actions';
 import { IntakeReadView } from './intake-read-view';
@@ -91,7 +93,7 @@ export default async function NewIntakePage({
   if (context.data.hasIntake && context.data.saved !== null) {
     const saved = context.data.saved;
     const intakeHref = `${programPath}/records/intake`;
-    if (query.edit !== '1') {
+    if (query.edit !== '1' || !context.data.canWrite) {
       return (
         <IntakeReadView
           beneficiaryId={beneficiaryId}
@@ -102,6 +104,7 @@ export default async function NewIntakePage({
           editHref={`${intakeHref}?edit=1`}
           recordsHref={recordsHref}
           participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
+          canWrite={context.data.canWrite}
         />
       );
     }
@@ -110,6 +113,8 @@ export default async function NewIntakePage({
         mode="edit"
         beneficiaryId={beneficiaryId}
         supportCaseId={supportCaseId}
+        writeSchemaVersion={context.data.writeSchemaVersion}
+        moduleSnapshot={context.data.moduleSnapshot}
         submissionId={crypto.randomUUID()}
         participant={context.data.participant}
         extendedPii={context.data.extendedPii}
@@ -129,9 +134,23 @@ export default async function NewIntakePage({
           linkedOrgs: saved.linkedOrgs,
           additionalItems: saved.additionalItems,
           managerOpinion: saved.managerOpinion,
+          ...(saved.schemaVersion === undefined ? {} : { schemaVersion: saved.schemaVersion }),
+          ...(saved.revision === undefined ? {} : { revision: saved.revision }),
+          ...(saved.questionLifecycle === undefined ? {} : { questionLifecycle: saved.questionLifecycle }),
         }}
         submit={updateIntakeRecordAction}
       />
+    );
+  }
+
+  if (!context.data.canWrite) {
+    return (
+      <PageError
+        title="인테이크"
+        action={<WireButton variant="secondary" href={recordsHref}>상담 기록 확인</WireButton>}
+      >
+        지금은 읽기만 할 수 있어요. 새 인테이크 기록을 작성할 수 없습니다.
+      </PageError>
     );
   }
 
@@ -140,6 +159,8 @@ export default async function NewIntakePage({
       beneficiaryId={beneficiaryId}
       supportCaseId={supportCaseId}
       submissionId={crypto.randomUUID()}
+      writeSchemaVersion={context.data.writeSchemaVersion}
+      moduleSnapshot={context.data.moduleSnapshot}
       participant={context.data.participant}
       extendedPii={context.data.extendedPii}
       consent={context.data.consent}

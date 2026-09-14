@@ -3,6 +3,20 @@ import { headers } from 'next/headers';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import type { MemorySettingsInput, MemorySettingsView } from '@ccc/contracts/counseling-memory';
 import { STT_MODES, type AgentStatus, type CapabilityDisabledReason, type SttMode } from '@ccc/contracts/runtime';
+import {
+  INTAKE_WRITE_SCHEMA_VERSION,
+  parseIntakeQuestionLifecycle,
+  parseIntakeQuestionnaire,
+  type IntakeAdditionalItemRef,
+  type IntakeCreateRequest,
+  type IntakeModuleSnapshot,
+  type IntakeMutationResponse,
+  type IntakeQuestionLifecycle,
+  type IntakeQuestionWithdrawalInput,
+  type IntakeQuestionnaire,
+  type IntakeRevision,
+  type IntakeUpdateRequest,
+} from '@ccc/contracts/intake';
 
 export type ApiErrorCode =
   | 'authentication_required'
@@ -713,10 +727,16 @@ export interface CreateCounselingRecordResult {
   replayed: boolean;
 }
 
-// 인테이크 작성 컨텍스트(CCC-7). 회차 자동값·당사자 표시(D31)·기존 인테이크 여부.
+// 인테이크 작성 컨텍스트(CCC-7, W03 v2 확장). 회차 자동값·당사자 표시(D31)·기존 인테이크 여부.
 export interface IntakeRecordContext {
   beneficiaryId: string;
   supportCaseId: string;
+  /** 담당 실무자인지(쓰기 가능 여부). */
+  canWrite: boolean;
+  /** 새 인테이크 쓰기 봉투 버전. 구값과 누락은 계약 위반이다. */
+  writeSchemaVersion: typeof INTAKE_WRITE_SCHEMA_VERSION;
+  /** 사업 모듈 스냅샷. 위저드가 질문 표시 여부에 사용한다. */
+  moduleSnapshot: IntakeModuleSnapshot;
   participant: { name: string | null; phone: string | null; email: string | null };
   sessionSequence: number;
   hasIntake: boolean;
@@ -724,7 +744,7 @@ export interface IntakeRecordContext {
   extendedPii: IntakeExtendedPii;
   // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫.
   consent: { privacy: boolean; recordingAi: boolean };
-  // 저장된 인테이크 내용(2026-08-08 Q "확인/수정"). hasIntake 일 때만 온다.
+  // 저장된 인테이크 내용(W03 v2). hasIntake 일 때만 온다. schemaVersion 에 따라 모양이 다르다.
   saved: IntakeSavedRecord | null;
   // 전체 목표 현재값(D62 · CCC-68). 인테이크 화면의 전체 목표 칸 프리필 재료 — null 은 설정 전.
   overallGoal: string | null;
@@ -735,11 +755,17 @@ export interface IntakeRecordContext {
   schedule: CounselingSchedule | null;
 }
 
-// 저장된 인테이크의 위저드 소유분 — 수정 화면 프리필 재료.
+// 서버 응답의 판별값은 디코더가 엄격히 검사한다. 투영 필드는 기존 웹 화면 전용이다.
 export interface IntakeSavedRecord {
   sessionId: string;
   heldAt: string;
   channel: 'in_person' | 'phone' | 'video';
+  schemaVersion?: 1 | 2;
+  revision?: number;
+  history?: IntakeRevision[];
+  questionLifecycle?: IntakeQuestionLifecycle | null;
+  questionnaire?: IntakeQuestionnaire | null;
+  legacyDetailsJson?: string | null;
   answers: IntakeAnswerInput[];
   debts: Array<Record<string, string>>;
   linkedOrgs: Array<Record<string, string>>;
@@ -831,38 +857,10 @@ export interface IntakeNextMeetingInput {
   channel: SupportCaseRecord['channel'];
 }
 
-export interface CreateIntakeRecordInput {
-  submissionId: string;
-  heldAt: string;
-  channel: SupportCaseRecord['channel'];
-  // D42: 5종은 선택 — 정본 질문지에 대응 항목이 없다(동의는 등록 화면, 목표는 보류).
-  consent?: { privacy: boolean; recordingAi: boolean };
-  helpNarrative?: { todayHelp: string; hardestPoint: string; desiredChange: string };
-  lifeAreas?: IntakeLifeAreaInput[];
-  goals?: IntakeGoalInput[];
-  actions?: ManualActionItem[];
-  answers?: IntakeAnswerInput[];
-  extendedPii?: IntakeExtendedPiiInput;
-  additionalItems?: IntakeAdditionalItemInput[];
-  debts?: IntakeDebtEntryInput[];
-  linkedOrgs?: IntakeLinkedOrgInput[];
-  nextMeeting?: IntakeNextMeetingInput;
-  managerOpinion?: string;
-  scheduleId?: string;
-  expectedScheduleVersion?: number;
-}
-
-export interface CreatedIntakeRecord {
-  id: string;
-  heldAt: string;
-  channel: SupportCaseRecord['channel'];
-  kind: SessionKind;
-}
-
-export interface CreateIntakeRecordResult {
-  record: CreatedIntakeRecord;
-  replayed: boolean;
-}
+export type CreateIntakeRecordInput = IntakeCreateRequest;
+export type UpdateIntakeRecordInput = IntakeUpdateRequest;
+export type CreateIntakeRecordResult = IntakeMutationResponse;
+export type CreatedIntakeRecord = IntakeMutationResponse['record'];
 
 export interface CounselingSchedule {
   id: string;
@@ -1874,9 +1872,15 @@ export async function getIntakeRecordContext(supportCaseId: string): Promise<Int
     `/support-cases/${encodeURIComponent(supportCaseId)}/records/intake`,
   ));
   const participant = responseObject(responseProperty(record, 'participant'));
+  const writeSchemaVersion = responseInteger(record, 'writeSchemaVersion');
+  if (writeSchemaVersion !== INTAKE_WRITE_SCHEMA_VERSION) contractViolation();
+  const moduleSnapshot = decodeIntakeModuleSnapshot(responseProperty(record, 'moduleSnapshot'));
   return {
     beneficiaryId: responseString(record, 'beneficiaryId'),
     supportCaseId: responseString(record, 'supportCaseId'),
+    canWrite: responseBoolean(record, 'canWrite'),
+    writeSchemaVersion,
+    moduleSnapshot,
     participant: {
       name: responseNullableString(participant, 'name'),
       phone: responseNullableString(participant, 'phone'),
@@ -1892,106 +1896,167 @@ export async function getIntakeRecordContext(supportCaseId: string): Promise<Int
         recordingAi: responseBoolean(consent, 'recordingAi'),
       };
     })(),
-    // 배포 2단위(web·api)가 순차로 구르는 짧은 시차에 구 API 응답(saved 없음)을 만나도
-    // 화면이 죽지 않게 없으면 null 로 낮춘다 — 새 API 는 항상 싣는다.
-    saved: 'saved' in record ? decodeIntakeSavedRecord(record.saved) : null,
-    // 전체 목표(D62 · CCC-68). saved 와 같은 이유로 없으면 null 로 낮춘다 — 그때는
-    // 프리필 없이 빈 칸으로 뜰 뿐 작성은 그대로 된다.
-    overallGoal: 'overallGoal' in record ? responseNullableString(record, 'overallGoal') : null,
-    // 다음 예정 일정(CCC-57). saved 와 같은 이유로 없으면 null 로 낮춘다. 구 API 를 만나면
-    // 완료 조작 칸이 안 뜰 뿐 인테이크 작성은 그대로 된다.
-    schedule: record.schedule === null || record.schedule === undefined
+    saved: decodeIntakeSavedRecord(responseProperty(record, 'saved')),
+    overallGoal: responseNullableString(record, 'overallGoal'),
+    schedule: responseProperty(record, 'schedule') === null
       ? null
-      : decodeCounselingSchedule(record.schedule),
+      : decodeCounselingSchedule(responseProperty(record, 'schedule')),
   };
 }
 
-/** 저장된 인테이크 내용 해독(2026-08-08). 표 행은 문자열 칸만 살린다 — 파손 JSON 방어. */
-function decodeIntakeSavedRecord(value: unknown): IntakeSavedRecord | null {
-  if (value === null || value === undefined) return null;
+/** IntakeModuleSnapshot 해독. */
+function decodeIntakeModuleSnapshot(value: unknown): IntakeModuleSnapshot {
   const record = responseObject(value);
-  const stringRows = (raw: unknown): Array<Record<string, string>> => (
-    Array.isArray(raw)
-      ? raw.map((row) => Object.fromEntries(
-        Object.entries(responseObject(row)).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
-      ))
-      : []
-  );
-  const rawAnswers = responseProperty(record, 'answers');
-  const answers: IntakeAnswerInput[] = !Array.isArray(rawAnswers) ? [] : rawAnswers.flatMap((entry) => {
-    const answer = responseObject(entry);
-    const key = answer.key;
-    const response = answer.response;
-    if (typeof key !== 'string' || !(intakeAnswerKeys as readonly string[]).includes(key)) return [];
-    if (typeof response !== 'string' || !(intakeAnswerResponses as readonly string[]).includes(response)) return [];
-    return [{
-      key: key as IntakeAnswerKey,
-      response: response as IntakeAnswerResponse,
-      ...(typeof answer.text === 'string' ? { text: answer.text } : {}),
-    }];
-  });
   return {
+    programId: responseString(record, 'programId'),
+    programVersion: responseInteger(record, 'programVersion'),
+    financialSupportEnabled: responseBoolean(record, 'financialSupportEnabled'),
+  };
+}
+
+/** 저장된 인테이크 내용 해독. 원본 schemaVersion 1/2와 lifecycle을 그대로 보존한다. */
+function decodeIntakeSavedRecord(value: unknown): IntakeSavedRecord | null {
+  if (value === null) return null;
+  const record = responseObject(value);
+  const schemaVersion = responseInteger(record, 'schemaVersion');
+  if (schemaVersion !== 1 && schemaVersion !== 2) contractViolation();
+  const common = {
     sessionId: responseString(record, 'sessionId'),
     heldAt: responseString(record, 'heldAt'),
     channel: responseEnum(responseProperty(record, 'channel'), recordChannels),
-    answers,
-    debts: stringRows(responseProperty(record, 'debts')),
-    linkedOrgs: stringRows(responseProperty(record, 'linkedOrgs')),
-    additionalItems: stringRows(responseProperty(record, 'additionalItems')),
-    managerOpinion: responseNullableString(record, 'managerOpinion'),
+    revision: responseInteger(record, 'revision'),
+    history: decodeIntakeRevisionHistory(responseProperty(record, 'history')),
+    questionLifecycle: decodeIntakeQuestionLifecycle(responseProperty(record, 'questionLifecycle')),
+  };
+  if (schemaVersion === 1) {
+    const legacyDetailsJson = responseNullableString(record, 'legacyDetailsJson');
+    if (responseProperty(record, 'questionnaire') !== null) contractViolation();
+    return {
+      ...common,
+      schemaVersion: 1,
+      questionnaire: null,
+      legacyDetailsJson,
+      answers: [],
+      debts: [],
+      linkedOrgs: [],
+      additionalItems: [],
+      managerOpinion: null,
+    };
+  }
+  if (responseProperty(record, 'legacyDetailsJson') !== null) contractViolation();
+  const questionnaire = decodeIntakeQuestionnaire(responseProperty(record, 'questionnaire'));
+  const managerOpinion = questionnaire.answers.find((answer) => answer.key === 'managerOpinion');
+  return {
+    ...common,
+    schemaVersion: 2,
+    questionnaire,
+    legacyDetailsJson: null,
+    answers: questionnaire.answers.flatMap((answer): IntakeAnswerInput[] => {
+      if (!(intakeAnswerKeys as readonly string[]).includes(answer.key) || answer.key === 'managerOpinion') return [];
+      if (answer.response !== 'answered') return [{ key: answer.key as IntakeAnswerKey, response: answer.response }];
+      const text = 'text' in answer
+        ? answer.text
+        : 'choices' in answer ? answer.choices.join(', ') : String(answer.amount);
+      return [{ key: answer.key as IntakeAnswerKey, response: 'answered', text }];
+    }),
+    debts: questionnaire.debts?.response === 'answered'
+      ? questionnaire.debts.rows.map((row) => ({ ...row } as Record<string, string>))
+      : [],
+    linkedOrgs: questionnaire.linkedOrgs.response === 'answered'
+      ? questionnaire.linkedOrgs.rows.map((row) => ({ ...row } as Record<string, string>))
+      : [],
+    additionalItems: questionnaire.additionalItems.response === 'answered'
+      ? questionnaire.additionalItems.rows.map((row) => ({ ...row } as Record<string, string>))
+      : [],
+    managerOpinion: managerOpinion?.response === 'answered' && 'text' in managerOpinion ? managerOpinion.text : null,
   };
 }
 
-/** 인테이크 수정 입력(2026-08-08 Q "확인/수정") — 위저드 소유분만. */
-export interface UpdateIntakeRecordInput {
-  heldAt: string;
-  channel: SupportCaseRecord['channel'];
-  answers?: IntakeAnswerInput[];
-  additionalItems?: IntakeAdditionalItemInput[];
-  debts?: IntakeDebtEntryInput[];
-  linkedOrgs?: IntakeLinkedOrgInput[];
-  managerOpinion?: string;
+function decodeIntakeQuestionLifecycle(value: unknown): IntakeQuestionLifecycle | null {
+  if (value === null) return null;
+  try {
+    return parseIntakeQuestionLifecycle(value);
+  } catch {
+    contractViolation();
+  }
 }
 
-export async function updateIntakeRecord(
-  supportCaseId: string,
-  input: UpdateIntakeRecordInput,
-): Promise<{ record: CreatedIntakeRecord }> {
-  const result = responseObject(await jsonRequest<unknown>(
-    `/support-cases/${encodeURIComponent(supportCaseId)}/records/intake`,
-    'PUT',
-    input,
-  ));
+function decodeIntakeRevisionHistory(value: unknown): IntakeRevision[] {
+  if (!Array.isArray(value)) contractViolation();
+  return value.map((entry) => {
+    const record = responseObject(entry);
+    const schemaVersion = responseInteger(record, 'schemaVersion');
+    if (schemaVersion !== 1 && schemaVersion !== 2) contractViolation();
+    return {
+      revision: responseInteger(record, 'revision'),
+      schemaVersion,
+      heldAt: responseString(record, 'heldAt'),
+      channel: responseEnum(responseProperty(record, 'channel'), recordChannels),
+      actorId: responseNullableString(record, 'actorId'),
+      recordedAt: responseString(record, 'recordedAt'),
+      convertedFromRevision: responseProperty(record, 'convertedFromRevision') === null
+        ? null
+        : responseInteger(record, 'convertedFromRevision'),
+      detailsJson: responseNullableString(record, 'detailsJson'),
+      questionLifecycle: decodeIntakeQuestionLifecycle(responseProperty(record, 'questionLifecycle')),
+    };
+  });
+}
+
+function decodeIntakeQuestionnaire(value: unknown): IntakeQuestionnaire {
+  try {
+    return parseIntakeQuestionnaire(value);
+  } catch {
+    contractViolation();
+  }
+}
+
+function decodeIntakeMutationResponse(value: unknown): IntakeMutationResponse {
+  const result = responseObject(value);
+  if (responseInteger(result, 'schemaVersion') !== INTAKE_WRITE_SCHEMA_VERSION) contractViolation();
+  const revision = responseInteger(result, 'revision');
+  if (revision < 1) contractViolation();
   const record = responseObject(responseProperty(result, 'record'));
   return {
+    schemaVersion: INTAKE_WRITE_SCHEMA_VERSION,
+    revision,
     record: {
       id: responseString(record, 'id'),
       heldAt: responseString(record, 'heldAt'),
       channel: responseEnum(responseProperty(record, 'channel'), recordChannels),
-      kind: responseEnum(responseProperty(record, 'kind'), sessionKinds),
+      kind: responseEnum(responseProperty(record, 'kind'), ['intake'] as const),
     },
+    replayed: responseBoolean(result, 'replayed'),
   };
+}
+
+export type {
+  IntakeAdditionalItemRef,
+  IntakeQuestionLifecycle,
+  IntakeQuestionWithdrawalInput,
+  IntakeQuestionnaire,
+};
+
+export async function updateIntakeRecord(
+  supportCaseId: string,
+  input: UpdateIntakeRecordInput,
+): Promise<IntakeMutationResponse> {
+  return decodeIntakeMutationResponse(await jsonRequest<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/records/intake`,
+    'PUT',
+    input,
+  ));
 }
 
 export async function createIntakeRecord(
   supportCaseId: string,
   input: CreateIntakeRecordInput,
 ): Promise<CreateIntakeRecordResult> {
-  const result = responseObject(await jsonRequest<unknown>(
+  return decodeIntakeMutationResponse(await jsonRequest<unknown>(
     `/support-cases/${encodeURIComponent(supportCaseId)}/records/intake`,
     'POST',
     input,
   ));
-  const record = responseObject(responseProperty(result, 'record'));
-  return {
-    record: {
-      id: responseString(record, 'id'),
-      heldAt: responseString(record, 'heldAt'),
-      channel: responseEnum(responseProperty(record, 'channel'), recordChannels),
-      kind: responseEnum(responseProperty(record, 'kind'), sessionKinds),
-    },
-    replayed: responseBoolean(result, 'replayed'),
-  };
 }
 
 export async function createCounselingSchedule(

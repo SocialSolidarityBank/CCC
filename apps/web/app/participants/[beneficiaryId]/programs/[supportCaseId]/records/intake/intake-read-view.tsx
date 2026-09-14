@@ -1,15 +1,21 @@
 'use client';
 
+import {
+  PageTitle,
+  ParticipantHeroCard,
+  WireBadge,
+  WireButton,
+  WireCard,
+  WireCallout,
+  WireCardDetails,
+  WireDataRow,
+  WireDataRows,
+} from '@ccc/wire';
 import { useState, type ReactNode } from 'react';
 import type {
   IntakeAnswerInput,
   IntakeSavedRecord,
 } from '../../../../../../lib/api';
-import { PageTitle } from '../../../../../../components/wire/page-title';
-import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
-import { WireButton } from '../../../../../../components/wire/wire-button';
-import { WireCard, WireCardDetails } from '../../../../../../components/wire/wire-card';
-import { WireBadge } from '../../../../../../components/wire/wire-badge';
 import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
 import {
   ADDITIONAL_COLUMNS,
@@ -24,7 +30,6 @@ import {
   type IntakeQuestionGroup,
   type IntakeTableColumn,
 } from './intake-questions';
-import { WireDataRow, WireDataRows } from '../../../../../../components/wire/wire-data-rows';
 import { IntakeStepRail } from './intake-step-rail';
 
 /**
@@ -42,6 +47,7 @@ export interface IntakeReadViewProps {
   participant: { name: string | null; phone: string | null; email: string | null };
   consent: { privacy: boolean; recordingAi: boolean };
   saved: IntakeSavedRecord;
+  canWrite?: boolean;
   /** 전체 목표 현재값(D62 · CCC-68). 주 입력 자리가 인테이크라 조회 화면도 함께 읽는다. */
   overallGoal: string | null;
   /** 위저드 수정 모드 진입(?edit=1). */
@@ -172,6 +178,22 @@ function TableCard(props: {
   );
 }
 
+function legacyDisplayRows(value: string | null): Array<{ label: string; value: string }> {
+  if (value === null) return [{ label: '원본', value: '기록 없음' }];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
+      return [{ label: '원본', value }];
+    }
+    return Object.entries(parsed).map(([label, entry]) => ({
+      label,
+      value: typeof entry === 'string' ? entry : JSON.stringify(entry),
+    }));
+  } catch {
+    return [{ label: '원본', value }];
+  }
+}
+
 export function IntakeReadView(props: IntakeReadViewProps) {
   const [step, setStep] = useState(1);
   const [closedSections, setClosedSections] = useState<Set<string>>(() => new Set());
@@ -185,6 +207,28 @@ export function IntakeReadView(props: IntakeReadViewProps) {
     ['AI를 활용한 녹취기록 동의', props.consent.recordingAi],
   ];
   const consentMissing = consentRows.filter(([, recorded]) => !recorded).length;
+  const lifecycleSnapshots = [
+    ...(props.saved.history ?? []).flatMap((revision) => (
+      revision.questionLifecycle === null
+        ? []
+        : [{ revision: revision.revision, lifecycle: revision.questionLifecycle }]
+    )),
+    ...(props.saved.revision === undefined || props.saved.questionLifecycle == null
+      ? []
+      : [{ revision: props.saved.revision, lifecycle: props.saved.questionLifecycle }]),
+  ];
+  const lifecycleRows = lifecycleSnapshots.flatMap(({ revision, lifecycle }) => [
+    ...lifecycle!.items.map((item) => ({
+      key: `${revision}-${item.id}`,
+      label: `수정 ${revision} 추가 확인사항 ${item.sourceRowIndex + 1}`,
+      value: item.withdrawn === null ? '유지' : '철회',
+    })),
+    ...(lifecycle!.conversion === null ? [] : [{
+      key: `${revision}-conversion`,
+      label: `수정 ${revision} 이전 기록 전환`,
+      value: '전환 확정',
+    }]),
+  ]);
 
   function isOpen(id: string): boolean {
     return !closedSections.has(id);
@@ -368,10 +412,44 @@ export function IntakeReadView(props: IntakeReadViewProps) {
         actions={(
           <>
             <WireButton variant="secondary" href={props.recordsHref}>상담 기록 확인</WireButton>
-            <WireButton variant="primary" href={props.editHref}>수정</WireButton>
+            {props.canWrite === false ? null : <WireButton variant="primary" href={props.editHref}>수정</WireButton>}
           </>
         )}
       />
+      {props.canWrite === false ? (
+        <WireCallout tone="lavender" title="읽기 전용">
+          지금은 읽기만 할 수 있어요. 저장된 내용은 계속 확인할 수 있어요.
+        </WireCallout>
+      ) : null}
+      {lifecycleRows.length === 0 ? null : (
+        <WireCard title={<h2>추가 확인사항 이력</h2>} testId="intake-question-history">
+          <WireDataRows>
+            {lifecycleRows.map((row) => (
+              <WireDataRow
+                key={row.key}
+                label={row.label}
+                value={row.value === '유지'
+                  ? <WireBadge tone="mint">유지</WireBadge>
+                  : row.value === '철회'
+                    ? <WireBadge>철회</WireBadge>
+                    : <span className="intake-read-value">전환 확정</span>}
+              />
+            ))}
+          </WireDataRows>
+        </WireCard>
+      )}
+      {props.saved.schemaVersion === 1 ? (
+        <WireCard title={<h2>이전 형식 기록</h2>} testId="intake-legacy-record">
+          <p className="panel-meta">
+            이전 값과 스키마 버전을 그대로 보여 줍니다. 현재 영역이나 위기도로 자동 분류하지 않습니다.
+          </p>
+          <WireDataRows>
+            {legacyDisplayRows(props.saved.legacyDetailsJson ?? null).map((row) => (
+              <WireDataRow key={row.label} label={row.label} value={statusValue(row.value)} />
+            ))}
+          </WireDataRows>
+        </WireCard>
+      ) : (
 
       <div className="wire-container rail-grid intake-read-grid" data-grid="true">
         <IntakeStepRail
@@ -417,6 +495,7 @@ export function IntakeReadView(props: IntakeReadViewProps) {
           </ol>
         </WireCard>
       </div>
+      )}
     </main>
   );
 }

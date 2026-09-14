@@ -1,10 +1,14 @@
-import { WireEmpty, WireError } from '../../components/wire/wire-state';
+import {
+  PageTitle,
+  WireBadge,
+  WireButton,
+  WireCardSection,
+  WireEmpty,
+  WireError,
+  WireItem,
+} from '@ccc/wire';
 import { ListRow } from '../../components/wire/list-row';
-import { WireCardSection, WireItem } from '../../components/wire/wire-section';
-import { WireBadge } from '../../components/wire/wire-badge';
-import { PageTitle } from '../../components/wire/page-title';
 import { SearchInput, type SearchSelectOption } from '../../components/wire/search-input';
-import { WireButton } from '../../components/wire/wire-button';
 import {
   ApiError,
   listOrgUsers,

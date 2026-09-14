@@ -1,7 +1,10 @@
-import { WireEmpty, WireError } from '../components/wire/wire-state';
-import { PageTitle } from '../components/wire/page-title';
-import { WireCallout } from '../components/wire/wire-callout';
-import { WireCard } from '../components/wire/wire-card';
+import {
+  PageTitle,
+  WireCallout,
+  WireCard,
+  WireEmpty,
+  WireError,
+} from '@ccc/wire';
 import { ApiError, getOrganizationProfile, listOrgUsers, type DirectoryUser, type OrganizationProfile } from '../lib/api';
 
 // 관리자 영역 기관 화면(재개편 T8, #38 · Figma 5:350).

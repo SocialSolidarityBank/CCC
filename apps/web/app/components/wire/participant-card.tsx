@@ -1,8 +1,6 @@
+import { ParticipantName, WireBadge, WireField, participantDisplayName } from '@ccc/wire';
 import type { SessionKind } from '../../lib/api';
 import { ConsultationTypeBadge, consultationTypeLabel } from './consultation-type-badge';
-import { WireBadge } from './wire-badge';
-import { WireField } from './wire-card';
-import { ParticipantName, participantDisplayName } from './participant-name';
 import Link from 'next/link';
 
 // 당사자 카드. 일정 화면과 당사자 목록이 같은 골격을 쓰고 화면 맥락에 맞는 필드만 바꾼다.

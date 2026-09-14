@@ -1,18 +1,34 @@
 'use client';
 
+import {
+  Icon,
+  PageTitle,
+  ParticipantHeroCard,
+  WireBadge,
+  WireButton,
+  WireCallout,
+  WireCard,
+  WireChoice,
+  WireFormField,
+  WireRequiredMarker,
+} from '@ccc/wire';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Icon } from '../../../../../../components/wire/wire-icon';
 import { useRouter } from 'next/navigation';
+import {
+  INTAKE_QUESTIONS,
+  INTAKE_WRITE_SCHEMA_VERSION,
+  requiredIntakeQuestionKeys,
+  type IntakeAdditionalItemRef,
+  type IntakeAnswer,
+  type IntakeArea,
+  type IntakeModuleSnapshot,
+  type IntakeQuestionLifecycle,
+  type IntakeQuestionnaire,
+  type IntakeQuestionWithdrawalInput,
+} from '@ccc/contracts/intake';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
-import { PageTitle } from '../../../../../../components/wire/page-title';
-import { WireCallout } from '../../../../../../components/wire/wire-callout';
-import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireRepeatActions } from '../../../../../../components/wire/wire-repeat-actions';
-import { WireCard } from '../../../../../../components/wire/wire-card';
-import { WireBadge } from '../../../../../../components/wire/wire-badge';
-import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
 import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../components/wire/date-picker-control';
-import { WireChoice, WireFormField, WireRequiredMarker } from '../../../../../../components/wire/wire-form-field';
 import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
 import { clearDraft, draftKey, readDraft, sweepExpiredDrafts, writeDraft } from '../../../../../../lib/form-draft';
 import type {
@@ -63,6 +79,8 @@ import { IntakeStepRail } from './intake-step-rail';
 export interface IntakeWizardProps {
   beneficiaryId: string;
   supportCaseId: string;
+  writeSchemaVersion?: typeof INTAKE_WRITE_SCHEMA_VERSION;
+  moduleSnapshot?: IntakeModuleSnapshot;
   submissionId: string;
   participant: { name: string | null; phone: string | null; email: string | null };
   /** 금고에 있는 기본정보(생년월일·주소/거주지역·성별 등). 표시 전용. */
@@ -106,17 +124,18 @@ export interface IntakeInitialValues {
   linkedOrgs: TableRow[];
   additionalItems: TableRow[];
   managerOpinion: string | null;
+  schemaVersion?: 1 | 2;
+  revision?: number;
+  questionLifecycle?: IntakeQuestionLifecycle | null;
 }
 
 const NOTICE_MESSAGES: Record<string, string> = {
   invalid_request: '입력한 내용을 다시 확인하세요.',
   validation_error: '필수 항목을 다시 확인하세요.',
   access_denied: '담당 중인 참여 사업에만 인테이크를 남길 수 있습니다.',
-  forbidden: '담당 중인 참여 사업에만 인테이크를 남길 수 있습니다.',
+  forbidden: '지금은 읽기만 할 수 있어요. 저장된 내용은 계속 확인할 수 있어요.',
   not_found: '당사자 또는 참여 사업을 찾을 수 없습니다.',
-  // CCC-57: 이 코드는 두 가지 원인에서 온다. 인테이크 중복, 그리고 연결된 일정이 그
-  // 사이 바뀐 경우(버전 불일치). 서버가 둘을 다른 코드로 주지 않으므로 문구가 둘 다 덮는다.
-  conflict: '이 참여 사업에 이미 인테이크 기록이 있거나, 연결된 상담 일정이 그 사이 변경되었습니다. 화면을 새로 열어 확인하세요.',
+  conflict: '다른 곳에서 먼저 저장됐어요. 다시 불러온 뒤 이어서 작성해 주세요.',
   authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인하세요.',
   service_unavailable: '지금 저장할 수 없습니다. 잠시 후 다시 시도하세요.',
 };
@@ -129,6 +148,9 @@ interface AnswerDraft { response: IntakeAnswerResponse; text: string }
 type AnswerState = Record<string, AnswerDraft>;
 /** 반복 행 표(2-1 부채 · 3-3 연계 기관 · 4-2 추가 확인사항) 한 줄. 열 이름이 곧 키다. */
 type TableRow = Record<string, string>;
+type AdditionalBinding =
+  | { questionId: null; expectedRevision: null; legacySourceRowIndex?: number }
+  | { questionId: string; expectedRevision: number; legacySourceRowIndex?: never };
 
 interface IntakeDraftValues {
   step: number;
@@ -421,13 +443,16 @@ function QuestionField(props: {
   );
 }
 
-/** 반복 행 표. 첫 열만 있으면 그 줄이 저장된다(정본: 없으면 첫 행에 '해당 없음'). */
 function RowTable(props: {
   title: string;
   hint: string;
   columns: readonly ColumnSpec[];
   rows: TableRow[];
   onChange: (rows: TableRow[]) => void;
+  onAdd?: () => void;
+  onRemove?: () => void;
+  rowKeys?: readonly string[];
+  removeDisabled?: boolean;
   testId: string;
   required?: boolean;
   /** 첫 열이 한 줄도 안 채워진 필수 표임을 첫 행 첫 칸에서 알린다(2026-08-09 Q). */
@@ -444,13 +469,15 @@ function RowTable(props: {
         <p className="panel-meta">{props.hint}</p>
         <WireRepeatActions
           itemLabel="줄"
-          onAdd={() => onChange([...rows, emptyRow(columns)])}
-          onRemove={rows.length === 0 ? undefined : () => onChange(rows.slice(0, -1))}
+          onAdd={props.onAdd ?? (() => onChange([...rows, emptyRow(columns)]))}
+          onRemove={rows.length === 0 || props.removeDisabled
+            ? undefined
+            : props.onRemove ?? (() => onChange(rows.slice(0, -1)))}
           showRemove
         />
       </div>
       {rows.map((row, index) => (
-        <div key={index} className="wizard-field">
+        <div key={props.rowKeys?.[index] ?? index} className="wizard-field">
           {columns.map((column, columnIndex) => {
             const fieldRequired = required && index === 0 && columnIndex === 0;
             return (
@@ -487,6 +514,206 @@ function answersFromInitial(initial: IntakeInitialValues): AnswerState {
   return state;
 }
 
+const LEGACY_AREA_VALUES: Readonly<Record<string, IntakeArea>> = {
+  '경제': 'economy',
+  '경제·생계 어려움': 'economy',
+  '부채·연체 문제': 'economy',
+  '일·고용': 'employment',
+  '일자리·소득 불안정': 'employment',
+  '주거': 'housing',
+  '주거 문제': 'housing',
+  '건강': 'physical_health',
+  '건강·의료 문제': 'physical_health',
+  '심리·정서': 'mental_health',
+  '심리·정서 어려움': 'mental_health',
+  '가족·관계': 'family_relationships',
+  '가족·관계 문제': 'family_relationships',
+  '돌봄': 'care_parenting',
+  '돌봄 부담': 'care_parenting',
+  '법률·행정': 'legal_administrative',
+  '법률·행정 문제': 'legal_administrative',
+  '기타': 'other',
+  '복합적인 어려움': 'other',
+  '생계비·긴급지원': 'economy',
+  '채무상담·채무조정': 'economy',
+  '일자리·소득지원': 'employment',
+  '주거지원': 'housing',
+  '의료지원': 'physical_health',
+  '심리상담': 'mental_health',
+  '가족·돌봄지원': 'care_parenting',
+  '법률·행정지원': 'legal_administrative',
+};
+
+const CONTRACT_SOURCE_KEYS: Partial<Record<keyof typeof INTAKE_QUESTIONS, IntakeAnswerKey>> = {
+  physical_health_detail: 'health_detail',
+  mental_health_detail: 'health_detail',
+  family_relationships_detail: 'family_detail',
+  care_parenting_detail: 'family_detail',
+};
+
+function contractAnswer(
+  key: keyof typeof INTAKE_QUESTIONS,
+  answers: AnswerState,
+  managerOpinion: string,
+): IntakeAnswer {
+  if (key === 'managerOpinion') {
+    return managerOpinion.length > 0
+      ? { key, response: 'answered', text: managerOpinion }
+      : { key, response: 'unknown' };
+  }
+  if (key === 'public_benefits') {
+    const choices = new Set<string>();
+    const benefit = answers.welfare_benefit_type;
+    if (benefit?.response === 'answered') {
+      benefit.text.split(', ').forEach((value) => {
+        if (INTAKE_QUESTIONS.public_benefits.options.includes(value as never)) choices.add(value);
+      });
+    }
+    const other = answers.welfare_other;
+    if (other?.response === 'answered') {
+      other.text.split(/,\s*/).forEach((value) => {
+        if (INTAKE_QUESTIONS.public_benefits.options.includes(value as never)) choices.add(value);
+      });
+    }
+    if (answers.welfare_near_poverty?.response === 'answered' && answers.welfare_near_poverty.text === '해당') {
+      choices.add('차상위');
+    }
+    return choices.size > 0
+      ? { key, response: 'answered', choices: [...choices] }
+      : { key, response: benefit?.response === 'answered' ? 'unknown' : benefit?.response ?? 'unknown' };
+  }
+  if (key === 'family_relationship_conflict' || key === 'economy_detail'
+    || key === 'legal_problem_type' || key === 'legal_progress' || key === 'legal_administrative_detail'
+    || key === 'other_detail') {
+    return { key, response: 'unknown' };
+  }
+  if (key === 'care_recipient' || key === 'care_burden') {
+    const source = answers.family_care_burden;
+    if (source === undefined) return { key, response: 'unknown' };
+    if (source.response !== 'answered') return { key, response: source.response };
+    if (key === 'care_burden') {
+      return { key, response: 'answered', text: source.text === '없음' ? '없음' : '있음' };
+    }
+    const recipient = source.text.includes('아동') ? '아동'
+      : source.text.includes('노인') ? '노인'
+        : source.text.includes('장애') ? '장애'
+          : source.text.includes('질병') ? '환자'
+            : source.text === '없음' ? '없음' : null;
+    return recipient === null ? { key, response: 'unknown' } : { key, response: 'answered', text: recipient };
+  }
+
+  const source = answers[CONTRACT_SOURCE_KEYS[key] ?? key];
+  if (source === undefined) return { key, response: 'unknown' };
+  if (source.response !== 'answered') return { key, response: source.response };
+  const question = INTAKE_QUESTIONS[key];
+  if (question.kind === 'multiple') {
+    const choices = source.text.split(', ').flatMap((value) => {
+      if (key === 'difficulty_areas') {
+        const area = LEGACY_AREA_VALUES[value];
+        return area === undefined ? [] : [area];
+      }
+      return question.options?.includes(value as never) ? [value] : [];
+    });
+    return choices.length === 0 ? { key, response: 'unknown' } : { key, response: 'answered', choices };
+  }
+  if (question.kind === 'money') {
+    const digits = source.text.replace(/[^\d]/g, '');
+    return digits.length === 0
+      ? { key, response: 'unknown' }
+      : { key, response: 'answered', amount: Number(digits) };
+  }
+  let text = source.text;
+  if (key === 'application_reason' || key === 'need_primary' || key === 'need_secondary') {
+    text = LEGACY_AREA_VALUES[text] ?? '';
+  } else if (key === 'summary_urgency') {
+    text = text === '일반' ? '안정' : text === '주의' ? '주의' : '위기';
+  }
+  if (text.length === 0 || (question.kind === 'single' && !question.options?.includes(text as never))) {
+    return { key, response: 'unknown' };
+  }
+  return { key, response: 'answered', text };
+}
+
+function buildQuestionnaire(
+  answers: AnswerState,
+  managerOpinion: string,
+  moduleSnapshot: IntakeModuleSnapshot,
+  debts: TableRow[],
+  linkedOrgs: TableRow[],
+  additionalItems: TableRow[],
+): IntakeQuestionnaire {
+  const difficulty = answers.difficulty_areas;
+  const areas = difficulty?.response === 'answered'
+    ? difficulty.text.split(', ').flatMap((value) => {
+      const area = LEGACY_AREA_VALUES[value];
+      return area === undefined ? [] : [area];
+    })
+    : [];
+  const requiredKeys = requiredIntakeQuestionKeys(areas);
+  return {
+    schemaVersion: 2,
+    moduleSnapshot,
+    answers: requiredKeys.map((key) => contractAnswer(key, answers, managerOpinion)),
+    linkedOrgs: linkedOrgs.length === 0
+      ? { response: 'not_applicable' }
+      : {
+        response: 'answered',
+        rows: linkedOrgs.map((row) => ({
+          orgName: row.orgName!,
+          ...((row.serviceName ?? '').length === 0 ? {} : { serviceName: row.serviceName }),
+          ...((row.supportDetail ?? '').length === 0 ? {} : { supportDetail: row.supportDetail }),
+          ...((row.usagePeriod ?? '').length === 0 ? {} : { usagePeriod: row.usagePeriod }),
+          ...((row.progressStatus ?? '').length === 0 ? {} : { progressStatus: row.progressStatus }),
+        })),
+      },
+    additionalItems: additionalItems.length === 0
+      ? { response: 'not_applicable' }
+      : {
+        response: 'answered',
+        rows: additionalItems.map((row) => ({
+          item: row.item!,
+          ...((row.dueNote ?? '').length === 0 ? {} : { dueNote: row.dueNote }),
+        })),
+      },
+    debts: moduleSnapshot.financialSupportEnabled && areas.includes('economy')
+      ? (debts.length === 0
+        ? { response: 'not_applicable' }
+        : {
+          response: 'answered',
+          rows: debts.map((row) => ({
+            creditor: row.creditor!,
+            ...((row.kind ?? '').length === 0 ? {} : { kind: row.kind }),
+            ...((row.balance ?? '').length === 0 ? {} : { balance: row.balance }),
+            ...((row.monthlyPayment ?? '').length === 0 ? {} : { monthlyPayment: row.monthlyPayment }),
+            ...((row.arrearsStatus ?? '').length === 0 ? {} : { arrearsStatus: row.arrearsStatus }),
+          })),
+        })
+      : null,
+  };
+}
+
+function bindingsFromInitial(initial: IntakeInitialValues | undefined): AdditionalBinding[] {
+  if (initial === undefined) return [];
+  return initial.additionalItems.map((_, rowIndex) => {
+    if (initial.questionLifecycle === null) {
+      return {
+        questionId: null,
+        expectedRevision: null,
+        legacySourceRowIndex: rowIndex,
+      };
+    }
+    const item = initial.questionLifecycle?.items.find((candidate) => (
+      candidate.withdrawn === null
+      && candidate.sourceRevision === initial.revision
+      && candidate.sourceRowIndex === rowIndex
+    ));
+    return item === undefined
+      ? { questionId: null, expectedRevision: null }
+      : { questionId: item.id, expectedRevision: item.revision };
+  });
+}
+
+
 export function IntakeWizard(props: IntakeWizardProps) {
   const router = useRouter();
   const editing = props.mode === 'edit';
@@ -521,6 +748,16 @@ export function IntakeWizard(props: IntakeWizardProps) {
   const linkedSchedule = editing ? null : props.schedule ?? null;
   const [completeSchedule, setCompleteSchedule] = useState(true);
 
+  const [additionalBindings, setAdditionalBindings] = useState<AdditionalBinding[]>(() => bindingsFromInitial(initial));
+  const [additionalRowKeys, setAdditionalRowKeys] = useState<string[]>(() => (
+    initial?.additionalItems.map((_, index) => (
+      additionalBindings[index]?.questionId ?? `existing-${initial.revision ?? 'unknown'}-${index}`
+    )) ?? []
+  ));
+  const [questionWithdrawals, setQuestionWithdrawals] = useState<IntakeQuestionWithdrawalInput[]>([]);
+  const conversionRequired = initial !== undefined
+    && (initial.schemaVersion === 1 || initial.questionLifecycle === null);
+  const [conversionConfirmed, setConversionConfirmed] = useState(false);
   // 상담일(1-3)은 화면을 연 시각으로 채운다(실무자가 바꿀 수 있음). 서버·클라이언트 시각 차이로
   // 생기는 하이드레이션 불일치를 피하려고 마운트 후에 채운다. 수정 모드는 저장된 상담일을
   // 로컬 표기로 바꿔 채운다 — 이것도 시간대가 클라이언트 것이라 마운트 후여야 한다.
@@ -589,10 +826,13 @@ export function IntakeWizard(props: IntakeWizardProps) {
     setDebts(values.debts);
     setLinkedOrgs(values.linkedOrgs);
     setAdditionalItems(values.additionalItems);
+    setAdditionalBindings(values.additionalItems.map(() => ({ questionId: null, expectedRevision: null })));
+    setAdditionalRowKeys(values.additionalItems.map(() => crypto.randomUUID()));
+    setQuestionWithdrawals([]);
     setManagerOpinion(values.managerOpinion);
     setOverallGoal(values.overallGoal);
     setCompleteSchedule(values.completeSchedule);
-    // 금고 값은 되돌리지 않는다 — 임시본에 담기지 않았고, props 가 정본이다.
+    // 금고 값은 되돌리지 않는다. 임시본에 담기지 않았고 props가 정본이다.
   }
 
   function discardDraft() {
@@ -640,17 +880,19 @@ export function IntakeWizard(props: IntakeWizardProps) {
     .map((entry, index) => ({ index, ...entry }))
     .filter((entry) => entry.filled < entry.required);
   const missingSteps = missingDetails.map((entry) => `${entry.index + 1}. ${STEP_TITLES[entry.index]}`);
-  const canComplete = missingSteps.length === 0;
-
-  function collectedAnswers() {
-    return ACTIVE_QUESTIONS
-      .map((question) => ({ key: question.key, draft: answers[question.key] }))
-      .filter((entry): entry is { key: IntakeAnswerKey; draft: AnswerDraft } => isFilled(entry.draft))
-      .map(({ key, draft }) => (draft.response === 'answered'
-        ? { key, response: draft.response, text: draft.text.trim() }
-        : { key, response: draft.response }));
-  }
-
+  const additionalItemsInvalid = additionalItems.some((row, index) => {
+    const first = (row[ADDITIONAL_COLUMNS[0]!.key] ?? '').trim();
+    const hasContent = Object.values(row).some((value) => value.trim().length > 0);
+    const binding = additionalBindings[index];
+    return first.length === 0 && (
+      hasContent
+      || binding?.questionId !== null
+      || binding?.legacySourceRowIndex !== undefined
+    );
+  });
+  const bindingMissing = initial?.questionLifecycle != null
+    && additionalBindings.some((binding) => binding.questionId === null);
+  const canComplete = missingSteps.length === 0 && !additionalItemsInvalid && !bindingMissing;
   /** 표 한 줄 → 저장 페이로드. 첫 열이 빈 줄은 버리고, 빈 칸은 아예 키를 만들지 않는다. */
   function collectedRows(rows: TableRow[], columns: readonly ColumnSpec[]) {
     const [required, ...optional] = columns;
@@ -664,40 +906,100 @@ export function IntakeWizard(props: IntakeWizardProps) {
       }, { [required.key]: (row[required.key] ?? '').trim() }));
   }
 
+  function collectedAdditionalItems(): Array<{ row: TableRow; binding: AdditionalBinding }> {
+    return additionalItems.flatMap((row, index) => {
+      const rows = collectedRows([row], ADDITIONAL_COLUMNS);
+      return rows.length === 0 ? [] : [{ row: rows[0]!, binding: additionalBindings[index]! }];
+    });
+  }
+
+  function addAdditionalItem(): void {
+    setAdditionalItems((current) => [...current, emptyRow(ADDITIONAL_COLUMNS)]);
+    setAdditionalBindings((current) => [...current, { questionId: null, expectedRevision: null }]);
+    setAdditionalRowKeys((current) => [...current, crypto.randomUUID()]);
+  }
+
+  function removeAdditionalItem(): void {
+    const binding = additionalBindings.at(-1);
+    if (binding?.legacySourceRowIndex !== undefined) return;
+    if (binding?.questionId !== null && binding?.questionId !== undefined && binding.expectedRevision !== null) {
+      setQuestionWithdrawals((current) => [
+        ...current,
+        { questionId: binding.questionId!, expectedRevision: binding.expectedRevision! },
+      ]);
+    }
+    setAdditionalItems((current) => current.slice(0, -1));
+    setAdditionalBindings((current) => current.slice(0, -1));
+    setAdditionalRowKeys((current) => current.slice(0, -1));
+  }
+
   async function complete() {
     if (!canComplete) {
-      // 어느 칸인지는 **칸이 직접** 알린다(빨간 테두리) — 메시지는 한 줄로 줄였다(2026-08-09 Q).
       setSubmitAttempted(true);
-      setError('완료하려면 필수 항목을 채우세요.');
+      setError(bindingMissing
+        ? '추가 확인사항의 저장 이력을 확인할 수 없습니다. 다시 불러와 주세요.'
+        : '완료하려면 필수 항목을 채우세요.');
+      return;
+    }
+    if (
+      props.writeSchemaVersion !== INTAKE_WRITE_SCHEMA_VERSION
+      || props.moduleSnapshot === undefined
+      || (editing && initial?.revision === undefined)
+    ) {
+      setError('인테이크 저장 계약을 확인할 수 없습니다. 화면을 다시 불러와 주세요.');
+      return;
+    }
+    if (conversionRequired && !conversionConfirmed) {
+      setError('이전 기록을 새 양식으로 전환하려면 원본 보존과 전환을 확인해 주세요.');
       return;
     }
     setBusy(true);
-    const collected = collectedAnswers();
     const debtRows = collectedRows(debts, DEBT_COLUMNS);
     const linkedRows = collectedRows(linkedOrgs, LINKED_ORG_COLUMNS);
-    const extraRows = collectedRows(additionalItems, ADDITIONAL_COLUMNS);
+    const additional = collectedAdditionalItems();
+    const extraRows = additional.map(({ row }) => row);
     const opinion = managerOpinion.trim();
     const payload: CreateIntakeRecordActionInput = {
       beneficiaryId: props.beneficiaryId,
       supportCaseId: props.supportCaseId,
       submissionId: props.submissionId,
+      schemaVersion: props.writeSchemaVersion,
       heldAt,
-      // 정본 1-3 상담 방법은 6종이고 DB 채널은 3종이다 — 문구는 counsel_method 답변에 그대로
-      // 남고, 채널 컬럼에는 좁힌 값이 들어간다(마이그레이션 없이 정본 문구를 잃지 않는 방법).
       channel: channelForMethod(optionFromDraft(answers.counsel_method ?? { response: 'answered', text: '' })),
+      questionnaire: buildQuestionnaire(
+        answers,
+        opinion,
+        props.moduleSnapshot,
+        debtRows,
+        linkedRows,
+        extraRows,
+      ),
+      additionalItemRefs: additional.map(({ binding }, rowIndex): IntakeAdditionalItemRef => (
+        binding.questionId === null
+          ? {
+            rowIndex,
+            questionId: null,
+            expectedRevision: null,
+            ...(binding.legacySourceRowIndex === undefined
+              ? {}
+              : { legacySourceRowIndex: binding.legacySourceRowIndex }),
+          }
+          : {
+            rowIndex,
+            questionId: binding.questionId,
+            expectedRevision: binding.expectedRevision,
+          }
+      )),
+      questionWithdrawals,
+      ...(initial?.revision === undefined ? {} : { expectedRevision: initial.revision }),
+      ...(conversionRequired && initial?.revision !== undefined
+        ? { conversion: { confirmed: true as const, sourceRevision: initial.revision } }
+        : {}),
     };
-    if (collected.length > 0) payload.answers = collected;
-    // 전체 목표(D62)는 **서버 프리필과 달라졌을 때만** 싣는다 — 안 바뀐 저장마다 이력·감사가
-    // 쌓이지 않게 한다. 빈 값으로 바뀌었으면 null(설정 전으로 지움)이다.
     const nextOverallGoal = overallGoal.trim();
     if (nextOverallGoal !== baselineOverallGoal) {
       payload.overallGoal = nextOverallGoal.length === 0 ? null : nextOverallGoal;
     }
-    if (debtRows.length > 0) payload.debts = debtRows as unknown as NonNullable<CreateIntakeRecordActionInput['debts']>;
-    if (linkedRows.length > 0) payload.linkedOrgs = linkedRows as unknown as NonNullable<CreateIntakeRecordActionInput['linkedOrgs']>;
-    if (extraRows.length > 0) payload.additionalItems = extraRows as unknown as NonNullable<CreateIntakeRecordActionInput['additionalItems']>;
-    if (opinion.length > 0) payload.managerOpinion = opinion;
-    // 연결 일정 완료(CCC-57). 두 값은 언제나 함께 실린다. 서버가 버전으로 다시 확인한다.
     if (linkedSchedule !== null && completeSchedule) {
       payload.scheduleId = linkedSchedule.id;
       payload.expectedScheduleVersion = linkedSchedule.version;
@@ -705,9 +1007,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
     const result = await props.submit(payload);
     setBusy(false);
     if (result.status !== 'saved' && result.status !== 'replayed') {
-      setError(editing && result.status === 'conflict'
-        ? '인테이크를 지금 수정할 수 없습니다. 참여 사업 상태를 확인하세요.'
-        : messageFor(result.status));
+      setError(messageFor(result.status));
       return;
     }
     setError(null);
@@ -966,6 +1266,11 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 columns={ADDITIONAL_COLUMNS}
                 rows={additionalItems}
                 onChange={setAdditionalItems}
+                onAdd={addAdditionalItem}
+                onRemove={removeAdditionalItem}
+                removeDisabled={additionalBindings.at(-1)?.legacySourceRowIndex !== undefined}
+                rowKeys={additionalRowKeys}
+                invalid={submitAttempted && additionalItemsInvalid}
                 testId="intake-additional-table"
               />
               {renderGroups([STEP_GROUPS[3]![1]!])}
@@ -1008,6 +1313,19 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   />
                 </WireFormField>
               </WireCard>
+              {conversionRequired ? (
+                <WireCard title={<h3>이전 기록 전환</h3>}>
+                  <p className="panel-meta">
+                    이전 값과 스키마 버전은 이력에 그대로 남습니다. 새 양식으로 저장할 내용을 확인해 주세요.
+                  </p>
+                  <WireChoice
+                    type="checkbox"
+                    label="이전 원본을 보존하고 새 양식에 직접 작성해 전환할 것을 확인했어요"
+                    checked={conversionConfirmed}
+                    onChange={setConversionConfirmed}
+                  />
+                </WireCard>
+              ) : null}
               {/* 연결 일정 완료(CCC-57). 예정 건이 있을 때만 그린다. 없으면 이 카드 자체가
                   없다. 정기 기록지의 '완료할 일정'과 같은 성격이고, 거기와 마찬가지로
                   기본이 켬이라 실무자가 저장 전에 눈으로 보고 끌 수 있어야 한다. */}
