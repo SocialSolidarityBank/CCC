@@ -8,6 +8,8 @@ ALTER TABLE agent_job_egress_records
 ALTER TABLE agent_job_egress_records
   DROP CONSTRAINT IF EXISTS agent_job_egress_records_provider_check;
 ALTER TABLE agent_job_egress_records
+  ADD CONSTRAINT agent_job_egress_records_provider_check CHECK (provider IN ('azure','openai'));
+ALTER TABLE agent_job_egress_records
   ADD COLUMN support_case_id text,
   ADD COLUMN session_id text,
   ADD COLUMN work_item_id text,
