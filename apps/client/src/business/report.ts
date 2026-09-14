@@ -187,4 +187,14 @@ export class ReportApi {
       `/support-cases/${encodeURIComponent(supportCaseId)}/report`,
     ));
   }
+
+  /**
+   * 서버가 만든 CSV를 내려받는다. 권한은 서버가 판정하고 클라이언트는 거부를 그대로 보인다.
+   * 전제한 서버 계약: GET /support-cases/:id/export.csv, 성공 200 text/csv, 거부는 기존 403/409 코드.
+   */
+  async exportCsv(supportCaseId: string): Promise<{ blob: Blob; filename: string }> {
+    if (!isOpaqueIdentifier(supportCaseId)) throw new BusinessError('invalid_request', 400);
+    const file = await this.transport.download(`/support-cases/${encodeURIComponent(supportCaseId)}/export.csv`);
+    return { blob: file.blob, filename: file.filename ?? `support-case-${supportCaseId}.csv` };
+  }
 }

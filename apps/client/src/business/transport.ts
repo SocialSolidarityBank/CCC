@@ -64,19 +64,23 @@ export class BusinessTransport {
     return token;
   }
 
-  private async exchange(path: string, method: 'GET' | 'PATCH' | 'PUT' | 'POST', body: unknown, token: string) {
+  private async exchange(path: string, method: 'GET' | 'PATCH' | 'PUT' | 'POST', body: unknown, token: string, accept = 'application/json') {
     const target = this.target(path);
     try {
       const response = await this.fetcher(target, {
         method, credentials: 'omit', cache: 'no-store', redirect: 'error',
         signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(30_000)]),
-        headers: { Accept: 'application/json', Authorization: `Bearer ${token}`,
+        headers: { Accept: accept, Authorization: `Bearer ${token}`,
           ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (this.lifetime.signal.aborted || this.token() !== token) throw new BusinessError('session_changed');
       if (response.redirected) throw new BusinessError('invalid_response');
       if (path === '/auth/logout' && response.status === 204) return { response, value: null };
+      if (accept !== 'application/json' && response.ok) {
+        if (!(response.headers.get('content-type') ?? '').startsWith(accept)) throw new BusinessError('invalid_response');
+        return { response, value: await response.blob() };
+      }
       const value: unknown = await response.json().catch(() => null);
       if (this.lifetime.signal.aborted || this.token() !== token) throw new BusinessError('session_changed');
       if (!response.ok) throw httpError(response.status, value);
@@ -118,6 +122,22 @@ export class BusinessTransport {
     if (this.capabilityToken !== token) throw new BusinessError('capabilities_required');
     const { value } = await this.exchange(path, method, body, token);
     return value;
+  }
+
+  /** 서버가 만든 CSV를 그대로 받는다. 본문은 화면에 쓰지 않고 파일로만 넘긴다. */
+  async download(path: string): Promise<{ blob: Blob; filename: string | null }> {
+    this.target(path);
+    const token = this.currentToken();
+    if (this.capabilityToken !== token) throw new BusinessError('capabilities_required');
+    const { response, value } = await this.exchange(path, 'GET', undefined, token, 'text/csv');
+    if (!(value instanceof Blob)) throw new BusinessError('invalid_response');
+    const disposition = response.headers.get('content-disposition') ?? '';
+    const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+    const plain = /filename="([^"]+)"/i.exec(disposition)?.[1];
+    let filename: string | null = null;
+    try { filename = encoded !== undefined ? decodeURIComponent(encoded) : plain ?? null; }
+    catch { filename = plain ?? null; }
+    return { blob: value, filename };
   }
 }
 
