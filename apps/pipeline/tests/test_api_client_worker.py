@@ -28,8 +28,6 @@ from ccc_pipeline.masking import MaskingConfigError
 from ccc_pipeline.results import canonical_sha256, sha256_hex
 from ccc_pipeline.worker import (
     claim_request,
-    masking_pipeline_hash,
-    masking_pipeline_version,
     process_text_job,
     run_once,
     run_memory_once,
@@ -38,16 +36,42 @@ from ccc_pipeline.worker import (
 ATTESTATION = {
     "id": "attestation-fixture",
     "modelId": "FrameByFrame/korean-pii-e5-base",
-    "modelRevision": "fixture-rev-1",
-    "labelSetHash": "a" * 64,
-    "corpusHash": "b" * 64,
-    "resultHash": "c" * 64,
+    "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+    "labelSetHash": "b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc",
+    "corpusHash": "10265475ed38dbdc8f902cd78fb29654a948c96ddb9c9daeda3b485d4cdd46a5",
+    "resultHash": "fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72",
     "validatedAt": "2026-09-01T00:00:00.000Z",
     "expiresAt": "2099-01-01T00:00:00.000Z",
     "status": "passed",
 }
 RECEIPT_ID = "receipt-fixture"
 
+
+CANONICAL_MASKING_REGISTRY = json.dumps({
+    "schemaVersion": 1,
+    "activeMaskingPipelineVersion": "ner-mask-v3",
+    "pipelines": [{
+        "schemaVersion": 2,
+        "resultSchemaVersion": 2,
+        "maskingPipelineVersion": "ner-mask-v3",
+        "maskingPipelineHash": "28f1e35f975b44c6bce719e1f9cae23e88f9092164531618d739be2abb5a7b9a",
+        "directIdentifierRulesVersion": "direct-v1",
+        "regexRulesVersion": "regex-v2",
+        "conditionDictionaryVersion": "condition-dict-v1",
+        "quasiIdentifierRulesVersion": "quasi-v1",
+        "g7RelativeDateRulesVersion": "calendar-day-v1",
+        "nerModelId": "FrameByFrame/korean-pii-e5-base",
+        "nerModelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+        "personLabels": ["PRIVATE_PERSON"],
+        "addressLabels": ["PRIVATE_ADDRESS"],
+        "conditionNerModelId": None,
+        "conditionNerModelRevision": None,
+        "conditionLabels": [],
+        "labelSetHash": "b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc",
+        "nerHealthCorpusHash": "10265475ed38dbdc8f902cd78fb29654a948c96ddb9c9daeda3b485d4cdd46a5",
+        "nerHealthResultHash": "fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72",
+    }],
+})
 
 def make_config(work_dir: Path) -> Config:
     return Config(
@@ -65,6 +89,8 @@ def make_config(work_dir: Path) -> Config:
         stt_max_chunk_seconds=180.0,
         stt_min_chunk_seconds=30.0,
         stt_repeat_threshold=4,
+        masking_pipeline_version="ner-mask-v1-addr-cond-dict",
+        masking_pipeline_hash="d" * 64,
         ner_model_id="fixture/person-ner",
         ner_labels=("PS", "PER", "NAME"),
         address_labels=("LC", "ADDRESS", "PRIVATE_ADDRESS"),
@@ -481,14 +507,24 @@ class ClaimRequestTest(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             base = make_config(Path(tmp))
             # 어느 계층이 실제로 돌았는지가 스냅샷 기록에서 구분돼야 한다.
-            self.assertEqual(masking_pipeline_version(base), "ner-mask-v1-addr-cond-dict")
-            with_cond = replace(base, condition_ner_model_id="fixture/cond-ner")
-            self.assertEqual(masking_pipeline_version(with_cond), "ner-mask-v1-addr-cond-ner")
-            no_addr = replace(base, address_labels=())
-            self.assertEqual(masking_pipeline_version(no_addr), "ner-mask-v1-noaddr-cond-dict")
+            self.assertEqual(base.masking_pipeline_version, "ner-mask-v1-addr-cond-dict")
+            with_cond = replace(
+                base,
+                condition_ner_model_id="fixture/cond-ner",
+                masking_pipeline_version="ner-mask-v1-addr-cond-ner",
+                masking_pipeline_hash="e" * 64,
+            )
+            self.assertEqual(with_cond.masking_pipeline_version, "ner-mask-v1-addr-cond-ner")
+            no_addr = replace(
+                base,
+                address_labels=(),
+                masking_pipeline_version="ner-mask-v1-noaddr-cond-dict",
+                masking_pipeline_hash="f" * 64,
+            )
+            self.assertEqual(no_addr.masking_pipeline_version, "ner-mask-v1-noaddr-cond-dict")
             # 서버는 lower-case hex64 만 받는다. 구성이 바뀌면 지문도 바뀐다.
-            self.assertRegex(masking_pipeline_hash(base), r"^[0-9a-f]{64}$")
-            self.assertNotEqual(masking_pipeline_hash(base), masking_pipeline_hash(with_cond))
+            self.assertRegex(base.masking_pipeline_hash, r"^[0-9a-f]{64}$")
+            self.assertNotEqual(base.masking_pipeline_hash, with_cond.masking_pipeline_hash)
 
 
 class RunOnceTest(unittest.TestCase):
@@ -1343,6 +1379,7 @@ class EnvironmentIsolationTest(unittest.TestCase):
             "CCC_WORK_DIR": self.enterContext(TemporaryDirectory()),
             "CCC_NER_MODEL_ID": "FrameByFrame/korean-pii-e5-base",
             "CCC_ORIGINAL_BACKUP_ENABLED": "off",
+            "MEMORY_MASKING_PIPELINES": CANONICAL_MASKING_REGISTRY,
             "CCC_NER_ATTESTATION": json.dumps(ATTESTATION),
             "CCC_NER_RELEASE_RECEIPT_ID": RECEIPT_ID,
             "CCC_AUDIO_DOWNLOAD_ORIGIN": "https://storage.example",
