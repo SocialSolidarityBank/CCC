@@ -11946,6 +11946,68 @@ export interface AuditLogFilter {
   supportCaseId?: string;
 }
 
+export interface MonthlyAuditSummary {
+  month: string;
+  timeZone: string;
+  startUtc: string;
+  endUtc: string;
+  /** Audit rows do not store assignment-at-read evidence. Unknown is not zero. */
+  nonAssignedReadEvents: null;
+  /** Human read/PII-read events whose historical assignment cannot be classified. */
+  unclassifiedReadEvents: number;
+  /** Audit events, not decrypted fields, participants, or downloaded files. */
+  piiDecryptEvents: number;
+  exportEvents: number;
+}
+
+export async function getMonthlyAuditSummary(
+  env: Env,
+  actor: Actor,
+  month: string,
+): Promise<MonthlyAuditSummary> {
+  await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
+  assertMonthOnly(month);
+  // Institution-wide totals must not change with the requesting user's timezone.
+  const organization = await env.DB.prepare(
+    'SELECT time_zone FROM organization_settings WHERE org_id = ?',
+  ).bind(actor.orgId).first<{ time_zone: string }>();
+  const timeZone = organization?.time_zone;
+  if (typeof timeZone !== 'string' || timeZone.length === 0) {
+    throw new ForbiddenError('time zone is unavailable');
+  }
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone }).format();
+  } catch {
+    throw new ForbiddenError('time zone is unavailable');
+  }
+  const date = `${month}-01`;
+  const startUtc = localDateStartUtc(date, timeZone);
+  const endUtc = localDateStartUtc(addCalendarDays(date, daysInMonth(month)), timeZone);
+  // No current-assignee join: it cannot establish who was assigned when a row was written.
+  // This metadata-only aggregate deliberately does not audit itself (unlike listAuditLog).
+  const counts = await env.DB.prepare(
+    `SELECT
+       COUNT(CASE WHEN actor_role <> 'service'
+         AND action IN ('read', 'read_participant_pii', 'decrypt_pii') THEN 1 END) AS unclassified_reads,
+       COUNT(CASE WHEN action IN ('decrypt_pii', 'read_participant_pii') THEN 1 END) AS pii_decrypts,
+       COUNT(CASE WHEN action = 'export' THEN 1 END) AS exports
+     FROM audit_log
+     WHERE org_id = ? AND created_at >= ? AND created_at < ?`,
+  ).bind(actor.orgId, startUtc, endUtc).first<{
+    unclassified_reads: number | string;
+    pii_decrypts: number | string;
+    exports: number | string;
+  }>();
+  if (counts === null) throw new Error('audit summary is unavailable');
+  return {
+    month, timeZone, startUtc, endUtc,
+    nonAssignedReadEvents: null,
+    unclassifiedReadEvents: Number(counts.unclassified_reads),
+    piiDecryptEvents: Number(counts.pii_decrypts),
+    exportEvents: Number(counts.exports),
+  };
+}
+
 const DEFAULT_AUDIT_LOG_LIMIT = 50;
 const MAX_AUDIT_LOG_LIMIT = 100;
 

@@ -14,6 +14,7 @@ import {
   getInstitutionReadiness,
   listMyRoles,
   listAuditLog,
+  getMonthlyAuditSummary,
   listDirectoryAccounts,
   updateDirectoryRoles,
   deactivateDirectoryAccount,
@@ -2508,6 +2509,10 @@ export async function handleRequest(
     if (request.method === 'GET' && parts.length === 1 && parts[0] === 'audit-log') {
       const query = requestQuery(url, ['limit', 'cursor', 'actorId', 'from', 'to', 'supportCaseId']);
       return json(await listAuditLog(env, actor, parseAuditLogQuery(query)));
+    }
+    if (request.method === 'GET' && parts.length === 2 && parts[0] === 'audit-log' && parts[1] === 'monthly-summary') {
+      const query = requestQuery(url, ['month']);
+      return json(await getMonthlyAuditSummary(env, actor, query.get('month') ?? ''));
     }
     if (request.method === 'POST' && parts.length === 1 && parts[0] === 'schedules') {
       // 상담 등록(#20): 담당 케이스 한정·감사는 createCounselingSchedule(R1 관문) 내장.
