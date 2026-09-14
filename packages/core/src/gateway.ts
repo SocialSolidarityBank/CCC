@@ -18673,6 +18673,14 @@ interface PrivacyPurgeScope {
   namespaceIds: string[];
   sourceIds: string[];
   sessionIds: string[];
+  audioObjectIds: string[];
+  goalIds: string[];
+  actionItemIds: string[];
+  flagIds: string[];
+  scheduleIds: string[];
+  snapshotIds: string[];
+  aiWorkIds: string[];
+  discrepancyIds: string[];
   jobIds: string[];
   egressIds: string[];
   textWorkIds: string[];
@@ -18750,34 +18758,13 @@ async function hasPrivacyPurgeResidual(
   sessionIds: readonly string[],
 ): Promise<boolean> {
   const caseMarks = supportCaseIds.map(() => '?').join(',');
-  const caseChecks = [
-    'goals',
-    'action_items',
-    'flags',
-    'counseling_schedules',
-    'ai_masked_source_snapshots',
-    'ai_work_items',
-    'session_discrepancies',
-    'recording_result_commits',
-    'pilot_text_ai_consent_evidence',
-    'goal_revisions',
-    'counseling_memory_draft_context',
-  ];
-  for (const table of caseChecks) {
-    if (await env.DB.prepare(
-      `SELECT 1 AS present FROM ${table}
-       WHERE org_id=? AND support_case_id IN (${caseMarks}) LIMIT 1`,
-    ).bind(orgId, ...supportCaseIds).first() !== null) return true;
-  }
+  if (await env.DB.prepare(
+    `SELECT 1 AS present FROM counseling_memory_draft_context
+     WHERE org_id=? AND support_case_id IN (${caseMarks}) LIMIT 1`,
+  ).bind(orgId, ...supportCaseIds).first() !== null) return true;
   if (sessionIds.length === 0) return false;
   const sessionMarks = sessionIds.map(() => '?').join(',');
-  const sessionChecks = [
-    'session_goal_scores',
-    'ai_gas_evidence',
-    'session_life_area_snapshots',
-    'intake_record_revisions',
-  ];
-  for (const table of sessionChecks) {
+  for (const table of ['session_life_area_snapshots', 'intake_record_revisions']) {
     if (await env.DB.prepare(
       `SELECT 1 AS present FROM ${table}
        WHERE org_id=? AND session_id IN (${sessionMarks}) LIMIT 1`,
@@ -18806,23 +18793,474 @@ async function loadPrivacyPurgeScope(
   ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>();
   const sessionIds = sessions.results.map(row => row.id);
 
+  const ownsCase = (value: unknown): boolean => (
+    typeof value === 'string' && supportCaseIds.includes(value)
+  );
+  const ownsNullableCase = (value: unknown): boolean => value === null || ownsCase(value);
+
   const audio = await env.DB.prepare(
-    `SELECT audio.id,audio.support_case_id,session.support_case_id AS session_support_case_id
+    `SELECT audio.id,audio.support_case_id,audio.state,audio.deletion_evidence,
+            session.support_case_id AS session_support_case_id
      FROM audio_objects AS audio
      LEFT JOIN sessions AS session ON session.id=audio.session_id AND session.org_id=audio.org_id
      WHERE audio.org_id=? AND (
        audio.support_case_id IN (${caseMarks})
        OR session.support_case_id IN (${caseMarks})
-     )`,
+     ) ORDER BY audio.id`,
   ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
   if (audio.results.some(row => (
-    row.session_support_case_id === null
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.session_support_case_id)
     || row.session_support_case_id !== row.support_case_id
-  ))) {
-    throw new ConflictError('privacy purge scope ownership is ambiguous');
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const audioTerminalStates = new Set([
+    'processed_deleted', 'unprocessed_expired', 'upload_abandoned', 'retention_capped',
+  ]);
+  if (audio.results.some(row => (
+    !audioTerminalStates.has(stringValue(row.state))
+    || typeof row.deletion_evidence !== 'string'
+    || row.deletion_evidence.length === 0
+  ))) throw new ConflictError('privacy purge residual scope is not supported');
+  const [audioAttempts, audioOutbox, audioMints] = await Promise.all([
+    env.DB.prepare(
+      `SELECT attempt.id FROM audio_deletion_attempts AS attempt
+       JOIN audio_objects AS audio
+         ON audio.id=attempt.audio_object_id AND audio.org_id=attempt.org_id
+       WHERE audio.org_id=? AND audio.support_case_id IN (${caseMarks}) ORDER BY attempt.id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+    env.DB.prepare(
+      `SELECT outbox.id FROM audio_lifecycle_outbox AS outbox
+       JOIN audio_objects AS audio
+         ON audio.id=outbox.audio_object_id AND audio.org_id=outbox.org_id
+       WHERE audio.org_id=? AND audio.support_case_id IN (${caseMarks}) ORDER BY outbox.id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+    env.DB.prepare(
+      `SELECT mint.id FROM audio_download_target_mints AS mint
+       JOIN audio_objects AS audio
+         ON audio.id=mint.audio_object_id AND audio.org_id=mint.org_id
+       WHERE audio.org_id=? AND audio.support_case_id IN (${caseMarks}) ORDER BY mint.id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+  ]);
+  const audioObjectIds = audio.results.map(row => stringValue(row.id));
+
+  const goals = await env.DB.prepare(
+    `SELECT goal.id,goal.support_case_id,replacement.support_case_id AS replacement_case_id
+     FROM goals AS goal
+     LEFT JOIN goals AS replacement
+       ON replacement.id=goal.replaced_by_goal_id AND replacement.org_id=goal.org_id
+     WHERE goal.org_id=? AND (
+       goal.support_case_id IN (${caseMarks})
+       OR replacement.support_case_id IN (${caseMarks})
+     ) ORDER BY goal.id`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (goals.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsNullableCase(row.replacement_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const goalIds = goals.results.map(row => stringValue(row.id));
+  const goalRevisions = await env.DB.prepare(
+    `SELECT revision.goal_id,revision.edited_at,revision.support_case_id,
+            goal.support_case_id AS goal_case_id
+     FROM goal_revisions AS revision
+     LEFT JOIN goals AS goal ON goal.id=revision.goal_id AND goal.org_id=revision.org_id
+     WHERE revision.org_id=? AND (
+       revision.support_case_id IN (${caseMarks})
+       OR goal.support_case_id IN (${caseMarks})
+     ) ORDER BY revision.goal_id,revision.edited_at`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (goalRevisions.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || row.goal_id !== null && !ownsCase(row.goal_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const loadCaseSessionRows = async (table: 'action_items' | 'flags') => env.DB.prepare(
+    `SELECT item.id,item.support_case_id,session.support_case_id AS session_support_case_id
+     FROM ${table} AS item
+     LEFT JOIN sessions AS session ON session.id=item.session_id AND session.org_id=item.org_id
+     WHERE item.org_id=? AND (
+       item.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     ) ORDER BY item.id`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  const [actions, flags] = await Promise.all([
+    loadCaseSessionRows('action_items'),
+    loadCaseSessionRows('flags'),
+  ]);
+  if ([...actions.results, ...flags.results].some(row => (
+    !ownsCase(row.support_case_id) || !ownsNullableCase(row.session_support_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const actionItemIds = actions.results.map(row => stringValue(row.id));
+  const flagIds = flags.results.map(row => stringValue(row.id));
+
+  const schedules = await env.DB.prepare(
+    `SELECT schedule.id,schedule.beneficiary_id,schedule.support_case_id,
+            session.support_case_id AS completed_session_support_case_id
+     FROM counseling_schedules AS schedule
+     LEFT JOIN sessions AS session
+       ON session.id=schedule.completed_session_id AND session.org_id=schedule.org_id
+     WHERE schedule.org_id=? AND (
+       schedule.beneficiary_id=?
+       OR schedule.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     ) ORDER BY schedule.id`,
+  ).bind(actor.orgId, beneficiaryId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (schedules.results.some(row => (
+    row.beneficiary_id !== beneficiaryId
+    || !ownsCase(row.support_case_id)
+    || !ownsNullableCase(row.completed_session_support_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const scheduleIds = schedules.results.map(row => stringValue(row.id));
+  const actionRevisions = await env.DB.prepare(
+    `SELECT revision.action_item_id,revision.revision,revision.org_id,
+            item.org_id AS item_org_id,item.support_case_id AS item_case_id
+     FROM action_item_revisions AS revision
+     LEFT JOIN action_items AS item ON item.id=revision.action_item_id
+     WHERE item.support_case_id IN (${caseMarks})`,
+  ).bind(...supportCaseIds).all<DbRow>();
+  if (actionRevisions.results.some(row => (
+    row.org_id !== actor.orgId || row.item_org_id !== actor.orgId || !ownsCase(row.item_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const scheduleRevisions = await env.DB.prepare(
+    `SELECT revision.question_id,revision.revision,revision.org_id,
+            question.org_id AS question_org_id,question.support_case_id AS question_case_id
+     FROM schedule_question_revisions AS revision
+     LEFT JOIN schedule_custom_questions AS question ON question.id=revision.question_id
+     WHERE question.support_case_id IN (${caseMarks})`,
+  ).bind(...supportCaseIds).all<DbRow>();
+  if (scheduleRevisions.results.some(row => (
+    row.org_id !== actor.orgId
+    || row.question_org_id !== actor.orgId
+    || !ownsCase(row.question_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const actionOutcomes = await env.DB.prepare(
+    `SELECT outcome.id,outcome.support_case_id,
+            item.support_case_id AS item_case_id,
+            session.support_case_id AS session_case_id
+     FROM manual_action_outcomes AS outcome
+     LEFT JOIN action_items AS item
+       ON item.id=outcome.action_item_id AND item.org_id=outcome.org_id
+     LEFT JOIN sessions AS session
+       ON session.id=outcome.session_id AND session.org_id=outcome.org_id
+     WHERE outcome.org_id=? AND (
+       outcome.support_case_id IN (${caseMarks})
+       OR item.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (actionOutcomes.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.item_case_id)
+    || !ownsCase(row.session_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const questionOutcomes = await env.DB.prepare(
+    `SELECT outcome.id,outcome.kind,outcome.support_case_id,
+            session.support_case_id AS session_case_id,
+            schedule.support_case_id AS schedule_case_id,
+            source_session.support_case_id AS source_session_case_id
+     FROM manual_question_outcomes AS outcome
+     LEFT JOIN sessions AS session
+       ON session.id=outcome.session_id AND session.org_id=outcome.org_id
+     LEFT JOIN counseling_schedules AS schedule
+       ON outcome.kind='schedule' AND schedule.id=outcome.source_id AND schedule.org_id=outcome.org_id
+     LEFT JOIN sessions AS source_session
+       ON outcome.kind='record' AND source_session.id=outcome.source_id
+        AND source_session.org_id=outcome.org_id
+     WHERE outcome.org_id=? AND (
+       outcome.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+       OR schedule.support_case_id IN (${caseMarks})
+       OR source_session.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId,
+    ...supportCaseIds, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (questionOutcomes.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.session_case_id)
+    || row.kind === 'schedule' && !ownsCase(row.schedule_case_id)
+    || row.kind === 'record' && !ownsCase(row.source_session_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+
+  const snapshots = await env.DB.prepare(
+    `SELECT snapshot.id,snapshot.support_case_id,
+            session.support_case_id AS session_support_case_id
+     FROM ai_masked_source_snapshots AS snapshot
+     LEFT JOIN sessions AS session
+       ON session.id=snapshot.session_id AND session.org_id=snapshot.org_id
+     WHERE snapshot.org_id=? AND (
+       snapshot.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     ) ORDER BY snapshot.id`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (snapshots.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsCase(row.session_support_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const snapshotIds = snapshots.results.map(row => stringValue(row.id));
+
+  const aiWork = await env.DB.prepare(
+    `SELECT work.id,work.support_case_id,session.support_case_id AS session_support_case_id
+     FROM ai_work_items AS work
+     LEFT JOIN sessions AS session ON session.id=work.session_id AND session.org_id=work.org_id
+     WHERE work.org_id=? AND (
+       work.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     ) ORDER BY work.id`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (aiWork.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsCase(row.session_support_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const aiWorkIds = aiWork.results.map(row => stringValue(row.id));
+
+  const discrepancies = await env.DB.prepare(
+    `SELECT discrepancy.id,discrepancy.support_case_id,
+            trigger_session.support_case_id AS trigger_case_id,
+            left_session.support_case_id AS left_case_id,
+            right_session.support_case_id AS right_case_id
+     FROM session_discrepancies AS discrepancy
+     LEFT JOIN sessions AS trigger_session
+       ON trigger_session.id=discrepancy.trigger_session_id AND trigger_session.org_id=discrepancy.org_id
+     LEFT JOIN sessions AS left_session
+       ON left_session.id=discrepancy.left_session_id AND left_session.org_id=discrepancy.org_id
+     LEFT JOIN sessions AS right_session
+       ON right_session.id=discrepancy.right_session_id AND right_session.org_id=discrepancy.org_id
+     WHERE discrepancy.org_id=? AND (
+       discrepancy.support_case_id IN (${caseMarks})
+       OR trigger_session.support_case_id IN (${caseMarks})
+       OR left_session.support_case_id IN (${caseMarks})
+       OR right_session.support_case_id IN (${caseMarks})
+     ) ORDER BY discrepancy.id`,
+  ).bind(
+    actor.orgId,
+    ...supportCaseIds, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (discrepancies.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.trigger_case_id)
+    || !ownsCase(row.left_case_id)
+    || !ownsCase(row.right_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const discrepancyIds = discrepancies.results.map(row => stringValue(row.id));
+
+  const scheduleGoals = await env.DB.prepare(
+    `SELECT item.id,item.support_case_id,item.case_goal_id,
+            schedule.support_case_id AS schedule_case_id,
+            goal.support_case_id AS goal_case_id
+     FROM schedule_session_goals AS item
+     LEFT JOIN counseling_schedules AS schedule
+       ON schedule.id=item.schedule_id AND schedule.org_id=item.org_id
+     LEFT JOIN goals AS goal ON goal.id=item.case_goal_id AND goal.org_id=item.org_id
+     WHERE item.org_id=? AND (
+       item.support_case_id IN (${caseMarks})
+       OR schedule.support_case_id IN (${caseMarks})
+       OR goal.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (scheduleGoals.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.schedule_case_id)
+    || row.case_goal_id !== null && !ownsCase(row.goal_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const scheduleQuestions = await env.DB.prepare(
+    `SELECT item.id,item.support_case_id,schedule.support_case_id AS schedule_case_id
+     FROM schedule_custom_questions AS item
+     LEFT JOIN counseling_schedules AS schedule
+       ON schedule.id=item.schedule_id AND schedule.org_id=item.org_id
+     WHERE item.org_id=? AND (
+       item.support_case_id IN (${caseMarks})
+       OR schedule.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (scheduleQuestions.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsCase(row.schedule_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  for (const table of ['session_goal_scores', 'ai_gas_evidence']) {
+    const goalEdges = await env.DB.prepare(
+      `SELECT session.support_case_id AS session_case_id,
+              goal.support_case_id AS goal_case_id
+       FROM ${table} AS item
+       LEFT JOIN sessions AS session ON session.id=item.session_id AND session.org_id=item.org_id
+       LEFT JOIN goals AS goal ON goal.id=item.goal_id AND goal.org_id=item.org_id
+       WHERE item.org_id=? AND (
+         session.support_case_id IN (${caseMarks})
+         OR goal.support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+    if (goalEdges.results.some(row => (
+      !ownsCase(row.session_case_id) || !ownsCase(row.goal_case_id)
+    ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
   }
-  if (audio.results.length > 0
-    || await hasPrivacyPurgeResidual(env, actor.orgId, supportCaseIds, sessionIds)) {
+
+  const evidenceItems = await env.DB.prepare(
+    `SELECT item.id,item.support_case_id,
+            session.support_case_id AS session_case_id,
+            snapshot.support_case_id AS snapshot_case_id
+     FROM ai_masked_source_evidence_items AS item
+     LEFT JOIN sessions AS session ON session.id=item.session_id AND session.org_id=item.org_id
+     LEFT JOIN ai_masked_source_snapshots AS snapshot
+       ON snapshot.id=item.snapshot_id AND snapshot.org_id=item.org_id
+     WHERE item.org_id=? AND (
+       item.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+       OR snapshot.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (evidenceItems.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.session_case_id)
+    || !ownsCase(row.snapshot_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const recordingResults = await env.DB.prepare(
+    `SELECT result.session_id,result.support_case_id,
+            session.support_case_id AS session_case_id,
+            snapshot.support_case_id AS snapshot_case_id
+     FROM recording_result_commits AS result
+     LEFT JOIN sessions AS session ON session.id=result.session_id AND session.org_id=result.org_id
+     LEFT JOIN ai_masked_source_snapshots AS snapshot
+       ON snapshot.id=result.snapshot_id AND snapshot.org_id=result.org_id
+     WHERE result.org_id=? AND (
+       result.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+       OR snapshot.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (recordingResults.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.session_case_id)
+    || !ownsCase(row.snapshot_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const drafts = await env.DB.prepare(
+    `SELECT draft.id,work.support_case_id AS work_case_id,
+            snapshot.support_case_id AS snapshot_case_id,
+            draft.source_snapshot_id,
+            parent_work.support_case_id AS parent_case_id,
+            draft.parent_version_id
+     FROM ai_draft_versions AS draft
+     LEFT JOIN ai_work_items AS work ON work.id=draft.work_item_id
+     LEFT JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id=draft.source_snapshot_id
+     LEFT JOIN ai_draft_versions AS parent ON parent.id=draft.parent_version_id
+     LEFT JOIN ai_work_items AS parent_work ON parent_work.id=parent.work_item_id
+     WHERE work.support_case_id IN (${caseMarks})
+        OR snapshot.support_case_id IN (${caseMarks})
+        OR parent_work.support_case_id IN (${caseMarks})`,
+  ).bind(...supportCaseIds, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (drafts.results.some(row => (
+    !ownsCase(row.work_case_id)
+    || row.source_snapshot_id !== null && !ownsCase(row.snapshot_case_id)
+    || row.parent_version_id !== null && !ownsCase(row.parent_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const draftMaterials = await env.DB.prepare(
+    `SELECT material.id,material.support_case_id,
+            session.support_case_id AS session_case_id,
+            snapshot.support_case_id AS snapshot_case_id,
+            work.support_case_id AS work_case_id
+     FROM ai_draft_source_materials AS material
+     LEFT JOIN sessions AS session ON session.id=material.session_id AND session.org_id=material.org_id
+     LEFT JOIN ai_masked_source_snapshots AS snapshot
+       ON snapshot.id=material.snapshot_id AND snapshot.org_id=material.org_id
+     LEFT JOIN ai_draft_versions AS draft ON draft.id=material.draft_version_id
+     LEFT JOIN ai_work_items AS work ON work.id=draft.work_item_id
+     WHERE material.org_id=? AND (
+       material.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+       OR snapshot.support_case_id IN (${caseMarks})
+       OR work.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId,
+    ...supportCaseIds, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (draftMaterials.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.session_case_id)
+    || !ownsCase(row.snapshot_case_id)
+    || !ownsCase(row.work_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const contrastAxes = await env.DB.prepare(
+    `SELECT axis.id,axis.support_case_id,work.support_case_id AS work_case_id
+     FROM ai_draft_contrast_axes AS axis
+     LEFT JOIN ai_draft_versions AS draft ON draft.id=axis.draft_version_id
+     LEFT JOIN ai_work_items AS work ON work.id=draft.work_item_id
+     WHERE axis.org_id=? AND (
+       axis.support_case_id IN (${caseMarks})
+       OR work.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (contrastAxes.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsCase(row.work_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const evidenceLinks = await env.DB.prepare(
+    `SELECT link.id,draft_work.support_case_id AS draft_case_id,
+            snapshot.support_case_id AS evidence_case_id
+     FROM ai_evidence_links AS link
+     LEFT JOIN ai_draft_versions AS draft ON draft.id=link.draft_version_id
+     LEFT JOIN ai_work_items AS draft_work ON draft_work.id=draft.work_item_id
+     LEFT JOIN ai_masked_source_evidence_items AS evidence
+       ON evidence.id=link.source_evidence_item_id
+     LEFT JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id=evidence.snapshot_id
+     WHERE draft_work.support_case_id IN (${caseMarks})
+        OR snapshot.support_case_id IN (${caseMarks})`,
+  ).bind(...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (evidenceLinks.results.some(row => (
+    !ownsCase(row.draft_case_id) || !ownsCase(row.evidence_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const reviewEvents = await env.DB.prepare(
+    `SELECT review.id,work.support_case_id AS work_case_id,
+            draft_work.support_case_id AS draft_case_id,
+            replacement_work.support_case_id AS replacement_case_id,
+            review.replacement_draft_id
+     FROM ai_review_events AS review
+     LEFT JOIN ai_work_items AS work ON work.id=review.work_item_id
+     LEFT JOIN ai_draft_versions AS draft ON draft.id=review.draft_version_id
+     LEFT JOIN ai_work_items AS draft_work ON draft_work.id=draft.work_item_id
+     LEFT JOIN ai_draft_versions AS replacement ON replacement.id=review.replacement_draft_id
+     LEFT JOIN ai_work_items AS replacement_work ON replacement_work.id=replacement.work_item_id
+     WHERE work.support_case_id IN (${caseMarks})
+        OR draft_work.support_case_id IN (${caseMarks})
+        OR replacement_work.support_case_id IN (${caseMarks})`,
+  ).bind(...supportCaseIds, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (reviewEvents.results.some(row => (
+    !ownsCase(row.work_case_id)
+    || !ownsCase(row.draft_case_id)
+    || row.replacement_draft_id !== null && !ownsCase(row.replacement_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const memoryDraftContexts = await env.DB.prepare(
+    `SELECT context.support_case_id,work.support_case_id AS draft_case_id
+     FROM counseling_memory_draft_context AS context
+     LEFT JOIN ai_draft_versions AS draft ON draft.id=context.draft_id
+     LEFT JOIN ai_work_items AS work ON work.id=draft.work_item_id
+     WHERE context.org_id=? AND (
+       context.support_case_id IN (${caseMarks})
+       OR work.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (memoryDraftContexts.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsCase(row.draft_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  if (memoryDraftContexts.results.length > 0) {
+    throw new ConflictError('privacy purge residual scope is not supported');
+  }
+
+  if (await hasPrivacyPurgeResidual(env, actor.orgId, supportCaseIds, sessionIds)) {
     throw new ConflictError('privacy purge residual scope is not supported');
   }
 
@@ -18832,26 +19270,27 @@ async function loadPrivacyPurgeScope(
   ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>();
   const textWorkIds = textWork.results.map(row => row.id);
   const jobs = await env.DB.prepare(
-    `SELECT job.id,session.support_case_id AS session_support_case_id
+    `SELECT job.id,job.support_case_id,job.audio_object_id,
+            session.support_case_id AS session_support_case_id,
+            audio.support_case_id AS audio_support_case_id
      FROM agent_jobs AS job
      LEFT JOIN sessions AS session ON session.id=job.session_id AND session.org_id=job.org_id
-     WHERE job.org_id=? AND job.support_case_id IN (${caseMarks}) ORDER BY job.id`,
-  ).bind(actor.orgId, ...supportCaseIds).all<DbRow>();
+     LEFT JOIN audio_objects AS audio
+       ON audio.id=job.audio_object_id AND audio.org_id=job.org_id
+     WHERE job.org_id=? AND (
+       job.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+       OR audio.support_case_id IN (${caseMarks})
+     ) ORDER BY job.id`,
+  ).bind(
+    actor.orgId, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
   if (jobs.results.some(row => (
-    row.session_support_case_id === null
-    || row.session_support_case_id !== undefined
-      && !supportCaseIds.includes(stringValue(row.session_support_case_id))
+    !ownsCase(row.support_case_id)
+    || !ownsNullableCase(row.session_support_case_id)
+    || row.audio_object_id !== null && !ownsCase(row.audio_support_case_id)
   ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
   const jobIds = jobs.results.map(row => stringValue(row.id));
-  if (jobIds.length > 0) {
-    const jobMarks = jobIds.map(() => '?').join(',');
-    if (await env.DB.prepare(
-      `SELECT 1 AS present FROM agent_job_result_acceptances
-       WHERE org_id=? AND job_id IN (${jobMarks}) LIMIT 1`,
-    ).bind(actor.orgId, ...jobIds).first() !== null) {
-      throw new ConflictError('privacy purge residual scope is not supported');
-    }
-  }
   const egressSql = jobIds.length === 0
     ? `SELECT id FROM agent_job_egress_records
        WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`
@@ -18873,7 +19312,7 @@ async function loadPrivacyPurgeScope(
      WHERE org_id=? AND support_case_id IN (${caseMarks})
      ORDER BY support_case_id,kind,source_id`,
   ).bind(actor.orgId, ...supportCaseIds).all<{ kind: string; source_id: string; revision: number }>();
-  const [legacyConsents, consentEvents, consentDisclosures] = await Promise.all([
+  const [legacyConsents, consentEvents, consentDisclosures, pilotConsents] = await Promise.all([
     env.DB.prepare(
       `SELECT id FROM participant_consent_records
        WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
@@ -18886,12 +19325,48 @@ async function loadPrivacyPurgeScope(
       `SELECT id FROM consent_disclosure_snapshots
        WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
     ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+    env.DB.prepare(
+      `SELECT id FROM pilot_text_ai_consent_evidence
+       WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
   ]);
   const namespaceIds = cases.results
     .filter(row => row.enc_entity_map !== null)
     .map(row => `entity-map:${stringValue(row.id)}:${integerValue(row.entity_map_revision) ?? 0}`);
   const sourceIds = [
     ...sessionIds.map(id => `session:${id}`),
+    ...audioObjectIds.map(id => `audio:${id}`),
+    ...goalIds.map(id => `goal:${id}`),
+    ...actionItemIds.map(id => `action-item:${id}`),
+    ...flagIds.map(id => `flag:${id}`),
+    ...scheduleIds.map(id => `schedule:${id}`),
+    ...snapshotIds.map(id => `snapshot:${id}`),
+    ...aiWorkIds.map(id => `ai-work:${id}`),
+    ...discrepancyIds.map(id => `discrepancy:${id}`),
+    ...audioAttempts.results.map(row => `audio-deletion-attempt:${row.id}`),
+    ...audioOutbox.results.map(row => `audio-outbox:${row.id}`),
+    ...audioMints.results.map(row => `audio-download-mint:${row.id}`),
+    ...goalRevisions.results.map(row => (
+      `goal-revision:${row.goal_id ?? 'overall'}:${row.edited_at}`
+    )),
+    ...actionRevisions.results.map(row => (
+      `action-item-revision:${stringValue(row.action_item_id)}:${integerValue(row.revision) ?? 0}`
+    )),
+    ...scheduleRevisions.results.map(row => (
+      `schedule-question-revision:${stringValue(row.question_id)}:${integerValue(row.revision) ?? 0}`
+    )),
+    ...actionOutcomes.results.map(row => `action-outcome:${stringValue(row.id)}`),
+    ...questionOutcomes.results.map(row => `question-outcome:${stringValue(row.id)}`),
+    ...scheduleGoals.results.map(row => `schedule-goal:${stringValue(row.id)}`),
+    ...scheduleQuestions.results.map(row => `schedule-question:${stringValue(row.id)}`),
+    ...evidenceItems.results.map(row => `snapshot-evidence:${stringValue(row.id)}`),
+    ...recordingResults.results.map(row => `recording-result:${stringValue(row.session_id)}`),
+    ...drafts.results.map(row => `ai-draft:${stringValue(row.id)}`),
+    ...draftMaterials.results.map(row => `ai-draft-material:${stringValue(row.id)}`),
+    ...contrastAxes.results.map(row => `ai-contrast:${stringValue(row.id)}`),
+    ...evidenceLinks.results.map(row => `ai-evidence-link:${stringValue(row.id)}`),
+    ...reviewEvents.results.map(row => `ai-review:${stringValue(row.id)}`),
+    ...pilotConsents.results.map(row => `pilot-consent-evidence:${row.id}`),
     ...manualRevisions.results.map(row => `manual-record:${row.session_id}:${row.revision}`),
     ...textWorkIds.map(id => `text-work:${id}`),
     ...jobIds.map(id => `agent-job:${id}`),
@@ -18908,6 +19383,14 @@ async function loadPrivacyPurgeScope(
     namespaceIds: namespaceIds.sort(),
     sourceIds,
     sessionIds,
+    audioObjectIds,
+    goalIds,
+    actionItemIds,
+    flagIds,
+    scheduleIds,
+    snapshotIds,
+    aiWorkIds,
+    discrepancyIds,
     jobIds,
     egressIds,
     textWorkIds,
@@ -19070,6 +19553,162 @@ async function completePrivacyPurge(
       actor.orgId, ...scope.supportCaseIds, scope.beneficiaryId,
     ),
   ];
+  statements.push(
+    env.DB.prepare(
+      `DELETE FROM manual_action_outcomes
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM manual_question_outcomes
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM action_item_revisions
+       WHERE org_id=? AND action_item_id IN (
+         SELECT id FROM action_items
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM schedule_question_revisions
+       WHERE org_id=? AND question_id IN (
+         SELECT id FROM schedule_custom_questions
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM schedule_session_goals
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM schedule_custom_questions
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM session_goal_scores
+       WHERE org_id=? AND (
+         session_id IN (
+           SELECT id FROM sessions WHERE org_id=? AND support_case_id IN (${caseMarks})
+         )
+         OR goal_id IN (
+           SELECT id FROM goals WHERE org_id=? AND support_case_id IN (${caseMarks})
+         )
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_gas_evidence
+       WHERE org_id=? AND (
+         session_id IN (
+           SELECT id FROM sessions WHERE org_id=? AND support_case_id IN (${caseMarks})
+         )
+         OR goal_id IN (
+           SELECT id FROM goals WHERE org_id=? AND support_case_id IN (${caseMarks})
+         )
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM session_discrepancies
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM action_items
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM flags
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_evidence_links
+       WHERE draft_version_id IN (
+         SELECT draft.id FROM ai_draft_versions AS draft
+         JOIN ai_work_items AS work ON work.id=draft.work_item_id
+         WHERE work.org_id=? AND work.support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_review_events
+       WHERE work_item_id IN (
+         SELECT id FROM ai_work_items
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_draft_contrast_axes
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_draft_source_materials
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM recording_result_commits
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM agent_job_result_acceptances
+       WHERE job_id IN (
+         SELECT id FROM agent_jobs
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_draft_versions
+       WHERE work_item_id IN (
+         SELECT id FROM ai_work_items
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_work_items
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_masked_source_evidence_items
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_masked_source_snapshots
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM pilot_text_ai_consent_evidence
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM goal_revisions
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_schedules
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM goals
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM audio_download_target_mints
+       WHERE org_id=? AND audio_object_id IN (
+         SELECT id FROM audio_objects
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM audio_deletion_attempts
+       WHERE org_id=? AND audio_object_id IN (
+         SELECT id FROM audio_objects
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM audio_lifecycle_outbox
+       WHERE org_id=? AND audio_object_id IN (
+         SELECT id FROM audio_objects
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds),
+  );
   if (scope.egressIds.length > 0) {
     statements.push(env.DB.prepare(
       `DELETE FROM agent_job_egress_records
@@ -19081,6 +19720,12 @@ async function completePrivacyPurge(
       `DELETE FROM agent_jobs
        WHERE org_id=? AND id IN (${scope.jobIds.map(() => '?').join(',')})`,
     ).bind(actor.orgId, ...scope.jobIds));
+  }
+  if (scope.audioObjectIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `DELETE FROM audio_objects
+       WHERE org_id=? AND id IN (${scope.audioObjectIds.map(() => '?').join(',')})`,
+    ).bind(actor.orgId, ...scope.audioObjectIds));
   }
   if (scope.textWorkIds.length > 0) {
     statements.push(env.DB.prepare(
