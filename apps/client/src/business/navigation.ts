@@ -47,6 +47,9 @@ const SETTINGS_MODULES: readonly string[] = [
   'account', 'system', 'institution-profile', 'accounts', 'assignments', 'memory', 'audit', 'retention', 'retention-policy',
 ];
 
+/** 첫 출고에서 메뉴에 세우지 않는 자리. 라우트와 권한 묶음은 그대로라 주소 판정은 바뀌지 않는다. */
+const FIRST_RELEASE_HIDDEN: readonly ShellDestination['id'][] = ['participant-invite', 'staff-invites', 'memory'];
+
 export function canOpenDestination(destination: ShellDestination, roles: readonly HumanRole[]): boolean {
   return destination.roles.some((role) => roles.includes(role));
 }
@@ -55,7 +58,8 @@ export function visibleDestinations(
   roles: readonly HumanRole[],
   features: Partial<Record<'public_signup', boolean>> = { public_signup: true },
 ): readonly ShellDestination[] {
-  return destinations.filter((destination) => canOpenDestination(destination, roles)
+  return destinations.filter((destination) => !FIRST_RELEASE_HIDDEN.includes(destination.id)
+    && canOpenDestination(destination, roles)
     && (destination.feature === undefined || features[destination.feature] === true));
 }
 

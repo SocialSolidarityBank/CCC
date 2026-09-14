@@ -231,10 +231,10 @@ function AccountsModule({ session }: { session: Session }) {
         <WireDataRows>
           <WireDataRow label="이메일" value={account.email ?? '등록되지 않음'} />
           <WireDataRow label="담당 사업 수" value={`${account.assignmentCount}건`} />
-          <WireDataRow label="감독 팀" value={account.supervisedTeamIds.length === 0 ? '없음' : account.supervisedTeamIds.join(', ')} />
+          {/* 팀 감독은 첫 출고 제외라 감독 팀 표시와 실무 책임자 지정 칸을 숨긴다. 역할 식별자는 그대로다. */}
         </WireDataRows>
         {page?.permissions.canManageRoles === true && account.active && <>
-          {(Object.keys(ROLE_LABELS) as HumanRole[]).map((role) => (
+          {(Object.keys(ROLE_LABELS) as HumanRole[]).filter((role) => role !== 'supervisor').map((role) => (
             <WireChoice key={role} type="checkbox" label={ROLE_LABELS[role]} checked={draft.includes(role)}
               disabled={busy}
               onChange={(checked) => setDrafts({
@@ -443,8 +443,9 @@ export function SettingsScreen() {
     return <WireCard title="서버가 확인한 연결 상태">
       <WireDataRows>
         <WireDataRow label="설치 방식" value={cap.mode} />
-        <WireDataRow label="STT(녹취록 작성)" value={cap.sttMode === 'off' ? '꺼짐' : cap.sttMode} />
-        <WireDataRow label="지정된 엔진" value={cap.sttEngine ?? '승인된 엔진 없음'} />
+        {/* Local STT 는 첫 출고 제외라 그 값이 오면 STT 줄을 보이지 않는다. */}
+        {cap.sttMode !== 'local' && <WireDataRow label="STT(녹취록 작성)" value={cap.sttMode === 'off' ? '꺼짐' : cap.sttMode} />}
+        {cap.sttMode !== 'local' && <WireDataRow label="지정된 엔진" value={cap.sttEngine ?? '승인된 엔진 없음'} />}
         <WireDataRow label="AI 처리" value={cap.llmMode === 'off' ? '꺼짐' : cap.llmMode} />
         <WireDataRow label="처리 장비" value={cap.agentStatus} />
       </WireDataRows>

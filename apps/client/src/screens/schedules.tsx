@@ -456,6 +456,7 @@ export function BriefingScreen() {
     </WireCard>;
   }
   if (briefing === null) return <WireCard><WireEmpty live reserve>상담 전 톺아보기를 불러오고 있어요.</WireEmpty></WireCard>;
+  const visibleDiscrepancies = briefing.focus.discrepancies.filter((item) => item.kind !== 'cross_session');
 
   return <>
     <WireCard title={briefing.participant.name ?? briefing.beneficiaryId}>
@@ -529,8 +530,9 @@ export function BriefingScreen() {
         </WireButton>} />)}
     </WireCard>
     <WireCard title="일치하지 않는 기록">
-      {briefing.focus.discrepancies.length === 0 && <WireEmpty>검출된 불일치가 없습니다.</WireEmpty>}
-      {briefing.focus.discrepancies.map((item) => <WireCardSection key={item.id}
+      {/* 첫 출고는 같은 회차 안 모순만 보인다. 회차 간 AI 대조는 서버 차단 대상으로 남긴다. */}
+      {visibleDiscrepancies.length === 0 && <WireEmpty>검출된 불일치가 없습니다.</WireEmpty>}
+      {visibleDiscrepancies.map((item) => <WireCardSection key={item.id}
         title={DISCREPANCY_KIND_LABELS[item.kind] ?? item.kind}>
         <WireDataRows>
           <WireDataRow label="한쪽 기록" value={item.left} />

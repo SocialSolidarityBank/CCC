@@ -81,6 +81,41 @@ describe('comparison visibility and unavailable reasons', () => {
   });
 });
 
+describe('first-release AI review surface', () => {
+  it('shows only session-goal claims and hides commitment registration while keeping contrast', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const draft = { version: 1, origin: 'agent', creationMode: 'recording', summaryText: '합성 요약',
+      claims: [
+        { claimKey: 'claim-goal', section: 'session_goal_discussion', text: '목표 논의 내용' },
+        { claimKey: 'claim-other', section: 'other_topics', text: '숨길 자유 주제' },
+        { claimKey: 'claim-commit', section: 'next_session_commitments', text: '숨길 약속 추출' },
+      ],
+      questions: [], evidence: [], oneLiner: null, reviewDecision: null,
+      contrast: [{ axis: 'missing_from_memo', status: 'applied', findings: [finding('유지되는 대조 인용')] }],
+      regenerateAvailable: false, regenerateSourceSnapshotId: null };
+    const session = {
+      aiReview: new AiReviewApi({ request: async () => draft } as never),
+      capabilities: { llmMode: 'off' }, auth: { signOut: vi.fn() },
+    } as unknown as Session;
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.add({ root, container });
+    const router = createMemoryRouter([{
+      element: createElement(() => createElement(Outlet, { context: session })),
+      children: [{ path: '/participants/:beneficiaryId/programs/:supportCaseId/records/:sessionId/review',
+        element: createElement(RecordReviewScreen) }],
+    }], { initialEntries: ['/participants/swallow-003/programs/case-1/records/session-1/review'] });
+    await act(async () => { root.render(createElement(RouterProvider, { router })); });
+    expect(container.textContent).toContain('목표 논의 내용');
+    expect(container.textContent).not.toContain('숨길 자유 주제');
+    expect(container.textContent).not.toContain('숨길 약속 추출');
+    expect(container.textContent).toContain('유지되는 대조 인용');
+    expect(container.textContent).not.toContain('할 일로 등록');
+    expect([...container.querySelectorAll('button')].map((button) => button.textContent)).toContain('승인');
+  });
+});
+
 describe('CCC-212 review recovery', () => {
   it.each([
     [404, 'not_found', 'manual-records'],

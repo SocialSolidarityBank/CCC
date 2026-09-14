@@ -57,23 +57,32 @@ describe('business navigation permission boundary', () => {
     expect(destinationAt('/settings', '?module=account')?.id).toBe('account');
   });
 
-  it('includes institution setup only for institution administrators', () => {
+  it('keeps first-release excluded entry points out of every shell menu', () => {
     expect(visibleDestinations(['institution-admin']).map((entry) => entry.id))
       .toEqual([
-        'account', 'schedule', 'schedule-register', 'participants', 'participant-register', 'participant-invite', 'staff-invites', 'onboarding',
-        'system', 'institution-profile', 'accounts', 'assignments', 'memory', 'audit', 'retention-policy', 'retention',
+        'account', 'schedule', 'schedule-register', 'participants', 'participant-register', 'onboarding',
+        'system', 'institution-profile', 'accounts', 'assignments', 'audit', 'retention-policy', 'retention',
       ]);
-    expect(visibleDestinations(['technical-admin']).map((entry) => entry.id)).toEqual(['account', 'staff-invites', 'system']);
+    expect(visibleDestinations(['technical-admin']).map((entry) => entry.id)).toEqual(['account', 'system']);
     expect(destinationAt('/settings', '?module=retention')?.id).toBe('retention');
     expect(destinationAt('/settings', '?module=accounts')?.id).toBe('accounts');
-    // 공개 가입을 끈 설치에서는 당사자 초대 자리가 사라진다(CCC-112).
-    expect(visibleDestinations(['worker'], { public_signup: false }).map((entry) => entry.id))
-      .not.toContain('participant-invite');
+    // 당사자 요청 링크 진입점은 공개 가입 capability가 켜져도 첫 출고 메뉴에 서지 않는다.
     expect(visibleDestinations(['worker'], { public_signup: true }).map((entry) => entry.id))
-      .toContain('participant-invite');
+      .not.toContain('participant-invite');
+    expect(visibleDestinations(['institution-admin'], { public_signup: true }).map((entry) => entry.id))
+      .not.toContain('staff-invites');
     expect(destinationAt('/settings', '?module=retention-policy')?.id).toBe('retention-policy');
     expect(destinationAt('/settings', '?module=unknown')).toBeNull();
     expect(visibleDestinations(['supervisor']).map((entry) => entry.id))
       .toEqual(['account', 'schedule', 'participants']);
+  });
+
+  it('keeps hidden routes resolvable for direct URLs without adding them back to the menu', () => {
+    // 라우트와 권한 식별자는 지우지 않는다. 메뉴에서만 사라진다.
+    expect(destinationAt('/participants/invite', '')?.id).toBe('participant-invite');
+    expect(destinationAt('/staff-invites', '')?.id).toBe('staff-invites');
+    expect(destinationAt('/settings', '?module=memory')?.id).toBe('memory');
+    expect(visibleDestinations(['institution-admin', 'worker'], { public_signup: true }).map((entry) => entry.id))
+      .not.toContain('memory');
   });
 });
