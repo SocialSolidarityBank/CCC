@@ -14,7 +14,7 @@ WHEN NEW.generation <> OLD.generation BEGIN
   WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='text'
     AND state IN ('pending','leased','blocked') AND source_generation IS NOT NULL
     AND source_generation <> NEW.generation;
-  UPDATE ai_text_work_queue SET status='pending'
+  UPDATE ai_text_work_queue SET status='pending',lease_owner=NULL,lease_expires_at=NULL
   WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND status='processing'
     AND id IN (SELECT source_text_work_item_id FROM agent_jobs WHERE org_id=NEW.org_id
       AND support_case_id=NEW.support_case_id AND terminal_failure_code='stale_claim');
