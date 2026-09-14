@@ -12,7 +12,6 @@
 # 터미널 2: 웹 (127.0.0.1:5199)
 ./prototype/web/run.sh
 ```
-
 브라우저에서 `http://127.0.0.1:5199` 접속.
 
 ## 계정
@@ -32,11 +31,10 @@ Google Sheet `1DiEr-VX9QgJok7294CWKX8WQ2IVnxIRbOqpRb4IUhbE` (탭: participants, 
 ## 외부 연결
 
 - Azure STT: `ccc-stt-koreacentral` 리소스, `az` CLI로 키 주입
-- OpenAI: Infisical `prod`/`/`의 `OPENAI_API_KEY` (현재 401 — 갱신 필요)
+- OpenAI: Infisical `RELAYER` 프로젝트 `prod`/`/OPENAI`의 `OPENAI_API_KEY` (서비스 계정 키)
 - Google Sheets: DWD 서비스 계정 (`oauth2service.json`, `seongqkim@ggbss.or.kr` 대리)
 
 ## 알려진 제한
 
-- OpenAI 키가 401이라 AI 정리는 아직 실패한다. 마스킹된 텍스트는 저장되므로 키 갱신 후 재처리하면 된다.
 - NER은 `PROTOTYPE_NER=1`로 켤 수 있으나 `transformers`+`torch` 설치가 필요하다.
 - 세션은 인메모리라 서버 재시작 시 로그아웃된다.

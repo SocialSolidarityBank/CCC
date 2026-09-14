@@ -3,9 +3,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# OpenAI: Infisical ggbss prod /
-INFISICAL_TOKEN="$(OP_BIOMETRIC_UNLOCK_ENABLED=false opsvc item get 'Infisical · account@ggbss.or.kr' \
-  --vault BSS --fields label=ggbss_project_access_token --reveal)"
+# OpenAI: Infisical RELAYER prod /OPENAI (Universal Auth로 토큰 발급)
+INFISICAL_TOKEN="$(curl -s -X POST https://app.infisical.com/api/v1/auth/universal-auth/login \
+  -H 'content-type: application/json' \
+  -d "{\"clientId\":\"$(OP_BIOMETRIC_UNLOCK_ENABLED=false opsvc item get 'hermes-company-infisical' --vault BSS --fields label=hermes_client_id --reveal)\",\"clientSecret\":\"$(OP_BIOMETRIC_UNLOCK_ENABLED=false opsvc item get 'hermes-company-infisical' --vault BSS --fields label=hermes_client_secret --reveal)\"}" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')"
 export INFISICAL_TOKEN
 
 # Azure Speech: 구독의 ccc-stt-koreacentral 리소스 키 (az CLI 세션 사용)
@@ -20,5 +22,5 @@ export PROTOTYPE_ADMIN_PW="${PROTOTYPE_ADMIN_PW:-admin-test-2026}"
 export PROTOTYPE_STAFF_ID="${PROTOTYPE_STAFF_ID:-staff}"
 export PROTOTYPE_STAFF_PW="${PROTOTYPE_STAFF_PW:-staff-test-2026}"
 
-exec infisical run --env=prod --path=/ --silent -- \
+exec infisical run --env=prod --path=/OPENAI --projectId=78d6f149-5ef7-43f2-b20c-4c89c3dc473c --silent -- \
   .venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8792
