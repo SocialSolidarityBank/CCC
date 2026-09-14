@@ -348,7 +348,8 @@ export interface JobError {
   retryable: boolean;
 }
 
-export function jobErrorHttpStatus(error: JobErrorCode): 401 | 403 | 404 | 409 | 422 {
+export function jobErrorHttpStatus(error: JobErrorCode): 400 | 401 | 403 | 404 | 409 | 422 {
+  if (error === 'unmasked_identifier_detected') return 400;
   if (error === 'authentication_required') return 401;
   if (error === 'forbidden') return 403;
   if (error === 'job_not_found' || error === 'audio_object_missing') return 404;

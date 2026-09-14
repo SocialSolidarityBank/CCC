@@ -9301,8 +9301,14 @@ async function recoverAgentJobs(env: Env, orgId: string, nowIso: string): Promis
     env.DB.prepare(
       `UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
          entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
-       WHERE org_id=? AND entity_map_lease_expires_at<=?`,
-    ).bind(orgId, nowIso),
+       WHERE org_id=? AND (entity_map_lease_expires_at<=?
+         OR (entity_map_lease_family='generic' AND NOT EXISTS (
+           SELECT 1 FROM agent_jobs j
+           WHERE j.id=support_cases.entity_map_lease_job_id AND j.org_id=support_cases.org_id
+             AND j.support_case_id=support_cases.id AND j.attempt=support_cases.entity_map_lease_attempt
+             AND j.state='leased' AND j.lease_expires_at>?
+         )))`,
+    ).bind(orgId, nowIso, nowIso),
     env.DB.prepare(
       `UPDATE audio_objects SET
          state=CASE WHEN EXISTS(
