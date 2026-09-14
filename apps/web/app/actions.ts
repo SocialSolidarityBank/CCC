@@ -18,16 +18,6 @@ import {
   goalCloseReasons,
   type Goal,
   type GoalCloseReason,
-  intakeAnswerKeys,
-  intakeAnswerResponses,
-  type IntakeAdditionalItemInput,
-  type IntakeAnswerInput,
-  type IntakeDebtEntryInput,
-  type IntakeLinkedOrgInput,
-  type IntakeExtendedPiiInput,
-  type IntakeGoalInput,
-  type IntakeLifeAreaInput,
-  type IntakeNextMeetingInput,
   completeOrganizationOnboarding,
   createCounselingSchedule,
   createInitialParticipantProgram,
@@ -69,6 +59,14 @@ import {
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { getCounselingMemorySettings, setCounselingMemorySettings } from './lib/api';
 import type { MemorySettingsInput } from '@ccc/contracts/counseling-memory';
+import {
+  INTAKE_WRITE_SCHEMA_VERSION,
+  parseIntakeQuestionnaire,
+  type IntakeAdditionalItemRef,
+  type IntakeQuestionnaire,
+  type IntakeQuestionWithdrawalInput,
+  type IntakeUpdateRequest,
+} from '@ccc/contracts/intake';
 
 export async function setCounselingMemorySettingsAction(input: MemorySettingsInput) {
   try {
@@ -1344,52 +1342,42 @@ export type CounselingRecordActionResult =
   | { status: 'replayed' }
   | { status: Notice };
 
-// 인테이크 위저드 제출 입력(CCC-7). 클라이언트 위저드가 6단계 상태를 이 객체로 모아
-// 한 번 호출한다. 형식·범위 검증은 여기(경계)와 게이트웨이가 이중으로 하고, P1 충족 여부는
-// 게이트웨이가 최종 강제한다(R1). 저장은 최종 "완료" 1회다 — 부분 저장 없음.
+// 인테이크 위저드는 계약 봉투와 화면 라우팅 값만 함께 보낸다.
 export interface CreateIntakeRecordActionInput {
   beneficiaryId: string;
   supportCaseId: string;
   submissionId: string;
+  schemaVersion: typeof INTAKE_WRITE_SCHEMA_VERSION;
   heldAt: string;
   channel: 'in_person' | 'phone' | 'video';
-  // D42: 5종은 선택. 4단계 위저드는 보내지 않는다(동의는 등록 화면, 목표는 보류).
-  consent?: { privacy: boolean; recordingAi: boolean };
-  helpNarrative?: { todayHelp: string; hardestPoint: string; desiredChange: string };
-  lifeAreas?: IntakeLifeAreaInput[];
-  goals?: IntakeGoalInput[];
-  actions?: ManualActionItem[];
-  // 전부 선택 — 비어 있으면 아예 보내지 않는다.
-  answers?: IntakeAnswerInput[];
-  extendedPii?: IntakeExtendedPiiInput;
-  additionalItems?: IntakeAdditionalItemInput[];
-  debts?: IntakeDebtEntryInput[];
-  linkedOrgs?: IntakeLinkedOrgInput[];
-  nextMeeting?: IntakeNextMeetingInput;
-  managerOpinion?: string;
-  /**
-   * 완료로 넘길 연결 일정(CCC-57). 둘은 언제나 함께 온다. 정기 기록지와 같은 규칙이다.
-   * **작성 경로 전용이다**: 수정 경로(updateIntakeRecordAction)는 실려 와도 버린다.
-   */
+  questionnaire: IntakeQuestionnaire;
+  additionalItemRefs: IntakeAdditionalItemRef[];
+  questionWithdrawals: IntakeQuestionWithdrawalInput[];
+  expectedRevision?: number;
+  conversion?: IntakeUpdateRequest['conversion'];
   scheduleId?: string;
   expectedScheduleVersion?: number;
-  /**
-   * 전체 목표(D62 · CCC-68). 인테이크 기록 화면이 주 입력 자리다. 세 값이 구분된다:
-   * undefined = 서버 현재값에서 안 바뀜(호출 안 함) / null = 지움(설정 전으로) / 문자열 = 새 값.
-   * 위저드가 서버 프리필과 비교해 바뀐 경우에만 싣는다 — 안 바뀐 저장마다 감사·이력이
-   * 쌓이지 않게 한다. 저장은 인테이크 기록과 별개 호출(setSupportCaseOverallGoal)이라
-   * 이력·권한·감사는 그쪽 게이트웨이가 갖는다.
-   */
   overallGoal?: string | null;
 }
 
 export type IntakeRecordActionResult =
-  /** overallGoalSaved: 전체 목표 별개 호출의 결과(D62). 시도하지 않았으면(값 안 바뀜) true. */
-  | { status: 'saved'; overallGoalSaved: boolean }
-  | { status: 'replayed'; overallGoalSaved: boolean }
+  | { status: 'saved'; revision: number; overallGoalSaved: boolean }
+  | { status: 'replayed'; revision: number; overallGoalSaved: boolean }
   | { status: Notice };
 
 const INTAKE_SUBMISSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+function assertIntakeActionInput(input: CreateIntakeRecordActionInput): Date {
+  if (input.schemaVersion !== INTAKE_WRITE_SCHEMA_VERSION) throw new FormInputError();
+  const heldAt = new Date(input.heldAt);
+  if (Number.isNaN(heldAt.valueOf())) throw new FormInputError();
+  if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
+    throw new FormInputError();
+  }
+  parseIntakeQuestionnaire(input.questionnaire);
+  assertIntakeOverallGoalInput(input.overallGoal);
+  return heldAt;
+}
 
 export async function createIntakeRecordAction(
   input: CreateIntakeRecordActionInput,
@@ -1397,31 +1385,9 @@ export async function createIntakeRecordAction(
   try {
     assertScheduleTargetScope(input.beneficiaryId, input.supportCaseId);
     if (!INTAKE_SUBMISSION_UUID.test(input.submissionId)) throw new FormInputError();
-    const heldAt = new Date(input.heldAt);
-    if (Number.isNaN(heldAt.valueOf())) throw new FormInputError();
-    if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
-      throw new FormInputError();
-    }
-    for (const area of input.lifeAreas ?? []) {
-      if (
-        !(lifeAreaKeys as readonly string[]).includes(area.areaKey)
-        || !(lifeAreaStatuses as readonly string[]).includes(area.status)
-      ) throw new FormInputError();
-    }
-    // P3·P4 어휘 검사(CCC-9). 최종 강제는 게이트웨이지만 경계에서도 한 번 거른다.
-    for (const answer of input.answers ?? []) {
-      if (
-        !(intakeAnswerKeys as readonly string[]).includes(answer.key)
-        || !(intakeAnswerResponses as readonly string[]).includes(answer.response)
-      ) throw new FormInputError();
-    }
-    if (input.nextMeeting !== undefined) {
-      const nextMeetingAt = new Date(input.nextMeeting.heldAt);
-      if (Number.isNaN(nextMeetingAt.valueOf())) throw new FormInputError();
-    }
-    assertIntakeOverallGoalInput(input.overallGoal);
-    // 연결 일정 완료(CCC-57). 정기 기록지와 같은 짝 규칙이다. 둘 다 있거나 둘 다 없다.
-    // 한쪽만 오면 게이트웨이가 버전 검사를 못 하므로 여기서 막는다.
+    if (input.expectedRevision !== undefined || input.conversion !== undefined) throw new FormInputError();
+    if (input.questionWithdrawals.length !== 0) throw new FormInputError();
+    const heldAt = assertIntakeActionInput(input);
     const hasSchedule = input.scheduleId !== undefined;
     if (hasSchedule !== (input.expectedScheduleVersion !== undefined)) throw new FormInputError();
     if (input.scheduleId !== undefined && !SCHEDULE_UUID_PATTERN.test(input.scheduleId)) throw new FormInputError();
@@ -1430,78 +1396,41 @@ export async function createIntakeRecordAction(
       && (!Number.isSafeInteger(input.expectedScheduleVersion) || input.expectedScheduleVersion < 1)
     ) throw new FormInputError();
     await getParticipantProgram(input.beneficiaryId, input.supportCaseId);
-    const managerOpinion = input.managerOpinion?.trim();
     const result = await createIntakeRecord(input.supportCaseId, {
+      schemaVersion: INTAKE_WRITE_SCHEMA_VERSION,
       submissionId: input.submissionId,
       heldAt: heldAt.toISOString(),
       channel: input.channel,
-      ...(input.consent === undefined ? {} : { consent: input.consent }),
-      ...(input.helpNarrative === undefined ? {} : {
-        helpNarrative: {
-          todayHelp: input.helpNarrative.todayHelp.trim(),
-          hardestPoint: input.helpNarrative.hardestPoint.trim(),
-          desiredChange: input.helpNarrative.desiredChange.trim(),
-        },
-      }),
-      ...(input.lifeAreas === undefined ? {} : {
-        lifeAreas: input.lifeAreas.map((area) => {
-          const note = area.note?.trim();
-          return note !== undefined && note.length > 0
-            ? { areaKey: area.areaKey, status: area.status, note }
-            : { areaKey: area.areaKey, status: area.status };
-        }),
-      }),
-      ...(input.goals === undefined ? {} : {
-        goals: input.goals.map((goal) => (
-          goal.scaleCriteria !== undefined
-            ? { title: goal.title.trim(), scaleCriteria: goal.scaleCriteria }
-            : { title: goal.title.trim() }
-        )),
-      }),
-      ...(input.actions === undefined ? {} : { actions: input.actions }),
-      ...(input.debts === undefined || input.debts.length === 0 ? {} : { debts: input.debts }),
-      ...(input.linkedOrgs === undefined || input.linkedOrgs.length === 0 ? {} : { linkedOrgs: input.linkedOrgs }),
-      ...(input.answers === undefined || input.answers.length === 0 ? {} : { answers: input.answers }),
-      ...(input.extendedPii === undefined || Object.keys(input.extendedPii).length === 0
-        ? {}
-        : { extendedPii: input.extendedPii }),
-      ...(input.additionalItems === undefined || input.additionalItems.length === 0
-        ? {}
-        : { additionalItems: input.additionalItems }),
-      ...(input.nextMeeting === undefined
-        ? {}
-        : {
-          nextMeeting: {
-            heldAt: new Date(input.nextMeeting.heldAt).toISOString(),
-            channel: input.nextMeeting.channel,
-          },
-        }),
-      ...(managerOpinion === undefined || managerOpinion.length === 0 ? {} : { managerOpinion }),
-      // 연결 일정 완료(CCC-57). 게이트웨이가 소유·상태·버전을 다시 검사하고, 어긋나면
-      // 기록 저장 자체가 서지 않는다(버전 검사 유지, 티켓 지시).
+      questionnaire: input.questionnaire,
+      additionalItemRefs: input.additionalItemRefs,
+      questionWithdrawals: input.questionWithdrawals,
       ...(input.scheduleId === undefined || input.expectedScheduleVersion === undefined
         ? {}
         : { scheduleId: input.scheduleId, expectedScheduleVersion: input.expectedScheduleVersion }),
     });
-    // 전체 목표(D62 · CCC-68). 인테이크 저장이 선 다음에만 시도한다 — 보조 값의 실패가
-    // 주 기록 저장을 막으면 안 된다. 실패해도 인테이크는 저장된 채로, 화면이 15초 페이지
-    // 카드(보조 입력 자리)로 안내한다.
     const overallGoalSaved = await saveIntakeOverallGoal(input.supportCaseId, input.overallGoal);
     revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
-    return { status: result.replayed ? 'replayed' : 'saved', overallGoalSaved };
+    return {
+      status: result.replayed ? 'replayed' : 'saved',
+      revision: result.revision,
+      overallGoalSaved,
+    };
   } catch (error) {
     return { status: noticeFor(error) };
   }
 }
 
-/** 전체 목표 입력 검증(D62). undefined = 안 바뀜, null = 지움, 문자열은 200자 상한(게이트웨이와 동일). */
+/** 전체 목표 입력 검증(D62). undefined = 안 바뀜, null = 지움, 문자열은 200자 상한. */
 function assertIntakeOverallGoalInput(overallGoal: string | null | undefined): void {
   if (overallGoal === undefined || overallGoal === null) return;
   if (typeof overallGoal !== 'string' || overallGoal.trim().length > 200) throw new FormInputError();
 }
 
-/** 전체 목표 별개 호출(D62). 시도하지 않았으면 true, 시도해서 실패하면 false — 던지지 않는다. */
-async function saveIntakeOverallGoal(supportCaseId: string, overallGoal: string | null | undefined): Promise<boolean> {
+/** 전체 목표 별개 호출. 시도하지 않았으면 true, 실패하면 인테이크 성공을 되돌리지 않는다. */
+async function saveIntakeOverallGoal(
+  supportCaseId: string,
+  overallGoal: string | null | undefined,
+): Promise<boolean> {
   if (overallGoal === undefined) return true;
   try {
     const trimmed = overallGoal === null ? null : overallGoal.trim();
@@ -1512,50 +1441,41 @@ async function saveIntakeOverallGoal(supportCaseId: string, overallGoal: string 
   }
 }
 
-/**
- * 인테이크 수정(2026-08-08 Q "확인/수정"). 위저드가 create 와 같은 입력형으로 부르므로
- * 프런트 검증도 같은 규칙을 쓴다 — 다만 서버로는 수정 경로가 받는 위저드 소유분만 보낸다.
- * submissionId 는 수정 경로에 없다(덮어쓰기는 본질상 멱등이라 재현 보호가 필요 없다).
- *
- * **일정 연결(scheduleId·expectedScheduleVersion)은 실려 와도 버린다**(CCC-57). 수정 경로
- * 파서(parseIntakeUpdate)가 허용 키 목록으로 막고 있어 보내면 요청 전체가 거부된다.
- * 일정 완료는 처음 저장할 때 한 번 하는 일이고, 고쳐 쓰기는 그 자리가 아니다.
- */
 export async function updateIntakeRecordAction(
   input: CreateIntakeRecordActionInput,
 ): Promise<IntakeRecordActionResult> {
   try {
     assertScheduleTargetScope(input.beneficiaryId, input.supportCaseId);
-    const heldAt = new Date(input.heldAt);
-    if (Number.isNaN(heldAt.valueOf())) throw new FormInputError();
-    if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
-      throw new FormInputError();
-    }
-    for (const answer of input.answers ?? []) {
-      if (
-        !(intakeAnswerKeys as readonly string[]).includes(answer.key)
-        || !(intakeAnswerResponses as readonly string[]).includes(answer.response)
-      ) throw new FormInputError();
-    }
-    assertIntakeOverallGoalInput(input.overallGoal);
+    const heldAt = assertIntakeActionInput(input);
+    if (
+      !Number.isSafeInteger(input.expectedRevision)
+      || input.expectedRevision === undefined
+      || input.expectedRevision < 1
+      || input.scheduleId !== undefined
+      || input.expectedScheduleVersion !== undefined
+    ) throw new FormInputError();
+    if (
+      input.conversion !== undefined
+      && (
+        input.conversion.confirmed !== true
+        || !Number.isSafeInteger(input.conversion.sourceRevision)
+        || input.conversion.sourceRevision < 1
+      )
+    ) throw new FormInputError();
     await getParticipantProgram(input.beneficiaryId, input.supportCaseId);
-    const managerOpinion = input.managerOpinion?.trim();
-    await updateIntakeRecord(input.supportCaseId, {
+    const result = await updateIntakeRecord(input.supportCaseId, {
+      schemaVersion: INTAKE_WRITE_SCHEMA_VERSION,
+      expectedRevision: input.expectedRevision,
       heldAt: heldAt.toISOString(),
       channel: input.channel,
-      ...(input.answers === undefined || input.answers.length === 0 ? {} : { answers: input.answers }),
-      ...(input.debts === undefined || input.debts.length === 0 ? {} : { debts: input.debts }),
-      ...(input.linkedOrgs === undefined || input.linkedOrgs.length === 0 ? {} : { linkedOrgs: input.linkedOrgs }),
-      ...(input.additionalItems === undefined || input.additionalItems.length === 0
-        ? {}
-        : { additionalItems: input.additionalItems }),
-      ...(managerOpinion === undefined || managerOpinion.length === 0 ? {} : { managerOpinion }),
+      questionnaire: input.questionnaire,
+      additionalItemRefs: input.additionalItemRefs,
+      questionWithdrawals: input.questionWithdrawals,
+      ...(input.conversion === undefined ? {} : { conversion: input.conversion }),
     });
-    // 전체 목표(D62 · CCC-68). 작성 경로와 같은 규칙 — 바뀐 경우에만 실려 오고, 실패해도
-    // 인테이크 수정은 저장된 채다.
     const overallGoalSaved = await saveIntakeOverallGoal(input.supportCaseId, input.overallGoal);
     revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
-    return { status: 'saved', overallGoalSaved };
+    return { status: 'saved', revision: result.revision, overallGoalSaved };
   } catch (error) {
     return { status: noticeFor(error) };
   }

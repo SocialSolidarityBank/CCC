@@ -1,8 +1,9 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { cleanup, render, within, fireEvent, waitFor } from '@testing-library/react';
-import { IntakeWizard } from './intake-wizard';
+import { IntakeWizard, type IntakeInitialValues } from './intake-wizard';
 import { ACTIVE_QUESTIONS, STEP_GROUPS } from './intake-questions';
 import type { CreateIntakeRecordActionInput, IntakeRecordActionResult } from '../../../../../../actions';
+import { parseIntakeQuestionnaire } from '@ccc/contracts/intake';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
@@ -12,15 +13,68 @@ afterEach(cleanup);
 /** CCC-57 연결 일정. 화면에 뜨는 표기와 제출 페이로드 둘 다 이 값으로 검증한다. */
 const LINKED_SCHEDULE = { id: '22222222-2222-4222-8222-222222222222', scheduledAt: '2026-08-12T05:00:00.000Z', version: 3 };
 
+const MODULE_SNAPSHOT = {
+  programId: '33333333-3333-4333-8333-333333333333',
+  programVersion: 4,
+  financialSupportEnabled: true,
+} as const;
+
+const BOUND_EDIT_INITIAL = {
+  heldAt: '2026-08-01T05:00:00.000Z',
+  answers: [],
+  debts: [],
+  linkedOrgs: [],
+  additionalItems: [
+    { item: '유지할 질문', dueNote: '다음 상담' },
+    { item: '철회할 질문', dueNote: '이번 주' },
+  ],
+  managerOpinion: '기존 의견',
+  schemaVersion: 2 as const,
+  revision: 7,
+  questionLifecycle: {
+    version: 1 as const,
+    items: [
+      {
+        id: 'question-retained',
+        revision: 2,
+        sourceRevision: 7,
+        sourceRowIndex: 0,
+        createdBy: 'worker-1',
+        createdAt: '2026-08-01T05:00:00.000Z',
+        withdrawn: null,
+        origin: null,
+      },
+      {
+        id: 'question-withdrawn',
+        revision: 3,
+        sourceRevision: 7,
+        sourceRowIndex: 1,
+        createdBy: 'worker-1',
+        createdAt: '2026-08-01T05:00:00.000Z',
+        withdrawn: null,
+        origin: null,
+      },
+    ],
+    conversion: null,
+  },
+};
+
 function renderWizard(
   consent = { privacy: true, recordingAi: true },
-  extra: { schedule?: typeof LINKED_SCHEDULE | null; overallGoal?: string | null; overallGoalSaved?: boolean } = {},
+  extra: {
+    schedule?: typeof LINKED_SCHEDULE | null;
+    overallGoal?: string | null;
+    overallGoalSaved?: boolean;
+    result?: IntakeRecordActionResult;
+    mode?: 'create' | 'edit';
+    initial?: IntakeInitialValues;
+  } = {},
 ) {
   push.mockClear();
   let lastInput: CreateIntakeRecordActionInput | null = null;
   const submit = async (input: CreateIntakeRecordActionInput): Promise<IntakeRecordActionResult> => {
     lastInput = input;
-    return { status: 'saved', overallGoalSaved: extra.overallGoalSaved ?? true };
+    return extra.result ?? { status: 'saved', revision: 1, overallGoalSaved: extra.overallGoalSaved ?? true };
   };
   const utils = render(
     <IntakeWizard
@@ -33,6 +87,10 @@ function renderWizard(
       sessionSequence={1}
       recorderLabel="이지은"
       briefingHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/briefing?notice=intake_saved"
+      writeSchemaVersion={3}
+      moduleSnapshot={MODULE_SNAPSHOT}
+      {...(extra.mode === undefined ? {} : { mode: extra.mode })}
+      {...(extra.initial === undefined ? {} : { initial: extra.initial })}
       participantHref="/participants/swallow-003"
       basicInfoHref="/participants/swallow-003/edit"
       overallGoal={extra.overallGoal ?? null}
@@ -365,12 +423,10 @@ describe('IntakeWizard', () => {
     fireEvent.click(completeButton(scoped));
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
 
-    const answers = getLastInput()?.answers ?? [];
-    // 화면에 뜬 질문 전부가 제출된다(전 항목 필수).
-    expect(answers).toHaveLength(ACTIVE_QUESTIONS.length);
-    expect(answers).toContainEqual({ key: 'welfare_basic_livelihood', response: 'unknown' });
+    const answers = getLastInput()?.questionnaire.answers ?? [];
+    expect(answers).toContainEqual({ key: 'public_benefits', response: 'unknown' });
     expect(answers).toContainEqual({ key: 'difficulty_areas', response: 'unknown' });
-    expect(answers).toContainEqual({ key: 'welfare_other', response: 'answered', text: 'welfare_other 내용' });
+    expect(answers).toContainEqual({ key: 'contact_caution', response: 'answered', text: 'contact_caution 내용' });
   });
 
   it('긴급도는 실무자가 고른 값 그대로 저장된다', async () => {
@@ -382,8 +438,8 @@ describe('IntakeWizard', () => {
 
     fireEvent.click(completeButton(scoped));
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
-    expect(getLastInput()?.answers).toContainEqual({
-      key: 'summary_urgency', response: 'answered', text: '즉시 개입 필요',
+    expect(getLastInput()?.questionnaire.answers).toContainEqual({
+      key: 'summary_urgency', response: 'answered', text: '위기',
     });
   });
 
@@ -440,6 +496,8 @@ describe('IntakeWizard', () => {
       <IntakeWizard
         mode="edit"
         beneficiaryId="swallow-003"
+        writeSchemaVersion={3}
+        moduleSnapshot={MODULE_SNAPSHOT}
         supportCaseId="11111111-1111-4111-8111-111111111111"
         submissionId="a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1"
         participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
@@ -459,9 +517,15 @@ describe('IntakeWizard', () => {
           linkedOrgs: [],
           additionalItems: [],
           managerOpinion: '기존 의견',
+          schemaVersion: 2,
+          revision: 1,
+          questionLifecycle: { version: 1, items: [], conversion: null },
         }}
         schedule={LINKED_SCHEDULE}
-        submit={async (input) => { lastInput = input; return { status: 'saved', overallGoalSaved: true }; }}
+        submit={async (input) => {
+          lastInput = input;
+          return { status: 'saved', revision: 2, overallGoalSaved: true };
+        }}
       />,
     );
     const scoped = within(container);
@@ -484,15 +548,117 @@ describe('IntakeWizard', () => {
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
 
     const input = getLastInput();
-    expect(input?.goals).toBeUndefined();
-    // 전체 목표 칸(D62)을 안 건드리면 키 자체가 없다 — 안 바뀐 저장마다 이력이 쌓이지 않는다.
+    expect(input).not.toBeNull();
+    for (const legacyKey of ['goals', 'consent', 'lifeAreas', 'helpNarrative', 'actions']) {
+      expect(Object.hasOwn(input!, legacyKey)).toBe(false);
+    }
+    // 전체 목표 칸(D62)을 안 건드리면 키 자체가 없다.
     expect(input?.overallGoal).toBeUndefined();
-    expect(input?.consent).toBeUndefined();
-    expect(input?.lifeAreas).toBeUndefined();
-    expect(input?.helpNarrative).toBeUndefined();
-    expect(input?.actions).toBeUndefined();
-    // 상담 방법 6종은 답변으로 남고, 채널 컬럼에는 좁힌 값이 들어간다.
     expect(input?.channel).toBe('in_person');
+  });
+
+  it.each([
+    ['invalid_request', '입력한 내용을 다시 확인하세요.'],
+    ['forbidden', '지금은 읽기만 할 수 있어요. 저장된 내용은 계속 확인할 수 있어요.'],
+    ['conflict', '다른 곳에서 먼저 저장됐어요. 다시 불러온 뒤 이어서 작성해 주세요.'],
+  ] as const)('%s 저장 실패를 구분하고 입력값을 유지한다', async (status, message) => {
+    const { container } = renderWizard(undefined, { result: { status } });
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+    fireEvent.click(scoped.getByRole('button', { name: /4\. 상담 정리와 후속관리/ }));
+    const opinion = scoped.getByLabelText('담당 실무자 종합의견') as HTMLTextAreaElement;
+
+    fireEvent.click(completeButton(scoped));
+
+    await waitFor(() => expect(scoped.getByRole('alert').textContent).toBe(message));
+    expect(opinion.value).toBe('우선순위 높음');
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('schema 3 봉투와 추가 확인사항 행 결합을 만들어 보낸다', async () => {
+    const { container, getLastInput } = renderWizard();
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+    fireEvent.click(scoped.getByRole('button', { name: /4\. 상담 정리와 후속관리/ }));
+    const table = scoped.getByTestId('intake-additional-table');
+    fireEvent.click(within(table).getByRole('button', { name: '줄 추가' }));
+    fireEvent.change(scoped.getByLabelText('추가 확인사항 1'), { target: { value: '소득 확인' } });
+
+    fireEvent.click(completeButton(scoped));
+
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    const input = getLastInput();
+    expect(input?.schemaVersion).toBe(3);
+    expect(() => parseIntakeQuestionnaire(input?.questionnaire)).not.toThrow();
+    expect(input?.additionalItemRefs).toEqual([
+      { rowIndex: 0, questionId: null, expectedRevision: null },
+    ]);
+    expect(input?.questionWithdrawals).toEqual([]);
+  });
+
+  it('기존 행 삭제는 질문 ID 철회로 보내고 남은 행 결합을 유지한다', async () => {
+    const { container, getLastInput } = renderWizard(undefined, {
+      mode: 'edit',
+      initial: BOUND_EDIT_INITIAL,
+    });
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+    fireEvent.click(scoped.getByRole('button', { name: /4\. 상담 정리와 후속관리/ }));
+    fireEvent.click(within(scoped.getByTestId('intake-additional-table')).getByRole('button', { name: '이 줄 삭제' }));
+
+    fireEvent.click(scoped.getByRole('button', { name: '저장' }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect(getLastInput()?.additionalItemRefs).toEqual([
+      { rowIndex: 0, questionId: 'question-retained', expectedRevision: 2 },
+    ]);
+    expect(getLastInput()?.questionWithdrawals).toEqual([
+      { questionId: 'question-withdrawn', expectedRevision: 3 },
+    ]);
+  });
+
+  it('기존 행의 내용을 비운 생략은 삭제나 철회로 보내지 않는다', async () => {
+    const { container, getLastInput } = renderWizard(undefined, {
+      mode: 'edit',
+      initial: BOUND_EDIT_INITIAL,
+    });
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+
+    fireEvent.click(scoped.getByRole('button', { name: /4\. 상담 정리와 후속관리/ }));
+    fireEvent.change(scoped.getByLabelText('추가 확인사항 1'), { target: { value: '' } });
+
+    fireEvent.click(scoped.getByRole('button', { name: '저장' }));
+
+    expect(getLastInput()).toBeNull();
+    expect(scoped.getByRole('alert').textContent).toContain('필수 항목');
+  });
+  it('미결합 schema 2는 원본 revision 확인 뒤 legacy 행 위치를 보존해 전환한다', async () => {
+    const initial = {
+      ...BOUND_EDIT_INITIAL,
+      revision: 5,
+      questionLifecycle: null,
+    };
+    const { container, getLastInput } = renderWizard(undefined, { mode: 'edit', initial });
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+
+    fireEvent.click(scoped.getByRole('button', { name: '저장' }));
+    expect(getLastInput()).toBeNull();
+    expect(scoped.getByRole('alert').textContent).toContain('원본 보존과 전환');
+
+    fireEvent.click(scoped.getByRole('checkbox', {
+      name: '이전 원본을 보존하고 새 양식에 직접 작성해 전환할 것을 확인했어요',
+    }));
+    fireEvent.click(scoped.getByRole('button', { name: '저장' }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect(getLastInput()?.conversion).toEqual({ confirmed: true, sourceRevision: 5 });
+    expect(getLastInput()?.additionalItemRefs).toEqual([
+      { rowIndex: 0, questionId: null, expectedRevision: null, legacySourceRowIndex: 0 },
+      { rowIndex: 1, questionId: null, expectedRevision: null, legacySourceRowIndex: 1 },
+    ]);
+    expect(getLastInput()?.questionWithdrawals).toEqual([]);
   });
 
   // ── 전체 목표 칸 (D62 · ADR-0032 §2 · CCC-68) ────────────────────────────────
@@ -559,6 +725,7 @@ describe('IntakeWizard', () => {
 
     // 부채·연계 기관 표는 첫 줄이 처음부터 있다(정본: 없으면 첫 행에 '해당 없음').
     fireEvent.click(scoped.getByRole('button', { name: /2\. 현재 생활상황/ }));
+    fireEvent.click(scoped.getByLabelText('현재 어려움 관련 영역 경제'));
     fireEvent.change(scoped.getByLabelText('기관·채권자 1'), { target: { value: 'OO은행' } });
     fireEvent.change(scoped.getByLabelText('잔액 1'), { target: { value: '1,200만 원' } });
 
@@ -575,10 +742,23 @@ describe('IntakeWizard', () => {
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
 
     const input = getLastInput();
-    expect(input?.debts).toEqual([{ creditor: 'OO은행', balance: '1,200만 원' }]);
-    expect(input?.linkedOrgs).toEqual([{ orgName: 'OO구 주민센터' }]);
-    expect(input?.additionalItems).toEqual([{ item: '전체 채무 잔액', dueNote: '다음 상담 전' }]);
-    expect(input?.managerOpinion).toBe('우선순위 높음');
+    expect(input?.questionnaire.debts).toEqual({
+      response: 'answered',
+      rows: [{ creditor: 'OO은행', balance: '1,200만 원' }],
+    });
+    expect(input?.questionnaire.linkedOrgs).toEqual({
+      response: 'answered',
+      rows: [{ orgName: 'OO구 주민센터' }],
+    });
+    expect(input?.questionnaire.additionalItems).toEqual({
+      response: 'answered',
+      rows: [{ item: '전체 채무 잔액', dueNote: '다음 상담 전' }],
+    });
+    expect(input?.questionnaire.answers).toContainEqual({
+      key: 'managerOpinion',
+      response: 'answered',
+      text: '우선순위 높음',
+    });
     expect(push).toHaveBeenCalledWith('/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/briefing?notice=intake_saved');
   });
 });

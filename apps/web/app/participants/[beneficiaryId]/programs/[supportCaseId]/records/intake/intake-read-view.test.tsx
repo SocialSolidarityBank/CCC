@@ -19,6 +19,19 @@ function savedRecord(overrides: Partial<IntakeSavedRecord> = {}): IntakeSavedRec
     sessionId: 'session-1',
     heldAt: '2026-07-15T10:00:00.000Z',
     channel: 'in_person',
+    schemaVersion: 2,
+    revision: 7,
+    history: [],
+    questionLifecycle: { version: 1, items: [], conversion: null },
+    questionnaire: {
+      schemaVersion: 2,
+      moduleSnapshot: { programId: 'program-1', programVersion: 4, financialSupportEnabled: true },
+      answers: [],
+      debts: { response: 'answered', rows: [{ creditor: 'OO은행' }] },
+      linkedOrgs: { response: 'answered', rows: [{ orgName: 'OO구 주민센터' }] },
+      additionalItems: { response: 'answered', rows: [{ item: '전체 채무 잔액' }] },
+    },
+    legacyDetailsJson: null,
     answers: fullAnswers(),
     debts: [{ creditor: 'OO은행', kind: '신용대출', balance: '1,200만 원', monthlyPayment: '30만 원', arrearsStatus: '3개월 연체' }],
     linkedOrgs: [{ orgName: 'OO구 주민센터', serviceName: '긴급복지 생계지원', supportDetail: '', usagePeriod: '', progressStatus: '' }],
@@ -31,6 +44,7 @@ function savedRecord(overrides: Partial<IntakeSavedRecord> = {}): IntakeSavedRec
 function renderView(
   saved: IntakeSavedRecord = savedRecord(),
   overallGoal: string | null = '3개월 안에 채무조정 신청을 마친다',
+  canWrite = true,
 ) {
   return render(
     <IntakeReadView
@@ -42,6 +56,7 @@ function renderView(
       editHref="/participants/swallow-003/programs/case-1/records/intake?edit=1"
       recordsHref="/participants/swallow-003/programs/case-1/records"
       participantHref="/participants/swallow-003"
+      canWrite={canWrite}
     />,
   );
 }
@@ -140,6 +155,94 @@ describe('IntakeReadView (CCC-58)', () => {
     // ② 미기록이므로 동의 수정처 안내가 뜬다(D44). 인테이크는 읽기만 한다.
     expect(within(screen.getByTestId('intake-read-consent')).getByText('미기록 1')).toBeTruthy();
     expect(screen.getByRole('link', { name: '당사자 정보로 이동' })).toBeTruthy();
+  });
+
+  it('schema 1 원본은 저장된 키와 값을 그대로 보여 주고 현재 질문지로 분류하지 않는다', () => {
+    const legacy = {
+      ...savedRecord(),
+      schemaVersion: 1,
+      questionnaire: null,
+      legacyDetailsJson: JSON.stringify({
+        old_label: '원본 값',
+        unknown_shape: { kept: true },
+      }),
+      answers: [],
+      debts: [],
+      linkedOrgs: [],
+      additionalItems: [],
+      managerOpinion: null,
+      questionLifecycle: null,
+    } as unknown as IntakeSavedRecord;
+
+    renderView(legacy);
+
+    const record = screen.getByTestId('intake-legacy-record');
+    expect(within(record).getByText('old_label')).toBeTruthy();
+    expect(within(record).getByText('원본 값')).toBeTruthy();
+    expect(within(record).getByText('{"kept":true}')).toBeTruthy();
+    expect(screen.queryByTestId('intake-read-current-step')).toBeNull();
+  });
+
+  it('쓰기 권한이 없으면 저장 기록을 읽되 수정 진입을 숨긴다', () => {
+    renderView(savedRecord(), null, false);
+
+    expect(screen.queryByRole('link', { name: '수정' })).toBeNull();
+    expect(screen.getByText('지금은 읽기만 할 수 있어요. 저장된 내용은 계속 확인할 수 있어요.')).toBeTruthy();
+  });
+
+  it('추가 확인사항의 유지와 철회와 전환 확정 이력을 구분한다', () => {
+    renderView(savedRecord({
+      questionLifecycle: {
+        version: 1,
+        items: [
+          {
+            id: 'question-retained',
+            revision: 2,
+            sourceRevision: 7,
+            sourceRowIndex: 0,
+            createdBy: 'worker-1',
+            createdAt: '2026-07-15T10:00:00.000Z',
+            withdrawn: null,
+            origin: {
+              schemaVersion: 2,
+              sourceRevision: 6,
+              sourceRowIndex: 0,
+            },
+          },
+          {
+            id: 'question-withdrawn',
+            revision: 3,
+            sourceRevision: 6,
+            sourceRowIndex: 1,
+            createdBy: 'worker-1',
+            createdAt: '2026-07-15T10:00:00.000Z',
+            withdrawn: {
+              actorId: 'worker-1',
+              recordedAt: '2026-07-16T10:00:00.000Z',
+              fromRevision: 2,
+            },
+            origin: null,
+          },
+        ],
+        conversion: {
+          sourceSchemaVersion: 2,
+          sourceRevision: 6,
+          mechanical: {
+            recordedAt: '2026-07-15T10:00:00.000Z',
+            mappings: [{ questionId: 'question-retained', sourceRowIndex: 0 }],
+          },
+          confirmation: {
+            actorId: 'worker-1',
+            recordedAt: '2026-07-15T10:01:00.000Z',
+          },
+        },
+      },
+    }));
+
+    const history = screen.getByTestId('intake-question-history');
+    expect(within(history).getByText('유지')).toBeTruthy();
+    expect(within(history).getByText('철회')).toBeTruthy();
+    expect(within(history).getByText('전환 확정')).toBeTruthy();
   });
 
   it('renders every current-step group as an accordion and supports open-all and close-all', () => {

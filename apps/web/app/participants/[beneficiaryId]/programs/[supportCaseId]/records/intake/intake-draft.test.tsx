@@ -24,18 +24,25 @@ const VAULT_PII = {
 
 /** CCC-57 연결 일정. 완료 체크의 켬·끔이 임시본을 건너 살아남는지 보는 데 쓴다. */
 const LINKED_SCHEDULE = { id: '22222222-2222-4222-8222-222222222222', scheduledAt: '2026-08-12T05:00:00.000Z', version: 3 };
+const MODULE_SNAPSHOT = {
+  programId: '33333333-3333-4333-8333-333333333333',
+  programVersion: 4,
+  financialSupportEnabled: true,
+} as const;
 
 function renderWizard(extendedPii = VAULT_PII, schedule: typeof LINKED_SCHEDULE | null = null) {
   push.mockClear();
   let lastInput: CreateIntakeRecordActionInput | null = null;
   const submit = async (input: CreateIntakeRecordActionInput): Promise<IntakeRecordActionResult> => {
     lastInput = input;
-    return { status: 'saved', overallGoalSaved: true };
+    return { status: 'saved', revision: 1, overallGoalSaved: true };
   };
   const utils = render(
     <IntakeWizard
       beneficiaryId="swallow-003"
       supportCaseId={SUPPORT_CASE_ID}
+      writeSchemaVersion={3}
+      moduleSnapshot={MODULE_SNAPSHOT}
       submissionId="a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1"
       participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
       extendedPii={extendedPii}
