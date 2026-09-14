@@ -1865,7 +1865,10 @@ test('Auth reconciliation proof rejects unrelated state drift before any writabl
     }],
     ['데이터베이스 지문', {
       mutateObserved: observed => {
+        // 카탈로그 지문을 영수증과 함께 일관되게 바꿔야 drift 외 blocker가 생기지 않는다.
         observed.databaseFingerprint = 'f'.repeat(64);
+        observed.installState.currentReceipt.schemaFingerprint = 'f'.repeat(64);
+        observed.installState.releaseHistory[0].schemaFingerprint = 'f'.repeat(64);
       },
     }],
     ['정책 지문', {
@@ -1879,39 +1882,28 @@ test('Auth reconciliation proof rejects unrelated state drift before any writabl
       },
     }],
     ['cron 개수', {
-      mutateObserved: observed => { observed.cronJobCount = 2; },
+      mutateObserved: observed => {
+        // 소유 기록이 있는 cron job이 하나 늘어난 상태다. 영수증 digest 목록에는
+        // 없으므로 DRIFT_DETECTED만 추가되고 이전 지문은 재현되지 않는다.
+        observed.cronJobCount = 2;
+        observed.installState.resources.push({
+          resourceType: 'cron_job',
+          resourceIdHash: createHash('sha256').update('ccc_scheduler_extra', 'utf8').digest('hex'),
+          resourceDigest: createHash('sha256').update('cron-extra').digest('hex'),
+          ownershipTag: observed.installState.resources[0].ownershipTag,
+        });
+      },
     }],
     ['공급자 객체 목록', {
       mutateObserved: observed => {
-        observed.providerInventory.objects.push({
-          kind: 'schema', schema: 'foreign', identity: 'foreign', owner: 'postgres',
-          definitionSha256: createHash('sha256').update('foreign').digest('hex'),
-          provenance: 'supabase_managed',
-        });
-        Object.assign(
-          observed.providerInventory,
-          providerInventoryFingerprint(observed.providerInventory),
-        );
-        observed.state = {
-          ...observed.state,
-          providerObjectCount: observed.providerInventory.objects.length,
-        };
+        // journal이 덮은 목록 해시와 다른 관찰 해시다. 기준선 대조는 레코드에서
+        // 해시를 다시 계산하므로 drift 외 blocker 없이 이전 지문만 달라진다.
+        observed.providerInventory.objectInventorySha256 = 'f'.repeat(64);
       },
     }],
     ['공급자 권한 목록', {
       mutateObserved: observed => {
-        observed.providerInventory.grants.push(providerGrant({
-          objectIdentity: 'storage.objects TABLE drifted',
-          privilege: 'INSERT',
-        }));
-        Object.assign(
-          observed.providerInventory,
-          providerInventoryFingerprint(observed.providerInventory),
-        );
-        observed.state = {
-          ...observed.state,
-          providerGrantCount: observed.providerInventory.grants.length,
-        };
+        observed.providerInventory.grantInventorySha256 = 'f'.repeat(64);
       },
     }],
   ];
@@ -1957,6 +1949,29 @@ test('Auth reconciliation proof preserves the first existing non-drift doctor bl
       );
     });
   }
+
+  await t.test('RELEASE_PREREQUISITES_MISSING wins over a failing Auth proof', async () => {
+    const fixture = await authReconciliationFixture({
+      release: null,
+      mutateAuthConfig: authConfig => {
+        authConfig.mailer_templates_invite_content = '<h2>unapproved</h2>';
+      },
+    });
+    await assert.rejects(
+      buildAuthConfigReconciliationProof(fixture.proofOptions()),
+      error => error.code === 'RELEASE_PREREQUISITES_MISSING',
+    );
+  });
+  await t.test('PROVIDER_BASELINE_MISMATCH wins over a failing Auth proof', async () => {
+    const fixture = await authReconciliationFixture({
+      mutateBaseline: baseline => { baseline.objectInventorySha256 = 'e'.repeat(64); },
+      mutateAuthConfig: authConfig => { authConfig.jwt_exp = 7200; },
+    });
+    await assert.rejects(
+      buildAuthConfigReconciliationProof(fixture.proofOptions()),
+      error => error.code === 'PROVIDER_BASELINE_MISMATCH',
+    );
+  });
 });
 
 test('Auth reconciliation proof accepts a clean same-pair state only as an idempotent candidate', async () => {

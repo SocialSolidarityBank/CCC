@@ -941,6 +941,8 @@ export async function buildAuthConfigReconciliationProof({
     // installed journal이 없으면 기존 doctor의 고정 code를 그대로 보존한다.
     throw new PlanFailure(firstNonDriftBlocker ?? 'INSTALL_JOURNAL_INVALID');
   }
+  // drift가 아닌 기존 blocker는 Auth 증명보다 먼저 그 고정 code로 보고한다.
+  if (firstNonDriftBlocker !== undefined) throw new PlanFailure(firstNonDriftBlocker);
   const fingerprints = [];
   const installStateDigests = [];
   for (const observation of observations) {
@@ -996,7 +998,6 @@ export async function buildAuthConfigReconciliationProof({
     if (currentStateFingerprint === priorStateFingerprint) {
       throw new PlanFailure('AUTH_RECONCILE_AUTH_STATE_MISMATCH');
     }
-    if (firstNonDriftBlocker !== undefined) throw new PlanFailure(firstNonDriftBlocker);
     if (new Set(blockers).size !== AUTH_DRIFT_BLOCKER_CODES.size) {
       throw new PlanFailure('PLAN_STATE_CHANGED');
     }
