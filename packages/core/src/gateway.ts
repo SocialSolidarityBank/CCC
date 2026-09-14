@@ -18666,6 +18666,499 @@ export async function listParticipantPiiRetentionReviews(
   return rows.results.map(mapParticipantPiiRetentionReview);
 }
 
+interface PrivacyPurgeScope {
+  beneficiaryId: string;
+  lifecycleId: string;
+  supportCaseIds: string[];
+  namespaceIds: string[];
+  sourceIds: string[];
+  sessionIds: string[];
+  jobIds: string[];
+  egressIds: string[];
+  textWorkIds: string[];
+}
+
+interface PrivacyPurgeEventInput {
+  approvalId: string;
+  phase: 'intent' | 'complete';
+  actorId: string;
+  occurredAt: string;
+  previousEventDigest: string | null;
+  sequence: number;
+  scope: PrivacyPurgeScope;
+}
+
+async function privacyPurgeHead(env: Env, orgId: string): Promise<{ sequence: number; digest: string | null }> {
+  const row = await env.DB.prepare(
+    `SELECT sequence,metadata_digest FROM privacy_purge_events
+     WHERE org_id=? ORDER BY sequence DESC LIMIT 1`,
+  ).bind(orgId).first<DbRow>();
+  return row === null
+    ? { sequence: 0, digest: null }
+    : { sequence: integerValue(row.sequence) ?? 0, digest: stringValue(row.metadata_digest) };
+}
+
+async function privacyPurgeEventStatement(
+  env: Env,
+  orgId: string,
+  input: PrivacyPurgeEventInput,
+): Promise<PreparedStatement> {
+  const eventId = newId();
+  const keyVersion = activePiiKeyVersion(env);
+  const metadata = {
+    version: 1,
+    eventId,
+    orgId,
+    sequence: input.sequence,
+    approvalId: input.approvalId,
+    phase: input.phase,
+    actorId: input.actorId,
+    occurredAt: input.occurredAt,
+    beneficiaryId: input.scope.beneficiaryId,
+    lifecycleId: input.scope.lifecycleId,
+    supportCaseIds: input.scope.supportCaseIds,
+    namespaceIds: input.scope.namespaceIds,
+    sourceIds: input.scope.sourceIds,
+    previousEventDigest: input.previousEventDigest,
+    keyVersion,
+  };
+  const metadataDigest = await sha256Hex(canonicalizeJcs(metadata));
+  const scopeEnvelope = await encryptPii(env, canonicalizeJcs({
+    ...metadata,
+    metadataDigest,
+  }));
+  if (scopeEnvelope === null) throw new ConflictError('privacy purge scope encryption failed');
+  return env.DB.prepare(
+    `INSERT INTO privacy_purge_events(
+       event_id,org_id,sequence,approval_id,phase,actor_id,occurred_at,beneficiary_id,lifecycle_id,
+       support_case_ids_json,namespace_ids_json,source_ids_json,previous_event_digest,metadata_digest,
+       scope_envelope,key_version)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).bind(
+    eventId, orgId, input.sequence, input.approvalId, input.phase, input.actorId, input.occurredAt,
+    input.scope.beneficiaryId, input.scope.lifecycleId,
+    canonicalizeJcs(input.scope.supportCaseIds), canonicalizeJcs(input.scope.namespaceIds),
+    canonicalizeJcs(input.scope.sourceIds), input.previousEventDigest, metadataDigest,
+    scopeEnvelope, keyVersion,
+  );
+}
+
+async function hasPrivacyPurgeResidual(
+  env: Env,
+  orgId: string,
+  supportCaseIds: readonly string[],
+  sessionIds: readonly string[],
+): Promise<boolean> {
+  const caseMarks = supportCaseIds.map(() => '?').join(',');
+  const caseChecks = [
+    'goals',
+    'action_items',
+    'flags',
+    'counseling_schedules',
+    'ai_masked_source_snapshots',
+    'ai_work_items',
+    'session_discrepancies',
+    'recording_result_commits',
+    'pilot_text_ai_consent_evidence',
+    'goal_revisions',
+    'counseling_memory_draft_context',
+  ];
+  for (const table of caseChecks) {
+    if (await env.DB.prepare(
+      `SELECT 1 AS present FROM ${table}
+       WHERE org_id=? AND support_case_id IN (${caseMarks}) LIMIT 1`,
+    ).bind(orgId, ...supportCaseIds).first() !== null) return true;
+  }
+  if (sessionIds.length === 0) return false;
+  const sessionMarks = sessionIds.map(() => '?').join(',');
+  const sessionChecks = [
+    'session_goal_scores',
+    'ai_gas_evidence',
+    'session_life_area_snapshots',
+    'intake_record_revisions',
+  ];
+  for (const table of sessionChecks) {
+    if (await env.DB.prepare(
+      `SELECT 1 AS present FROM ${table}
+       WHERE org_id=? AND session_id IN (${sessionMarks}) LIMIT 1`,
+    ).bind(orgId, ...sessionIds).first() !== null) return true;
+  }
+  return false;
+}
+
+async function loadPrivacyPurgeScope(
+  env: Env,
+  actor: Actor,
+  beneficiaryId: string,
+  lifecycleId: string,
+): Promise<PrivacyPurgeScope> {
+  const cases = await env.DB.prepare(
+    `SELECT id,status,enc_entity_map,entity_map_revision FROM support_cases
+     WHERE org_id=? AND beneficiary_id=? ORDER BY id`,
+  ).bind(actor.orgId, beneficiaryId).all<DbRow>();
+  if (cases.results.length === 0 || cases.results.some(row => row.status !== 'closed')) {
+    throw new ConflictError('privacy purge scope ownership is ambiguous');
+  }
+  const supportCaseIds = cases.results.map(row => stringValue(row.id));
+  const caseMarks = supportCaseIds.map(() => '?').join(',');
+  const sessions = await env.DB.prepare(
+    `SELECT id FROM sessions WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+  ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>();
+  const sessionIds = sessions.results.map(row => row.id);
+
+  const audio = await env.DB.prepare(
+    `SELECT audio.id,audio.support_case_id,session.support_case_id AS session_support_case_id
+     FROM audio_objects AS audio
+     LEFT JOIN sessions AS session ON session.id=audio.session_id AND session.org_id=audio.org_id
+     WHERE audio.org_id=? AND (
+       audio.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (audio.results.some(row => (
+    row.session_support_case_id === null
+    || row.session_support_case_id !== row.support_case_id
+  ))) {
+    throw new ConflictError('privacy purge scope ownership is ambiguous');
+  }
+  if (audio.results.length > 0
+    || await hasPrivacyPurgeResidual(env, actor.orgId, supportCaseIds, sessionIds)) {
+    throw new ConflictError('privacy purge residual scope is not supported');
+  }
+
+  const textWork = await env.DB.prepare(
+    `SELECT id FROM ai_text_work_queue
+     WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+  ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>();
+  const textWorkIds = textWork.results.map(row => row.id);
+  const jobs = await env.DB.prepare(
+    `SELECT job.id,session.support_case_id AS session_support_case_id
+     FROM agent_jobs AS job
+     LEFT JOIN sessions AS session ON session.id=job.session_id AND session.org_id=job.org_id
+     WHERE job.org_id=? AND job.support_case_id IN (${caseMarks}) ORDER BY job.id`,
+  ).bind(actor.orgId, ...supportCaseIds).all<DbRow>();
+  if (jobs.results.some(row => (
+    row.session_support_case_id === null
+    || row.session_support_case_id !== undefined
+      && !supportCaseIds.includes(stringValue(row.session_support_case_id))
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const jobIds = jobs.results.map(row => stringValue(row.id));
+  if (jobIds.length > 0) {
+    const jobMarks = jobIds.map(() => '?').join(',');
+    if (await env.DB.prepare(
+      `SELECT 1 AS present FROM agent_job_result_acceptances
+       WHERE org_id=? AND job_id IN (${jobMarks}) LIMIT 1`,
+    ).bind(actor.orgId, ...jobIds).first() !== null) {
+      throw new ConflictError('privacy purge residual scope is not supported');
+    }
+  }
+  const egressSql = jobIds.length === 0
+    ? `SELECT id FROM agent_job_egress_records
+       WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`
+    : `SELECT id FROM agent_job_egress_records
+       WHERE org_id=? AND (support_case_id IN (${caseMarks})
+         OR job_id IN (${jobIds.map(() => '?').join(',')})) ORDER BY id`;
+  const egress = await env.DB.prepare(egressSql)
+    .bind(actor.orgId, ...supportCaseIds, ...jobIds).all<{ id: string }>();
+  const egressIds = egress.results.map(row => row.id);
+  const manualRevisions = sessionIds.length === 0
+    ? { results: [] as { session_id: string; revision: number }[] }
+    : await env.DB.prepare(
+      `SELECT session_id,revision FROM manual_record_revisions
+       WHERE org_id=? AND session_id IN (${sessionIds.map(() => '?').join(',')})
+       ORDER BY session_id,revision`,
+    ).bind(actor.orgId, ...sessionIds).all<{ session_id: string; revision: number }>();
+  const memorySources = await env.DB.prepare(
+    `SELECT kind,source_id,revision FROM counseling_memory_sources
+     WHERE org_id=? AND support_case_id IN (${caseMarks})
+     ORDER BY support_case_id,kind,source_id`,
+  ).bind(actor.orgId, ...supportCaseIds).all<{ kind: string; source_id: string; revision: number }>();
+  const [legacyConsents, consentEvents, consentDisclosures] = await Promise.all([
+    env.DB.prepare(
+      `SELECT id FROM participant_consent_records
+       WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+    env.DB.prepare(
+      `SELECT id FROM consent_events
+       WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+    env.DB.prepare(
+      `SELECT id FROM consent_disclosure_snapshots
+       WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+  ]);
+  const namespaceIds = cases.results
+    .filter(row => row.enc_entity_map !== null)
+    .map(row => `entity-map:${stringValue(row.id)}:${integerValue(row.entity_map_revision) ?? 0}`);
+  const sourceIds = [
+    ...sessionIds.map(id => `session:${id}`),
+    ...manualRevisions.results.map(row => `manual-record:${row.session_id}:${row.revision}`),
+    ...textWorkIds.map(id => `text-work:${id}`),
+    ...jobIds.map(id => `agent-job:${id}`),
+    ...egressIds.map(id => `egress:${id}`),
+    ...memorySources.results.map(row => `memory:${row.kind}:${row.source_id}:${row.revision}`),
+    ...legacyConsents.results.map(row => `legacy-consent:${row.id}`),
+    ...consentEvents.results.map(row => `consent-event:${row.id}`),
+    ...consentDisclosures.results.map(row => `consent-disclosure:${row.id}`),
+  ].sort();
+  return {
+    beneficiaryId,
+    lifecycleId,
+    supportCaseIds,
+    namespaceIds: namespaceIds.sort(),
+    sourceIds,
+    sessionIds,
+    jobIds,
+    egressIds,
+    textWorkIds,
+  };
+}
+
+async function appendPrivacyPurgeIntent(
+  env: Env,
+  actor: Actor,
+  current: DbRow,
+  changedAt: string,
+): Promise<{ approvalId: string; scope: PrivacyPurgeScope }> {
+  const lifecycleId = stringValue(current.archive_id);
+  const scope = await loadPrivacyPurgeScope(env, actor, stringValue(current.beneficiary_id), lifecycleId);
+  const approvalId = newId();
+  const head = await privacyPurgeHead(env, actor.orgId);
+  const intent = await privacyPurgeEventStatement(env, actor.orgId, {
+    approvalId,
+    phase: 'intent',
+    actorId: actor.userId,
+    occurredAt: changedAt,
+    previousEventDigest: head.digest,
+    sequence: head.sequence + 1,
+    scope,
+  });
+  const caseMarks = scope.supportCaseIds.map(() => '?').join(',');
+  const statements: PreparedStatement[] = [
+    env.DB.prepare('UPDATE organization_settings SET version=version WHERE org_id=?').bind(actor.orgId),
+    env.DB.prepare(
+      `INSERT INTO participant_pii_retention_decisions(
+         id,archive_id,org_id,beneficiary_id,decision,reason_kind,reason,retain_until,decided_by,decided_at)
+       VALUES(?,?,?,?,'purge',NULL,NULL,NULL,?,?)`,
+    ).bind(approvalId, lifecycleId, actor.orgId, scope.beneficiaryId, actor.userId, changedAt),
+    env.DB.prepare(
+      `UPDATE participant_pii_archives
+       SET review_status='approved',approved_by=?,approved_at=?,
+           state_changed_by=?,state_changed_by_role='admin',state_changed_at=?,updated_at=?
+       WHERE id=? AND beneficiary_id=? AND org_id=? AND review_status='pending'`,
+    ).bind(
+      actor.userId, changedAt, actor.userId, changedAt, changedAt,
+      lifecycleId, scope.beneficiaryId, actor.orgId,
+    ),
+    intent,
+    env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state='cancelled',terminal_failure_code='privacy_purged',lease_owner=NULL,
+           claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+       WHERE org_id=? AND support_case_id IN (${caseMarks})
+         AND state IN ('pending','leased','blocked')`,
+    ).bind(changedAt, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `UPDATE agent_job_egress_records SET status='revoked'
+       WHERE org_id=? AND support_case_id IN (${caseMarks})
+         AND status IN ('authorized','in_flight')`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+  ];
+  if (scope.jobIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `UPDATE agent_job_egress_records SET status='revoked'
+       WHERE org_id=? AND job_id IN (${scope.jobIds.map(() => '?').join(',')})
+         AND status IN ('authorized','in_flight')`,
+    ).bind(actor.orgId, ...scope.jobIds));
+  }
+  if (scope.textWorkIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `UPDATE ai_text_work_queue
+       SET status='pending',lease_owner=NULL,lease_expires_at=NULL
+       WHERE org_id=? AND id IN (${scope.textWorkIds.map(() => '?').join(',')})
+         AND status='processing'`,
+    ).bind(actor.orgId, ...scope.textWorkIds));
+  }
+  const results = await env.DB.batch(statements);
+  if ((results[2]?.meta?.changes ?? 0) < 1 || (results[3]?.meta?.changes ?? 0) < 1) {
+    throw new ConflictError('PII retention review is unavailable');
+  }
+  return { approvalId, scope };
+}
+
+async function resumePrivacyPurgeIntent(
+  env: Env,
+  actor: Actor,
+  current: DbRow,
+): Promise<{ approvalId: string; scope: PrivacyPurgeScope }> {
+  if (stringValue(current.approved_by) !== actor.userId) {
+    throw new ConflictError('PII retention review is unavailable');
+  }
+  const intent = await env.DB.prepare(
+    `SELECT approval_id,support_case_ids_json,namespace_ids_json,source_ids_json
+     FROM privacy_purge_events
+     WHERE org_id=? AND lifecycle_id=? AND beneficiary_id=? AND phase='intent'`,
+  ).bind(actor.orgId, stringValue(current.archive_id), stringValue(current.beneficiary_id)).first<DbRow>();
+  if (intent === null) throw new ConflictError('PII retention review is unavailable');
+  const scope = await loadPrivacyPurgeScope(
+    env, actor, stringValue(current.beneficiary_id), stringValue(current.archive_id),
+  );
+  if (
+    canonicalizeJcs(scope.supportCaseIds) !== stringValue(intent.support_case_ids_json)
+    || canonicalizeJcs(scope.namespaceIds) !== stringValue(intent.namespace_ids_json)
+    || canonicalizeJcs(scope.sourceIds) !== stringValue(intent.source_ids_json)
+  ) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  return { approvalId: stringValue(intent.approval_id), scope };
+}
+
+async function completePrivacyPurge(
+  env: Env,
+  actor: Actor,
+  current: DbRow,
+  approvalId: string,
+  scope: PrivacyPurgeScope,
+): Promise<void> {
+  const approvedAt = stringValue(current.approved_at);
+  const completedAt = now();
+  const erasedEntityMap = await encryptPii(env, canonicalizeJcs({ version: 1, entries: [] }));
+  if (erasedEntityMap === null) throw new ConflictError('privacy purge scope encryption failed');
+  const head = await privacyPurgeHead(env, actor.orgId);
+  const complete = await privacyPurgeEventStatement(env, actor.orgId, {
+    approvalId,
+    phase: 'complete',
+    actorId: actor.userId,
+    occurredAt: completedAt,
+    previousEventDigest: head.digest,
+    sequence: head.sequence + 1,
+    scope,
+  });
+  const caseMarks = scope.supportCaseIds.map(() => '?').join(',');
+  const statements: PreparedStatement[] = [
+    env.DB.prepare('UPDATE organization_settings SET version=version WHERE org_id=?').bind(actor.orgId),
+    env.DB.prepare(
+      `UPDATE participant_pii_vault
+       SET enc_name=NULL,enc_phone=NULL,enc_account=NULL,enc_email=NULL,enc_birth_date=NULL,
+           enc_region=NULL,enc_emergency_contact=NULL,enc_gender=NULL,purge_due=NULL,purged_at=?,
+           purged_by=?,purged_by_role='admin',retention_changed_by=?,
+           retention_context_support_case_id=NULL,retention_change_kind='purge_pii',
+           retention_changed_at=?,version=version+1,updated_at=?
+       WHERE beneficiary_id=? AND org_id=? AND purged_at IS NULL AND purge_due IS NOT NULL`,
+    ).bind(
+      approvedAt, actor.userId, actor.userId, approvedAt, approvedAt,
+      scope.beneficiaryId, actor.orgId,
+    ),
+    env.DB.prepare(
+      `UPDATE participant_pii_archives
+       SET enc_name=NULL,enc_phone=NULL,enc_account=NULL,enc_email=NULL,enc_birth_date=NULL,
+           enc_region=NULL,enc_emergency_contact=NULL,enc_gender=NULL,review_status='purged',
+           purged_at=?,state_changed_by=?,state_changed_by_role='admin',state_changed_at=?,updated_at=?
+       WHERE id=? AND beneficiary_id=? AND org_id=? AND review_status='approved'`,
+    ).bind(
+      approvedAt, actor.userId, approvedAt, approvedAt,
+      scope.lifecycleId, scope.beneficiaryId, actor.orgId,
+    ),
+    env.DB.prepare(
+      `UPDATE support_cases
+       SET legacy_case_id=NULL,intake_at=NULL,consent_recording_at=NULL,consent_text_ai_at=NULL,
+           extra=NULL,overall_goal=NULL,enc_entity_map=?,
+           entity_map_revision=entity_map_revision+1,entity_map_key_version=?,
+           entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+           entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL,updated_at=?
+       WHERE org_id=? AND id IN (${caseMarks}) AND beneficiary_id=? AND status='closed'`,
+    ).bind(
+      erasedEntityMap, activePiiKeyVersion(env), completedAt,
+      actor.orgId, ...scope.supportCaseIds, scope.beneficiaryId,
+    ),
+  ];
+  if (scope.egressIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `DELETE FROM agent_job_egress_records
+       WHERE org_id=? AND id IN (${scope.egressIds.map(() => '?').join(',')})`,
+    ).bind(actor.orgId, ...scope.egressIds));
+  }
+  if (scope.jobIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `DELETE FROM agent_jobs
+       WHERE org_id=? AND id IN (${scope.jobIds.map(() => '?').join(',')})`,
+    ).bind(actor.orgId, ...scope.jobIds));
+  }
+  if (scope.textWorkIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `DELETE FROM ai_text_work_queue
+       WHERE org_id=? AND id IN (${scope.textWorkIds.map(() => '?').join(',')})`,
+    ).bind(actor.orgId, ...scope.textWorkIds));
+  }
+  if (scope.sessionIds.length > 0) {
+    const sessionMarks = scope.sessionIds.map(() => '?').join(',');
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM manual_record_revisions WHERE org_id=? AND session_id IN (${sessionMarks})`,
+      ).bind(actor.orgId, ...scope.sessionIds),
+      env.DB.prepare(
+        `DELETE FROM sessions WHERE org_id=? AND id IN (${sessionMarks})`,
+      ).bind(actor.orgId, ...scope.sessionIds),
+    );
+  }
+  statements.push(
+    env.DB.prepare(
+      `DELETE FROM consent_events
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM participant_consent_records
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM consent_disclosure_snapshots
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_materials
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_links
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_history
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_items
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_corrections
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_derived
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_sources
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_cases
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM support_case_assignees
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    complete,
+  );
+  const results = await env.DB.batch(statements);
+  if ((results[1]?.meta?.changes ?? 0) < 1
+    || (results[2]?.meta?.changes ?? 0) < 1
+    || (results[3]?.meta?.changes ?? 0) < scope.supportCaseIds.length
+    || (results.at(-1)?.meta?.changes ?? 0) < 1) {
+    throw new ConflictError('privacy purge did not erase the complete scope');
+  }
+}
+
 export async function reviewParticipantPiiRetention(
   env: Env,
   actor: Actor,
@@ -18676,9 +19169,9 @@ export async function reviewParticipantPiiRetention(
   assertBeneficiaryId(beneficiaryId);
   const current = await env.DB.prepare(
     `SELECT id AS archive_id, beneficiary_id, archived_at, review_status, review_due_at,
-            retention_cap_due_at, review_reason_kind
+            retention_cap_due_at, review_reason_kind, approved_by, approved_at
      FROM participant_pii_archives
-     WHERE beneficiary_id = ? AND org_id = ? AND review_status = 'pending'`,
+     WHERE beneficiary_id = ? AND org_id = ? AND review_status IN ('pending','approved')`,
   ).bind(beneficiaryId, actor.orgId).first<DbRow>();
   if (current === null) {
     throw new ConflictError('PII retention review is unavailable');
@@ -18686,6 +19179,9 @@ export async function reviewParticipantPiiRetention(
 
   const changedAt = now();
   if (input.decision === 'retain') {
+    if (current.review_status !== 'pending') {
+      throw new ConflictError('PII retention review is unavailable');
+    }
     const reason = input.reason.trim();
     if (reason.length < 1 || reason.length > 500) {
       throw new ValidationError('retention reason is invalid');
@@ -18741,40 +19237,18 @@ export async function reviewParticipantPiiRetention(
     }
   } else {
     if (!isPiiPurgeEnabled(env)) throw new PiiPurgeDisabledError();
-    const results = await env.DB.batch([
-      env.DB.prepare(
-        `INSERT INTO participant_pii_retention_decisions (
-           id, archive_id, org_id, beneficiary_id, decision, reason_kind, reason,
-           retain_until, decided_by, decided_at
-         ) VALUES (?, ?, ?, ?, 'purge', NULL, NULL, NULL, ?, ?)`,
-      ).bind(
-        newId(),
-        stringValue(current.archive_id),
-        actor.orgId,
-        beneficiaryId,
-        actor.userId,
-        changedAt,
-      ),
-      env.DB.prepare(
-        `UPDATE participant_pii_archives
-         SET review_status = 'approved',
-             approved_by = ?, approved_at = ?,
-             state_changed_by = ?, state_changed_by_role = 'admin',
-             state_changed_at = ?, updated_at = ?
-         WHERE beneficiary_id = ? AND org_id = ? AND review_status = 'pending'`,
-      ).bind(
-        actor.userId,
-        changedAt,
-        actor.userId,
-        changedAt,
-        changedAt,
-        beneficiaryId,
-        actor.orgId,
-      ),
-    ]);
-    if ((results[1]?.meta?.changes ?? 0) < 1) {
-      throw new ConflictError('PII retention review is unavailable');
-    }
+    const prepared = current.review_status === 'pending'
+      ? await appendPrivacyPurgeIntent(env, actor, current, changedAt)
+      : await resumePrivacyPurgeIntent(env, actor, current);
+    await completePrivacyPurge(
+      env,
+      actor,
+      current.review_status === 'pending'
+        ? { ...current, approved_by: actor.userId, approved_at: changedAt }
+        : current,
+      prepared.approvalId,
+      prepared.scope,
+    );
   }
 
   const reviewed = await env.DB.prepare(
