@@ -76,9 +76,9 @@ async function sha256Hex(value: string): Promise<string> {
 /** S5 text result acceptance creates a complete persisted proof and F3 source binding. */
 async function fixture(adapter = new ProofAdapter(), reversedEvidence = false) {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
-    deploymentMode: 'local-single', sttMode: 'off', llmMode: 'openai',
+    deploymentMode: 'community-cloud', sttMode: 'off', llmMode: 'openai',
   });
-  t.env.installationMode = 'local-single';
+  t.env.installationMode = 'community-cloud';
   t.env.CCC_STT_MODE = 'off';
   t.env.CCC_LLM_MODE = 'openai';
   t.env.TEXT_AI_PILOT_ENABLED = '1';

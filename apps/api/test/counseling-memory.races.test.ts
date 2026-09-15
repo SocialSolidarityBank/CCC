@@ -3,11 +3,11 @@ import { setupD1, seedTestProgramWithRuntimeModes, testActors, testProgramId } f
 import { seedCanonicalSttConsent, seedNerQualification, claimRequest, agentResultRequest, type NerQualification } from './support/agent-jobs';
 import type { MemoryMaskJob } from '@ccc/contracts/agent-jobs';
 import worker from './support/local-worker';
-import { agentManifestEnv, AGENT_SERVICE_HEADERS, runAgentTextJobs, testMaskingPipelineRegistry } from './support/agent-jobs';
-import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
+import { agentManifestEnv, runAgentTextJobs, testMaskingPipelineRegistry } from './support/agent-jobs';
+import { runCounselingMemory, runCounselingMemoryTrial } from '@ccc/http-api/counseling-memory-runner';
 import { AI_PROVIDER_REGISTRY_VERSION, CODEX_PROVIDER_ID, CODEX_PROVIDER_ADAPTER_VERSION, canonicalAiProviderConfigHash, generatePreviewFixtureAiDraft, type AiProviderRequest, type AiProviderTestAdapter } from '@ccc/ai-runtime';
 import { activateAiProviderConfiguration, appendSupportCaseConsentEvent, beginCounselingMemoryEgress, claimCounselingMemorySources, commitCounselingMemoryWork, correctCounselingMemory, createActionItem, createCase, createManualSession, getCounselingMemory, getCounselingMemorySource, getSupportCaseConsent, issueSupportCaseConsentDisclosures, listSupportCasesForBeneficiary, loadCounselingMemoryContext, prepareCounselingMemoryWork, registerAiProviderConfiguration, resolveActionItem, acceptCounselingMemorySource, type ActionItem } from '@ccc/core/gateway';
-import { enqueueTextWorkItem, ProgramAdmissionRequiredError, releaseCounselingMemorySource } from '@ccc/core/gateway';
+import { enqueueTextWorkItem, getAgentJobSource, issueCounselingMemoryDictionary, ProgramAdmissionRequiredError, releaseCounselingMemorySource } from '@ccc/core/gateway';
 import { registrationInput } from './support/registration';
 vi.setConfig({ testTimeout: 30000 });
 const t = setupD1();
@@ -65,15 +65,18 @@ async function withdrawExternalLlm(supportCaseId: string): Promise<void> {
 function maskedFixtureText(text: string): string {
   return text.replace(/(?<![\d-])\d{2,6}-\d{2,6}-\d{2,8}(?:-\d{2,8})?(?![\d-])/gu, '[가림]');
 }
-async function maskJobs(f: MemoryFixture) {
+async function maskJobs(f: MemoryFixture): Promise<MemoryMaskJob[]> {
+  const accepted: MemoryMaskJob[] = [];
   let jobs = f.jobs;
   while (jobs.length > 0) {
     for (const job of jobs) {
       const source = await getCounselingMemorySource(t.env, service, job.jobId, job.claimToken, job.attempt);
       await acceptCounselingMemorySource(t.env, service, job.jobId, await agentResultRequest({ kind: 'text', claimToken: job.claimToken, attempt: job.attempt, maskedText: maskedFixtureText(source.text), qualification: f.qualification, checkedSource: { sourceRevision: source.sourceRevision, sourceSha256: source.sourceSha256, sourceStart: 0, sourceEnd: source.sourceLength } }));
+      accepted.push(job);
     }
     jobs = await claimCounselingMemorySources(t.env, service, claimRequest(f.qualification, 20));
   }
+  return accepted;
 }
 async function maskPending(f: MemoryFixture) {
   await t.db.prepare("UPDATE counseling_memory_cases SET not_before = '2000-01-01T00:00:00.000Z'").run();
@@ -209,27 +212,30 @@ describe('durable memory races', () => {
     const config = await registerAiProviderConfiguration(t.env, admin, { adapterId: adapter.providerId, adapterVersion: adapter.adapterVersion, configHash: await canonicalAiProviderConfigHash(adapter.config), approvalRefs: ['synthetic-memory-approval'] });
     await activateAiProviderConfiguration(t.env, admin, config.id);
     const env = await agentManifestEnv(t.env);
-    const call = (path: string, body?: unknown, claim?: MemoryMaskJob) => worker.fetch(new Request(`http://localhost${path}`, {
-      method: body === undefined ? 'GET' : 'POST',
-      headers: { ...AGENT_SERVICE_HEADERS, ...(claim ? { 'X-CCC-Job-Claim': claim.claimToken, 'X-CCC-Job-Attempt': String(claim.attempt) } : {}) },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }), env);
     await runCounselingMemory(env);
     expect(providerCalls).toBe(0);
-    const claimed = await call('/pipeline/memory/claim', claimRequest(f.qualification));
-    expect(claimed.status, await claimed.clone().text()).toBe(200);
-    const payload: { jobs: MemoryMaskJob[] } = await claimed.json();
-    expect(payload.jobs.some(job => job.sourceId === f.action.id)).toBe(true);
-    for (const job of payload.jobs) {
-      const wrongNamespace = await call(`/pipeline/jobs/${job.jobId}/source`, undefined, job);
-      expect(wrongNamespace.status).not.toBe(200);
-      const sourceResponse = await call(`/pipeline/memory/${job.jobId}/source`, undefined, job);
-      expect(sourceResponse.status).toBe(200);
-      const source: { text: string } = await sourceResponse.json();
-      const dictionary = await call(`/pipeline/memory/${job.jobId}/mask-dictionary`, { claimToken: job.claimToken, attempt: job.attempt });
-      expect(dictionary.status).toBe(200);
-      const accepted = await call(`/pipeline/memory/${job.jobId}/result`, await agentResultRequest({ kind: 'text', claimToken: job.claimToken, attempt: job.attempt, maskedText: maskedFixtureText(source.text), qualification: f.qualification }));
-      expect(accepted.status).toBe(204);
+    const jobs = await claimCounselingMemorySources(env, service, claimRequest(f.qualification));
+    expect(jobs.some(job => job.sourceId === f.action.id)).toBe(true);
+    for (const job of jobs) {
+      await expect(getAgentJobSource(env, service, job.jobId, job.claimToken, job.attempt)).rejects.toThrow();
+      const source = await getCounselingMemorySource(env, service, job.jobId, job.claimToken, job.attempt);
+      expect(await issueCounselingMemoryDictionary(env, service, job.jobId, {
+        claimToken: job.claimToken,
+        attempt: job.attempt,
+      })).toMatchObject({ jobId: job.jobId });
+      await acceptCounselingMemorySource(env, service, job.jobId, await agentResultRequest({
+        kind: 'text',
+        claimToken: job.claimToken,
+        attempt: job.attempt,
+        maskedText: maskedFixtureText(source.text),
+        qualification: f.qualification,
+        checkedSource: {
+          sourceRevision: source.sourceRevision,
+          sourceSha256: source.sourceSha256,
+          sourceStart: 0,
+          sourceEnd: source.sourceLength,
+        },
+      }));
     }
     expect((await getCounselingMemory(env, counselor, f.id)).items).toEqual([]);
     await t.db.prepare("UPDATE counseling_memory_cases SET not_before = '2000-01-01T00:00:00.000Z'").run();
@@ -241,15 +247,11 @@ describe('durable memory races', () => {
     await correctCounselingMemory(env, counselor, f.id, { itemId: view.items[0]!.id, expectedRevision: view.items[0]!.revision, body: '서류 준비를 마쳤습니다.' });
     await t.db.prepare("UPDATE counseling_memory_cases SET not_before = '2000-01-01T00:00:00.000Z'").run();
     await runCounselingMemory(env);
-    const correctionClaim = await call('/pipeline/memory/claim', claimRequest(f.qualification));
-    const correctionJobs: { jobs: MemoryMaskJob[] } = await correctionClaim.json();
-    expect(correctionJobs.jobs.some(job => job.sourceKind === 'correction')).toBe(true);
-    for (const job of correctionJobs.jobs) {
-      const response = await call(`/pipeline/memory/${job.jobId}/source`, undefined, job);
-      const source: { text: string } = await response.json();
-      const accepted = await call(`/pipeline/memory/${job.jobId}/result`, await agentResultRequest({ kind: 'text', claimToken: job.claimToken, attempt: job.attempt, maskedText: maskedFixtureText(source.text), qualification: f.qualification }));
-      expect(accepted.status).toBe(204);
-    }
+    const correctionJobs = await maskJobs({
+      ...f,
+      jobs: await claimCounselingMemorySources(env, service, claimRequest(f.qualification)),
+    });
+    expect(correctionJobs.some(job => job.sourceKind === 'correction')).toBe(true);
     await t.db.prepare("UPDATE counseling_memory_cases SET not_before = '2000-01-01T00:00:00.000Z'").run();
     const refreshed = await runCounselingMemory(env);
     const corrected = await getCounselingMemory(env, counselor, f.id);
@@ -261,12 +263,14 @@ describe('durable memory races', () => {
     const other = await fixture(true, undefined, 'c'.repeat(64));
     await maskJobs(first);
     await maskJobs(other);
+    let providerCalls = 0;
     const adapter: AiProviderTestAdapter = {
       providerId: CODEX_PROVIDER_ID, adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION, testOnly: true,
       config: { registryVersion: AI_PROVIDER_REGISTRY_VERSION, providerId: CODEX_PROVIDER_ID,
         adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION, configVersion: 'memory-scoped-trial', model: 'synthetic-only' },
       async generate() { throw new Error('Unexpected draft invocation'); },
       async updateMemory(request) {
+        providerCalls += 1;
         const material = request.materials.find(item => item.sourceKind === 'action')!;
         return { updates: [{ key: 'document', itemId: null, kind: 'fact', title: '서류',
           body: '서류 준비 예정', state: 'current',
@@ -283,13 +287,9 @@ describe('durable memory races', () => {
     await activateAiProviderConfiguration(t.env, admin, config.id);
     await t.db.prepare(`UPDATE counseling_memory_cases SET not_before=CASE WHEN support_case_id=?
       THEN '2000-01-01T00:00:00.000Z' ELSE '2001-01-01T00:00:00.000Z' END`).bind(other.id).run();
-    const response = await worker.fetch(new Request(`http://localhost/support-cases/${first.id}/memory/trial`, {
-      method: 'POST', headers: { 'content-type': 'application/json', 'X-CCC-User-Id': admin.userId,
-        'X-CCC-Org-Id': admin.orgId, 'X-CCC-Role': admin.role },
-      body: JSON.stringify({ confirmExternalAi: true }),
-    }), { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' });
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ providerMode: 'fixture', counters: { updated: 1, failed: 0 } });
+    const counters = await runCounselingMemoryTrial(t.env, admin, first.id);
+    expect(counters).toMatchObject({ updated: 1, failed: 0 });
+    expect(providerCalls).toBe(1);
     expect((await getCounselingMemory(t.env, counselor, first.id)).items.map(item => item.body)).toEqual(['서류 준비 예정']);
     expect((await getCounselingMemory(t.env, counselor, other.id)).items).toEqual([]);
   });
