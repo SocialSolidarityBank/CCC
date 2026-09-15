@@ -19,6 +19,7 @@ import {
   seedCanonicalSttConsent,
   seedNerQualification,
   sha256Hex,
+  testMaskingPipelineRegistry,
   TEXT_ONLY_RUNTIME,
 } from './support/agent-jobs';
 
@@ -33,7 +34,7 @@ async function fixture() {
   t.env.CCC_LLM_MODE = 'openai';
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   // The fixture deliberately configures one exact version/hash pair only.
-  t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
+  t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
   const beneficiary = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {
     programId: testProgramId(counselor.orgId),
   }));
@@ -141,9 +142,7 @@ describe('F4 accepted result proof persistence', () => {
     let request = f.request;
     if (mode === 'invalid-pair') {
       const result = { ...request.result, maskingPipelineHash: 'e'.repeat(64) };
-      t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({
-        'ner-mask-v1-addr-cond-dict': 'd'.repeat(64), 'other-mask-v1': 'e'.repeat(64),
-      });
+      t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
       request = {
         ...request,
         result,

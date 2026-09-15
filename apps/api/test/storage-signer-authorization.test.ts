@@ -45,7 +45,7 @@ const { counselor, service, unassignedCounselor } = testActors;
 const CLOUD_RUNTIME: AgentRuntime = {
   route: 'community-cloud-agent',
   sttEngine: 'local',
-  sttEngineId: 'qwen3-asr',
+  sttEngineId: 'azure-speech-koreacentral',
   audioDelivery: 'protected-get',
 };
 const humanActor: IdentityActor = {
@@ -77,10 +77,10 @@ let env: TestApiEnv;
 
 beforeEach(async () => {
   await t.reset();
-  env = await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'local' });
+  env = await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'azure' });
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
     deploymentMode: 'community-cloud',
-    sttMode: 'local',
+    sttMode: 'azure',
     llmMode: 'off',
   });
 });
@@ -107,8 +107,8 @@ async function pendingUpload(): Promise<{ request: StorageSignerRequest; support
   const { sessionId, supportCaseId } = await createSession();
   await recordSttReadiness(env, service, {
     schemaVersion: 1,
-    sttMode: 'local',
-    sttEngineId: 'qwen3-asr',
+    sttMode: 'azure',
+    sttEngineId: 'azure-speech-koreacentral',
     state: 'ready',
     capacity: 1,
   });

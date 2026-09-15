@@ -55,7 +55,8 @@ import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } f
 import {
   agentResultRequest,
   claimRequest,
-  LOCAL_SINGLE_RUNTIME,
+  AZURE_CLOUD_RUNTIME,
+  testMaskingPipelineRegistry,
   TEXT_ONLY_RUNTIME,
   registerFixtureRecording,
   seedCanonicalSttConsent,
@@ -71,8 +72,8 @@ const secondAgent: Actor = { userId: 'service.second@example.invalid', orgId: 'o
 async function readySecondAgent(): Promise<void> {
   await recordSttReadiness(t.env, secondAgent, {
     schemaVersion: 1,
-    sttMode: 'local',
-    sttEngineId: 'qwen3-asr',
+    sttMode: 'azure',
+    sttEngineId: 'azure-speech-koreacentral',
     state: 'ready',
     capacity: 1,
   });
@@ -85,8 +86,8 @@ beforeEach(async () => {
 });
 
 async function fixtureSupportCase(): Promise<{ caseId: string; supportCaseId: string }> {
-  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, { sttMode: 'local', llmMode: 'openai' });
-  t.env.CCC_STT_MODE = 'local';
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, { sttMode: 'azure', llmMode: 'openai' });
+  t.env.CCC_STT_MODE = 'azure';
   t.env.CCC_LLM_MODE = 'openai';
   // 등록이 남긴 6종 동의 이벤트가 텍스트 AI 권한의 유일한 근거다(파일럿 증빙 기록기는 폐지).
   const beneficiary = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {
@@ -96,7 +97,7 @@ async function fixtureSupportCase(): Promise<{ caseId: string; supportCaseId: st
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected an initial support case');
   t.env.TEXT_AI_PILOT_ENABLED = '1';
-  t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
+  t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
   return { caseId: beneficiary.id, supportCaseId };
 }
 
@@ -248,8 +249,8 @@ describe('S5 Agent 작업 계약 v2', () => {
 
     // 두 Agent 가 동시에 claim 한다 — 순차 호출이면 "중복 임대 없음" 을 증명하지 못한다.
     const [first, second] = await Promise.all([
-      claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification)),
-      claimAgentJobs(t.env, secondAgent, LOCAL_SINGLE_RUNTIME, claimRequest(qualification)),
+      claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification)),
+      claimAgentJobs(t.env, secondAgent, AZURE_CLOUD_RUNTIME, claimRequest(qualification)),
     ]);
 
     expect(first.schemaVersion).toBe(2);
@@ -294,7 +295,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const { supportCaseId } = await fixtureSupportCase();
     const sessionId = await fixtureTextJob(supportCaseId);
     const qualification = await seedNerQualification(t.db);
-    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    const [claimed] = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
     if (claimed === undefined) throw new Error('expected a claimed job');
 
     // 임대를 곧 만료로 당긴 뒤 heartbeat 가 실제로 연장하는지 본다. "미래인가" 만 보면
@@ -320,7 +321,7 @@ describe('S5 Agent 작업 계약 v2', () => {
       .rejects.toMatchObject({ code: 'lease_expired' });
 
     // 다른 Agent 의 claim 이 복구와 재임대를 끝내면 옛 토큰은 stale_claim 이다.
-    const [reclaimed] = (await claimAgentJobs(t.env, secondAgent, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    const [reclaimed] = (await claimAgentJobs(t.env, secondAgent, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
     expect(reclaimed?.attempt).toBe(2);
     await expect(heartbeatAgentJob(t.env, service, claimed.jobId, { claimToken: claimed.claimToken, attempt: 1 }))
       .rejects.toMatchObject({ code: 'stale_claim' });
@@ -338,7 +339,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const { supportCaseId } = await fixtureSupportCase();
     const sessionId = await fixtureTextJob(supportCaseId);
     const qualification = await seedNerQualification(t.db);
-    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    const [claimed] = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
     if (claimed === undefined) throw new Error('expected a claimed job');
 
     await withdrawConsent(supportCaseId, 'external_llm_cross_border_processing');
@@ -360,7 +361,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const { supportCaseId } = await fixtureSupportCase();
     const sessionId = await fixtureTextJob(supportCaseId);
     const qualification = await seedNerQualification(t.db);
-    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    const [claimed] = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
     if (claimed === undefined) throw new Error('expected a claimed job');
 
     const source = await getAgentJobSource(t.env, service, claimed.jobId, claimed.claimToken, claimed.attempt);
@@ -410,7 +411,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const qualification = await seedNerQualification(t.db);
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
-      const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+      const [claimed] = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
       if (claimed === undefined) throw new Error(`expected a claim on attempt ${attempt}`);
       expect(claimed.attempt).toBe(attempt);
       await releaseAgentJob(t.env, service, claimed.jobId, {
@@ -427,7 +428,7 @@ describe('S5 Agent 작업 계약 v2', () => {
       terminal_failure_code: 'retry_exhausted',
     });
     // 4회째 claim 은 없다.
-    await expect(claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification)))
+    await expect(claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification)))
       .resolves.toMatchObject({ jobs: [] });
   });
 
@@ -435,7 +436,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const { supportCaseId } = await fixtureSupportCase();
     const sessionId = await fixtureTextJob(supportCaseId);
     const qualification = await seedNerQualification(t.db);
-    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    const [claimed] = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
     if (claimed === undefined) throw new Error('expected a claimed job');
     const row = await jobRow(sessionId);
 
@@ -461,7 +462,7 @@ describe('S5 Agent 작업 계약 v2', () => {
 
     // transient 두 번으로 attempt 를 3까지 올리고 마지막 claim 을 blocked 로 닫는다.
     for (let attempt = 1; attempt <= 3; attempt += 1) {
-      const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+      const [claimed] = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
       if (claimed === undefined) throw new Error(`expected a claim on attempt ${attempt}`);
       await releaseAgentJob(t.env, service, claimed.jobId, {
         claimToken: claimed.claimToken,
@@ -474,7 +475,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     expect(await jobRow(sessionId)).toMatchObject({ state: 'blocked', attempt: 3 });
 
     // blocked 는 attempt 를 소모하지 않으므로 상한에 걸려 굶으면 안 된다.
-    const resumed = await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification));
+    const resumed = await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification));
     expect(resumed.jobs.map((job) => job.attempt)).toEqual([3]);
     expect(await jobRow(sessionId)).toMatchObject({ state: 'leased', attempt: 3 });
   });
@@ -484,12 +485,12 @@ describe('S5 Agent 작업 계약 v2', () => {
     const sessionId = await fixtureTextJob(supportCaseId);
     const expired = await seedNerQualification(t.db, { expiresAt: '2000-01-01T00:00:00.000Z' });
 
-    await expect(claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(expired)))
+    await expect(claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(expired)))
       .rejects.toMatchObject({ code: 'local_ner_unavailable' });
     expect(await jobRow(sessionId)).toMatchObject({ state: 'pending', attempt: 0 });
 
     const qualification = await seedNerQualification(t.db);
-    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    const [claimed] = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
     if (claimed === undefined) throw new Error('expected a claimed job');
     await releaseAgentJob(t.env, service, claimed.jobId, {
       claimToken: claimed.claimToken,
@@ -500,7 +501,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     expect(await jobRow(sessionId)).toMatchObject({ state: 'blocked', attempt: 1, lease_owner: null });
 
     // 회복 뒤 재임대는 attempt 를 올리지 않는다.
-    const [resumed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    const [resumed] = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
     expect(resumed?.attempt).toBe(1);
     expect(await jobRow(sessionId)).toMatchObject({ state: 'leased', attempt: 1 });
   });
@@ -509,7 +510,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const { supportCaseId } = await fixtureSupportCase();
     const sessionId = await fixtureTextJob(supportCaseId);
     const qualification = await seedNerQualification(t.db);
-    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    const [claimed] = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
     if (claimed === undefined) throw new Error('expected a claimed job');
 
     // 처리 중 attestation 이 만료된 상황 — claim 시점 통과만으로는 결과를 받을 수 없다.
@@ -536,7 +537,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     });
     // 자격이 회복되면 같은 attempt 로 다시 임대된다.
     const revived = await seedNerQualification(t.db);
-    const { jobs: resumed } = await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(revived));
+    const { jobs: resumed } = await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(revived));
     expect(resumed.map((job) => job.attempt)).toEqual([1]);
   });
 
@@ -544,7 +545,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const { supportCaseId } = await fixtureSupportCase();
     const sessionId = await fixtureTextJob(supportCaseId);
     const qualification = await seedNerQualification(t.db);
-    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    const [claimed] = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
     if (claimed === undefined) throw new Error('expected a claimed job');
 
     const request = await agentResultRequest({
@@ -568,7 +569,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const { supportCaseId } = await fixtureSupportCase();
     await fixtureTextJob(supportCaseId);
     const qualification = await seedNerQualification(t.db);
-    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    const [claimed] = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification))).jobs;
     if (claimed === undefined) throw new Error('expected a claimed job');
 
     const credentials = { claimToken: claimed.claimToken, attempt: 1 };
@@ -595,13 +596,13 @@ describe('S5 Agent 작업 계약 v2', () => {
       counselor,
       service,
       mismatchSession,
-      LOCAL_SINGLE_RUNTIME,
+      AZURE_CLOUD_RUNTIME,
       `audio/${mismatchSession}/${crypto.randomUUID()}`,
       { clientAssertedSha256: 'f'.repeat(64), storageSha256: null },
     );
     const qualification = await seedNerQualification(t.db);
     const [mismatchClaim] = (await claimAgentJobs(
-      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
     )).jobs;
     if (mismatchClaim === undefined || mismatchClaim.audio === null) throw new Error('expected audio claim');
     expect(mismatchClaim.audio.clientAssertedSha256).toBe('f'.repeat(64));
@@ -628,12 +629,12 @@ describe('S5 Agent 작업 계약 v2', () => {
       counselor,
       service,
       successSession,
-      LOCAL_SINGLE_RUNTIME,
+      AZURE_CLOUD_RUNTIME,
       `audio/${successSession}/${crypto.randomUUID()}`,
       { storageSha256: null },
     );
     const [successClaim] = (await claimAgentJobs(
-      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
     )).jobs;
     if (successClaim === undefined) throw new Error('expected second audio claim');
     await expect(verifyAgentJobAudio(t.env, service, successClaim.jobId, {
@@ -657,7 +658,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const qualification = await seedNerQualification(t.db);
     await readySecondAgent();
     const [first] = (await claimAgentJobs(
-      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
     )).jobs;
     if (first === undefined) throw new Error('expected first audio claim');
     let replacement: { jobId: string; claimToken: string; attempt: number } | undefined;
@@ -675,7 +676,7 @@ describe('S5 Agent 작업 계약 v2', () => {
                 reason: 'engine_unavailable',
               });
               [replacement] = (await claimAgentJobs(
-                t.env, secondAgent, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+                t.env, secondAgent, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
               )).jobs;
             }
             return target.batch(statements);
@@ -714,7 +715,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const qualification = await seedNerQualification(t.db);
     await readySecondAgent();
     const [first] = (await claimAgentJobs(
-      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
     )).jobs;
     if (first === undefined || first.audio === null) throw new Error('expected first audio claim');
     await releaseAgentJob(t.env, service, first.jobId, {
@@ -730,7 +731,7 @@ describe('S5 Agent 작업 계약 v2', () => {
       "UPDATE audio_objects SET processing_deadline_at='2098-01-01T03:04:05.000Z' WHERE session_id=?",
     ).bind(sessionId).run();
     const [second] = (await claimAgentJobs(
-      t.env, secondAgent, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      t.env, secondAgent, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
     )).jobs;
     expect(second?.audio?.processingDeadlineAt).toBe('2098-01-01T03:04:05.000Z');
     await expect(t.db.prepare(
@@ -746,7 +747,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const audio = await registerFixtureRecording(t.env, counselor, service, sessionId);
     const qualification = await seedNerQualification(t.db);
     const [claimed] = (await claimAgentJobs(
-      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
     )).jobs;
     if (claimed === undefined) throw new Error('expected audio claim');
     await verifyAgentJobAudio(t.env, service, claimed.jobId, {
@@ -793,7 +794,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     for (const close of ['release', 'missing'] as const) {
       const sessionId = await fixtureAudioJob(supportCaseId);
       const [claimed] = (await claimAgentJobs(
-        t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+        t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
       )).jobs;
       if (claimed === undefined) throw new Error('expected audio claim');
       if (close === 'release') {
@@ -992,12 +993,12 @@ describe('S5 Agent 작업 계약 v2', () => {
     await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
     await recordSttReadiness(t.env, service, {
       schemaVersion: 1,
-      sttMode: 'local',
-      sttEngineId: 'qwen3-asr',
+      sttMode: 'azure',
+      sttEngineId: 'azure-speech-koreacentral',
       state: 'ready',
       capacity: 1,
     });
-    const admission = await admitRecordingUpload(t.env, counselor, sessionId, LOCAL_SINGLE_RUNTIME);
+    const admission = await admitRecordingUpload(t.env, counselor, sessionId, AZURE_CLOUD_RUNTIME);
     const uploadExpiresAt = new Date(Date.now() + 2 * 60 * 60_000).toISOString();
     const intent = await beginRecordingUploadIntent(
       t.env, counselor, sessionId, admission, 'protected-get', {
@@ -1022,7 +1023,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     ).bind(new Date(Date.now() - 1000).toISOString(), intent.audioObjectId).run();
     const qualification = await seedNerQualification(t.db);
     const [winner] = (await claimAgentJobs(
-      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
     )).jobs;
     if (winner === undefined) throw new Error('expected completion winner claim');
 
@@ -1104,7 +1105,7 @@ describe('S5 Agent 작업 계약 v2', () => {
 
     const successfulSession = await fixtureAudioJob(supportCaseId);
     const [successfulClaim] = (await claimAgentJobs(
-      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
     )).jobs;
     if (successfulClaim === undefined) throw new Error('expected signed-target claim');
     const successfulMint = await beginAgentJobAudioTargetMint(
@@ -1137,7 +1138,7 @@ describe('S5 Agent 작업 계약 v2', () => {
 
     const losingSession = await fixtureAudioJob(supportCaseId);
     const [losingClaim] = (await claimAgentJobs(
-      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
     )).jobs;
     if (losingClaim === undefined) throw new Error('expected losing signed-target claim');
     const losingMint = await beginAgentJobAudioTargetMint(
@@ -1181,7 +1182,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const sessionId = await fixtureAudioJob(supportCaseId);
     const qualification = await seedNerQualification(t.db);
     const [claimed] = (await claimAgentJobs(
-      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
     )).jobs;
     if (claimed === undefined) throw new Error('expected audio claim');
     await releaseAgentJob(t.env, service, claimed.jobId, {
@@ -1252,7 +1253,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     await registerFixtureRecording(t.env, counselor, service, secondSession);
     const qualification = await seedNerQualification(t.db);
     const result = await claimAgentJobs(
-      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(qualification),
     );
     expect(result.jobs).toHaveLength(1);
     expect(result.jobs[0]).toMatchObject({ kind: 'audio', sessionId: secondSession });
@@ -1310,12 +1311,12 @@ describe('S5 Agent 작업 계약 v2', () => {
     await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
     await recordSttReadiness(t.env, service, {
       schemaVersion: 1,
-      sttMode: 'local',
-      sttEngineId: 'qwen3-asr',
+      sttMode: 'azure',
+      sttEngineId: 'azure-speech-koreacentral',
       state: 'ready',
       capacity: 1,
     });
-    const admission = await admitRecordingUpload(t.env, counselor, sessionId, LOCAL_SINGLE_RUNTIME);
+    const admission = await admitRecordingUpload(t.env, counselor, sessionId, AZURE_CLOUD_RUNTIME);
     const uploadExpiresAt = new Date(Date.now() + 60_000).toISOString();
     const intent = await beginRecordingUploadIntent(
       t.env, counselor, sessionId, admission, 'protected-get', {
@@ -1366,13 +1367,13 @@ describe('S5 Agent 작업 계약 v2', () => {
     await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
     await recordSttReadiness(t.env, service, {
       schemaVersion: 1,
-      sttMode: 'local',
-      sttEngineId: 'qwen3-asr',
+      sttMode: 'azure',
+      sttEngineId: 'azure-speech-koreacentral',
       state: 'ready',
       capacity: 1,
     });
     const admission = await admitRecordingUpload(
-      t.env, counselor, sessionId, LOCAL_SINGLE_RUNTIME,
+      t.env, counselor, sessionId, AZURE_CLOUD_RUNTIME,
     );
     const uploadExpiresAt = new Date(Date.now() + 60_000).toISOString();
     const intent = await beginRecordingUploadIntent(
@@ -1544,9 +1545,9 @@ describe('S5 Agent 작업 계약 v2', () => {
 
   it('사람 역할은 claim endpoint를 쓸 수 없다', async () => {
     const qualification = await seedNerQualification(t.db);
-    await expect(claimAgentJobs(t.env, counselor, LOCAL_SINGLE_RUNTIME, claimRequest(qualification)))
+    await expect(claimAgentJobs(t.env, counselor, AZURE_CLOUD_RUNTIME, claimRequest(qualification)))
       .rejects.toMatchObject({ code: 'forbidden' });
-    await expect(claimAgentJobs(t.env, testActors.admin, LOCAL_SINGLE_RUNTIME, claimRequest(qualification)))
+    await expect(claimAgentJobs(t.env, testActors.admin, AZURE_CLOUD_RUNTIME, claimRequest(qualification)))
       .rejects.toMatchObject({ code: 'forbidden' });
   });
 });

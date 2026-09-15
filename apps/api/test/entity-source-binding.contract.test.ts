@@ -10,19 +10,19 @@ import {
 import type { EntityRegistrationRequest } from '@ccc/contracts/entity-registration';
 import { setupD1, seedTestProgramWithRuntimeModes, testActors, testProgramId } from './support/d1';
 import { registrationInput } from './support/registration';
-import { claimRequest, seedCanonicalSttConsent, seedNerQualification, sha256Hex, TEXT_ONLY_RUNTIME, LOCAL_SINGLE_RUNTIME, registerFixtureRecording } from './support/agent-jobs';
+import { claimRequest, seedCanonicalSttConsent, seedNerQualification, sha256Hex, testMaskingPipelineRegistry, TEXT_ONLY_RUNTIME, AZURE_CLOUD_RUNTIME, registerFixtureRecording } from './support/agent-jobs';
 
 const t = setupD1();
 const { counselor, service } = testActors;
 const heldAt = '2026-09-01T15:30:00.000Z';
 beforeEach(async () => { await t.reset(); });
 
-async function fixture(memo = '가상타인과 상담했습니다.', sttMode: 'off' | 'local' = 'off') {
+async function fixture(memo = '가상타인과 상담했습니다.', sttMode: 'off' | 'local' | 'azure' = 'off') {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, { sttMode, llmMode: 'openai' });
   t.env.CCC_STT_MODE = sttMode;
   t.env.CCC_LLM_MODE = 'openai';
   t.env.TEXT_AI_PILOT_ENABLED = '1';
-  t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
+  t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
   const participant = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {
     programId: testProgramId(counselor.orgId), name: '가상본인',
   }));
@@ -102,9 +102,9 @@ print(json.dumps(_build_entity_registration_request(payload['job'], text, payloa
   });
 
   it('binds the original audio date and hash only after verified processing begins', async () => {
-    const f = await fixture(undefined, 'local');
-    const audio = await registerFixtureRecording(t.env, counselor, service, f.sessionId, LOCAL_SINGLE_RUNTIME);
-    const job = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(f.qualification))).jobs.find(item => item.kind === 'audio')!;
+    const f = await fixture(undefined, 'azure');
+    const audio = await registerFixtureRecording(t.env, counselor, service, f.sessionId, AZURE_CLOUD_RUNTIME);
+    const job = (await claimAgentJobs(t.env, service, AZURE_CLOUD_RUNTIME, claimRequest(f.qualification))).jobs.find(item => item.kind === 'audio')!;
     await expect(getAgentJobSource(t.env, service, job.jobId, job.claimToken, job.attempt)).rejects.toMatchObject({ code: 'stale_claim' });
     await verifyAgentJobAudio(t.env, service, job.jobId, {
       claimToken: job.claimToken, attempt: job.attempt,

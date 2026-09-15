@@ -15,7 +15,7 @@ import type { AgentJob, CheckedTextSource, NerAttestation, ResultRequest, Source
 import type { DeploymentMode } from '@ccc/contracts/runtime';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import worker from './local-worker';
-import { createTestSigner, signedManifest, SYNTHETIC_LOCAL_REGISTRY } from './install-manifest';
+import { createTestSigner, signedManifest, SYNTHETIC_AZURE_REGISTRY, SYNTHETIC_LOCAL_REGISTRY } from './install-manifest';
 
 const TEST_MASKING_PIPELINE_MANIFEST = {
   schemaVersion: 2,
@@ -41,12 +41,30 @@ const TEST_MASKING_PIPELINE_MANIFEST = {
 async function testMaskingPipelineHash(): Promise<string> {
   return sha256Hex(canonicalizeJcs(TEST_MASKING_PIPELINE_MANIFEST));
 }
+
+/** schemaVersion 1 registry JSON — claim/result 경로가 요구하는 활성 manifest 등록 형태. */
+export async function testMaskingPipelineRegistry(): Promise<string> {
+  const maskingPipelineHash = await testMaskingPipelineHash();
+  return JSON.stringify({
+    schemaVersion: 1,
+    activeMaskingPipelineVersion: TEST_MASKING_PIPELINE_MANIFEST.maskingPipelineVersion,
+    pipelines: [{ ...TEST_MASKING_PIPELINE_MANIFEST, maskingPipelineHash }],
+  });
+}
 /** Local 두 모드의 런타임. Community Cloud 는 modes 테스트가 따로 만든다. */
 export const LOCAL_SINGLE_RUNTIME: AgentRuntime = {
   route: 'local-single-agent',
   sttEngine: 'local',
   sttEngineId: 'qwen3-asr',
   audioDelivery: 'api-stream',
+};
+
+/** Azure 승인 엔진 런타임 — resolveAgentRuntime 이 내는 것과 같은 protected-get 전달. */
+export const AZURE_CLOUD_RUNTIME: AgentRuntime = {
+  route: 'community-cloud-agent',
+  sttEngine: 'azure',
+  sttEngineId: 'azure-speech-koreacentral',
+  audioDelivery: 'protected-get',
 };
 
 /**
@@ -129,7 +147,7 @@ export async function registerFixtureRecording(
   actor: Actor,
   service: Actor,
   sessionId: string,
-  runtime: AgentRuntime = LOCAL_SINGLE_RUNTIME,
+  runtime: AgentRuntime = AZURE_CLOUD_RUNTIME,
   key = `audio/${sessionId}/${crypto.randomUUID()}`,
   overrides: { clientAssertedSha256?: string | null; storageSha256?: string | null } = {},
 ): Promise<{ key: string; sha256: string; generationId: string }> {
@@ -292,20 +310,16 @@ export async function agentResultRequest(options: AgentResultOptions): Promise<R
  */
 export async function agentManifestEnv<T extends ApiEnv>(
   env: T,
-  options: { mode?: DeploymentMode; stt?: 'off' | 'local' } = {},
+  options: { mode?: DeploymentMode; stt?: 'off' | 'local' | 'azure' } = {},
 ): Promise<T> {
   const signer = await createTestSigner();
-  const manifest = await signedManifest(signer, options.mode ?? 'local-single', {
-    approvedSttEngineIds: SYNTHETIC_LOCAL_REGISTRY,
+  // verifiedInstallManifest 는 community-cloud manifest 만 받는다 — 기본을 그에 맞춘다.
+  const manifest = await signedManifest(signer, options.mode ?? 'community-cloud', {
+    approvedSttEngineIds: options.stt === 'azure' ? SYNTHETIC_AZURE_REGISTRY : SYNTHETIC_LOCAL_REGISTRY,
   });
-  const maskingPipelineHash = await testMaskingPipelineHash();
   return {
     ...env,
-    MEMORY_MASKING_PIPELINES: JSON.stringify({
-      schemaVersion: 1,
-      activeMaskingPipelineVersion: TEST_MASKING_PIPELINE_MANIFEST.maskingPipelineVersion,
-      pipelines: [{ ...TEST_MASKING_PIPELINE_MANIFEST, maskingPipelineHash }],
-    }),
+    MEMORY_MASKING_PIPELINES: await testMaskingPipelineRegistry(),
     CCC_INSTALL_MANIFEST: JSON.stringify(manifest),
     CCC_INSTALL_SIGNING_KEYS: JSON.stringify(signer.publicKeys),
     CCC_STT_MODE: options.stt ?? 'off',

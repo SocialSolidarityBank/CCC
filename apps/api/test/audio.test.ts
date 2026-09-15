@@ -23,7 +23,7 @@ import { setupD1, seedTestProgramWithRuntimeModes, testActors, testProgramId, ty
 import {
   agentManifestEnv,
   claimOverHttp,
-  LOCAL_SINGLE_RUNTIME,
+  AZURE_CLOUD_RUNTIME,
   registerFixtureRecording,
   seedCanonicalSttConsent,
 } from './support/agent-jobs';
@@ -88,17 +88,31 @@ const t = setupD1();
 let configuredEnv: TestApiEnv;
 beforeAll(async () => {
   await t.reset();
-  configuredEnv = await agentManifestEnv(t.env, { stt: 'local' });
+  configuredEnv = await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'azure' });
 });
 
 function localEnv(): TestApiEnv {
   Object.assign(configuredEnv, t.env);
+  // protected-get 전달은 서명 URL 흉내가 필요하다 — R2 스토어는 target 을 못 만들어
+  // key 를 URL 에 싣는 최소 래퍼를 얹는다. 바이트는 여전히 R2 에 실제로 쓴다.
+  const inner = configuredEnv.audioStore;
+  configuredEnv.audioStore = {
+    ...inner,
+    createUploadTarget: async (key: string) => ({
+      url: `https://storage.test/upload/${encodeURIComponent(key)}`,
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    }),
+    createDownloadTarget: async (key: string) => ({
+      url: `https://storage.test/get/${encodeURIComponent(key)}`,
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    }),
+  };
   return configuredEnv;
 }
 
 async function makeInPersonSession(consent: boolean) {
-  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, { sttMode: 'local', llmMode: 'off' });
-  t.env.CCC_STT_MODE = 'local';
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, { sttMode: 'azure', llmMode: 'off' });
+  t.env.CCC_STT_MODE = 'azure';
   t.env.CCC_LLM_MODE = 'off';
   // 녹음 권한의 유일한 근거는 등록 6종 동의다 — 미동의 경로는 녹음·STT·국외·보유기간을 decline 으로 남긴다.
   const caseRecord = await createCase(t.env, counselor, await registrationInput(
@@ -121,8 +135,8 @@ async function makeInPersonSession(consent: boolean) {
   });
   await recordSttReadiness(localEnv(), service, {
     schemaVersion: 1,
-    sttMode: 'local',
-    sttEngineId: 'qwen3-asr',
+    sttMode: 'azure',
+    sttEngineId: 'azure-speech-koreacentral',
     state: 'ready',
     capacity: 1,
   });
@@ -137,6 +151,11 @@ async function makeInPersonSession(consent: boolean) {
   return { caseRecord, session };
 }
 
+/**
+ * 원음 업로드는 protected-get 계약이다 — 서버가 서명 URL 을 발급하고 클라이언트가
+ * 저장소에 직접 올린 뒤 complete 를 친다. 테스트는 발급된 key 에 바이트를 직접 써서
+ * 클라이언트 PUT 을 흉내낸다.
+ */
 async function putAudio(
   sessionId: string,
   env: ApiEnv,
@@ -144,19 +163,28 @@ async function putAudio(
   body: BodyInit = AUDIO_BYTES,
 ) {
   const requestHeaders = new Headers(headers);
-  if (!requestHeaders.has('content-length') && body instanceof Uint8Array) {
-    requestHeaders.set('content-length', String(body.byteLength));
-  }
-  const response = await worker.fetch(new Request('http://localhost/sessions/' + sessionId + '/audio', {
-    method: 'PUT',
-    headers: requestHeaders,
-    body,
+  const contentType = requestHeaders.get('content-type') ?? 'audio/mpeg';
+  const contentLength = body instanceof Uint8Array ? body.byteLength : AUDIO_BYTES.byteLength;
+  const minted = await worker.fetch(new Request(`http://localhost/sessions/${sessionId}/audio-upload-target`, {
+    method: 'POST',
+    headers: { ...Object.fromEntries(requestHeaders.entries()), 'content-type': 'application/json' },
+    body: JSON.stringify({ contentLength, contentType, clientAssertedSha256: null }),
   }), env);
-  if (response.status === 200) {
+  if (minted.status !== 201) return minted;
+  const target = await minted.json() as { audioObjectId: string; url: string };
+  const key = decodeURIComponent(target.url.split('/upload/')[1] ?? '');
+  await env.audioStore!.put(key, new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(body instanceof Uint8Array ? body : AUDIO_BYTES); controller.close(); },
+  }), { contentLength, contentType, expiresAt: new Date(Date.now() + 60_000).toISOString() });
+  const completed = await worker.fetch(new Request(
+    `http://localhost/sessions/${sessionId}/audio-upload-target/${target.audioObjectId}/complete`,
+    { method: 'POST', headers: { ...Object.fromEntries(requestHeaders.entries()), 'content-type': 'application/json' }, body: '{}' },
+  ), env);
+  if (completed.status === 200) {
     await env.DB.prepare('UPDATE audio_objects SET eligible_after=? WHERE session_id=?')
       .bind(new Date(Date.now() - 1000).toISOString(), sessionId).run();
   }
-  return response;
+  return completed;
 }
 
 async function bucketCount(): Promise<number> {
@@ -190,7 +218,7 @@ async function relayAudio(
   sessionId: string,
   headers: Record<string, string> | null = serviceHeaders,
 ): Promise<{ response: Response; jobId: string }> {
-  const agentEnv = await agentManifestEnv(env, { stt: 'local' });
+  const agentEnv = await agentManifestEnv(env, { mode: 'community-cloud', stt: 'azure' });
   const { jobs } = await claimOverHttp(agentEnv, t.db, {
     'content-type': 'application/json',
     'X-CCC-User-Id': service.userId,
@@ -206,6 +234,16 @@ async function relayAudio(
     });
   const response = await worker.fetch(request, agentEnv);
   return { response, jobId: job.jobId };
+}
+
+/** signed-get 응답의 URL 에 실린 key 로 저장소에서 바이트를 읽는다 — provider GET 흉내. */
+async function fetchSignedBytes(env: ApiEnv, response: Response): Promise<Uint8Array> {
+  const body = await response.json() as { delivery: string; url: string };
+  expect(body.delivery).toBe('signed-get');
+  const key = decodeURIComponent(body.url.split('/get/')[1] ?? '');
+  const object = await env.audioStore!.get(key);
+  if (object === null) throw new Error('signed key missing from store');
+  return new Uint8Array(await new Response(object.body).arrayBuffer());
 }
 
 async function expectDeniedAudioRequest(
@@ -244,7 +282,7 @@ describe('audio upload and relay', () => {
     await t.reset();
     const env = localEnv();
     const { session } = await makeInPersonSession(true);
-    const putFailure = vi.spyOn(env.audioStore, 'put')
+    const putFailure = vi.spyOn(env.audioStore, 'createUploadTarget')
       .mockRejectedValueOnce(new Error('synthetic storage failure'));
 
     const response = await putAudio(session.id, env);
@@ -255,8 +293,8 @@ describe('audio upload and relay', () => {
        WHERE org_id=? AND session_id=?`,
     ).bind(counselor.orgId, session.id).all()).resolves.toMatchObject({
       results: [{
-        state: 'upload_abandoned',
-        deletion_reason: 'rejected_upload',
+        state: 'deletion_pending',
+        deletion_reason: 'upload_abandoned',
       }],
     });
     expect(await bucketCount()).toBe(0);
@@ -271,7 +309,7 @@ describe('audio upload and relay', () => {
       'SELECT support_case_id FROM sessions WHERE id=? AND org_id=?',
     ).bind(session.id, counselor.orgId).first<{ support_case_id: string }>();
     if (scope === null) throw new Error('expected support case scope');
-    const admission = await admitRecordingUpload(env, counselor, session.id, LOCAL_SINGLE_RUNTIME);
+    const admission = await admitRecordingUpload(env, counselor, session.id, AZURE_CLOUD_RUNTIME);
     const uploadExpiresAt = new Date(Date.now() + 60_000).toISOString();
     const intent = await beginRecordingUploadIntent(
       env, counselor, session.id, admission, 'api-stream', {
@@ -378,9 +416,8 @@ describe('audio upload and relay', () => {
 
     const { response: download } = await relayAudio(env, session.id);
     expect(download.status).toBe(200);
-    expect(download.headers.get('content-type')).toBe('audio/mpeg');
-    // 원본 보존 — 바이트 단위로 같아야 보관함이 손을 대지 않은 증거다(CCC-94).
-    expect(Array.from(new Uint8Array(await download.arrayBuffer()))).toEqual(Array.from(AUDIO_BYTES));
+    // 원본 보존 — 서명 URL 이 가리키는 저장소 바이트가 같아야 보관함이 손을 대지 않은 증거다(CCC-94).
+    expect(Array.from(await fetchSignedBytes(env, download))).toEqual(Array.from(AUDIO_BYTES));
     // 열람(다운로드)은 감사에 남는다(D14).
     await expect(downloadAuditCount(session.id)).resolves.toBeGreaterThan(0);
     // 프리뷰 보관함만 쓴다 — 프로덕션 바인딩은 프리뷰 환경에 없다(운영 D1·R2 변경 0).
@@ -397,12 +434,12 @@ describe('audio upload and relay', () => {
     await seedCanonicalSttConsent(t.env, counselor, scope.support_case_id);
     await recordSttReadiness(t.env, service, {
       schemaVersion: 1,
-      sttMode: 'local',
-      sttEngineId: 'qwen3-asr',
+      sttMode: 'azure',
+      sttEngineId: 'azure-speech-koreacentral',
       state: 'ready',
       capacity: 1,
     });
-    const admission = await admitRecordingUpload(t.env, counselor, session.id, LOCAL_SINGLE_RUNTIME);
+    const admission = await admitRecordingUpload(t.env, counselor, session.id, AZURE_CLOUD_RUNTIME);
     let intercepted = false;
     const raceDb = new Proxy(t.env.DB, {
       get(target, property, receiver) {
@@ -567,9 +604,8 @@ describe('audio upload and relay', () => {
 
     const { response: relay } = await relayAudio(env, session.id);
     expect(relay.status).toBe(200);
-    expect(relay.headers.get('content-type')).toBe('audio/mpeg');
     expect(relay.headers.get('cache-control')).toBe('no-store');
-    const bytes = new Uint8Array(await relay.arrayBuffer());
+    const bytes = await fetchSignedBytes(env, relay);
     expect([...bytes]).toEqual([...AUDIO_BYTES]);
 
     expect(await downloadAuditCount(session.id)).toBe(1);
@@ -648,10 +684,25 @@ describe('audio upload and relay', () => {
     const env = await localEnv();
     const { session } = await makeInPersonSession(true);
     const recording = await registerFixtureRecording(t.env, counselor, service, session.id);
-    // 정상 등록된 합성 객체를 저장소에서만 지워 DB와 원음 저장소의 불일치를 재현한다.
+    // claim 은 available 객체에만 나가므로 먼저 잡고, 그 뒤 부재를 만든다 — 저장소
+    // 바이트와 객체 행을 함께 지워 DB/저장소 불일치를 재현한다.
+    const agentEnv = await agentManifestEnv(env, { mode: 'community-cloud', stt: 'azure' });
+    const { jobs } = await claimOverHttp(agentEnv, t.db, {
+      'content-type': 'application/json',
+      'X-CCC-User-Id': service.userId,
+      'X-CCC-Org-Id': service.orgId,
+      'X-CCC-Role': 'service',
+    });
+    const job = jobs.find((candidate) => candidate.kind === 'audio' && candidate.sessionId === session.id);
+    if (job === undefined) throw new Error('expected a claimable audio job');
     await t.bucket.delete(recording.key);
+    await t.db.prepare("UPDATE audio_objects SET state='processed_deleted' WHERE org_id=? AND session_id=?")
+      .bind(counselor.orgId, session.id).run();
 
-    const { response: relay, jobId } = await relayAudio(env, session.id);
+    const relay = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/audio`, {
+      headers: { ...serviceHeaders, 'X-CCC-Job-Claim': job.claimToken, 'X-CCC-Job-Attempt': String(job.attempt) },
+    }), agentEnv);
+    const jobId = job.jobId;
     expect(relay.status).toBe(404);
     await expect(relay.json()).resolves.toEqual({ error: 'audio_object_missing', jobId, retryable: false });
     // 객체가 없는 작업은 열어 두지 않는다 - 그 코드로 닫힌다(S5 §2.6).

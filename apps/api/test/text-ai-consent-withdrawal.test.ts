@@ -104,10 +104,10 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
 
   it('철회하면 일감 목록·스냅샷 저장·초안 생성이 전부 거부되고 근거 이력은 남는다', async () => {
     await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
-      sttMode: 'local',
+      sttMode: 'azure',
       llmMode: 'openai',
     });
-    t.env.CCC_STT_MODE = 'local';
+    t.env.CCC_STT_MODE = 'azure';
     t.env.CCC_LLM_MODE = 'openai';
     t.env.TEXT_AI_PILOT_ENABLED = '1';
 

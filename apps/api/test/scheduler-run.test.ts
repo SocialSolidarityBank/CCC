@@ -32,7 +32,7 @@ const SCHEDULER_SECRET = 'scheduler-shared-secret-0123456789abcdef';
 const CLOUD_RUNTIME: AgentRuntime = {
   route: 'community-cloud-agent',
   sttEngine: 'local',
-  sttEngineId: 'qwen3-asr',
+  sttEngineId: 'azure-speech-koreacentral',
   audioDelivery: 'protected-get',
 };
 const t = setupD1();
@@ -73,11 +73,11 @@ async function post(
 beforeEach(async () => {
   await t.reset();
   innerCalls = 0;
-  env = await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'local' });
+  env = await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'azure' });
   env.secretStore = createEnvironmentSecretStore({ PII_ENC_KEY: TEST_PII_KEY });
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
     deploymentMode: 'community-cloud',
-    sttMode: 'local',
+    sttMode: 'azure',
     llmMode: 'off',
   });
 });
@@ -187,7 +187,7 @@ describe('scheduler shared secret identity', () => {
     if (scope === null) throw new Error('missing support case fixture');
     await seedCanonicalSttConsent(env, counselor, scope.support_case_id);
     await recordSttReadiness(env, service, {
-      schemaVersion: 1, sttMode: 'local', sttEngineId: 'qwen3-asr', state: 'ready', capacity: 1,
+      schemaVersion: 1, sttMode: 'azure', sttEngineId: 'azure-speech-koreacentral', state: 'ready', capacity: 1,
     });
     const admission = await admitRecordingUpload(env, counselor, session.id, CLOUD_RUNTIME);
     await beginRecordingUploadIntent(env, counselor, session.id, admission, 'protected-get', {

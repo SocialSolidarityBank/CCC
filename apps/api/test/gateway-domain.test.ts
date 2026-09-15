@@ -144,7 +144,7 @@ async function seedCanonicalLlmConsent(caseId: string): Promise<string> {
 }
 async function enablePilotForCase(caseId: string): Promise<void> {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
-    deploymentMode: t.env.installationMode ?? 'community-cloud', sttMode: 'local', llmMode: 'openai',
+    deploymentMode: t.env.installationMode ?? 'community-cloud', sttMode: 'azure', llmMode: 'openai',
   });
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   await seedCanonicalLlmConsent(caseId);
@@ -546,10 +546,10 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
 
 async function createReviewReadySession() {
   t.env.installationMode = 'local-single';
-  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_STT_MODE = 'azure';
   t.env.CCC_LLM_MODE = 'openai';
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
-    deploymentMode: 'local-single', sttMode: 'local', llmMode: 'openai',
+    deploymentMode: 'community-cloud', sttMode: 'azure', llmMode: 'openai',
   });
   // 녹음 동의는 이제 컬럼이 아니라 등록 6종 동의의 counseling_recording grant 다(기본 grant).
   const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
@@ -684,7 +684,7 @@ async function createPilotDraft(
   }],
 ) {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
-    deploymentMode: 'local-single', sttMode: 'off', llmMode: 'openai',
+    deploymentMode: 'community-cloud', sttMode: 'off', llmMode: 'openai',
   });
   t.env.installationMode = 'local-single';
   t.env.CCC_STT_MODE = 'off';

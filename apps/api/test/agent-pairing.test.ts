@@ -36,7 +36,7 @@ const REFRESH_TTL_MS = 30 * 24 * 60 * 60_000;
 const CLOUD_RUNTIME: AgentRuntime = {
   route: 'community-cloud-agent',
   sttEngine: 'local',
-  sttEngineId: 'qwen3-asr',
+  sttEngineId: 'azure-speech-koreacentral',
   audioDelivery: 'protected-get',
 };
 const humanActor: IdentityActor = {
@@ -58,10 +58,10 @@ let env: TestApiEnv;
 
 beforeEach(async () => {
   await t.reset();
-  env = await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'local' });
+  env = await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'azure' });
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
     deploymentMode: 'community-cloud',
-    sttMode: 'local',
+    sttMode: 'azure',
     llmMode: 'off',
   });
   // 설치가 요구하는 연결 users 행(S2 L94). 테스트 디렉터리에는 service 행이 없다.
@@ -275,7 +275,7 @@ describe('E6-4 pairing credentials', () => {
     const qualification = await seedNerQualification(t.db);
     // claim 후보는 이 신원이 보고한 readiness 를 요구한다. 장비 신원이 곧 자격이다.
     const readiness = await post('/pipeline/readiness', {
-      schemaVersion: 1, sttMode: 'local', sttEngineId: 'qwen3-asr', state: 'ready', capacity: 1,
+      schemaVersion: 1, sttMode: 'azure', sttEngineId: 'azure-speech-koreacentral', state: 'ready', capacity: 1,
     }, { bearer: grant.bearerToken });
     expect(readiness.status, await readiness.clone().text()).toBe(200);
     const claimed = await post('/pipeline/jobs/claim', claimRequest(qualification), { bearer: grant.bearerToken });

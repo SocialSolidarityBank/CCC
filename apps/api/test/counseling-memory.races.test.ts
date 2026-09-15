@@ -3,7 +3,7 @@ import { setupD1, seedTestProgramWithRuntimeModes, testActors, testProgramId } f
 import { seedCanonicalSttConsent, seedNerQualification, claimRequest, agentResultRequest, type NerQualification } from './support/agent-jobs';
 import type { MemoryMaskJob } from '@ccc/contracts/agent-jobs';
 import worker from './support/local-worker';
-import { agentManifestEnv, AGENT_SERVICE_HEADERS } from './support/agent-jobs';
+import { agentManifestEnv, AGENT_SERVICE_HEADERS, testMaskingPipelineRegistry } from './support/agent-jobs';
 import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
 import { AI_PROVIDER_REGISTRY_VERSION, CODEX_PROVIDER_ID, CODEX_PROVIDER_ADAPTER_VERSION, canonicalAiProviderConfigHash, generatePreviewFixtureAiDraft, type AiProviderRequest, type AiProviderTestAdapter } from '@ccc/ai-runtime';
 import { activateAiProviderConfiguration, appendSupportCaseConsentEvent, beginCounselingMemoryEgress, claimCounselingMemorySources, commitCounselingMemoryWork, correctCounselingMemory, createActionItem, createCase, createManualSession, getCounselingMemory, getCounselingMemorySource, getSupportCaseConsent, issueSupportCaseConsentDisclosures, listSupportCasesForBeneficiary, loadCounselingMemoryContext, prepareCounselingMemoryWork, registerAiProviderConfiguration, resolveActionItem, acceptCounselingMemorySource, type ActionItem } from '@ccc/core/gateway';
@@ -19,7 +19,7 @@ async function fixture(claim = true, expiresAt?: string, configHash = 'b'.repeat
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   t.env.CCC_LLM_MODE = 'openai';
   t.env.installationMode = 'local-single';
-  t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
+  t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
     deploymentMode: 'local-single', sttMode: 'off', llmMode: 'openai',
   });

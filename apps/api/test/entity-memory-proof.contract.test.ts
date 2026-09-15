@@ -28,7 +28,7 @@ import {
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
 import { setupD1, seedTestProgramWithRuntimeModes, testActors, testProgramId } from './support/d1';
-import { claimRequest, seedNerQualification, type NerQualification } from './support/agent-jobs';
+import { claimRequest, seedNerQualification, testMaskingPipelineRegistry, type NerQualification } from './support/agent-jobs';
 import { registrationInput } from './support/registration';
 
 const t = setupD1();
@@ -101,12 +101,12 @@ class Client:
         self.result = result
 client = Client()
 config = SimpleNamespace(ner_attestation=payload['qualification']['attestation'],
-    ner_release_receipt_id=payload['qualification']['receiptId'])
+    ner_release_receipt_id=payload['qualification']['receiptId'],
+    masking_pipeline_version='ner-mask-v1-addr-cond-dict',
+    masking_pipeline_hash='9203ac333649a851f9e898c3665c40bae3e2e10d722f39e95ec2164bfe1885b8')
 runtime = SimpleNamespace(layers=SimpleNamespace(person_ner=lambda text: []))
 report = SimpleNamespace(total=0, as_mapping=lambda: {})
-with patch('ccc_pipeline.worker.masking_pipeline_version', return_value='ner-mask-v1-addr-cond-dict'), \\
-     patch('ccc_pipeline.worker.masking_pipeline_hash', return_value='d' * 64), \\
-     patch('ccc_pipeline.worker._mask_with_dictionary', return_value=(payload['maskedText'], report)):
+with patch('ccc_pipeline.worker._mask_with_dictionary', return_value=(payload['maskedText'], report)):
     process_text_job(client, config, payload['job'], runtime=runtime)
 print(json.dumps(client.result, ensure_ascii=False))
 `], {
@@ -145,7 +145,7 @@ async function createMemoryFixture(
   t.env.CCC_STT_MODE = 'off';
   t.env.CCC_LLM_MODE = 'openai';
   t.env.TEXT_AI_PILOT_ENABLED = '1';
-  t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
+  t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
   t.env.AI_PROVIDER_ADAPTER = adapter;
 
   const beneficiary = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {

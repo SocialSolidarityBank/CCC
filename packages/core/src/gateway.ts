@@ -1706,7 +1706,11 @@ export async function appendCaseEntityMapping(
       bindings: [supportCaseId, actor.orgId, mapping.revision, encrypted],
     }, now()),
   ]);
-  if (results[1]?.meta.changes !== 1) throw new ConflictError('entity mapping context changed');
+  // D1 meta.changes counts trigger writes too (the entity_map_revision superseded
+  // trigger bumps counseling_memory_cases org-wide), so the map UPDATE itself cannot
+  // be counted. The conditional audit insert is gated on the post-state and only
+  // lands when the CAS actually wrote — its count is the reliable CAS signal.
+  if (results[2]?.meta.changes !== 1) throw new ConflictError('entity mapping context changed');
   return { revision: mapping.revision, number };
 }
 
@@ -10037,7 +10041,22 @@ export async function releaseAgentJob(
     const results = await env.DB.batch(statements);
     if (
       (results[0]?.meta?.changes ?? 0) === 0 || (results[1]?.meta?.changes ?? 0) === 0
-    ) await throwAgentJobCasFailure(env, actor, jobId, request);
+    ) {
+      // 객체 행이 이미 종결 상태(삭제·만료)면 audio CAS 는 영원히 못 맞는다 — protected-get
+      // 에서 부재를 발견한 작업은 그래도 닫아야 한다(S5 §2.6: 열어 두지 않는다).
+      if (request.outcome === 'permanent' && request.reason === 'audio_object_missing') {
+        const closed = await env.DB.prepare(
+          `UPDATE agent_jobs
+           SET state='failed',terminal_failure_code='audio_object_missing',lease_owner=NULL,
+             claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+           WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=?
+             AND lease_expires_at>?`,
+        ).bind(nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso).run();
+        if ((closed.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
+      } else {
+        await throwAgentJobCasFailure(env, actor, jobId, request);
+      }
+    }
   }
   const releasedLease = await env.DB.prepare(
     `UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,

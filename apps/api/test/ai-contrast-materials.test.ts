@@ -419,13 +419,13 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   await t.reset();
   const adapter = options.adapter ?? new ContrastAdapter();
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
-    sttMode: 'local',
+    sttMode: 'azure',
     llmMode: 'openai',
   });
   const env: ApiEnv = {
     ...t.env,
     TEXT_AI_PILOT_ENABLED: '1',
-    CCC_STT_MODE: 'local',
+    CCC_STT_MODE: 'azure',
     CCC_LLM_MODE: 'openai',
     AI_PROVIDER_ADAPTER: adapter,
   };
@@ -460,7 +460,7 @@ async function postTextSnapshot(env: ApiEnv, sessionId: string, maskedText = TEX
 
 /** 녹음 결과는 오디오를 claim·읽기·검증한 작업의 결과로만 들어온다 (S5). */
 async function postRecordingResult(env: ApiEnv, sessionId: string): Promise<Response> {
-  const agentEnv = await agentManifestEnv(env, { stt: 'local' });
+  const agentEnv = await agentManifestEnv(env, { stt: 'azure' });
   const { jobs, qualification } = await claimOverHttp(agentEnv, t.db);
   const job = jobs.find((candidate) => candidate.kind === 'audio' && candidate.sessionId === sessionId);
   if (job === undefined || job.audio === null) throw new Error('expected a claimable audio job');

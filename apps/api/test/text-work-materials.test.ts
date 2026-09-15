@@ -76,10 +76,10 @@ beforeEach(async () => {
 
 async function fixtureCase(): Promise<{ caseId: string; supportCaseId: string }> {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
-    sttMode: 'local',
+    sttMode: 'azure',
     llmMode: 'openai',
   });
-  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_STT_MODE = 'azure';
   t.env.CCC_LLM_MODE = 'openai';
   const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, caseRecord.id);

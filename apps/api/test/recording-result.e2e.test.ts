@@ -35,7 +35,7 @@ import {
   agentManifestEnv,
   AGENT_SERVICE_HEADERS,
   claimOverHttp,
-  LOCAL_SINGLE_RUNTIME,
+  AZURE_CLOUD_RUNTIME,
   seedNerQualification,
   registerFixtureRecording,
   type NerQualification,
@@ -141,7 +141,7 @@ async function recordingResultBody(maskedText = MASKED_FIXTURE) {
 }
 
 async function createUploadedRecording(
-  env: ApiEnv = Object.assign(t.env, { CCC_STT_MODE: 'local', CCC_LLM_MODE: 'openai' }),
+  env: ApiEnv = Object.assign(t.env, { CCC_STT_MODE: 'azure', CCC_LLM_MODE: 'openai' }),
   submissionId = crypto.randomUUID(),
 ) {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
@@ -189,7 +189,7 @@ async function postResult(
     'X-CCC-Role': service.role,
   },
 ): Promise<Response> {
-  const agentEnv = await agentManifestEnv(env, { stt: 'local' });
+  const agentEnv = await agentManifestEnv(env, { stt: 'azure' });
   // 이 헬퍼는 한 테스트에서 여러 번 불린다. 앞선 호출의 임대를 되돌려 매 호출이 스스로
   // claim 하게 한다(테스트 셋업 직접 DB 허용 — 서버 경로는 그대로 v2 계약을 지난다).
   await t.db.prepare(
@@ -424,7 +424,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       EXTERNAL_AI_CALLS_ENABLED: '0',
       CCC_LLM_MODE: 'off',
-    }, { stt: 'local' });
+    }, { stt: 'azure' });
     const { caseRecord, session } = await createUploadedRecording(env, '95000000-0000-4000-8000-000000000001');
 
     const server = createServer((request, response) => {
@@ -583,8 +583,8 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       EXTERNAL_AI_CALLS_ENABLED: '0',
       CCC_LLM_MODE: 'openai',
-    }, { stt: 'local' });
-    const admission = await admitRecordingUpload(env, counselor, session.id, LOCAL_SINGLE_RUNTIME);
+    }, { stt: 'azure' });
+    const admission = await admitRecordingUpload(env, counselor, session.id, AZURE_CLOUD_RUNTIME);
     const replacementMetadata = {
       contentLength: 1,
       contentType: 'audio/wav' as const,
@@ -637,7 +637,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
-    }, { stt: 'local' });
+    }, { stt: 'azure' });
     const { caseRecord, session } = await createUploadedRecording(env, '95000000-0000-4000-8000-000000000007');
     await t.db.prepare("UPDATE sessions SET memo = '' WHERE id = ?").bind(session.id).run();
     const resultResponse = await postResult(env, session.id, await recordingResultBody());
@@ -672,7 +672,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '1',
       AI_PROVIDER_ADAPTER: provider,
-    }, { stt: 'local' });
+    }, { stt: 'azure' });
     const { caseRecord, session } = await createUploadedRecording(
       env, '95000000-0000-4000-8000-000000000008',
     );
@@ -727,7 +727,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
-    }, { stt: 'local' });
+    }, { stt: 'azure' });
     const { session } = await createUploadedRecording(env, '95000000-0000-4000-8000-000000000006');
     const result = await recordingResultBody();
     const accepted = await commitRecordingResult(env, service, session.id, result);
@@ -842,7 +842,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
-      CCC_STT_MODE: 'local',
+      CCC_STT_MODE: 'azure',
     };
     const unavailable = await createUploadedRecording(unavailableEnv);
     const unavailableResponse = await postResult(
@@ -861,7 +861,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
       AI_PROVIDER_ADAPTER: provider,
-      CCC_STT_MODE: 'local',
+      CCC_STT_MODE: 'azure',
     };
     const configured = await createUploadedRecording(providerEnv);
     await configureProvider(providerEnv, provider, configured.caseRecord.id);
@@ -892,7 +892,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       CCC_LLM_MODE: 'openai',
       AI_PROVIDER_ADAPTER: provider,
-      CCC_STT_MODE: 'local',
+      CCC_STT_MODE: 'azure',
     };
     const { caseRecord, session } = await createUploadedRecording(env);
     await configureProvider(env, provider, caseRecord.id);
@@ -939,7 +939,7 @@ describe('recording result transcript quality (CCC-124)', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
-      CCC_STT_MODE: 'local',
+      CCC_STT_MODE: 'azure',
     };
   }
 

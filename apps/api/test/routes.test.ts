@@ -884,8 +884,8 @@ describe('API routes', () => {
 
   it('keeps R2 keys out of session responses and limits pipeline work to the service actor', async () => {
     await t.reset();
-    t.env.installationMode = 'local-single';
-    t.env.CCC_STT_MODE = 'local';
+    t.env.installationMode = 'community-cloud';
+    t.env.CCC_STT_MODE = 'azure';
     t.env.CCC_LLM_MODE = 'openai';
     const env = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true', TEXT_AI_PILOT_ENABLED: '1' };
     const counselor = {
@@ -894,7 +894,7 @@ describe('API routes', () => {
       role: 'counselor' as const,
     };
     await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
-      deploymentMode: 'local-single', sttMode: 'local', llmMode: 'openai',
+      deploymentMode: 'community-cloud', sttMode: 'azure', llmMode: 'openai',
     });
     const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {
       programId: testProgramId(counselor.orgId),
@@ -922,7 +922,7 @@ describe('API routes', () => {
     expect(sessions[0]).not.toHaveProperty('audioR2Key');
 
     // 오디오 작업은 claim 으로만 보이고, 전달도 그 claim 에 묶인다 (S5).
-    const agentEnv = await agentManifestEnv(env, { stt: 'local' });
+    const agentEnv = await agentManifestEnv(env, { mode: 'community-cloud', stt: 'azure' });
     const { jobs } = await claimOverHttp(agentEnv, t.db, serviceHeaders);
     const audioJob = jobs.find((job) => job.kind === 'audio' && job.sessionId === session.id);
     if (audioJob === undefined) throw new Error('expected a claimable audio job');

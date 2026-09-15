@@ -31,7 +31,7 @@ import {
 } from '@ccc/ai-runtime';
 import worker from './support/local-worker';
 import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
-import { agentResultRequest, claimRequest, seedCanonicalSttConsent, seedNerQualification, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
+import { agentResultRequest, claimRequest, seedCanonicalSttConsent, seedNerQualification, testMaskingPipelineRegistry, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
 import { registrationInput } from './support/registration';
 
 const t = setupD1();
@@ -82,7 +82,7 @@ async function fixture(adapter = new ProofAdapter(), reversedEvidence = false) {
   t.env.CCC_STT_MODE = 'off';
   t.env.CCC_LLM_MODE = 'openai';
   t.env.TEXT_AI_PILOT_ENABLED = '1';
-  t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
+  t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
   t.env.AI_PROVIDER_CONFIG = JSON.stringify(TEST_CONFIG);
   t.env.AI_PROVIDER_ADAPTER = adapter;
 

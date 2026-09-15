@@ -9,7 +9,7 @@ import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import { setupD1, testActors, testProgramId, seedTestProgramWithRuntimeModes } from './support/d1';
 import { registrationInput } from './support/registration';
 import { agentResultRequest, claimRequest, seedCanonicalSttConsent, seedNerQualification,
-  sha256Hex, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
+  sha256Hex, testMaskingPipelineRegistry, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
 
 const t = setupD1();
 const { counselor, service, otherOrgAdmin } = testActors;
@@ -23,7 +23,7 @@ function http(actor: Actor, path: string, body?: unknown) {
 async function fixture() {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, { sttMode: 'off', llmMode: 'openai' });
   t.env.CCC_STT_MODE = 'off'; t.env.CCC_LLM_MODE = 'openai'; t.env.TEXT_AI_PILOT_ENABLED = '1';
-  t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
+  t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
   const created = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
   const supportCaseId = (await listSupportCasesForBeneficiary(t.env, counselor, created.id)).programs[0]!.supportCase.id;
   await seedCanonicalSttConsent(t.env, counselor, supportCaseId);

@@ -221,7 +221,7 @@ async function mintUploadTarget(memo: string): Promise<{
   if (scope === null) throw new Error('missing support case fixture');
   await seedCanonicalSttConsent(env, counselor, scope.support_case_id);
   await recordSttReadiness(env, service, {
-    schemaVersion: 1, sttMode: 'local', sttEngineId: 'qwen3-asr', state: 'ready', capacity: 1,
+    schemaVersion: 1, sttMode: 'azure', sttEngineId: 'azure-speech-koreacentral', state: 'ready', capacity: 1,
   });
   const minted = await humanRequest(`/sessions/${session.id}/audio-upload-target`, {
     contentLength: CONTENT_LENGTH, contentType: 'audio/wav', clientAssertedSha256: null,
@@ -281,7 +281,7 @@ beforeEach(async () => {
   await t.reset();
   objects = new Map();
   signerCalls = [];
-  env = await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'local' });
+  env = await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'azure' });
   // The manifest is written by this repo's own fixture, not external input.
   const manifest = JSON.parse(env.CCC_INSTALL_MANIFEST!) as { installationId: string };
   installationId = manifest.installationId;
@@ -297,7 +297,7 @@ beforeEach(async () => {
   env.audioStore = audioStoreFor(HUMAN_BEARER);
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
     deploymentMode: 'community-cloud',
-    sttMode: 'local',
+    sttMode: 'azure',
     llmMode: 'off',
   });
 });
@@ -319,7 +319,7 @@ describe('Signer-backed AudioStore end to end', () => {
     if (scope === null) throw new Error('missing support case fixture');
     await seedCanonicalSttConsent(env, counselor, scope.support_case_id);
     await recordSttReadiness(env, service, {
-      schemaVersion: 1, sttMode: 'local', sttEngineId: 'qwen3-asr', state: 'ready', capacity: 1,
+      schemaVersion: 1, sttMode: 'azure', sttEngineId: 'azure-speech-koreacentral', state: 'ready', capacity: 1,
     });
 
     const minted = await humanRequest(`/sessions/${session.id}/audio-upload-target`, {
@@ -394,7 +394,7 @@ describe('Signer-backed AudioStore end to end', () => {
     if (scope === null) throw new Error('missing support case fixture');
     await seedCanonicalSttConsent(env, counselor, scope.support_case_id);
     await recordSttReadiness(env, service, {
-      schemaVersion: 1, sttMode: 'local', sttEngineId: 'qwen3-asr', state: 'ready', capacity: 1,
+      schemaVersion: 1, sttMode: 'azure', sttEngineId: 'azure-speech-koreacentral', state: 'ready', capacity: 1,
     });
     const minted = await humanRequest(`/sessions/${session.id}/audio-upload-target`, {
       contentLength: CONTENT_LENGTH, contentType: 'audio/wav', clientAssertedSha256: null,
