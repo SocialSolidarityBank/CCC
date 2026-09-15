@@ -41,6 +41,15 @@ const TEST_MASKING_PIPELINE_MANIFEST = {
 async function testMaskingPipelineHash(): Promise<string> {
   return sha256Hex(canonicalizeJcs(TEST_MASKING_PIPELINE_MANIFEST));
 }
+export async function testMaskingPipelinePair(): Promise<{
+  maskingPipelineVersion: string;
+  maskingPipelineHash: string;
+}> {
+  return {
+    maskingPipelineVersion: TEST_MASKING_PIPELINE_MANIFEST.maskingPipelineVersion,
+    maskingPipelineHash: await testMaskingPipelineHash(),
+  };
+}
 
 /** schemaVersion 1 registry JSON — claim/result 경로가 요구하는 활성 manifest 등록 형태. */
 export async function testMaskingPipelineRegistry(): Promise<string> {

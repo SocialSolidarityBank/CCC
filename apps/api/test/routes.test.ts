@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { SourceResponse } from '@ccc/contracts/agent-jobs';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import worker from './support/local-worker';
 import {
@@ -41,6 +42,8 @@ import {
   claimOverHttp,
   registerFixtureRecording,
   seedCanonicalSttConsent,
+  testMaskingPipelineRegistry,
+  testMaskingPipelinePair,
 } from './support/agent-jobs';
 import { registrationConsentEvents, registrationInput, signupConsentEvents } from './support/registration';
 import { intakeInput, intakeQuestionnaire } from './support/intake';
@@ -223,10 +226,11 @@ async function sha256Hex(value: string): Promise<string> {
 
 async function sourceBody(maskedText = MASKED_TEXT, evidenceId = 'source-evidence-1') {
   const sha256 = await sha256Hex(maskedText);
+  const { maskingPipelineVersion } = await testMaskingPipelinePair();
   return {
     maskedText,
     sha256,
-    maskingPipelineVersion: 'local-ner-v1',
+    maskingPipelineVersion,
     evidence: [{
       id: evidenceId,
       sourceRef: 'memo:source-1',
@@ -268,6 +272,7 @@ async function setupPhase1AiFixture(
   const env: ApiEnv = {
     ...t.env,
     TEXT_AI_PILOT_ENABLED: options.textAiEnabled ?? '1',
+    MEMORY_MASKING_PIPELINES: await testMaskingPipelineRegistry(),
     ...(options.injectAdapter === false ? {} : { AI_PROVIDER_ADAPTER: adapter }),
   };
   const counselor = {
@@ -412,13 +417,38 @@ async function recordSource(
     ? undefined
     : { jobId: fallback.id, claimToken: '0'.repeat(64), attempt: 1 });
   if (job === undefined) throw new Error('expected a claimable text job');
+  let checkedSource = {
+    sourceRevision: '0',
+    sourceSha256: '0'.repeat(64),
+    sourceStart: 0,
+    sourceEnd: 1,
+  };
+  if (claimed !== undefined) {
+    const response = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/source`, {
+      headers: {
+        ...claimHeaders,
+        'X-CCC-Job-Claim': job.claimToken,
+        'X-CCC-Job-Attempt': String(job.attempt),
+      },
+    }), agentEnv);
+    if (response.status !== 200) throw new Error(`expected claim-bound text source: ${response.status}`);
+    const bundle = await response.json() as SourceResponse;
+    checkedSource = {
+      sourceRevision: bundle.sourceRevision,
+      sourceSha256: bundle.sourceSha256,
+      sourceStart: 0,
+      sourceEnd: bundle.sourceLength,
+    };
+  }
   const evidence = Array.isArray((source as { evidence?: unknown }).evidence)
     ? (source as { evidence: unknown[] }).evidence
     : [];
+  const { maskingPipelineHash } = await testMaskingPipelinePair();
   const result = {
     kind: 'text',
+    checkedSource,
     ...source,
-    maskingPipelineHash: 'd'.repeat(64),
+    maskingPipelineHash,
     nerAvailable: true,
     nerAttestationId: qualification.attestation.id,
     nerAttestationResultHash: qualification.attestation.resultHash,
@@ -947,12 +977,12 @@ describe('API routes', () => {
     expect(receipt).toEqual({
       sourceSnapshotId: expect.any(String),
       sha256: await sha256Hex(MASKED_TEXT),
-      maskingPipelineVersion: 'local-ner-v1',
+      maskingPipelineVersion: (await testMaskingPipelinePair()).maskingPipelineVersion,
       evidenceIds: ['source-evidence-1'],
     });
 
     const generatedResponse = await generateDraft(env, session.id, receipt.sourceSnapshotId);
-    expect(generatedResponse.status).toBe(201);
+    expect(generatedResponse.status, await generatedResponse.clone().text()).toBe(201);
     const draft = await generatedResponse.json() as RouteAiDraft;
     expect(draft).toEqual(expect.objectContaining({
       version: 1,
@@ -1285,10 +1315,10 @@ describe('API routes', () => {
         makeBody: (source) => ({ ...source, maskingPipeline: 'local-ner-v1' }),
       },
       {
-        name: 'unsupported masking pipeline version',
+        name: 'empty masking pipeline version',
         status: 400,
         error: 'invalid_request',
-        makeBody: (source) => ({ ...source, maskingPipelineVersion: 'local/ner-v1' }),
+        makeBody: (source) => ({ ...source, maskingPipelineVersion: '' }),
       },
     ];
 
