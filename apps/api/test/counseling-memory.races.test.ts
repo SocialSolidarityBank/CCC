@@ -3,12 +3,11 @@ import { setupD1, seedTestProgramWithRuntimeModes, testActors, testProgramId } f
 import { seedCanonicalSttConsent, seedNerQualification, claimRequest, agentResultRequest, type NerQualification } from './support/agent-jobs';
 import type { MemoryMaskJob } from '@ccc/contracts/agent-jobs';
 import worker from './support/local-worker';
-import { agentManifestEnv, AGENT_SERVICE_HEADERS, testMaskingPipelineRegistry } from './support/agent-jobs';
+import { agentManifestEnv, AGENT_SERVICE_HEADERS, runAgentTextJobs, testMaskingPipelineRegistry } from './support/agent-jobs';
 import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
 import { AI_PROVIDER_REGISTRY_VERSION, CODEX_PROVIDER_ID, CODEX_PROVIDER_ADAPTER_VERSION, canonicalAiProviderConfigHash, generatePreviewFixtureAiDraft, type AiProviderRequest, type AiProviderTestAdapter } from '@ccc/ai-runtime';
 import { activateAiProviderConfiguration, appendSupportCaseConsentEvent, beginCounselingMemoryEgress, claimCounselingMemorySources, commitCounselingMemoryWork, correctCounselingMemory, createActionItem, createCase, createManualSession, getCounselingMemory, getCounselingMemorySource, getSupportCaseConsent, issueSupportCaseConsentDisclosures, listSupportCasesForBeneficiary, loadCounselingMemoryContext, prepareCounselingMemoryWork, registerAiProviderConfiguration, resolveActionItem, acceptCounselingMemorySource, type ActionItem } from '@ccc/core/gateway';
-import { ProgramAdmissionRequiredError, releaseCounselingMemorySource } from '@ccc/core/gateway';
-import { recordMaskedSourceSnapshot } from '@ccc/core/gateway';
+import { enqueueTextWorkItem, ProgramAdmissionRequiredError, releaseCounselingMemorySource } from '@ccc/core/gateway';
 import { registrationInput } from './support/registration';
 vi.setConfig({ testTimeout: 30000 });
 const t = setupD1();
@@ -18,10 +17,10 @@ interface MemoryFixture { id: string; action: ActionItem; qualification: NerQual
 async function fixture(claim = true, expiresAt?: string, configHash = 'b'.repeat(64)): Promise<MemoryFixture> {
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   t.env.CCC_LLM_MODE = 'openai';
-  t.env.installationMode = 'local-single';
+  t.env.installationMode = 'community-cloud';
   t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
-    deploymentMode: 'local-single', sttMode: 'off', llmMode: 'openai',
+    deploymentMode: 'community-cloud', sttMode: 'off', llmMode: 'openai',
   });
   const c = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, c.id);
@@ -67,9 +66,13 @@ function maskedFixtureText(text: string): string {
   return text.replace(/(?<![\d-])\d{2,6}-\d{2,6}-\d{2,8}(?:-\d{2,8})?(?![\d-])/gu, '[가림]');
 }
 async function maskJobs(f: MemoryFixture) {
-  for (const job of f.jobs) {
-    const source = await getCounselingMemorySource(t.env, service, job.jobId, job.claimToken, job.attempt);
-    await acceptCounselingMemorySource(t.env, service, job.jobId, await agentResultRequest({ kind: 'text', claimToken: job.claimToken, attempt: job.attempt, maskedText: maskedFixtureText(source.text), qualification: f.qualification }));
+  let jobs = f.jobs;
+  while (jobs.length > 0) {
+    for (const job of jobs) {
+      const source = await getCounselingMemorySource(t.env, service, job.jobId, job.claimToken, job.attempt);
+      await acceptCounselingMemorySource(t.env, service, job.jobId, await agentResultRequest({ kind: 'text', claimToken: job.claimToken, attempt: job.attempt, maskedText: maskedFixtureText(source.text), qualification: f.qualification, checkedSource: { sourceRevision: source.sourceRevision, sourceSha256: source.sourceSha256, sourceStart: 0, sourceEnd: source.sourceLength } }));
+    }
+    jobs = await claimCounselingMemorySources(t.env, service, claimRequest(f.qualification, 20));
   }
 }
 async function maskPending(f: MemoryFixture) {
@@ -87,17 +90,43 @@ async function materialize(f: MemoryFixture) {
   return { work, output };
 }
 describe('durable memory races', () => {
+  it('releases a successful generic text claim before same-case memory work claims', async () => {
+    const f = await fixture();
+    await maskJobs(f);
+    const session = await createManualSession(t.env, counselor, f.action.caseId, {
+      submissionId: crypto.randomUUID(),
+      heldAt: '2026-09-08T09:00:00.000Z',
+      channel: 'in_person',
+      memo: '같은 사례의 후속 상담 기록',
+      gasScores: [],
+    });
+    await enqueueTextWorkItem(t.env, counselor, session.id, 'manual_record');
+    const textEnv = await agentManifestEnv(t.env);
+    expect(await runAgentTextJobs(textEnv, t.db)).toBeGreaterThan(0);
+    await t.db.prepare("UPDATE counseling_memory_cases SET not_before='2000-01-01T00:00:00.000Z' WHERE support_case_id=?")
+      .bind(f.id).run();
+    await prepareCounselingMemoryWork(t.env);
+    const jobs = await claimCounselingMemorySources(t.env, service, claimRequest(f.qualification, 20));
+    expect(jobs.some(job => job.caseId === f.id)).toBe(true);
+  });
   it.each(['actual', 'preview-adapter', 'preview-fixture'] as const)(
     'isolates shadow memory from generate and regenerate requests (%s)',
     async (mode) => {
       const f = await fixture();
       const first = await materialize(f);
       await commitCounselingMemoryWork(t.env, first.work, first.output);
-      const memo = '이번 상담에서 새 일정을 확인했습니다.';
+      const memo = '이번 상담에서 서류 준비와 새 일정을 확인했습니다.';
       const session = await createManualSession(t.env, counselor, f.action.caseId, {
         submissionId: crypto.randomUUID(), heldAt: '2026-09-08T09:00:00.000Z',
         channel: 'in_person', memo, gasScores: [],
       });
+      await enqueueTextWorkItem(t.env, counselor, session.id, 'manual_record');
+      const textEnv = await agentManifestEnv(t.env);
+      expect(await runAgentTextJobs(textEnv, t.db)).toBeGreaterThan(0);
+      const snapshot = await t.db.prepare(
+        'SELECT id FROM ai_masked_source_snapshots WHERE session_id=? ORDER BY created_at DESC,id DESC LIMIT 1',
+      ).bind(session.id).first<{ id: string }>();
+      if (snapshot === null) throw new Error('expected proof-backed text snapshot');
       await maskPending(f);
       // A relevant, independently masked historical item really exists. Empty memory
       // would let a route that still loads historicalContext pass this regression.
@@ -127,15 +156,6 @@ describe('durable memory races', () => {
         t.env.PREVIEW_ACCESS_CODE = 'synthetic-shadow-preview';
       }
       if (mode === 'preview-fixture') delete t.env.AI_PROVIDER_ADAPTER;
-      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(memo));
-      const sha256 = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
-      const snapshot = await recordMaskedSourceSnapshot(t.env, service, session.id, {
-        maskedText: memo, sha256, maskingPipelineVersion: 'local-ner-v1',
-        evidence: [{
-          id: crypto.randomUUID(), sourceRef: 'memo:shadow-current', sourceSha256: sha256,
-          evidenceQuote: memo, sourceStart: 0, sourceEnd: Array.from(memo).length,
-        }],
-      });
       for (const actor of mode === 'actual' ? [service, counselor] : [service]) {
         const response = await worker.fetch(new Request(`http://localhost/sessions/${session.id}/ai/generate`, {
           method: 'POST',
@@ -197,7 +217,7 @@ describe('durable memory races', () => {
     await runCounselingMemory(env);
     expect(providerCalls).toBe(0);
     const claimed = await call('/pipeline/memory/claim', claimRequest(f.qualification));
-    expect(claimed.status).toBe(200);
+    expect(claimed.status, await claimed.clone().text()).toBe(200);
     const payload: { jobs: MemoryMaskJob[] } = await claimed.json();
     expect(payload.jobs.some(job => job.sourceId === f.action.id)).toBe(true);
     for (const job of payload.jobs) {
@@ -380,7 +400,7 @@ describe('durable memory races', () => {
       const jobs = pass === 0 ? [...f.jobs, ...await claimCounselingMemorySources(t.env, service, claimRequest(f.qualification, 20))] : await claimCounselingMemorySources(t.env, service, claimRequest(f.qualification, 20));
       for (const job of jobs) {
         const source = await getCounselingMemorySource(t.env, service, job.jobId, job.claimToken, job.attempt);
-        await acceptCounselingMemorySource(t.env, service, job.jobId, await agentResultRequest({ kind: 'text', claimToken: job.claimToken, attempt: job.attempt, maskedText: maskedFixtureText(source.text), qualification: f.qualification }));
+        await acceptCounselingMemorySource(t.env, service, job.jobId, await agentResultRequest({ kind: 'text', claimToken: job.claimToken, attempt: job.attempt, maskedText: maskedFixtureText(source.text), qualification: f.qualification, checkedSource: { sourceRevision: source.sourceRevision, sourceSha256: source.sourceSha256, sourceStart: 0, sourceEnd: source.sourceLength } }));
       }
       const processed = await t.db.prepare("SELECT count(*) AS total FROM counseling_memory_materials WHERE support_case_id=? AND kind='action' AND processed=1 AND valid=1")
         .bind(f.id).first<{ total: number }>();

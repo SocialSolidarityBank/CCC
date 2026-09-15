@@ -314,11 +314,14 @@ export async function agentManifestEnv<T extends ApiEnv>(
 ): Promise<T> {
   const signer = await createTestSigner();
   // verifiedInstallManifest 는 community-cloud manifest 만 받는다 — 기본을 그에 맞춘다.
-  const manifest = await signedManifest(signer, options.mode ?? 'community-cloud', {
-    approvedSttEngineIds: options.stt === 'azure' ? SYNTHETIC_AZURE_REGISTRY : SYNTHETIC_LOCAL_REGISTRY,
+  const mode = options.mode ?? 'community-cloud';
+  const manifest = await signedManifest(signer, mode, {
+    approvedSttEngineIds: options.stt === 'azure' ? SYNTHETIC_AZURE_REGISTRY
+      : options.stt === 'local' ? SYNTHETIC_LOCAL_REGISTRY : [],
   });
   return {
     ...env,
+    installationMode: mode,
     MEMORY_MASKING_PIPELINES: await testMaskingPipelineRegistry(),
     CCC_INSTALL_MANIFEST: JSON.stringify(manifest),
     CCC_INSTALL_SIGNING_KEYS: JSON.stringify(signer.publicKeys),

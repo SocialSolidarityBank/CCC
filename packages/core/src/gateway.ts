@@ -11982,6 +11982,13 @@ export async function acceptAgentJobResult(
       job.attempt,
       acceptedAt,
     ),
+    env.DB.prepare(
+      `UPDATE support_cases
+       SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+           entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+       WHERE id=? AND org_id=? AND entity_map_lease_family='generic'
+         AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`,
+    ).bind(job.supportCaseId, actor.orgId, jobId, job.attempt),
     ...(job.sourceTextWorkItemId === null ? [] : [env.DB.prepare(
       `UPDATE ai_text_work_queue SET status = 'done', completed_at = ?, completed_snapshot_id = ?
        WHERE id = ? AND org_id = ? AND status IN ('pending', 'processing')`,
