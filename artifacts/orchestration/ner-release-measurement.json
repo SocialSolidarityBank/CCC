@@ -1,0 +1,108 @@
+{
+  "specConditions": {
+    "corpus": {
+      "source": "docs/specs/S6-privacy-packet.md:79",
+      "requirement": "non-empty conversational synthetic corpus, 최소 500개, 한국어 성씨·이름 길이·존칭·띄어쓰기·로마자 이름·기관명 모호성과 도로명·지번·건물·동·호·우편번호 주소 형태를 층화, hard negative 최소 200개",
+      "rowSchema": "docs/specs/S6-privacy-packet.md:58 — 각 행은 id, text, person, address 키 (health corpus N 정의; E5-4 행 스키마는 사양 부재, N 형식을 따름 [추정])",
+      "hardNegativeMeaning": "사양은 성질을 정하지 않고 개수 하한(200)만 정한다 (S6-privacy-packet.md:79). 이름처럼 보이지만 이름이 아닌 것·숫자만 보면 전화번호 같은 것으로 해석해 구성 [추정]"
+    },
+    "metrics": {
+      "source": "docs/specs/S6-privacy-packet.md:60",
+      "unit": "스팬 단위. 시작·끝 code-point와 label이 모두 같아야 TP. FP=gold와 정확히 대응하지 않는 예측 스팬, FN=예측과 대응하지 않는 gold 스팬",
+      "formulas": "precision=TP/(TP+FP), recall=TP/(TP+FN), 분모 0이면 통과시키지 않음. overgeneralizationRate=(FP(person)+FP(address))/(TP+FP 전체)",
+      "thresholds": "docs/specs/S6-privacy-packet.md:79 — 각 label Wilson 95% lower precision·recall >= 0.90, overgeneralization Wilson 95% upper <= 0.05"
+    },
+    "wilson": {
+      "source": "docs/specs/S6-privacy-packet.md:79 (명칭만)",
+      "formula": "사양 부재. 표준 Wilson score interval, z=1.959963984540054 사용 [추정]"
+    },
+    "hashes": {
+      "corpusHash": "docs/specs/S6-privacy-packet.md:58,269 — corpus 직렬화는 UTF-8 JCS, SHA-256. E5-4 corpus에도 동일 직렬화 적용 [추정: E5-4 전용 정의 부재]",
+      "resultHash": "docs/specs/S6-privacy-packet.md:62,275 — 자기 필드를 제외한 health result object {addressPrecision,addressRecall,overgeneralizationRate,personPrecision,personRecall}의 JCS UTF-8 bytes SHA-256",
+      "labelSetHash": "docs/specs/S6-privacy-packet.md:52,56 — 사전순 정렬 라벨 배열 [\"PRIVATE_ADDRESS\",\"PRIVATE_PERSON\"]의 JCS UTF-8 bytes SHA-256 = b645305b…a4fc. 라벨 집합 정본은 S6-privacy-packet.md:51 과 활성 manifest ner-mask-v3 (apps/api/test/masking-pipeline-manifest.contract.test.ts:28-29,56)"
+    }
+  },
+  "corpusFile": "artifacts/ner-release/corpus.jsonl",
+  "corpusCounts": {
+    "items": 870,
+    "hardNegatives": 270,
+    "specMinimums": {
+      "items": 500,
+      "hardNegatives": 200
+    },
+    "strata": "인명 150 + 띄어쓰기 인명 40 + 로마자 인명 40 + 기관명 모호성 70 + 주소 200(도로명/지번/동호/우편번호 포함) + 우편번호 단독 20 + 인명·주소 동시 80 + hard negative 270"
+  },
+  "seed": 20260915,
+  "metrics": {
+    "deployedStrategy": "simple (ccc_pipeline/masking.py:317 — production이 쓰는 aggregation)",
+    "simple": {
+      "personPrecision": 0.001392757660167131,
+      "personRecall": 0.002631578947368421,
+      "addressPrecision": 0.0,
+      "addressRecall": 0.0,
+      "overgeneralizationRate": 0.9994944388270981,
+      "counts": {
+        "PRIVATE_PERSON": {
+          "tp": 1,
+          "fp": 717,
+          "fn": 379
+        },
+        "PRIVATE_ADDRESS": {
+          "tp": 0,
+          "fp": 1260,
+          "fn": 300
+        }
+      }
+    },
+    "diagnostics": {
+      "first": {
+        "personPrecision": 0.6137,
+        "personRecall": 0.5895,
+        "addressPrecision": 0.0,
+        "addressRecall": 0.0,
+        "overgeneralizationRate": 0.7905
+      },
+      "max": {
+        "personPrecision": 0.791,
+        "personRecall": 0.5579,
+        "addressPrecision": 0.0,
+        "addressRecall": 0.0,
+        "overgeneralizationRate": 0.7446
+      }
+    },
+    "resultHash": "8fd15626e625ce1565950c8ddb486550c16808e9b1e20a3bf48d1dc12baf12b6",
+    "corpusHash": "d78db2f796072db69bbc2a5d2d7923c5911d932b6c2338fe4c8e0cf051dd8041"
+  },
+  "wilsonLower": {
+    "personPrecision": 0.0002458982477765945,
+    "personRecall": 0.00046468944259882815,
+    "addressPrecision": -2.1618134581634236e-19,
+    "addressRecall": 8.563957084937438e-19,
+    "overgeneralizationUpper": 0.9999107504637349
+  },
+  "thresholdVerdict": {
+    "verdict": "failed",
+    "thresholdsUnmodified": true,
+    "detail": "배포된 파이프라인(simple aggregation) 기준 네 지표 모두 임계 미달. 모델 자체(first/max)도 주소 TP=0, 인명 recall Wilson 하한 최대 0.54로 미달. 주소는 시·도/시·군·구/도로명/번지/동·호를 각각 별개 스팬으로 끊어 내고 우편번호를 아예 못 잡아 span-exact 기준 TP가 0. 인명도 B-I-E가 단어 경계에서 끊겨 simple에서 조각난다. 임계값·corpus 크기·Wilson 계산을 바꾸지 않았다."
+  },
+  "receiptFields": null,
+  "attestationFields": null,
+  "fieldConsistency": "not_applicable — 통과하지 못해 영수증·attestation 값을 만들지 않았다 (S6-privacy-packet.md:275: threshold를 통과한 attestation에만 결과를 기록한다)",
+  "insertProcedure": "설치가 끝나 대상 DB가 생긴 뒤: INSERT INTO ner_release_qualification_receipts (id, org_id, model_id, model_revision, label_set_hash, corpus_hash, result_hash, validated_at, expires_at, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'passed', ?) — 열 정본은 migrations/sqlite/0048_agent_jobs.sql:7-19 와 migrations/postgres/0004_agent_jobs.sql:3-8. 지금은 넣지 않는다. org_id는 대상 조직 ID여야 하고(gateway.ts:9364가 id+org_id로 조회) 행은 immutable·append-only다.",
+  "piiCheck": {
+    "method": "corpus 전 행에 정규식 0\\d{1,2}[-.\\s]?\\d{3,4}[-.\\s]?\\d{4} 스캔 → 50건 전부 미할당 012/013/014 접두 또는 자릿수 붕괴(010-3자리-5자리) 확인. 인명은 성씨+이름 글자의 결정론적 조합으로 실제 인물을 지칭하지 않음. 주소는 실제 시·도/시·군·구 이름 + 지어낸 도로명·번지·건물명. 실제 당사자 자료·제3자 음성 0건.",
+    "realPersonNames": 0,
+    "inServicePhoneNumbers": 0
+  },
+  "mutations": {
+    "dbInserts": 0,
+    "installRuns": 0,
+    "providerCalls": 0,
+    "modelDownloads": 0,
+    "coreLaneWorktreeChanges": 0,
+    "notes": "측정은 mini:/tmp/ner-release 에서 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 로 실행. 모델은 기존 캐시 a308c54b 스냅샷만 사용. 맥미니 코어 레인 워크트리는 읽지도 않았다."
+  },
+  "gitStatus": "artifacts/ner-release/, scripts/ner-release/, artifacts/orchestration/ner-release-measurement.json 만 추가 (artifacts/release/ 는 sibling 산출물이라 커밋하지 않음)",
+  "commit": "90f54df0 (이 파일의 commit 필드는 amend 직전 해시; 실제 최종 해시는 git log 참조)",
+  "blocked": "release qualification 실패 — 모델이 사양 임계에 미달한다. receipt/attestation 값은 생산하지 않았다. 전사 claim은 이 상태로는 열 수 없다. 선택지: (a) 모델 교체·재학습 후 재측정, (b) 파이프라인 aggregation/후처리를 스팬 병합으로 고쳐 재측정(단, 주소 TP=0은 aggregation 문제가 아니라 모델이 전체 주소를 하나의 스팬으로 내지 않는 문제라 후처리만으로는 못 미칠 가능성이 큼 [추정]), (c) 사양 임계 재협의 — 검사 기준 완화는 이 배정 범위 밖이다."
+}
