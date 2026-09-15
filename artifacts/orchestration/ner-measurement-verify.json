@@ -1,0 +1,140 @@
+{
+  "question": "E5-4 release qualification 실패가 측정 스크립트와 제품 경로의 불일치인가, 모델 한계인가",
+  "answer": "모델 한계. 제품 함수를 직접 호출해 재측정한 결과가 기존 측정과 숫자까지 완전히 같다(870행 전부 스팬 집합 일치, 불일치 0행). 실패는 harness 왜곡이 아니라 배포 구성(transformers 4.53.3 + aggregation_strategy=simple)에서 모델이 스팬을 조각내는 실제 동작이다.",
+  "productionPath": {
+    "pipelineConstruction": "masking.py:313-318 — pipeline(\"token-classification\", model=spec.name, revision=spec.revision, aggregation_strategy=\"simple\"). spec은 model_registry.model_spec()이 supply-chain/model-license-manifest.json에서 읽는 고정 revision a308c54b…. 인명·주소는 build_person_and_address_ner(masking.py:328-359)가 모델을 한 번만 올려 두 NerFn을 만든다(worker.py:332가 호출).",
+    "labelMapping": "masking.py:291-302 _span_fn — entity_group을 upper()한 뒤 label_prefixes로 startswith 매칭. 접두는 manifest의 personLabels/addressLabels이고 masking_manifest.py:129가 sorted(person+address)의 JCS SHA-256이 labelSetHash와 같은지 강제하므로 실제 값은 (\"PRIVATE_PERSON\",)/(\"PRIVATE_ADDRESS\",) 정확히 그 두 개다.",
+    "adjacentFragmentMerging": "masking.py:160-195 _merge_spans — 겹치는(start < prev_end) 스팬만 합친다. 인접하되 겹치지 않는 조각은 합치지 않는다. 즉 제품도 조각난 스팬을 조각 그대로 가린다(커버리지는 되지만 스팬-exact와는 무관).",
+    "auxiliaryDetection": "masking.py:104-120 _REGEX_LAYERS — 주민번호·전화·계좌·이메일 정규식이 NER 뒤에 적용된다(mask_text_with_report:254-256). 질병명 사전 _CONDITION(masking.py:126-132)도 별도 계층. 이 계층들은 E5-4 지표(인명·주소 NER 스팬)와 무관하다.",
+    "finalSpanList": "mask_text_with_report(masking.py:224-257)가 반환하는 masked text와 MaskingReport가 최종 산출이다. NER 스팬은 각 NerFn(= _span_fn 클로저)이 돌려주는 (start,end) 목록이고 worker.py:443-448이 그대로 넘긴다."
+  },
+  "harnessPath": {
+    "pipelineConstruction": "measure.py:152-157 — pipeline(\"token-classification\", model=MODEL_ID, revision=MODEL_REVISION, aggregation_strategy=agg). MODEL_ID·MODEL_REVISION은 spec 고정값과 동일(measure.py:30-31).",
+    "labelMapping": "measure.py:80-83 — entity_group을 upper()한 뒤 {PRIVATE_PERSON, PRIVATE_ADDRESS} 정확 일치로 분류.",
+    "adjacentFragmentMerging": "없음 — measure.py는 recognizer 출력 스팬을 그대로 집합으로 채점한다(measure.py:78-89).",
+    "auxiliaryDetection": "없음 — 정규식·사전 계층을 재지 않는다. 지표는 NER 스팬만 본다.",
+    "finalSpanList": "measure.py:158 entities_per_row = recognizer(row[\"text\"]) — 파이프라인 원출력을 score()에 넘긴다."
+  },
+  "divergences": [
+    {
+      "item": "라벨 매칭 연산자",
+      "production": "masking.py:298 group.startswith(label_prefixes), 접두=(\"PRIVATE_PERSON\",)/(\"PRIVATE_ADDRESS\",)",
+      "harness": "measure.py:82 group in {PRIVATE_PERSON, PRIVATE_ADDRESS} 정확 일치",
+      "effect": "없음. 모델 id2label의 유일한 PRIVATE_PERSON*·PRIVATE_ADDRESS* 라벨이 정확히 그 두 개라 startswith와 정확 일치가 이 모델에서는 동치다. 실측으로 확인: 870행 전부에서 제품 NerFn 스팬 집합과 harness 필터 스팬 집합이 일치(spanFnVsRawMismatchedRows=0)."
+    },
+    {
+      "item": "스팬 병합",
+      "production": "masking.py:160-195 _merge_spans가 겹친 스팬만 합침(인접 비겹침 조각은 합치지 않음)",
+      "harness": "병합 없이 원스팬 채점",
+      "effect": "없음. 지표가 세는 것은 NerFn이 반환하는 스팬 집합이고 _merge_spans는 치환 단계의 표현이다. 한 계층 안에서 recognizer 스팬은 서로 겹치지 않으므로 병합이 스팬 집합을 바꾸지도 않는다."
+    },
+    {
+      "item": "보조 탐지 계층",
+      "production": "정규식 4종+질병 사전이 NER 뒤에 추가로 가림(masking.py:254-256)",
+      "harness": "미적용",
+      "effect": "없음. E5-4 지표는 인명·주소 NER 스팬만 채점한다(S6-privacy-packet.md:60). 정규식이 가리는 전화·계좌는 지표 변수가 아니다."
+    },
+    {
+      "item": "모델·revision·aggregation",
+      "production": "masking.py:313-318 aggregation_strategy=\"simple\", manifest 고정 revision",
+      "harness": "measure.py:152-157 동일 인자, deployedStrategy=\"simple\"(measure.py:163)",
+      "effect": "없음 — 동일."
+    }
+  ],
+  "specUnitEvidence": {
+    "spanExactRequired": true,
+    "quote": "S6-privacy-packet.md:60 — \"각 label의 span은 시작·끝 code-point와 label이 모두 같은 경우에만 TP다. TP(label)은 gold span과 예측 span이 시작·끝·label 모두 같은 개수, FP(label)은 gold와 정확히 대응하지 않는 예측 span 개수, FN(label)은 예측과 대응하지 않는 gold span 개수다.\"",
+    "e54Binding": "S6-privacy-packet.md:79 — \"E5-4가 corpus hash와 실제 측정 result hash를 발행하며, 각 label의 Wilson 95% lower precision·recall이 >= 0.90, overgeneralization Wilson 95% upper bound가 <= 0.05여야 production release qualification이 된다.\" :60의 TP/FP/FN 정의가 그대로 적용된다.",
+    "coverageUnitAllowed": false,
+    "note": "사양은 스팬-exact를 명시한다. 조각이 합쳐져 gold 구간을 덮는 coverage 단위로 바꾸는 것은 사양이 허용하지 않으므로 적용하지 않았다."
+  },
+  "rerunUsedFunctions": {
+    "script": "scripts/ner-release/rerun_production_path.py (mini 실행본: /tmp/ner-release/rerun_production.py, 동일 로직)",
+    "spanExtraction": "ccc_pipeline.masking.build_person_and_address_ner (masking.py:328-359) — worker.py:332가 호출하는 그 함수를 (\"PRIVATE_PERSON\",)/(\"PRIVATE_ADDRESS\",)로 직접 호출",
+    "scoring": "measure.score (measure.py:73-129), measure.gold_spans (measure.py:65-70) — 재구현 없이 import",
+    "maskingSmoke": "ccc_pipeline.masking.mask_text_with_report (masking.py:224-257) — worker.py:443-448 호출 형태 그대로",
+    "logicCopied": 0,
+    "copyNote": "스팬 산출·채점·마스킹 모두 제품/harness 함수를 import해 호출했다. 복사한 로직 없음."
+  },
+  "rerunMetrics": {
+    "equivalence": "제품 NerFn 스팬 집합 vs harness 필터 스팬 집합: 870행 중 불일치 0행",
+    "previous": {
+      "source": "artifacts/ner-release/measurement.json strategies.simple",
+      "counts": {"PRIVATE_PERSON": {"tp": 1, "fp": 717, "fn": 379}, "PRIVATE_ADDRESS": {"tp": 0, "fp": 1260, "fn": 300}},
+      "personPrecision": 0.001392757660167131,
+      "personRecall": 0.002631578947368421,
+      "addressPrecision": 0.0,
+      "addressRecall": 0.0,
+      "overgeneralizationRate": 0.9994944388270981
+    },
+    "productionPathRerun": {
+      "counts": {"PRIVATE_PERSON": {"tp": 1, "fp": 717, "fn": 379}, "PRIVATE_ADDRESS": {"tp": 0, "fp": 1260, "fn": 300}},
+      "personPrecision": 0.001392757660167131,
+      "personRecall": 0.002631578947368421,
+      "addressPrecision": 0.0,
+      "addressRecall": 0.0,
+      "overgeneralizationRate": 0.9994944388270981,
+      "identicalToPrevious": true
+    },
+    "artifact": "mini:/tmp/ner-release/measurement_production_path.json"
+  },
+  "wilsonLower": {
+    "personPrecisionLower": 0.0002458982477765945,
+    "personRecallLower": 0.00046468944259882815,
+    "addressPrecisionLower": -2.1618134581634236e-19,
+    "addressRecallLower": 8.563957084937438e-19,
+    "overgeneralizationUpper": 0.9999107504637349,
+    "thresholds": "precision·recall 하한 >= 0.90, overgeneralization 상한 <= 0.05 (S6-privacy-packet.md:79)"
+  },
+  "thresholdVerdict": "failed",
+  "failureMechanism": {
+    "observed": "모델이 BIOES 태그를 낸다(첫 10행 원시 태그 접두 분포: B=13, I=41, E=13, S=2). transformers 4.53.3(배포 핀 requirements-ml.txt:15)의 TokenClassificationPipeline.get_tag는 B-/I-만 벗기고 E-/S-는 tag에 접두가 남는다. 그 결과 group_entities가 E-/S- 토큰을 앞 그룹과 다른 tag로 보아 분리하고, B- 재시작도 새 그룹을 만든다 — \"simple\" 집계에서 개체가 조각난다.",
+    "consequence": "스팬-exact 채점에서 조각 하나하나가 FP, gold는 FN이 된다. 인명 FP 717/TP 1, 주소 FP 1260/TP 0.",
+    "diagnosticStrategies": "first/max 집계는 subword를 word 단위로 먼저 합쳐 인명 recall이 0.589/0.558까지 오르지만 주소 recall은 0 그대로이고 overgeneralization 상한도 0.77~0.81로 미달이다. 집계만 바꿔도 통과하지 못하므로 모델 자체 한계가 확인된다.",
+    "maskingStillCovers": "조각도 전부 PRIVATE_* 그룹이므로 제품 마스킹은 조각 단위로 가린다 — 커버리지는 되나 스팬-exact 지표와는 별개다."
+  },
+  "smokeCheck": {
+    "path": "masking.mask_text_with_report(text, person_ner, None, address_ner) — worker.py:443-448과 동일 인자 순서",
+    "maskedTokenCounts": {"[인명]": 4, "[전화번호]": 1},
+    "maskedTotal": 5,
+    "lenBefore": 42,
+    "lenAfter": 45,
+    "note": "가상 인명 둘+가상 전화번호 하나를 넣은 합성 한 줄. 인명 둘이 4개 스팬으로 조각나 가려졌다(조각도 전부 [인명] 토큰). 원본 문장은 R3에 따라 보고에 싣지 않는다. 제품 경로가 돌면서 측정이 0에 가깝다는 것 자체가 불일치가 아니라 스팬-exact 채점과 조각 마스킹의 차이를 보여준다."
+  },
+  "receiptFields": {
+    "produced": false,
+    "reason": "thresholdVerdict=failed — S6-privacy-packet.md:82-93 NerReleaseQualificationReceipt는 status='passed'만 존재하므로 미달 측정으로 영수증을 만들지 않는다.",
+    "schema": ["receiptId", "modelId", "modelRevision", "labelSetHash", "corpusHash", "resultHash", "validatedAt", "expiresAt", "status"]
+  },
+  "attestationFields": {
+    "produced": false,
+    "reason": "동일 — agent-jobs.ts:48-58 NerAttestation 9필드(id, modelId, modelRevision, labelSetHash, corpusHash, resultHash, validatedAt, expiresAt, status)는 status='passed' 고정이라 미발행.",
+    "schema": ["id", "modelId", "modelRevision", "labelSetHash", "corpusHash", "resultHash", "validatedAt", "expiresAt", "status"]
+  },
+  "noNewPostprocessing": {
+    "newPostprocessing": 0,
+    "verification": "rerun_production_path.py 전문 검사 — 스팬을 만지는 코드는 build_person_and_address_ner 호출과 measure.score 호출뿐이며, 사이에 스팬 병합·확장·라벨 재매핑·필터 추가가 없다. equivalence 검사(spanFnVsRawMismatchedRows=0)가 제품 스팬 함수 출력이 harness가 세던 것과 같음을 보인다."
+  },
+  "mutations": {
+    "thresholdChanged": 0,
+    "corpusChanged": 0,
+    "measurePyChanged": 0,
+    "dbInserts": 0,
+    "installRuns": 0,
+    "providerCalls": 0,
+    "modelDownloads": 0,
+    "filesAdded": ["scripts/ner-release/rerun_production_path.py", "artifacts/orchestration/ner-measurement-verify.json"],
+    "filesModified": []
+  },
+  "gitStatus": {
+    "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/release-16",
+    "branch": "release/0916",
+    "preExistingUntracked": ["artifacts/release/"]
+  },
+  "commit": {
+    "message": "verify: E5-4 NER 실패 원인 확정 — 제품 경로 재측정 동일, 모델 한계",
+    "parent": "2fe65c71",
+    "note": "이 파일을 포함하는 커밋의 해시는 자기 참조라 파일 안에 기록할 수 없다. git log release/0916 -1 로 확인."
+  },
+  "blocked": false
+}
