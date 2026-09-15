@@ -21,13 +21,6 @@ import {
   type DirectoryRole,
   correctCounselingMemory,
   getCounselingMemory,
-  getCounselingMemorySettings,
-  setCounselingMemorySettings,
-  acceptCounselingMemorySource,
-  claimCounselingMemorySources,
-  getCounselingMemorySource,
-  issueCounselingMemoryDictionary,
-  releaseCounselingMemorySource,
   ConflictError,
   ProgramAdmissionRequiredError,
   createProgram,
@@ -272,8 +265,6 @@ import {
 import { isSttReadinessReport } from '@ccc/contracts/stt-readiness';
 // preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
 import { previewModeEnabled } from './preview-gate';
-import { memoryTrialEnabled, memoryTrialReadiness } from './counseling-memory-trial';
-import { runCounselingMemory, runCounselingMemoryTrial } from './counseling-memory-runner';
 import { createScheduledJobRunner, dueScheduledJobKinds } from '@ccc/core/scheduled-job-runner';
 import { decodeStorageSignerRequest, type StorageSignerRequest } from '@ccc/contracts/audio';
 import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, MfaRequiredError, type Actor as IdentityActor, type AudioContentType, type AudioObjectMetadata, type JobReport } from '@ccc/contracts/runtime';
@@ -1598,9 +1589,9 @@ function parseConsentEventInput(body: JsonObject): AppendConsentEventInput {
 }
 async function resolveAgentRuntime(env: ApiEnv): Promise<AgentRuntime> {
   const manifest = await verifiedInstallManifest(env);
-  const requested = env.CCC_STT_MODE === 'local' || env.CCC_STT_MODE === 'azure' ? env.CCC_STT_MODE : 'off';
-  const requestedId = requested === 'local' ? 'qwen3-asr'
-    : requested === 'azure' ? 'azure-speech-koreacentral' : null;
+  if (env.CCC_STT_MODE === 'local') throw new CapabilitiesUnavailableError('stt mode unavailable');
+  const requested = env.CCC_STT_MODE === 'azure' ? 'azure' : 'off';
+  const requestedId = requested === 'azure' ? 'azure-speech-koreacentral' : null;
   const approved = requestedId !== null && manifest.approvedSttEngineIds.some(
     (entry) => entry.id === requestedId && entry.mode === requested,
   );
@@ -1608,7 +1599,7 @@ async function resolveAgentRuntime(env: ApiEnv): Promise<AgentRuntime> {
     route: routeForMode(manifest.mode),
     sttEngine: requested === 'off' || !approved ? null : requested,
     sttEngineId: approved ? requestedId : null,
-    audioDelivery: manifest.mode === 'community-cloud' ? 'protected-get' : 'api-stream',
+    audioDelivery: 'protected-get',
   };
 }
 
@@ -1776,7 +1767,17 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
       await beginOpenAiEgress(env, actor, egressAuthorizationId, 'detect_discrepancies');
       rawOutput = await adapter.detectDiscrepancies(providerRequest);
     }
-    const output = validateDiscrepancyDetectionOutput(rawOutput, providerRequest);
+    const withinSessionRawOutput = typeof rawOutput === 'object' && rawOutput !== null
+      && !Array.isArray(rawOutput) && Array.isArray((rawOutput as JsonObject).discrepancies)
+      ? {
+          ...rawOutput,
+          discrepancies: ((rawOutput as JsonObject).discrepancies as unknown[]).filter((item) => !(
+            typeof item === 'object' && item !== null && !Array.isArray(item)
+            && (item as JsonObject).kind === 'cross_session'
+          )),
+        }
+      : rawOutput;
+    const output = validateDiscrepancyDetectionOutput(withinSessionRawOutput, providerRequest);
     await replaceSessionDiscrepancies(env, actor, sessionId, output.discrepancies.map((item) => ({
       kind: item.kind,
       leftSessionId: item.leftRef,
@@ -2378,6 +2379,9 @@ export async function handleRequest(
     // D86 실무자 초대 공개 경로는 이 스위치 밖이지만 미리보기 코드 게이트는 같이 받는다.
     const publicSignupEnabled = env.PUBLIC_SIGNUP_ENABLED === '1';
     if (publicSignupPath && !publicSignupEnabled) return json({ error: 'not_found' }, 404);
+    if (env.installationMode === 'local-single' || env.installationMode === 'local-office') {
+      throw new CapabilitiesUnavailableError('installation mode unavailable');
+    }
     if (env.installationMode === undefined && env.CCC_INSTALL_MANIFEST !== undefined) {
       const installation = await verifiedInstallManifest(env);
       env = { ...env, installationMode: installation.mode };
@@ -2496,7 +2500,7 @@ export async function handleRequest(
       if (audioStore === null) return json({ error: 'service_unavailable' }, 503);
       const ranAt = new Date().toISOString();
       const runtimeEnv = env;
-      const runner = createScheduledJobRunner({ ...runtimeEnv, audioStore }, () => runCounselingMemory(runtimeEnv));
+      const runner = createScheduledJobRunner({ ...runtimeEnv, audioStore });
       const jobs: JobReport[] = [];
       for (const kind of dueScheduledJobKinds(ranAt)) jobs.push(await runner.run(kind, ranAt));
       return json({ ranAt, jobs }, 200, { 'cache-control': 'no-store' });
@@ -2646,18 +2650,7 @@ export async function handleRequest(
       );
     }
     if (parts.length === 2 && parts[0] === 'settings' && parts[1] === 'counseling-memory') {
-      requestQuery(url, []);
-      if (request.method === 'GET') {
-        return json(await getCounselingMemorySettings(env, actor), 200, { 'cache-control': 'no-store' });
-      }
-      if (request.method === 'PUT') {
-        const body = await requestBody(request);
-        requireOnlyKeys(body, ['enabled', 'expectedVersion']);
-        return json(await setCounselingMemorySettings(env, actor, {
-          enabled: requiredBoolean(body, 'enabled'),
-          expectedVersion: requiredExpectedVersion(body, 'expectedVersion'),
-        }), 200, { 'cache-control': 'no-store' });
-      }
+      return json({ error: 'not_found' }, 404);
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'organization' && parts[1] === 'profile') {
       // 기관·첫 사업 표시 이름 (CCC-32). 모든 화면의 셸(사이드바)이 읽으므로 역할 무관,
@@ -2965,21 +2958,7 @@ export async function handleRequest(
         return json(await listCaseExportHistory(env, actor, supportCaseId, parseExportHistoryQuery(query)));
       }
       if (parts.length === 4 && parts[2] === 'memory' && parts[3] === 'trial') {
-        if (!memoryTrialEnabled(env)) return json({ error: 'not_found' }, 404);
-        requestQuery(url, []);
-        if (request.method === 'GET') {
-          return json(await memoryTrialReadiness(env, actor, supportCaseId), 200, { 'cache-control': 'no-store' });
-        }
-        if (request.method === 'POST') {
-          const body = await requestBody(request);
-          requireOnlyKeys(body, ['confirmExternalAi']);
-          if (body.confirmExternalAi !== true) throw new ValidationError('external_call_confirmation_required');
-          const state = await memoryTrialReadiness(env, actor, supportCaseId);
-          if (!state.ready) return json(state, 409, { 'cache-control': 'no-store' });
-          const counters = await runCounselingMemoryTrial(env, actor, supportCaseId);
-          return json({ ...await memoryTrialReadiness(env, actor, supportCaseId), counters },
-            200, { 'cache-control': 'no-store' });
-        }
+        return json({ error: 'not_found' }, 404);
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'memory') {
         requestQuery(url, []);
@@ -3466,8 +3445,10 @@ export async function handleRequest(
       && parts[0] === 'pipeline' && parts[1] === 'readiness'
     ) {
       requestQuery(url, []);
+      const report = parseSttReadinessReport(await requestBody(request));
+      if (report.sttMode === 'local') return json({ error: 'not_found' }, 404);
       return json(await recordSttReadiness(
-        env, actor, parseSttReadinessReport(await requestBody(request)),
+        env, actor, report,
       ), 200, { 'cache-control': 'no-store' });
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'health') {
@@ -3500,31 +3481,7 @@ export async function handleRequest(
       return json(await registerCaseEntities(env, actor, parseEntityRegistrationRequest(await requestBody(request))));
     }
     if (parts[0] === 'pipeline' && parts[1] === 'memory') {
-      requestQuery(url, []);
-      if (actor.role !== 'service') throw new ForbiddenError();
-      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'claim') {
-        await verifiedInstallManifest(env);
-        const jobs = await claimCounselingMemorySources(env, actor, parseClaimRequest(await requestBody(request)));
-        return json({ schemaVersion: 2, jobs }, 200, { 'cache-control': 'no-store' });
-      }
-      if (parts[2] !== undefined && parts.length === 4) {
-        const jobId = requireRouteUuid(parts[2], 'memory job id');
-        if (request.method === 'GET' && parts[3] === 'source') {
-          const { claimToken, attempt } = claimCredentialsFromHeaders(request);
-          return json(await getCounselingMemorySource(env, actor, jobId, claimToken, attempt), 200, { 'cache-control': 'no-store' });
-        }
-        if (request.method === 'POST' && parts[3] === 'mask-dictionary') {
-          return json(await issueCounselingMemoryDictionary(env, actor, jobId, parseClaimCredentials(await requestBody(request))), 200, { 'cache-control': 'no-store' });
-        }
-        if (request.method === 'POST' && parts[3] === 'result') {
-          await acceptCounselingMemorySource(env, actor, jobId, parseAgentResultRequest(await requestBody(request)));
-          return new Response(null, { status: 204 });
-        }
-        if (request.method === 'POST' && parts[3] === 'release') {
-          await releaseCounselingMemorySource(env, actor, jobId, parseReleaseRequest(await requestBody(request)));
-          return new Response(null, { status: 204 });
-        }
-      }
+      return json({ error: 'not_found' }, 404);
     }
     // Agent 작업 계약 v2 (S5). 모든 endpoint 가 service 자격과 live claim 을 요구한다.
     if (parts[0] === 'pipeline' && parts[1] === 'jobs') {

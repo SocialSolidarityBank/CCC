@@ -14,10 +14,10 @@ import { notifyAdmins, type NotifyEnv } from './notify';
 export type ScheduledJobEnv = Env & NotifyEnv & { audioStore: AudioStore };
 
 /**
- * 서버 시각 한 틱에서 실행할 예약 작업. 주기는 `apps/api/src/cron-schedule.ts` 의 Workers cron
- * 과 같은 값이다(audio_expiry 5분, counseling_memory 2분, pipeline_watchdog 30분,
- * pii_retention 매일 03:00 UTC). Supabase 는 매분 tick 만 보내므로 무엇이 due 인지는 여기서
- * 정한다 — 호출자의 body 시각이 아니라 서버 UTC 분으로만 판정한다.
+ * 서버 시각 한 틱에서 실행할 예약 작업. 주기는 `apps/api/src/cron-schedule.ts` 의 Workers cron과
+ * 같은 값이다(audio_expiry 5분, pipeline_watchdog 30분, pii_retention 매일 03:00 UTC).
+ * Supabase 는 매분 tick 만 보내므로 무엇이 due 인지는 여기서 정한다. 호출자의 body 시각이 아니라
+ * 서버 UTC 분으로만 판정한다.
  */
 export function dueScheduledJobKinds(nowIso: string): ScheduledJobKind[] {
   const now = new Date(nowIso);
@@ -25,7 +25,6 @@ export function dueScheduledJobKinds(nowIso: string): ScheduledJobKind[] {
   if (Number.isNaN(minute)) throw new Error('invalid_scheduler_tick');
   const due: ScheduledJobKind[] = [];
   if (minute % 5 === 0) due.push('audio_expiry');
-  if (minute % 2 === 0) due.push('counseling_memory');
   if (minute % 30 === 0) due.push('pipeline_watchdog');
   if (now.getUTCHours() === 3 && minute === 0) due.push('pii_retention');
   return due;
@@ -88,7 +87,6 @@ async function jobCounters(
   env: ScheduledJobEnv,
   kind: ScheduledJobKind,
   nowIso: string,
-  memoryJob?: () => Promise<Record<string, number>>,
 ): Promise<Record<string, number>> {
   switch (kind) {
     case 'pipeline_watchdog': {
@@ -98,8 +96,7 @@ async function jobCounters(
     case 'pii_retention':
       return processParticipantPiiRetention(env, { at: nowIso });
     case 'counseling_memory':
-      if (memoryJob === undefined) throw new Error('unsupported_scheduled_job');
-      return memoryJob();
+      throw new Error('unsupported_scheduled_job');
     case 'audio_expiry': {
       const counters = await runAudioExpiry(env, env.audioStore, nowIso);
       return { ...counters, incidentsDelivered: await deliverAudioLifecycleIncidents(env) };
@@ -114,13 +111,10 @@ async function jobCounters(
  * tick 도 이 runner 만 부른다. 워치독은 gateway 가 자기 시계를 쓰므로 `nowIso` 를 받지 않는다.
  * 보존 생애주기(D32·D46)는 예약 시각을 `at` 으로 받아 아카이브·재검토만 하고 파기하지 않는다.
  */
-export function createScheduledJobRunner(
-  env: ScheduledJobEnv,
-  memoryJob?: () => Promise<Record<string, number>>,
-): ScheduledJobRunner {
+export function createScheduledJobRunner(env: ScheduledJobEnv): ScheduledJobRunner {
   return {
     async run(kind, nowIso): Promise<JobReport> {
-      const counters = await jobCounters(env, kind, nowIso, memoryJob);
+      const counters = await jobCounters(env, kind, nowIso);
       return { kind, nowIso, completedAt: new Date().toISOString(), counters };
     },
   };

@@ -6,4 +6,3 @@
 export const AUDIO_EXPIRY_CRON = '*/5 * * * *';
 export const WATCHDOG_CRON = '*/30 * * * *';
 export const PURGE_CRON = '0 3 * * *';
-export const MEMORY_CRON = '*/2 * * * *';

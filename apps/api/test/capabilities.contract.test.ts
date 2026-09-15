@@ -24,8 +24,8 @@ const MODES: DeploymentMode[] = ['community-cloud', 'local-single', 'local-offic
 const ROWS: Row[] = MODES.flatMap((mode, modeIndex): Row[] => [
   [modeIndex * 6 + 1, mode, 'registry-empty', 'off', 'off', 'off', null, 'off', 'inactive'],
   [modeIndex * 6 + 2, mode, 'registry-empty', 'off', 'openai', 'off', null, 'openai', 'connected'],
-  [modeIndex * 6 + 3, mode, 'local', 'local', 'off', 'local', 'qwen3-asr', 'off', 'connected'],
-  [modeIndex * 6 + 4, mode, 'local', 'local', 'openai', 'local', 'qwen3-asr', 'openai', 'connected'],
+  [modeIndex * 6 + 3, mode, 'local', 'local', 'off', 'off', null, 'off', 'inactive'],
+  [modeIndex * 6 + 4, mode, 'local', 'local', 'openai', 'off', null, 'openai', 'connected'],
   [modeIndex * 6 + 5, mode, 'azure', 'azure', 'off', 'azure', 'azure-speech-koreacentral', 'off', 'connected'],
   [modeIndex * 6 + 6, mode, 'azure', 'azure', 'openai', 'azure', 'azure-speech-koreacentral', 'openai', 'connected'],
 ]);
@@ -73,7 +73,7 @@ describe('CapabilityManifest 18 combinations (S2 §2.8)', () => {
     expect(manifest.sttEngine).toBe(actualEngine);
     expect(manifest.llmMode).toBe(actualLlm);
     expect(manifest.agentStatus).toBe(agentStatus);
-    expect(manifest.sttOptions.map((option) => option.mode)).toEqual(['off', 'local', 'azure']);
+    expect(manifest.sttOptions.map((option) => option.mode)).toEqual(['off', 'azure']);
     expect(manifest.llmOptions.map((option) => option.mode)).toEqual(['off', 'openai']);
     expect(manifest.features.ai_draft).toBe(actualLlm === 'openai');
     expect(manifest.features.recording).toBe(true);
@@ -100,7 +100,6 @@ describe('CapabilityManifest 18 combinations (S2 §2.8)', () => {
       expect(manifest.sttMode).toBe('off');
       expect(manifest.sttEngine).toBeNull();
       expect(manifest.sttOptions.slice(1)).toEqual([
-        { mode: 'local', enabled: false, disabledReason: 'unverified' },
         { mode: 'azure', enabled: false, disabledReason: 'unverified' },
       ]);
       expect(manifest.agentStatus).toBe('inactive');
@@ -109,12 +108,12 @@ describe('CapabilityManifest 18 combinations (S2 §2.8)', () => {
 
   it('reports deterministic disabled reasons', () => {
     const base = inputFor(ROWS[4]!); // cloud, azure registry, requested azure
-    expect(buildCapabilityManifest({ ...base, azureKeyPresent: false }).sttOptions[2]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'missing_key' });
-    expect(buildCapabilityManifest({ ...base, agentStatus: 'inactive' }).sttOptions[2]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unsupported' });
+    expect(buildCapabilityManifest({ ...base, azureKeyPresent: false }).sttOptions[1]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'missing_key' });
+    expect(buildCapabilityManifest({ ...base, agentStatus: 'inactive' }).sttOptions[1]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unsupported' });
     // gate 는 지났는데 signed registry 에 entry 가 없는 상태(S2 §2.8 두 번째 단).
-    expect(buildCapabilityManifest({ ...base, registry: [] }).sttOptions[2]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unsupported' });
+    expect(buildCapabilityManifest({ ...base, registry: [] }).sttOptions[1]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unsupported' });
     // entry 는 있는데 gate 표시가 없으면 entry 를 믿지 않는다.
-    expect(buildCapabilityManifest({ ...base, sttGatePassed: { local: false, azure: false } }).sttOptions[2]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unverified' });
+    expect(buildCapabilityManifest({ ...base, sttGatePassed: { local: false, azure: false } }).sttOptions[1]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unverified' });
     const llm = inputFor(ROWS[1]!); // cloud, requested openai
     expect(buildCapabilityManifest({ ...llm, llmKeyPresent: false }).llmOptions[1]).toEqual({ mode: 'openai', enabled: false, disabledReason: 'missing_key' });
     expect(buildCapabilityManifest({ ...llm, llmGateOpen: false }).llmOptions[1]).toEqual({ mode: 'openai', enabled: false, disabledReason: 'unsupported' });
@@ -126,33 +125,32 @@ describe('CapabilityManifest 18 combinations (S2 §2.8)', () => {
 });
 
 describe('decodeCapabilityManifest rejections', () => {
-  const valid = () => JSON.parse(JSON.stringify(buildCapabilityManifest(inputFor(ROWS[2]!)))) as Record<string, unknown>;
+  const valid = () => JSON.parse(JSON.stringify(buildCapabilityManifest(inputFor(ROWS[4]!)))) as Record<string, unknown>;
 
-  it('stt-azure-id-as-local-reject and stt-local-id-as-azure-reject', () => {
-    const asLocal = { ...valid(), sttEngine: 'azure-speech-koreacentral' };
-    expect(() => decodeCapabilityManifest(asLocal, [...SYNTHETIC_LOCAL_REGISTRY, ...SYNTHETIC_AZURE_REGISTRY])).toThrow(CapabilityManifestError);
-    const azureRow = JSON.parse(JSON.stringify(buildCapabilityManifest(inputFor(ROWS[4]!)))) as Record<string, unknown>;
-    const asAzure = { ...azureRow, sttEngine: 'qwen3-asr' };
-    expect(() => decodeCapabilityManifest(asAzure, [...SYNTHETIC_LOCAL_REGISTRY, ...SYNTHETIC_AZURE_REGISTRY])).toThrow(CapabilityManifestError);
+  it('rejects release-excluded local mode and a local engine in the Azure slot', () => {
+    const localMode = { ...valid(), sttMode: 'local' };
+    expect(() => decodeCapabilityManifest(localMode, [...SYNTHETIC_LOCAL_REGISTRY, ...SYNTHETIC_AZURE_REGISTRY])).toThrow(CapabilityManifestError);
+    const localEngine = { ...valid(), sttEngine: 'qwen3-asr' };
+    expect(() => decodeCapabilityManifest(localEngine, [...SYNTHETIC_LOCAL_REGISTRY, ...SYNTHETIC_AZURE_REGISTRY])).toThrow(CapabilityManifestError);
   });
 
   it('rejects engines outside the signed registry, URLs and credentials', () => {
     expect(() => decodeCapabilityManifest(valid(), [])).toThrow('not in the signed registry');
     for (const bad of ['https://stt.example/v1', 'engine?x=1', 'user@host', 'Bearer-abc', 'apikey-123']) {
-      expect(() => decodeCapabilityManifest({ ...valid(), sttEngine: bad }, [{ id: bad, mode: 'local' }])).toThrow(CapabilityManifestError);
+      expect(() => decodeCapabilityManifest({ ...valid(), sttEngine: bad }, [{ id: bad, mode: 'azure' }])).toThrow(CapabilityManifestError);
     }
   });
 
   it('rejects extra keys, wrong option order and broken invariants', () => {
-    expect(() => decodeCapabilityManifest({ ...valid(), orgId: 'org_demo' }, SYNTHETIC_LOCAL_REGISTRY)).toThrow('keys are invalid');
+    expect(() => decodeCapabilityManifest({ ...valid(), orgId: 'org_demo' }, SYNTHETIC_AZURE_REGISTRY)).toThrow('keys are invalid');
     const reordered = valid();
     reordered.sttOptions = (reordered.sttOptions as unknown[]).slice().reverse();
-    expect(() => decodeCapabilityManifest(reordered, SYNTHETIC_LOCAL_REGISTRY)).toThrow('order is invalid');
-    expect(() => decodeCapabilityManifest({ ...valid(), agentStatus: 'inactive' }, SYNTHETIC_LOCAL_REGISTRY)).toThrow('cannot be inactive');
+    expect(() => decodeCapabilityManifest(reordered, SYNTHETIC_AZURE_REGISTRY)).toThrow('order is invalid');
+    expect(() => decodeCapabilityManifest({ ...valid(), agentStatus: 'inactive' }, SYNTHETIC_AZURE_REGISTRY)).toThrow('cannot be inactive');
     const offRow = JSON.parse(JSON.stringify(buildCapabilityManifest(inputFor(ROWS[0]!)))) as Record<string, unknown>;
     expect(() => decodeCapabilityManifest({ ...offRow, agentStatus: 'connected' }, [])).toThrow('must be inactive');
     const features = { ...(valid().features as Record<string, boolean>), ai_draft: true };
-    expect(() => decodeCapabilityManifest({ ...valid(), features }, SYNTHETIC_LOCAL_REGISTRY)).toThrow('violates the mode invariant');
+    expect(() => decodeCapabilityManifest({ ...valid(), features }, SYNTHETIC_AZURE_REGISTRY)).toThrow('violates the mode invariant');
   });
 });
 
@@ -176,25 +174,30 @@ describe('GET /capabilities', () => {
     };
   }
 
-  it('answers a human with no-store, the installation header and a decodable body', async () => {
-    const env = await envWithManifest('local-office');
+  it('omits local STT from the Community Cloud capability response', async () => {
+    const env = await envWithManifest('community-cloud');
     const response = await worker.fetch(new Request('http://localhost/capabilities', { headers: counselor }), env);
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('x-ccc-installation-id')).toBe(TEST_INSTALLATION_ID);
     const body = await response.json();
     const decoded = decodeCapabilityManifest(body, SYNTHETIC_LOCAL_REGISTRY);
-    expect(decoded.mode).toBe('local-office');
-    // signed registry 에 local entry 가 있어도 readiness 검증 전에는 unverified 로 내려가고 off 가 선택된다.
-    // azure 는 registry 에 entry 가 없으니 unverified 다.
+    expect(decoded.mode).toBe('community-cloud');
     expect(decoded.sttMode).toBe('off');
-    expect(decoded.sttOptions[1]).toEqual({ mode: 'local', enabled: false, disabledReason: 'unverified' });
-    expect(decoded.sttOptions[2]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unverified' });
+    expect(decoded.sttOptions).toEqual([
+      { mode: 'off', enabled: true, disabledReason: null },
+      { mode: 'azure', enabled: false, disabledReason: 'unverified' },
+    ]);
+    expect(JSON.stringify(body)).not.toContain('qwen3-asr');
+    expect(JSON.stringify(body)).not.toContain('"local"');
     expect(decoded.agentStatus).toBe('inactive');
-    const text = JSON.stringify(body);
-    for (const needle of ['org_demo', 'counselor@example.invalid', TEST_INSTALLATION_ID, 'sb_publishable', 'supabase']) {
-      expect(text).not.toContain(needle);
-    }
+  });
+
+  it.each(['local-single', 'local-office'] as const)('rejects the %s install mode at the server capability boundary', async (mode) => {
+    const env = await envWithManifest(mode);
+    const response = await worker.fetch(new Request('http://localhost/capabilities', { headers: counselor }), env);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'service_unavailable' });
   });
 
   it('admits a technical-only human to capability reads without granting business access', async () => {
