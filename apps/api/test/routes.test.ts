@@ -41,6 +41,8 @@ import {
   agentManifestEnv,
   claimOverHttp,
   registerFixtureRecording,
+  readTestProtectedAudio,
+  testProtectedAudioEnv,
   seedCanonicalSttConsent,
   testMaskingPipelineRegistry,
   testMaskingPipelinePair,
@@ -952,11 +954,11 @@ describe('API routes', () => {
     expect(sessions[0]).not.toHaveProperty('audioR2Key');
 
     // 오디오 작업은 claim 으로만 보이고, 전달도 그 claim 에 묶인다 (S5).
-    const agentEnv = await agentManifestEnv(env, { mode: 'community-cloud', stt: 'azure' });
+    const agentEnv = testProtectedAudioEnv(await agentManifestEnv(env, { mode: 'community-cloud', stt: 'azure' }));
     const { jobs } = await claimOverHttp(agentEnv, t.db, serviceHeaders);
     const audioJob = jobs.find((job) => job.kind === 'audio' && job.sessionId === session.id);
     if (audioJob === undefined) throw new Error('expected a claimable audio job');
-    expect(audioJob.audio?.delivery).toBe('api-stream');
+    expect(audioJob.audio?.delivery).toBe('protected-get');
 
     const audioResponse = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${audioJob.jobId}/audio`, {
       headers: {
@@ -966,8 +968,9 @@ describe('API routes', () => {
       },
     }), agentEnv);
     expect(audioResponse.status).toBe(200);
-    expect(audioResponse.headers.get('content-type')).toBe('audio/wav');
-    expect(new Uint8Array(await audioResponse.arrayBuffer())).toHaveLength(364);
+    const audio = await readTestProtectedAudio(agentEnv, audioResponse);
+    expect(audio.contentType).toBe('audio/wav');
+    expect(audio.bytes).toHaveLength(364);
   });
 
   it('records a service-only immutable source snapshot and generates only from its reloaded evidence', async () => {

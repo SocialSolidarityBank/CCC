@@ -7,6 +7,7 @@ import worker from './support/local-worker';
 import {
   admitRecordingUpload,
   activateAiProviderConfiguration,
+  authorizeAgentJobEgress,
   appendSupportCaseConsentEvent,
   claimRecordingResultDownstream,
   commitRecordingResult,
@@ -17,6 +18,7 @@ import {
   issueSupportCaseConsentDisclosures,
   registerAiProviderConfiguration,
   registerRecording,
+  markAgentJobEgressInFlight,
   releaseRecordingResultDownstream,
   type Actor,
 } from '@ccc/core/gateway';
@@ -38,6 +40,10 @@ import {
   AZURE_CLOUD_RUNTIME,
   seedNerQualification,
   registerFixtureRecording,
+  readTestProtectedAudio,
+  testProtectedAudioEnv,
+  testMaskingPipelinePair,
+  TEST_PROTECTED_AUDIO_PATH,
   type NerQualification,
 } from './support/agent-jobs';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
@@ -113,6 +119,7 @@ async function sha256Hex(value: string): Promise<string> {
 /** v2 `AudioResult` (S5 §2.1). S6 metadata 와 hash 3종을 계약대로 채운다. */
 async function recordingResultBody(maskedText = MASKED_FIXTURE) {
   const sha256 = await sha256Hex(maskedText);
+  const maskingPipeline = await testMaskingPipelinePair();
   const evidence = [{
     id: crypto.randomUUID(),
     sourceRef: 'recording-transcript',
@@ -125,8 +132,7 @@ async function recordingResultBody(maskedText = MASKED_FIXTURE) {
     kind: 'audio',
     maskedText,
     sha256,
-    maskingPipelineVersion: 'fixture-mask-v1',
-    maskingPipelineHash: 'd'.repeat(64),
+    ...maskingPipeline,
     nerAvailable: true,
     nerAttestationId: 'attestation-placeholder',
     nerAttestationResultHash: 'c'.repeat(64),
@@ -189,7 +195,7 @@ async function postResult(
     'X-CCC-Role': service.role,
   },
 ): Promise<Response> {
-  const agentEnv = await agentManifestEnv(env, { stt: 'azure' });
+  const agentEnv = testProtectedAudioEnv(await agentManifestEnv(env, { stt: 'azure' }));
   // 이 헬퍼는 한 테스트에서 여러 번 불린다. 앞선 호출의 임대를 되돌려 매 호출이 스스로
   // claim 하게 한다(테스트 셋업 직접 DB 허용 — 서버 경로는 그대로 v2 계약을 지난다).
   await t.db.prepare(
@@ -223,8 +229,8 @@ async function postResult(
         },
       },
     ), agentEnv);
-    if (audioResponse.status !== 200) throw new Error('expected claim-bound audio stream');
-    const audioBytes = await audioResponse.arrayBuffer();
+    if (audioResponse.status !== 200) throw new Error('expected claim-bound signed audio');
+    const { bytes: audioBytes } = await readTestProtectedAudio(agentEnv, audioResponse);
     const audioSha256 = Array.from(
       new Uint8Array(await crypto.subtle.digest('SHA-256', audioBytes)),
       (byte) => byte.toString(16).padStart(2, '0'),
@@ -243,6 +249,17 @@ async function postResult(
       },
     ), agentEnv);
     if (verified.status !== 200) throw new Error('expected Agent audio verification');
+    const authorization = await authorizeAgentJobEgress(agentEnv, service, job.jobId, {
+      claimToken: job.claimToken,
+      attempt: job.attempt,
+      rawAudioSha256: audioSha256,
+      provider: 'azure',
+    }, AZURE_CLOUD_RUNTIME);
+    await markAgentJobEgressInFlight(agentEnv, service, job.jobId, {
+      egressAuthorizationId: authorization.egressAuthorizationId,
+      claimToken: job.claimToken,
+      attempt: job.attempt,
+    }, AZURE_CLOUD_RUNTIME);
     const source = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/source`, {
       headers: { ...AGENT_SERVICE_HEADERS, 'X-CCC-Job-Claim': job.claimToken, 'X-CCC-Job-Attempt': String(job.attempt) },
     }), agentEnv);
@@ -336,6 +353,23 @@ async function relayToWorker(
   response: ServerResponse,
   env: ApiEnv,
 ): Promise<void> {
+  const path = request.url ?? '/';
+  const marker = path.indexOf(TEST_PROTECTED_AUDIO_PATH);
+  if (marker >= 0) {
+    const key = decodeURIComponent(path.slice(marker + TEST_PROTECTED_AUDIO_PATH.length));
+    const object = await env.audioStore?.get(key);
+    if (object === null || object === undefined) {
+      response.writeHead(404).end();
+      return;
+    }
+    const bytes = new Uint8Array(await new Response(object.body).arrayBuffer());
+    response.writeHead(200, {
+      'content-type': object.contentType,
+      'content-length': String(bytes.byteLength),
+    });
+    response.end(Buffer.from(bytes));
+    return;
+  }
   const body = await bodyBytes(request);
   const headers = new Headers();
   for (const [name, value] of Object.entries(request.headers)) {
@@ -356,18 +390,23 @@ async function relayToWorker(
   response.end(Buffer.from(await workerResponse.arrayBuffer()));
 }
 
-function runDeviceClient(
+async function runDeviceClient(
   baseUrl: string,
   sessionId: string,
   qualification: { receiptId: string; attestation: Record<string, unknown> },
 ): Promise<{ code: number | null; stderr: string }> {
-  // 실제 Python 클라이언트로 v2 계약을 왕복한다: claim → 원음 stream/hash 검증 → result → 멱등 재전송.
+  // 실제 Python 클라이언트로 v2 계약을 왕복한다: claim → signed 원음/hash 검증 → Azure egress → result → 멱등 재전송.
+  const maskingPipeline = await testMaskingPipelinePair();
   const script = [
-    'import hashlib, json, sys, tempfile, uuid',
+    'import hashlib, json, sys, tempfile, urllib.request, uuid',
     'from pathlib import Path',
     'from ccc_pipeline.api_client import ApiClient',
     'from ccc_pipeline.results import build_result, build_result_request',
-    'client = ApiClient(sys.argv[1], "fixture-client", "fixture-secret", runtime_environment="production")',
+    'class StorageOpener:',
+    '    def open(self, request, timeout):',
+    '        return urllib.request.urlopen(request.full_url.replace("https://storage.test", sys.argv[1]), timeout=timeout)',
+    'client = ApiClient(sys.argv[1], "fixture-client", "fixture-secret", runtime_environment="production", audio_download_origin="https://storage.test")',
+    'client._storage_opener = StorageOpener()',
     'attestation = json.loads(sys.argv[3])',
     'receipt_id = sys.argv[4]',
     'jobs = client.claim_jobs({"nerAttestation": attestation, "releaseQualificationReceiptId": receipt_id})',
@@ -379,12 +418,14 @@ function runDeviceClient(
     '    client.verify_audio(job["jobId"], {"claimToken":job["claimToken"],"attempt":job["attempt"],"generationId":job["audio"]["generationId"],"agentComputedSha256":audio_sha256})',
     'finally:',
     '    audio_path.unlink(missing_ok=True)',
+    'authorization = client.authorize_egress(job["jobId"], {"claimToken":job["claimToken"],"attempt":job["attempt"],"rawAudioSha256":audio_sha256,"provider":"azure"})',
+    'client.start_egress(job["jobId"], {"egressAuthorizationId":authorization["egressAuthorizationId"],"claimToken":job["claimToken"],"attempt":job["attempt"]})',
     'client.get_source_bundle(job["jobId"], job["claimToken"], job["attempt"])',
     'result = build_result(',
     '    "audio",',
     `    ${JSON.stringify(MASKED_FIXTURE)},`,
-    '    masking_pipeline_version="fixture-mask-v1",',
-    '    masking_pipeline_hash="d" * 64,',
+    `    masking_pipeline_version=${JSON.stringify(maskingPipeline.maskingPipelineVersion)},`,
+    `    masking_pipeline_hash=${JSON.stringify(maskingPipeline.maskingPipelineHash)},`,
     '    ner_attestation=attestation,',
     '    release_qualification_receipt_id=receipt_id,',
     '    source_ref="audio:fixture",',
@@ -396,22 +437,22 @@ function runDeviceClient(
     'client.post_result(job["jobId"], request)',
     'client.post_result(job["jobId"], request)',
   ].join('\n');
-  return new Promise((resolveProcess, reject) => {
-    const child = spawn(
-      'python3',
-      ['-c', script, baseUrl, sessionId, JSON.stringify(qualification.attestation), qualification.receiptId],
-      {
-        cwd: resolve('apps/pipeline'),
-        env: { ...process.env, PYTHONPATH: '.' },
-        stdio: ['ignore', 'ignore', 'pipe'],
-      },
-    );
-    let stderr = '';
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk: string) => { stderr += chunk; });
-    child.on('error', reject);
-    child.on('close', (code) => resolveProcess({ code, stderr }));
-  });
+  const { promise, resolve: resolveProcess, reject } = Promise.withResolvers<{ code: number | null; stderr: string }>();
+  const child = spawn(
+    'python3',
+    ['-c', script, baseUrl, sessionId, JSON.stringify(qualification.attestation), qualification.receiptId],
+    {
+      cwd: resolve('apps/pipeline'),
+      env: { ...process.env, PYTHONPATH: '.' },
+      stdio: ['ignore', 'ignore', 'pipe'],
+    },
+  );
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk: string) => { stderr += chunk; });
+  child.on('error', reject);
+  child.on('close', (code) => resolveProcess({ code, stderr }));
+  return promise;
 }
 
 describe('recording result end-to-end contract (CCC-95)', () => {
@@ -436,6 +477,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     try {
       const address = server.address();
       if (address === null || typeof address === 'string') throw new Error('test server address is unavailable');
+      Object.assign(env, testProtectedAudioEnv(env));
       const qualification = await seedNerQualification(t.db);
       const processResult = await runDeviceClient(
         `http://127.0.0.1:${address.port}`,

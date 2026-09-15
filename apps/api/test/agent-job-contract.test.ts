@@ -264,15 +264,15 @@ describe('S5 Agent 작업 계약 v2', () => {
       expect(job.maxAttempts).toBe(3);
       expect(job.state).toBe('leased');
       expect(job.claimToken).toMatch(/^[0-9a-f]{64}$/);
-      expect(job.route).toBe('local-single-agent');
+      expect(job.route).toBe('community-cloud-agent');
       expect(job.maskDictionaryEndpoint).toBe(`/pipeline/jobs/${job.jobId}/mask-dictionary`);
     }
     // 오디오만 원음 묶음을 갖고, 텍스트는 null 이다.
     const audioJob = claimedJobs.find((job) => job.kind === 'audio');
     const textJob = claimedJobs.find((job) => job.kind === 'text');
-    expect(audioJob?.audio?.delivery).toBe('api-stream');
+    expect(audioJob?.audio?.delivery).toBe('protected-get');
     expect(audioJob?.audio?.retentionHardCapAt).toMatch(/Z$/);
-    expect(audioJob?.sttEngine).toBe('local');
+    expect(audioJob?.sttEngine).toBe('azure');
     expect(textJob?.audio).toBeNull();
     expect(textJob?.sttEngine).toBeNull();
     // 원문은 임대 주인만 받는다.

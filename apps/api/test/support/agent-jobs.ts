@@ -51,6 +51,39 @@ export async function testMaskingPipelinePair(): Promise<{
   };
 }
 
+export const TEST_PROTECTED_AUDIO_PATH = '/__test-audio/';
+
+export function testProtectedAudioEnv<T extends ApiEnv>(env: T, origin = 'https://storage.test'): T {
+  if (env.audioStore === null) throw new Error('test audio store is unavailable');
+  return {
+    ...env,
+    audioStore: {
+      ...env.audioStore,
+      createDownloadTarget: async (key: string) => ({
+        url: `${origin}${TEST_PROTECTED_AUDIO_PATH}${encodeURIComponent(key)}`,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    },
+  };
+}
+
+export async function readTestProtectedAudio(
+  env: ApiEnv,
+  response: Response,
+): Promise<{ bytes: Uint8Array; contentType: string }> {
+  const delivery = await response.json() as { delivery: string; url: string };
+  expect(delivery.delivery).toBe('signed-get');
+  const marker = delivery.url.indexOf(TEST_PROTECTED_AUDIO_PATH);
+  if (marker < 0) throw new Error('signed audio URL is invalid');
+  const key = decodeURIComponent(delivery.url.slice(marker + TEST_PROTECTED_AUDIO_PATH.length));
+  const object = await env.audioStore?.get(key);
+  if (object === null || object === undefined) throw new Error('signed audio object is missing');
+  return {
+    bytes: new Uint8Array(await new Response(object.body).arrayBuffer()),
+    contentType: object.contentType,
+  };
+}
+
 /** schemaVersion 1 registry JSON — claim/result 경로가 요구하는 활성 manifest 등록 형태. */
 export async function testMaskingPipelineRegistry(): Promise<string> {
   const maskingPipelineHash = await testMaskingPipelineHash();

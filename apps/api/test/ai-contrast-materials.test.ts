@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import {
   activateAiProviderConfiguration,
+  authorizeAgentJobEgress,
   createCase,
   createManualSession,
+  markAgentJobEgressInFlight,
   recordMaskedSourceSnapshot,
   registerAiProviderConfiguration,
   registerRecording,
@@ -35,9 +37,8 @@ import {
 import { contrastAxisStates } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import { seedTestProgramWithRuntimeModes, setupD1, testProgramId } from './support/d1';
-import { agentManifestEnv, agentResultRequest, claimOverHttp, registerFixtureRecording } from './support/agent-jobs';
+import { agentManifestEnv, agentResultRequest, AZURE_CLOUD_RUNTIME, claimOverHttp, readTestProtectedAudio, registerFixtureRecording, testProtectedAudioEnv } from './support/agent-jobs';
 import { registrationInput } from './support/registration';
-
 const t = setupD1();
 
 const TRANSCRIPT_TEXT = '실무자는 이사 계획을 물었고 당사자는 다음 달 이사를 준비한다고 답했다.';
@@ -460,7 +461,7 @@ async function postTextSnapshot(env: ApiEnv, sessionId: string, maskedText = TEX
 
 /** 녹음 결과는 오디오를 claim·읽기·검증한 작업의 결과로만 들어온다 (S5). */
 async function postRecordingResult(env: ApiEnv, sessionId: string): Promise<Response> {
-  const agentEnv = await agentManifestEnv(env, { stt: 'azure' });
+  const agentEnv = testProtectedAudioEnv(await agentManifestEnv(env, { stt: 'azure' }));
   const { jobs, qualification } = await claimOverHttp(agentEnv, t.db);
   const job = jobs.find((candidate) => candidate.kind === 'audio' && candidate.sessionId === sessionId);
   if (job === undefined || job.audio === null) throw new Error('expected a claimable audio job');
@@ -474,9 +475,10 @@ async function postRecordingResult(env: ApiEnv, sessionId: string): Promise<Resp
       },
     },
   ), agentEnv);
-  if (audioResponse.status !== 200) throw new Error('expected claim-bound audio stream');
+  if (audioResponse.status !== 200) throw new Error('expected claim-bound signed audio');
+  const { bytes: audioBytes } = await readTestProtectedAudio(agentEnv, audioResponse);
   const audioSha256 = Array.from(
-    new Uint8Array(await crypto.subtle.digest('SHA-256', await audioResponse.arrayBuffer())),
+    new Uint8Array(await crypto.subtle.digest('SHA-256', audioBytes)),
     (byte) => byte.toString(16).padStart(2, '0'),
   ).join('');
   const verified = await worker.fetch(new Request(
@@ -493,6 +495,17 @@ async function postRecordingResult(env: ApiEnv, sessionId: string): Promise<Resp
     },
   ), agentEnv);
   if (verified.status !== 200) throw new Error('expected Agent audio verification');
+  const authorization = await authorizeAgentJobEgress(agentEnv, service, job.jobId, {
+    claimToken: job.claimToken,
+    attempt: job.attempt,
+    rawAudioSha256: audioSha256,
+    provider: 'azure',
+  }, AZURE_CLOUD_RUNTIME);
+  await markAgentJobEgressInFlight(agentEnv, service, job.jobId, {
+    egressAuthorizationId: authorization.egressAuthorizationId,
+    claimToken: job.claimToken,
+    attempt: job.attempt,
+  }, AZURE_CLOUD_RUNTIME);
   const source = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/source`, {
     headers: { ...serviceHeaders, 'X-CCC-Job-Claim': job.claimToken, 'X-CCC-Job-Attempt': String(job.attempt) },
   }), agentEnv);
