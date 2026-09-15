@@ -6,7 +6,7 @@ import {
   createCase,
   createManualSession,
   markAgentJobEgressInFlight,
-  recordMaskedSourceSnapshot,
+  enqueueTextWorkItem,
   registerAiProviderConfiguration,
   registerRecording,
   SESSION_GOAL_MATERIAL_LABEL,
@@ -37,7 +37,7 @@ import {
 import { contrastAxisStates } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import { seedTestProgramWithRuntimeModes, setupD1, testProgramId } from './support/d1';
-import { agentManifestEnv, agentResultRequest, AZURE_CLOUD_RUNTIME, claimOverHttp, readTestProtectedAudio, registerFixtureRecording, testProtectedAudioEnv } from './support/agent-jobs';
+import { agentManifestEnv, agentResultRequest, AZURE_CLOUD_RUNTIME, claimOverHttp, readTestProtectedAudio, registerFixtureRecording, runAgentTextJobs, testMaskingPipelineRegistry, testProtectedAudioEnv } from './support/agent-jobs';
 import { registrationInput } from './support/registration';
 const t = setupD1();
 
@@ -394,22 +394,6 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function snapshotBody(maskedText: string, sourceRef: string) {
-  const sha256 = await sha256Hex(maskedText);
-  return {
-    maskedText,
-    sha256,
-    maskingPipelineVersion: 'local-ner-v1',
-    evidence: [{
-      id: crypto.randomUUID(),
-      sourceRef,
-      sourceSha256: sha256,
-      evidenceQuote: maskedText,
-      sourceStart: 0,
-      sourceEnd: Array.from(maskedText).length,
-    }],
-  };
-}
 
 interface RouteFixtureOptions {
   configHash?: string;
@@ -428,6 +412,7 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
     TEXT_AI_PILOT_ENABLED: '1',
     CCC_STT_MODE: 'azure',
     CCC_LLM_MODE: 'openai',
+    MEMORY_MASKING_PIPELINES: await testMaskingPipelineRegistry(),
     AI_PROVIDER_ADAPTER: adapter,
   };
   // 텍스트 AI 권한은 등록 6종 동의만이 만든다(옛 파일럿 증빙 라우트는 폐지).
@@ -453,9 +438,16 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   return { adapter, caseRecord, env, session };
 }
 
-/** 텍스트 재료 스냅샷. v2 는 별도 snapshot 라우트가 없어 게이트웨이 경계로 직접 만든다. */
+/** 텍스트 재료 스냅샷도 실제 Agent claim/source/result 경로에서 proof 를 받아 만든다. */
 async function postTextSnapshot(env: ApiEnv, sessionId: string, maskedText = TEXT_CONTEXT_TEXT) {
-  const snapshot = await recordMaskedSourceSnapshot(env, service, sessionId, await snapshotBody(maskedText, 'memo:text-1'));
+  await enqueueTextWorkItem(env, counselor, sessionId, 'manual_record');
+  const agentEnv = await agentManifestEnv(env, { stt: 'off' });
+  const processed = await runAgentTextJobs(agentEnv, t.db, { mask: () => maskedText });
+  expect(processed).toBeGreaterThan(0);
+  const snapshot = await t.db.prepare(
+    'SELECT id,sha256 FROM ai_masked_source_snapshots WHERE session_id=? ORDER BY created_at DESC,id DESC LIMIT 1',
+  ).bind(sessionId).first<{ id: string; sha256: string }>();
+  if (snapshot === null) throw new Error('expected proof-backed text snapshot');
   return { sourceSnapshotId: snapshot.id, sha256: snapshot.sha256 };
 }
 

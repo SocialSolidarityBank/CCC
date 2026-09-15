@@ -34,15 +34,17 @@ import {
   getSupportCaseReport,
   loadAiCallMaterialsForService,
   listSupportCasesForBeneficiary,
-  recordMaskedSourceSnapshot,
   registerAiProviderConfiguration,
   setSupportCaseOverallGoal,
   updateParticipantPii,
 } from '@ccc/core/gateway';
 import {
+  agentManifestEnv,
   claimRequest,
+  runAgentTextJobs,
   seedCanonicalSttConsent,
   seedNerQualification,
+  testMaskingPipelineRegistry,
   TEXT_ONLY_RUNTIME,
 } from './support/agent-jobs';
 import { registrationInput } from './support/registration';
@@ -113,13 +115,6 @@ async function saveRecord(
   return result.record.id;
 }
 
-async function sha256Hex(value: string): Promise<string> {
-  const encoded = new TextEncoder().encode(value);
-  const bytes = new Uint8Array(encoded.byteLength);
-  bytes.set(encoded);
-  const digest = await crypto.subtle.digest('SHA-256', bytes.buffer);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
 
 /**
  * 이 회차에 승인된 AI 정리를 만든다. approved_ai_briefing_v1 은 뷰라서 직접 넣을 수 없고,
@@ -136,29 +131,33 @@ async function approveBriefingFor(caseId: string, sessionId: string): Promise<vo
   await activateAiProviderConfiguration(t.env, admin, config.id);
 
   const evidenceQuote = 'MASKED_EVIDENCE_FOR_APPROVAL';
-  const snapshotHash = await sha256Hex(evidenceQuote);
-  const snapshot = await recordMaskedSourceSnapshot(t.env, service, sessionId, {
-    maskedText: evidenceQuote,
-    sha256: snapshotHash,
-    maskingPipelineVersion: 'ner-mask-v1',
-    evidence: [{
-      id: `approved-evidence-${sessionId}`,
-      sourceRef: 'memo:approved-source',
-      sourceSha256: snapshotHash,
-      evidenceQuote,
-      sourceStart: 0,
-      sourceEnd: evidenceQuote.length,
-    }],
-  });
-  if (snapshot.caseId !== caseId) throw new Error('masked source snapshot case mismatch');
+  await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
+  const agentEnv = await agentManifestEnv(t.env, { stt: 'off' });
+  t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
+  expect(await runAgentTextJobs(agentEnv, t.db, { mask: () => evidenceQuote })).toBeGreaterThan(0);
+  const snapshot = await t.db.prepare(
+    `SELECT snapshot.id,snapshot.sha256,COALESCE(sc.legacy_case_id,sc.id) AS case_id
+     FROM ai_masked_source_snapshots snapshot
+     JOIN support_cases sc ON sc.id=snapshot.support_case_id AND sc.org_id=snapshot.org_id
+     WHERE snapshot.session_id=? ORDER BY snapshot.created_at DESC,snapshot.id DESC LIMIT 1`,
+  ).bind(sessionId).first<{ id: string; sha256: string; case_id: string }>();
+  if (snapshot === null) throw new Error('expected proof-backed source snapshot');
+  if (snapshot.case_id !== caseId) throw new Error('masked source snapshot case mismatch');
+  const sourceEvidence = await t.db.prepare(
+    `SELECT id,source_ref,evidence_quote,source_start,source_end
+     FROM ai_masked_source_evidence_items WHERE snapshot_id=? ORDER BY source_start,id LIMIT 1`,
+  ).bind(snapshot.id).first<{
+    id: string; source_ref: string; evidence_quote: string; source_start: number; source_end: number;
+  }>();
+  if (sourceEvidence === null) throw new Error('expected proof-backed source evidence');
 
   const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, sessionId);
   const link = {
-    sourceEvidenceItemId: `approved-evidence-${sessionId}`,
-    evidenceQuote,
-    sourceRef: 'memo:approved-source',
-    sourceStart: 0,
-    sourceEnd: evidenceQuote.length,
+    sourceEvidenceItemId: sourceEvidence.id,
+    evidenceQuote: sourceEvidence.evidence_quote,
+    sourceRef: sourceEvidence.source_ref,
+    sourceStart: sourceEvidence.source_start,
+    sourceEnd: sourceEvidence.source_end,
   };
   const draft = await createGeneratedAiDraft(t.env, service, sessionId, {
     summaryText: 'APPROVED_AI_SUMMARY',
@@ -195,7 +194,7 @@ async function approveBriefingFor(caseId: string, sessionId: string): Promise<vo
 /** 큐에 쌓인 행을 사유·상태까지 그대로 읽는다(테스트 전용 직접 조회). */
 async function queueRows(): Promise<Array<{ session_id: string; reason: string; status: string }>> {
   const result = await t.db.prepare(
-    'SELECT session_id, reason, status FROM ai_text_work_queue ORDER BY enqueued_at, id',
+    "SELECT session_id, reason, status FROM ai_text_work_queue WHERE status IN ('pending','processing') ORDER BY enqueued_at, id",
   ).all<{ session_id: string; reason: string; status: string }>();
   return result.results;
 }
@@ -292,12 +291,23 @@ describe('getAgentJobSource — AI 재료 배선 (CCC-73 · D62 §7)', () => {
       channel: 'visit', memo: 'RAW_OFFICIAL_MEMO', counselorOpinion: 'RAW_OFFICIAL_OPINION',
     });
     await approveBriefingFor(caseId, record.record.id);
-    expect(await sourceForSession(record.record.id)).toBe(
+    let sourceText = '';
+    await enqueueTextWorkItem(t.env, counselor, record.record.id, 'manual_record');
+    const agentEnv = await agentManifestEnv(t.env, { stt: 'off' });
+    expect(await runAgentTextJobs(agentEnv, t.db, {
+      mask: (text) => {
+        sourceText = text;
+        return 'MASKED_EVIDENCE_FOR_APPROVAL';
+      },
+    })).toBeGreaterThan(0);
+    expect(sourceText).toBe(
       'RAW_OFFICIAL_MEMO\n[상담 방식] visit\n[이 회차 실무자 의견] RAW_OFFICIAL_OPINION\nAPPROVED_AI_SUMMARY',
     );
-    const snapshot = await t.db.prepare('SELECT id FROM ai_masked_source_snapshots WHERE session_id = ?')
-      .bind(record.record.id).first<{ id: string }>();
-    const material = await loadAiCallMaterialsForService(t.env, service, record.record.id, snapshot!.id);
+    const snapshot = await t.db.prepare(
+      'SELECT id FROM ai_masked_source_snapshots WHERE session_id=? ORDER BY created_at DESC,id DESC LIMIT 1',
+    ).bind(record.record.id).first<{ id: string }>();
+    if (snapshot === null) throw new Error('expected current proof-backed source snapshot');
+    const material = await loadAiCallMaterialsForService(t.env, service, record.record.id, snapshot.id);
     expect(material.materials.map(item => ({ kind: item.kind, text: item.snapshot.maskedText }))).toEqual([
       { kind: 'text_context', text: 'MASKED_EVIDENCE_FOR_APPROVAL' },
     ]);
