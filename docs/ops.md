@@ -477,10 +477,39 @@ SQL만 만들고, 적용 대상은 여전히 `ccc-preview`로 고정한다.
 
 manifest 를 넣지 않는 이유는 넣을 값이 없기 때문이다. `mode` 는 `community-cloud`·`local-single`·`local-office` 셋뿐인데(`packages/contracts/src/runtime.ts`) 호스팅 프리뷰는 Cloudflare Workers + D1 이라 어디에도 해당하지 않는다. `community-cloud` 는 `assertModeFields` 가 Supabase 세 값과 project ref 일치를 요구하므로 가짜 값을 만들어야 하고, `local-office` 는 프리뷰를 기관 내부망 설치라고 선언하게 된다. manifest 생성 주체는 설치기(D83 `install`)이며 아직 없다. 배포용 생성기는 레포에 0건이고 있는 것은 테스트 헬퍼 `apps/api/test/support/install-manifest.ts` 하나다.
 
-엔진별 상태(`사용 가능`·`승인 전`·`설치에 없음`·`자격 없음`)를 실제로 보려면 로컬에서 설치 하나를 흉내 낸다. `unsignedManifest('local-office')` 값으로 서명해 `apps/api/.dev.vars` 에 두 변수를 넣고 API 를 다시 띄운다. 함정 둘:
+로컬에서 엔진별 상태(`사용 가능`·`승인 전`·`설치에 없음`·`자격 없음`)나 사업 도입 관문을 확인하려면 설치를 합성해야 한다. **5096f6b7 기준으로 동작하는 절차는 `community-cloud` manifest뿐이다.** 빈 로컬 D1이라면 레포 루트에서 먼저 다음 순서로 준비한다.
 
-- `local-office` 는 `apiBase` 와 `scheme` 이 **https** 여야 검증을 통과한다. `http://127.0.0.1` 로 만들면 503 이다.
-- 서명은 `crypto.subtle` Ed25519 + JCS 정규화라 TypeScript 경로에서만 돌아간다. `apps/web` vitest 로 헬퍼를 불러 만드는 것이 가장 짧다.
+```bash
+pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-local --local
+pnpm seed:generate:local
+pnpm seed:apply:local
+```
+
+`apps/api/.dev.vars`에 `PII_ENC_KEY`, `PII_KEY_VERSION`, `LOCAL_DEV_ACTOR_EMAIL`을 준비한 뒤 레포 루트에서 다음 명령을 실행한다. 이 명령은 기존 두 `CCC_INSTALL_*` 줄만 교체하며, 값과 개인키를 stdout에 출력하지 않는다.
+
+```bash
+bun - <<'EOF'
+import { createTestSigner, signedManifest } from './apps/api/test/support/install-manifest.ts';
+
+const signer = await createTestSigner('local-smoke');
+const manifest = await signedManifest(signer, 'community-cloud');
+const path = 'apps/api/.dev.vars';
+const file = Bun.file(path);
+const current = await file.exists() ? await file.text() : '';
+const lines = current.split('\n').filter((line) =>
+  line.length > 0
+  && !line.startsWith('CCC_INSTALL_MANIFEST=')
+  && !line.startsWith('CCC_INSTALL_SIGNING_KEYS=')
+);
+lines.push(`CCC_INSTALL_MANIFEST='${JSON.stringify(manifest)}'`);
+lines.push(`CCC_INSTALL_SIGNING_KEYS='${JSON.stringify(signer.publicKeys)}'`);
+await Bun.write(path, `${lines.join('\n')}\n`);
+EOF
+```
+
+개인키는 메모리에서만 쓰고 저장하거나 출력하지 않는다. 테스트 헬퍼의 Supabase 값은 합성 자료이므로 이 절차는 로컬 disposable D1에서만 쓴다. 미리보기와 운영 환경에는 넣지 않는다. `apps/api`에서 `pnpm exec wrangler dev --port 8876`으로 API를 다시 띄운 뒤 `GET /program-options`가 200이고 대상 사업의 `admissionState`가 `ready`인지 확인한다.
+
+`local-single`과 `local-office`는 D76에서 정식 지원 방향으로 결정됐지만, 아직 이 Worker 경로에는 구현되지 않았다. `packages/http-api/src/capabilities.ts`의 `verifiedInstallManifest`가 `community-cloud`가 아닌 manifest를 거부하고, `packages/http-api/src/request-handler.ts`도 Worker binding에 직접 들어온 두 local mode를 `service_unavailable`로 닫는다. 이는 D76을 취소한 것이 아니라 D79의 평문 SQLite 금지 등 선행 조건을 포함한 구현 대기 상태다. 따라서 local mode 거부를 풀어서 이 절차를 통과시키지 않는다.
 
 ### 미리보기에서 종단 경로 돌리기 (D57 · ADR-0027, 2026-07-31 실측)
 

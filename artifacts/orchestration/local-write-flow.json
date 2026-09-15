@@ -41,15 +41,22 @@
       "action": "로컬 스모크 전용 Ed25519 키를 메모리에서 생성하고, @ccc/contracts/install-manifest의 signInstallManifest로 365일 유효한 합성 community-cloud manifest를 서명했다. CCC_INSTALL_MANIFEST와 공개키만 담은 CCC_INSTALL_SIGNING_KEYS를 .dev.vars에 저장했다. 개인키는 저장하거나 출력하지 않았다.",
       "whyCommunityCloud": "현재 Worker의 verifiedInstallManifest는 community-cloud만 받아 installationMode로 투영한다. local-office manifest는 이 경계에서 service_unavailable로 닫힌다. 합성 값은 로컬 disposable D1 스모크에만 썼고 preview와 운영에는 넣지 않았다.",
       "verification": "API 재기동 뒤 GET /me 200, GET /program-options 200, 활성 사업 1건과 admissionState ready를 확인했다.",
+      "reproduction": [
+        "빈 local D1이면 레포 루트에서 pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-local --local, pnpm seed:generate:local, pnpm seed:apply:local을 순서대로 실행한다.",
+        "docs/ops.md의 Bun 명령은 apps/api/test/support/install-manifest.ts의 createTestSigner()와 signedManifest(signer, 'community-cloud')를 실행하고 apps/api/.dev.vars의 두 CCC_INSTALL_* 줄을 직접 교체한다. 개인키와 값은 stdout에 출력하지 않는다.",
+        "첫 등록 차단 확인은 LOCAL_DEV_ACTOR_EMAIL=account@bss.or.kr, 시드 케이스 후속 쓰기는 해당 케이스의 합성 담당자인 LOCAL_DEV_ACTOR_EMAIL=ai00@ggbss.or.kr로 API를 재기동한다.",
+        "GET /program-options가 200이고 활성 사업 1건의 admissionState가 ready인지 확인한 뒤 웹을 기동한다."
+      ],
       "trackedMutation": false,
       "secretExposure": false
     },
     "documentationDrift": {
-      "status": "confirmed",
-      "documentedPath": "docs/ops.md의 GET /capabilities 절은 로컬에서 local-office manifest를 서명해 두 변수를 넣으라고 안내한다.",
-      "currentCode": "observationHead 기준 packages/http-api/src/capabilities.ts verifiedInstallManifest lines 36-55는 community-cloud가 아닌 manifest를 installation mode unavailable로 거부한다. packages/http-api/src/request-handler.ts lines 2382-2387은 직접 들어온 local-single과 local-office mode도 거부하고, 검증된 manifest에서만 mode를 투영한다.",
-      "impact": "문서의 local-office 절차로는 현재 로컬 API가 503으로 닫힌다. 이번 스모크는 합성 community-cloud manifest로만 진행할 수 있었다.",
-      "mutation": "조사 배정이므로 docs/ops.md는 고치지 않았다."
+      "status": "corrected_in_ops",
+      "previousDocumentation": "docs/ops.md는 로컬에서 local-office manifest를 서명해 두 변수를 넣으라고 안내했지만 현재 코드에서는 503으로 닫혔다.",
+      "currentCode": "5096f6b7 기준 packages/http-api/src/capabilities.ts verifiedInstallManifest lines 36-55는 community-cloud가 아닌 manifest를 installation mode unavailable로 거부한다. packages/http-api/src/request-handler.ts lines 2382-2387은 직접 들어온 local-single과 local-office mode도 거부하고 검증된 manifest에서만 mode를 투영한다.",
+      "impact": "현재 로컬에서 재현 가능한 절차는 합성 community-cloud manifest뿐이다. local-single과 local-office는 D76의 정식 지원 방향을 취소한 것이 아니라 D79 등 선행 조건을 포함한 구현 대기 상태다.",
+      "mutation": "docs/ops.md의 기존 GET /capabilities 절을 5096f6b7의 현재 동작, 실행 가능한 합성 community-cloud 절차, local mode 구현 대기 상태에 맞게 수정했다. local mode 거부 코드는 풀지 않았다.",
+      "docsVerification": "문서의 Bun snippet을 그대로 실행하고 API를 재기동한 뒤 GET /program-options 200, 활성 사업 1건, admissionState ready를 다시 확인했다."
     }
   },
   "stages": [
@@ -103,11 +110,145 @@
       "reason": "이 쓰기 흐름에서 생성된 결과가 없다. 확인 목적지는 /participants/<beneficiaryId>/programs/<supportCaseId>/briefing이며, '15초'는 대기 시간이 아니라 페이지 이름이다. 앞 단계에서 새로 저장한 인테이크, 상담 기록, 목표, 액션과 일정이 해당 페이지에 반영되는지가 성공 기준이다. 기존 시드의 읽기 화면 성공을 새 쓰기 성공으로 대체하지 않았다."
     }
   ],
+  "followUp": {
+    "observationHead": "5096f6b7cabd2509dca2c0e390b27882be50adcf",
+    "headNote": "첫 보고 커밋 뒤 테스트 전용 커밋 두 개가 추가됐다. 아래 줄 번호는 5096f6b7 기준이다.",
+    "preexistingChanges": [
+      "M apps/api/test/agent-job-contract.test.ts",
+      "M apps/api/test/ai-contrast-materials.test.ts",
+      "M apps/api/test/counseling-memory.races.test.ts",
+      "M apps/api/test/recording-result.e2e.test.ts",
+      "M apps/api/test/routes.test.ts",
+      "M apps/api/test/support/agent-jobs.ts",
+      "?? artifacts/release/"
+    ],
+    "seededTarget": {
+      "beneficiaryId": "deer-001",
+      "supportCaseId": "650af04c-5cb3-4d9f-af27-599b9fcbe9f3",
+      "actor": "시드가 정당한 게이트웨이 경로로 배정한 합성 실무자 ai00@ggbss.or.kr",
+      "noBypass": "기존 consent_events 6건을 그대로 사용했다. 동의 행 직접 삽입, 검사 비활성화, 권한 우회는 0건이다."
+    },
+    "summary": {
+      "passed": 3,
+      "partial": 1,
+      "failed": 1,
+      "verdict": "인테이크 수정, 일정 등록, 목표 입력은 통과했다. 상담 기록 작성은 client와 manual-record v2 계약 드리프트로 실패했다. 결과 화면 확인은 성공한 목표는 보였지만 새 상담 기록이 없어 부분 통과다."
+    },
+    "stages": [
+      {
+        "order": 1,
+        "name": "인테이크 기록",
+        "status": "passed_as_update",
+        "whyUpdate": "시드 100개 케이스는 모두 인테이크 1회 작성이 끝나 있다. 작성 1회 불변식을 깨지 않고 /records/intake?edit=1의 공식 수정 경로를 밟았다.",
+        "screen": "합성 담당 실무자로 열었을 때 4단계 46/46을 채우고 저장했다. 저장 뒤 조회 화면으로 이동했고 수정 버튼과 완료 상태가 보였다.",
+        "api": "PUT /support-cases/650af04c-5cb3-4d9f-af27-599b9fcbe9f3/records/intake returned 200.",
+        "database": "intake_record_revisions의 해당 인테이크 revision이 2다.",
+        "contractCheck": "writeSchemaVersion과 moduleSnapshot을 화면 context에서 받아 제출한 로컬 경로가 fail-closed 검사를 통과했다.",
+        "sourceAtHead": [
+          "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx의 기존 인테이크 edit 분기와 IntakeWizard",
+          "apps/web/app/actions.ts updateIntakeRecordAction at lines 1580-1617",
+          "packages/http-api/src/request-handler.ts intake PUT dispatch at lines 3177-3181"
+        ],
+        "serverStack": null
+      },
+      {
+        "order": 2,
+        "name": "상담 일정 등록",
+        "status": "passed",
+        "input": "2026-09-23 16:40 Asia/Seoul",
+        "screen": "완료 뒤 '등록을 완료했어요'가 보였다. 다음 주 주간 일정 화면에서 강민재의 기본상담이 '2026년 9월 23일 오후 4:40'으로 보였다.",
+        "api": "POST /schedules returned 201 Created.",
+        "database": "counseling_schedules.scheduled_at은 2026-09-23T07:40:00.000Z, status scheduled, version 1이다.",
+        "timeVerdict": "입력한 서울 시각 16:40이 UTC 07:40으로 저장되고 다시 서울 시각 오후 4:40으로 렌더됐다. 하루 밀림과 9시간 표시 오차는 0건이다.",
+        "sourceAtHead": [
+          "apps/web/app/schedules/new/page.tsx의 ScheduleWizard",
+          "apps/web/app/actions.ts createSchedulePlanAction at lines 1396-1429, parseOrgWallDateTime 뒤 toISOString"
+        ],
+        "serverStack": null
+      },
+      {
+        "order": 3,
+        "name": "상담 기록 작성",
+        "status": "failed",
+        "input": "체크리스트 3/3, 수기 메모, 2026-09-16 04:15 Asia/Seoul, 대면, 일정 완료 안 함",
+        "screen": "저장 뒤 /records/new?outcome=invalid_request&submissionId=87f62ea1-19bd-4170-ae05-6795cbb6fd34로 이동했고 '입력 형식을 확인한 뒤 같은 제출 ID로 다시 시도하세요.'가 보였다.",
+        "api": "UI 제출과 같은 제출 ID 재시도에서 POST /support-cases/650af04c-5cb3-4d9f-af27-599b9fcbe9f3/records가 모두 400 Bad Request였다.",
+        "diagnosticReplay": {
+          "relationshipToUiRequest": "UI 실패 뒤 같은 제출 ID와 화면 입력값으로 현재 client source가 만드는 구 입력 형태를 재구성해 로컬 API에 한 번 더 보냈다. UI의 server-to-server 요청 본문을 네트워크에서 직접 캡처한 것은 아니며, 이 객체는 재현에 쓴 진단 요청이다.",
+          "request": {
+            "submissionId": "87f62ea1-19bd-4170-ae05-6795cbb6fd34",
+            "heldAt": "2026-09-15T19:15:00.000Z",
+            "channel": "in_person",
+            "memo": "로컬 쓰기 스모크 기록입니다. 일정 시간 저장과 15초 페이지 반영을 확인했습니다.",
+            "gasScores": [],
+            "actions": [],
+            "flags": [],
+            "actionResolutions": [],
+            "lifeAreas": [
+              { "areaKey": "economy", "changed": false },
+              { "areaKey": "housing", "changed": false },
+              { "areaKey": "employment", "changed": false },
+              { "areaKey": "health", "changed": false },
+              { "areaKey": "mental_health", "changed": false },
+              { "areaKey": "family", "changed": false }
+            ]
+          },
+          "response": {
+            "status": 400,
+            "body": { "error": "invalid_request" }
+          }
+        },
+        "database": "해당 support case의 sessions 수는 기존 4건 그대로다. 새 스모크 메모와 5회차 기록은 생성되지 않았다.",
+        "rootCause": "웹의 CreateCounselingRecordInput과 createCounselingRecordAction은 구 manual record 입력을 보낸다. schemaVersion이 없고 actions, actionResolutions, lifeAreas, details 키를 쓴다. 현재 @ccc/contracts/manual-record의 parseCreateManualRecord는 schemaVersion 2를 필수로 하고 actionItems, actionOutcomes, questionAnswers, nextQuestions, changes, urgency, counselorOpinion 등의 v2 키만 허용한다. 요청은 v2 parser에서 ManualRecordContractError가 되고 HTTP adapter가 invalid_request 400으로 변환한다.",
+        "sourceAtHead": [
+          "apps/web/app/lib/api.ts CreateCounselingRecordInput at lines 705-717",
+          "apps/web/app/actions.ts createCounselingRecordAction at lines 1620-1655",
+          "packages/contracts/src/manual-record.ts parseCreateManualRecord at lines 167-223",
+          "packages/http-api/src/request-handler.ts parseRecordCreation at lines 601-607 and ValidationError mapping at line 2336",
+          "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx submitRecord at lines 313-351"
+        ],
+        "serverStack": null,
+        "stackReason": "ManualRecordContractError는 ValidationError로 변환되고 errorResponse가 정상 400 응답으로 처리했다. API 재기동부터 결과 화면 확인까지의 seed-api와 seed-web 보유 로그에서 Error, exception, 500 문자열과 맞는 출력은 관측되지 않았다. 따라서 기록할 runtime stack 전문이 없다."
+      },
+      {
+        "order": 4,
+        "name": "전체 목표 입력",
+        "status": "passed",
+        "input": "연락 일정을 스스로 관리하고 약속한 상담에 참여한다",
+        "screen": "15초 페이지의 전체 목표 카드에서 입력하고 저장했다. 저장 뒤 같은 문장이 카드에 보였다.",
+        "api": "PUT /support-cases/650af04c-5cb3-4d9f-af27-599b9fcbe9f3/overall-goal returned 200.",
+        "database": "support_cases.overall_goal에 입력 문장이 저장됐다.",
+        "sourceAtHead": [
+          "apps/web/app/actions.ts updateOverallGoalAction at lines 841 onward",
+          "apps/web/app/lib/api.ts overall-goal PUT at lines 1892-1895",
+          "packages/http-api/src/request-handler.ts overall-goal dispatch at lines 3090-3097"
+        ],
+        "serverStack": null
+      },
+      {
+        "order": 5,
+        "name": "15초 페이지와 상담 기록 확인하기 결과",
+        "status": "partial",
+        "briefing": "15초 페이지에 새 전체 목표가 보였다. 최근 상담은 기존 기본상담 4회차이고 실패한 스모크 메모는 보이지 않았다.",
+        "records": "상담 기록 확인하기 화면에 새 전체 목표가 보였다. 기록 현황은 기존 4회차까지이고 실패한 스모크 메모는 보이지 않았다.",
+        "otherSurface": "일정 결과는 주간 일정 화면에서 입력 시각 그대로 확인했다. 인테이크 결과는 인테이크 조회 화면의 완료와 46/46으로 확인했다.",
+        "verdict": "성공한 쓰기는 각 정본 화면에 반영됐다. 상담 기록 작성이 실패해 새 기록의 두 화면 반영은 확인할 수 없으므로 전체 결과 단계는 부분 통과다.",
+        "notVerified": [
+          "상담 기록이 실패했으므로 새 기록, 액션 아이템, 생활영역 변화가 15초 페이지와 상담 기록 화면에 나타나는 경로",
+          "신규 등록이 막혀 수행하지 않은 최초 인테이크 생성",
+          "이번 후속 다섯 단계에 포함되지 않은 등록 뒤 동의 수정"
+        ],
+        "serverStack": null
+      }
+    ],
+    "serverExceptions": [],
+    "serverExceptionSearch": "API 재기동부터 후속 결과 화면 확인까지 hub가 보유한 seed-api와 seed-web 로그에서 ERROR|Error|exception|500 문자열과 맞는 출력은 관측되지 않았다. 로그 밖에서 예외가 없었다고 일반화하지 않는다. 400은 처리된 계약 오류라 runtime stack을 출력하지 않았다."
+  },
   "serverExceptions": [],
   "serverExceptionSearch": {
     "api": "seed-api 로그에서 ERROR|Error|exception|500 검색 결과 0건",
     "web": "seed-web 로그에서 ERROR|Error|exception|500 검색 결과 0건",
-    "interpretation": "관측된 두 실패는 각각 HTTP 오류 응답과 잡힌 FormInputError redirect라 uncaught server exception이 아니다."
+    "interpretation": "API와 웹 프로세스 기동부터 각 조사 종료까지 hub가 보유한 로그에서 ERROR|Error|exception|500 문자열과 맞는 출력은 관측되지 않았다. 관측된 409와 400은 HTTP 오류 응답으로, FormInputError는 redirect로 처리됐다. 이 검색 결과를 전체 실행에서 uncaught exception이 없었다는 보장으로 확대하지 않는다."
   },
   "noConsentBypass": true,
   "noDirectSeedOrDbMutation": true,
@@ -116,7 +257,10 @@
   "noDeploy": true,
   "mutations": [
     "gitignored apps/api/.dev.vars에 로컬 스모크용 합성 signed manifest와 공개키를 추가",
+    "gitignored apps/api/.dev.vars의 LOCAL_DEV_ACTOR_EMAIL을 시드 케이스의 합성 담당 실무자로 변경",
+    "UI 공식 경로로 로컬 intake revision 2, 상담 일정 1건, 전체 목표 1건 저장",
+    "docs/ops.md의 로컬 manifest 절차를 현재 community-cloud 구현과 local mode 구현 대기 상태에 맞게 수정",
     "artifacts/orchestration/local-write-flow.json 생성"
   ],
-  "conclusion": "로컬 설치 문맥을 보완한 뒤 정상 등록을 시도했으나, 쓰기 흐름은 당사자 등록 화면과 여섯 영역 동의 계약의 불일치에서 멈췄다. 누락 입력을 거부한 fail-closed 게이트는 동작했지만 사용자 쓰기 흐름은 성공하지 않았다. 동의 게이트를 우회하지 않아 이후 다섯 단계는 실행하지 않았다."
+  "conclusion": "신규 등록은 여섯 영역 동의 UI가 아직 없어 fail-closed로 멈췄다. 정당하게 생성된 시드 케이스로 이어간 후속 다섯 단계는 3개 통과, 1개 부분 통과, 1개 실패다. 상담 기록 작성은 웹 client가 구 manual record 계약을 보내 v2 parser에서 invalid_request 400으로 막혔다. 성공한 인테이크 수정, 일정, 목표는 각 조회 화면과 로컬 DB에 반영됐다."
 }
