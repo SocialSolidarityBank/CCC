@@ -24,6 +24,13 @@ import {
   type ConsentDomain,
   type CurrentConsentState,
 } from '@ccc/contracts/consent';
+import {
+  MANUAL_RECORD_CONTEXT_SCHEMA_VERSION,
+  MANUAL_RECORD_SCHEMA_VERSION,
+  type ManualActionOutcomeInput,
+  type ManualNextAction,
+  type ManualRecordMethod,
+} from '@ccc/contracts/manual-record';
 import { consentUpdateEvent, decodeCurrentConsentStates } from './consent-contract';
 
 export type ApiErrorCode =
@@ -491,22 +498,16 @@ export interface ManualGasScore {
   score: number;
 }
 
-export interface ManualActionItem {
-  description: string;
-  owner: 'counselor' | 'beneficiary' | 'org';
-  dueDate?: string;
-}
 
 export interface ManualRecordFlag {
   flagType: FlagType;
 }
 
-export const actionItemResolutionStatuses = ['done', 'in_progress', 'not_done', 'hold'] as const;
-export type ActionItemResolutionStatus = (typeof actionItemResolutionStatuses)[number];
-
 export interface ManualActionItemResolution {
   actionItemId: string;
-  status: ActionItemResolutionStatus;
+  /** 화면이 렌더 시점에 본 액션의 revision — 서버가 낙관적 동시성 검사에 쓴다. */
+  expectedRevision: number;
+  status: 'done' | 'in_progress' | 'not_done' | 'hold';
   note?: string;
 }
 
@@ -519,8 +520,9 @@ export interface OpenActionItem {
 
 export interface RecordFormOpenActionItem extends OpenActionItem {
   sourceHeldAt: string;
+  /** v2 actionOutcomes.expectedRevision 의 재료 — 폼이 렌더 시점의 값을 그대로 돌려보낸다. */
+  revision: number;
 }
-
 // 생활 6영역 스냅샷(CCC-8).
 export type LifeAreaKey = (typeof lifeAreaKeys)[number];
 export type LifeAreaStatus = (typeof lifeAreaStatuses)[number];
@@ -530,9 +532,9 @@ export interface LifeAreaSnapshotEntry {
   status: LifeAreaStatus;
   note: string | null;
 }
-
-// 회차별 6영역 입력: changed=false('변화 없음')면 직전 스냅샷을 복사하고,
-// changed=true 면 status(+note)로 기록한다.
+// 회차별 6영역 입력 폼이 보내는 모양(lifeAreasJson). v2 계약에는 이 구조화된
+// 상태의 저장 자리가 없어 actions.ts 는 changed=true 가 오면 거부한다 — 이 타입은
+// 폼 계약의 문서로만 남는다.
 export type ManualLifeArea =
   | { areaKey: LifeAreaKey; changed: false }
   | { areaKey: LifeAreaKey; changed: true; status: LifeAreaStatus; note?: string };
@@ -702,27 +704,26 @@ export interface ParticipantProgramCreation {
   replayed: boolean;
 }
 
+/**
+ * 수기 기록 작성 요청 — manual-record v2 계약(`@ccc/contracts/manual-record`의
+ * parseCreateManualRecord). 서버는 schemaVersion 2 와 아래 키만 받는다. v1 의
+ * actions·actionResolutions·lifeAreas·details 는내면 전체가 거부된다.
+ * v2 에 대응 항목이 없는 화면 입력(6영역 상태, 서술형 3종, hold, 처리 메모)은
+ * actions.ts 가 API 호출 전에 invalid_request 로 멈춘다 — 조용히 버리지 않는다.
+ */
 export interface CreateCounselingRecordInput {
+  schemaVersion: typeof MANUAL_RECORD_SCHEMA_VERSION;
   submissionId: string;
   heldAt: string;
-  channel: SupportCaseRecord['channel'];
+  channel: ManualRecordMethod;
   memo: string;
   gasScores: ManualGasScore[];
-  actions: ManualActionItem[];
+  actionItems: ManualNextAction[];
   flags: ManualRecordFlag[];
-  actionResolutions?: ManualActionItemResolution[];
-  lifeAreas?: ManualLifeArea[];
-  details?: ManualRecordDetails;
+  actionOutcomes: ManualActionOutcomeInput[];
+  counselorOpinion?: string;
   scheduleId?: string;
   expectedScheduleVersion?: number;
-}
-
-// 정기 기록지 서술형 항목(CCC-10 · 0016). 전부 선택이며 채운 항목이 없으면 details 를 보내지 않는다.
-export interface ManualRecordDetails {
-  sessionGoalNote?: string;
-  changeSinceLast?: string;
-  safetyNote?: string;
-  counselorOpinion?: string;
 }
 
 
@@ -1812,20 +1813,25 @@ export async function getNewRecordContext(
   supportCaseId: string,
 ): Promise<NewRecordContext> {
   const history = await listSupportCaseRecords(beneficiaryId, supportCaseId);
-  const openActionItems: RecordFormOpenActionItem[] = [];
-  for (const record of history.records) {
-    for (const action of record.actionItems) {
-      if (!action.resolved) {
-        openActionItems.push({
-          id: action.id,
-          description: action.description,
-          owner: action.owner,
-          dueDate: action.dueDate,
-          sourceHeldAt: record.heldAt,
-        });
-      }
-    }
+  // 미해결 액션은 v2 컨텍스트 엔드포인트에서 가져온다 — 목록 응답에는 action 의
+  // revision 이 없어 actionOutcomes.expectedRevision(낙관적 동시성 검사)를 못 만든다.
+  const manualContext = responseObject(await requestJson<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/records/context`,
+  ));
+  if (responseInteger(manualContext, 'schemaVersion') !== MANUAL_RECORD_CONTEXT_SCHEMA_VERSION) {
+    contractViolation();
   }
+  const openActionItems: RecordFormOpenActionItem[] = responseArray(manualContext, 'actions').map((value) => {
+    const action = responseObject(value);
+    return {
+      id: responseString(action, 'id'),
+      description: responseString(action, 'description'),
+      owner: responseEnum(responseProperty(action, 'owner'), actionOwners),
+      dueDate: responseNullableString(action, 'dueDate'),
+      sourceHeldAt: responseNullableString(action, 'sourceHeldAt') ?? responseString(action, 'createdAt'),
+      revision: responseInteger(action, 'revision'),
+    };
+  });
   // 직전 상태 = held_at 내림차순 기록 중 스냅샷을 보유한 첫 회차의 값(콜드스타트면 빈 배열).
   // history.records 는 listCounselingRecords 와 같은 held_at DESC 순서다.
   const latestLifeAreaSnapshot = history.records.find((record) => record.lifeAreaSnapshot.length > 0)?.lifeAreaSnapshot ?? [];

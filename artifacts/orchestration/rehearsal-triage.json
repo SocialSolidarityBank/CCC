@@ -110,9 +110,20 @@
     "remainingScreenWork": "apps/web/app/participants/[beneficiaryId]/page.tsx:496-507이 action의 ?error= 코드를 아직 읽지 않는다. 화면 수정은 w1G:p1 DESIGN 소유라 코드 변경 없이 인계 문서에 적었다.",
     "handoff": "docs/superpowers/plans/2026-09-16-consent-contract-design-handoff.md"
   },
+  "manualRecordV2Drift": {
+    "verdict": "진짜 결함. API는 a6b2fc47에서 수기 기록 v2 생명주기 계약으로 옮겼는데 web은 v1 모양을 계속 보냈다. schemaVersion 부재와 v1 전용 키(actions·actionResolutions·lifeAreas·details) 때문에 parseCreateManualRecord가 전체를 거부해 invalid_request 400이 됐다.",
+    "serverShape": "packages/contracts/src/manual-record.ts:167-226이 schemaVersion 2와 v2 키만 받는다. packages/http-api/src/request-handler.ts:601-604,3148-3157이 POST /support-cases/:id/records를 이 parser로 받는다. gateway.ts:21794-22011이 actionOutcomes.expectedRevision으로 액션 CAS를 검사한다.",
+    "fix": "apps/web/app/lib/api.ts의 CreateCounselingRecordInput을 v2 모양으로 바꿨고 actions.ts:1631-1668이 schemaVersion 2·actionItems·actionOutcomes·counselorOpinion을 실어 보낸다. 미해결 액션의 revision은 목록 응답에 없어 api.ts:1816-1839가 GET /support-cases/:id/records/context(schemaVersion 3)에서 읽어 RecordFormOpenActionItem.revision으로 내린다.",
+    "screenNeeds": [
+      "records/new/page.tsx의 buildRecordFormData가 actionResolutionsJson 각 항목에 expectedRevision을 실어야 한다. 지금은 없어서 처리 선택이 하나라도 있으면 invalid_request로 멈춘다. 재료는 openActionItems[].revision이다. 화면 파일이라 DESIGN 소유다.",
+      "v2에 자리가 없는 입력은 거부로 둔다: 6영역 상태 선택(changes는 자유 텍스트라 구조화 상태를 옮길 수 없다), 서술형 sessionGoalNote·changeSinceLast·safetyNote, hold 상태, 처리 메모. 이 넷을 살리려면 계약 또는 화면 결정이 필요하다."
+    ],
+    "productionImpact": "운영에도 같은 결함이다 — API와 web을 함께 배포해도 web이 v1을내므로 상담 기록 작성이 막힌다. 이 수정으로 기본 저장은 열린다. 처리 선택·6영역 변경·서술형 3종은 위 screenNeeds가 채워져야 열린다.",
+    "proof": "apps/web/app/record-action.test.ts 4건. 수정 전 4건 모두 실패(schemaVersion 부재·v1 키), 수정 후 통과. expectedRevision 없는 처리·hold·처리 메모·서술형 3종·6영역 변경이 API 호출 전에 invalid_request로 멈추는 것을 고정했다."
+  },
   "mutations": {
     "codeModified": true,
-    "files": ["apps/web/app/actions.ts", "apps/web/app/lib/api.ts", "apps/web/app/lib/consent-contract.ts", "apps/web/app/schedule-datetime-action.test.ts", "apps/web/app/consent-action.test.ts", "apps/web/app/lib/consent-api.test.ts", "artifacts/orchestration/rehearsal-triage.json", "docs/superpowers/plans/2026-09-16-consent-contract-design-handoff.md"],
+    "files": ["apps/web/app/actions.ts", "apps/web/app/lib/api.ts", "apps/web/app/lib/consent-contract.ts", "apps/web/app/schedule-datetime-action.test.ts", "apps/web/app/consent-action.test.ts", "apps/web/app/lib/consent-api.test.ts", "apps/web/app/record-action.test.ts", "artifacts/orchestration/rehearsal-triage.json", "docs/superpowers/plans/2026-09-16-consent-contract-design-handoff.md"],
     "deploymentPerformed": false,
     "previewRedeployed": false,
     "productionDatabaseRead": false,

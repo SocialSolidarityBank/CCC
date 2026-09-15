@@ -46,14 +46,8 @@ import {
   updateScheduleSessionGoals,
   updateSupportCaseOverallGoal,
   resolveDiscrepancy,
-  type ManualActionItem,
-  type ManualActionItemResolution,
-  type ActionItemResolutionStatus,
-  actionItemResolutionStatuses,
   type FlagType,
   type ManualGasScore,
-  type ManualLifeArea,
-  type ManualRecordDetails,
   type ManualRecordFlag,
   lifeAreaKeys,
   lifeAreaStatuses,
@@ -76,6 +70,11 @@ import {
   type ConsentDisclosureSnapshot,
   type ConsentDomain,
 } from '@ccc/contracts/consent';
+import {
+  MANUAL_RECORD_SCHEMA_VERSION,
+  type ManualActionOutcomeInput,
+  type ManualNextAction,
+} from '@ccc/contracts/manual-record';
 
 export async function setCounselingMemorySettingsAction(input: MemorySettingsInput) {
   try {
@@ -394,7 +393,7 @@ function parseManualGasScores(formData: FormData): ManualGasScore[] {
   });
 }
 
-function parseManualActionItems(formData: FormData): ManualActionItem[] {
+function parseManualActionItems(formData: FormData): ManualNextAction[] {
   return jsonArray(formData, 'actionItemsJson').map((item) => {
     const action = recordObject(item);
     hasOnlyKeys(action, ['description', 'owner', 'dueDate']);
@@ -415,29 +414,37 @@ function parseManualActionItems(formData: FormData): ManualActionItem[] {
   });
 }
 
-function parseManualActionItemResolutions(formData: FormData): ManualActionItemResolution[] {
-  const allowed = new Set(actionItemResolutionStatuses);
+// 미해결 액션 처리 → v2 actionOutcomes. 화면이 렌더 시점에 본 revision 을
+// expectedRevision 으로 실어야 서버의 낙관적 동시성 검사가 동작한다 — 제출 시점에
+// 다시 읽어 채우면 검사가 무력화되므로 없으면 저장하지 않는다.
+// v2 에 자리가 없는 입력은 조용히 버리지 않고 거부한다: 'hold' 상태(v2 는
+// not_done+continue/stop 뿐)와 처리 메모(v2 는 stop 사유만 받는다).
+function parseManualActionItemResolutions(formData: FormData): ManualActionOutcomeInput[] {
   const actionItemIds = new Set<string>();
   return jsonArray(formData, 'actionResolutionsJson').map((item) => {
     const resolution = recordObject(item);
-    hasOnlyKeys(resolution, ['actionItemId', 'status', 'note']);
+    hasOnlyKeys(resolution, ['actionItemId', 'status', 'expectedRevision', 'note']);
     const actionItemId = resolution.actionItemId;
     const status = resolution.status;
-    const note = resolution.note;
+    const expectedRevision = resolution.expectedRevision;
     if (
       typeof actionItemId !== 'string'
       || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(actionItemId)
-      || typeof status !== 'string'
-      || !allowed.has(status as ActionItemResolutionStatus)
       || actionItemIds.has(actionItemId)
+      || typeof expectedRevision !== 'number'
+      || !Number.isSafeInteger(expectedRevision)
+      || expectedRevision < 1
+      || resolution.note !== undefined
     ) throw new FormInputError();
-    if (note !== undefined && (typeof note !== 'string' || note.trim().length === 0)) {
-      throw new FormInputError();
-    }
     actionItemIds.add(actionItemId);
-    return note === undefined
-      ? { actionItemId, status: status as ActionItemResolutionStatus }
-      : { actionItemId, status: status as ActionItemResolutionStatus, note: note.trim() };
+    if (status === 'done' || status === 'in_progress') {
+      return { actionItemId, expectedRevision, outcome: status };
+    }
+    // '못 함'은 v2 의 not_done+continue 에 대응한다. '보류'(hold)는 v2 에 없다.
+    if (status === 'not_done') {
+      return { actionItemId, expectedRevision, outcome: 'not_done', continuation: 'continue' };
+    }
+    throw new FormInputError();
   });
 }
 
@@ -457,13 +464,15 @@ function parseManualFlags(formData: FormData): ManualRecordFlag[] {
   });
 }
 
-// 6영역 스냅샷(CCC-8): 폼이 6영역을 전부 보내면 파싱해 전달하고, 비어 있으면 생략(undefined).
-function parseManualLifeAreas(formData: FormData): ManualLifeArea[] | undefined {
+// 6영역 스냅샷(CCC-8): v2 계약에는 구조화된 상태 스냅샷 자리가 없다 — changes 는
+// IntakeArea 키의 자유 텍스트다. 상태 선택이 하나라도 오면 옮길 곳이 없으므로
+// 조용히 버리지 않고 거부한다. '변화 없음'만 온 폼은 정상 제출이다.
+function assertNoLifeAreaChanges(formData: FormData): void {
   const raw = jsonArray(formData, 'lifeAreasJson');
-  if (raw.length === 0) return undefined;
+  if (raw.length === 0) return;
   const allowedKeys = new Set<string>(lifeAreaKeys);
   const allowedStatuses = new Set<string>(lifeAreaStatuses);
-  return raw.map((item) => {
+  for (const item of raw) {
     const area = recordObject(item);
     const areaKey = area.areaKey;
     const changed = area.changed;
@@ -472,17 +481,15 @@ function parseManualLifeAreas(formData: FormData): ManualLifeArea[] | undefined 
     }
     if (!changed) {
       hasOnlyKeys(area, ['areaKey', 'changed']);
-      return { areaKey: areaKey as ManualLifeArea['areaKey'], changed: false };
+      continue;
     }
     hasOnlyKeys(area, area.note === undefined ? ['areaKey', 'changed', 'status'] : ['areaKey', 'changed', 'status', 'note']);
     const status = area.status;
     const note = area.note;
     if (typeof status !== 'string' || !allowedStatuses.has(status)) throw new FormInputError();
     if (note !== undefined && (typeof note !== 'string' || note.trim().length === 0)) throw new FormInputError();
-    return note === undefined
-      ? { areaKey: areaKey as ManualLifeArea['areaKey'], changed: true, status: status as (typeof lifeAreaStatuses)[number] }
-      : { areaKey: areaKey as ManualLifeArea['areaKey'], changed: true, status: status as (typeof lifeAreaStatuses)[number], note: note.trim() };
-  });
+    throw new FormInputError();
+  }
 }
 
 const manualRecordDetailKeys = ['sessionGoalNote', 'changeSinceLast', 'safetyNote', 'counselorOpinion'] as const;
@@ -500,21 +507,24 @@ function jsonObjectOrUndefined(formData: FormData, name: string): Record<string,
 }
 
 /**
- * 서술형 항목(CCC-10): 채운 항목만 실어 보내고, 하나도 없으면 undefined 로 바디에서 뺀다
- * (게이트웨이가 빈 객체를 거부하고, 제출 해시도 details 없음으로 계산된다).
+ * 서술형 항목(CCC-10): v2 계약에서 살아남은 것은 counselorOpinion 뿐이다.
+ * sessionGoalNote·changeSinceLast·safetyNote 는 v2 details 에 자리가 없다 —
+ * 채워져 오면 조용히 버리지 않고 거부한다.
  */
-function parseManualRecordDetails(formData: FormData): ManualRecordDetails | undefined {
+function parseManualRecordCounselorOpinion(formData: FormData): string | undefined {
   const details = jsonObjectOrUndefined(formData, 'detailsJson');
   if (details === undefined) return undefined;
   hasOnlyKeys(details, manualRecordDetailKeys);
-  const parsed: ManualRecordDetails = {};
   for (const key of manualRecordDetailKeys) {
+    if (key === 'counselorOpinion') continue;
     const item = details[key];
-    if (item === undefined) continue;
-    if (typeof item !== 'string' || item.trim().length === 0) throw new FormInputError();
-    parsed[key] = item.trim();
+    if (item !== undefined && (typeof item !== 'string' || item.trim().length === 0)) throw new FormInputError();
+    if (item !== undefined) throw new FormInputError();
   }
-  return Object.keys(parsed).length === 0 ? undefined : parsed;
+  const opinion = details.counselorOpinion;
+  if (opinion === undefined) return undefined;
+  if (typeof opinion !== 'string' || opinion.trim().length === 0) throw new FormInputError();
+  return opinion.trim();
 }
 
 function noticeFor(error: unknown): Notice {
@@ -1626,25 +1636,23 @@ export async function createCounselingRecordAction(
     await getParticipantProgram(beneficiaryId, supportCaseId);
     const channel = requiredValue(formData, 'channel');
     if (channel !== 'in_person' && channel !== 'phone' && channel !== 'video') throw new FormInputError();
-
     const scheduleId = optionalOpaqueId(formData, 'scheduleId');
     const scheduleVersionValue = value(formData, 'expectedScheduleVersion');
     if ((scheduleId === undefined) !== (scheduleVersionValue.length === 0)) throw new FormInputError();
 
-    const gasScores = parseManualGasScores(formData);
-    const lifeAreas = parseManualLifeAreas(formData);
-    const details = parseManualRecordDetails(formData);
+    assertNoLifeAreaChanges(formData);
+    const counselorOpinion = parseManualRecordCounselorOpinion(formData);
     const result = await createCounselingRecord(supportCaseId, {
+      schemaVersion: MANUAL_RECORD_SCHEMA_VERSION,
       submissionId: submissionId(formData),
       heldAt: canonicalUtcDateTime(formData, 'heldAt'),
       channel,
       memo: requiredValue(formData, 'memo'),
-      gasScores,
-      actions: parseManualActionItems(formData),
+      gasScores: parseManualGasScores(formData),
+      actionItems: parseManualActionItems(formData),
       flags: parseManualFlags(formData),
-      actionResolutions: parseManualActionItemResolutions(formData),
-      ...(lifeAreas === undefined ? {} : { lifeAreas }),
-      ...(details === undefined ? {} : { details }),
+      actionOutcomes: parseManualActionItemResolutions(formData),
+      ...(counselorOpinion === undefined ? {} : { counselorOpinion }),
       ...(scheduleId === undefined
         ? {}
         : { scheduleId, expectedScheduleVersion: positiveInteger(formData, 'expectedScheduleVersion') }),
