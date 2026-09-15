@@ -7,9 +7,9 @@ import {
 import { CLAIM_SECTION_LABELS, CONTRAST_AXIS_LABELS, CONTRAST_UNAVAILABLE_LABELS, type AiDraft } from '../business/ai-review';
 import { type BusinessError, safeError } from '../business/errors';
 import {
-  ACTION_OWNER_LABELS, FLAG_LABELS, FLAG_TYPES, GOAL_CLOSE_LABELS, GOAL_CLOSE_REASONS,
+  ACTION_OWNER_LABELS, AUDIO_ACCEPT, FLAG_LABELS, FLAG_TYPES, GOAL_CLOSE_LABELS, GOAL_CLOSE_REASONS,
   RECORD_DETAIL_KEYS, RECORD_DETAIL_LABELS,
-  type ActionOwner, type ClosureInfo, type CounselingRecordList, type FlagType,
+  type ActionOwner, type AudioDelivery, type ClosureInfo, type CounselingRecordList, type FlagType,
   type GoalCloseReason, type GoalTreeCase, type ManualPendingQuestion, type ManualRecordContext,
   type RecordDetailKey,
 } from '../business/records';
@@ -330,6 +330,11 @@ export function RecordListScreen() {
         {row.flags.filter((flag) => flag.reviewStatus === 'confirmed').map((flag) => <WireItem key={flag.id}
           title={FLAG_LABELS[flag.flagType as FlagType] ?? flag.flagType}
           description={flag.quote ?? undefined} />)}
+        {(session.capabilities.sttMode === 'local' || session.capabilities.sttMode === 'azure')
+          && <div className="business-actions">
+            <WireButton variant="neutral"
+              href={`${base}/records/${encodeURIComponent(row.id)}/review`}>녹음 올리기</WireButton>
+          </div>}
       </WireCardSection>)}
     </WireCard>
     <GoalTreeCard session={session} beneficiaryId={beneficiaryId} supportCaseId={supportCaseId} />
@@ -506,6 +511,86 @@ export function RecordCreateScreen() {
   </WireCard>;
 }
 
+/** 업로드 거부를 서버 코드별로 가른다. 사유를 한 문구로 뭉개지 않는다. */
+function audioDenialCopy(error: BusinessError, session: Session): string {
+  if (error.code === 'engine_unavailable') {
+    return session.capabilities.sttEngine === null
+      ? '이 설치는 아직 녹음 전사가 켜지지 않았습니다. 수기 기록으로 남겨 주세요.'
+      : '녹음을 처리할 장비가 아직 준비되지 않았습니다. 잠시 뒤 다시 시도하거나 수기 기록으로 남겨 주세요.';
+  }
+  if (error.code === 'consent_not_effective') {
+    return session.capabilities.sttMode === 'azure'
+      ? '녹음 동의와 외부 전사 처리 동의가 모두 필요합니다. 당사자 정보에서 두 동의를 확인한 뒤 다시 올려 주세요.'
+      : '녹음 동의가 확인되지 않아 올릴 수 없습니다. 당사자 정보에서 동의를 확인한 뒤 다시 올려 주세요.';
+  }
+  if (error.code === 'program_admission_required') {
+    return '이 사업의 도입 확인이 녹음 처리를 허용하지 않습니다. 사업 설정을 확인한 뒤 다시 시도해 주세요.';
+  }
+  if (error.code === 'forbidden') return '이 회차의 담당 실무자만 녹음을 올릴 수 있습니다.';
+  if (error.code === 'conflict') return '이미 처리가 끝났거나 다른 변경이 먼저 저장된 회차입니다.';
+  if (error.code === 'invalid_request') {
+    return '지원하지 않는 파일이거나 회차 상태가 맞지 않습니다. 대면 상담 회차의 200MB 이하 녹음 파일인지 확인해 주세요.';
+  }
+  return error.message;
+}
+
+/**
+ * 회차 녹음 올리기. 서버 계약은 세 단계다: 업로드 대상 발급(cloud) 또는 본문 직접 전송(local),
+ * 파일 전송, 완료 등록. 처리 시점은 서버가 응답에 싣지 않으므로 서버가 정한 문구만 보인다.
+ */
+function AudioUploadSection({ session, sessionId }: { session: Session; sessionId: string }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [phase, setPhase] = useState<'idle' | 'sending' | 'done'>('idle');
+  const [denial, setDenial] = useState<string | null>(null);
+  const delivery: AudioDelivery = session.capabilities.mode === 'community-cloud' ? 'protected-get' : 'api-stream';
+  const engineMissing = session.capabilities.sttEngine === null;
+  const agentIdle = session.capabilities.agentStatus !== 'connected';
+
+  const submit = async () => {
+    if (file === null || phase === 'sending') return;
+    setPhase('sending');
+    try {
+      await session.records.uploadAudio(sessionId, file, delivery);
+      setPhase('done');
+      setFile(null);
+    } catch (cause) {
+      const safe = safeError(cause);
+      setDenial(audioDenialCopy(safe, session));
+      setPhase('idle');
+      if (safe.status === 401) void session.auth.signOut(safe);
+    }
+  };
+
+  return <WireCardSection title="녹음 올리기">
+    {denial !== null && <WireError>{denial}</WireError>}
+    <p className="wire-section-value">
+      {engineMissing
+        ? '전사 엔진이 정해지지 않아 지금은 녹음을 올릴 수 없습니다.'
+        : agentIdle
+          ? '처리 장비가 아직 준비되지 않았습니다. 올려도 서버가 거부할 수 있습니다.'
+          : '지금 녹음을 올릴 수 있습니다.'}
+    </p>
+    <WireFormField label="녹음 파일" htmlFor="audio-upload-file">
+      <input key={phase} id="audio-upload-file" type="file" accept={AUDIO_ACCEPT}
+        disabled={phase === 'sending'}
+        onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+    </WireFormField>
+    <div className="business-actions">
+      <WireButton variant="primary" disabled={file === null || phase === 'sending'}
+        onClick={() => { void submit(); }}>
+        {phase === 'sending' ? '올리는 중' : '녹음 올리기'}
+      </WireButton>
+    </div>
+    {phase === 'sending' && <WireEmpty live>녹음을 올리고 있습니다.</WireEmpty>}
+    {phase === 'done' && <WireCallout tone="info" title="녹음을 받았습니다">
+      다음 영업일 처리 기회부터 전사됩니다. 원음은 처리 직후 지워지며 늦어도 올린 뒤 7일 안에 지워집니다.
+    </WireCallout>}
+    <p className="record-writing-help">
+      원음은 처리 직후 지워집니다. 외부 전사 경로에서는 가림 처리 전 원음이 외부로 나갑니다.
+    </p>
+  </WireCardSection>;
+}
+
 export function RecordReviewScreen() {
   const session = useOutletContext<Session>();
   const { beneficiaryId = '', supportCaseId = '', sessionId = '' } = useParams();
@@ -610,6 +695,9 @@ export function RecordReviewScreen() {
     </WireCallout>}
     {draft === null && error === null && <WireEmpty live reserve>초안을 확인하고 있습니다.</WireEmpty>}
     {draft === 'none' && <WireEmpty>이 회차에는 AI 초안이 없습니다.</WireEmpty>}
+    {/* 녹음은 초안이 생기기 전 회차에만 올린다. 초안이 있거나 전사가 꺼진 설치면 구획을 숨긴다. */}
+    {draft === 'none' && (session.capabilities.sttMode === 'local' || session.capabilities.sttMode === 'azure')
+      && <AudioUploadSection session={session} sessionId={sessionId} />}
     <div className="business-actions">
       <WireButton variant="neutral" href={`${base}/records`}>상담 기록</WireButton>
     </div>

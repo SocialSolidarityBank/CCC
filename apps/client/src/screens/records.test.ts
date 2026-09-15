@@ -144,3 +144,80 @@ describe('CCC-212 review recovery', () => {
     expect(calls).toEqual(['GET', 'POST']);
   });
 });
+
+describe('audio upload entry', () => {
+  async function renderUpload(
+    upload: () => Promise<unknown>,
+    capabilities: Record<string, unknown> = {
+      mode: 'community-cloud', sttMode: 'azure', sttEngine: 'azure-speech-koreacentral',
+      agentStatus: 'connected', llmMode: 'off',
+    },
+  ) {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const session = {
+      aiReview: new AiReviewApi({ request: async () => { throw httpError(404, { error: 'not_found' }); } } as never),
+      records: { uploadAudio: upload },
+      capabilities, auth: { signOut: vi.fn() },
+    } as unknown as Session;
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.add({ root, container });
+    const router = createMemoryRouter([{
+      element: createElement(() => createElement(Outlet, { context: session })),
+      children: [{ path: '/participants/:beneficiaryId/programs/:supportCaseId/records/:sessionId/review',
+        element: createElement(RecordReviewScreen) }],
+    }], { initialEntries: ['/participants/swallow-003/programs/case-1/records/session-1/review'] });
+    await act(async () => { root.render(createElement(RouterProvider, { router })); });
+    return container;
+  }
+
+  async function pickFileAndSubmit(container: HTMLElement) {
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, 'files', {
+      value: [new File(['x'], 'memo.wav', { type: 'audio/wav' })], configurable: true,
+    });
+    await act(async () => { input.dispatchEvent(new Event('change', { bubbles: true })); });
+    await act(async () => {
+      [...container.querySelectorAll('button')].find((button) => button.textContent === '녹음 올리기')!.click();
+    });
+  }
+
+  it('shows the upload section only when STT is on and no draft exists', async () => {
+    const on = await renderUpload(async () => ({ sessionId: 'session-1', aiStatus: 'uploaded' }));
+    expect(on.querySelector('input[type="file"]')).not.toBeNull();
+    expect(on.textContent).toContain('지금 녹음을 올릴 수 있습니다');
+    expect(on.textContent).toContain('원음은 처리 직후 지워집니다');
+    const off = await renderUpload(async () => ({ sessionId: 'session-1', aiStatus: 'uploaded' }),
+      { mode: 'community-cloud', sttMode: 'off', sttEngine: null, agentStatus: 'inactive', llmMode: 'off' });
+    expect(off.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it('confirms receipt with the server-fixed lifecycle wording', async () => {
+    const container = await renderUpload(async () => ({ sessionId: 'session-1', aiStatus: 'uploaded' }));
+    await pickFileAndSubmit(container);
+    expect(container.textContent).toContain('녹음을 받았습니다');
+    expect(container.textContent).toContain('다음 영업일 처리 기회부터 전사됩니다');
+  });
+
+  it.each([
+    [422, 'engine_unavailable', '녹음을 처리할 장비가 아직 준비되지 않았습니다'],
+    [409, 'consent_not_effective', '녹음 동의와 외부 전사 처리 동의가 모두 필요합니다'],
+    [409, 'program_admission_required', '사업의 도입 확인이 녹음 처리를 허용하지 않습니다'],
+    [403, 'forbidden', '담당 실무자만 녹음을 올릴 수 있습니다'],
+    [409, 'conflict', '이미 처리가 끝났거나 다른 변경이 먼저 저장된 회차입니다'],
+    [400, 'invalid_request', '지원하지 않는 파일이거나 회차 상태가 맞지 않습니다'],
+  ] as const)('splits HTTP %s / %s into its own wording', async (status, code, expected) => {
+    const container = await renderUpload(async () => { throw httpError(status, { error: code }); });
+    await pickFileAndSubmit(container);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(expected);
+  });
+
+  it('names only the recording consent on the local route', async () => {
+    const container = await renderUpload(async () => { throw httpError(409, { error: 'consent_not_effective' }); },
+      { mode: 'local-single', sttMode: 'local', sttEngine: 'qwen3-asr', agentStatus: 'connected', llmMode: 'off' });
+    await pickFileAndSubmit(container);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('녹음 동의가 확인되지 않아');
+    expect(container.querySelector('[role="alert"]')?.textContent).not.toContain('외부 전사');
+  });
+});

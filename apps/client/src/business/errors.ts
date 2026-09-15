@@ -28,6 +28,7 @@ const messages = {
   unavailable: '서버에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요. 저장 요청이었다면 최신 상태를 먼저 확인해 주세요.',
   not_found: '요청한 자료를 찾을 수 없습니다. 이전 화면으로 돌아가 다시 선택해 주세요.',
   consent_not_effective: '현재 동의 상태로는 외부 AI 처리를 진행할 수 없습니다. 당사자 정보에서 동의를 확인하고 수기 기록을 이용해 주세요.',
+  engine_unavailable: '전사 처리 장비가 아직 준비되지 않아 녹음을 받을 수 없습니다. 수기 기록으로 남겨 주세요.',
   text_ai_pilot_disabled: '이 기관에서는 텍스트 AI 처리가 꺼져 있습니다. 수기 기록은 계속 이용할 수 있습니다.',
   ai_provider_not_configured: 'AI 처리 설정이 준비되지 않았습니다. 관리자에게 설정 확인을 요청하고 수기 기록을 이용해 주세요.',
   ai_prohibited_output: 'AI가 만든 결과가 허용 기준을 통과하지 못했습니다. 직접 쓴 공식 기록은 그대로 유지됩니다.',
@@ -89,6 +90,7 @@ export function httpError(status: number, value: unknown): BusinessError {
   if (status === 422 || status === 400) {
     const code = typeof value === 'object' && value !== null && 'error' in value ? value.error : undefined;
     if (status === 422 && code === 'ai_prohibited_output') return new BusinessError('ai_prohibited_output', status);
+    if (status === 422 && code === 'engine_unavailable') return new BusinessError('engine_unavailable', status);
     if (code === 'privacy_consent_required') return new BusinessError('privacy_consent_required', status);
     if (code === 'emergency_reason_required') return new BusinessError('emergency_reason_required', status);
     return new BusinessError('invalid_request', status);
