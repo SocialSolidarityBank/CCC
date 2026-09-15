@@ -1,0 +1,525 @@
+{
+ "failureShapes": [
+  "fragmented: 정답 한 스팬 안에 같은 라벨 예측 스팬이 여러 개",
+  "wider: 예측 스팬 하나가 정답을 포함하고 더 넓다",
+  "narrower: 예측 스팬 하나가 정답 안에 들어가고 더 좁다",
+  "partialOverlap: 예측 스팬 하나가 정답과 부분만 겹친다",
+  "labelMismatch: 정답과 겹치는 예측이 있으나 라벨이 주소가 아니다",
+  "trueMiss: 정답과 겹치는 예측이 아예 없다",
+  "wrongLocation(fp): 정답과 전혀 겹치지 않는 주소 예측"
+ ],
+ "shapeCounts": {
+  "goldSide": {
+   "fragmented": 218,
+   "trueMiss": 21,
+   "wider": 5,
+   "narrower": 6
+  },
+  "fpAttribution": {
+   "fragmentPiece": 577,
+   "wrongLocation": 4,
+   "widerThanGold": 5,
+   "narrowerThanGold": 6
+  },
+  "totals": {
+   "tp": 50,
+   "fp": 592,
+   "fn": 250
+  },
+  "reconciliation": "fn 250 = fragmented 218 + trueMiss 21 + narrower 6 + wider 5; fp 592 = fragmentPiece 577 + wrongLocation 4 + widerThanGold 5 + narrowerThanGold 6",
+  "postMergeResidual": {
+   "trueMiss": 21,
+   "stillFragmented": 31,
+   "narrower": 22,
+   "fpWrongLocation": 4,
+   "wider": 7
+  }
+ },
+ "examples": {
+  "fragmented": [
+   {
+    "id": "a0376",
+    "text": "방문 상담지는 경상북도 순천시 새싹로 160 나래주택 113동 148호로 정했다.",
+    "gold": [
+     8,
+     39
+    ],
+    "goldSpan": [
+     8,
+     39
+    ],
+    "preds": [
+     [
+      8,
+      12,
+      "경상북도",
+      "PRIVATE_ADDRESS"
+     ],
+     [
+      13,
+      16,
+      "순천시",
+      "PRIVATE_ADDRESS"
+     ],
+     [
+      17,
+      24,
+      "새싹로 160",
+      "PRIVATE_ADDRESS"
+     ],
+     [
+      25,
+      39,
+      "나래주택 113동 148호",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   },
+   {
+    "id": "a0427",
+    "text": "방문 상담지는 서울특별시 수원시 맑은동 543-4로 정했다.",
+    "gold": [
+     8,
+     27
+    ],
+    "goldSpan": [
+     8,
+     27
+    ],
+    "preds": [
+     [
+      8,
+      13,
+      "서울특별시",
+      "PRIVATE_ADDRESS"
+     ],
+     [
+      14,
+      17,
+      "수원시",
+      "PRIVATE_ADDRESS"
+     ],
+     [
+      18,
+      27,
+      "맑은동 543-4",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   },
+   {
+    "id": "a0392",
+    "text": "이사한 곳이 서울특별시 연수구 평화로 300 14층 (15555)라고 말했다.",
+    "gold": [
+     7,
+     36
+    ],
+    "goldSpan": [
+     7,
+     36
+    ],
+    "preds": [
+     [
+      7,
+      12,
+      "서울특별시",
+      "PRIVATE_ADDRESS"
+     ],
+     [
+      13,
+      36,
+      "연수구 평화로 300 14층 (15555)",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   }
+  ],
+  "trueMiss": [
+   {
+    "id": "a0511",
+    "text": "우편번호는 51339로 확인했다.",
+    "gold": [
+     6,
+     11
+    ],
+    "goldSpan": [
+     6,
+     11
+    ],
+    "preds": []
+   },
+   {
+    "id": "a0507",
+    "text": "우편번호는 26665로 확인했다.",
+    "gold": [
+     6,
+     11
+    ],
+    "goldSpan": [
+     6,
+     11
+    ],
+    "preds": []
+   },
+   {
+    "id": "a0510",
+    "text": "우편번호는 58735로 확인했다.",
+    "gold": [
+     6,
+     11
+    ],
+    "goldSpan": [
+     6,
+     11
+    ],
+    "preds": []
+   }
+  ],
+  "wrongLocation": [
+   {
+    "id": "n0804",
+    "text": "마포 쪽에서 일한다.",
+    "gold": null,
+    "goldSpan": null,
+    "preds": [
+     [
+      0,
+      2,
+      "마포",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   },
+   {
+    "id": "n0784",
+    "text": "경기도 쪽으로 출퇴근한다.",
+    "gold": null,
+    "goldSpan": null,
+    "preds": [
+     [
+      0,
+      3,
+      "경기도",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   },
+   {
+    "id": "n0851",
+    "text": "마포 쪽에서 일한다.",
+    "gold": null,
+    "goldSpan": null,
+    "preds": [
+     [
+      0,
+      2,
+      "마포",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   }
+  ],
+  "wider": [
+   {
+    "id": "b0527",
+    "text": "손지결 선생님 댁(인천광역시 용인시 나래로 291-5)을 방문했다.",
+    "gold": [
+     10,
+     29
+    ],
+    "goldSpan": [
+     10,
+     29
+    ],
+    "preds": [
+     [
+      10,
+      30,
+      "인천광역시 용인시 나래로 291-5)",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   },
+   {
+    "id": "b0551",
+    "text": "임서훈 선생님 댁(대구광역시 고양시 새날동 681-82)을 방문했다.",
+    "gold": [
+     10,
+     30
+    ],
+    "goldSpan": [
+     10,
+     30
+    ],
+    "preds": [
+     [
+      10,
+      31,
+      "대구광역시 고양시 새날동 681-82)",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   },
+   {
+    "id": "b0532",
+    "text": "곽준샘 선생님 댁(인천광역시 순천시 맑은동 717-68)을 방문했다.",
+    "gold": [
+     10,
+     30
+    ],
+    "goldSpan": [
+     10,
+     30
+    ],
+    "preds": [
+     [
+      10,
+      31,
+      "인천광역시 순천시 맑은동 717-68)",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   }
+  ],
+  "narrower": [
+   {
+    "id": "a0328",
+    "text": "당사자가 충청북도 은평구 나래로 102 20층에 거주한다고 확인했다.",
+    "gold": [
+     5,
+     25
+    ],
+    "goldSpan": [
+     5,
+     25
+    ],
+    "preds": [
+     [
+      5,
+      21,
+      "충청북도 은평구 나래로 102",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   },
+   {
+    "id": "b0539",
+    "text": "대구광역시 연수구 중앙로 4 13층 (47411)에 사는 노현결 씨와 전화 상담을 했다.",
+    "gold": [
+     0,
+     27
+    ],
+    "goldSpan": [
+     0,
+     27
+    ],
+    "preds": [
+     [
+      12,
+      13,
+      "로",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   },
+   {
+    "id": "a0320",
+    "text": "경기도 해운대구 희망로 284 3층에서 자택 방문을 진행했다.",
+    "gold": [
+     0,
+     19
+    ],
+    "goldSpan": [
+     0,
+     19
+    ],
+    "preds": [
+     [
+      0,
+      16,
+      "경기도 해운대구 희망로 284",
+      "PRIVATE_ADDRESS"
+     ]
+    ]
+   }
+  ]
+ },
+ "modelLabelSet": [
+  "B-account_number",
+  "B-ip_address",
+  "B-personal_handle",
+  "B-private_address",
+  "B-private_date",
+  "B-private_email",
+  "B-private_person",
+  "B-private_phone",
+  "B-private_url",
+  "I-account_number",
+  "I-ip_address",
+  "I-personal_handle",
+  "I-private_address",
+  "I-private_date",
+  "I-private_email",
+  "I-private_person",
+  "I-private_phone",
+  "I-private_url",
+  "O"
+ ],
+ "mappedLabels": {
+  "person": [
+   "PRIVATE_PERSON"
+  ],
+  "address": [
+   "PRIVATE_ADDRESS"
+  ],
+  "note": "매니페스트가 지정한 접두 튜플. 모델은 주소를 단일 라벨 private_address 로만 낸다 — 시도·도로명·번지를 서로 다른 라벨로 내지 않는다."
+ },
+ "droppedLabels": {
+  "emittedButUnmapped": [
+   "PRIVATE_PHONE",
+   "PRIVATE_EMAIL",
+   "PRIVATE_DATE",
+   "PRIVATE_URL",
+   "ACCOUNT_NUMBER",
+   "IP_ADDRESS",
+   "PERSONAL_HANDLE"
+  ],
+  "overlappingGoldAddress": {
+   "ACCOUNT_NUMBER": 13
+  },
+  "verdict": "정답 주소와 겹치는 비주소 라벨은 ACCOUNT_NUMBER 13건뿐이고 전부 괄호 우편번호 조각이다. 주소로 매핑을 넓히면 계좌번호를 주소로 오표기해 fp 가 늘고, 같은 라벨 병합 규칙상 어차피 합쳐지지 않는다 — fn 원인이 아니다."
+ },
+ "causeVerdict": "경계 문제(조각화)가 지배적이며 수정 가능. fn 250 중 218, fp 592 중 577 이 같은 라벨 조각 분할이었다. 병합 후 잔여(fn 81: trueMiss 21 + stillFragmented 31 + narrower 22 + wider 7)는 모델 한계다 — 우편번호 단독 정답은 모델이 아예 내지 않고, 조각 사이에 태그되지 않은 문자가 끼거나 끝 성분을 잘라내는 경우는 탐지 범위를 넓히지 않고는 고칠 수 없다.",
+ "fixApplied": "masking.py _span_fn: 같은 entity_group 의 연속 스팬이 공백만 사이에 두고 이어지면 한 스팬으로 합친다. 허용 gap 은 공백 문자뿐(strip() == \"\"). 다른 라벨이 사이에 있으면 gap 이 공백이 아니게 되어 자연히 끊긴다.",
+ "fixScope": "이미 탐지된 스팬의 경계 병합만. 라벨 매핑 변경 없음(버리는 주소 계열 라벨이 없음이 실측으로 확인됨). 끝 ')' 트림은 검토했으나 기각 — 정답이 '(우편번호)' 로 끝나는 형태가 있어 tp 를 깬다.",
+ "noWidening": {
+  "method": "coverage_check.py — 수정 전 파이프라인이 가리던 문자 집합이 수정 후에도 모두 가려지는지 870행 전수 대조",
+  "newDetectionAdded": 0,
+  "result": "rowsLosingCoverage 0 / 870, oldSpanCount 1978 → newSpanCount 690 (합쳐짐만, 새 탐지 없음)"
+ },
+ "coverageCheck": {
+  "rows": 870,
+  "rowsLosingCoverage": 0,
+  "oldSpanCount": 1978,
+  "newSpanCount": 690
+ },
+ "rerunMetrics": {
+  "before": {
+   "person": {
+    "tp": 344,
+    "fp": 21,
+    "fn": 36
+   },
+   "address": {
+    "tp": 50,
+    "fp": 592,
+    "fn": 250
+   },
+   "addressPrecision": 0.0779,
+   "addressRecall": 0.1667,
+   "overgeneralizationRate": 0.6087
+  },
+  "after": {
+   "counts": {
+    "PRIVATE_PERSON": {
+     "tp": 344,
+     "fp": 21,
+     "fn": 36
+    },
+    "PRIVATE_ADDRESS": {
+     "tp": 219,
+     "fp": 106,
+     "fn": 81
+    }
+   },
+   "metrics": {
+    "addressPrecision": 0.6738461538461539,
+    "addressRecall": 0.73,
+    "overgeneralizationRate": 0.18405797101449275,
+    "personPrecision": 0.9424657534246575,
+    "personRecall": 0.9052631578947369
+   },
+   "resultHash": "b1bbeef8fb158e007b71cc0a6ff0d8125cd3a5da94ce03d17ea08da966772a69"
+  },
+  "unchangedInputs": "임계값·corpus·정답 라벨·지표 정의·Wilson 계산 변경 0건"
+ },
+ "wilsonLower": {
+  "personPrecisionLower": 0.913650564322678,
+  "personRecallLower": 0.8716311767684809,
+  "addressPrecisionLower": 0.6211051580951945,
+  "addressRecallLower": 0.6770882626256942,
+  "overgeneralizationUpper": 0.21469552413870233
+ },
+ "thresholdVerdict": {
+  "verdict": "failed",
+  "addressPrecisionLower": "0.6211 < 0.90 실패",
+  "addressRecallLower": "0.6771 < 0.90 실패",
+  "overgeneralizationUpper": "0.2147 > 0.05 실패",
+  "personPrecisionLower": "0.9137 통과",
+  "personRecallLower": "0.8716 < 0.90 실패(기존과 동일)"
+ },
+ "receiptFields": {
+  "produced": false,
+  "reason": "thresholdVerdict failed — 사양상 status='passed' 영수증을 만들 수 없다",
+  "schema": [
+   "receiptId",
+   "modelId",
+   "modelRevision",
+   "labelSetHash",
+   "corpusHash",
+   "resultHash",
+   "validatedAt",
+   "expiresAt",
+   "status"
+  ]
+ },
+ "attestationFields": {
+  "produced": false,
+  "reason": "동일 — NerHealthAttestation 은 status='passed' 만 허용",
+  "schema": [
+   "id",
+   "modelId",
+   "modelRevision",
+   "labelSetHash",
+   "corpusHash",
+   "resultHash",
+   "validatedAt",
+   "expiresAt",
+   "status"
+  ]
+ },
+ "unitChecks": {
+  "suite": "apps/pipeline/tests/test_masking.py",
+  "local": {
+   "ran": 44,
+   "failed": 0,
+   "skipped": 1,
+   "note": "skip 은 transformers 부재 환경의 BioesGroupingTest — 기존 동작"
+  },
+  "mini": {
+   "ran": 44,
+   "failed": 0,
+   "skipped": 0,
+   "note": "transformers 있는 환경에서 BioesGroupingTest 포함 전수 통과"
+  },
+  "added": [
+   "SameLabelGapMergeTest.test_address_components_separated_by_spaces_merge_into_one_span",
+   "test_non_space_gap_does_not_merge",
+   "test_different_labels_do_not_merge"
+  ],
+  "deletedOrSkipped": 0
+ },
+ "mutations": {
+  "files": [
+   "apps/pipeline/ccc_pipeline/masking.py",
+   "apps/pipeline/tests/test_masking.py",
+   "artifacts/orchestration/address-span-diagnosis.json"
+  ],
+  "appsApiTestTouched": 0,
+  "modelDownloaded": 0,
+  "dbInsert": 0,
+  "push": 0
+ },
+ "commit": "release/0916 tip — 본 보고서를 포함한 커밋(자기참조라 해시는 git log 로 확인)",
+ "blocked": false
+}

@@ -496,3 +496,48 @@ class BioesGroupingTest(unittest.TestCase):
 
         spans = person(text)
         self.assertEqual(spans, [(0, 3), (7, 10)])
+
+
+class SameLabelGapMergeTest(unittest.TestCase):
+    """같은 라벨 조각이 공백만 사이에 두고 이어지면 한 스팬으로 합친다 (E5-4).
+
+    채택 모델은 한국어 주소를 성분(시도·시군구·도로명·동호)별로 여러 엔티티로 낸다.
+    조각 사이가 공백뿐이면 합치고, 공백 외 문자가 끼면 모델이 태그하지 않은 자리를
+    채우는 셈이라 합치지 않는다.
+    """
+
+    class _FakeRecognizer:
+        def __init__(self, entities):
+            self._entities = entities
+
+        def __call__(self, _text):
+            return self._entities
+
+    def test_address_components_separated_by_spaces_merge_into_one_span(self):
+        text = "서울특별시 수원시 맑은동 543-4"
+        recognizer = self._FakeRecognizer([
+            {"entity_group": "private_address", "start": 0, "end": 5},
+            {"entity_group": "private_address", "start": 6, "end": 9},
+            {"entity_group": "private_address", "start": 10, "end": 18},
+        ])
+        ner = masking._span_fn(recognizer, ("PRIVATE_ADDRESS",))
+        self.assertEqual(ner(text), [(0, 18)])
+
+    def test_non_space_gap_does_not_merge(self):
+        # 조각 사이에 모델이 태그하지 않은 문자("도")가 끼면 합치지 않는다.
+        text = "경상북도 순천시"
+        recognizer = self._FakeRecognizer([
+            {"entity_group": "private_address", "start": 0, "end": 3},
+            {"entity_group": "private_address", "start": 5, "end": 8},
+        ])
+        ner = masking._span_fn(recognizer, ("PRIVATE_ADDRESS",))
+        self.assertEqual(ner(text), [(0, 3), (5, 8)])
+
+    def test_different_labels_do_not_merge(self):
+        text = "김철수 서울시"
+        recognizer = self._FakeRecognizer([
+            {"entity_group": "private_person", "start": 0, "end": 3},
+            {"entity_group": "private_address", "start": 4, "end": 7},
+        ])
+        ner = masking._span_fn(recognizer, ("PRIVATE_PERSON", "PRIVATE_ADDRESS"))
+        self.assertEqual(ner(text), [(0, 3), (4, 7)])

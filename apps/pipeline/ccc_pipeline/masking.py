@@ -329,12 +329,23 @@ def _span_fn(recognizer, label_prefixes: tuple[str, ...]):  # noqa: ANN001, ANN2
     """이미 불러온 파이프라인에서 특정 라벨 접두만 고르는 스팬 함수를 만든다."""
 
     def ner(text: str) -> list[tuple[int, int]]:
-        spans: list[tuple[int, int]] = []
+        spans: list[tuple[int, int, str]] = []
         for entity in recognizer(text):
             group = str(entity.get("entity_group", "")).upper()
-            if group.startswith(label_prefixes):
-                spans.append((int(entity["start"]), int(entity["end"])))
-        return spans
+            if not group.startswith(label_prefixes):
+                continue
+            start, end = int(entity["start"]), int(entity["end"])
+            # 같은 라벨 조각이 공백만 사이에 두고 이어지면 한 스팬으로 합친다.
+            # 채택 모델은 한국어 주소를 시도·시군구·도로명·동호 성분별로 여러 엔티티로
+            # 낸다(E5-4 실측: 주소 FN 250 중 218 이 이런 조각). 사이가 공백뿐일 때만
+            # 합친다 — 공백 외 문자가 끼면 모델이 태그하지 않은 자리를 채우는 셈이라
+            # 넘지 않고, 다른 라벨이 사이에 있어도 그 구간이 공백이 아니게 되어 자연히
+            # 끊긴다. 탐지 범위는 늘지 않는다 — 이미 탐지된 스팬의 경계만 바로잡는다.
+            if spans and spans[-1][2] == group and text[spans[-1][1]:start].strip() == "":
+                spans[-1] = (spans[-1][0], max(spans[-1][1], end), group)
+                continue
+            spans.append((start, end, group))
+        return [(start, end) for start, end, _group in spans]
 
     return ner
 
