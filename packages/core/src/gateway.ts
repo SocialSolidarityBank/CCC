@@ -25651,33 +25651,50 @@ async function verifiedMemoryMaterials(env:Env,orgId:string,supportCaseId:string
   const rows=await (limit===null
     ?statement.bind(orgId,supportCaseId,derivedOnly?1:0,derivedOnly?1:0)
     :statement.bind(orgId,supportCaseId,derivedOnly?1:0,derivedOnly?1:0,limit)).all<MemoryMaterialRow>();
-  for (const row of rows.results) await memoryMaterialReady(env, row);
-  return rows.results;
+  const verified: MemoryMaterialRow[] = [];
+  for (const row of rows.results) if (await memoryMaterialReady(env, row)) verified.push(row);
+  return verified;
 }
-/** A ready material is immutable evidence; invalid proof is never repaired or skipped. */
+/** Immutable evidence fails closed; only expired or unavailable proof inputs are requeued for renewal. */
 async function memoryMaterialReady(env: Env, row: MemoryMaterialRow): Promise<boolean> {
-  if (!row.proof_json || !row.entity_source_binding || !row.payload_hash || !row.snapshot_id || row.masked_text === null || row.sha256 === null) {
-    throw new ValidationError('masking_snapshot_missing');
-  }
-  let proof: ResultRequest['result'];
   try {
-    proof = JSON.parse(row.proof_json) as ResultRequest['result'];
-  } catch {
-    throw new ValidationError('masking_snapshot_missing');
+    if (!row.proof_json || !row.entity_source_binding || !row.payload_hash || !row.snapshot_id || row.masked_text === null || row.sha256 === null) {
+      throw new ValidationError('masking_snapshot_missing');
+    }
+    let proof: ResultRequest['result'];
+    try {
+      proof = JSON.parse(row.proof_json) as ResultRequest['result'];
+    } catch {
+      throw new ValidationError('masking_snapshot_missing');
+    }
+    if (proof === null || typeof proof !== 'object') throw new ValidationError('masking_snapshot_missing');
+    if (proof.maskedText !== row.masked_text || proof.sha256 !== row.sha256) {
+      throw new ValidationError('evidence_hash_mismatch');
+    }
+    await verifyMemoryProof(env, row, proof);
+    if (await sha256Hex(canonicalizeJcs({schemaVersion: 2, attempt: row.attempt, result: proof})) !== row.payload_hash) {
+      throw new ValidationError('evidence_hash_mismatch');
+    }
+    const delivered = await verifyMemoryMaterialBinding(env, row, {
+      userId: row.actor_id!, orgId: row.org_id, role: 'service',
+    });
+    await verifyMemoryCheckedSource(row, proof, delivered);
+    return true;
+  } catch (error) {
+    const code = error instanceof AgentJobContractError ? error.code
+      : error instanceof ValidationError ? error.message : null;
+    if (code !== 'local_ner_unavailable' && code !== 'masking_pipeline_version_mismatch'
+      && code !== 'masking_snapshot_missing') throw error;
+    // A late reader cannot erase a newer accepted proof. Refreshing proof is not new source evidence.
+    await env.DB.prepare(`UPDATE counseling_memory_materials SET status='pending',attempt=0,
+      lease_token=NULL,lease_until=NULL,actor_id=NULL,attestation_json=NULL,attestation_expires_at=NULL,
+      receipt_id=NULL,entity_source_binding=NULL,snapshot_id=NULL,masked_text=NULL,sha256=NULL,
+      proof_json=NULL,payload_hash=NULL
+      WHERE id=? AND org_id=? AND support_case_id=? AND source_revision=? AND valid=1
+        AND status='ready' AND snapshot_id IS NOT DISTINCT FROM ? AND payload_hash IS NOT DISTINCT FROM ?`)
+      .bind(row.id, row.org_id, row.support_case_id, row.source_revision, row.snapshot_id, row.payload_hash).run();
+    return false;
   }
-  if (proof === null || typeof proof !== 'object') throw new ValidationError('masking_snapshot_missing');
-  if (proof.maskedText !== row.masked_text || proof.sha256 !== row.sha256) {
-    throw new ValidationError('evidence_hash_mismatch');
-  }
-  await verifyMemoryProof(env, row, proof);
-  if (await sha256Hex(canonicalizeJcs({schemaVersion: 2, attempt: row.attempt, result: proof})) !== row.payload_hash) {
-    throw new ValidationError('evidence_hash_mismatch');
-  }
-  const delivered = await verifyMemoryMaterialBinding(env, row, {
-    userId: row.actor_id!, orgId: row.org_id, role: 'service',
-  });
-  await verifyMemoryCheckedSource(row, proof, delivered);
-  return true;
 }
 export async function beginCounselingMemoryEgress(env:Env,work:MemoryWork,configHash:string):Promise<MemoryGenerationRequest> {
   const {programAdmission}=await assertMemoryWork(env,work,null);

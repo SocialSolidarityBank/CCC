@@ -92,6 +92,30 @@ async function materialize(f: MemoryFixture) {
   const output = { updates: [{ key: 'document', itemId: null, kind: 'fact' as const, title: '서류', body: '서류 준비 예정', state: 'current' as const, citations: [{ materialId: material.id, quote: '서류 준비' }], references: [{ kind: 'action' as const, id: f.action.id }] }], summary: [{ text: '서류 준비 예정', itemKeys: ['document'] }] };
   return { work, output };
 }
+async function historicalProofFixture() {
+  const f = await fixture();
+  const first = await materialize(f);
+  await commitCounselingMemoryWork(t.env, first.work, first.output);
+  const session = await createManualSession(t.env, counselor, f.action.caseId, {
+    submissionId: crypto.randomUUID(),
+    heldAt: '2026-09-08T09:00:00.000Z',
+    channel: 'in_person',
+    memo: '이번 상담에서 서류 준비와 새 일정을 확인했습니다.',
+    gasScores: [],
+  });
+  await maskPending(f);
+  const context = await loadCounselingMemoryContext(t.env, counselor, session.id);
+  expect(context?.materials).toHaveLength(1);
+  const material = context!.materials[0]!;
+  const before = await t.db.prepare(
+    'SELECT source_revision,processed,snapshot_id FROM counseling_memory_materials WHERE id=?',
+  ).bind(material.id).first<{ source_revision: number; processed: number; snapshot_id: string }>();
+  if (before === null) throw new Error('expected historical memory material');
+  const state = await t.db.prepare(
+    'SELECT generation FROM counseling_memory_cases WHERE support_case_id=?',
+  ).bind(f.id).first<{ generation: number }>();
+  return { f, session, material, before, state };
+}
 describe('durable memory races', () => {
   it('releases a successful generic text claim before same-case memory work claims', async () => {
     const f = await fixture();
@@ -173,7 +197,7 @@ describe('durable memory races', () => {
       expect(requests).toHaveLength(mode === 'preview-fixture' ? 0 : mode === 'actual' ? 2 : 1);
       for (const request of requests) {
         expect(request).not.toHaveProperty('historicalContext');
-        expect(request.materials.map(material => material.maskedText)).toEqual([memo]);
+        expect(request.materials.map(material => material.maskedText)).toEqual([`${memo}\n[상담 방식] in_person`]);
       }
       const drafts = await t.db.prepare(`SELECT draft.version FROM ai_draft_versions AS draft
         JOIN ai_work_items AS work ON work.id=draft.work_item_id
@@ -386,6 +410,7 @@ describe('durable memory races', () => {
     const addedIds = Array.from({ length: 35 }, () => crypto.randomUUID());
     const ids = [f.action.id, ...addedIds];
     const createdAt = new Date().toISOString();
+    await maskJobs(f);
     // Seed existing history atomically; action creation is covered by its own gateway tests.
     await t.db.batch(addedIds.map((id, index) =>
       t.db.prepare("INSERT INTO action_items(id,org_id,support_case_id,description,owner,created_at) VALUES(?,?,?,?,'beneficiary',?)")
@@ -397,11 +422,10 @@ describe('durable memory races', () => {
         await beginCounselingMemoryEgress(t.env, work, 'b'.repeat(64));
         await commitCounselingMemoryWork(t.env, work, { updates: [], summary: [] });
       }
-      const jobs = pass === 0 ? [...f.jobs, ...await claimCounselingMemorySources(t.env, service, claimRequest(f.qualification, 20))] : await claimCounselingMemorySources(t.env, service, claimRequest(f.qualification, 20));
-      for (const job of jobs) {
-        const source = await getCounselingMemorySource(t.env, service, job.jobId, job.claimToken, job.attempt);
-        await acceptCounselingMemorySource(t.env, service, job.jobId, await agentResultRequest({ kind: 'text', claimToken: job.claimToken, attempt: job.attempt, maskedText: maskedFixtureText(source.text), qualification: f.qualification, checkedSource: { sourceRevision: source.sourceRevision, sourceSha256: source.sourceSha256, sourceStart: 0, sourceEnd: source.sourceLength } }));
-      }
+      await maskJobs({
+        ...f,
+        jobs: await claimCounselingMemorySources(t.env, service, claimRequest(f.qualification, 20)),
+      });
       const processed = await t.db.prepare("SELECT count(*) AS total FROM counseling_memory_materials WHERE support_case_id=? AND kind='action' AND processed=1 AND valid=1")
         .bind(f.id).first<{ total: number }>();
       if (processed?.total === ids.length) break;
@@ -471,33 +495,55 @@ describe('durable memory races', () => {
     const replayMaterial = replayRequest.materials.find(material => material.sourceKind === 'session' && material.sessionId === firstSession.id)!;
     await expect(commitCounselingMemoryWork(t.env, replayWork, { updates: [{ key: 'replay', itemId: observation.id, kind: 'fact', title: '연락 시간', body: '오후 연락을 요청했습니다.', state: 'current', citations: [{ materialId: replayMaterial.id, quote: '오후에 연락' }], references: [] }], summary: [] })).rejects.toThrow('memory_correction_protected');
   });
-  it('omits expired historical context and renews its proof without making a new fact', async () => {
-    const f = await fixture(true, new Date(Date.now() + 3600000).toISOString());
-    const first = await materialize(f);
-    await commitCounselingMemoryWork(t.env, first.work, first.output);
-    const session = await createManualSession(t.env, counselor, f.action.caseId, { submissionId: crypto.randomUUID(), heldAt: '2026-09-08T09:00:00.000Z', channel: 'in_person', memo: '이번 상담에서 새 일정을 확인했습니다.', gasScores: [] });
-    await maskPending(f);
-    const context = await loadCounselingMemoryContext(t.env, counselor, session.id);
-    expect(context?.materials).toHaveLength(1);
-    const material = context!.materials[0]!;
-    const before = await t.db.prepare('SELECT source_revision,processed,snapshot_id FROM counseling_memory_materials WHERE id=?').bind(material.id).first<{ source_revision: number; processed: number; snapshot_id: string }>();
-    const state = await t.db.prepare('SELECT generation FROM counseling_memory_cases WHERE support_case_id=?').bind(f.id).first<{ generation: number }>();
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date(Date.now() + 7200000));
-    try {
-      expect(await loadCounselingMemoryContext(t.env, counselor, session.id)).toBeNull();
-      const pending = await t.db.prepare('SELECT status,source_revision,processed,snapshot_id FROM counseling_memory_materials WHERE id=?').bind(material.id).first();
-      expect(pending).toMatchObject({ status: 'pending', source_revision: before!.source_revision, processed: before!.processed, snapshot_id: null });
-      const qualification = await seedNerQualification(t.db);
-      const jobs = await claimCounselingMemorySources(t.env, service, claimRequest(qualification, 20));
-      await maskJobs({ ...f, qualification, jobs });
-      const renewed = await loadCounselingMemoryContext(t.env, counselor, session.id);
-      expect(renewed?.materials.map(candidate => candidate.id)).toEqual([material.id]);
-      expect(renewed!.materials[0]!.snapshotId).not.toBe(before!.snapshot_id);
-      expect(await t.db.prepare('SELECT generation FROM counseling_memory_cases WHERE support_case_id=?').bind(f.id).first()).toEqual(state);
-    } finally {
-      vi.useRealTimers();
+  it.each([
+    'local_ner_unavailable',
+    'masking_pipeline_version_mismatch',
+    'masking_snapshot_missing',
+  ] as const)('requeues and renews a ready proof after %s', async (failure) => {
+    const { f, session, material, before, state } = await historicalProofFixture();
+    if (failure === 'local_ner_unavailable') {
+      await t.db.prepare(
+        "UPDATE counseling_memory_materials SET attestation_json=json_set(attestation_json,'$.expiresAt','2000-01-01T00:00:00.000Z'),attestation_expires_at='2000-01-01T00:00:00.000Z' WHERE id=?",
+      ).bind(material.id).run();
+    } else if (failure === 'masking_pipeline_version_mismatch') {
+      t.env.MEMORY_MASKING_PIPELINES = '{}';
+    } else {
+      await t.db.prepare('UPDATE counseling_memory_materials SET proof_json=NULL WHERE id=?')
+        .bind(material.id).run();
     }
+    expect(await loadCounselingMemoryContext(t.env, counselor, session.id)).toBeNull();
+    if (failure === 'masking_pipeline_version_mismatch') {
+      t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
+    }
+    const pending = await t.db.prepare(
+      'SELECT status,source_revision,processed,snapshot_id,proof_json,entity_source_binding FROM counseling_memory_materials WHERE id=?',
+    ).bind(material.id).first();
+    expect(pending).toMatchObject({
+      status: 'pending',
+      source_revision: before.source_revision,
+      processed: before.processed,
+      snapshot_id: null,
+      proof_json: null,
+      entity_source_binding: null,
+    });
+    const qualification = await seedNerQualification(t.db);
+    const jobs = await claimCounselingMemorySources(t.env, service, claimRequest(qualification, 20));
+    await maskJobs({ ...f, qualification, jobs });
+    const renewed = await loadCounselingMemoryContext(t.env, counselor, session.id);
+    expect(renewed?.materials.map(candidate => candidate.id)).toEqual([material.id]);
+    expect(renewed!.materials[0]!.snapshotId).not.toBe(before.snapshot_id);
+    expect(await t.db.prepare('SELECT generation FROM counseling_memory_cases WHERE support_case_id=?')
+      .bind(f.id).first()).toEqual(state);
+  });
+  it('does not requeue an evidence hash mismatch as a renewable proof', async () => {
+    const { session, material, before } = await historicalProofFixture();
+    await t.db.prepare("UPDATE counseling_memory_materials SET masked_text=masked_text || '변조' WHERE id=?")
+      .bind(material.id).run();
+    await expect(loadCounselingMemoryContext(t.env, counselor, session.id))
+      .rejects.toThrow('evidence_hash_mismatch');
+    expect(await t.db.prepare(
+      'SELECT status,snapshot_id FROM counseling_memory_materials WHERE id=?',
+    ).bind(material.id).first()).toEqual({ status: 'ready', snapshot_id: before.snapshot_id });
   });
   it('rejects an oversized derived snapshot without publishing a partial memory batch', async () => {
     const f = await fixture(false);
