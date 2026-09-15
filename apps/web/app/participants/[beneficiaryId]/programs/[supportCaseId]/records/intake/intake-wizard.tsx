@@ -8,6 +8,7 @@ import {
   WireButton,
   WireCallout,
   WireCard,
+  WireCardSection,
   WireChoice,
   WireFormField,
   WireRequiredMarker,
@@ -26,6 +27,11 @@ import {
   type IntakeQuestionnaire,
   type IntakeQuestionWithdrawalInput,
 } from '@ccc/contracts/intake';
+import {
+  CONSENT_COPY,
+  CONSENT_DOMAINS,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { WireRepeatActions } from '../../../../../../components/wire/wire-repeat-actions';
 import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../components/wire/date-picker-control';
@@ -85,8 +91,8 @@ export interface IntakeWizardProps {
   participant: { name: string | null; phone: string | null; email: string | null };
   /** 금고에 있는 기본정보(생년월일·주소/거주지역·성별 등). 표시 전용. */
   extendedPii: IntakeExtendedPii;
-  /** 동의 기록 여부(표시 전용). 입력은 당사자 등록 화면. */
-  consent: { privacy: boolean; recordingAi: boolean };
+  /** 여섯 영역 동의 현재 상태. 표시 전용이며 입력은 당사자 정보 화면이 맡는다. */
+  consent: readonly CurrentConsentState[];
   sessionSequence: number;
   recorderLabel: string;
   briefingHref: string;
@@ -1066,11 +1072,12 @@ export function IntakeWizard(props: IntakeWizardProps) {
     });
   }
 
-  const consentRows: ReadonlyArray<readonly [string, boolean]> = [
-    ['개인정보 수집·이용 동의', props.consent.privacy],
-    ['AI를 활용한 녹취기록 동의', props.consent.recordingAi],
-  ];
-  const consentMissing = consentRows.some(([, recorded]) => !recorded);
+  const consentByDomain = new Map(props.consent.map((state) => [state.domain, state]));
+  const consentRows = CONSENT_DOMAINS.map((domain) => ({
+    domain,
+    state: consentByDomain.get(domain)?.state ?? 'unconfirmed',
+  }));
+  const consentMissing = consentRows.some((item) => item.state === 'unconfirmed');
 
   // 우측 바로가기 목차(2026-08-09 Q 3차 "인테이크 페이지에도 TOC"). 부(部) 이동은 좌측
   // 단계 레일 몫이라, 이 목차는 **현재 단계의 소절**만 담는다 — 화면 렌더 순서 그대로.
@@ -1183,11 +1190,20 @@ export function IntakeWizard(props: IntakeWizardProps) {
               </WireCard>
 
               <WireCard title={<h3 id={intakeSectionAnchor('동의 기록')}>동의 기록</h3>} testId="intake-consent-status">
-                {consentRows.map(([label, recorded]) => (
-                  <ReadOnlyRow key={label} label={label} value={recorded ? '기록됨' : '미기록'} />
+                {consentRows.map(({ domain, state }) => (
+                  <WireCardSection
+                    key={domain}
+                    title={CONSENT_COPY[domain].label}
+                    action={(
+                      <WireBadge tone={state === 'granted' ? 'mint' : state === 'unconfirmed' ? 'lavender' : 'neutral'}>
+                        {state === 'granted' ? '동의함' : state === 'not_granted' ? '동의하지 않음' : '미기록'}
+                      </WireBadge>
+                    )}
+                  >
+                    <p className="panel-meta">{CONSENT_COPY[domain].copy}</p>
+                  </WireCardSection>
                 ))}
                 {consentMissing ? (
-                  // D44: 동의는 등록 때 받고 당사자 정보 페이지에서 고친다. 인테이크는 읽기만 한다.
                   <p className="panel-meta">
                     동의는 당사자 정보 페이지에서 기록·수정합니다. <a href={props.participantHref}>당사자 정보로 이동</a>
                   </p>

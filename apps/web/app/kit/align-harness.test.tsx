@@ -12,6 +12,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import {
+  CONSENT_COPY,
+  CONSENT_DOMAINS,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
 import { wireStyles } from '../components/wire/wire-styles';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
@@ -62,6 +67,19 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..',
 const OUT_DIR = join(repoRoot, 'artifacts/align-harness');
 
 const CASE_ID = '11111111-1111-4111-8111-111111111111';
+const CONSENT_STATES: CurrentConsentState[] = CONSENT_DOMAINS.map((domain) => ({
+  domain,
+  state: 'granted',
+  provider: CONSENT_COPY[domain].provider,
+  providerLegalRecipient: null,
+  providerCountry: null,
+  purpose: CONSENT_COPY[domain].purpose,
+  retentionDuration: domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null,
+  effectiveAt: null,
+  eventId: null,
+  revision: null,
+  eventSequence: null,
+}));
 
 const hubProgram: ParticipantProgram = {
   id: CASE_ID,
@@ -73,7 +91,7 @@ const hubProgram: ParticipantProgram = {
   sourceSupportCase: null,
   authorized: true,
   assigneeNames: ['홍길동'],
-  consent: { privacy: true, recordingAi: true },
+  consent: CONSENT_STATES as never,
   consentRecordedAt: '2026-07-01T00:00:00.000Z',
   upcomingSchedule: null,
 };
@@ -356,7 +374,7 @@ describe('정렬 하니스 생성기', () => {
       <IntakeReadView
         beneficiaryId="swallow-003"
         participant={{ name: '홍서희', phone: '010-1234-5678', email: 'sample@example.test' }}
-        consent={{ privacy: true, recordingAi: false }}
+        consent={CONSENT_STATES}
         saved={{
           sessionId: 'intake-session',
           heldAt: '2026-07-15T05:00:00.000Z',
@@ -401,11 +419,6 @@ describe('정렬 하니스 생성기', () => {
     await waitFor(() => expect(scheduleView.getByLabelText('세부 목표 연결')).not.toBeNull());
     const scheduleGoals = scheduleView.container.innerHTML;
     cleanup();
-    // 펼친 상태는 **생성된 마크업에 open 속성만 얹어** 만든다 — 마크업을 손으로 옮겨 적으면
-    // 부품이 바뀌어도 옛 모양을 재게 된다(위계 하니스와 같은 이유). 여는 방법은 이 한 줄뿐이다:
-    // details 는 서버 렌더에서 열 수 있는 프롭이 RegisterForm 에 없고, 실측 대상은 열린 상자다.
-    const registerOpen = register.replace('<details class="consent-detail', '<details open class="consent-detail');
-    const hubConsentOpen = hubConsent.replace('<details class="consent-detail', '<details open class="consent-detail');
     const goalTreeOpen = goalTree.replace('<details class="goal-tree-goal-details', '<details open class="goal-tree-goal-details');
     const contentOpen = content.replace('<details class="wire-source-quotes"', '<details open class="wire-source-quotes"');
 
@@ -417,11 +430,12 @@ describe('정렬 하니스 생성기', () => {
     }
     expect(empty, '제안 없음: 빈 상태 줄이 없다').toContain('승인된 상담 기록이 쌓이면');
     expect(content, '제안 있음: 제안 목록이 없다').toContain('briefing-suggestions');
-    expect(register, '등록: 동의 전문 상자가 없다').toContain('consent-detail register-consent-block wire-repeat-card');
-    expect(registerOpen, '등록: 펼침 변형에 open 이 안 붙었다').toContain('<details open class="consent-detail');
-    expect(hubConsent, '당사자 정보 동의 행이 없다').toContain('consent-item');
+    expect(register, '등록: 여섯 동의 영역 상자가 없다').toContain('register-consent-block wire-repeat-card');
+    expect(register.match(/class="wire-card-section"/g), '등록: 동의 영역은 여섯 개여야 한다').toHaveLength(CONSENT_DOMAINS.length);
+    expect(register.match(/class="wire-choice"/g), '등록: 영역마다 결정 두 개가 있어야 한다').toHaveLength(CONSENT_DOMAINS.length * 2);
+    expect(hubConsent.match(/class="wire-card-section"/g), '당사자 정보 동의 영역은 여섯 개여야 한다').toHaveLength(CONSENT_DOMAINS.length);
+    expect(hubConsent.match(/class="wire-choice"/g), '당사자 정보 영역마다 결정 두 개가 있어야 한다').toHaveLength(CONSENT_DOMAINS.length * 2);
     expect(hubConsent, '당사자 정보 동의 묶음 상자가 없다').toContain('participant-consent-block wire-repeat-card');
-    expect(hubConsentOpen, '당사자 정보 동의 전문 펼침 변형이 없다').toContain('<details open class="consent-detail');
     expect(sidebar, '사이드바 내비게이션 행이 없다').toContain('navigation-link');
     expect(backLink, '뒤로 버튼의 왼쪽 공용 꺽쇠가 없다').toContain('wire-chevron');
     expect(goalTree, '당사자 정보 목표 트리가 없다').toContain('goal-tree-case');
@@ -469,9 +483,7 @@ describe('정렬 하니스 생성기', () => {
 <div id="align-content">${content}</div>
 <div id="align-content-open">${contentOpen}</div>
 <div id="align-register">${register}</div>
-<div id="align-register-open">${registerOpen}</div>
 <div id="align-hub-consent">${hubConsent}</div>
-<div id="align-hub-consent-open">${hubConsentOpen}</div>
 <div id="align-sidebar">${sidebar}</div>
 <div id="align-back">${backLink}</div>
 <div id="align-goal-tree">${goalTree}</div>

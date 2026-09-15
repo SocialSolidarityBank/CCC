@@ -1,16 +1,22 @@
 'use client';
 
 import {
-  DisclosureChevron,
   Icon,
   WireBadge,
   WireButton,
   WireCard,
+  WireCardSection,
+  WireChoice,
 } from '@ccc/wire';
+import {
+  CONSENT_COPY,
+  CONSENT_COPY_VERSION,
+  CONSENT_DOMAINS,
+  type ConsentDomain,
+} from '@ccc/contracts/consent';
 import { useState } from 'react';
 import { SearchInput } from '../../components/wire/search-input';
 import { PROGRAM_LABELS } from '../../lib/labels';
-import { CONSENT_DETAIL_DISCLAIMER, CONSENT_DETAIL_SECTIONS } from './consent-copy';
 
 // 성별 선택값은 정본 질문지 1-1 그대로다(D41). 빈 값은 '미입력' — 금고에 아무것도 쓰지 않는다.
 const GENDER_OPTIONS = [
@@ -20,6 +26,8 @@ const GENDER_OPTIONS = [
   { value: '기타', label: '기타' },
   { value: '무응답', label: '무응답' },
 ];
+
+type ConsentDecisions = Partial<Record<ConsentDomain, 'grant' | 'decline'>>;
 
 export interface RegisterFormProps {
   /**
@@ -60,12 +68,9 @@ export function RegisterForm({
   action,
   programLabel = PROGRAM_LABELS.financial_support_v1,
 }: RegisterFormProps) {
-  // G1: ① 은 필수 체크이고, 긴급 등록을 켜면 그 필수가 사유 입력으로 옮겨 간다.
-  // 둘은 **서로 배타**다 — 서버가 "동의가 있는데 긴급 예외까지 왔다"를 거부하므로(예외는
-  // 동의가 없을 때만 성립), 화면에서 아예 함께 켜지지 않게 한다. 그러지 않으면 한 번의
-  // 클릭으로 원인 없는 실패에 닿는다.
-  const [privacy, setPrivacy] = useState(false);
+  const [consentDecisions, setConsentDecisions] = useState<ConsentDecisions>({});
   const [emergency, setEmergency] = useState(false);
+  const allConsentDecided = CONSENT_DOMAINS.every((domain) => consentDecisions[domain] !== undefined);
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState<string>();
   return (
@@ -158,41 +163,41 @@ export function RegisterForm({
             `register-consent` 로 범위를 좁힌다 — `.consent-fieldset` 자체는 자기 가입 폼·동의 수정
             허브와 공유하는 규칙이라 덮으면 손대지 않은 화면 2개가 함께 바뀐다. */}
         <fieldset className="consent-fieldset register-consent">
-          {/* 괄호 보충("항목별, 기본 미동의")은 뺐다(2026-08-07 Q "legend 는 타이틀 위계 +
-              필요 없는 텍스트 삭제") — 기본 미동의·필수 여부는 바로 아래 안내문이 말한다. */}
           <legend>동의</legend>
-          {/* 2026-08-29 Q "텍스트 덩어리는 div 카드에": 안내문+동의 체크 2개가 한 상자다.
-              서명 첨부 자리는 이미 자기 상자(점선)라 형제로 둔다. */}
+          <input type="hidden" name="consentCopyVersion" value={CONSENT_COPY_VERSION} />
           <div className="register-consent-block wire-repeat-card">
-            <p className="schedule-form-hint">
-              동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
-              개인정보 수집·이용 동의는 등록에 반드시 필요하며, AI를 활용한 녹취기록은 미동의여도 등록이 진행됩니다.
-            </p>
-            {/* G1(2026-07-29 Q 결정1): ① 개인정보 수집·이용 동의는 **등록의 하드 게이트**다.
-                체크 없이 제출하면 서버가 privacy_consent_required 로 되돌린다. 급박한 위기
-                개입만 아래 '긴급 등록'으로 통과하며, 그때는 사유와 보완 기한이 함께 남는다. */}
-            <label className="consent-checkbox">
-              <input
-                type="checkbox"
-                className="wire-checkbox"
-                name="consentPrivacy"
-                value="on"
-                required={!emergency}
-                checked={privacy}
-                onChange={(event) => {
-                  setPrivacy(event.currentTarget.checked);
-                  if (event.currentTarget.checked) setEmergency(false);
-                }}
-              />
-              <span>개인정보 수집·이용 동의 (필수)</span>
-            </label>
-            {/* D49: 구 ② 녹음·음성 분석 + 구 ③ 텍스트 AI 정리를 한 체크로 합쳤다. 체크 하나가
-                두 컬럼에 같은 시각을 찍는다(DB 3컬럼 유지 — 법률 검토가 분리를 요구하면
-                화면만 다시 펴면 된다). 하드 게이트는 여전히 ① 하나다(G1). */}
-            <label className="consent-checkbox">
-              <input type="checkbox" className="wire-checkbox" name="consentRecordingAi" value="on" />
-              <span>AI를 활용한 녹취기록 동의</span>
-            </label>
+            {CONSENT_DOMAINS.map((domain) => (
+              <WireCardSection key={domain} title={CONSENT_COPY[domain].label}>
+                <p className="schedule-form-hint">{CONSENT_COPY[domain].copy}</p>
+                <div
+                  className="wizard-choice-row"
+                  role="radiogroup"
+                  aria-label={CONSENT_COPY[domain].label}
+                >
+                  <WireChoice
+                    type="radio"
+                    name={`consent-${domain}`}
+                    value="grant"
+                    label="동의함"
+                    checked={consentDecisions[domain] === 'grant'}
+                    onChange={() => {
+                      setConsentDecisions((current) => ({ ...current, [domain]: 'grant' }));
+                      if (domain === 'personal_data_collection_use') setEmergency(false);
+                    }}
+                  />
+                  <WireChoice
+                    type="radio"
+                    name={`consent-${domain}`}
+                    value="decline"
+                    label="동의하지 않음"
+                    checked={consentDecisions[domain] === 'decline'}
+                    onChange={() => {
+                      setConsentDecisions((current) => ({ ...current, [domain]: 'decline' }));
+                    }}
+                  />
+                </div>
+              </WireCardSection>
+            ))}
           </div>
 
           {/* 2026-07-30 Q: 자필 서명·스캔 파일로 받은 동의서를 올릴 **자리만** 만든다.
@@ -220,8 +225,16 @@ export function RegisterForm({
                 value="on"
                 checked={emergency}
                 onChange={(event) => {
-                  setEmergency(event.currentTarget.checked);
-                  if (event.currentTarget.checked) setPrivacy(false);
+                  const checked = event.currentTarget.checked;
+                  setEmergency(checked);
+                  if (checked) {
+                    setConsentDecisions((current) => {
+                      if (current.personal_data_collection_use !== 'grant') return current;
+                      const next = { ...current };
+                      delete next.personal_data_collection_use;
+                      return next;
+                    });
+                  }
                 }}
               />
               <span>긴급 등록 (동의를 먼저 받을 수 없는 경우)</span>
@@ -243,39 +256,18 @@ export function RegisterForm({
             </p>
           </div>
 
-          {/* 정보 표시 전용 아코디언. briefing-cards.tsx의 요약과 DisclosureChevron 패턴을
-              재사용한다. 체크박스 이름, 액션, 저장 구조는 건드리지 않는다.
-              2026-08-30 Q: 위 두 상자와 같은 낱개 상자다("위 div 컴포넌트처럼 div 컴포넌트 안에
-              텍스트 넣기") — 구 전폭 가로선은 상자 테두리가 대신한다("위 가로선 없애고").
-              아래 '등록하기'는 이 상자에 넣지 않는다(같은 Q — 그대로 fieldset 밖 폼 행동). */}
-          <details className="consent-detail register-consent-block wire-repeat-card">
-            <summary className="consent-detail-summary">
-              <span>자세히 읽어보기</span>
-              <DisclosureChevron variant="plain" />
-            </summary>
-            <div className="consent-detail-body">
-              <p className="consent-detail-disclaimer">{CONSENT_DETAIL_DISCLAIMER}</p>
-              {CONSENT_DETAIL_SECTIONS.map((section) => (
-                <div className="consent-detail-section" key={section.heading}>
-                  <h3>{section.heading}</h3>
-                  {/* 같은 클래스를 단 형제는 '나열'로 읽는다(위계 실측 계약) — 동의 문단은
-                      한 구획 안에서 대등한 순서열이라 쌓임(눌린 쌓임)이 아니다. */}
-                  {section.paragraphs?.map((paragraph) => <p className="consent-detail-paragraph" key={paragraph}>{paragraph}</p>)}
-                  {section.items === undefined ? null : (
-                    <ul>
-                      {section.items.map((item) => <li key={item}>{item}</li>)}
-                    </ul>
-                  )}
-                </div>
-              ))}
-            </div>
-          </details>
         </fieldset>
 
         {/* Y7: 실무자가 남을 등록하는 화면이라 '가입하기'가 아니다. 당사자 본인이 쓰는 자기 가입
             폼(join/participant)은 '가입하기'가 맞으므로 그쪽은 건드리지 않는다.
             Y6: 풀폭 버튼은 이 화면만의 예외였다 — 다른 화면처럼 콤팩트 알약으로 되돌린다. */}
-        <WireButton type="submit" size="large" className="register-submit" icon={<Icon name="check" />}>
+        <WireButton
+          type="submit"
+          size="large"
+          className="register-submit"
+          icon={<Icon name="check" />}
+          disabled={!allConsentDecided}
+        >
           등록하기
         </WireButton>
       </form>

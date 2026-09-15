@@ -1,6 +1,7 @@
 import {
   WireButton,
 } from '@ccc/wire';
+import type { CurrentConsentState } from '@ccc/contracts/consent';
 import { PageError } from '../../../../../../components/wire/page-error';
 import { ApiError, getIntakeRecordContext, getMyIdentity, type IntakeRecordContext } from '../../../../../../lib/api';
 import { createIntakeRecordAction, updateIntakeRecordAction } from '../../../../../../actions';
@@ -19,6 +20,10 @@ const messages: Record<LoadError, string> = {
 
 function safeId(value: string): string | null {
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value) ? value : null;
+}
+
+function consentStates(value: unknown): CurrentConsentState[] {
+  return Array.isArray(value) ? value as CurrentConsentState[] : [];
 }
 
 async function load(supportCaseId: string): Promise<{ data: IntakeRecordContext; error: null } | { data: null; error: LoadError }> {
@@ -98,7 +103,7 @@ export default async function NewIntakePage({
         <IntakeReadView
           beneficiaryId={beneficiaryId}
           participant={context.data.participant}
-          consent={context.data.consent}
+          consent={consentStates(context.data.consent)}
           saved={saved}
           overallGoal={context.data.overallGoal}
           editHref={`${intakeHref}?edit=1`}
@@ -118,7 +123,7 @@ export default async function NewIntakePage({
         submissionId={crypto.randomUUID()}
         participant={context.data.participant}
         extendedPii={context.data.extendedPii}
-        consent={context.data.consent}
+        consent={consentStates(context.data.consent)}
         participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
         basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
         sessionSequence={context.data.sessionSequence}
@@ -163,7 +168,7 @@ export default async function NewIntakePage({
       moduleSnapshot={context.data.moduleSnapshot}
       participant={context.data.participant}
       extendedPii={context.data.extendedPii}
-      consent={context.data.consent}
+      consent={consentStates(context.data.consent)}
       participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
       basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
       sessionSequence={context.data.sessionSequence}

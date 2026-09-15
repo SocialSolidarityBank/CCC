@@ -8,6 +8,7 @@ import {
   WireCard,
   WireCallout,
   WireCardDetails,
+  WireCardSection,
   WireDataRow,
   WireDataRows,
 } from '@ccc/wire';
@@ -16,6 +17,11 @@ import type {
   IntakeAnswerInput,
   IntakeSavedRecord,
 } from '../../../../../../lib/api';
+import {
+  CONSENT_COPY,
+  CONSENT_DOMAINS,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
 import {
   ADDITIONAL_COLUMNS,
@@ -45,7 +51,7 @@ import { IntakeStepRail } from './intake-step-rail';
 export interface IntakeReadViewProps {
   beneficiaryId: string;
   participant: { name: string | null; phone: string | null; email: string | null };
-  consent: { privacy: boolean; recordingAi: boolean };
+  consent: readonly CurrentConsentState[];
   saved: IntakeSavedRecord;
   canWrite?: boolean;
   /** 전체 목표 현재값(D62 · CCC-68). 주 입력 자리가 인테이크라 조회 화면도 함께 읽는다. */
@@ -202,11 +208,12 @@ export function IntakeReadView(props: IntakeReadViewProps) {
   );
   const heldAtLabel = formatKoreanDateTime(props.saved.heldAt);
   const overallGoalText = (props.overallGoal ?? '').trim();
-  const consentRows: ReadonlyArray<readonly [string, boolean]> = [
-    ['개인정보 수집·이용 동의', props.consent.privacy],
-    ['AI를 활용한 녹취기록 동의', props.consent.recordingAi],
-  ];
-  const consentMissing = consentRows.filter(([, recorded]) => !recorded).length;
+  const consentByDomain = new Map(props.consent.map((state) => [state.domain, state]));
+  const consentRows = CONSENT_DOMAINS.map((domain) => ({
+    domain,
+    state: consentByDomain.get(domain)?.state ?? 'unconfirmed',
+  }));
+  const consentMissing = consentRows.filter((item) => item.state === 'unconfirmed').length;
   const lifecycleSnapshots = [
     ...(props.saved.history ?? []).flatMap((revision) => (
       revision.questionLifecycle === null
@@ -306,17 +313,19 @@ export function IntakeReadView(props: IntakeReadViewProps) {
         onToggle={(event) => setOpen(consentId, event.currentTarget.open)}
         testId="intake-read-consent"
       >
-        <WireDataRows>
-          {consentRows.map(([label, recorded]) => (
-            <WireDataRow
-              key={label}
-              label={label}
-              value={recorded
-                ? <WireBadge tone="mint">기록됨</WireBadge>
-                : <WireBadge tone="lavender">미기록</WireBadge>}
-            />
-          ))}
-        </WireDataRows>
+        {consentRows.map(({ domain, state }) => (
+          <WireCardSection
+            key={domain}
+            title={CONSENT_COPY[domain].label}
+            action={(
+              <WireBadge tone={state === 'granted' ? 'mint' : state === 'unconfirmed' ? 'lavender' : 'neutral'}>
+                {state === 'granted' ? '동의함' : state === 'not_granted' ? '동의하지 않음' : '미기록'}
+              </WireBadge>
+            )}
+          >
+            <p className="panel-meta">{CONSENT_COPY[domain].copy}</p>
+          </WireCardSection>
+        ))}
         {consentMissing > 0 ? (
           <p className="panel-meta">
             동의는 당사자 정보 페이지에서 기록하고 수정합니다.{' '}

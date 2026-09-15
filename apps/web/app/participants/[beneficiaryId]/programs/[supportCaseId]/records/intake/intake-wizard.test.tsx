@@ -4,6 +4,13 @@ import { IntakeWizard, type IntakeInitialValues } from './intake-wizard';
 import { ACTIVE_QUESTIONS, STEP_GROUPS } from './intake-questions';
 import type { CreateIntakeRecordActionInput, IntakeRecordActionResult } from '../../../../../../actions';
 import { parseIntakeQuestionnaire } from '@ccc/contracts/intake';
+import {
+  CONSENT_COPY,
+  CONSENT_DOMAINS,
+  type ConsentDomain,
+  type ConsentState,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
@@ -18,6 +25,22 @@ const MODULE_SNAPSHOT = {
   programVersion: 4,
   financialSupportEnabled: true,
 } as const;
+
+function consentStates(overrides: Partial<Record<ConsentDomain, ConsentState>> = {}): CurrentConsentState[] {
+  return CONSENT_DOMAINS.map((domain) => ({
+    domain,
+    state: overrides[domain] ?? 'granted',
+    provider: CONSENT_COPY[domain].provider,
+    providerLegalRecipient: null,
+    providerCountry: null,
+    purpose: CONSENT_COPY[domain].purpose,
+    retentionDuration: domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null,
+    effectiveAt: null,
+    eventId: null,
+    revision: null,
+    eventSequence: null,
+  }));
+}
 
 const BOUND_EDIT_INITIAL = {
   heldAt: '2026-08-01T05:00:00.000Z',
@@ -60,7 +83,7 @@ const BOUND_EDIT_INITIAL = {
 };
 
 function renderWizard(
-  consent = { privacy: true, recordingAi: true },
+  consent = consentStates(),
   extra: {
     schedule?: typeof LINKED_SCHEDULE | null;
     overallGoal?: string | null;
@@ -330,27 +353,31 @@ describe('IntakeWizard', () => {
     expect(scoped.getByText(/상담 방법/)).not.toBeNull();
   });
 
-  it('1단계 기본정보와 동의는 읽기 전용이다 — 입력 칸이 없다', () => {
-    const { container } = renderWizard({ privacy: true, recordingAi: false });
+  it('1단계 기본정보와 동의 여섯 영역은 읽기 전용이다', () => {
+    const { container } = renderWizard(consentStates({ external_stt_processing: 'unconfirmed' }));
     const scoped = within(container);
 
     const basic = scoped.getByTestId('intake-basic-info');
     expect(within(basic).getByText('서울시 은평구')).not.toBeNull();
     expect(within(basic).getByText('1984-03-11')).not.toBeNull();
     expect(within(basic).getByText('여성')).not.toBeNull();
-    // 기본정보 카드 안에는 어떤 입력 컨트롤도 없다(저장은 당사자 등록 몫, D42 ①).
     expect(basic.querySelectorAll('input, select, textarea').length).toBe(0);
 
     const consent = scoped.getByTestId('intake-consent-status');
     expect(consent.querySelectorAll('input, select, textarea').length).toBe(0);
-    expect(consent.textContent).toContain('미기록');
-    // D44: 동의를 고치는 자리는 당사자 정보 페이지다 — 인테이크는 읽기만 한다.
+    const sections = [...consent.querySelectorAll('.wire-card-section')];
+    expect(sections.map((section) => section.querySelector('h3')?.textContent)).toEqual(
+      CONSENT_DOMAINS.map((domain) => CONSENT_COPY[domain].label),
+    );
+    for (const domain of CONSENT_DOMAINS) {
+      expect(consent.textContent).toContain(CONSENT_COPY[domain].copy);
+    }
     expect(within(consent).getByText('당사자 정보로 이동')).not.toBeNull();
   });
 
   // CCC-37: 1-1 의 '수정' 링크는 기본정보 수정 화면으로 간다. 동의 링크(허브)와 목적지가 다르다.
   it('1-1 기본정보 수정 링크는 기본정보 수정 화면을 가리킨다', () => {
-    const { container } = renderWizard({ privacy: true, recordingAi: false });
+    const { container } = renderWizard(consentStates({ external_stt_processing: 'unconfirmed' }));
     const scoped = within(container);
     const basicEdit = within(scoped.getByTestId('intake-basic-info'))
       .getByText('당사자 등록 정보에서 수정') as HTMLAnchorElement;
@@ -507,7 +534,7 @@ describe('IntakeWizard', () => {
         submissionId="a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1"
         participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
         extendedPii={{ birthDate: '1984-03-11', region: '서울시 은평구', emergencyContact: null, gender: '여성' }}
-        consent={{ privacy: true, recordingAi: true }}
+        consent={consentStates()}
         sessionSequence={2}
         recorderLabel="이지은"
         briefingHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/records/intake"

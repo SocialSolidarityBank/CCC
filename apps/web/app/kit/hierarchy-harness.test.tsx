@@ -24,6 +24,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ComponentProps, ReactElement } from 'react';
+import {
+  CONSENT_COPY,
+  CONSENT_DOMAINS,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 
 import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
 import { wireStyles } from '../components/wire/wire-styles';
@@ -54,6 +59,19 @@ const OUT_DIR = join(repoRoot, 'artifacts/hierarchy-harness');
 
 const CASE_ID = '11111111-1111-4111-8111-111111111111';
 const SESSION_ID = '22222222-2222-4222-8222-222222222222';
+const CONSENT_STATES: CurrentConsentState[] = CONSENT_DOMAINS.map((domain) => ({
+  domain,
+  state: 'granted',
+  provider: CONSENT_COPY[domain].provider,
+  providerLegalRecipient: null,
+  providerCountry: null,
+  purpose: CONSENT_COPY[domain].purpose,
+  retentionDuration: domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null,
+  effectiveAt: null,
+  eventId: null,
+  revision: null,
+  eventSequence: null,
+}));
 const noop = async () => ({ status: 'saved' as const });
 
 // ---------------------------------------------------------------------------
@@ -133,7 +151,7 @@ const recordProps: RecordOnepageProps = {
 const intakeReadProps = {
   beneficiaryId: 'swallow-003',
   participant: { name: '홍서희', phone: '010-1234-5678', email: 'sample@example.test' },
-  consent: { privacy: true, recordingAi: false },
+  consent: CONSENT_STATES,
   saved: {
     sessionId: SESSION_ID,
     heldAt: '2026-07-15T05:00:00.000Z',
@@ -274,7 +292,7 @@ const SCREENS: Screen[] = [
       submissionId="a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1"
       participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
       extendedPii={{ birthDate: '1984-03-11', region: '서울시 은평구', emergencyContact: null, gender: '여성' }}
-      consent={{ privacy: true, recordingAi: true }}
+      consent={CONSENT_STATES}
       sessionSequence={1}
       recorderLabel="이지은"
       briefingHref={`/participants/swallow-003/programs/${CASE_ID}/briefing`}
@@ -297,7 +315,7 @@ const SCREENS: Screen[] = [
         submissionId="b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2"
         participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
         extendedPii={{ birthDate: '1984-03-11', region: '서울시 은평구', emergencyContact: null, gender: '여성' }}
-        consent={{ privacy: true, recordingAi: true }}
+        consent={CONSENT_STATES}
         sessionSequence={2}
         recorderLabel="이지은"
         briefingHref={`/participants/swallow-003/programs/${CASE_ID}/records/intake`}

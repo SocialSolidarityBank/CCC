@@ -1,6 +1,5 @@
 import {
   Chevron,
-  DisclosureChevron,
   GridContainer,
   Icon,
   PageTitle,
@@ -8,6 +7,8 @@ import {
   WireBadge,
   WireButton,
   WireCard,
+  WireCardSection,
+  WireChoice,
   type ParticipantHeroDetail,
 } from '@ccc/wire';
 import { Suspense } from 'react';
@@ -22,18 +23,18 @@ import {
   type ParticipantProgramType,
 } from '../../lib/api';
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
+import {
+  CONSENT_COPY,
+  CONSENT_COPY_VERSION,
+  CONSENT_DOMAINS,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 import { PageLoading } from '../../components/wire/page-loading';
 import { ConsultationTypeBadge } from '../../components/wire/consultation-type-badge';
 import { NavIcon } from '../../components/wire/shell-icons';
 import { getDisplayLabels } from '../../lib/display-labels';
 import { formatKoreanDateTime } from '../../lib/format-korean-date';
 import { updateParticipantConsentAction } from '../../actions';
-import {
-  CONSENT_DETAIL_DISCLAIMER,
-  CONSENT_PRIVACY_SECTIONS,
-  CONSENT_RECORDING_AI_SECTIONS,
-  type ConsentDetailSection,
-} from '../new/consent-copy';
 import { ErrorState, type ErrorKind } from './error-state';
 import { GoalTreeCard } from './goal-tree';
 
@@ -115,47 +116,12 @@ function AssigneeLine({ names }: { names: string[] }) {
   );
 }
 
-// D44: 동의 2종(D49)은 등록 때 받고 **여기서 고친다**(인테이크는 읽기만). 담고 있는 값은
-// 이 참여 사업의 현재 상태이고, 저장하면 게이트웨이가 append-only 이력에 새 행을 남긴다
-// (철회도 이력으로 남는다, D14·D23). 담당하지 않는 사업에는 이 블록을 그리지 않는다 —
-// D36 은 존재와 담당 실무자까지만 보여 주자는 결정이지 쓰기 권한을 넓힌 것이 아니다.
-const CONSENT_ITEMS = [
-  { name: 'consentPrivacy', label: '개인정보 수집·이용 동의', key: 'privacy' },
-  { name: 'consentRecordingAi', label: 'AI를 활용한 녹취기록 동의', key: 'recordingAi' },
-] as const;
-
-// 항목별 전문(2026-08-07 Q "각 동의 체크박스 아래 전문 보기") — 문안은 등록 폼과 같은
-// consent-copy 정본을 항목별로 갈라 실은 것이라 한 글자도 다르지 않다.
-const CONSENT_ITEM_SECTIONS: Record<(typeof CONSENT_ITEMS)[number]['key'], ConsentDetailSection[]> = {
-  privacy: CONSENT_PRIVACY_SECTIONS,
-  recordingAi: CONSENT_RECORDING_AI_SECTIONS,
-};
-
-/** 전문 보기 아코디언 — 등록 폼 '자세히 읽어보기'와 같은 부품(.consent-detail)의 인라인 변형. */
-function ConsentDetailAccordion({ sections }: { sections: ConsentDetailSection[] }) {
-  return (
-    <details className="consent-detail" data-inline="true">
-      <summary className="consent-detail-summary">
-        <span>전문 보기</span>
-        <DisclosureChevron variant="plain" />
-      </summary>
-      <div className="consent-detail-body">
-        <p className="consent-detail-disclaimer">{CONSENT_DETAIL_DISCLAIMER}</p>
-        {sections.map((section) => (
-          <div className="consent-detail-section" key={section.heading}>
-            <h3>{section.heading}</h3>
-            {section.paragraphs?.map((paragraph) => <p className="consent-detail-paragraph" key={paragraph}>{paragraph}</p>)}
-            {section.items === undefined ? null : (
-              <ul>
-                {section.items.map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            )}
-          </div>
-        ))}
-      </div>
-    </details>
-  );
-}
+const CONSENT_ITEMS = CONSENT_DOMAINS.map((domain) => ({
+  domain,
+  name: `consent-${domain}`,
+  label: CONSENT_COPY[domain].label,
+  copy: CONSENT_COPY[domain].copy,
+}));
 
 /** 마지막으로 동의 상태를 기록한 시각. 최초 동의일이 아니다 — 저장할 때마다 갱신된다. */
 function formatConsentRecordedAt(value: string | null): string {
@@ -168,38 +134,44 @@ function consentFormId(supportCaseId: string): string {
   return `consent-form-${supportCaseId}`;
 }
 
-// 테스트에서 직접 렌더한다 — 체크박스 `name` 이 서버 액션이 읽는 키와 어긋나면 오류가 아니라
-// **조용한 철회**가 저장된다(checkbox 헬퍼는 키가 없으면 false 다). 그래서 이름을 DOM 으로 고정한다.
-// '저장' 버튼은 이 폼 안에 없다 — 제목 줄 우측에 서고 form 속성으로 이 폼을 가리킨다
-// (2026-08-07 Q "동의서와 같은 라인 우측", 라벨은 '저장').
+// 테스트에서 직접 렌더한다. 여섯 영역의 name과 현재 상태가 서버 액션 계약과 같아야 한다.
 export function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: string; program: ParticipantProgram }) {
+  const states = Array.isArray(program.consent)
+    ? program.consent as CurrentConsentState[]
+    : [];
+  const stateByDomain = new Map(states.map((state) => [state.domain, state]));
   return (
     <form id={consentFormId(program.id)} className="participant-program-consent" action={updateParticipantConsentAction}>
       <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
       <input type="hidden" name="supportCaseId" value={program.id} />
-      {/* legend 는 없다(2026-08-07 Q "'동의' 텍스트는 필요 없어 보이네" — 카드 제목 '동의서'가
-          이미 구획을 말한다). 접근성 이름은 aria-label 이 잇는다. */}
+      <input type="hidden" name="consentCopyVersion" value={CONSENT_COPY_VERSION} />
       <fieldset className="consent-fieldset" aria-label="동의">
-        {/* 동의 안내 문구는 정책 확정 전까지 없다(2026-08-30 Q 3차 "위에 텍스트가 있던 자리
-            없애고, div 최적화" — 구 예약 높이 두 줄(.participant-consent-hint-slot)은 문구가
-            사라진 뒤 빈 띠로 읽혔다). 문구가 돌아오면 그때 자리를 다시 만든다. */}
-        {CONSENT_ITEMS.map((item) => (
-          // 체크 라벨과 '전문 보기'가 한 줄에 서고, 펼친 전문만 그 아래로 떨어진다
-          // (2026-08-08 Q "우측에 나란히 가운데 정렬"). 배치는 .consent-item 이 갖는다.
-          <div className="consent-item" key={item.name}>
-            <label className="consent-checkbox">
-              <input
-                type="checkbox"
-                className="wire-checkbox"
-                name={item.name}
-                value="on"
-                defaultChecked={program.consent[item.key]}
-              />
-              <span>{item.label}</span>
-            </label>
-            <ConsentDetailAccordion sections={CONSENT_ITEM_SECTIONS[item.key]} />
-          </div>
-        ))}
+        {CONSENT_ITEMS.map((item) => {
+          const state = stateByDomain.get(item.domain);
+          const current = state?.state ?? 'unconfirmed';
+          const negativeDecision = current === 'granted' ? 'withdraw' : 'decline';
+          return (
+            <WireCardSection key={item.domain} title={item.label}>
+              <p className="consent-detail-paragraph">{item.copy}</p>
+              <div className="wizard-choice-row" role="radiogroup" aria-label={item.label}>
+                <WireChoice
+                  type="radio"
+                  name={item.name}
+                  value="grant"
+                  label="동의함"
+                  defaultChecked={current === 'granted'}
+                />
+                <WireChoice
+                  type="radio"
+                  name={item.name}
+                  value={negativeDecision}
+                  label="동의하지 않음"
+                  defaultChecked={current === 'not_granted'}
+                />
+              </div>
+            </WireCardSection>
+          );
+        })}
         <p className="participant-program-consent-meta">
           마지막 기록 {formatConsentRecordedAt(program.consentRecordedAt)}
         </p>

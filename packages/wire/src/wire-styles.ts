@@ -365,11 +365,8 @@ details.surface-card[open]>.record-summary .wire-badge,
    버튼은 일정 행의 오른쪽 끝(margin-left:auto)에 선다. */
 /* 구 .participant-program-locked(담당하지 않는 사업 잠금 문구)는 2026-08-07 사업명
    리스트업 단순화로 삭제 — 행에 버튼이 없어져 잠금을 설명할 대상도 없다. */
-/* 동의 2종 수정(D44 · 항목 수는 D49). fieldset 의 내부 12px 간격은 브라우저가 만드는
-   익명 상자 안에 있어 바깥 gap 선언이 닿지 않는다. 20px 전문 보기 버튼으로 줄어든 4px을
-   둘째 체크 행과 마지막 기록의 위 여백으로 각각 보완해 실제 글자 간격을 20px로 맞춘다. */
+/* 동의 수정 폼과 마지막 기록 메타. 영역 간 리듬은 공용 WireCardSection이 갖는다. */
 .participant-program-consent{min-width:0;max-width:100%;margin-top:0}
-.participant-program-consent .consent-item+.consent-item{margin-top:var(--space-1)}
 .participant-program-consent-meta{margin:var(--space-1) 0 0;color:var(--sub);font-size:var(--text-sm)}
 /* 동의서 카드 안 사업별 묶음 — 사업이 여럿일 때만 머리(사업명)가 선다. 묶음 사이는
    행마다 카드다(2026-08-29 Q — 구 --line 구분선 대체). 묶음 안 fieldset 의 자체 윗선은

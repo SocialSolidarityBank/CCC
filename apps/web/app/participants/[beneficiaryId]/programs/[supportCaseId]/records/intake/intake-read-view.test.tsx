@@ -3,6 +3,11 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { IntakeReadView } from './intake-read-view';
 import { ACTIVE_QUESTIONS, STEP_TITLES } from './intake-questions';
 import type { IntakeAnswerInput, IntakeSavedRecord } from '../../../../../../lib/api';
+import {
+  CONSENT_COPY,
+  CONSENT_DOMAINS,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 
 afterEach(cleanup);
 
@@ -13,6 +18,20 @@ function fullAnswers(): IntakeAnswerInput[] {
     return { key: question.key, response: 'answered' as const, text: question.options![0]! };
   });
 }
+
+const CONSENT_STATES: CurrentConsentState[] = CONSENT_DOMAINS.map((domain, index) => ({
+  domain,
+  state: index === 0 ? 'granted' : index === 1 ? 'not_granted' : 'unconfirmed',
+  provider: CONSENT_COPY[domain].provider,
+  providerLegalRecipient: null,
+  providerCountry: null,
+  purpose: CONSENT_COPY[domain].purpose,
+  retentionDuration: domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null,
+  effectiveAt: null,
+  eventId: null,
+  revision: null,
+  eventSequence: null,
+}));
 
 function savedRecord(overrides: Partial<IntakeSavedRecord> = {}): IntakeSavedRecord {
   return {
@@ -50,7 +69,7 @@ function renderView(
     <IntakeReadView
       beneficiaryId="swallow-003"
       participant={{ name: '홍서희', phone: '010-1234-5678', email: 'sample@example.test' }}
-      consent={{ privacy: true, recordingAi: false }}
+      consent={CONSENT_STATES}
       saved={saved}
       overallGoal={overallGoal}
       editHref="/participants/swallow-003/programs/case-1/records/intake?edit=1"
@@ -91,6 +110,21 @@ describe('IntakeReadView (CCC-58)', () => {
     expect(container.querySelector('[data-testid="intake-step-rail"] h2')?.textContent).toBe('인테이크 4단계');
     expect(container.querySelector('[data-testid="intake-step-rail"] h2')?.classList.contains('wire-card-title')).toBe(true);
     expect(steps[2]?.getAttribute('aria-label')).toBe('3. 필요한 도움과 활용 가능한 자원, 8/8 완료');
+  });
+
+  it('동의 여섯 영역을 정본 순서와 문안, 현재 상태로 표시한다', () => {
+    renderView();
+    const card = screen.getByTestId('intake-read-consent');
+    const sections = [...card.querySelectorAll('.wire-card-section')];
+    expect(sections.map((section) => section.querySelector('h3')?.textContent)).toEqual(
+      CONSENT_DOMAINS.map((domain) => CONSENT_COPY[domain].label),
+    );
+    for (const domain of CONSENT_DOMAINS) {
+      expect(card.textContent).toContain(CONSENT_COPY[domain].copy);
+    }
+    expect(within(card).getByText('동의함')).toBeTruthy();
+    expect(within(card).getByText('동의하지 않음')).toBeTruthy();
+    expect(within(card).getAllByText('미기록')).toHaveLength(4);
   });
 
   it('shows the no-response and not-applicable codes as the canonical phrases', () => {
@@ -153,8 +187,8 @@ describe('IntakeReadView (CCC-58)', () => {
     expect(hero?.querySelector('.wire-field-row[data-tone="blue"] .wire-field-label')?.textContent).toBe('상담일');
     expect(screen.queryByTestId('intake-read-basic-info')).toBeNull();
 
-    // ② 미기록이므로 동의 수정처 안내가 뜬다(D44). 인테이크는 읽기만 한다.
-    expect(within(screen.getByTestId('intake-read-consent')).getByText('미기록 1')).toBeTruthy();
+    // 미확정 4개가 있어 동의 수정처 안내가 뜬다.
+    expect(within(screen.getByTestId('intake-read-consent')).getByText('미기록 4')).toBeTruthy();
     expect(screen.getByRole('link', { name: '당사자 정보로 이동' })).toBeTruthy();
   });
 

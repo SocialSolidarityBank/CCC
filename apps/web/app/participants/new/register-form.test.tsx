@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, fireEvent, within, cleanup } from '@testing-library/react';
 import { RegisterForm } from './register-form';
+import { CONSENT_COPY, CONSENT_COPY_VERSION, CONSENT_DOMAINS } from '@ccc/contracts/consent';
 
 const noop = (): void => {};
 
@@ -100,40 +101,58 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect(fieldset?.classList.contains('register-consent')).toBe(true);
   });
 
-  it('keeps both consent checkboxes present and unchecked by default (D23·D49·D44)', () => {
+  it('여섯 영역을 정본 순서와 문안으로 그리고 어떤 결정도 기본 선택하지 않는다', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    for (const name of ['consentPrivacy', 'consentRecordingAi']) {
-      const box = container.querySelector(`input[name="${name}"]`) as HTMLInputElement;
-      expect(box).not.toBeNull();
-      expect(box.checked).toBe(false);
+    const sections = [...container.querySelectorAll('.register-consent-block .wire-card-section')];
+    expect(sections.map((section) => section.querySelector('h3')?.textContent)).toEqual(
+      CONSENT_DOMAINS.map((domain) => CONSENT_COPY[domain].label),
+    );
+    for (const domain of CONSENT_DOMAINS) {
+      const group = container.querySelectorAll(`input[name="consent-${domain}"]`);
+      expect(group).toHaveLength(2);
+      expect([...group].every((input) => !(input as HTMLInputElement).checked)).toBe(true);
+      expect(container.textContent).toContain(CONSENT_COPY[domain].copy);
+      expect(container.querySelector(
+        `[role="radiogroup"][aria-label="${CONSENT_COPY[domain].label}"]`,
+      )).not.toBeNull();
     }
-    // D49: 구 3종 시절의 두 체크(consentRecording·consentTextAi)는 사라졌다.
-    expect(container.querySelector('input[name="consentRecording"]')).toBeNull();
-    expect(container.querySelector('input[name="consentTextAi"]')).toBeNull();
+    expect((container.querySelector('input[name="consentCopyVersion"]') as HTMLInputElement).value)
+      .toBe(CONSENT_COPY_VERSION);
+    expect((container.querySelector('button[type="submit"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(container.querySelector('input[name="consentPrivacy"]')).toBeNull();
+    expect(container.querySelector('input[name="consentRecordingAi"]')).toBeNull();
   });
 
-  it('carries the privacy consent when checked (D44 — 등록이 동의를 받는 자리)', () => {
+  it('사용자가 여섯 결정을 모두 고른 뒤에만 제출 값을 만든다', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
     const form = container.querySelector('form') as HTMLFormElement;
-    fireEvent.click(container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement);
+    for (const [index, domain] of CONSENT_DOMAINS.entries()) {
+      const decision = index % 2 === 0 ? 'grant' : 'decline';
+      fireEvent.click(container.querySelector(
+        `input[name="consent-${domain}"][value="${decision}"]`,
+      ) as HTMLInputElement);
+    }
+
     const data = new FormData(form);
-    expect(data.get('consentPrivacy')).toBe('on');
-    expect(data.get('consentRecordingAi')).toBeNull();
+    for (const [index, domain] of CONSENT_DOMAINS.entries()) {
+      expect(data.get(`consent-${domain}`)).toBe(index % 2 === 0 ? 'grant' : 'decline');
+    }
+    expect((container.querySelector('button[type="submit"]') as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('carries the filled email and a checked consent in the form payload', () => {
+  it('이메일과 사용자가 고른 한 영역 결정은 폼에서 그대로 유지된다', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
     const form = container.querySelector('form') as HTMLFormElement;
     const email = container.querySelector('input[name="email"]') as HTMLInputElement;
-    const recording = container.querySelector('input[name="consentRecordingAi"]') as HTMLInputElement;
-
     fireEvent.change(email, { target: { value: 'participant@example.test' } });
-    fireEvent.click(recording);
+    fireEvent.click(container.querySelector(
+      'input[name="consent-external_stt_processing"][value="grant"]',
+    ) as HTMLInputElement);
 
     const data = new FormData(form);
     expect(data.get('email')).toBe('participant@example.test');
-    // 체크된 동의만 폼에 실린다(미체크 = 키 부재 = 미동의, D15). 서버 액션이 명시 boolean 으로 정규화한다.
-    expect(data.get('consentRecordingAi')).toBe('on');
+    expect(data.get('consent-external_stt_processing')).toBe('grant');
+    expect(data.get('consent-counseling_recording')).toBeNull();
   });
 
   it('shows an invalid email beside the field and preserves the other entered values', () => {
@@ -160,13 +179,12 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect(action).not.toHaveBeenCalled();
   });
 
-  it('renders a collapsed "자세히 읽어보기" accordion with the consent detail copy (D15·D23)', () => {
+  it('각 영역의 정본 문안을 별도 카드 구획에서 읽을 수 있다', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    const detail = container.querySelector('details.consent-detail') as HTMLDetailsElement;
-    expect(detail).not.toBeNull();
-    expect(detail.open).toBe(false);
-    expect(within(container).getByText('자세히 읽어보기')).not.toBeNull();
-    expect(detail.textContent).toContain('법률 검토 전 참고용 초안');
+    for (const domain of CONSENT_DOMAINS) {
+      const heading = within(container).getByRole('heading', { level: 3, name: CONSENT_COPY[domain].label });
+      expect(heading.closest('.wire-card-section')?.textContent).toContain(CONSENT_COPY[domain].copy);
+    }
   });
 
   it('shows the registrant as the read-only 담당 실무자 (이름 우선) and drops the assignee select (등록자=담당 실무자)', () => {
@@ -178,40 +196,34 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect(container.textContent).toContain('등록한 실무자가 담당 실무자로 자동 배정됩니다');
   });
 
-  // G1(① 하드 게이트 + 긴급 등록 예외). 최종 판정은 서버가 하지만, 화면은 "무엇을 채워야
-  // 하는지"를 보여야 한다 — 서버 검증만 남으면 화면에서 원인 없는 실패로 보인다.
-  it('marks the privacy consent required and moves that requirement to the emergency reason (G1)', () => {
+  it('여섯 결정과 긴급 사유를 모두 확인하기 전에는 등록할 수 없다', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    const privacy = container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement;
-    expect(privacy.required).toBe(true);
-    // 긴급 등록 전에는 사유 칸이 없다.
+    const submit = container.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
     expect(container.querySelector('textarea[name="emergencyReason"]')).toBeNull();
 
     fireEvent.click(container.querySelector('input[name="emergencyRegistration"]') as HTMLInputElement);
-
     const reason = container.querySelector('textarea[name="emergencyReason"]') as HTMLTextAreaElement;
-    expect(reason).not.toBeNull();
     expect(reason.required).toBe(true);
-    // 긴급 등록을 고르면 ① 필수 표시는 사유 쪽으로 옮겨 간다(둘 다 강제하면 통과 경로가 없다).
-    expect((container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement).required).toBe(false);
+    expect(submit.disabled).toBe(true);
   });
 
-  it('keeps the privacy consent and the emergency toggle mutually exclusive (G1)', () => {
+  it('개인정보 동의와 긴급 등록을 함께 켜지 않는다', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    const privacy = () => container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement;
+    const grant = () => container.querySelector(
+      'input[name="consent-personal_data_collection_use"][value="grant"]',
+    ) as HTMLInputElement;
     const emergency = () => container.querySelector('input[name="emergencyRegistration"]') as HTMLInputElement;
 
-    // 서버는 "동의가 있는데 긴급 예외까지 왔다"를 거부한다 — 화면에서 그 조합을 못 만들게 한다.
-    fireEvent.click(privacy());
-    expect(privacy().checked).toBe(true);
+    fireEvent.click(grant());
+    expect(grant().checked).toBe(true);
     fireEvent.click(emergency());
     expect(emergency().checked).toBe(true);
-    expect(privacy().checked).toBe(false);
+    expect(grant().checked).toBe(false);
 
-    fireEvent.click(privacy());
-    expect(privacy().checked).toBe(true);
+    fireEvent.click(grant());
+    expect(grant().checked).toBe(true);
     expect(emergency().checked).toBe(false);
-    expect(container.querySelector('textarea[name="emergencyReason"]')).toBeNull();
   });
 
   it('carries the emergency reason in the form payload (G1)', () => {

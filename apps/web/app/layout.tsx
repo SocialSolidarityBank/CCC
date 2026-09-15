@@ -1066,12 +1066,6 @@ const registerStyles = `
 /* D15·D23: 동의 문안 "자세히 읽어보기"·"전문 보기" — briefing-subaccordion 패턴 재사용.
    등록 폼(자세히 읽어보기)과 동의 수정 허브(항목별 전문 보기, 2026-08-07 Q)가 같은 부품이다. */
 .consent-detail:not(.register-consent-block){padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
-/* 동의 항목 한 줄 = 체크 라벨 + '전문 보기' 알약이고, 펼친 전문만 그 아래 줄을 통째로
-   쓴다(2026-08-08 Q "우측에 나란히 가운데 정렬"). 구 배치는 알약이 라벨 아래로 떨어져
-   항목 하나가 두 줄을 먹었다.
-   알약은 격자가 아니라 자기 width:max-content 가 폭을 정하므로 1fr 칸에서 늘어나지 않고
-   라벨 바로 옆에 붙는다. 세로 가운데는 align-items 다. */
-.consent-item{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:var(--space-3)}
 /* details 는 상자를 버리고 자식을 그대로 격자에 내놓는다. 그래야 summary(알약)는 라벨과
    같은 줄에, 본문은 아래 줄에 설 수 있다. summary 를 details 밖으로 꺼낼 수는 없다. */
 .consent-detail[data-inline="true"]{display:contents}

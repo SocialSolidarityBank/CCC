@@ -4,6 +4,11 @@ import { IntakeWizard } from './intake-wizard';
 import { STEP_GROUPS } from './intake-questions';
 import { draftKey, readDraft, writeDraft } from '../../../../../../lib/form-draft';
 import type { CreateIntakeRecordActionInput, IntakeRecordActionResult } from '../../../../../../actions';
+import {
+  CONSENT_COPY,
+  CONSENT_DOMAINS,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 
 // 인테이크 위저드의 로컬 자동 저장·복원(CCC-12).
 // 이 파일의 첫 테스트가 가장 중요한 것이다 — 금고에서 내려온 개인정보가 브라우저 저장소로
@@ -29,6 +34,19 @@ const MODULE_SNAPSHOT = {
   programVersion: 4,
   financialSupportEnabled: true,
 } as const;
+const CONSENT_STATES: CurrentConsentState[] = CONSENT_DOMAINS.map((domain) => ({
+  domain,
+  state: 'granted',
+  provider: CONSENT_COPY[domain].provider,
+  providerLegalRecipient: null,
+  providerCountry: null,
+  purpose: CONSENT_COPY[domain].purpose,
+  retentionDuration: domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null,
+  effectiveAt: null,
+  eventId: null,
+  revision: null,
+  eventSequence: null,
+}));
 
 function renderWizard(extendedPii = VAULT_PII, schedule: typeof LINKED_SCHEDULE | null = null) {
   push.mockClear();
@@ -46,7 +64,7 @@ function renderWizard(extendedPii = VAULT_PII, schedule: typeof LINKED_SCHEDULE 
       submissionId="a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1"
       participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
       extendedPii={extendedPii}
-      consent={{ privacy: true, recordingAi: true }}
+      consent={CONSENT_STATES}
       sessionSequence={1}
       recorderLabel="이지은"
       briefingHref="/participants/swallow-003/programs/case/briefing?notice=intake_saved"
