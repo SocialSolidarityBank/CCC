@@ -136,7 +136,10 @@ beforeAll(async () => {
       ner_attestation_id='synthetic',ner_model_id='synthetic',ner_model_revision='v1',
       ner_label_set_hash=?,ner_corpus_hash=?,ner_attestation_result_hash=?,
       ner_attestation_validated_at='2026-09-08T00:00:00.000Z',ner_attestation_expires_at='2027-09-08T00:00:00.000Z',
-      release_qualification_receipt_id=? WHERE org_id=?`)
+      release_qualification_receipt_id=?,
+      source_generation=(SELECT generation FROM counseling_memory_cases
+        WHERE org_id=agent_jobs.org_id AND support_case_id=agent_jobs.support_case_id),
+      source_sha256=repeat('d',64),source_length=1 WHERE org_id=?`)
       .bind('a'.repeat(64), 'a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64), `receipt-${actor.orgId}`, actor.orgId).run();
   }
 }, 240_000);

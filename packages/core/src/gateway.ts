@@ -4721,6 +4721,21 @@ export async function createGeneratedAiDraft(
   if (sourceSnapshotId === undefined) {
     throw new ValidationError('source snapshot id is required');
   }
+  const providerRuntime = await getActiveAiProviderRuntimeMetadataForService(env, actor, session.id);
+  if (
+    providerRuntime.providerConfigId !== normalizedInput.providerConfigId
+    || providerRuntime.consentEvidenceId !== normalizedInput.consentEvidenceId
+    || providerRuntime.consentRevision !== normalizedInput.consentRevision
+    || canonicalizeJcs(providerRuntime.consentReceipt) !== canonicalizeJcs(normalizedInput.consentReceipt)
+  ) {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'ai_draft_versions',
+      targetId: sessionId,
+      caseId: session.caseId,
+      reason: 'provider_execution_selection_stale',
+    });
+    throw new StaleDraftVersionError();
+  }
   let sourceSnapshot: MaskedSourceSnapshot;
   let materialSnapshots: Map<string, MaskedSourceSnapshot>;
   try {
@@ -4749,21 +4764,6 @@ export async function createGeneratedAiDraft(
   }
 
 
-  const providerRuntime = await getActiveAiProviderRuntimeMetadataForService(env, actor, session.id);
-  if (
-    providerRuntime.providerConfigId !== normalizedInput.providerConfigId
-    || providerRuntime.consentEvidenceId !== normalizedInput.consentEvidenceId
-    || providerRuntime.consentRevision !== normalizedInput.consentRevision
-    || canonicalizeJcs(providerRuntime.consentReceipt) !== canonicalizeJcs(normalizedInput.consentReceipt)
-  ) {
-    await writePhase1Denial(env, actor, {
-      targetTable: 'ai_draft_versions',
-      targetId: sessionId,
-      caseId: session.caseId,
-      reason: 'provider_execution_selection_stale',
-    });
-    throw new StaleDraftVersionError();
-  }
   const consentEvidenceId = normalizedInput.consentEvidenceId;
   const providerConfigId = normalizedInput.providerConfigId;
   const consentRevision = normalizedInput.consentRevision;

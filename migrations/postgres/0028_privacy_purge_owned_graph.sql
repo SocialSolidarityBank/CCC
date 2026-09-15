@@ -14,6 +14,7 @@ WHERE intent.phase='intent'
       AND complete.approval_id=intent.approval_id
       AND complete.phase='complete'
   );
+ALTER VIEW privacy_purge_open_support_cases OWNER TO ccc_schema_owner;
 REVOKE ALL ON privacy_purge_open_support_cases FROM PUBLIC;
 GRANT SELECT ON privacy_purge_open_support_cases TO ccc_api;
 

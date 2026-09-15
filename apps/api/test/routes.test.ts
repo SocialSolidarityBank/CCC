@@ -362,6 +362,37 @@ async function appendCanonicalLlmGrant(
     expectedRevision: null,
   });
 }
+async function withdrawCanonicalConsent(
+  env: ApiEnv,
+  actor: Actor,
+  caseId: string,
+  domain: 'sensitive_information_processing',
+): Promise<void> {
+  const supportCaseId = await canonicalSupportCaseId(env, actor, caseId);
+  const current = (await getSupportCaseConsent(env, actor, supportCaseId))
+    .find((item) => item.domain === domain);
+  const disclosure = (await issueSupportCaseConsentDisclosures(env, actor, supportCaseId))
+    .find((item) => item.domain === domain);
+  if (current?.state !== 'granted' || current.revision === null || disclosure === undefined) {
+    throw new Error('missing withdrawable canonical consent');
+  }
+  await appendSupportCaseConsentEvent(env, actor, supportCaseId, {
+    domain,
+    decision: 'withdraw',
+    provider: current.provider,
+    providerLegalRecipient: current.providerLegalRecipient,
+    providerCountry: current.providerCountry,
+    purpose: current.purpose,
+    retentionDuration: current.retentionDuration,
+    copyVersion: disclosure.copyVersion,
+    copyHash: disclosure.copyHash,
+    disclosureSnapshotId: disclosure.snapshotId,
+    effectiveAt: new Date().toISOString(),
+    idempotencyKey: crypto.randomUUID(),
+    correctionOfEventId: null,
+    expectedRevision: current.revision,
+  });
+}
 
 /**
  * 마스킹 스냅샷은 v2 에서 텍스트 작업 결과로만 들어온다 (S5). 회차에 열린 텍스트 작업을
@@ -1236,6 +1267,9 @@ describe('API routes', () => {
     const baselineRows = await phase1MutableRowCounts();
     const baselineSession = await sessionAiState(fixture.session.id);
     adapter.beforeReturn = async () => {
+      await withdrawCanonicalConsent(
+        fixture.env, fixture.counselor, fixture.caseRecord.id, 'sensitive_information_processing',
+      );
       await appendCanonicalLlmGrant(
         fixture.env, fixture.counselor, fixture.caseRecord.id, 'sensitive_information_processing',
       );
@@ -1249,6 +1283,22 @@ describe('API routes', () => {
     await expectNoDraft(fixture.env, fixture.session.id);
     expect(await phase1MutableRowCounts()).toEqual(baselineRows);
     expect(await sessionAiState(fixture.session.id)).toEqual(baselineSession);
+  });
+  it('still rejects stale consent-bound proof when provider selection is current', async () => {
+    const adapter = new FakeAiProviderAdapter();
+    const fixture = await setupPhase1AiFixture(adapter);
+    const source = await recordSourceSnapshot(fixture.env, fixture.session.id);
+    await withdrawCanonicalConsent(
+      fixture.env, fixture.counselor, fixture.caseRecord.id, 'sensitive_information_processing',
+    );
+    await appendCanonicalLlmGrant(
+      fixture.env, fixture.counselor, fixture.caseRecord.id, 'sensitive_information_processing',
+    );
+    const response = await generateDraft(fixture.env, fixture.session.id, source.sourceSnapshotId);
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: 'forbidden' });
+    expect(adapter.calls).toBe(0);
+    await expectNoDraft(fixture.env, fixture.session.id);
   });
 
   it('rejects malformed source integrity before provider work and row insertion', async () => {
@@ -3290,6 +3340,7 @@ describe('canonical participant API routes', () => {
     const env: ApiEnv = {
       ...t.env,
       TEXT_AI_PILOT_ENABLED: '1',
+      MEMORY_MASKING_PIPELINES: await testMaskingPipelineRegistry(),
       AI_PROVIDER_ADAPTER: adapter,
     };
     await seedTestProgramWithRuntimeModes(t.db, canonicalAdmin.orgId, canonicalAdmin.userId, {
@@ -3351,7 +3402,7 @@ describe('canonical participant API routes', () => {
         canonicalServiceHeaders,
       );
       const response = await generateDraft(env, sessionId, source.sourceSnapshotId, canonicalServiceHeaders);
-      expect(response.status).toBe(201);
+      expect(response.status, await response.clone().text()).toBe(201);
       const draft = await response.json() as RouteAiDraft;
       expect(draft.summaryText).toBe(canary);
       return draft;

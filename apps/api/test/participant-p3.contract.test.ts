@@ -202,7 +202,7 @@ describe('existing administrator practitioner directory contract', () => {
 });
 
 describe('server-authoritative intake write permission', () => {
-  it.each(['writer', 'admin-only', 'nonassigned-admin-practitioner', 'supervisor', 'closed', 'closed-program'] as const)(
+  it.each(['writer', 'admin-only', 'nonassigned-admin-practitioner', 'supervisor-admin', 'closed', 'closed-program'] as const)(
     'keeps saved intake readable with one PII audit for %s',
     async (access) => {
       const created = await seed();
@@ -213,7 +213,7 @@ describe('server-authoritative intake write permission', () => {
       if (access === 'admin-only' || access === 'nonassigned-admin-practitioner') {
         reader = admin;
         if (access === 'nonassigned-admin-practitioner') await grantTestPractitionerRole(t.db, admin);
-      } else if (access === 'supervisor') {
+      } else if (access === 'supervisor-admin') {
         reader = requester;
         await t.db.batch([
           t.db.prepare('INSERT INTO teams (id, org_id, name, created_by) VALUES (?, ?, ?, ?)')
@@ -223,6 +223,14 @@ describe('server-authoritative intake write permission', () => {
           t.db.prepare('INSERT INTO team_supervisor_grants (id, org_id, team_id, supervisor_user_id, granted_by) VALUES (?, ?, ?, ?, ?)')
             .bind('intake-supervisor', admin.orgId, 'intake-team', requester.userId, admin.userId),
         ]);
+        await assignSupportCase(t.env, admin, created.supportCaseId, requester.userId);
+        await t.db.prepare(
+          "UPDATE user_role_assignments SET revoked_at=? WHERE org_id=? AND user_id=? AND role='practitioner' AND revoked_at IS NULL",
+        ).bind(new Date().toISOString(), requester.orgId, requester.userId).run();
+        await t.db.prepare(
+          `INSERT INTO user_role_assignments(id,org_id,user_id,role,source,granted_by,granted_at)
+           VALUES (?, ?, ?, 'institution_admin', 'manual', ?, ?)`,
+        ).bind(crypto.randomUUID(), requester.orgId, requester.userId, admin.userId, new Date().toISOString()).run();
       } else if (access === 'closed') {
         await closeSupportCase(t.env, counselor, created.supportCaseId, '합성 종결');
       }

@@ -56,6 +56,7 @@ import {
   agentResultRequest,
   claimRequest,
   AZURE_CLOUD_RUNTIME,
+  LOCAL_SINGLE_RUNTIME,
   testMaskingPipelineRegistry,
   TEXT_ONLY_RUNTIME,
   registerFixtureRecording,
@@ -1050,13 +1051,20 @@ describe('S5 Agent 작업 계약 v2', () => {
   });
   it('declining external STT deletes only audio whose immutable receipt requires that domain', async () => {
     const { supportCaseId } = await fixtureSupportCase();
+    await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+      deploymentMode: 'local-single', sttMode: 'local', llmMode: 'openai',
+    });
+    t.env.installationMode = 'local-single';
+    t.env.CCC_STT_MODE = 'local';
 
     const localSession = await fixtureSession(supportCaseId);
-    await registerFixtureRecording(t.env, counselor, service, localSession);
+    await registerFixtureRecording(t.env, counselor, service, localSession, LOCAL_SINGLE_RUNTIME);
     const azureSession = await fixtureSession(supportCaseId);
+    t.env.installationMode = 'community-cloud';
     await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
-      sttMode: 'azure', llmMode: 'openai',
+      deploymentMode: 'community-cloud', sttMode: 'azure', llmMode: 'openai',
     });
+    t.env.CCC_STT_MODE = 'azure';
     await registerFixtureRecording(t.env, counselor, service, azureSession, AZURE_RUNTIME);
 
     const disclosure = (await issueSupportCaseConsentDisclosures(
