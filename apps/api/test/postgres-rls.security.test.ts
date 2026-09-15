@@ -211,12 +211,13 @@ it('enforces tenant scope for insert, update, delete, and memory guards', async 
      VALUES ('org-b','UTC',365,1)`,
   ).run()).rejects.toThrow();
 
-  const update = await scopedA.prepare("UPDATE organization_settings SET time_zone='Asia/Seoul'").run();
+  const update = await scopedA.prepare('UPDATE organization_settings SET pii_purge_grace_days=366').run();
   const remove = await scopedA.prepare("DELETE FROM organization_settings WHERE org_id='org-b'").run();
   expect(update.meta.changes).toBe(1);
   expect(remove.meta.changes).toBe(0);
-  expect(await admin.prepare('SELECT time_zone FROM organization_settings WHERE org_id=\'org-b\'').first())
-    .toMatchObject({ time_zone: 'UTC' });
+  expect(await admin.prepare("SELECT pii_purge_grace_days FROM organization_settings WHERE org_id='org-b'").first())
+    .toMatchObject({ pii_purge_grace_days: 365 });
+  await scopedA.prepare('UPDATE organization_settings SET pii_purge_grace_days=365').run();
 
   await scopedA.prepare(
     "INSERT INTO counseling_memory_guards(id,ok,org_id) VALUES ('same-org-fence',1,'org-a')",
