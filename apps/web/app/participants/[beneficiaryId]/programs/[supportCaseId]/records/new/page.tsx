@@ -181,6 +181,17 @@ function parseChoice(value: string): { id: string; version: number } {
   return { id, version };
 }
 
+function positiveRevision(value: string): number {
+  const revision = Number(value);
+  if (!Number.isSafeInteger(revision) || revision < 1) throw new FormInputError();
+  return revision;
+}
+
+function openActionRevision(action: object): number {
+  if (!('revision' in action) || typeof action.revision !== 'number') throw new FormInputError();
+  return positiveRevision(String(action.revision));
+}
+
 function parseGasScores(formData: FormData): Array<{ goalId: string; score: number }> {
   const gasScores: Array<{ goalId: string; score: number }> = [];
   const scoredGoalIds = new Set<string>();
@@ -206,7 +217,7 @@ function parseGasScores(formData: FormData): Array<{ goalId: string; score: numb
   return gasScores;
 }
 
-function buildRecordFormData(formData: FormData): FormData {
+export function buildRecordFormData(formData: FormData): FormData {
   const payload = new FormData();
   for (const name of ['beneficiaryId', 'supportCaseId', 'submissionId', 'heldAt', 'channel', 'memo']) {
     payload.set(name, stringValue(formData, name));
@@ -247,7 +258,12 @@ function buildRecordFormData(formData: FormData): FormData {
   });
   payload.set('lifeAreasJson', JSON.stringify(lifeAreas));
 
-  const resolutions: Array<{ actionItemId: string; status: string; note?: string }> = [];
+  const resolutions: Array<{
+    actionItemId: string;
+    status: string;
+    expectedRevision: number;
+    note?: string;
+  }> = [];
   const resolvedActionIds = new Set<string>();
   for (const actionItemId of stringValues(formData, 'openActionItemId')) {
     if (safeId(actionItemId) === null || resolvedActionIds.has(actionItemId)) throw new FormInputError();
@@ -255,8 +271,13 @@ function buildRecordFormData(formData: FormData): FormData {
     const status = stringValue(formData, `resolutionStatus_${actionItemId}`);
     if (status.length === 0) continue;
     if (!resolutionStatuses.some(([value]) => value === status)) throw new FormInputError();
+    const expectedRevision = positiveRevision(
+      stringValue(formData, `openActionItemExpectedRevision_${actionItemId}`),
+    );
     const note = stringValue(formData, `resolutionNote_${actionItemId}`).trim();
-    resolutions.push(note.length === 0 ? { actionItemId, status } : { actionItemId, status, note });
+    resolutions.push(note.length === 0
+      ? { actionItemId, status, expectedRevision }
+      : { actionItemId, status, expectedRevision, note });
   }
   payload.set('actionResolutionsJson', JSON.stringify(resolutions));
 
@@ -499,6 +520,14 @@ export default async function NewRecordPage({
       <input type="hidden" name="beneficiaryId" value={activeBeneficiaryId} />
       <input type="hidden" name="supportCaseId" value={activeSupportCaseId} />
       <input type="hidden" name="submissionId" value={submissionId} />
+      {openActionItems.map((action) => (
+        <input
+          key={action.id}
+          type="hidden"
+          name={`openActionItemExpectedRevision_${action.id}`}
+          value={openActionRevision(action)}
+        />
+      ))}
       <RecordOnepage
         schedules={schedules}
         openActionItems={openActionItems}
