@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { PreparedStatement } from '@ccc/contracts/database';
+import { AUDIO_CONTENT_TYPES, type AudioContentType } from '@ccc/contracts/runtime';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import worker from './support/local-worker';
 import {
@@ -43,6 +44,9 @@ const otherOrgService: Actor = {
   orgId: 'org_other',
   role: 'service',
 };
+function isAudioContentType(value: string): value is AudioContentType {
+  return Object.prototype.hasOwnProperty.call(AUDIO_CONTENT_TYPES, value);
+}
 
 const counselorHeaders = {
   'content-type': 'audio/mpeg',
@@ -171,6 +175,7 @@ async function putAudio(
     body: JSON.stringify({ contentLength, contentType, clientAssertedSha256: null }),
   }), env);
   if (minted.status !== 201) return minted;
+  if (!isAudioContentType(contentType)) throw new Error(`accepted unsupported audio content type: ${contentType}`);
   const target = await minted.json() as { audioObjectId: string; url: string };
   const key = decodeURIComponent(target.url.split('/upload/')[1] ?? '');
   await env.audioStore!.put(key, new ReadableStream<Uint8Array>({
