@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
- * sign-install-documents.mjs — 대상 Supabase 프로젝트용 install manifest 와 소유권 승인서를
- * 기존 설치 서명 키로 다시 만든다.
+ * sign-install-documents.mjs — Infisical /current 정본 manifest 를 재료로
+ * approvedSttEngineIds 만 채운 새 manifest 와 짝맞는 소유권 승인서를 기존 설치 서명 키로 다시 만든다.
  *
  * 실행: scripts/install/stage-env.sh bun scripts/install/sign-install-documents.mjs
  *   bun 이 필요하다. @ccc/contracts 는 TS 소스만 배포하고 node 는 그 import 를 열지 못한다.
@@ -9,9 +9,11 @@
  * 규칙:
  *   - 새 키, 새 서명 방식, 새 신뢰 뿌리를 만들지 않는다. 서명은
  *     packages/contracts/src/install-manifest.ts 의 signInstallManifest 를 그대로 호출한다.
+ *   - installationId, sequence, supabaseProjectRef, publishedAt, expiresAt 을 포함해
+ *     approvedSttEngineIds 와 서명을 뺀 모든 키를 기존 문서 그대로 보존한다.
  *   - 시크릿 값, 서명, 연결 문자열, 프로젝트 참조 원본을 출력하지 않는다.
- *   - 쓰기는 artifacts/install/<ref6>/ 두 파일뿐이고 권한은 600 이다.
- *   - Management API 는 GET 만 호출한다.
+ *   - 쓰기는 artifacts/install/current/ 두 파일뿐이고 권한은 600 이다.
+ *   - 네트워크를 호출하지 않는다.
  */
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -21,6 +23,8 @@ import {
   readStrictJsonDocument,
   requireSignedOwnerPreflight,
 } from '../supabase/manifest-preflight.mjs';
+import { requireProviderBaseline } from '../supabase/provider-baseline.mjs';
+import { assertProviderBaselineCurrent } from '../supabase/plan.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ED25519 = { name: 'Ed25519' };
@@ -45,9 +49,8 @@ const verifier = await import(new URL(
   import.meta.url,
 ).href).catch(() => fail('install-manifest-verifier.js 빌드가 없다.'));
 
-// --- 1. 주입된 기존 서명 자원 ---
+// --- 1. 주입된 기존 서명 자원(/current 정본) ---
 const organizationId = required('CCC_ORGANIZATION_ID');
-const accessToken = required('SUPABASE_ACCESS_TOKEN');
 const trust = configuredInstallTrust({
   organizationId,
   publicKeys: required('CCC_INSTALL_SIGNING_KEYS'),
@@ -83,63 +86,32 @@ const oldManifest = await verifier.verifySignedInstallManifest(
 const oldApproval = await readStrictJsonDocument(required('CCC_INSTALL_APPROVAL'))
   .catch(() => fail('기존 approval 읽기 실패'));
 if (oldApproval.institutionId !== organizationId) fail('기존 approval 의 institutionId 가 CCC_ORGANIZATION_ID 와 다르다.');
-
-// --- 3. 대상 프로젝트 확인. 확정된 속성(이름 Relayer, ap-northeast-2, ACTIVE_HEALTHY)으로 정확히 하나를 고른다 ---
-const projects = await fetch('https://api.supabase.com/v1/projects', {
-  headers: { authorization: `Bearer ${accessToken}` },
-}).then((r) => (r.ok ? r.json() : fail(`GET /v1/projects → ${r.status}`)));
-const targets = projects.filter((p) => p.name === 'Relayer'
-  && p.region === 'ap-northeast-2' && p.status === 'ACTIVE_HEALTHY');
-if (targets.length !== 1) fail(`대상 프로젝트가 ${targets.length}개다.`);
-const project = targets[0];
-const projectRef = project.ref ?? project.id;
-
-// 대상 프로젝트의 publishable 키. publishable 유형을 우선하고 없으면 legacy anon JWT 를 쓴다.
-const apiKeys = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/api-keys`, {
-  headers: { authorization: `Bearer ${accessToken}` },
-}).then((r) => (r.ok ? r.json() : fail(`GET api-keys → ${r.status}`)));
-const publishable = apiKeys.filter((k) => k.type === 'publishable');
-const anon = apiKeys.filter((k) => k.type === 'legacy' && k.name === 'anon');
-const publishableKey = publishable.length === 1 ? publishable[0].api_key
-  : anon.length === 1 ? anon[0].api_key : null;
-if (typeof publishableKey !== 'string' || publishableKey.length === 0) {
-  fail('대상 프로젝트의 publishable 키를 하나로 못 고른다.');
+if (oldApproval.signingKeyId !== signingKeyId || oldManifest.signingKeyId !== signingKeyId) {
+  fail('기존 문서의 signingKeyId 가 개인키에서 도출한 keyId 와 다르다.');
+}
+if (oldApproval.projectRef !== oldManifest.supabaseProjectRef
+  || oldApproval.installationId !== oldManifest.installationId) {
+  fail('기존 approval 이 기존 manifest 와 같은 설치를 가리키지 않는다.');
+}
+if (Number.isNaN(Date.parse(oldApproval.expiresAt)) || Date.parse(oldApproval.expiresAt) <= now.getTime()) {
+  fail('기존 approval expiresAt 이 미래가 아니다.');
 }
 
-// --- 4. 만료: release trust 가 manifest/approval 만료의 상한이다(baseline.mjs:169-170,200-202).
-//        신뢰 수명이 어차피 trust 만료에 묶이므로 가장 짧은 유효 선택은 trust 만료와 같게 두는 것.
-const releaseTrust = await readStrictJsonDocument(required('CCC_BETA_RELEASE_TRUST'));
-const expiresAt = releaseTrust.expiresAt;
-if (Number.isNaN(Date.parse(expiresAt)) || Date.parse(expiresAt) <= now.getTime()) {
-  fail('release trust expiresAt 이 미래가 아니다.');
-}
-
-// --- 5. 새 manifest: 바뀌는 것은 프로젝트 결속 3키, STT 승인, 발행·만료뿐. 나머지는 그대로 ---
+// --- 3. 새 manifest: 바뀌는 것은 approvedSttEngineIds 와 서명뿐. 나머지 16키는 그대로 ---
+// publishedAt 을 그대로 둬도 되는 근거: verifier 는 미래의 publishedAt 만 거부한다
+// (install-manifest-verifier.js 의 verifySignedInstallManifest2). expiresAt 은 기존 값이
+// release trust·baseline·approval 의 공통 상한 2026-10-10T16:50:18.708Z 라서 그대로 둔다.
 const { ed25519Signature: _oldSig, ...unsignedBase } = oldManifest;
 const signedManifest = await signInstallManifest({
   ...unsignedBase,
-  supabaseProjectRef: projectRef,
-  supabaseAuthOrigin: `https://${projectRef}.supabase.co`,
-  supabasePublishableKey: publishableKey,
   approvedSttEngineIds: [{ id: 'azure-speech-koreacentral', mode: 'azure' }],
-  publishedAt: now.toISOString(),
-  expiresAt,
-  signingKeyId,
 }, privateKey);
 
-// --- 6. 소유권 승인서: 서명된 manifest 전체의 sha256Jcs 와 짝을 맞춘다 ---
+// --- 4. 소유권 승인서: 서명된 manifest 전체의 sha256Jcs 와 짝을 맞춘다 ---
+//        바뀌는 것은 runtimeManifestSha256 과 서명뿐. 나머지 키는 기존 approval 그대로.
 const runtimeManifestSha256 = await verifier.sha256Jcs(signedManifest);
-const unsignedApproval = {
-  schemaVersion: 1,
-  contractVersion: 'S11-install-approval-v1',
-  institutionId: oldApproval.institutionId,
-  projectRef,
-  expectedOwnerOrgId: String(project.organization_id),
-  installationId: signedManifest.installationId,
-  runtimeManifestSha256,
-  expiresAt,
-  signingKeyId,
-};
+const { ed25519Signature: _oldApprovalSig, ...unsignedApproval } = oldApproval;
+unsignedApproval.runtimeManifestSha256 = runtimeManifestSha256;
 const approvalSignature = await crypto.subtle.sign(
   ED25519, privateKey, encoder.encode(verifier.canonicalizeJcs(unsignedApproval)),
 );
@@ -148,8 +120,8 @@ const signedApproval = {
   ed25519Signature: btoa(String.fromCharCode(...new Uint8Array(approvalSignature))),
 };
 
-// --- 7. 쓰기(600) ---
-const outDir = resolve(here, `../../artifacts/install/${projectRef.slice(0, 6)}`);
+// --- 5. 쓰기(600) ---
+const outDir = resolve(here, '../../artifacts/install/current');
 await mkdir(outDir, { recursive: true });
 const manifestPath = resolve(outDir, 'install-manifest.json');
 const approvalPath = resolve(outDir, 'install-approval.json');
@@ -160,7 +132,8 @@ await writeFile(approvalPath, approvalJson, { mode: 0o600 });
 await chmod(manifestPath, 0o600);
 await chmod(approvalPath, 0o600);
 
-// --- 8. 자가 확인: 생산물을 기존 검사에 그대로 통과시킨다 ---
+// --- 6. 자가 확인: 생산물을 기존 검사에 그대로 통과시킨다 ---
+const projectRef = signedManifest.supabaseProjectRef;
 const authorization = await requireSignedOwnerPreflight({
   installManifest: manifestPath,
   installApproval: approvalPath,
@@ -173,6 +146,21 @@ if (authorization.installationId !== signedManifest.installationId
   fail('자가 확인 불일치');
 }
 
+// /current 의 trust·baseline 과 새 authorization 조합이 plan 의 게이트를 그대로 통과하는지 확인한다.
+const providerBaseline = await requireProviderBaseline({
+  releaseTrust: required('CCC_BETA_RELEASE_TRUST'),
+  providerBaseline: required('CCC_PROVIDER_BASELINE'),
+  rootKeys: JSON.parse(required('CCC_BETA_TRUST_ROOT_KEYS')),
+  revokedRootKeyIds: JSON.parse(process.env.CCC_BETA_REVOKED_ROOT_KEY_IDS ?? '[]'),
+  authorization,
+  manifestExpiresAt: authorization.expiresAt,
+}).catch((error) => fail(`requireProviderBaseline 실패: ${error?.code ?? error?.message}`));
+try {
+  assertProviderBaselineCurrent(providerBaseline, authorization);
+} catch (error) {
+  fail(`assertProviderBaselineCurrent 실패: ${error?.code ?? error?.message}`);
+}
+
 console.log(JSON.stringify({
   ok: true,
   projectRefPrefix: projectRef.slice(0, 6),
@@ -181,8 +169,11 @@ console.log(JSON.stringify({
   manifestBytes: Buffer.byteLength(manifestJson),
   approvalPath,
   approvalBytes: Buffer.byteLength(approvalJson),
-  expiresAt,
   installationId: signedManifest.installationId,
   sequence: signedManifest.sequence,
+  publishedAt: signedManifest.publishedAt,
+  expiresAt: signedManifest.expiresAt,
+  approvedSttEngineIds: signedManifest.approvedSttEngineIds,
   preflight: 'requireSignedOwnerPreflight 통과',
+  baseline: 'requireProviderBaseline + assertProviderBaselineCurrent 통과',
 }));
