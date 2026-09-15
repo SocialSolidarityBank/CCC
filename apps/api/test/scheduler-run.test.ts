@@ -31,7 +31,7 @@ const { counselor, service } = testActors;
 const SCHEDULER_SECRET = 'scheduler-shared-secret-0123456789abcdef';
 const CLOUD_RUNTIME: AgentRuntime = {
   route: 'community-cloud-agent',
-  sttEngine: 'local',
+  sttEngine: 'azure',
   sttEngineId: 'azure-speech-koreacentral',
   audioDelivery: 'protected-get',
 };

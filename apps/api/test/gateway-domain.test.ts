@@ -545,7 +545,7 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
 }
 
 async function createReviewReadySession() {
-  t.env.installationMode = 'local-single';
+  t.env.installationMode = 'community-cloud';
   t.env.CCC_STT_MODE = 'azure';
   t.env.CCC_LLM_MODE = 'openai';
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
@@ -686,7 +686,7 @@ async function createPilotDraft(
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
     deploymentMode: 'community-cloud', sttMode: 'off', llmMode: 'openai',
   });
-  t.env.installationMode = 'local-single';
+  t.env.installationMode = 'community-cloud';
   t.env.CCC_STT_MODE = 'off';
   t.env.CCC_LLM_MODE = 'openai';
   t.env.TEXT_AI_PILOT_ENABLED = '1';

@@ -35,7 +35,7 @@ const BEARER_TTL_MS = 900_000;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60_000;
 const CLOUD_RUNTIME: AgentRuntime = {
   route: 'community-cloud-agent',
-  sttEngine: 'local',
+  sttEngine: 'azure',
   sttEngineId: 'azure-speech-koreacentral',
   audioDelivery: 'protected-get',
 };

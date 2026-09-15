@@ -44,7 +44,7 @@ import { createStorageSignerHandler } from '../../community-cloud/src/storage-si
 const { counselor, service, unassignedCounselor } = testActors;
 const CLOUD_RUNTIME: AgentRuntime = {
   route: 'community-cloud-agent',
-  sttEngine: 'local',
+  sttEngine: 'azure',
   sttEngineId: 'azure-speech-koreacentral',
   audioDelivery: 'protected-get',
 };
