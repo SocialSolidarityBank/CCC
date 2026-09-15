@@ -1,0 +1,579 @@
+{
+  "localRunProcedure": {
+    "found": true,
+    "understoodAs": "배정된 release/0916 코드를 기존 로컬 실행 절차로 구동하고 가상 데이터 업무 흐름을 직접 검증한다. 원인 확정 전 코드 수정 없이 보고서 한 파일만 커밋한다.",
+    "sources": [
+      "docs/ops.md:182-214",
+      "docs/ops.md:234-254",
+      "scripts/seed/RUNBOOK.md:21-61",
+      "package.json:42-44",
+      "apps/api/package.json:22",
+      "apps/web/package.json:11"
+    ],
+    "commands": [
+      "pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-local --local",
+      "pnpm seed:generate:local",
+      "pnpm seed:apply:local",
+      "pnpm exec wrangler dev --port 8876",
+      "CCC_API_ORIGIN=http://127.0.0.1:8876 CCC_LOCAL_PREVIEW=true pnpm dev --port 3106"
+    ],
+    "migrationResult": {
+      "exitCode": 0,
+      "applied": 71,
+      "last": "0072_privacy_purge_owned_graph.sql",
+      "verifiedLocalCounts": {
+        "migrations": 71,
+        "users": 0,
+        "organizations": 0,
+        "beneficiaries": 0
+      }
+    },
+    "portAdjustment": "8787 사용 중. docs/ops.md:245-247의 포트 분리 절차에 따라 8876과 3106을 사용했다.",
+    "testConfiguration": "문서에 따라 생성한 로컬 전용 무작위 테스트 암호화 키를 사용했다. 기존 시크릿은 읽지 않았다.",
+    "readme": "루트와 apps/api 및 apps/web의 README 계열 문서는 발견되지 않았다. docs/ops.md와 scripts/seed/RUNBOOK.md를 사용했다.",
+    "seedResult": {
+      "attempts": [
+        {
+          "command": "pnpm seed:generate:local",
+          "deadlineSeconds": 180,
+          "status": "HARNESS_TIMEOUT",
+          "note": "실행 도구의 제한이 seed 설정의 300초보다 짧아 중단됐다."
+        },
+        {
+          "command": "pnpm seed:generate:local",
+          "deadlineSeconds": 420,
+          "exitCode": 1,
+          "elapsedSeconds": 303.23,
+          "status": "SEED_TEST_TIMEOUT",
+          "tests": {
+            "passed": 3,
+            "failed": 1
+          }
+        }
+      ],
+      "artifactsPresent": false,
+      "applyExecuted": false,
+      "reason": "manifest.json, preload.sql, seed.sql이 생성되지 않아 seed:apply:local은 실행하지 않았다."
+    },
+    "syntheticDataUsed": "업무 입력은 0건이다. 가상 이름과 전화번호를 입력할 수 있는 폼까지 도달하지 않았다. 실제 사람 정보도 입력하지 않았다.",
+    "runtime": {
+      "node": "24.18.0",
+      "pnpm": "11.5.3",
+      "wrangler": "4.107.1",
+      "next": "16.2.10"
+    }
+  },
+  "startedServices": [
+    {
+      "name": "local-flow-api",
+      "cwd": "apps/api",
+      "command": "pnpm exec wrangler dev --port 8876",
+      "url": "http://127.0.0.1:8876",
+      "readiness": "[wrangler:info] Ready on http://localhost:8876",
+      "verifiedResponse": "GET /me 403 Forbidden",
+      "finalState": "검사 후 이 세션이 시작한 서비스만 중지했다."
+    },
+    {
+      "name": "local-flow-web",
+      "cwd": "apps/web",
+      "command": "CCC_API_ORIGIN=http://127.0.0.1:8876 CCC_LOCAL_PREVIEW=true pnpm dev --port 3106",
+      "url": "http://localhost:3106",
+      "readiness": "✓ Ready in 308ms",
+      "verifiedResponse": "GET /onboarding 200",
+      "finalState": "검사 후 이 세션이 시작한 서비스만 중지했다."
+    }
+  ],
+  "steps": [
+    {
+      "name": "기관 초기 설정",
+      "status": "BLOCKED_AT_ENTRY",
+      "passed": false,
+      "route": "/onboarding",
+      "observation": "온보딩 화면을 열 수 없습니다. 다시 로그인한 뒤 시도하세요.",
+      "submitted": false,
+      "serverException": {
+        "logged": false,
+        "fullText": null,
+        "reason": "서버가 403을 반환했으며 잡히지 않은 예외 스택은 출력하지 않았다.",
+        "sharedEvidence": "serverExceptions의 web-and-api-business-requests 및 seed-generation 항목을 참조한다."
+      },
+      "browserNetwork": [
+        {
+          "time": "2026-09-15T15:57:02.239Z",
+          "method": "GET",
+          "url": "/onboarding",
+          "status": 200,
+          "type": "document"
+        }
+      ],
+      "serverApiNetwork": [
+        {
+          "request": "GET /me",
+          "status": 403,
+          "source": "해당 화면 방문 시 수집한 Wrangler 로그"
+        },
+        {
+          "request": "GET /organization/profile",
+          "status": 403,
+          "source": "해당 화면 방문 시 수집한 Wrangler 로그"
+        }
+      ],
+      "sameAsPreview": "DIFFERENT_PRECONDITION_FAILURE",
+      "comparison": "로컬 신원 확인 단계의 403이다. preview의 등록 제출 실패나 Next.js 다이제스트 오류와 같다고 판정할 근거가 없다."
+    },
+    {
+      "name": "당사자 등록",
+      "status": "BLOCKED_AT_ENTRY",
+      "passed": false,
+      "route": "/participants/new",
+      "observation": "지금 당사자 등록 화면을 열 수 없습니다. 접근 권한을 확인하세요.",
+      "submitted": false,
+      "serverException": {
+        "logged": false,
+        "fullText": null,
+        "reason": "서버가 403을 반환했으며 잡히지 않은 예외 스택은 출력하지 않았다.",
+        "sharedEvidence": "serverExceptions의 web-and-api-business-requests 및 seed-generation 항목을 참조한다."
+      },
+      "browserNetwork": [
+        {
+          "time": "2026-09-15T15:57:19.445Z",
+          "method": "GET",
+          "url": "/participants/new",
+          "status": 200,
+          "type": "document"
+        }
+      ],
+      "serverApiNetwork": [
+        {
+          "request": "GET /me",
+          "status": 403,
+          "source": "해당 화면 방문 시 수집한 Wrangler 로그"
+        },
+        {
+          "request": "GET /organization/profile",
+          "status": 403,
+          "source": "해당 화면 방문 시 수집한 Wrangler 로그"
+        }
+      ],
+      "sameAsPreview": "DIFFERENT_PRECONDITION_FAILURE",
+      "comparison": "로컬 신원 확인 단계의 403이다. preview의 등록 제출 실패나 Next.js 다이제스트 오류와 같다고 판정할 근거가 없다."
+    },
+    {
+      "name": "담당 배정",
+      "status": "BLOCKED_AT_ENTRY",
+      "passed": false,
+      "route": "/admin/assign",
+      "observation": "관리자 정보를 확인할 수 없습니다. 다시 로그인한 뒤 시도하세요.",
+      "submitted": false,
+      "serverException": {
+        "logged": false,
+        "fullText": null,
+        "reason": "서버가 403을 반환했으며 잡히지 않은 예외 스택은 출력하지 않았다.",
+        "sharedEvidence": "serverExceptions의 web-and-api-business-requests 및 seed-generation 항목을 참조한다."
+      },
+      "browserNetwork": [
+        {
+          "time": "2026-09-15T15:59:04.410Z",
+          "method": "GET",
+          "url": "/admin/assign",
+          "status": 200,
+          "type": "document"
+        }
+      ],
+      "serverApiNetwork": [
+        {
+          "request": "GET /me",
+          "status": 403,
+          "source": "해당 화면 방문 시 수집한 Wrangler 로그"
+        },
+        {
+          "request": "GET /organization/profile",
+          "status": 403,
+          "source": "해당 화면 방문 시 수집한 Wrangler 로그"
+        }
+      ],
+      "sameAsPreview": "DIFFERENT_PRECONDITION_FAILURE",
+      "comparison": "로컬 신원 확인 단계의 403이다. preview의 등록 제출 실패나 Next.js 다이제스트 오류와 같다고 판정할 근거가 없다."
+    },
+    {
+      "name": "인테이크 기록과 상세",
+      "status": "NOT_EXERCISED",
+      "passed": false,
+      "route": null,
+      "observation": "선행 당사자와 케이스를 만들지 못해 실제 대상의 화면이나 내려받기를 요청하지 않았다.",
+      "submitted": false,
+      "serverException": {
+        "logged": false,
+        "fullText": null,
+        "reason": "이 단계의 실제 업무 요청을 수행하지 않았다.",
+        "sharedEvidence": "serverExceptions의 web-and-api-business-requests 및 seed-generation 항목을 참조한다."
+      },
+      "browserNetwork": [],
+      "serverApiNetwork": [],
+      "sameAsPreview": "UNDETERMINED",
+      "comparison": "preview에서 보고한 오류의 발생 경로까지 도달하지 않았다."
+    },
+    {
+      "name": "상담 일정 등록",
+      "status": "BLOCKED_AT_ENTRY",
+      "passed": false,
+      "route": "/schedules/new",
+      "observation": "담당 당사자 목록을 불러올 수 없습니다. 접근 권한을 확인하세요.",
+      "submitted": false,
+      "serverException": {
+        "logged": false,
+        "fullText": null,
+        "reason": "서버가 403을 반환했으며 잡히지 않은 예외 스택은 출력하지 않았다.",
+        "sharedEvidence": "serverExceptions의 web-and-api-business-requests 및 seed-generation 항목을 참조한다."
+      },
+      "browserNetwork": [
+        {
+          "time": "2026-09-15T15:59:05.293Z",
+          "method": "GET",
+          "url": "/schedules/new",
+          "status": 200,
+          "type": "document"
+        }
+      ],
+      "serverApiNetwork": [
+        {
+          "request": "GET /schedules/candidates",
+          "status": 403,
+          "source": "해당 화면 방문 시 수집한 Wrangler 로그"
+        },
+        {
+          "request": "GET /users",
+          "status": 403,
+          "source": "해당 화면 방문 시 수집한 Wrangler 로그"
+        }
+      ],
+      "sameAsPreview": "DIFFERENT_PRECONDITION_FAILURE",
+      "comparison": "로컬 신원 확인 단계의 403이다. preview의 등록 제출 실패나 Next.js 다이제스트 오류와 같다고 판정할 근거가 없다."
+    },
+    {
+      "name": "상담 기록 작성",
+      "status": "NOT_EXERCISED",
+      "passed": false,
+      "route": null,
+      "observation": "선행 당사자와 케이스를 만들지 못해 실제 대상의 화면이나 내려받기를 요청하지 않았다.",
+      "submitted": false,
+      "serverException": {
+        "logged": false,
+        "fullText": null,
+        "reason": "이 단계의 실제 업무 요청을 수행하지 않았다.",
+        "sharedEvidence": "serverExceptions의 web-and-api-business-requests 및 seed-generation 항목을 참조한다."
+      },
+      "browserNetwork": [],
+      "serverApiNetwork": [],
+      "sameAsPreview": "UNDETERMINED",
+      "comparison": "preview에서 보고한 오류의 발생 경로까지 도달하지 않았다."
+    },
+    {
+      "name": "15초 페이지",
+      "status": "NOT_EXERCISED",
+      "passed": false,
+      "route": null,
+      "observation": "선행 당사자와 케이스를 만들지 못해 실제 대상의 화면이나 내려받기를 요청하지 않았다.",
+      "submitted": false,
+      "serverException": {
+        "logged": false,
+        "fullText": null,
+        "reason": "이 단계의 실제 업무 요청을 수행하지 않았다.",
+        "sharedEvidence": "serverExceptions의 web-and-api-business-requests 및 seed-generation 항목을 참조한다."
+      },
+      "browserNetwork": [],
+      "serverApiNetwork": [],
+      "sameAsPreview": "UNDETERMINED",
+      "comparison": "preview에서 보고한 오류의 발생 경로까지 도달하지 않았다."
+    },
+    {
+      "name": "상담 기록 확인",
+      "status": "NOT_EXERCISED",
+      "passed": false,
+      "route": null,
+      "observation": "선행 당사자와 케이스를 만들지 못해 실제 대상의 화면이나 내려받기를 요청하지 않았다.",
+      "submitted": false,
+      "serverException": {
+        "logged": false,
+        "fullText": null,
+        "reason": "이 단계의 실제 업무 요청을 수행하지 않았다.",
+        "sharedEvidence": "serverExceptions의 web-and-api-business-requests 및 seed-generation 항목을 참조한다."
+      },
+      "browserNetwork": [],
+      "serverApiNetwork": [],
+      "sameAsPreview": "UNDETERMINED",
+      "comparison": "preview에서 보고한 오류의 발생 경로까지 도달하지 않았다."
+    },
+    {
+      "name": "경과 리포트",
+      "status": "NOT_EXERCISED",
+      "passed": false,
+      "route": null,
+      "observation": "선행 당사자와 케이스를 만들지 못해 실제 대상의 화면이나 내려받기를 요청하지 않았다.",
+      "submitted": false,
+      "serverException": {
+        "logged": false,
+        "fullText": null,
+        "reason": "이 단계의 실제 업무 요청을 수행하지 않았다.",
+        "sharedEvidence": "serverExceptions의 web-and-api-business-requests 및 seed-generation 항목을 참조한다."
+      },
+      "browserNetwork": [],
+      "serverApiNetwork": [],
+      "sameAsPreview": "UNDETERMINED",
+      "comparison": "preview에서 보고한 오류의 발생 경로까지 도달하지 않았다."
+    },
+    {
+      "name": "CSV 내려받기",
+      "status": "NOT_EXERCISED",
+      "passed": false,
+      "route": null,
+      "observation": "선행 당사자와 케이스를 만들지 못해 실제 대상의 화면이나 내려받기를 요청하지 않았다.",
+      "submitted": false,
+      "serverException": {
+        "logged": false,
+        "fullText": null,
+        "reason": "이 단계의 실제 업무 요청을 수행하지 않았다.",
+        "sharedEvidence": "serverExceptions의 web-and-api-business-requests 및 seed-generation 항목을 참조한다."
+      },
+      "browserNetwork": [],
+      "serverApiNetwork": [],
+      "sameAsPreview": "UNDETERMINED",
+      "comparison": "preview에서 보고한 오류의 발생 경로까지 도달하지 않았다."
+    },
+    {
+      "name": "당사자 상세",
+      "status": "NOT_EXERCISED",
+      "passed": false,
+      "route": null,
+      "observation": "선행 당사자와 케이스를 만들지 못해 실제 대상의 화면이나 내려받기를 요청하지 않았다.",
+      "submitted": false,
+      "serverException": {
+        "logged": false,
+        "fullText": null,
+        "reason": "이 단계의 실제 업무 요청을 수행하지 않았다.",
+        "sharedEvidence": "serverExceptions의 web-and-api-business-requests 및 seed-generation 항목을 참조한다."
+      },
+      "browserNetwork": [],
+      "serverApiNetwork": [],
+      "sameAsPreview": "UNDETERMINED",
+      "comparison": "preview에서 보고한 오류의 발생 경로까지 도달하지 않았다."
+    }
+  ],
+  "serverExceptions": [
+    {
+      "phase": "api-startup-port-conflict",
+      "source": "local-flow-api supervised log",
+      "verbatim": "*** Fatal uncaught kj::Exception: kj/async-io-unix.c++:941: failed: ::bind(sockfd, &addr.generic, addrlen): Address already in use; toString() = 127.0.0.1:8787\n\n✘ [ERROR] Address already in use (127.0.0.1:8787). Please check that you are not already running a server on this address or specify a different port with --port.",
+      "resolution": "문서에 있는 --port 옵션으로 8876에 구동했다.",
+      "sameAsPreview": false
+    },
+    {
+      "phase": "seed-generation",
+      "source": "pnpm seed:generate:local stdout/stderr",
+      "verbatim": " ❯ scripts/seed/generate.ts (4 tests | 1 failed) 300028ms\n     × captures the gateway scenario, serializes seed.sql, and replays it into a fresh DB 300015ms\n\n FAIL  scripts/seed/generate.ts > preview seed generation > captures the gateway scenario, serializes seed.sql, and replays it into a fresh DB\nError: Test timed out in 300000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ scripts/seed/generate.ts:381:3\n    379|\n    380| describe('preview seed generation', () => {\n    381|   it('captures the gateway scenario, serializes seed.sql, and replays …\n       |   ^\n    382|     const piiKey = requireEnv('PII_ENC_KEY');\n    383|     assertPiiKeyMaterial(piiKey);\n\n Test Files  1 failed (1)\n      Tests  1 failed | 3 passed (4)\n   Start at  00:57:45\n   Duration  301.63s (transform 543ms, setup 0ms, import 1.47s, tests 300.03s, environment 0ms)\n\n[ELIFECYCLE] Command failed with exit code 1.",
+      "sameAsPreview": false,
+      "limit": "출력된 스택은 위 timeout 위치뿐이다. 멈춘 내부 함수나 SQL은 이 로그만으로 확정할 수 없다."
+    },
+    {
+      "phase": "web-and-api-business-requests",
+      "runtimeExceptionLogged": false,
+      "verbatim": null,
+      "observed": "API는 403 Forbidden을 반환했고 웹은 이를 접근 권한 안내로 처리했다. 방문한 화면에서 잡히지 않은 서버 예외나 다이제스트는 관찰하지 못했다.",
+      "sourceExplanation": {
+        "path": "apps/api/src/local-actor.ts:28-36",
+        "message": "local preview identity is not provisioned in the user directory",
+        "kind": "소스에서 확인한 거부 조건이며 서버 로그에 출력된 예외 전문은 아니다.",
+        "evidence": "로컬 users=0이고 GET /me는 HTTP 403 및 {\"error\":\"forbidden\"}을 반환했다."
+      }
+    }
+  ],
+  "networkEvidence": {
+    "browser": [
+      {
+        "time": "2026-09-15T15:57:02.239Z",
+        "method": "GET",
+        "url": "/onboarding",
+        "status": 200,
+        "type": "document"
+      },
+      {
+        "time": "2026-09-15T15:57:19.445Z",
+        "method": "GET",
+        "url": "/participants/new",
+        "status": 200,
+        "type": "document"
+      },
+      {
+        "time": "2026-09-15T15:59:04.410Z",
+        "method": "GET",
+        "url": "/admin/assign",
+        "status": 200,
+        "type": "document"
+      },
+      {
+        "time": "2026-09-15T15:59:05.293Z",
+        "method": "GET",
+        "url": "/schedules/new",
+        "status": 200,
+        "type": "document"
+      },
+      {
+        "time": "2026-09-15T15:59:05.727Z",
+        "method": "GET",
+        "url": "/participants",
+        "status": 200,
+        "type": "document"
+      }
+    ],
+    "api": [
+      {
+        "request": "GET /me",
+        "status": 403,
+        "source": "Wrangler request log"
+      },
+      {
+        "request": "GET /organization/profile",
+        "status": 403,
+        "source": "Wrangler request log"
+      },
+      {
+        "request": "PUT /me/last-program",
+        "status": 403,
+        "source": "Wrangler request log"
+      },
+      {
+        "request": "GET /schedules/today",
+        "status": 403,
+        "source": "Wrangler request log"
+      },
+      {
+        "request": "GET /schedules/candidates",
+        "status": 403,
+        "source": "Wrangler request log"
+      },
+      {
+        "request": "GET /users",
+        "status": 403,
+        "source": "Wrangler request log"
+      },
+      {
+        "request": "GET /participants",
+        "status": 403,
+        "source": "Wrangler request log"
+      }
+    ],
+    "distinction": "브라우저는 Next.js 문서를 요청한다. Next.js에서 API로 보낸 서버 측 요청은 브라우저 네트워크가 아니라 Wrangler 로그로 별도 수집했다.",
+    "directProbe": {
+      "request": "GET http://127.0.0.1:8876/me",
+      "status": 403,
+      "body": {
+        "error": "forbidden"
+      }
+    },
+    "additionalBrowserObservation": {
+      "route": "/participants",
+      "status": 200,
+      "text": "사회연대은행\n마이크로크레딧 씬파일러 금융지원·멘토링\n\n일정\n\n일정\n상담 일정 등록\n\n당사자\n\n당사자 목록\n당사자 등록\n뒤로\n당사자\n당사자 검색\n당사자 초대\n당사자 등록\n\n당사자 목록을 불러올 수 없습니다. 접근 권한을 확인하세요.",
+      "api": "GET /participants 403",
+      "purpose": "등록 이후 경로를 우회할 기존 당사자가 있는지 목록 화면을 확인했으나 조회가 거부됐다."
+    }
+  },
+  "sameAsPreview": {
+    "status": "UNDETERMINED",
+    "previewEvidence": "사용자가 보고한 4085206980, 325730910, 3181986217 다이제스트와 등록 실패 및 9시간 차이를 비교 기준으로 보존한다. 원격 preview는 재검사하지 않았다."
+  },
+  "timezoneResult": {
+    "status": "NOT_EXERCISED",
+    "inputRequested": "2026-09-16 16:30",
+    "listDisplayed": null,
+    "detailDisplayed": null,
+    "reason": "일정 폼에 도달하기 전에 담당 당사자 후보 조회가 403으로 실패했다. 16:30을 입력하거나 저장하지 못했으므로 목록과 상세의 시간을 측정하지 않았다."
+  },
+  "timezoneBoundary": {
+    "status": "UNDETERMINED",
+    "file": null,
+    "line": null,
+    "reason": "오프셋 오류를 로컬에서 재현하지 못했다. 정적 추측으로 이중 적용 경계를 지목하지 않았고 화면 보정도 하지 않았다."
+  },
+  "verdict": {
+    "status": "BLOCKED_BEFORE_BUSINESS_FLOW",
+    "releaseErrorsFixed": null,
+    "statement": "release/0916이 preview 리허설 오류를 이미 고쳤는지, 그대로인지 판정할 수 없다. 기존 로컬 시드 생성이 실패해 실제 업무 흐름을 밟지 못했다. 성공한 것으로 보고하지 않는다.",
+    "observedDifference": "로컬에서 관찰한 것은 빈 사용자 디렉터리로 인한 403과 시드 생성 timeout이다. preview에서 보고된 등록 실패, 다이제스트 3종, 9시간 차이의 재현 결과가 아니다.",
+    "evidenceReview": "mandela 기준으로 신원 차단을 업무 성공이나 기존 오류 소멸의 증거로 사용하지 않았다. factchk에서는 파일 번호 0072와 실제 적용 건수 71을 구분했다. 실행 절차의 정본은 docs/ops.md와 scripts/seed/RUNBOOK.md이며 새 실행 지침은 만들지 않았다."
+  },
+  "mutations": [
+    {
+      "path": "apps/api/.wrangler/state/",
+      "kind": "generated-local-only",
+      "description": "ccc-local의 새 로컬 D1에 마이그레이션 71개를 적용했다. 마지막 파일 번호는 0072다. 원격 자원은 사용하지 않았다."
+    },
+    {
+      "path": "apps/api/.dev.vars",
+      "kind": "ignored-disposable-test-config",
+      "description": "이 검사에서만 사용한 무작위 테스트 키 설정이다. 서비스 중지 후 파일을 삭제했다."
+    },
+    {
+      "path": "apps/web/.next/",
+      "kind": "generated-local-only",
+      "description": "Next.js 개발 서버가 생성했다."
+    },
+    {
+      "path": "node_modules 및 각 workspace node_modules",
+      "kind": "generated-local-only",
+      "description": "pnpm 명령 실행 시 자동 설치와 링크 작업이 수행됐다. lockfile resolution 변경은 요청하지 않았다."
+    },
+    {
+      "path": "artifacts/orchestration/local-flow-smoke.json",
+      "kind": "report-only",
+      "description": "커밋 대상은 이 보고서 하나다."
+    }
+  ],
+  "gitStatus": {
+    "branch": "release/0916",
+    "initialHead": "9df84b44b3a6520db1675f0e2a658941c412ca1e",
+    "preExistingUntracked": [
+      "artifacts/prod-migration-2026-09-16/",
+      "artifacts/release/"
+    ],
+    "finalObservedBeforeReport": {
+      "head": "9df84b44b3a6520db1675f0e2a658941c412ca1e",
+      "branch": "release/0916",
+      "trackedOtherWork": [
+        "apps/pipeline/ccc_pipeline/masking.py",
+        "apps/pipeline/tests/test_masking.py"
+      ],
+      "untrackedOtherWork": [
+        "artifacts/prod-migration-2026-09-16/",
+        "artifacts/release/"
+      ],
+      "stagedPaths": []
+    },
+    "commitScope": [
+      "artifacts/orchestration/local-flow-smoke.json"
+    ],
+    "mergePushDeployPerformed": false,
+    "note": "검사 도중 다른 작업이 변경한 apps/pipeline 두 파일을 발견했다. 열거나 고치거나 되돌리지 않았으며 커밋에 포함하지 않는다. 커밋은 명시 경로로만 수행한다."
+  },
+  "blocked": [
+    {
+      "code": "LOCAL_SEED_GENERATION_TIMEOUT",
+      "command": "pnpm seed:generate:local",
+      "location": "scripts/seed/generate.ts:381:3",
+      "observed": "자체 testTimeout 300000ms로 exit 1. 3 passed, 1 failed.",
+      "missingPrerequisite": "기존 시드 생성과 고정 seed:apply:local 절차가 성공해 로컬 신원과 가상 당사자가 준비돼야 한다.",
+      "nextAction": "시드 실행 timeout의 내부 원인을 해당 하니스 소유 작업에서 진단한 뒤 기존 절차로 재실행해야 한다. apps/api/test와 apps/pipeline은 이 작업의 수정 금지 범위다.",
+      "notDone": [
+        "업무 데이터 입력",
+        "담당 배정 쓰기",
+        "인테이크 및 상담 저장",
+        "15초 페이지 조회",
+        "기록 확인",
+        "경과 리포트",
+        "CSV 내려받기",
+        "16:30 일정 저장 및 표시 비교"
+      ],
+      "noBypass": "가짜 사용자나 테스트 SQL을 수동 삽입하지 않았고 인증 잠금을 완화하지 않았다."
+    }
+  ]
+}

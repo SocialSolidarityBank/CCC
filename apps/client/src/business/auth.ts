@@ -18,10 +18,44 @@ interface ActiveClient {
   lifetime: AbortController;
 }
 
+export type InviteFailureCode = 'invite_invalid' | 'invite_expired'
+  | 'invite_session_conflict' | 'password_rejected' | 'provider_unavailable';
+export type InviteRetry = 'entry' | 'password' | 'none';
+export type InviteCompletionResult = { status: 'complete' }
+  | { status: 'failure'; code: InviteFailureCode; retry: InviteRetry };
+type InviteBootstrapResult = 'unseen' | 'clean' | 'invalid';
+let inviteBootstrap: InviteBootstrapResult = 'unseen';
+const expiryCode = (code: unknown) => code === 'otp_expired' || code === 'invite_not_found' || code === 'session_expired';
+
+export function captureInviteUrlBeforeRender(
+  location: Pick<Location, 'pathname' | 'search' | 'hash'>,
+  history: Pick<History, 'state' | 'replaceState'>,
+): void {
+  if (location.pathname !== '/auth/invite' && location.pathname !== '/staff/join') return;
+  const dirty = location.search !== '' || location.hash !== '';
+  if (location.pathname === '/auth/invite' && inviteBootstrap === 'unseen') inviteBootstrap = dirty ? 'invalid' : 'clean';
+  if (!dirty) return;
+  try { history.replaceState(history.state, '', location.pathname); }
+  catch {
+    inviteBootstrap = 'invalid';
+    throw new Error('invite_bootstrap_invalid');
+  }
+}
+
+export function firstAdminInviteBootstrap(): 'entry' | 'invite_invalid' {
+  return inviteBootstrap === 'clean' ? 'entry' : 'invite_invalid';
+}
+
 /** SDK 세션은 이 객체 안의 메모리에만 둔다. React snapshot에는 토큰을 싣지 않는다. */
 export class CloudAuth {
-  private active: ActiveClient | null = null;
-  private session: Session | null = null;
+  #active: ActiveClient | null = null;
+  #session: Session | null = null;
+  #inviteMode = false;
+  #inviteVerified = false;
+  #inviteCancelled = false;
+  #inviteOwnsClient = false;
+  #inviteCompletion: Promise<InviteCompletionResult> | null = null;
+  #inviteDisposal: Promise<void> | null = null;
   private pendingFactorId: string | null = null;
   private idleDeadline: number | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -44,14 +78,16 @@ export class CloudAuth {
     return () => { this.listeners.delete(listener); };
   };
   readonly getToken = (): string | null => {
+    if (this.#inviteMode) return null;
     if (this.snapshot.phase !== 'ready' && this.snapshot.phase !== 'signing-out') return null;
     if (this.snapshot.phase !== 'signing-out' && this.idleDeadline !== null && Date.now() >= this.idleDeadline) return null;
-    if (!this.session || (this.session.expires_at ?? 0) * 1000 <= Date.now()) return null;
-    return this.session.access_token;
+    if (!this.#session || (this.#session.expires_at ?? 0) * 1000 <= Date.now()) return null;
+    return this.#session.access_token;
   };
 
   readonly recordActivity = (): void => {
-    if (!this.session || this.snapshot.phase === 'signing-out') return;
+    if (this.#inviteMode) return;
+    if (!this.#session || this.snapshot.phase === 'signing-out') return;
     if (this.idleDeadline !== null && Date.now() >= this.idleDeadline) {
       void this.signOut(new BusinessError('unauthenticated', 401));
       return;
@@ -67,7 +103,7 @@ export class CloudAuth {
   }
 
   private client(): ActiveClient {
-    if (this.active) return this.active;
+    if (this.#active) return this.#active;
     const { supabaseAuthOrigin, supabasePublishableKey } = this.installation.manifest;
     if (!supabaseAuthOrigin || !supabasePublishableKey) throw new BusinessError('installation_invalid');
     const lifetime = new AbortController();
@@ -90,7 +126,7 @@ export class CloudAuth {
           }
           const inputSignal = init?.signal ?? (input instanceof Request ? input.signal : null);
           const response = await this.fetcher(input, {
-            ...init, credentials: 'omit', cache: 'no-store', redirect: 'error',
+            ...init, credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
             signal: AbortSignal.any([lifetime.signal, AbortSignal.timeout(30_000), ...(inputSignal ? [inputSignal] : [])]),
           }).catch(() => { throw new BusinessError('unavailable', 503); });
           if (response.redirected) throw new BusinessError('invalid_response');
@@ -99,6 +135,12 @@ export class CloudAuth {
             const body: unknown = await response.json().catch(() => null);
             const code = typeof body === 'object' && body !== null
               ? ('code' in body ? body.code : 'error_code' in body ? body.error_code : undefined) : undefined;
+            if (this.#inviteMode) {
+              const safeCode = expiryCode(code) ? code : 'invite_invalid';
+              return new Response(JSON.stringify({ code: safeCode, error_code: safeCode, message: 'Invitation request failed' }), {
+                status: response.status, headers: { 'Content-Type': 'application/json' },
+              });
+            }
             const error = authError({ code, status: response.status });
             return new Response(JSON.stringify({ code: error.code, error_code: error.code, msg: error.message, message: error.message }), {
               status: response.status, headers: { 'Content-Type': 'application/json' },
@@ -109,11 +151,11 @@ export class CloudAuth {
       },
     });
     sdk.auth.onAuthStateChange((event, session) => {
-      if (this.active?.sdk !== sdk || this.snapshot.phase === 'signing-out') return;
+      if (this.#active?.sdk !== sdk || this.#inviteMode || this.snapshot.phase === 'signing-out') return;
       if (event === 'INITIAL_SESSION' && session === null) return;
-      const firstSession = this.session === null && session !== null;
+      const firstSession = this.#session === null && session !== null;
       clearTimeout(this.enrollmentTimer);
-      this.session = session;
+      this.#session = session;
       if (firstSession) this.recordActivity();
       if (session === null) {
         clearTimeout(this.idleTimer);
@@ -126,12 +168,12 @@ export class CloudAuth {
       // SDK callback 안에서 SDK를 await하면 auth lock과 교착할 수 있다.
       if (session) queueMicrotask(() => { void this.inspect(sdk, revision); });
     });
-    this.active = { sdk, lifetime };
-    return this.active;
+    this.#active = { sdk, lifetime };
+    return this.#active;
   }
 
   private isCurrent(sdk: SupabaseClient, revision: number): boolean {
-    return this.active?.sdk === sdk && this.snapshot.revision === revision && this.snapshot.phase !== 'signing-out';
+    return this.#active?.sdk === sdk && !this.#inviteMode && this.snapshot.revision === revision && this.snapshot.phase !== 'signing-out';
   }
 
   private async inspect(sdk: SupabaseClient, revision: number, forceMfa = false): Promise<void> {
@@ -141,7 +183,7 @@ export class CloudAuth {
       if (current.error) throw current.error;
       if (!this.isCurrent(sdk, revision)) return;
       if (!current.data.session) throw new BusinessError('unauthenticated', 401);
-      this.session = current.data.session;
+      this.#session = current.data.session;
       const assurance = await sdk.auth.mfa.getAuthenticatorAssuranceLevel();
       if (assurance.error) throw assurance.error;
       if (!this.isCurrent(sdk, revision)) return;
@@ -169,7 +211,7 @@ export class CloudAuth {
   }
 
   async signIn(email: string, password: string): Promise<void> {
-    if (this.snapshot.phase !== 'signed-out' || this.snapshot.working) return;
+    if (this.#inviteMode || this.snapshot.phase !== 'signed-out' || this.snapshot.working) return;
     this.publish({ phase: 'signing-in', working: true, error: null });
     let active: ActiveClient | null = null;
     try {
@@ -179,36 +221,167 @@ export class CloudAuth {
       if (!result.data.session) throw new BusinessError('auth_failed');
       // SIGNED_IN 이벤트가 다음 단계를 연다. 입력 비밀번호는 호출자도 즉시 비운다.
     } catch (error) {
-      if (this.active === active && this.getSnapshot().phase !== 'signing-out') {
+      if (this.#active === active && this.getSnapshot().phase !== 'signing-out') {
         this.publish({ phase: 'signed-out', working: false, error: authError(error) });
       }
     }
   }
 
-  /**
-   * 초대 수락 뒤 첫 계정 생성(공개 가입 화면). 같은 설치 SDK 클라이언트를 쓰므로 두 번째
-   * Supabase 클라이언트는 만들지 않고, 세션은 SDK 메모리에만 남는다. 신원 연결에 쓸 접근
-   * 토큰만 반환값으로 나가고, 프로젝트가 이메일 확인을 요구하면 세션이 없어 `null` 이다.
-   */
-  async signUpWithPassword(email: string, password: string): Promise<{ accessToken: string | null }> {
-    try {
-      const result = await this.client().sdk.auth.signUp({ email, password });
-      if (result.error) throw result.error;
-      return { accessToken: result.data.session?.access_token ?? null };
-    } catch (error) {
-      throw authError(error);
+  private inviteFailure(error: unknown, password: boolean): InviteCompletionResult {
+    const failure = typeof error === 'object' && error !== null ? error as { code?: unknown; status?: unknown } : {};
+    if (expiryCode(failure.code)) return { status: 'failure', code: 'invite_expired', retry: 'none' };
+    const rejected = typeof failure.status === 'number' && failure.status >= 400 && failure.status < 500 && failure.status !== 429;
+    return { status: 'failure', code: rejected ? password ? 'password_rejected' : 'invite_invalid' : 'provider_unavailable',
+      retry: password ? 'password' : 'entry' };
+  }
+
+  /** Dispose only an invitation-owned client; ordinary sessions never use this path. */
+  private disposeInvite(): Promise<void> {
+    if (this.#inviteDisposal) return this.#inviteDisposal;
+    if (!this.#inviteMode) return Promise.resolve();
+    if (!this.#inviteOwnsClient) { this.#inviteMode = false; return Promise.resolve(); }
+    const active = this.#active;
+    this.#inviteVerified = false;
+    const operation = (async () => {
+      try {
+        if (active) {
+          await active.sdk.auth.stopAutoRefresh().catch(() => {});
+          try { await active.sdk.auth.signOut({ scope: 'local' }); } catch { /* disposal is mandatory even without confirmation */ }
+        }
+      } finally {
+        this.#session = null; this.#active = null;
+        this.pendingFactorId = null; this.idleDeadline = null;
+        clearTimeout(this.idleTimer); clearTimeout(this.enrollmentTimer);
+        if (active) { active.lifetime.abort(); await active.sdk.auth.dispose().catch(() => {}); }
+        this.#inviteMode = false;
+        this.#inviteOwnsClient = false;
+        this.publish({ phase: 'signed-out', revision: this.snapshot.revision + 1, working: false, factors: [], enrollment: null, error: null });
+      }
+    })();
+    this.#inviteDisposal = operation;
+    void operation.finally(() => { this.#inviteDisposal = null; });
+    return operation;
+  }
+
+  completeFirstAdminInvite(email: string, code: string, password: string): Promise<InviteCompletionResult> {
+    if (this.#inviteCompletion) return this.#inviteCompletion;
+    if (firstAdminInviteBootstrap() !== 'entry' || this.#inviteMode) {
+      return Promise.resolve({ status: 'failure', code: 'invite_invalid', retry: 'none' });
     }
+    if (this.snapshot.working || this.snapshot.phase === 'signing-in' || this.snapshot.phase === 'signing-out') {
+      return Promise.resolve({ status: 'failure', code: 'invite_session_conflict', retry: 'none' });
+    }
+    this.#inviteMode = true;
+    this.#inviteCancelled = false;
+    const operation = Promise.resolve().then(() => this.completeInvite(email, code, password));
+    this.#inviteCompletion = operation;
+    void operation.finally(() => { this.#inviteCompletion = null; });
+    return operation;
+  }
+
+  private async completeInvite(email: string, code: string, password: string): Promise<InviteCompletionResult> {
+    const previousSnapshot = this.snapshot;
+    let checkedEmpty = false;
+    if (this.#inviteCancelled) { this.#inviteMode = false; return { status: 'failure', code: 'provider_unavailable', retry: 'none' }; }
+    this.publish({ phase: 'checking', revision: this.snapshot.revision + 1, working: false, factors: [], enrollment: null, error: null });
+    try {
+      if (this.#inviteCancelled) return { status: 'failure', code: 'provider_unavailable', retry: 'none' };
+      const active = this.client();
+      const current = await active.sdk.auth.getSession();
+      if (current.error) throw current.error;
+      if (current.data.session) {
+        this.#inviteMode = false;
+        this.#session = current.data.session;
+        this.publish({ ...previousSnapshot, revision: this.snapshot.revision + 1 });
+        if (previousSnapshot.phase === 'checking') void this.inspect(active.sdk, this.snapshot.revision);
+        return { status: 'failure', code: 'invite_session_conflict', retry: 'none' };
+      }
+      checkedEmpty = true;
+      this.#inviteOwnsClient = true;
+      if (this.#inviteCancelled) return { status: 'failure', code: 'provider_unavailable', retry: 'none' };
+      await active.sdk.auth.stopAutoRefresh();
+      email = email.trim().toLowerCase();
+      const result = await active.sdk.auth.verifyOtp({ email, token: code, type: 'invite' });
+      code = '';
+      if (result.error) throw result.error;
+      const { session, user } = result.data;
+      if (!session || !user || typeof user.id !== 'string' || user.id.trim() === ''
+        || session.user?.id !== user.id || typeof user.email !== 'string' || user.email.trim().toLowerCase() !== email
+        || typeof session.user.email !== 'string' || session.user.email.trim().toLowerCase() !== email) {
+        await this.disposeInvite();
+        return { status: 'failure', code: 'provider_unavailable', retry: 'none' };
+      }
+      email = '';
+      this.#session = session;
+      this.#inviteVerified = true;
+      if (this.#inviteCancelled) return { status: 'failure', code: 'provider_unavailable', retry: 'none' };
+      return await this.updateInvitePassword(password);
+    } catch (error) {
+      const result: InviteCompletionResult = checkedEmpty ? this.inviteFailure(error, false)
+        : { status: 'failure', code: 'provider_unavailable', retry: 'entry' };
+      if (checkedEmpty) await this.disposeInvite();
+      else {
+        this.#inviteMode = false;
+        this.publish({ ...previousSnapshot, revision: this.snapshot.revision + 1 });
+      }
+      return this.#inviteCancelled ? { status: 'failure', code: 'provider_unavailable', retry: 'none' } : result;
+    } finally { email = ''; code = ''; password = ''; }
+  }
+
+  retryFirstAdminPassword(password: string): Promise<InviteCompletionResult> {
+    if (this.#inviteCompletion) return this.#inviteCompletion;
+    if (!this.#inviteMode || !this.#inviteVerified || this.#inviteCancelled) {
+      return Promise.resolve({ status: 'failure', code: 'invite_invalid', retry: 'none' });
+    }
+    const operation = this.updateInvitePassword(password);
+    this.#inviteCompletion = operation;
+    void operation.finally(() => { this.#inviteCompletion = null; });
+    return operation;
+  }
+
+  private async updateInvitePassword(password: string): Promise<InviteCompletionResult> {
+    const subject = this.#session?.user.id;
+    try {
+      if (!this.#active || !this.#inviteVerified || !subject || this.#inviteCancelled) {
+        return { status: 'failure', code: 'provider_unavailable', retry: 'none' };
+      }
+      const result = await this.#active.sdk.auth.updateUser({ password });
+      password = '';
+      if (result.error) throw result.error;
+      if (!result.data.user || result.data.user.id !== subject) {
+        await this.disposeInvite();
+        return { status: 'failure', code: 'provider_unavailable', retry: 'none' };
+      }
+      await this.disposeInvite();
+      return { status: 'complete' };
+    } catch (error) {
+      const result = this.inviteFailure(error, true);
+      if (this.#inviteCancelled || result.status === 'failure' && result.retry === 'none') await this.disposeInvite();
+      return this.#inviteCancelled ? { status: 'failure', code: 'provider_unavailable', retry: 'none' } : result;
+    } finally { password = ''; }
+  }
+
+  async cancelFirstAdminInvite(): Promise<void> {
+    if (!this.#inviteMode) return;
+    this.#inviteCancelled = true;
+    if (this.#inviteCompletion && !this.#inviteDisposal) {
+      if (this.#inviteOwnsClient) this.#active?.lifetime.abort();
+      await this.#inviteCompletion;
+    }
+    await this.disposeInvite();
   }
 
   recheck(forceMfa = false): void {
-    if (!this.active || !this.session || this.snapshot.working || this.snapshot.phase === 'signing-out') return;
+    if (this.#inviteMode) return;
+    if (!this.#active || !this.#session || this.snapshot.working || this.snapshot.phase === 'signing-out') return;
     const revision = this.snapshot.revision + 1;
     this.publish({ revision, phase: 'checking', enrollment: null, factors: [], error: null });
-    void this.inspect(this.active.sdk, revision, forceMfa);
+    void this.inspect(this.#active.sdk, revision, forceMfa);
   }
 
   async enroll(): Promise<void> {
-    const active = this.active;
+    if (this.#inviteMode) return;
+    const active = this.#active;
     if (!active || this.snapshot.phase !== 'mfa' || this.snapshot.working || this.snapshot.factors.length > 0) return;
     const revision = this.snapshot.revision;
     this.publish({ working: true, enrollment: null, error: null });
@@ -228,7 +401,7 @@ export class CloudAuth {
       if (!this.isCurrent(active.sdk, revision)) return;
       const result = await active.sdk.auth.mfa.enroll({ factorType: 'totp', friendlyName: `Relayer ${crypto.randomUUID()}` });
       if (result.error) throw result.error;
-      if (this.active !== active) return;
+      if (this.#active !== active) return;
       this.pendingFactorId = result.data.id;
       if (!this.isCurrent(active.sdk, revision)) return;
       // SVG를 HTML로 삽입하지 않는다. 외부 이미지 주소도 받지 않는다.
@@ -247,7 +420,8 @@ export class CloudAuth {
   }
 
   async verify(factorId: string, code: string): Promise<void> {
-    const active = this.active;
+    if (this.#inviteMode) return;
+    const active = this.#active;
     if (!active || this.snapshot.phase !== 'mfa' || this.snapshot.working) return;
     if (!/^\d{6}$/.test(code) || (factorId !== this.snapshot.enrollment?.id
       && !this.snapshot.factors.some((factor) => factor.id === factorId))) {
@@ -269,7 +443,8 @@ export class CloudAuth {
   }
 
   async cancelEnrollment(): Promise<void> {
-    const active = this.active;
+    if (this.#inviteMode) return;
+    const active = this.#active;
     if (!active || this.snapshot.working || !this.pendingFactorId) return;
     const factorId = this.pendingFactorId;
     const revision = this.snapshot.revision;
@@ -298,8 +473,10 @@ export class CloudAuth {
   }
 
   async signOut(reason: BusinessError | null = null): Promise<void> {
+    if (this.#inviteMode) { await this.cancelFirstAdminInvite(); return; }
+    if (!this.#active && !this.#session) return;
     if (this.snapshot.phase === 'signing-out') return;
-    const active = this.active;
+    const active = this.#active;
     clearTimeout(this.idleTimer);
     clearTimeout(this.enrollmentTimer);
     // 업무 화면은 먼저 비우지만 서버 세션 폐기까지 token getter는 유지한다.
@@ -309,7 +486,7 @@ export class CloudAuth {
     const revocation = new BusinessTransport(this.installation, this.getToken, this.fetcher);
     try {
       if (active) await active.sdk.auth.stopAutoRefresh().catch(() => { failed = true; });
-      if (this.session) await revocation.revokeSession();
+      if (this.#session) await revocation.revokeSession();
     } catch {
       failed = true;
     } finally {
@@ -322,10 +499,10 @@ export class CloudAuth {
       } catch {
         failed = true;
       } finally {
-        this.session = null;
+        this.#session = null;
         this.pendingFactorId = null;
         this.idleDeadline = null;
-        this.active = null;
+        this.#active = null;
         if (active) {
           active.lifetime.abort();
           await active.sdk.auth.dispose().catch(() => { failed = true; });

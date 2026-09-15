@@ -1,5 +1,5 @@
-import type { Bindable, PreparedStatement } from '@ccc/contracts/database';
 import { describe, expect, it, vi } from 'vitest';
+import type { SourceResponse } from '@ccc/contracts/agent-jobs';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import worker from './support/local-worker';
 import {
@@ -41,9 +41,14 @@ import {
   agentManifestEnv,
   claimOverHttp,
   registerFixtureRecording,
+  readTestProtectedAudio,
+  testProtectedAudioEnv,
   seedCanonicalSttConsent,
+  testMaskingPipelineRegistry,
+  testMaskingPipelinePair,
 } from './support/agent-jobs';
 import { registrationConsentEvents, registrationInput, signupConsentEvents } from './support/registration';
+import { intakeInput, intakeQuestionnaire } from './support/intake';
 
 const counselorHeaders = {
   'content-type': 'application/json',
@@ -223,10 +228,11 @@ async function sha256Hex(value: string): Promise<string> {
 
 async function sourceBody(maskedText = MASKED_TEXT, evidenceId = 'source-evidence-1') {
   const sha256 = await sha256Hex(maskedText);
+  const { maskingPipelineVersion } = await testMaskingPipelinePair();
   return {
     maskedText,
     sha256,
-    maskingPipelineVersion: 'local-ner-v1',
+    maskingPipelineVersion,
     evidence: [{
       id: evidenceId,
       sourceRef: 'memo:source-1',
@@ -268,6 +274,7 @@ async function setupPhase1AiFixture(
   const env: ApiEnv = {
     ...t.env,
     TEXT_AI_PILOT_ENABLED: options.textAiEnabled ?? '1',
+    MEMORY_MASKING_PIPELINES: await testMaskingPipelineRegistry(),
     ...(options.injectAdapter === false ? {} : { AI_PROVIDER_ADAPTER: adapter }),
   };
   const counselor = {
@@ -355,6 +362,37 @@ async function appendCanonicalLlmGrant(
     expectedRevision: null,
   });
 }
+async function withdrawCanonicalConsent(
+  env: ApiEnv,
+  actor: Actor,
+  caseId: string,
+  domain: 'sensitive_information_processing',
+): Promise<void> {
+  const supportCaseId = await canonicalSupportCaseId(env, actor, caseId);
+  const current = (await getSupportCaseConsent(env, actor, supportCaseId))
+    .find((item) => item.domain === domain);
+  const disclosure = (await issueSupportCaseConsentDisclosures(env, actor, supportCaseId))
+    .find((item) => item.domain === domain);
+  if (current?.state !== 'granted' || current.revision === null || disclosure === undefined) {
+    throw new Error('missing withdrawable canonical consent');
+  }
+  await appendSupportCaseConsentEvent(env, actor, supportCaseId, {
+    domain,
+    decision: 'withdraw',
+    provider: current.provider,
+    providerLegalRecipient: current.providerLegalRecipient,
+    providerCountry: current.providerCountry,
+    purpose: current.purpose,
+    retentionDuration: current.retentionDuration,
+    copyVersion: disclosure.copyVersion,
+    copyHash: disclosure.copyHash,
+    disclosureSnapshotId: disclosure.snapshotId,
+    effectiveAt: new Date().toISOString(),
+    idempotencyKey: crypto.randomUUID(),
+    correctionOfEventId: null,
+    expectedRevision: current.revision,
+  });
+}
 
 /**
  * 마스킹 스냅샷은 v2 에서 텍스트 작업 결과로만 들어온다 (S5). 회차에 열린 텍스트 작업을
@@ -412,13 +450,38 @@ async function recordSource(
     ? undefined
     : { jobId: fallback.id, claimToken: '0'.repeat(64), attempt: 1 });
   if (job === undefined) throw new Error('expected a claimable text job');
+  let checkedSource = {
+    sourceRevision: '0',
+    sourceSha256: '0'.repeat(64),
+    sourceStart: 0,
+    sourceEnd: 1,
+  };
+  if (claimed !== undefined) {
+    const response = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/source`, {
+      headers: {
+        ...claimHeaders,
+        'X-CCC-Job-Claim': job.claimToken,
+        'X-CCC-Job-Attempt': String(job.attempt),
+      },
+    }), agentEnv);
+    if (response.status !== 200) throw new Error(`expected claim-bound text source: ${response.status}`);
+    const bundle = await response.json() as SourceResponse;
+    checkedSource = {
+      sourceRevision: bundle.sourceRevision,
+      sourceSha256: bundle.sourceSha256,
+      sourceStart: 0,
+      sourceEnd: bundle.sourceLength,
+    };
+  }
   const evidence = Array.isArray((source as { evidence?: unknown }).evidence)
     ? (source as { evidence: unknown[] }).evidence
     : [];
+  const { maskingPipelineHash } = await testMaskingPipelinePair();
   const result = {
     kind: 'text',
+    checkedSource,
     ...source,
-    maskingPipelineHash: 'd'.repeat(64),
+    maskingPipelineHash,
     nerAvailable: true,
     nerAttestationId: qualification.attestation.id,
     nerAttestationResultHash: qualification.attestation.resultHash,
@@ -681,6 +744,7 @@ describe('API routes', () => {
           programType: 'financial_support_v1',
           status: 'active',
           version: 1,
+          financialSupportEnabled: false,
           admissionState: 'undecided',
         },
         installationState: 'available',
@@ -742,12 +806,13 @@ describe('API routes', () => {
     expect(caseResponse.status).toBe(201);
     const caseRecord = await caseResponse.json() as { id: string };
     const record = {
+      schemaVersion: 2,
       submissionId: '11111111-1111-4111-8111-111111111111',
       heldAt: '2026-07-15T09:30:00.000Z',
       channel: 'in_person',
       memo: 'LEGACY_ROUTE_CANONICAL_RECORD',
       gasScores: [],
-      actions: [],
+      actionItems: [],
       flags: [],
     };
 
@@ -882,8 +947,8 @@ describe('API routes', () => {
 
   it('keeps R2 keys out of session responses and limits pipeline work to the service actor', async () => {
     await t.reset();
-    t.env.installationMode = 'local-single';
-    t.env.CCC_STT_MODE = 'local';
+    t.env.installationMode = 'community-cloud';
+    t.env.CCC_STT_MODE = 'azure';
     t.env.CCC_LLM_MODE = 'openai';
     const env = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true', TEXT_AI_PILOT_ENABLED: '1' };
     const counselor = {
@@ -892,7 +957,7 @@ describe('API routes', () => {
       role: 'counselor' as const,
     };
     await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
-      deploymentMode: 'local-single', sttMode: 'local', llmMode: 'openai',
+      deploymentMode: 'community-cloud', sttMode: 'azure', llmMode: 'openai',
     });
     const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {
       programId: testProgramId(counselor.orgId),
@@ -920,11 +985,11 @@ describe('API routes', () => {
     expect(sessions[0]).not.toHaveProperty('audioR2Key');
 
     // 오디오 작업은 claim 으로만 보이고, 전달도 그 claim 에 묶인다 (S5).
-    const agentEnv = await agentManifestEnv(env, { stt: 'local' });
+    const agentEnv = testProtectedAudioEnv(await agentManifestEnv(env, { mode: 'community-cloud', stt: 'azure' }));
     const { jobs } = await claimOverHttp(agentEnv, t.db, serviceHeaders);
     const audioJob = jobs.find((job) => job.kind === 'audio' && job.sessionId === session.id);
     if (audioJob === undefined) throw new Error('expected a claimable audio job');
-    expect(audioJob.audio?.delivery).toBe('api-stream');
+    expect(audioJob.audio?.delivery).toBe('protected-get');
 
     const audioResponse = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${audioJob.jobId}/audio`, {
       headers: {
@@ -934,8 +999,9 @@ describe('API routes', () => {
       },
     }), agentEnv);
     expect(audioResponse.status).toBe(200);
-    expect(audioResponse.headers.get('content-type')).toBe('audio/wav');
-    expect(new Uint8Array(await audioResponse.arrayBuffer())).toHaveLength(364);
+    const audio = await readTestProtectedAudio(agentEnv, audioResponse);
+    expect(audio.contentType).toBe('audio/wav');
+    expect(audio.bytes).toHaveLength(364);
   });
 
   it('records a service-only immutable source snapshot and generates only from its reloaded evidence', async () => {
@@ -945,12 +1011,12 @@ describe('API routes', () => {
     expect(receipt).toEqual({
       sourceSnapshotId: expect.any(String),
       sha256: await sha256Hex(MASKED_TEXT),
-      maskingPipelineVersion: 'local-ner-v1',
+      maskingPipelineVersion: (await testMaskingPipelinePair()).maskingPipelineVersion,
       evidenceIds: ['source-evidence-1'],
     });
 
     const generatedResponse = await generateDraft(env, session.id, receipt.sourceSnapshotId);
-    expect(generatedResponse.status).toBe(201);
+    expect(generatedResponse.status, await generatedResponse.clone().text()).toBe(201);
     const draft = await generatedResponse.json() as RouteAiDraft;
     expect(draft).toEqual(expect.objectContaining({
       version: 1,
@@ -1157,35 +1223,12 @@ describe('API routes', () => {
     await expectNoDraft(mismatched.env, mismatched.session.id);
   });
 
-  it('stops provider egress when admission changes during historical context loading', async () => {
+  it('blocks provider egress when program admission becomes stale after the source was recorded', async () => {
     const fixture = await setupPhase1AiFixture();
     const source = await recordSourceSnapshot(fixture.env, fixture.session.id);
-    let changed = false;
-    const wrap = (statement: PreparedStatement): PreparedStatement => new Proxy(statement, {
-      get(target, property) {
-        if (property === 'bind') return (...values: Bindable[]) => wrap(target.bind(...values));
-        if (property === 'first') return async () => {
-          if (!changed) {
-            changed = true;
-            await t.db.prepare('UPDATE program_admission_policies SET version = version + 1 WHERE org_id = ?')
-              .bind(fixture.counselor.orgId).run();
-          }
-          return target.first();
-        };
-        const value = Reflect.get(target, property);
-        return typeof value === 'function' ? value.bind(target) : value;
-      },
-    });
-    const env: ApiEnv = { ...fixture.env, DB: {
-      prepare: (sql) => {
-        const statement = fixture.env.DB.prepare(sql);
-        return sql.startsWith('SELECT 1 AS eligible FROM counseling_memory_cases c')
-          ? wrap(statement) : statement;
-      },
-      batch: fixture.env.DB.batch.bind(fixture.env.DB),
-    } };
-    const response = await generateDraft(env, fixture.session.id, source.sourceSnapshotId);
-    expect(changed, `historical context injection; status=${response.status}`).toBe(true);
+    await t.db.prepare('UPDATE program_admission_policies SET version = version + 1 WHERE org_id = ?')
+      .bind(fixture.counselor.orgId).run();
+    const response = await generateDraft(fixture.env, fixture.session.id, source.sourceSnapshotId);
     expect(fixture.adapter.calls).toBe(0);
     expect(response.status).toBe(409);
     await expectNoDraft(fixture.env, fixture.session.id);
@@ -1224,6 +1267,9 @@ describe('API routes', () => {
     const baselineRows = await phase1MutableRowCounts();
     const baselineSession = await sessionAiState(fixture.session.id);
     adapter.beforeReturn = async () => {
+      await withdrawCanonicalConsent(
+        fixture.env, fixture.counselor, fixture.caseRecord.id, 'sensitive_information_processing',
+      );
       await appendCanonicalLlmGrant(
         fixture.env, fixture.counselor, fixture.caseRecord.id, 'sensitive_information_processing',
       );
@@ -1237,6 +1283,22 @@ describe('API routes', () => {
     await expectNoDraft(fixture.env, fixture.session.id);
     expect(await phase1MutableRowCounts()).toEqual(baselineRows);
     expect(await sessionAiState(fixture.session.id)).toEqual(baselineSession);
+  });
+  it('still rejects stale consent-bound proof when provider selection is current', async () => {
+    const adapter = new FakeAiProviderAdapter();
+    const fixture = await setupPhase1AiFixture(adapter);
+    const source = await recordSourceSnapshot(fixture.env, fixture.session.id);
+    await withdrawCanonicalConsent(
+      fixture.env, fixture.counselor, fixture.caseRecord.id, 'sensitive_information_processing',
+    );
+    await appendCanonicalLlmGrant(
+      fixture.env, fixture.counselor, fixture.caseRecord.id, 'sensitive_information_processing',
+    );
+    const response = await generateDraft(fixture.env, fixture.session.id, source.sourceSnapshotId);
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: 'forbidden' });
+    expect(adapter.calls).toBe(0);
+    await expectNoDraft(fixture.env, fixture.session.id);
   });
 
   it('rejects malformed source integrity before provider work and row insertion', async () => {
@@ -1306,10 +1368,10 @@ describe('API routes', () => {
         makeBody: (source) => ({ ...source, maskingPipeline: 'local-ner-v1' }),
       },
       {
-        name: 'unsupported masking pipeline version',
+        name: 'empty masking pipeline version',
         status: 400,
         error: 'invalid_request',
-        makeBody: (source) => ({ ...source, maskingPipelineVersion: 'local/ner-v1' }),
+        makeBody: (source) => ({ ...source, maskingPipelineVersion: '' }),
       },
     ];
 
@@ -2398,6 +2460,7 @@ interface ParticipantCreation {
   supportCaseId: string;
   assignmentRole: 'primary';
   replayed: boolean;
+  canWriteIntake: boolean;
 }
 
 async function setupCanonicalParticipant(): Promise<ParticipantCreation> {
@@ -2727,25 +2790,19 @@ describe('canonical participant API routes', () => {
     });
 
     const recordBody = {
+      schemaVersion: 2,
       submissionId: '44444444-4444-4444-8444-444444444444',
       heldAt: '2026-07-15T09:30:00.000Z',
       channel: 'in_person',
       memo: 'CANONICAL_RECORD_MEMO',
       gasScores: [{ goalId: goal.id, score: 1 }],
-      actions: [{
+      actionItems: [{
         description: 'CANONICAL_ACTION_ITEM',
         owner: 'beneficiary',
         dueDate: '2026-07-16',
       }],
       flags: [{ flagType: 'contact_loss_risk' }],
-      lifeAreas: [
-        { areaKey: 'economy', changed: true, status: 'crisis', note: 'CANONICAL_ECONOMY' },
-        { areaKey: 'housing', changed: false },
-        { areaKey: 'employment', changed: false },
-        { areaKey: 'health', changed: false },
-        { areaKey: 'mental_health', changed: false },
-        { areaKey: 'family', changed: false },
-      ],
+      changes: [{ area: 'economy', text: 'CANONICAL_ECONOMY' }],
     };
     const record = await worker.fetch(new Request(`http://localhost/support-cases/${creation.supportCaseId}/records`, {
       method: 'POST',
@@ -2784,18 +2841,19 @@ describe('canonical participant API routes', () => {
       method: 'POST',
       headers: canonicalCounselorHeaders,
       body: JSON.stringify({
+        schemaVersion: 2,
         submissionId: '88888888-8888-4888-8888-888888888888',
         heldAt: '2026-07-16T09:30:00.000Z',
         channel: 'in_person',
         memo: 'SIBLING_RECORD_CANARY',
         gasScores: [],
-        actions: [{ description: 'SIBLING_ACTION_CANARY', owner: 'org' }],
+        actionItems: [{ description: 'SIBLING_ACTION_CANARY', owner: 'org' }],
         flags: [{ flagType: 'debt_deterioration' }],
       }),
     }), t.env);
     expect(siblingRecord.status).toBe(201);
 
-    // The POST /records route threads actionResolutions through to the gateway (CCC-5).
+    // Completing one action must remove it from the next record's open work.
     const siblingBefore = await worker.fetch(new Request(
       `http://localhost/support-cases/${sibling.supportCaseId}/records?official=true`,
       { headers: canonicalCounselorHeaders },
@@ -2807,14 +2865,15 @@ describe('canonical participant API routes', () => {
       method: 'POST',
       headers: canonicalCounselorHeaders,
       body: JSON.stringify({
+        schemaVersion: 2,
         submissionId: '12121212-1212-4121-8121-121212121212',
         heldAt: '2026-07-16T10:00:00.000Z',
         channel: 'in_person',
         memo: 'SIBLING_RESOLUTION_CANARY',
         gasScores: [],
-        actions: [],
+        actionItems: [],
         flags: [],
-        actionResolutions: [{ actionItemId: openSiblingAction.id, status: 'done', note: 'ROUTE_RESOLUTION_CANARY' }],
+        actionOutcomes: [{ actionItemId: openSiblingAction.id, expectedRevision: 1, outcome: 'done' }],
       }),
     }), t.env);
     expect(siblingResolution.status).toBe(201);
@@ -2862,9 +2921,14 @@ describe('canonical participant API routes', () => {
           quote: null,
         }],
         discrepancies: [],
-        lifeAreaSnapshot: [
-          { areaKey: 'economy', status: 'crisis', note: 'CANONICAL_ECONOMY' },
-        ],
+        lifeAreaSnapshot: [],
+        manual: {
+          schemaVersion: 2, revision: 1, legacyDetailsJson: null,
+          details: { schemaVersion: 2, method: 'in_person', reason: null, urgency: null, changes: recordBody.changes, counselorOpinion: null, nextQuestions: [] },
+          history: [expect.objectContaining({ revision: 1, schemaVersion: 2, heldAt: recordBody.heldAt, memo: recordBody.memo })],
+          actionOutcomes: [],
+          questionOutcomes: [],
+        },
         kind: 'regular',
         // D47 접힌 줄 3종. 이 회차는 승인된 AI 초안이 없어 핵심 한 줄이 null 이고 화면은
         // memoExcerpt 로 낮춘다(D5). 일정이 아직 완료 처리 전이고 기록지 메모도 없어
@@ -2953,13 +3017,13 @@ describe('canonical participant API routes', () => {
       {
         method: 'POST',
         headers: canonicalCounselorHeaders,
-        body: JSON.stringify({
+        body: JSON.stringify(await intakeInput(t.env, canonicalCounselor, creation.supportCaseId, {
           submissionId: 'c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3',
           heldAt: '2026-07-15T09:30:00.000Z',
           channel: 'in_person',
           scheduleId: schedule.id,
           expectedScheduleVersion: schedule.version,
-        }),
+        })),
       },
     ), t.env);
     expect(created.status).toBe(201);
@@ -2993,26 +3057,10 @@ describe('canonical participant API routes', () => {
       hasIntake: false,
     });
 
-    const intakeBody = {
+    const intakeBody = await intakeInput(t.env, canonicalCounselor, creation.supportCaseId, {
       submissionId: 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1',
       heldAt: '2026-07-15T09:30:00.000Z',
-      channel: 'in_person',
-      helpNarrative: {
-        todayHelp: 'INTAKE_TODAY_HELP',
-        hardestPoint: 'INTAKE_HARDEST',
-        desiredChange: 'INTAKE_DESIRED',
-      },
-      lifeAreas: [
-        { areaKey: 'economy', status: 'crisis', note: 'INTAKE_ECONOMY' },
-        { areaKey: 'housing', status: 'okay' },
-        { areaKey: 'employment', status: 'strained' },
-        { areaKey: 'health', status: 'okay' },
-        { areaKey: 'mental_health', status: 'declined' },
-        { areaKey: 'family', status: 'not_applicable' },
-      ],
-      goals: [{ title: 'INTAKE_GOAL', scaleCriteria: { plus2: '완납' } }],
-      actions: [{ description: 'INTAKE_ACTION', owner: 'beneficiary' }],
-    };
+    });
     const created = await worker.fetch(new Request(
       `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
       { method: 'POST', headers: canonicalCounselorHeaders, body: JSON.stringify(intakeBody) },
@@ -3058,102 +3106,118 @@ describe('canonical participant API routes', () => {
     ), t.env);
     expect(denied.status).toBe(403);
   });
-  it('serves the saved intake in the context and updates it in place (2026-08-08 확인·수정)', async () => {
+  it.each(['POST', 'PUT'] as const)('returns 400 for nonstring intake channels on %s without mutation', async (method) => {
     const creation = await setupCanonicalParticipant();
+    const path = `http://localhost/support-cases/${creation.supportCaseId}/records/intake`;
+    const input = await intakeInput(t.env, canonicalCounselor, creation.supportCaseId, { heldAt: '2026-07-15T09:30:00.000Z' });
+    const send = (verb: string, body: object) => worker.fetch(new Request(path, {
+      method: verb, headers: canonicalCounselorHeaders, body: JSON.stringify(body),
+    }), t.env);
+    if (method === 'PUT') expect((await send('POST', input)).status).toBe(201);
+    const body = method === 'POST' ? input : {
+      schemaVersion: 3, expectedRevision: 1, heldAt: '2026-07-16T10:00:00.000Z', questionnaire: input.questionnaire,
+      additionalItemRefs: [], questionWithdrawals: [],
+    };
+    const before = await worker.fetch(new Request(path, { headers: canonicalCounselorHeaders }), t.env);
+    expect(before.status).toBe(200);
+    const beforeBody = await before.json() as { saved: unknown; hasIntake: boolean; sessionSequence: number };
+    const caseBefore = await t.db.prepare('SELECT intake_at FROM support_cases WHERE id = ?')
+      .bind(creation.supportCaseId).first();
+    for (const channel of [['phone'], { toString: 'phone' }, {}, 42, false, null]) {
+      const response = await send(method, { ...body, channel });
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: 'invalid_request' });
+    }
+    const after = await worker.fetch(new Request(path, { headers: canonicalCounselorHeaders }), t.env);
+    expect(after.status).toBe(200);
+    await expect(after.json()).resolves.toMatchObject({
+      saved: beforeBody.saved, hasIntake: beforeBody.hasIntake, sessionSequence: beforeBody.sessionSequence,
+    });
+    expect(await t.db.prepare('SELECT intake_at FROM support_cases WHERE id = ?')
+      .bind(creation.supportCaseId).first()).toEqual(caseBefore);
+  });
 
-    // 인테이크가 없으면 수정은 409 — 만들기 1회 규칙의 짝(수정은 있는 것만).
-    const beforeCreate = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      {
-        method: 'PUT',
-        headers: canonicalCounselorHeaders,
-        body: JSON.stringify({ heldAt: '2026-07-15T09:30:00.000Z', channel: 'in_person' }),
-      },
-    ), t.env);
-    expect(beforeCreate.status).toBe(409);
-
-    const created = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      {
-        method: 'POST',
-        headers: canonicalCounselorHeaders,
-        body: JSON.stringify({
-          submissionId: 'c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3',
-          heldAt: '2026-07-15T09:30:00.000Z',
-          channel: 'in_person',
-          answers: [{ key: 'counsel_method', response: 'answered', text: '대면 상담(내방)' }],
-          debts: [{ creditor: '해당 없음' }],
-          managerOpinion: 'INTAKE_OPINION_V1',
-        }),
-      },
-    ), t.env);
+  it('returns versioned intake history, rejects stale edits, and preserves read-only access', async () => {
+    const creation = await setupCanonicalParticipant();
+    const path = `http://localhost/support-cases/${creation.supportCaseId}/records/intake`;
+    const input = await intakeInput(t.env, canonicalCounselor, creation.supportCaseId, { heldAt: '2026-07-15T09:30:00.000Z' });
+    input.questionnaire = intakeQuestionnaire(input.questionnaire.moduleSnapshot, [{ key: 'managerOpinion', response: 'answered', text: 'INTAKE_OPINION_V1' }]);
+    const edit = { schemaVersion: 3, expectedRevision: 1, heldAt: '2026-07-16T10:00:00.000Z', channel: 'phone',
+      questionnaire: intakeQuestionnaire(input.questionnaire.moduleSnapshot, [{ key: 'managerOpinion', response: 'answered', text: 'INTAKE_OPINION_V2' }]),
+      additionalItemRefs: [], questionWithdrawals: [] };
+    const send = (method: string, body: object, headers: HeadersInit = canonicalCounselorHeaders) => worker.fetch(new Request(path, { method, headers, body: JSON.stringify(body) }), t.env);
+    expect((await send('PUT', edit)).status).toBe(409);
+    const { schemaVersion: _version, ...unversioned } = input;
+    expect((await send('POST', unversioned)).status).toBe(400);
+    expect((await send('POST', { ...input, schemaVersion: 2 })).status).toBe(400);
+    const created = await send('POST', input);
     expect(created.status).toBe(201);
     const createdBody = await created.json() as { record: { id: string } };
-
-    // 컨텍스트가 저장분을 싣는다 — 확인 화면의 재료(감사는 화면 조회 1건에 합산).
-    const context = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      { headers: canonicalCounselorHeaders },
-    ), t.env);
-    await expect(context.json()).resolves.toMatchObject({
-      hasIntake: true,
-      saved: {
-        sessionId: createdBody.record.id,
-        heldAt: '2026-07-15T09:30:00.000Z',
-        channel: 'in_person',
-        answers: [{ key: 'counsel_method', response: 'answered', text: '대면 상담(내방)' }],
-        debts: [{ creditor: '해당 없음' }],
-        managerOpinion: 'INTAKE_OPINION_V1',
-      },
+    const before = await worker.fetch(new Request(path, { headers: canonicalCounselorHeaders }), t.env);
+    await expect(before.json()).resolves.toMatchObject({
+      hasIntake: true, writeSchemaVersion: 3, moduleSnapshot: input.questionnaire.moduleSnapshot,
+      saved: { sessionId: createdBody.record.id, schemaVersion: 2, revision: 1, questionnaire: input.questionnaire },
     });
-
-    // 수정: 상담일·답변·의견을 덮어쓴다. 같은 세션 행이 그대로 남는다(새 회차 아님).
-    const updated = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      {
-        method: 'PUT',
-        headers: canonicalCounselorHeaders,
-        body: JSON.stringify({
-          heldAt: '2026-07-16T10:00:00.000Z',
-          channel: 'phone',
-          answers: [{ key: 'counsel_method', response: 'answered', text: '전화 상담' }],
-          debts: [{ creditor: 'OO은행', kind: '신용대출' }],
-          managerOpinion: 'INTAKE_OPINION_V2',
-        }),
-      },
-    ), t.env);
+    const updated = await send('PUT', edit);
     expect(updated.status).toBe(200);
-    await expect(updated.json()).resolves.toMatchObject({
-      record: { id: createdBody.record.id, heldAt: '2026-07-16T10:00:00.000Z', channel: 'phone', kind: 'intake' },
-    });
-
-    const contextAfter = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      { headers: canonicalCounselorHeaders },
-    ), t.env);
-    await expect(contextAfter.json()).resolves.toMatchObject({
-      // 회차가 늘지 않았다(수정은 덮어쓰기) — sessionSequence = 기존 1 + 1.
+    await expect(updated.json()).resolves.toMatchObject({ schemaVersion: 3, revision: 2, record: { id: createdBody.record.id, heldAt: edit.heldAt, channel: 'phone', kind: 'intake' } });
+    expect((await send('PUT', edit)).status).toBe(409);
+    expect((await send('PUT', { ...edit, expectedRevision: 2 }, canonicalUnassignedHeaders)).status).toBe(403);
+    const after = await worker.fetch(new Request(path, { headers: canonicalCounselorHeaders }), t.env);
+    await expect(after.json()).resolves.toMatchObject({
       sessionSequence: 2,
-      saved: {
-        sessionId: createdBody.record.id,
-        heldAt: '2026-07-16T10:00:00.000Z',
-        channel: 'phone',
-        answers: [{ key: 'counsel_method', response: 'answered', text: '전화 상담' }],
-        debts: [{ creditor: 'OO은행', kind: '신용대출' }],
-        managerOpinion: 'INTAKE_OPINION_V2',
-      },
+      saved: { sessionId: createdBody.record.id, schemaVersion: 2, revision: 2, heldAt: edit.heldAt, questionnaire: edit.questionnaire,
+        history: [{ revision: 1, schemaVersion: 2, detailsJson: JSON.stringify(input.questionnaire) }] },
     });
-
-    // 담당 아닌 실무자는 수정할 수 없다(403) — 읽기와 같은 경계다(D7).
-    const denied = await worker.fetch(new Request(
-      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
-      {
-        method: 'PUT',
-        headers: canonicalUnassignedHeaders,
-        body: JSON.stringify({ heldAt: '2026-07-17T10:00:00.000Z', channel: 'in_person' }),
-      },
-    ), t.env);
-    expect(denied.status).toBe(403);
+    const counts = async () => ({
+      source: await t.db.prepare('SELECT intake_question_lifecycle,intake_revision FROM sessions WHERE id=?').bind(createdBody.record.id).first(),
+      revisions: await t.db.prepare('SELECT COUNT(*) AS n FROM intake_record_revisions WHERE session_id=?').bind(createdBody.record.id).first(),
+      outcomes: await t.db.prepare('SELECT COUNT(*) AS n FROM manual_question_outcomes WHERE support_case_id=?').bind(creation.supportCaseId).first(),
+      audits: await t.db.prepare('SELECT COUNT(*) AS n FROM audit_log WHERE support_case_id=?').bind(creation.supportCaseId).first(),
+    });
+    const beforeReplay = await counts();
+    const replay = await send('POST', input);
+    expect(replay.status).toBe(200);
+    await expect(replay.json()).resolves.toMatchObject({ schemaVersion: 3, revision: 2, replayed: true, record: { id: createdBody.record.id } });
+    expect(await counts()).toEqual(beforeReplay);
+  });
+  it('keeps intake 400, 403 and 409 refusals distinct and leaves every failed write unchanged', async () => {
+    const creation = await setupCanonicalParticipant(), caseId = creation.supportCaseId;
+    const path = `http://localhost/support-cases/${caseId}/records/intake`;
+    const input = await intakeInput(t.env, canonicalCounselor, caseId);
+    input.questionnaire.additionalItems = { response: 'answered', rows: [{ item: '질문' }] };
+    input.additionalItemRefs = [{ rowIndex: 0, questionId: null, expectedRevision: null }];
+    const send = (method: string, body: object, headers: HeadersInit = canonicalCounselorHeaders) =>
+      worker.fetch(new Request(path, { method, headers, body: JSON.stringify(body) }), t.env);
+    expect((await send('POST', input)).status).toBe(201);
+    const contextResponse = await worker.fetch(new Request(path, { headers: canonicalCounselorHeaders }), t.env);
+    const context = await contextResponse.json() as { saved: { questionLifecycle: { items: Array<{ id: string; revision: number }> } } };
+    const question = context.saved.questionLifecycle.items[0]!;
+    const edit = { schemaVersion: 3, expectedRevision: 1, heldAt: input.heldAt, channel: input.channel,
+      questionnaire: input.questionnaire, additionalItemRefs: [{ rowIndex: 0, questionId: question.id, expectedRevision: 1 }], questionWithdrawals: [] };
+    const state = async () => ({
+      source: (await t.db.prepare('SELECT * FROM sessions WHERE support_case_id=? ORDER BY id').bind(caseId).all()).results,
+      history: (await t.db.prepare('SELECT h.* FROM intake_record_revisions h JOIN sessions s ON s.id=h.session_id WHERE s.support_case_id=? ORDER BY h.revision').bind(caseId).all()).results,
+      outcomes: (await t.db.prepare('SELECT * FROM manual_question_outcomes WHERE support_case_id=? ORDER BY id').bind(caseId).all()).results,
+      audit: (await t.db.prepare('SELECT * FROM audit_log WHERE support_case_id=? ORDER BY id').bind(caseId).all()).results,
+    });
+    const before = await state();
+    for (const [body, status, error] of [
+      [{ ...edit, schemaVersion: 2 }, 400, 'invalid_request'],
+      [{ ...edit, additionalItemRefs: [] }, 400, 'invalid_request'],
+      [{ ...edit, questionWithdrawals: [{ questionId: question.id, expectedRevision: 1, extra: true }] }, 400, 'invalid_request'],
+      [{ ...edit, expectedRevision: 2, additionalItemRefs: [{ rowIndex: 0, questionId: crypto.randomUUID(), expectedRevision: 1 }] }, 403, 'forbidden'],
+      [{ ...edit, expectedRevision: 2 }, 409, 'conflict'],
+      [{ ...edit, additionalItemRefs: [{ rowIndex: 0, questionId: question.id, expectedRevision: 2 }] }, 409, 'conflict'],
+      [{ ...edit, questionWithdrawals: [{ questionId: question.id, expectedRevision: 2 }] }, 409, 'conflict'],
+    ] as const) {
+      const response = await send('PUT', body);
+      expect(response.status).toBe(status);
+      await expect(response.json()).resolves.toEqual({ error });
+      expect(await state()).toEqual(before);
+    }
+    expect((await send('PUT', edit, canonicalUnassignedHeaders)).status).toBe(403);
+    expect(await state()).toEqual(before);
   });
   it('returns 409 for a conflicting canonical SupportCase receipt without state mutation', async () => {
     const creation = await setupCanonicalParticipant();
@@ -3180,6 +3244,7 @@ describe('canonical participant API routes', () => {
       supportCaseId: expect.any(String),
       assignmentRole: 'primary',
       replayed: false,
+      canWriteIntake: true,
     });
 
     const stateBeforeConflict = await t.db.prepare(
@@ -3275,6 +3340,7 @@ describe('canonical participant API routes', () => {
     const env: ApiEnv = {
       ...t.env,
       TEXT_AI_PILOT_ENABLED: '1',
+      MEMORY_MASKING_PIPELINES: await testMaskingPipelineRegistry(),
       AI_PROVIDER_ADAPTER: adapter,
     };
     await seedTestProgramWithRuntimeModes(t.db, canonicalAdmin.orgId, canonicalAdmin.userId, {
@@ -3306,12 +3372,13 @@ describe('canonical participant API routes', () => {
           method: 'POST',
           headers: canonicalCounselorHeaders,
           body: JSON.stringify({
+            schemaVersion: 2,
             submissionId,
             heldAt,
             channel: 'in_person',
             memo,
             gasScores: [],
-            actions: [],
+            actionItems: [],
             flags: [],
           }),
         },
@@ -3335,7 +3402,7 @@ describe('canonical participant API routes', () => {
         canonicalServiceHeaders,
       );
       const response = await generateDraft(env, sessionId, source.sourceSnapshotId, canonicalServiceHeaders);
-      expect(response.status).toBe(201);
+      expect(response.status, await response.clone().text()).toBe(201);
       const draft = await response.json() as RouteAiDraft;
       expect(draft.summaryText).toBe(canary);
       return draft;
@@ -3517,12 +3584,13 @@ describe('canonical participant API routes', () => {
         method: 'POST',
         headers: canonicalCounselorHeaders,
         body: JSON.stringify({
+          schemaVersion: 2,
           submissionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
           heldAt: '2026-07-15T09:30:00.000Z',
           channel: 'in_person',
           memo: 'INVALID_ARRAYS',
           gasScores: [],
-          actions: {},
+          actionItems: {},
           flags: [],
         }),
       },
@@ -3596,12 +3664,13 @@ describe('canonical participant API routes', () => {
       method: 'POST',
       headers: canonicalUnassignedHeaders,
       body: JSON.stringify({
+        schemaVersion: 2,
         submissionId: '66666666-6666-4666-8666-666666666666',
         heldAt: '2026-07-15T09:30:00.000Z',
         channel: 'in_person',
         memo: 'DENIED_RECORD_CANARY',
         gasScores: [],
-        actions: [],
+        actionItems: [],
         flags: [],
       }),
     }), t.env);
@@ -4148,6 +4217,12 @@ describe('public participant signup routes (CCC-28)', () => {
       t.env,
     );
     expect(invite.status).toBe(404);
+
+    const disclosures = await worker.fetch(
+      new Request(`http://localhost/invites/participant/${token}/consent/disclosures`),
+      t.env,
+    );
+    expect(disclosures.status).toBe(404);
 
     const signup = await worker.fetch(
       new Request('http://localhost/signup/participant', {

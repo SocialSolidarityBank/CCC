@@ -163,7 +163,7 @@ button,input,select,textarea{font:inherit}
 .navigation-link[data-current="true"] svg{color:var(--blue-deep)}
 /* 메뉴 묶음(2026-08-30 Q 3차 "섹션 아래 … 로 나누고 … 서브 메뉴 없이 메뉴는 1개의 계층으로
    통일" — 구 부모 링크 + 하위 목록(세로선·들여쓰기) 대체. D35 축 개정 기록은 DESIGN.md §4-5):
-   '일정' 아래 상담 일정 보기·상담 일정 등록, '당사자' 아래 당사자 목록·당사자 등록·당사자 초대.
+   '일정' 아래 일정·상담 일정 등록, '당사자' 아래 당사자 목록·당사자 등록·당사자 초대.
    묶음 사이는 24, 제목과 첫 항목 사이는 8 이다 — 제목이 자기 목록에 붙어 읽힌다.
    제목은 **누를 수 없는 라벨**이라 항목(16/500)과 크기·굵기·색이 전부 갈린다(14/600 --sub,
    §1 단 ② 라벨). 셸 글자 하한 16 은 **누르는 내비 항목**의 계약이고 묶음 머리는 그 밖이다
@@ -1066,12 +1066,6 @@ const registerStyles = `
 /* D15·D23: 동의 문안 "자세히 읽어보기"·"전문 보기" — briefing-subaccordion 패턴 재사용.
    등록 폼(자세히 읽어보기)과 동의 수정 허브(항목별 전문 보기, 2026-08-07 Q)가 같은 부품이다. */
 .consent-detail:not(.register-consent-block){padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
-/* 동의 항목 한 줄 = 체크 라벨 + '전문 보기' 알약이고, 펼친 전문만 그 아래 줄을 통째로
-   쓴다(2026-08-08 Q "우측에 나란히 가운데 정렬"). 구 배치는 알약이 라벨 아래로 떨어져
-   항목 하나가 두 줄을 먹었다.
-   알약은 격자가 아니라 자기 width:max-content 가 폭을 정하므로 1fr 칸에서 늘어나지 않고
-   라벨 바로 옆에 붙는다. 세로 가운데는 align-items 다. */
-.consent-item{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:var(--space-3)}
 /* details 는 상자를 버리고 자식을 그대로 격자에 내놓는다. 그래야 summary(알약)는 라벨과
    같은 줄에, 본문은 아래 줄에 설 수 있다. summary 를 details 밖으로 꺼낼 수는 없다. */
 .consent-detail[data-inline="true"]{display:contents}
@@ -1303,8 +1297,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   // 기관·사업 표시 이름은 온보딩 저장값 우선(CCC-32) — 실패·미설정이면 헬퍼가 하드코딩 라벨로 폴백한다.
   const labels = await getDisplayLabels();
-  // CCC-26 새 가입 미확인 숫자. 조회 실패(아직 셸 밖 접근 등)면 0 — 배지가 안 그려질 뿐 화면은 성립한다.
-  const newSignupCount = await getNewSignupCount().catch(() => 0);
+  // 공개 가입 capability가 꺼진 출고에서는 요청 링크 유입 배지도 조회하지 않는다.
+  const publicSignupEnabled = process.env.PUBLIC_SIGNUP_ENABLED === '1';
+  const newSignupCount = publicSignupEnabled ? await getNewSignupCount().catch(() => 0) : 0;
   // 본문 열을 div로 한 번 감싼다. 뒤로가기 줄이 본문과 같은 1440 컨테이너와 좌우 32 패딩을
   // 써야 제목과 왼쪽 끝이 맞기 때문이다. 감싸지 않고 셸의 형제로 두면 그리드 다음 행,
   // 즉 사이드바 아래로 떨어진다.
@@ -1320,7 +1315,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 (사이드바 위까지). 기관 마크가 사이드바 메뉴와 같은 좌측선(24)에 선다.
                 768 미만에서는 렌더만 되고 CSS 가 숨긴다(손잡이 바 + 드로어가 담당). */}
             <AppHeader orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} />
-            <AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} newSignupCount={newSignupCount} />
+            <AppSidebar
+              orgLabel={labels.orgLabel}
+              programLabels={labels.programLabels}
+              theme={theme}
+              newSignupCount={newSignupCount}
+              publicSignupEnabled={publicSignupEnabled}
+            />
             <div className="content-column">
               {/* nav 로 감싼다 — 화면에 보이는 유일한 출구인데 바깥에 두면 스크린 리더의
                   랜드마크 이동에서 통째로 건너뛴다. */}

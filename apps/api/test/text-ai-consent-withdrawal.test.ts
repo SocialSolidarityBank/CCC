@@ -4,6 +4,7 @@
 // agent claim, masked snapshot storage and draft creation. Re-granting consent later
 // must preserve the event history and must not revive the cancelled job.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import type { PreparedStatement } from '@ccc/contracts/database';
 import {
   appendSupportCaseConsentEvent,
   createBeneficiaryWithInitialSupportCase,
@@ -13,6 +14,7 @@ import {
   getSupportCaseConsent,
   issueSupportCaseConsentDisclosures,
   enqueueTextWorkItem,
+  listSupportCaseConsentEvents,
   releaseAgentJob,
   recordMaskedSourceSnapshot,
 } from '@ccc/core/gateway';
@@ -50,12 +52,62 @@ async function consentHistory(supportCaseId: string): Promise<string[]> {
 }
 
 describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
+  it('stamps a fixture grant after a newer decline committed during disclosure preparation', async () => {
+    const registeredAt = '2026-09-20T10:00:00.000Z';
+    const helperStartedAt = '2026-09-20T10:00:01.000Z';
+    const declinedAt = '2026-09-20T10:00:02.000Z';
+    const grantedAt = '2026-09-20T10:00:03.000Z';
+    const domain = 'external_llm_cross_border_processing' as const;
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(registeredAt));
+    try {
+      const creation = await createBeneficiaryWithInitialSupportCase(
+        t.env, counselor, await registrationInput(t.env, counselor,
+          { programId: testProgramId(counselor.orgId) }, { [domain]: 'decline' }),
+      );
+      const disclosure = (await issueSupportCaseConsentDisclosures(t.env, counselor, creation.supportCaseId))
+        .find(item => item.domain === domain)!;
+      let interleaved = false;
+      const db = new Proxy(t.env.DB, { get(target, property, receiver) {
+        if (property === 'batch') return async (statements: PreparedStatement[]) => {
+          if (!interleaved) {
+            interleaved = true;
+            vi.setSystemTime(new Date(declinedAt));
+            await appendSupportCaseConsentEvent(t.env, counselor, creation.supportCaseId, {
+              domain, decision: 'decline', provider: null, providerLegalRecipient: null, providerCountry: null,
+              purpose: null, retentionDuration: null, copyVersion: disclosure.copyVersion, copyHash: disclosure.copyHash,
+              disclosureSnapshotId: disclosure.snapshotId, effectiveAt: declinedAt,
+              idempotencyKey: crypto.randomUUID(), correctionOfEventId: null, expectedRevision: null,
+            });
+            vi.setSystemTime(new Date(grantedAt));
+          }
+          return target.batch(statements);
+        };
+        const value: unknown = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      } });
+      vi.setSystemTime(new Date(helperStartedAt));
+      await seedCanonicalSttConsent({ ...t.env, DB: db }, counselor, creation.supportCaseId, [domain]);
+      const current = (await getSupportCaseConsent(t.env, counselor, creation.supportCaseId)).find(item => item.domain === domain);
+      expect(current).toMatchObject({ state: 'granted', effectiveAt: grantedAt, revision: 3 });
+      const events = (await listSupportCaseConsentEvents(t.env, counselor, creation.supportCaseId))
+        .filter(event => event.domain === domain);
+      expect(events.map(({ decision, effectiveAt, revision }) => ({ decision, effectiveAt, revision }))).toEqual([
+        { decision: 'decline', effectiveAt: registeredAt, revision: 1 },
+        { decision: 'decline', effectiveAt: declinedAt, revision: 2 },
+        { decision: 'grant', effectiveAt: grantedAt, revision: 3 },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('철회하면 일감 목록·스냅샷 저장·초안 생성이 전부 거부되고 근거 이력은 남는다', async () => {
     await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
-      sttMode: 'local',
+      sttMode: 'azure',
       llmMode: 'openai',
     });
-    t.env.CCC_STT_MODE = 'local';
+    t.env.CCC_STT_MODE = 'azure';
     t.env.CCC_LLM_MODE = 'openai';
     t.env.TEXT_AI_PILOT_ENABLED = '1';
 
@@ -72,15 +124,13 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
     expect(await consentHistory(creation.supportCaseId)).toEqual(['grant']);
 
     // 2) 회차 저장 → 텍스트 일감 적재 → 장비 폴링에 보인다.
-    const record = await createCounselingRecord(t.env, counselor, creation.supportCaseId, {
-      submissionId: crypto.randomUUID(),
-      heldAt: '2026-07-20T10:00:00.000Z',
-      channel: 'in_person',
-      memo: '동의 철회 종단 테스트용 상담 메모',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-    });
+    const record = await createCounselingRecord(t.env, counselor, creation.supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(),
+    heldAt: '2026-07-20T10:00:00.000Z',
+    channel: 'in_person',
+    memo: '동의 철회 종단 테스트용 상담 메모',
+    gasScores: [],
+    actionItems: [],
+    flags: [], });
     const sessionId = record.record.id;
     await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
     const qualification = await seedNerQualification(t.db);

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useOutletContext } from 'react-router';
 import {
-  WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireChoice, WireDataRow, WireDataRows,
+  GridContainer, PageTitle, WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireFormField, WireItem,
 } from '@ccc/wire';
 import type { ConsentDisclosureSnapshot } from '@ccc/contracts/consent';
@@ -11,11 +11,11 @@ import {
 } from '../business/consent-decisions';
 import { BusinessError, safeError } from '../business/errors';
 import {
-  INVITE_ROLE_BY_HUMAN, INVITE_ROLE_LABELS, INVITE_STATUS_LABELS,
-  type InviteStoredRole, type RequestLinkInfo, type StaffInvite, type StaffInvitePublicInfo,
+  INVITE_ROLE_LABELS, INVITE_STATUS_LABELS, type RequestLinkInfo, type StaffInvite,
 } from '../business/invites';
 import { ADMISSION_LABELS } from './participants';
 import type { PublicSession, Session } from '../business/session';
+import { firstAdminInviteBootstrap, type CloudAuth, type InviteFailureCode, type InviteCompletionResult } from '../business/auth';
 
 /** 링크는 한 번만 보여 준다. 서버는 토큰 원문을 다시 주지 않는다. */
 function IssuedLink({ label, href }: { label: string; href: string }) {
@@ -31,17 +31,13 @@ function IssuedLink({ label, href }: { label: string; href: string }) {
   </WireCallout>;
 }
 
-/** 실무자 초대(D86 ③). 이메일 하나에 묶인 1회용이고 익명 발급은 없다. */
+/** 기존 실무자 초대의 목록과 취소만 제공한다. */
 export function StaffInviteScreen() {
   const session = useOutletContext<Session>();
   const [invites, setInvites] = useState<StaffInvite[] | null>(null);
-  const [email, setEmail] = useState('');
-  const [roles, setRoles] = useState<InviteStoredRole[]>([]);
-  const [issued, setIssued] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
   const generation = useRef(0);
-  const admin = session.me.roles.includes('institution-admin');
 
   const load = useCallback(() => {
     const own = ++generation.current;
@@ -79,37 +75,10 @@ export function StaffInviteScreen() {
   };
 
   return <WireCard title="실무자 초대">
-    <WireCallout tone="info" title="이메일 하나에 묶인 1회용 초대입니다">
-      {admin
-        ? '기관 관리자는 줄 역할을 반드시 고릅니다. 링크는 한 번만 쓸 수 있고 서버가 정한 기한이 지나면 만료됩니다.'
-        : '기술 관리자가 만든 초대는 역할 대기 상태로 가입합니다. 업무 역할은 기관 관리자가 나중에 정합니다.'}
+    <WireCallout tone="info" title="새 실무자 초대는 준비 중입니다">
+      새 초대를 만들거나 수락하는 기능은 아직 열리지 않았습니다. 기존에 보낸 초대는 확인하거나 취소할 수 있습니다.
     </WireCallout>
     {error && <WireError>{error.message}</WireError>}
-    {issued !== null && <IssuedLink label="초대 링크" href={issued} />}
-    <form className="business-form" onSubmit={(event) => {
-      event.preventDefault();
-      void run(async () => {
-        const created = await session.invites.create(email, roles);
-        setIssued(`${window.location.origin}/staff/join#t=${created.token}`);
-        setEmail('');
-        setRoles([]);
-      });
-    }}>
-      <WireFormField label="초대할 이메일" htmlFor="invite-email" required hint="이 이메일로만 가입할 수 있습니다">
-        <input id="invite-email" type="email" value={email} required disabled={busy}
-          onChange={(event) => setEmail(event.target.value)} />
-      </WireFormField>
-      {admin && (Object.keys(INVITE_ROLE_BY_HUMAN) as (keyof typeof INVITE_ROLE_BY_HUMAN)[]).map((role) => {
-        const stored = INVITE_ROLE_BY_HUMAN[role];
-        return <WireChoice key={stored} type="checkbox" label={INVITE_ROLE_LABELS[stored]}
-          checked={roles.includes(stored)} disabled={busy}
-          onChange={(checked) => setRoles(checked ? [...roles, stored] : roles.filter((entry) => entry !== stored))} />;
-      })}
-      <div className="business-actions">
-        <WireButton type="submit" variant="primary"
-          disabled={busy || email.trim() === '' || (admin && roles.length === 0)}>초대 만들기</WireButton>
-      </div>
-    </form>
     {invites === null && error === null && <WireEmpty live reserve>초대 목록을 불러오고 있습니다.</WireEmpty>}
     {invites !== null && invites.length === 0 && <WireEmpty>보낸 초대가 없습니다.</WireEmpty>}
     {(invites ?? []).map((invite) => <WireItem key={invite.id} title={invite.email}
@@ -220,99 +189,123 @@ function useFragmentToken(): { token: string | null; nonce: number } {
   return state;
 }
 
-/**
- * 실무자 초대 수락과 첫 계정 생성(공개). 업무 셸도 업무 Bearer 도 쓰지 않는다.
- *
- * 계정을 먼저 만들고, 그 자격으로 초대를 수락한다(D90). 서버가 등재와 같은 배치에서 검증된
- * subject 를 결속하므로 연결되지 않은 행이 남지 않고, 수락이 끝나면 이미 로그인 상태다.
- *
- * 비밀번호는 제출 순간의 폼 값으로만 읽고 상태나 저장소에 두지 않는다.
- */
+/** 옛 실무자 링크는 URL 정리 뒤 설치 정보나 Auth를 요청하지 않는다. */
 export function StaffJoinScreen() {
-  const session = useOutletContext<PublicSession>();
-  const { token, nonce } = useFragmentToken();
-  const [info, setInfo] = useState<StaffInvitePublicInfo | null>(null);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [done, setDone] = useState<{ roleWaiting: boolean } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<BusinessError | null>(null);
-
-  useEffect(() => {
-    if (token === null) return;
-    setDone(null);
-    setError(null);
-    void session.publicJoin.staffInvite(token).then(setInfo).catch((cause: unknown) => setError(safeError(cause)));
-  }, [token, nonce, session.publicJoin]);
-
-  if (token === null) {
-    return <WireCard title="실무자 초대"><WireEmpty>초대 링크가 아닙니다.</WireEmpty></WireCard>;
-  }
-  if (done !== null) {
-    return <WireCard title="가입 완료">
-      <WireCallout tone="info" title={done.roleWaiting ? '역할 배정을 기다립니다' : '가입이 끝났습니다'}>
-        {done.roleWaiting
-          ? '기관 관리자가 업무 역할을 정하기 전까지 업무 화면은 열리지 않습니다.'
-          : '이미 로그인된 상태입니다. 바로 업무 화면으로 들어갈 수 있습니다.'}
+  return <GridContainer as="main" className="page-content">
+    <PageTitle>실무자 초대</PageTitle>
+    <WireCard>
+      <WireCallout tone="info" title="실무자 초대 수락은 준비 중입니다">
+        이 링크로 계정을 만들거나 초대를 수락할 수 없습니다. 기관 관리자에게 문의해 주세요.
       </WireCallout>
-      <div className="business-actions"><WireButton variant="primary" href="/settings">업무 화면으로</WireButton></div>
-    </WireCard>;
-  }
-  return <WireCard title="실무자 초대">
-    {error && <WireError>{error.message}</WireError>}
-    {info === null && error === null && <WireEmpty live reserve>초대를 확인하고 있습니다.</WireEmpty>}
-    {info !== null && <>
-      <WireDataRows>
-        <WireDataRow label="기관" value={info.orgName ?? '이름 없음'} />
-        <WireDataRow label="받을 역할"
-          value={info.roles.length === 0 ? '역할 대기' : info.roles.map((role) => INVITE_ROLE_LABELS[role]).join(', ')} />
-        <WireDataRow label="만료" value={info.expiresAt} />
-      </WireDataRows>
-      <form className="business-form" onSubmit={(event) => {
+    </WireCard>
+  </GridContainer>;
+}
+
+type InviteScreenState =
+  | { phase: 'entry'; error: null | 'invalid_request' | 'password_mismatch' | 'invite_invalid' | 'provider_unavailable' }
+  | { phase: 'submitting' }
+  | { phase: 'password'; error: 'password_rejected' | 'provider_unavailable' }
+  | { phase: 'failure'; code: 'invite_invalid' | 'invite_expired' | 'invite_session_conflict' | 'provider_unavailable' }
+  | { phase: 'complete' };
+const INVITE_FAILURE_COPY: Record<InviteFailureCode, string> = {
+  invite_invalid: '초대 정보를 확인할 수 없습니다. 처음 받은 초대 이메일의 링크와 인증 코드를 확인해 주세요.',
+  invite_expired: '초대가 만료됐습니다. 설치 담당자에게 새 초대 이메일을 요청해 주세요.',
+  invite_session_conflict: '다른 계정의 로그인이 남아 있습니다. 다른 계정의 작업을 마치고 로그아웃한 뒤 초대 이메일의 링크를 다시 열어 주세요.',
+  password_rejected: '비밀번호를 설정하지 못했습니다. 여덟 자 이상의 새 비밀번호를 두 칸에 같게 입력해 주세요.',
+  provider_unavailable: '인증 서비스의 응답을 확인하지 못했습니다. 입력한 값은 저장하지 않습니다. 다시 입력해 주세요.',
+};
+
+/** 입력값은 제출 순간에만 읽고 Auth에는 값 없는 상태 결과만 돌려받는다. */
+export function FirstAdminInviteScreen() {
+  const { auth } = useOutletContext<{ auth: CloudAuth }>();
+  const [state, setState] = useState<InviteScreenState>(() => firstAdminInviteBootstrap() === 'entry'
+    ? { phase: 'entry', error: null } : { phase: 'failure', code: 'invite_invalid' });
+  const submitting = useRef(false);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      queueMicrotask(() => { if (!mounted.current) void auth.cancelFirstAdminInvite(); });
+    };
+  }, [auth]);
+  const finish = (result: InviteCompletionResult) => {
+    submitting.current = false;
+    if (!mounted.current) return;
+    if (result.status === 'complete') setState({ phase: 'complete' });
+    else if (result.retry === 'entry' && (result.code === 'invite_invalid' || result.code === 'provider_unavailable')) {
+      setState({ phase: 'entry', error: result.code });
+    } else if (result.retry === 'password' && (result.code === 'password_rejected' || result.code === 'provider_unavailable')) {
+      setState({ phase: 'password', error: result.code });
+    } else {
+      setState({ phase: 'failure', code: result.code === 'password_rejected' ? 'provider_unavailable' : result.code });
+    }
+  };
+  const error = state.phase === 'failure' ? state.code : state.phase === 'entry' || state.phase === 'password' ? state.error : null;
+  const errorCopy = error === 'invalid_request' || error === 'password_mismatch'
+    ? new BusinessError(error, 400).message : error ? INVITE_FAILURE_COPY[error] : null;
+  return <GridContainer as="main" className="page-content">
+    <PageTitle>관리자 초대</PageTitle>
+    <WireCard title={state.phase === 'complete' ? '비밀번호 설정 완료' : '관리자 계정 설정'}>
+      {errorCopy && <WireError>{errorCopy}</WireError>}
+      {state.phase === 'submitting' && <WireEmpty live reserve>초대 확인과 비밀번호 설정을 진행하고 있습니다.</WireEmpty>}
+      {state.phase === 'complete' && <>
+        <WireCallout tone="info" title="설치 담당자의 연결 완료를 기다려 주세요">
+          비밀번호를 설정하고 초대용 로그인을 종료했습니다. 아직 업무 계정 연결이 끝난 것은 아닙니다.
+          설치 담당자가 관리자 연결을 마쳤다고 알리면 로그인 화면에서 새 비밀번호로 로그인해 주세요.
+        </WireCallout>
+        <div className="business-actions">
+          <WireButton variant="neutral" href="/login">연결 완료 안내를 받은 뒤 로그인</WireButton>
+        </div>
+      </>}
+      {(state.phase === 'entry' || state.phase === 'password') && <form className="business-form" noValidate onSubmit={(event) => {
         event.preventDefault();
-        if (busy) return;
+        if (submitting.current) return;
         const values = new FormData(event.currentTarget);
-        const password = values.get('password');
-        if (typeof password !== 'string' || password !== values.get('passwordConfirm')) {
-          setError(new BusinessError('password_mismatch', 400));
+        let email = String(values.get('email') ?? '').trim().toLowerCase();
+        let code = String(values.get('code') ?? '');
+        let password = String(values.get('password') ?? '');
+        let confirmation = String(values.get('passwordConfirm') ?? '');
+        const passwordOnly = state.phase === 'password';
+        const valid = password.length >= 8 && (passwordOnly || email.length <= 254
+          && /^[^\s@;,'"\\]{1,64}@[A-Za-z0-9][A-Za-z0-9.-]{0,180}\.[A-Za-z]{2,24}$/u.test(email) && /^[0-9]{6}$/.test(code));
+        const matches = password === confirmation;
+        for (const name of ['email', 'code', 'password', 'passwordConfirm']) values.delete(name);
+        event.currentTarget.reset();
+        confirmation = '';
+        if (!valid || !matches) {
+          email = ''; code = ''; password = '';
+          setState(passwordOnly ? { phase: 'password', error: 'password_rejected' }
+            : { phase: 'entry', error: valid ? 'password_mismatch' : 'invalid_request' });
           return;
         }
-        setBusy(true);
-        setError(null);
-        void (async () => {
-          // 계정을 먼저 만들고 그 자격으로 수락한다. 서버가 같은 배치에서 subject 를 결속한다.
-          const { accessToken } = await session.signUp(email, password);
-          const accepted = await session.publicJoin.acceptStaffInvite(
-            token, { name, email }, accessToken ?? undefined,
-          );
-          return { roleWaiting: accepted.roleWaiting };
-        })().then(setDone)
-          .catch((cause: unknown) => setError(safeError(cause)))
-          .finally(() => setBusy(false));
+        submitting.current = true;
+        setState({ phase: 'submitting' });
+        const pending = passwordOnly ? auth.retryFirstAdminPassword(password) : auth.completeFirstAdminInvite(email, code, password);
+        email = ''; code = ''; password = '';
+        void pending.then(finish);
       }}>
-        <WireFormField label="이름" htmlFor="staff-join-name" required>
-          <input id="staff-join-name" value={name} required disabled={busy}
-            onChange={(event) => setName(event.target.value)} />
+        {state.phase === 'entry' && <>
+          <WireFormField label="초대받은 이메일" htmlFor="first-admin-email" required>
+            <input id="first-admin-email" name="email" type="email" required maxLength={254} autoComplete="email" />
+          </WireFormField>
+          <WireFormField label="여섯 자리 인증 코드" htmlFor="first-admin-code" required hint="초대 이메일에 적힌 숫자 여섯 자리를 입력해 주세요">
+            <input id="first-admin-code" name="code" type="text" required minLength={6} maxLength={6}
+              pattern="[0-9]{6}" inputMode="numeric" autoComplete="one-time-code" />
+          </WireFormField>
+        </>}
+        <WireFormField label="새 비밀번호" htmlFor="first-admin-password" required hint="여덟 자 이상으로 정해 주세요">
+          <input id="first-admin-password" name="password" type="password" autoComplete="new-password" minLength={8} required />
         </WireFormField>
-        <WireFormField label="이메일" htmlFor="staff-join-email" required hint="초대받은 이메일과 같아야 합니다">
-          <input id="staff-join-email" type="email" value={email} required disabled={busy}
-            onChange={(event) => setEmail(event.target.value)} />
-        </WireFormField>
-        <WireFormField label="비밀번호" htmlFor="staff-join-password" required hint="여덟 자 이상으로 정해 주세요">
-          <input id="staff-join-password" name="password" type="password" autoComplete="new-password"
-            minLength={8} required disabled={busy} />
-        </WireFormField>
-        <WireFormField label="비밀번호 확인" htmlFor="staff-join-password-confirm" required>
-          <input id="staff-join-password-confirm" name="passwordConfirm" type="password" autoComplete="new-password"
-            minLength={8} required disabled={busy} />
+        <WireFormField label="새 비밀번호 확인" htmlFor="first-admin-password-confirm" required>
+          <input id="first-admin-password-confirm" name="passwordConfirm" type="password" autoComplete="new-password" minLength={8} required />
         </WireFormField>
         <div className="business-actions">
-          <WireButton type="submit" variant="primary"
-            disabled={busy || name.trim() === '' || email.trim() === ''}>초대 수락</WireButton>
+          <WireButton type="submit" variant="primary">{state.phase === 'password' ? '비밀번호 다시 설정' : '초대 확인하고 비밀번호 설정'}</WireButton>
         </div>
-      </form>
-    </>}
-  </WireCard>;
+      </form>}
+    </WireCard>
+  </GridContainer>;
 }
 
 /** 당사자 요청 링크 완료(공개). 여섯 영역 동의를 여기서 받는다. */

@@ -1,15 +1,118 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, fireEvent, within, cleanup } from '@testing-library/react';
-import { RegisterForm } from './register-form';
+import {
+  RegisterForm as ProductionRegisterForm,
+  type RegisterFormProps,
+} from './register-form';
+import NewParticipantPage from './page';
+import {
+  CONSENT_COPY,
+  CONSENT_DOMAINS,
+  type ConsentDisclosureSnapshot,
+} from '@ccc/contracts/consent';
 
 const noop = (): void => {};
 
 const currentUser = { name: '홍길동', email: 'me@example.test' };
 
-// vitest.config.ts 에 globals 가 없어 자동 정리가 걸리지 않는다. 이 줄이 없으면 파일이 끝난 뒤
-// jsdom 이 내려가는 동안 React 가 남은 작업을 돌려 'window is not defined' 가 터지고 —
-// 테스트가 전부 통과해도 종료코드가 1 이 된다(CI 는 그 숫자만 본다).
-afterEach(cleanup);
+const DISCLOSURES: ConsentDisclosureSnapshot[] = CONSENT_DOMAINS.map((domain, index) => ({
+  snapshotId: `snapshot-${index + 1}`,
+  scopeBinding: {
+    orgId: 'org-1',
+    programId: 'program-1',
+    issuerId: 'user-1',
+    supportCaseId: null,
+  },
+  domain,
+  fullKoreanCopy: `서버가 발급한 ${index + 1}번째 고지 전문`,
+  provider: CONSENT_COPY[domain].provider,
+  providerLegalRecipient: '사회연대은행',
+  country: 'KR',
+  purpose: CONSENT_COPY[domain].purpose,
+  retentionProfile: 'default_temporary_d85',
+  retentionDuration: 'default_temporary_d85',
+  copyVersion: 'server-copy-v1',
+  copyHash: `copy-hash-${index + 1}`,
+  issuedAt: '2026-09-16T00:00:00.000Z',
+  expiresAt: '2026-09-16T00:30:00.000Z',
+}));
+
+const pageApiMocks = vi.hoisted(() => ({
+  getMyIdentity: vi.fn(async () => ({ id: 'user-1', name: '홍길동', email: 'me@example.test', role: 'counselor' })),
+  listProgramOptions: vi.fn(async () => ([
+    { id: 'program-1', displayName: '희망키움 2026', programType: 'financial_support_v1' },
+  ])),
+  issueRegistrationConsentDisclosures: vi.fn(async () => DISCLOSURES),
+}));
+
+vi.mock('../../lib/api', () => ({
+  ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
+  ...pageApiMocks,
+}));
+vi.mock('../../lib/display-labels', () => ({
+  getDisplayLabels: vi.fn(async () => ({ programLabels: { financial_support_v1: '금융지원' } })),
+}));
+vi.mock('../../actions', () => ({ createInitialParticipantProgramAction: vi.fn() }));
+
+function RegisterForm(
+  props: Omit<RegisterFormProps, 'disclosures'> & { disclosures?: readonly ConsentDisclosureSnapshot[] },
+) {
+  return <ProductionRegisterForm disclosures={DISCLOSURES} {...props} />;
+}
+
+// vitest.config.ts 에 globals 가 없어 자동 정리가 걸리지 않는다.
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+describe('당사자 등록 고지 로드', () => {
+  it('단일 금융지원 사업 ID로 발급한 고지를 같은 등록 폼에 전달한다', async () => {
+    const page = await NewParticipantPage({ searchParams: Promise.resolve({}) });
+    const view = render(page);
+    expect(pageApiMocks.issueRegistrationConsentDisclosures).toHaveBeenCalledWith('program-1');
+    expect(view.getByText(DISCLOSURES[0]!.fullKoreanCopy)).not.toBeNull();
+    expect(view.getByText('희망키움 2026')).not.toBeNull();
+  });
+
+  it('금융지원 사업 후보가 둘이면 임의로 고르지 않고 등록 폼을 막는다', async () => {
+    pageApiMocks.listProgramOptions.mockResolvedValueOnce([
+      { id: 'program-1', displayName: '희망키움 2026', programType: 'financial_support_v1' },
+      { id: 'program-2', displayName: '희망키움 2027', programType: 'financial_support_v1' },
+    ]);
+    const page = await NewParticipantPage({ searchParams: Promise.resolve({}) });
+    const view = render(page);
+    expect(view.getByRole('alert').textContent).toContain('등록 가능한 금융지원 사업이 하나일 때만');
+    expect(view.container.querySelector('form')).toBeNull();
+    expect(pageApiMocks.issueRegistrationConsentDisclosures).not.toHaveBeenCalled();
+  });
+
+  it('새 고지 snapshot이 오면 이전 결정을 지우고 다시 선택받는다', async () => {
+    const firstPage = await NewParticipantPage({ searchParams: Promise.resolve({}) });
+    const view = render(firstPage);
+    const decision = view.container.querySelector(
+      'input[name="consentDecision_personal_data_collection_use"][value="grant"]',
+    ) as HTMLInputElement;
+    fireEvent.click(decision);
+    expect(decision.checked).toBe(true);
+
+    const freshDisclosures = DISCLOSURES.map((snapshot) => ({
+      ...snapshot,
+      snapshotId: `fresh-${snapshot.snapshotId}`,
+    }));
+    pageApiMocks.issueRegistrationConsentDisclosures.mockResolvedValueOnce(freshDisclosures);
+    const refreshedPage = await NewParticipantPage({ searchParams: Promise.resolve({}) });
+    view.rerender(refreshedPage);
+
+    expect((view.container.querySelector(
+      'input[name="consentDecision_personal_data_collection_use"][value="grant"]',
+    ) as HTMLInputElement).checked).toBe(false);
+    expect((view.container.querySelector(
+      'input[name="consentSnapshot_personal_data_collection_use"]',
+    ) as HTMLInputElement).value).toBe(JSON.stringify(freshDisclosures[0]));
+  });
+});
+
 
 describe('RegisterForm (#37 당사자 등록 폼)', () => {
   it('renders the input fields and the 등록하기 submit (Y7 — 실무자 대행 등록 화면)', () => {
@@ -36,8 +139,8 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect(container.querySelector('button[type="submit"]')?.className).toContain('register-submit');
   });
 
-  // 2026-07-30 Q(훑기 목록 밖): 참여 사업은 초대 시점에 정해지므로 고를 값이 아니다.
-  // 서버 액션도 폼이 보낸 값을 읽지 않는다(programType 하드코딩) — 칸을 없애도 저장은 그대로다.
+  // 참여 사업은 화면에서 고르지 않는다. 페이지와 액션이 같은 단일 금융지원 사업을 확인한다.
+  // 폼은 programId를 보내지 않으며 후보가 둘 이상이면 페이지가 등록을 막는다.
   it('shows the participating program as a fixed label instead of a select', () => {
     const { container } = render(
       <RegisterForm currentUser={currentUser} action={noop} programLabel="희망키움 2026" />,
@@ -50,6 +153,7 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     // 이번에 등록하는 사업 하나만 말한다 — 폼이 사업 값을 실어 보내지 않는다.
     const data = new FormData(container.querySelector('form') as HTMLFormElement);
     expect(data.get('programType')).toBeNull();
+    expect(data.get('programId')).toBeNull();
   });
 
   // 2026-07-30 Q(훑기 목록 밖): 성별이 생년월일 위다.
@@ -100,40 +204,63 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect(fieldset?.classList.contains('register-consent')).toBe(true);
   });
 
-  it('keeps both consent checkboxes present and unchecked by default (D23·D49·D44)', () => {
-    const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    for (const name of ['consentPrivacy', 'consentRecordingAi']) {
-      const box = container.querySelector(`input[name="${name}"]`) as HTMLInputElement;
-      expect(box).not.toBeNull();
-      expect(box.checked).toBe(false);
+  it('서버에서 받은 여섯 고지 전문과 같은 snapshot 객체를 결정 필드에 묶는다', () => {
+    const { container } = render(
+      <RegisterForm currentUser={currentUser} action={noop} disclosures={DISCLOSURES} />,
+    );
+    const sections = [...container.querySelectorAll('.register-consent-block .wire-card-section')];
+    expect(sections.map((section) => section.querySelector('h3')?.textContent)).toEqual(
+      CONSENT_DOMAINS.map((domain) => `${CONSENT_COPY[domain].label}필수`),
+    );
+    for (const [index, domain] of CONSENT_DOMAINS.entries()) {
+      const group = container.querySelectorAll(`input[name="consentDecision_${domain}"]`);
+      expect(group).toHaveLength(2);
+      expect([...group].every((input) => !(input as HTMLInputElement).checked)).toBe(true);
+      expect(sections[index]?.textContent).toContain(DISCLOSURES[index]!.fullKoreanCopy);
+      expect(sections[index]?.textContent).not.toContain(CONSENT_COPY[domain].copy);
+      expect((container.querySelector(
+        `input[name="consentSnapshot_${domain}"]`,
+      ) as HTMLInputElement).value).toBe(JSON.stringify(DISCLOSURES[index]));
+      expect(container.querySelector(
+        `[role="radiogroup"][aria-label="${CONSENT_COPY[domain].label}"][aria-required="true"]`,
+      )).not.toBeNull();
     }
-    // D49: 구 3종 시절의 두 체크(consentRecording·consentTextAi)는 사라졌다.
-    expect(container.querySelector('input[name="consentRecording"]')).toBeNull();
-    expect(container.querySelector('input[name="consentTextAi"]')).toBeNull();
+    expect(container.querySelectorAll('.wire-required-marker')).toHaveLength(CONSENT_DOMAINS.length);
+    expect(container.querySelector('input[name="consentCopyVersion"]')).toBeNull();
+    expect((container.querySelector('button[type="submit"]') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('carries the privacy consent when checked (D44 — 등록이 동의를 받는 자리)', () => {
+  it('사용자가 여섯 결정을 모두 고른 뒤에만 제출 값을 만든다', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
     const form = container.querySelector('form') as HTMLFormElement;
-    fireEvent.click(container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement);
+    for (const [index, domain] of CONSENT_DOMAINS.entries()) {
+      const decision = index % 2 === 0 ? 'grant' : 'decline';
+      fireEvent.click(container.querySelector(
+        `input[name="consentDecision_${domain}"][value="${decision}"]`,
+      ) as HTMLInputElement);
+    }
+
     const data = new FormData(form);
-    expect(data.get('consentPrivacy')).toBe('on');
-    expect(data.get('consentRecordingAi')).toBeNull();
+    for (const [index, domain] of CONSENT_DOMAINS.entries()) {
+      expect(data.get(`consentDecision_${domain}`)).toBe(index % 2 === 0 ? 'grant' : 'decline');
+      expect(data.get(`consentSnapshot_${domain}`)).toBe(JSON.stringify(DISCLOSURES[index]));
+    }
+    expect((container.querySelector('button[type="submit"]') as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('carries the filled email and a checked consent in the form payload', () => {
+  it('이메일과 사용자가 고른 한 영역 결정은 폼에서 그대로 유지된다', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
     const form = container.querySelector('form') as HTMLFormElement;
     const email = container.querySelector('input[name="email"]') as HTMLInputElement;
-    const recording = container.querySelector('input[name="consentRecordingAi"]') as HTMLInputElement;
-
     fireEvent.change(email, { target: { value: 'participant@example.test' } });
-    fireEvent.click(recording);
+    fireEvent.click(container.querySelector(
+      'input[name="consentDecision_external_stt_processing"][value="grant"]',
+    ) as HTMLInputElement);
 
     const data = new FormData(form);
     expect(data.get('email')).toBe('participant@example.test');
-    // 체크된 동의만 폼에 실린다(미체크 = 키 부재 = 미동의, D15). 서버 액션이 명시 boolean 으로 정규화한다.
-    expect(data.get('consentRecordingAi')).toBe('on');
+    expect(data.get('consentDecision_external_stt_processing')).toBe('grant');
+    expect(data.get('consentDecision_counseling_recording')).toBeNull();
   });
 
   it('shows an invalid email beside the field and preserves the other entered values', () => {
@@ -160,13 +287,16 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect(action).not.toHaveBeenCalled();
   });
 
-  it('renders a collapsed "자세히 읽어보기" accordion with the consent detail copy (D15·D23)', () => {
+  it('각 영역의 정본 문안을 별도 카드 구획에서 읽을 수 있다', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    const detail = container.querySelector('details.consent-detail') as HTMLDetailsElement;
-    expect(detail).not.toBeNull();
-    expect(detail.open).toBe(false);
-    expect(within(container).getByText('자세히 읽어보기')).not.toBeNull();
-    expect(detail.textContent).toContain('법률 검토 전 참고용 초안');
+    for (const domain of CONSENT_DOMAINS) {
+      const heading = [...container.querySelectorAll('h3')]
+        .find((element) => element.textContent?.startsWith(CONSENT_COPY[domain].label));
+      expect(heading?.textContent).toContain('필수');
+      expect(heading?.closest('.wire-card-section')?.textContent).toContain(
+        DISCLOSURES.find((disclosure) => disclosure.domain === domain)!.fullKoreanCopy,
+      );
+    }
   });
 
   it('shows the registrant as the read-only 담당 실무자 (이름 우선) and drops the assignee select (등록자=담당 실무자)', () => {
@@ -178,40 +308,34 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect(container.textContent).toContain('등록한 실무자가 담당 실무자로 자동 배정됩니다');
   });
 
-  // G1(① 하드 게이트 + 긴급 등록 예외). 최종 판정은 서버가 하지만, 화면은 "무엇을 채워야
-  // 하는지"를 보여야 한다 — 서버 검증만 남으면 화면에서 원인 없는 실패로 보인다.
-  it('marks the privacy consent required and moves that requirement to the emergency reason (G1)', () => {
+  it('여섯 결정과 긴급 사유를 모두 확인하기 전에는 등록할 수 없다', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    const privacy = container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement;
-    expect(privacy.required).toBe(true);
-    // 긴급 등록 전에는 사유 칸이 없다.
+    const submit = container.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
     expect(container.querySelector('textarea[name="emergencyReason"]')).toBeNull();
 
     fireEvent.click(container.querySelector('input[name="emergencyRegistration"]') as HTMLInputElement);
-
     const reason = container.querySelector('textarea[name="emergencyReason"]') as HTMLTextAreaElement;
-    expect(reason).not.toBeNull();
     expect(reason.required).toBe(true);
-    // 긴급 등록을 고르면 ① 필수 표시는 사유 쪽으로 옮겨 간다(둘 다 강제하면 통과 경로가 없다).
-    expect((container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement).required).toBe(false);
+    expect(submit.disabled).toBe(true);
   });
 
-  it('keeps the privacy consent and the emergency toggle mutually exclusive (G1)', () => {
+  it('개인정보 동의와 긴급 등록을 함께 켜지 않는다', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    const privacy = () => container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement;
+    const grant = () => container.querySelector(
+      'input[name="consentDecision_personal_data_collection_use"][value="grant"]',
+    ) as HTMLInputElement;
     const emergency = () => container.querySelector('input[name="emergencyRegistration"]') as HTMLInputElement;
 
-    // 서버는 "동의가 있는데 긴급 예외까지 왔다"를 거부한다 — 화면에서 그 조합을 못 만들게 한다.
-    fireEvent.click(privacy());
-    expect(privacy().checked).toBe(true);
+    fireEvent.click(grant());
+    expect(grant().checked).toBe(true);
     fireEvent.click(emergency());
     expect(emergency().checked).toBe(true);
-    expect(privacy().checked).toBe(false);
+    expect(grant().checked).toBe(false);
 
-    fireEvent.click(privacy());
-    expect(privacy().checked).toBe(true);
+    fireEvent.click(grant());
+    expect(grant().checked).toBe(true);
     expect(emergency().checked).toBe(false);
-    expect(container.querySelector('textarea[name="emergencyReason"]')).toBeNull();
   });
 
   it('carries the emergency reason in the form payload (G1)', () => {

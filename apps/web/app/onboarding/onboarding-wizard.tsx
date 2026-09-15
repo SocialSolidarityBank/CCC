@@ -1,9 +1,11 @@
 'use client';
 
-import { WireBadge } from '../components/wire/wire-badge';
+import {
+  WireBadge,
+  WireButton,
+} from '@ccc/wire';
 import { useState } from 'react';
 import { SearchInput } from '../components/wire/search-input';
-import { WireButton } from '../components/wire/wire-button';
 
 export interface OnboardingWizardProps {
   /**
@@ -33,7 +35,7 @@ export function OnboardingWizard({ action, initialOrgName = '', initialProgramNa
   const programNameReady = programName.trim().length > 0 && programName.trim().length <= 120;
 
   return (
-    <form className="onboarding-form" action={action} aria-label="기관 온보딩">
+    <form className="onboarding-form" action={action} aria-label="기관 준비">
       <article className="surface-card onboarding-card">
         <WireBadge aria-live="polite">{step}단계 / 2단계</WireBadge>
         {step === 1 ? (

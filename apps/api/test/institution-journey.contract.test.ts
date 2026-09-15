@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Actor } from '@ccc/core/gateway';
+import { getInstitutionReadiness, type Actor } from '@ccc/core/gateway';
 import type { MeResponse, OrganizationOnboardingResponse } from '@ccc/contracts/institution';
 import type { ProgramListResponse, ProgramMutationResponse, ProgramOptionsResponse } from '@ccc/contracts/program-admission';
 import { handleRequest } from '@ccc/http-api';
@@ -259,8 +259,8 @@ describe('persisted institution first journey', () => {
   it('does not require Supabase creator linking on a Local installation', async () => {
     await t.reset();
     t.env.installationMode = 'local-single';
-    const me = await (await request('/me')).json() as MeResponse;
-    expect(me.institution).toMatchObject({ creatorLinkState: 'not_applicable', initialSetupState: 'not_set_up',
+    const institution = await getInstitutionReadiness(t.env, admin);
+    expect(institution).toMatchObject({ creatorLinkState: 'not_applicable', initialSetupState: 'not_set_up',
       firstProgramAdmissionState: 'not_admitted' });
   });
 });

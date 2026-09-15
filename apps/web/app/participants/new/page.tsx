@@ -1,9 +1,18 @@
-import { ApiError, getMyIdentity, type MyIdentity } from '../../lib/api';
+import {
+  GridContainer,
+  PageTitle,
+  WireError,
+} from '@ccc/wire';
+import type { ConsentDisclosureSnapshot } from '@ccc/contracts/consent';
+import {
+  ApiError,
+  getMyIdentity,
+  issueRegistrationConsentDisclosures,
+  listProgramOptions,
+  type MyIdentity,
+} from '../../lib/api';
 import { getDisplayLabels } from '../../lib/display-labels';
 import { createInitialParticipantProgramAction } from '../../actions';
-import { GridContainer } from '../../components/wire/grid-container';
-import { PageTitle } from '../../components/wire/page-title';
-import { WireError } from '../../components/wire/wire-state';
 import { RegisterForm } from './register-form';
 
 const noticeMessages: Record<string, string> = {
@@ -31,9 +40,9 @@ function queryValue(params: SearchParams, name: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-// 새 당사자 생성 + 케이스 열기(인테이크) + 항목별 동의가 한 흐름(#19 · 재개편 T7 #37 · D21·D23).
-// 동의는 항목별(녹음·텍스트 AI)로 분리하고 기본 미체크이며, 미동의여도 등록은 진행된다(D15).
-// 폼은 와이어프레임(Figma 1:95)의 2×2 그리드로 교체하되 컴포넌트 킷(#31)만 쓴다.
+// 새 당사자 생성, 케이스 열기, 여섯 영역 동의가 한 흐름이다.
+// 페이지와 액션이 같은 단일 금융지원 사업을 확인하고, 페이지는 그 사업에 묶인 고지를 폼에 넘긴다.
+// 개인정보 수집·이용 거절은 긴급 등록 사유가 있을 때만 서버가 예외로 판정한다.
 export default async function NewParticipantPage({
   searchParams,
 }: {
@@ -44,8 +53,29 @@ export default async function NewParticipantPage({
   const errorCode = queryValue(query, 'error');
 
   let me: MyIdentity;
+  let programLabel: string;
+  let disclosures: ConsentDisclosureSnapshot[];
   try {
-    me = await getMyIdentity();
+    const [identity, labels, options] = await Promise.all([
+      getMyIdentity(),
+      getDisplayLabels(),
+      listProgramOptions(),
+    ]);
+    const candidates = options.filter((option) => option.programType === 'financial_support_v1');
+    if (candidates.length !== 1) {
+      return (
+        <main className="page-content">
+          <GridContainer>
+            <PageTitle>당사자 등록</PageTitle>
+            <WireError>등록 가능한 금융지원 사업이 하나일 때만 당사자를 등록할 수 있습니다.</WireError>
+          </GridContainer>
+        </main>
+      );
+    }
+    const program = candidates[0]!;
+    me = identity;
+    programLabel = program.displayName ?? labels.programLabels.financial_support_v1;
+    disclosures = await issueRegistrationConsentDisclosures(program.id);
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     return (
@@ -73,9 +103,11 @@ export default async function NewParticipantPage({
         ) : null}
 
         <RegisterForm
+          key={disclosures.map((snapshot) => snapshot.snapshotId).join(':')}
           currentUser={{ name: me.name, email: me.email }}
           action={createInitialParticipantProgramAction}
-          programLabel={(await getDisplayLabels()).programLabels.financial_support_v1}
+          programLabel={programLabel}
+          disclosures={disclosures}
         />
       </GridContainer>
     </main>

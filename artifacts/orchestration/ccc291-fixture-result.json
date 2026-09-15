@@ -1,0 +1,6 @@
+{
+  "marker": "CORE_RESULT CCC291-FIXTURE-LEASE-20260914",
+  "commit": "b486a8eebb8d63966d0f68e26a7aa12efe9c9f47",
+  "changedFiles": ["apps/api/test/migration-parity.test.ts"],
+  "reason": "proveAgentTextSourceFence의 processing 큐 INSERT에 빠진 lease_owner와 lease_expires_at을 같은 헬퍼의 agent_jobs와 동일한 p.user 및 2099-01-01T00:00:00.000Z로 채웠다. 기존 CHECK, assertion과 baseline은 변경하지 않았다. parity는 실행하지 않았으며 맥북 WORKER가 이 커밋으로 재검증한다."
+}

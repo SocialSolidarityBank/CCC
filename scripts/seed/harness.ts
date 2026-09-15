@@ -13,7 +13,8 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { createD1Database } from '@ccc/db-d1';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import { createD1TestContext } from '../../apps/api/test/support/d1';
-import type { Env } from '@ccc/core/gateway';
+import { installConsentProviderRegistry, type Actor, type Env } from '@ccc/core/gateway';
+import { CONSENT_COPY, CONSENT_DOMAINS } from '@ccc/contracts/consent';
 import { preloadStatements } from './preload-data';
 import { D1Capture } from './capture';
 
@@ -75,9 +76,24 @@ export function buildSeedEnv(db: D1Database, capture: D1Capture): Env {
   assertPiiKeyMaterial(key);
   return {
     DB: createD1Database(capture.wrap(db)),
+    installationMode: 'community-cloud',
+    CCC_STT_MODE: 'off',
+    CCC_LLM_MODE: 'off',
     secretStore: createEnvironmentSecretStore({ PII_ENC_KEY: key, PII_KEY_VERSION: SEED_PII_KEY_VERSION }),
     PII_KEY_VERSION: SEED_PII_KEY_VERSION,
   };
+}
+
+/** 합성 수신자 승인도 신뢰 설치 관문을 거친다. 실제 사업자 연결이나 AI 활성화는 없다. */
+export async function installPreviewConsentProviderRegistry(env: Env, adminActor: Actor): Promise<void> {
+  await installConsentProviderRegistry(env.DB, {
+    schemaVersion: 1, orgId: adminActor.orgId, approvedBy: adminActor.userId,
+    approvedAt: new Date().toISOString(), approvalRef: `synthetic-seed:${crypto.randomUUID()}`,
+    providers: [...new Set(CONSENT_DOMAINS.map(domain => CONSENT_COPY[domain].provider))].map(provider => ({
+      provider, legalRecipient: `Synthetic ${provider} recipient`,
+      country: provider === 'openai' ? 'US' : 'KR', validUntil: null,
+    })),
+  });
 }
 
 export interface CaptureHarness {

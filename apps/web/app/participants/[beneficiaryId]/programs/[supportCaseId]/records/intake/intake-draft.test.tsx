@@ -4,6 +4,11 @@ import { IntakeWizard } from './intake-wizard';
 import { STEP_GROUPS } from './intake-questions';
 import { draftKey, readDraft, writeDraft } from '../../../../../../lib/form-draft';
 import type { CreateIntakeRecordActionInput, IntakeRecordActionResult } from '../../../../../../actions';
+import {
+  CONSENT_COPY,
+  CONSENT_DOMAINS,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 
 // 인테이크 위저드의 로컬 자동 저장·복원(CCC-12).
 // 이 파일의 첫 테스트가 가장 중요한 것이다 — 금고에서 내려온 개인정보가 브라우저 저장소로
@@ -24,22 +29,42 @@ const VAULT_PII = {
 
 /** CCC-57 연결 일정. 완료 체크의 켬·끔이 임시본을 건너 살아남는지 보는 데 쓴다. */
 const LINKED_SCHEDULE = { id: '22222222-2222-4222-8222-222222222222', scheduledAt: '2026-08-12T05:00:00.000Z', version: 3 };
+const MODULE_SNAPSHOT = {
+  programId: '33333333-3333-4333-8333-333333333333',
+  programVersion: 4,
+  financialSupportEnabled: true,
+} as const;
+const CONSENT_STATES: CurrentConsentState[] = CONSENT_DOMAINS.map((domain) => ({
+  domain,
+  state: 'granted',
+  provider: CONSENT_COPY[domain].provider,
+  providerLegalRecipient: null,
+  providerCountry: null,
+  purpose: CONSENT_COPY[domain].purpose,
+  retentionDuration: domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null,
+  effectiveAt: null,
+  eventId: null,
+  revision: null,
+  eventSequence: null,
+}));
 
 function renderWizard(extendedPii = VAULT_PII, schedule: typeof LINKED_SCHEDULE | null = null) {
   push.mockClear();
   let lastInput: CreateIntakeRecordActionInput | null = null;
   const submit = async (input: CreateIntakeRecordActionInput): Promise<IntakeRecordActionResult> => {
     lastInput = input;
-    return { status: 'saved', overallGoalSaved: true };
+    return { status: 'saved', revision: 1, overallGoalSaved: true };
   };
   const utils = render(
     <IntakeWizard
       beneficiaryId="swallow-003"
       supportCaseId={SUPPORT_CASE_ID}
+      writeSchemaVersion={3}
+      moduleSnapshot={MODULE_SNAPSHOT}
       submissionId="a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1"
       participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
       extendedPii={extendedPii}
-      consent={{ privacy: true, recordingAi: true }}
+      consent={CONSENT_STATES}
       sessionSequence={1}
       recorderLabel="이지은"
       briefingHref="/participants/swallow-003/programs/case/briefing?notice=intake_saved"

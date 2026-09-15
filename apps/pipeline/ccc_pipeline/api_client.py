@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -38,6 +39,7 @@ _API_ERROR_CODES = frozenset({
     "masking_pipeline_version_mismatch", "dictionary_already_consumed",
     "result_schema_invalid", "result_conflict", "retry_exhausted",
 })
+_MAX_SAFE_INTEGER = 2**53 - 1
 
 
 class _RejectRedirects(urllib.request.HTTPRedirectHandler):
@@ -87,12 +89,64 @@ def _copy_bounded(source: BinaryIO, dest: Path) -> None:
         raise
 
 
+
 class ApiError(Exception):
     def __init__(self, status: int, detail: str):
         super().__init__(f"API error {status}: {detail}")
         self.status = status
         # 서버 error 코드. 서버가 닫지 않는 형식 거부만 Agent 가 스스로 닫는다.
         self.code = detail
+
+
+
+class EntityRegistrationProtocolError(ApiError):
+    """Registration parser failure: the claim must close permanently exactly once."""
+
+    def __init__(self, status: int = 400):
+        super().__init__(status, "result_schema_invalid")
+
+
+def _is_safe_integer(value: object, *, minimum: int = 0) -> bool:
+    return (
+        type(value) is int
+        and minimum <= value <= _MAX_SAFE_INTEGER
+    )
+
+
+def _decode_entity_registration_response(payload: object) -> dict[str, Any]:
+    """Decode the closed registration response union without accepting extensions."""
+    if not isinstance(payload, dict) or set(payload) == set():
+        raise ApiError(200, "malformed entity registration response")
+    outcome = payload.get("outcome")
+    if outcome == "superseded":
+        if set(payload) != {"outcome"}:
+            raise ApiError(200, "malformed entity registration response")
+        return {"outcome": "superseded"}
+    if outcome != "applied" or set(payload) != {"outcome", "mapRevision", "entries"}:
+        raise ApiError(200, "malformed entity registration response")
+    map_revision = payload.get("mapRevision")
+    entries = payload.get("entries")
+    if not _is_safe_integer(map_revision) or not isinstance(entries, list):
+        raise ApiError(200, "malformed entity registration response")
+    decoded: list[dict[str, Any]] = []
+    for expected_index, entry in enumerate(entries):
+        if (
+            not isinstance(entry, dict)
+            or set(entry) != {"index", "number", "reason"}
+            or entry.get("index") != expected_index
+            or not _is_safe_integer(entry.get("index"))
+        ):
+            raise ApiError(200, "malformed entity registration response")
+        number = entry.get("number")
+        reason = entry.get("reason")
+        if number is not None and not _is_safe_integer(number, minimum=1):
+            raise ApiError(200, "malformed entity registration response")
+        if reason not in (None, "ambiguous_identity", "missing_identity_evidence"):
+            raise ApiError(200, "malformed entity registration response")
+        if (number is None) != (reason is not None):
+            raise ApiError(200, "malformed entity registration response")
+        decoded.append({"index": expected_index, "number": number, "reason": reason})
+    return {"outcome": "applied", "mapRevision": map_revision, "entries": decoded}
 
 
 class AudioDownloadError(Exception):
@@ -362,15 +416,91 @@ class ApiClient:
             if response.status != 204:
                 raise ApiError(response.status, "unexpected release response")
 
-    def get_source(self, job_id: str, claim_token: str, attempt: int) -> str:
-        """GET /pipeline/jobs/:id/source — 1차 치환까지 끝난 공식 텍스트(text claim 전용)."""
+    def _source_payload(
+        self,
+        job_id: str,
+        claim_token: str,
+        attempt: int,
+        *,
+        allow_empty_text: bool = False,
+    ) -> dict[str, Any]:
         request = self._request("GET", f"/pipeline/jobs/{job_id}/source", claim=(claim_token, attempt))
         with self._open(request) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        text = payload.get("text")
-        if not isinstance(text, str) or text == "":
+            try:
+                payload = json.loads(response.read().decode("utf-8"))
+            except (UnicodeError, ValueError):
+                raise ApiError(response.status, "malformed job source response") from None
+        if not isinstance(payload, dict):
             raise ApiError(200, "malformed job source response")
-        return text
+        text = payload.get("text")
+        if not isinstance(text, str) or (not allow_empty_text and text == ""):
+            raise ApiError(200, "malformed job source response")
+        return payload
+
+    def get_source_bundle(self, job_id: str, claim_token: str, attempt: int) -> dict[str, Any]:
+        """Read the source text together with the server-issued ordered bundle metadata."""
+        try:
+            payload = self._source_payload(job_id, claim_token, attempt, allow_empty_text=True)
+        except ApiError as error:
+            if error.status == 200:
+                raise ApiError(200, "result_schema_invalid") from error
+            raise
+        audio = payload.get("audio")
+        if audio is not None and (
+            not isinstance(audio, dict)
+            or set(audio) != {"generationId", "rawSha256"}
+            or not isinstance(audio.get("generationId"), str)
+            or audio["generationId"] == ""
+            or not isinstance(audio.get("rawSha256"), str)
+            or audio["rawSha256"] == ""
+        ):
+            raise ApiError(200, "result_schema_invalid")
+        if (
+            not isinstance(payload.get("sourceRevision"), str)
+            or payload["sourceRevision"] == ""
+            or not isinstance(payload.get("sourceSha256"), str)
+            or (payload["sourceSha256"] == "" and audio is None)
+            or (
+                audio is None
+                and payload["sourceSha256"] != hashlib.sha256(payload["text"].encode("utf-8")).hexdigest()
+            )
+            or not _is_safe_integer(payload.get("sourceLength"))
+            or payload["sourceLength"] != len(payload["text"])
+            or not isinstance(payload.get("sourceBundleRevision"), str)
+            or payload["sourceBundleRevision"] == ""
+            or not _is_safe_integer(payload.get("expectedMapRevision"))
+            or not isinstance(payload.get("sources"), list)
+        ):
+            raise ApiError(200, "result_schema_invalid")
+        for source in payload["sources"]:
+            if (
+                not isinstance(source, dict)
+                or set(source) != {
+                    "sourceId", "sourceRevision", "sourceKind", "start", "end",
+                    "sha256", "consultationDate", "dateRevision",
+                }
+                or not all(isinstance(source.get(key), str) and source[key] != "" for key in (
+                    "sourceId", "sourceRevision", "sourceKind", "sha256",
+                    "consultationDate", "dateRevision",
+                ))
+                or not _is_safe_integer(source.get("start"))
+                or not _is_safe_integer(source.get("end"))
+                or source["end"] < source["start"]
+                or source["end"] > len(payload["text"])
+            ):
+                raise ApiError(200, "result_schema_invalid")
+            if (
+                audio is None
+                and source["sha256"] != hashlib.sha256(
+                    payload["text"][source["start"]:source["end"]].encode("utf-8")
+                ).hexdigest()
+            ):
+                raise ApiError(200, "result_schema_invalid")
+        return payload
+
+    def get_source(self, job_id: str, claim_token: str, attempt: int) -> str:
+        """GET /pipeline/jobs/:id/source — preserve the legacy text-only caller."""
+        return self._source_payload(job_id, claim_token, attempt)["text"]
 
     def download_audio(
         self,
@@ -458,6 +588,27 @@ class ApiClient:
         with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/egress/in-flight", body)) as response:
             return json.loads(response.read().decode("utf-8"))
 
+    def register_entities(self, request_body: dict[str, Any]) -> dict[str, Any]:
+        """POST the closed entity-registration operation shared by generic and memory jobs."""
+        try:
+            with self._open(self._request("POST", "/pipeline/entity-registrations", request_body)) as response:
+                if response.status == 400:
+                    raise EntityRegistrationProtocolError(400)
+                if response.status != 200:
+                    raise ApiError(response.status, "unexpected entity registration response")
+                try:
+                    payload = json.loads(response.read().decode("utf-8"))
+                except (UnicodeError, ValueError):
+                    raise ApiError(response.status, "malformed entity registration response") from None
+        except ApiError as error:
+            if error.status in (200, 400):
+                raise EntityRegistrationProtocolError(error.status) from error
+            raise
+        try:
+            return _decode_entity_registration_response(payload)
+        except ApiError as error:
+            raise EntityRegistrationProtocolError(200) from error
+
     def get_mask_dictionary(self, job_id: str, claim_token: str, attempt: int) -> dict[str, Any]:
         """POST /pipeline/jobs/:id/mask-dictionary — 일회성 치환 사전. 메모리에서만 쓴다(R3)."""
         body = {"claimToken": claim_token, "attempt": attempt}
@@ -520,11 +671,13 @@ class MemoryApiClient(ApiClient):
         body: dict[str, Any] | None = None,
         claim: tuple[str, int] | None = None,
     ) -> urllib.request.Request:
-        if not path.startswith("/pipeline/jobs/"):
-            raise ValueError("invalid memory job path")
-        return self._client._request(
-            method, "/pipeline/memory/" + path[len("/pipeline/jobs/"):], body, claim
-        )
+        if path == "/pipeline/entity-registrations":
+            return self._client._request(method, path, body, claim)
+        if path.startswith("/pipeline/jobs/"):
+            return self._client._request(
+                method, "/pipeline/memory/" + path[len("/pipeline/jobs/"):], body, claim,
+            )
+        raise ValueError("invalid memory job path")
 
     def _open(self, request: urllib.request.Request, *, allow_refresh: bool = True):  # noqa: ANN202
         return self._client._open(request, allow_refresh=allow_refresh)

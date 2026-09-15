@@ -1,9 +1,11 @@
+import {
+  GridContainer,
+  PageTitle,
+  WireButton,
+  WireError,
+} from '@ccc/wire';
 import { ApiError, getMyIdentity, getOrganizationProfile, type OrganizationProfile } from '../lib/api';
 import { completeOrganizationOnboardingAction } from '../actions';
-import { GridContainer } from '../components/wire/grid-container';
-import { PageTitle } from '../components/wire/page-title';
-import { WireError } from '../components/wire/wire-state';
-import { WireButton } from '../components/wire/wire-button';
 import { OnboardingWizard } from './onboarding-wizard';
 
 const errorMessages: Record<string, string> = {
@@ -62,7 +64,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
     return (
       <main className="page-content">
         <GridContainer>
-          <PageTitle>기관 온보딩</PageTitle>
+          <PageTitle>기관 준비</PageTitle>
           <WireError>
             {unavailable
               ? '온보딩 화면을 열 수 없습니다. 다시 로그인한 뒤 시도하세요.'
@@ -78,7 +80,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   return (
     <main className="page-content">
       <GridContainer>
-        <PageTitle>기관 온보딩</PageTitle>
+        <PageTitle>기관 준비</PageTitle>
 
         {errorCode !== undefined ? (
           <WireError>{errorMessages[errorCode] ?? '저장하지 못했습니다.'}</WireError>

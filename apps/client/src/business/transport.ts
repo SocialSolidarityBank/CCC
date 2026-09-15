@@ -64,19 +64,31 @@ export class BusinessTransport {
     return token;
   }
 
-  private async exchange(path: string, method: 'GET' | 'PATCH' | 'PUT' | 'POST', body: unknown, token: string) {
+  private async exchange(
+    path: string,
+    method: 'GET' | 'PATCH' | 'PUT' | 'POST',
+    body: unknown,
+    token: string,
+    accept = 'application/json',
+    raw?: { body: File; contentType: string; timeoutMs?: number },
+  ) {
     const target = this.target(path);
     try {
       const response = await this.fetcher(target, {
         method, credentials: 'omit', cache: 'no-store', redirect: 'error',
-        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(30_000)]),
-        headers: { Accept: 'application/json', Authorization: `Bearer ${token}`,
-          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(raw?.timeoutMs ?? 30_000)]),
+        headers: { Accept: accept, Authorization: `Bearer ${token}`,
+          ...(raw !== undefined ? { 'Content-Type': raw.contentType }
+            : body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+        ...(raw !== undefined ? { body: raw.body } : body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (this.lifetime.signal.aborted || this.token() !== token) throw new BusinessError('session_changed');
       if (response.redirected) throw new BusinessError('invalid_response');
       if (path === '/auth/logout' && response.status === 204) return { response, value: null };
+      if (accept !== 'application/json' && response.ok) {
+        if (!(response.headers.get('content-type') ?? '').startsWith(accept)) throw new BusinessError('invalid_response');
+        return { response, value: await response.blob() };
+      }
       const value: unknown = await response.json().catch(() => null);
       if (this.lifetime.signal.aborted || this.token() !== token) throw new BusinessError('session_changed');
       if (!response.ok) throw httpError(response.status, value);
@@ -119,6 +131,59 @@ export class BusinessTransport {
     const { value } = await this.exchange(path, method, body, token);
     return value;
   }
+
+  /** 서버가 만든 CSV를 그대로 받는다. 본문은 화면에 쓰지 않고 파일로만 넘긴다. */
+  async download(path: string): Promise<{ blob: Blob; filename: string | null }> {
+    this.target(path);
+    const token = this.currentToken();
+    if (this.capabilityToken !== token) throw new BusinessError('capabilities_required');
+    const { response, value } = await this.exchange(path, 'GET', undefined, token, 'text/csv');
+    if (!(value instanceof Blob)) throw new BusinessError('invalid_response');
+    const disposition = response.headers.get('content-disposition') ?? '';
+    const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+    const plain = /filename="([^"]+)"/i.exec(disposition)?.[1];
+    let filename: string | null = null;
+    try { filename = encoded !== undefined ? decodeURIComponent(encoded) : plain ?? null; }
+    catch { filename = plain ?? null; }
+    return { blob: value, filename };
+  }
+
+  /**
+   * 녹음 원음을 본문 그대로 올리는 Local 경로(PUT /sessions/:id/audio). JSON 계열과 달리
+   * 파일을 스트리밍하고 서버가 돌려주는 세션 응답을 그대로 넘긴다.
+   */
+  async putFile(path: string, file: File, contentType: string): Promise<unknown> {
+    this.target(path);
+    const token = this.currentToken();
+    if (this.capabilityToken !== token) throw new BusinessError('capabilities_required');
+    const { value } = await this.exchange(path, 'PUT', undefined, token, 'application/json',
+      { body: file, contentType, timeoutMs: 300_000 });
+    return value;
+  }
+
+  /**
+   * 서버가 발급한 업로드 대상(Supabase signed URL)으로만 본다. Bearer 를 붙이지 않고,
+   * 대상은 설치가 서명한 API 와 같은 origin 이어야 한다.
+   */
+  async putSigned(url: string, file: File, contentType: string): Promise<void> {
+    let target: URL;
+    try { target = new URL(url); } catch { throw new BusinessError('invalid_response'); }
+    if (target.origin !== new URL(this.installation.apiBase).origin) throw new BusinessError('invalid_response');
+    try {
+      const response = await this.fetcher(target.href, {
+        method: 'PUT', credentials: 'omit', cache: 'no-store', redirect: 'error',
+        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(300_000)]),
+        headers: { 'Content-Type': contentType },
+        body: file,
+      });
+      if (this.lifetime.signal.aborted) throw new BusinessError('session_changed');
+      if (response.redirected || !response.ok) throw new BusinessError('unavailable', response.status);
+      await response.arrayBuffer().catch(() => undefined);
+    } catch (error) {
+      if (this.lifetime.signal.aborted) throw new BusinessError('session_changed');
+      throw safeError(error);
+    }
+  }
 }
 
 /**
@@ -126,8 +191,6 @@ export class BusinessTransport {
  * 경로만 허용한다. 업무 API 는 이 전송기로 부르지 않는다.
  */
 const PUBLIC_PATHS: readonly RegExp[] = [
-  /^\/staff-invites\/token\/[A-Za-z0-9_-]{1,300}$/u,
-  /^\/staff-invites\/token\/[A-Za-z0-9_-]{1,300}\/accept$/u,
   /^\/invites\/participant\/[A-Za-z0-9_-]{1,300}$/u,
   /^\/invites\/participant\/[A-Za-z0-9_-]{1,300}\/consent\/disclosures$/u,
   /^\/signup\/participant$/u,
@@ -139,8 +202,7 @@ export class PublicTransport {
     private readonly fetcher: typeof fetch = globalThis.fetch.bind(globalThis),
   ) {}
 
-  /** `token` 은 방금 만든 자기 계정의 접근 토큰이다. 인자로만 받고 보관하지 않는다(D90). */
-  async request(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown, token?: string): Promise<unknown> {
+  async request(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<unknown> {
     assertInstallationCurrent(this.installation);
     if (!PUBLIC_PATHS.some((pattern) => pattern.test(path))) throw new BusinessError('invalid_api_path');
     const target = `${this.installation.apiBase.replace(/\/$/, '')}${path}`;
@@ -151,7 +213,6 @@ export class PublicTransport {
         headers: {
           Accept: 'application/json',
           ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-          ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });

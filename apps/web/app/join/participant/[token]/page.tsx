@@ -1,5 +1,7 @@
+import {
+  WireCard,
+} from '@ccc/wire';
 import { notFound } from 'next/navigation';
-import { WireCard } from '../../../components/wire/wire-card';
 import { PROGRAM_LABELS } from '../../../lib/labels';
 import { getPublicInviteInfo } from '../../../lib/api';
 import { SignupForm } from './signup-form';

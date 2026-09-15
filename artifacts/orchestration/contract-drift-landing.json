@@ -1,0 +1,194 @@
+{
+  "preexistingChanges": {
+    "capturedBeforeWork": true,
+    "command": "git status --short",
+    "entries": [
+      "M apps/api/test/agent-job-contract.test.ts",
+      "M apps/api/test/agent-pairing.test.ts",
+      "M apps/api/test/agent-source-fence.contract.test.ts",
+      "M apps/api/test/ai-contrast-materials.test.ts",
+      "M apps/api/test/audio-signer.e2e.test.ts",
+      "M apps/api/test/audio.test.ts",
+      "M apps/api/test/counseling-memory.races.test.ts",
+      "M apps/api/test/entity-memory-proof.contract.test.ts",
+      "M apps/api/test/entity-provider-proof.contract.test.ts",
+      "M apps/api/test/entity-result-proof.contract.test.ts",
+      "M apps/api/test/entity-source-binding.contract.test.ts",
+      "M apps/api/test/gateway-domain.test.ts",
+      "M apps/api/test/gateway-foundation.test.ts",
+      "M apps/api/test/recording-result.e2e.test.ts",
+      "M apps/api/test/routes.test.ts",
+      "M apps/api/test/scheduler-run.test.ts",
+      "M apps/api/test/storage-signer-authorization.test.ts",
+      "M apps/api/test/support/agent-jobs.ts",
+      "M apps/api/test/text-ai-consent-withdrawal.test.ts",
+      "M apps/api/test/text-work-materials.test.ts",
+      "M apps/api/test/watchdog-purge.test.ts",
+      "M apps/web/app/actions.ts",
+      "M apps/web/app/lib/api.ts",
+      "M packages/core/src/gateway.ts",
+      "?? apps/web/app/schedule-datetime-action.test.ts",
+      "?? artifacts/prod-migration-2026-09-16/",
+      "?? artifacts/release/"
+    ],
+    "ownership": {
+      "apps/api/test/**": "FixSttModeTestRegression 소유, 수정·되돌림·스테이징·커밋 0건",
+      "apps/web/app/actions.ts": "RehearsalFailureTriage 소유, 이 작업은 읽기와 독립 검증만 수행",
+      "apps/web/app/lib/api.ts": "RehearsalFailureTriage 소유, 이 작업은 읽기 조사만 수행",
+      "packages/core/src/gateway.ts": "FixSttModeTestRegression이 만든 별도 제품 버그 수정, 이 작업은 읽기 판정만 수행",
+      "apps/web/app/schedule-datetime-action.test.ts": "RehearsalFailureTriage가 만든 테스트, 이 작업은 실행 검증만 수행",
+      "artifacts/prod-migration-2026-09-16/": "다른 릴리스 작업 소유, 손대지 않음",
+      "artifacts/release/": "다른 릴리스 작업 소유, 손대지 않음"
+    },
+    "declaredBeforeMutation": "이 작업이 담을 것은 artifacts/orchestration/contract-drift-landing.json 한 파일이다. 코드와 기존 테스트는 담지 않는다."
+  },
+  "myFiles": [],
+  "timezoneVerify": {
+    "environment": "TZ=UTC",
+    "fixedCommand": "cd apps/web && TZ=UTC pnpm exec vitest run app/schedule-datetime-action.test.ts",
+    "fixedResult": "Test Files 1 passed, Tests 2 passed, exit 0",
+    "preFixMethod": "공유 actions.ts는 건드리지 않았다. 현재 actions.ts와 기존 테스트를 임시 형제 파일로 복사하고 canonicalUtcDateTime의 parseOrgWallDateTime(input) 한 호출만 HEAD의 pre-fix new Date(input)로 바꾼 뒤 같은 테스트를 실행했다.",
+    "preFixCommand": "cd apps/web && TZ=UTC pnpm exec vitest run app/schedule-datetime-action.contract-drift-red.test.ts",
+    "preFixResult": "Test Files 1 failed, Tests 1 failed | 1 passed, exit 1. scheduledAt 기대값 2026-09-16T07:30:00.000Z 대신 2026-09-16T16:30:00.000Z가 전달됐다.",
+    "restoration": "임시 actions.contract-drift-prefixtest.ts와 schedule-datetime-action.contract-drift-red.test.ts를 즉시 삭제했다. 뒤이은 git status에 두 경로가 없음을 확인했다. 공유 actions.ts에는 임시 되돌림을 적용하지 않았다.",
+    "verdict": "수정 전 실패와 수정 후 통과를 독립 재현했다. 테스트는 UTC 런타임의 9시간 오해를 실제로 잡는다."
+  },
+  "decoderScope": {
+    "owner": "RehearsalFailureTriage",
+    "thisCommit": "읽기 조사만 수행했다. live diff를 이 보고서 커밋에 담거나 완료로 판정하지 않는다.",
+    "observedLiveDiff": [
+      "ParticipantProgram 응답에서 제거된 내장 consent 필드 요구를 없애고, authorized=false인 최소 식별 응답을 별도 해석한다.",
+      "GET /support-cases/:id/consent의 6영역 CurrentConsentState[]를 읽어 기존 웹 표기 privacy와 recordingAi로 fail-closed 접는다.",
+      "listParticipantPrograms, getParticipantDetail, getParticipantHubDetail의 authorized 사업에 별도 동의 조회를 결합한다.",
+      "GET /support-cases/:id/consent/disclosures, GET /programs/:id/consent/disclosures, GET /program-options 해석 경로를 추가한다.",
+      "등록 입력을 programType과 구 동의 불리언에서 programId, idempotencyKey, consentEvents 6건으로 바꾼다.",
+      "구 PUT /consent를 POST /support-cases/:id/consent-events로 바꾸고 공개 가입도 consentEvents를 받게 한다.",
+      "getIntakeRecordContext가 writeSchemaVersion, moduleSnapshot, 6영역 consent 배열을 해석하도록 맞춘다."
+    ],
+    "actualPayloadEvidence": [
+      "packages/http-api/src/request-handler.ts:870-895가 authorized 사업 응답을 직렬화하며 내장 consent를 싣지 않는다.",
+      "packages/http-api/src/request-handler.ts:912-922가 authorized=false 사업에는 식별 필드만 싣는다.",
+      "packages/http-api/src/request-handler.ts:3058-3076이 consent와 disclosures 응답을 각각 별도 GET으로 낸다.",
+      "packages/http-api/src/request-handler.ts:1152-1170이 인테이크 응답에 writeSchemaVersion과 moduleSnapshot을 싣는다.",
+      "packages/contracts/src/consent.ts:3-10이 실제 6개 영역을 정한다."
+    ],
+    "syntheticPayloadsInvented": 0,
+    "findingSentToOwner": "apps/client/src/business/consent.ts:98-103의 실제 기준대로 voice_original_retention_period 외 5영역은 retentionDuration=null이어야 한다. live diff의 모든 영역 전달은 provider_scope_mismatch 위험이라 소유자에게 수정·검증을 요청했다."
+  },
+  "fiveScreens": [
+    {
+      "screen": "당사자 상세 허브",
+      "consumer": "apps/web/app/participants/[beneficiaryId]/page.tsx:457-487",
+      "decoderPath": "getParticipantHubDetail",
+      "status": "[추정] live diff에는 신계약 해석 경로가 있다. 이 작업은 실행 검증하지 않았고 소유자 완료 판정을 기다린다."
+    },
+    {
+      "screen": "상담 기록 작성",
+      "consumer": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx:408-425",
+      "decoderPath": "getNewRecordContext -> listSupportCaseRecords -> getParticipantProgram -> listParticipantPrograms, 별도로 getParticipantDetail",
+      "status": "[추정] live diff에는 내장 consent 없이 사업을 해석하는 경로가 있다. 이 작업은 실행 검증하지 않았다."
+    },
+    {
+      "screen": "상담 기록 확인 목록",
+      "consumer": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx:141-159",
+      "decoderPath": "listSupportCaseRecords와 getParticipantDetail",
+      "status": "[추정] live diff에는 신계약 해석 경로가 있다. 이 작업은 실행 검증하지 않았다."
+    },
+    {
+      "screen": "상담 기록 검토",
+      "consumer": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/page.tsx:136-171",
+      "decoderPath": "listSupportCaseRecords와 getParticipantDetail",
+      "status": "[추정] live diff에는 신계약 해석 경로가 있다. 이 작업은 실행 검증하지 않았다."
+    },
+    {
+      "screen": "인테이크 상세·작성·수정",
+      "consumer": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx:24-27,90-177",
+      "decoderPath": "getIntakeRecordContext",
+      "status": "live diff가 실제 API의 writeSchemaVersion, moduleSnapshot, 6영역 consent 필드를 읽는 코드를 갖는다. 화면 실행 검증은 소유자 범위다."
+    }
+  ],
+  "gatewayChange": {
+    "path": "packages/core/src/gateway.ts:1690-1714",
+    "change": "appendCaseEntityMapping의 CAS 성공 판정을 results[1].meta.changes에서 조건부 감사 INSERT인 results[2].meta.changes로 옮긴다.",
+    "reason": "entity_map_revision UPDATE가 실행하면 DB 트리거의 후속 쓰기까지 meta.changes에 포함될 수 있어 results[1]은 CAS 자체 1건 판정으로 쓸 수 없다. 조건부 감사 INSERT는 변경 후 상태가 있을 때만 1건 기록되므로 CAS 신호로 사용한다.",
+    "contextVerdict": "웹 동의·디코더·인테이크 계약 드리프트와 무관한 상담 메모리 엔티티 매핑 버그 수정이다.",
+    "ownership": "FixSttModeTestRegression",
+    "includedInThisCommit": false,
+    "action": "읽기만 했고 수정·되돌림·스테이징하지 않았다. 소유자가 자기 테스트와 함께 담는다."
+  },
+  "intakeDrift": {
+    "origin": [
+      "packages/contracts/src/intake.ts:3-5에서 INTAKE_WRITE_SCHEMA_VERSION=3을 정한다.",
+      "packages/contracts/src/intake.ts:86-93에서 moduleSnapshot을 programId, programVersion, financialSupportEnabled로 정하고 IntakeQuestionnaire의 필수 필드로 둔다.",
+      "packages/core/src/gateway.ts:22040-22057에서 IntakeRecordContext가 writeSchemaVersion과 moduleSnapshot을 필수로 가진다.",
+      "packages/core/src/gateway.ts:22286-22305에서 support case의 program을 조회해 현재 program id, version, financial_support_enabled로 moduleSnapshot을 만들고 writeSchemaVersion과 함께 반환한다.",
+      "packages/http-api/src/request-handler.ts:1152-1170에서 두 필드를 GET 인테이크 응답에 그대로 직렬화한다."
+    ],
+    "consumers": [
+      "apps/web/app/lib/api.ts의 getIntakeRecordContext live diff가 writeSchemaVersion=3을 검사하고 moduleSnapshot 세 필드를 해석한다.",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx:90-177이 두 필드를 조회·작성·수정 IntakeWizard에 전달한다.",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx:944-950은 둘 중 하나가 없으면 저장을 fail-closed로 막는다.",
+      "intake-wizard.tsx:962-976은 writeSchemaVersion을 쓰기 봉투 schemaVersion으로 보내고 moduleSnapshot을 questionnaire에 포함한다.",
+      "intake-wizard.tsx:637-691은 financialSupportEnabled로 경제 영역 부채표 포함 여부를 결정한다.",
+      "packages/core/src/gateway.ts:22308-22314,22366,22387은 제출된 snapshot을 현재 사업 id, version, 모듈 설정과 대조하고 바뀌었으면 충돌로 막는다."
+    ],
+    "whyBothMatter": "writeSchemaVersion은 구 쓰기 봉투를 거부하는 계약 버전이고, moduleSnapshot은 화면이 본 사업 모듈과 저장 시점 사업 모듈이 같은지 확인하는 CAS 근거다. 누락되면 위저드는 저장을 막거나 서버가 요청을 거부해야 한다.",
+    "writePathOwner": "RehearsalFailureTriage가 decoder와 actions data layer를 수정 중이다. 이 작업은 수정하지 않고 조사 결과를 넘긴다."
+  },
+  "remainingForDesign": [
+    "등록 폼, 추가 참여 사업 폼, 공개 가입 폼에 consentDecision_<domain> 6개를 각각 grant 또는 decline으로 받는 입력이 필요하다. 기존 체크박스 2개로 6개 결정을 만들 수 없다.",
+    "허브 동의 편집기는 현재 2종 표기만 있으므로 6영역 결정 입력과 철회 의미를 표현해야 한다.",
+    "사용자가 실제로 본 서버 발급 fullKoreanCopy와 제출되는 disclosureSnapshotId가 같은 스냅샷이어야 한다. 현재 live actions diff의 제출 시 재발급 방식은 이 동일성을 DESIGN과 data layer가 함께 닫아야 한다.",
+    "초기·추가 등록 폼은 programId를 직접 선택할 수 있어야 한다. 현재 live data bridge는 활성 financial_support_v1 사업이 정확히 하나일 때만 자동 선택하고 0개 또는 2개 이상이면 fail-closed로 멈춘다.",
+    "인테이크 표시는 6영역 현재 상태를 읽는 구조가 필요하지만 인테이크에서 동의를 수정하지 않는다. 수정 입구는 허브 소유다."
+  ],
+  "noBypass": {
+    "consentBypass": 0,
+    "fabricatedConsentEvents": 0,
+    "uncheckedAsChecked": 0,
+    "testsDeleted": 0,
+    "testsSkipped": 0,
+    "assertionsWeakened": 0,
+    "screenStructureChanges": 0,
+    "notes": "두 체크박스를 6개 사건으로 확장하지 않았다. 누락된 6영역 입력과 동일 스냅샷 연결을 DESIGN 경계로 명시했다."
+  },
+  "mutations": {
+    "created": [
+      "artifacts/orchestration/contract-drift-landing.json"
+    ],
+    "temporaryCreatedAndRemoved": [
+      "apps/web/app/actions.contract-drift-prefixtest.ts",
+      "apps/web/app/schedule-datetime-action.contract-drift-red.test.ts"
+    ],
+    "codeFilesChanged": 0,
+    "appsApiTestsTouched": 0,
+    "appsPipelineTouched": 0,
+    "pushes": 0,
+    "deployments": 0,
+    "previewDeployments": 0,
+    "productionDbReads": 0,
+    "productionDbWrites": 0,
+    "secretValuesPrinted": 0
+  },
+  "gitStatus": {
+    "start": "staged 0, unstaged 24, untracked 3. 전체 경로는 preexistingChanges.entries에 기록했다.",
+    "afterTimezoneProbe": "staged 0, unstaged 24, untracked 3. 임시 검증 파일 2개는 남지 않았다.",
+    "commitBoundary": "이 보고서만 명시적으로 스테이징한다. apps/api/test/**, apps/web/**, packages/core/src/gateway.ts, 다른 artifacts 경로는 제외한다."
+  },
+  "commit": {
+    "plannedSubject": "docs: record independent contract drift verification",
+    "files": [
+      "artifacts/orchestration/contract-drift-landing.json"
+    ],
+    "count": 1,
+    "push": false
+  },
+  "blocked": {
+    "value": false,
+    "deferredOwnership": [
+      "apps/web/app/actions.ts와 apps/web/app/lib/api.ts의 구현·테스트·커밋 완료 판정은 RehearsalFailureTriage 소유다.",
+      "packages/core/src/gateway.ts와 apps/api/test/**의 구현·테스트·커밋 완료 판정은 FixSttModeTestRegression 소유다.",
+      "화면 구조와 6영역 동의 UI, programId 선택, 실제 표시 스냅샷 연결은 DESIGN w1G:p1 소유다."
+    ]
+  }
+}

@@ -1,10 +1,10 @@
 'use client';
 
+import { WireBadge } from '@ccc/wire';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { NavIcon } from './shell-icons';
-import { WireBadge } from './wire-badge';
 import { OrgSwitcher } from './org-switcher';
 import { ProgramSwitcher, resolveActiveProgram } from './program-switcher';
 import { logoutAction } from '../../logout-action';
@@ -16,9 +16,9 @@ import { ORG_LABEL, PROGRAM_LABELS } from '../../lib/labels';
 
 // 앱 셸의 좌측 사이드바 (D35 · ADR-0014 §2). 축은 **사이드바 = 장소 / 페이지 우상단 = 행동**
 // 이었으나, **2026-08-30 Q 부분 개정**으로 등록·초대 화면도 사이드바에 장소로 선다. 같은 날
-// Q 3차가 그 모양을 확정했다 — **묶음 제목 + 한 계층**("서브 메뉴 없이 메뉴는 1개의 계층으로
-// 통일"): '일정' 묶음에 상담 일정 보기·상담 일정 등록, '당사자' 묶음에 당사자 목록·당사자
-// 등록·당사자 초대. 우상단 행동 버튼은 그대로다(두 입구 공존, DESIGN.md §4-5).
+// Q 3차가 그 모양을 확정했다. 묶음 제목 + 한 계층이다. '일정' 묶음에는 일정과
+// 상담 일정 등록, '당사자' 묶음에는 당사자 목록·당사자 등록이 서고 당사자 초대는
+// 기존 공개 가입 capability가 켜졌을 때만 더해진다. 우상단 행동 버튼은 그대로다.
 //
 // 2026-08-05 Q — 상단 헤더 신설(Infisical 레퍼런스)로 축이 한 층 더 갈렸다:
 // **헤더 = 맥락(기관·사업) + 계정 행동(설정·테마·로그아웃) / 사이드바 = 장소(메뉴)**.
@@ -55,16 +55,15 @@ interface NavSection {
  * '다가오는 일정'과 '전체 일정' 두 메뉴는 D75(ADR-0039)로 화면 하나가 됐다 — 두 창의
  * 경계는 메뉴가 아니라 화면 안 범위 전환(일간·주간·월간)이 말한다.
  *
- * 2026-08-30 Q 3차: 묶음 머리('일정'·'당사자')는 제목이고, 그 아래가 전부 같은 계층의
- * 항목이다. 구 부모 링크 '일정'·'당사자'는 각자 도착지 이름을 얻었다 — '상담 일정 보기',
- * '당사자 목록'.
+ * 2026-08-30 Q 3차: 묶음 머리('일정'·'당사자')는 제목이고, 그 아래가 전부 같은 한 계층이다.
+ * 목적지 이름은 현재 CONTEXT.md의 화면 표시명 표를 따른다.
  */
-function programMenu(programType: ParticipantProgramType): NavSection[] {
+function programMenu(programType: ParticipantProgramType, publicSignupEnabled: boolean): NavSection[] {
   return [
     {
       title: '일정',
       items: [
-        { label: '상담 일정 보기', href: `/programs/${programType}/schedule`, icon: 'upcoming' },
+        { label: '일정', href: `/programs/${programType}/schedule`, icon: 'upcoming' },
         { label: '상담 일정 등록', href: '/schedules/new', icon: 'calendar' },
       ],
     },
@@ -73,7 +72,9 @@ function programMenu(programType: ParticipantProgramType): NavSection[] {
       items: [
         { label: '당사자 목록', href: '/participants', icon: 'participants' },
         { label: '당사자 등록', href: '/participants/new', icon: 'participant-add' },
-        { label: '당사자 초대', href: '/participants/invite', icon: 'invite' },
+        ...(publicSignupEnabled
+          ? [{ label: '당사자 초대', href: '/participants/invite', icon: 'invite' as const }]
+          : []),
       ],
     },
   ];
@@ -99,6 +100,8 @@ export interface AppSidebarProps {
    * 0 이거나 undefined 면 배지를 그리지 않는다.
    */
   newSignupCount?: number;
+  /** 기존 공개 가입 capability가 켜진 설치에서만 당사자 요청 링크 입구를 보인다. */
+  publicSignupEnabled?: boolean;
   /**
    * 현재 테마 (D56 · ADR-0026). 루트 레이아웃이 쿠키에서 읽어 넣는다 — 여기서 직접 읽지
    * 않는 이유는 이 컴포넌트가 클라이언트이고 쿠키 판정은 첫 페인트 전에 끝나 있어야 하기
@@ -119,6 +122,7 @@ export function AppSidebar({
   programLabels = PROGRAM_LABELS,
   theme = 'light',
   newSignupCount = 0,
+  publicSignupEnabled = false,
 }: AppSidebarProps) {
   const pathname = usePathname();
   const current = activePath ?? pathname;
@@ -151,7 +155,7 @@ export function AppSidebar({
   // 워크스페이스 판정은 헤더와 같은 헬퍼를 쓴다(program-switcher.tsx) — 두 부품이 다른
   // 사업을 가리키면 메뉴와 전환기가 어긋난다.
   const activeProgram = resolveActiveProgram(current, programType);
-  const menu = programMenu(activeProgram);
+  const menu = programMenu(activeProgram, publicSignupEnabled);
 
   // 하위 경로(예: 당사자 상세)에서도 그 메뉴가 활성으로 남아야 "지금 어디인지"가 유지된다.
   // '/participants' 가 '/participants/new' 까지 먹지 않도록 정확 일치 + 경계(/) 만 보고,
@@ -188,9 +192,8 @@ export function AppSidebar({
                     >
                       <NavIcon name={item.icon} />
                       <span>{item.label}</span>
-                      {/* CCC-26: 새 가입 미확인 숫자 — 사람·소속 축의 민트 배지(WireBadge 계약).
-                          확인 행위로 사라지는 값이라 재방문 시 자리가 안 흔들린다. */}
-                      {item.icon === 'participants' && newSignupCount > 0 && (
+                      {/* 요청 링크 capability가 꺼지면 유입 배지도 함께 숨긴다. */}
+                      {publicSignupEnabled && item.icon === 'participants' && newSignupCount > 0 && (
                         <WireBadge tone="mint" role="status">{newSignupCount}</WireBadge>
                       )}
                     </Link>

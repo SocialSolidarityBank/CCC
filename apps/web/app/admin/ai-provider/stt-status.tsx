@@ -1,7 +1,10 @@
-import { WireBadge } from '../../components/wire/wire-badge';
-import { WireCallout } from '../../components/wire/wire-callout';
-import { WireCard } from '../../components/wire/wire-card';
-import { WireCardSection, WireItem } from '../../components/wire/wire-section';
+import {
+  WireBadge,
+  WireCallout,
+  WireCard,
+  WireCardSection,
+  WireItem,
+} from '@ccc/wire';
 import type { SttCapabilities } from '../../lib/api';
 
 // STT 설정 상태(D77 · S2 §2.8). 읽기 전용이다 — STT 모드를 쓰는 엔드포인트가 없고,
@@ -48,17 +51,18 @@ export default function SttStatus({ capabilities }: { capabilities: SttCapabilit
     );
   }
 
-  const on = capabilities.sttMode !== 'off';
+  const showCurrent = capabilities.sttMode !== 'local';
+  const on = capabilities.sttMode === 'azure';
   return (
     <WireCard as="section" className="settings-section" labelledBy="stt-status-heading" title={heading}>
       <dl className="settings-account">
-        <div className="settings-field">
+        {showCurrent ? <div className="settings-field">
           <dt>현재 처리</dt>
           <dd className="settings-value-row">
             <WireBadge {...(on ? { tone: 'mint' as const } : {})}>{modeLabel[capabilities.sttMode]}</WireBadge>
             <span>{capabilities.sttEngine ?? '지정된 엔진 없음'}</span>
           </dd>
-        </div>
+        </div> : null}
         <div className="settings-field">
           <dt>처리 장비</dt>
           <dd className="settings-value-row">
@@ -70,7 +74,7 @@ export default function SttStatus({ capabilities }: { capabilities: SttCapabilit
       </dl>
 
       <WireCardSection title="엔진별 상태">
-        {capabilities.options.map((option) => (
+        {capabilities.options.filter((option) => option.mode !== 'local').map((option) => (
           <WireItem
             key={option.mode}
             title={modeLabel[option.mode]}
@@ -88,7 +92,7 @@ export default function SttStatus({ capabilities }: { capabilities: SttCapabilit
         ))}
       </WireCardSection>
 
-      {!on && (
+      {capabilities.sttMode === 'off' && (
         <WireCallout title="안내" tone="lavender">
           STT 를 사용하지 않는 동안 상담 기록은 수기 경로로 남깁니다. 켜는 것은 화면이 아니라 설치 설정과 승인된 엔진 목록이 정합니다.
         </WireCallout>

@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import {
   activateAiProviderConfiguration,
+  authorizeAgentJobEgress,
   createCase,
   createManualSession,
-  recordMaskedSourceSnapshot,
+  markAgentJobEgressInFlight,
+  enqueueTextWorkItem,
   registerAiProviderConfiguration,
   registerRecording,
   SESSION_GOAL_MATERIAL_LABEL,
@@ -12,6 +14,10 @@ import {
 import {
   AI_DRAFT_PROMPT_VERSION,
   AI_DRAFT_SCHEMA_VERSION,
+  DISCREPANCY_PROMPT_VERSION,
+  DISCREPANCY_SCHEMA_VERSION,
+  MEMORY_PROMPT_VERSION,
+  MEMORY_SCHEMA_VERSION,
   AiProviderInputError,
   AiProviderProhibitedOutputError,
   CODEX_PROVIDER_ADAPTER_VERSION,
@@ -31,9 +37,8 @@ import {
 import { contrastAxisStates } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import { seedTestProgramWithRuntimeModes, setupD1, testProgramId } from './support/d1';
-import { agentManifestEnv, agentResultRequest, claimOverHttp, registerFixtureRecording } from './support/agent-jobs';
+import { agentManifestEnv, agentResultRequest, AZURE_CLOUD_RUNTIME, claimOverHttp, readTestProtectedAudio, registerFixtureRecording, runAgentTextJobs, testMaskingPipelineRegistry, testProtectedAudioEnv } from './support/agent-jobs';
 import { registrationInput } from './support/registration';
-
 const t = setupD1();
 
 const TRANSCRIPT_TEXT = '실무자는 이사 계획을 물었고 당사자는 다음 달 이사를 준비한다고 답했다.';
@@ -125,11 +130,6 @@ function baseOutput(request: AiProviderRequest): AiProviderOutput {
 }
 
 describe('호출 ① 재료 다중화와 대조 3종 v4 (D69 · ADR-0036 · CCC-102)', () => {
-  it('버전이 v4 로 올라간다', () => {
-    expect(AI_DRAFT_PROMPT_VERSION).toBe('phase1.grounded.v4');
-    expect(AI_DRAFT_SCHEMA_VERSION).toBe('phase1.grounded-draft.v4');
-  });
-
   it('재료 두 개와 대조 3종을 담은 출력이 왕복한다', () => {
     const request = bothMaterialsRequest();
     expect(request.materials).toHaveLength(2);
@@ -394,22 +394,6 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function snapshotBody(maskedText: string, sourceRef: string) {
-  const sha256 = await sha256Hex(maskedText);
-  return {
-    maskedText,
-    sha256,
-    maskingPipelineVersion: 'local-ner-v1',
-    evidence: [{
-      id: crypto.randomUUID(),
-      sourceRef,
-      sourceSha256: sha256,
-      evidenceQuote: maskedText,
-      sourceStart: 0,
-      sourceEnd: Array.from(maskedText).length,
-    }],
-  };
-}
 
 interface RouteFixtureOptions {
   configHash?: string;
@@ -420,14 +404,15 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   await t.reset();
   const adapter = options.adapter ?? new ContrastAdapter();
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
-    sttMode: 'local',
+    sttMode: 'azure',
     llmMode: 'openai',
   });
   const env: ApiEnv = {
     ...t.env,
     TEXT_AI_PILOT_ENABLED: '1',
-    CCC_STT_MODE: 'local',
+    CCC_STT_MODE: 'azure',
     CCC_LLM_MODE: 'openai',
+    MEMORY_MASKING_PIPELINES: await testMaskingPipelineRegistry(),
     AI_PROVIDER_ADAPTER: adapter,
   };
   // 텍스트 AI 권한은 등록 6종 동의만이 만든다(옛 파일럿 증빙 라우트는 폐지).
@@ -453,15 +438,22 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   return { adapter, caseRecord, env, session };
 }
 
-/** 텍스트 재료 스냅샷. v2 는 별도 snapshot 라우트가 없어 게이트웨이 경계로 직접 만든다. */
+/** 텍스트 재료 스냅샷도 실제 Agent claim/source/result 경로에서 proof 를 받아 만든다. */
 async function postTextSnapshot(env: ApiEnv, sessionId: string, maskedText = TEXT_CONTEXT_TEXT) {
-  const snapshot = await recordMaskedSourceSnapshot(env, service, sessionId, await snapshotBody(maskedText, 'memo:text-1'));
+  await enqueueTextWorkItem(env, counselor, sessionId, 'manual_record');
+  const agentEnv = await agentManifestEnv(env, { stt: 'off' });
+  const processed = await runAgentTextJobs(agentEnv, t.db, { mask: () => maskedText });
+  expect(processed).toBeGreaterThan(0);
+  const snapshot = await t.db.prepare(
+    'SELECT id,sha256 FROM ai_masked_source_snapshots WHERE session_id=? ORDER BY created_at DESC,id DESC LIMIT 1',
+  ).bind(sessionId).first<{ id: string; sha256: string }>();
+  if (snapshot === null) throw new Error('expected proof-backed text snapshot');
   return { sourceSnapshotId: snapshot.id, sha256: snapshot.sha256 };
 }
 
 /** 녹음 결과는 오디오를 claim·읽기·검증한 작업의 결과로만 들어온다 (S5). */
 async function postRecordingResult(env: ApiEnv, sessionId: string): Promise<Response> {
-  const agentEnv = await agentManifestEnv(env, { stt: 'local' });
+  const agentEnv = testProtectedAudioEnv(await agentManifestEnv(env, { stt: 'azure' }));
   const { jobs, qualification } = await claimOverHttp(agentEnv, t.db);
   const job = jobs.find((candidate) => candidate.kind === 'audio' && candidate.sessionId === sessionId);
   if (job === undefined || job.audio === null) throw new Error('expected a claimable audio job');
@@ -475,9 +467,10 @@ async function postRecordingResult(env: ApiEnv, sessionId: string): Promise<Resp
       },
     },
   ), agentEnv);
-  if (audioResponse.status !== 200) throw new Error('expected claim-bound audio stream');
+  if (audioResponse.status !== 200) throw new Error('expected claim-bound signed audio');
+  const { bytes: audioBytes } = await readTestProtectedAudio(agentEnv, audioResponse);
   const audioSha256 = Array.from(
-    new Uint8Array(await crypto.subtle.digest('SHA-256', await audioResponse.arrayBuffer())),
+    new Uint8Array(await crypto.subtle.digest('SHA-256', audioBytes)),
     (byte) => byte.toString(16).padStart(2, '0'),
   ).join('');
   const verified = await worker.fetch(new Request(
@@ -494,6 +487,21 @@ async function postRecordingResult(env: ApiEnv, sessionId: string): Promise<Resp
     },
   ), agentEnv);
   if (verified.status !== 200) throw new Error('expected Agent audio verification');
+  const authorization = await authorizeAgentJobEgress(agentEnv, service, job.jobId, {
+    claimToken: job.claimToken,
+    attempt: job.attempt,
+    rawAudioSha256: audioSha256,
+    provider: 'azure',
+  }, AZURE_CLOUD_RUNTIME);
+  await markAgentJobEgressInFlight(agentEnv, service, job.jobId, {
+    egressAuthorizationId: authorization.egressAuthorizationId,
+    claimToken: job.claimToken,
+    attempt: job.attempt,
+  }, AZURE_CLOUD_RUNTIME);
+  const source = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/source`, {
+    headers: { ...serviceHeaders, 'X-CCC-Job-Claim': job.claimToken, 'X-CCC-Job-Attempt': String(job.attempt) },
+  }), agentEnv);
+  if (source.status !== 200) throw new Error('expected verified audio source binding');
   return worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/result`, {
     method: 'POST',
     headers: serviceHeaders,
@@ -750,18 +758,32 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     expect(sessionRow?.speaker_mapping_confirmed_at).toBe(sessionRow?.approved_at);
   });
 
-  it('v2 해시가 활성이면 fail-closed 이고 재활성화하면 통과한다', async () => {
-    // 프롬프트·스키마 버전이 오르면 활성 설정 해시가 어긋난다. D57 의 의도된 동작.
-    const staleHash = await canonicalAiProviderConfigHash({
-      ...ROUTE_PROVIDER_CONFIG,
-      configVersion: 'contrast-test-stale',
-    });
-    const { env, session } = await setupRouteFixture({ configHash: staleHash });
+  it.each(['pre-relayer', 'historical-memory', 'discrepancy-v1'] as const)(
+    'rejects an activation with obsolete %s policy until reactivated',
+    async (policy) => {
+    // Preserve the real canonical tuple order, changing only the obsolete policy.
+    const staleHash = await sha256Hex(JSON.stringify({
+      adapterVersion: ROUTE_PROVIDER_CONFIG.adapterVersion,
+      configVersion: ROUTE_PROVIDER_CONFIG.configVersion,
+      model: ROUTE_PROVIDER_CONFIG.model,
+      promptVersion: policy === 'discrepancy-v1' ? AI_DRAFT_PROMPT_VERSION : 'phase1.grounded.v4',
+      providerId: ROUTE_PROVIDER_CONFIG.providerId,
+      registryVersion: ROUTE_PROVIDER_CONFIG.registryVersion,
+      schemaVersion: AI_DRAFT_SCHEMA_VERSION,
+      ...(policy === 'pre-relayer' ? {} : {
+        discrepancyPromptVersion: policy === 'discrepancy-v1' ? 'phase1.discrepancy.v1' : DISCREPANCY_PROMPT_VERSION,
+        discrepancySchemaVersion: DISCREPANCY_SCHEMA_VERSION,
+      }),
+      memoryPromptVersion: MEMORY_PROMPT_VERSION,
+      memorySchemaVersion: MEMORY_SCHEMA_VERSION,
+    }));
+    const { adapter, env, session } = await setupRouteFixture({ configHash: staleHash });
     const text = await postTextSnapshot(env, session.id);
 
     const blocked = await generateFromSnapshot(env, session.id, text.sourceSnapshotId);
     expect(blocked.status).toBe(503);
     expect(await blocked.json()).toMatchObject({ error: 'ai_provider_unavailable' });
+    expect(adapter.invocations).toEqual([]);
     expect(await t.db.prepare('SELECT COUNT(*) AS count FROM ai_draft_versions')
       .first<{ count: number }>()).toMatchObject({ count: 0 });
 
@@ -773,7 +795,8 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     });
     await activateAiProviderConfiguration(t.env, admin, reactivated.id);
     expect((await generateFromSnapshot(env, session.id, text.sourceSnapshotId)).status).toBe(201);
-  });
+    },
+  );
 
   // 0035 는 ai_evidence_links_insert_guard 의 가운데 절만 넓히고 나머지 두 절은 글자
   // 그대로 되살린다. 되살리다 한 절을 흘리면 아무 테스트도 빨개지지 않으므로 여기서 못 박는다.

@@ -1,0 +1,102 @@
+{
+  "sourceSet": {
+    "infisicalPath": "/current",
+    "env": "prod",
+    "project": "Relayer",
+    "note": "Infisical RELAYER prod /current 의 CCC_* 16개가 기존 설치와 짝이 맞는 정본 세트다. /install 의 RELAYER_* 는 stale 하다(ORGANIZATION_ID·MANIFEST·APPROVAL·RELEASE_TRUST·PROVIDER_BASELINE·DATABASE_URL·SUPABASE_PROJECT_REF 의 sha256 지문이 /current 와 다름). SIGNING_KEYS·TRUST_ROOT_KEYS·REVOKED_ROOT_KEY_IDS·RELEASE_TRUST_STORE·INSTALL_SIGNING_PRIVATE_KEY 는 두 경로가 동일하다."
+  },
+  "changedFields": {
+    "manifest": [
+      "approvedSttEngineIds",
+      "ed25519Signature"
+    ],
+    "approval": [
+      "runtimeManifestSha256",
+      "ed25519Signature"
+    ],
+    "approvedSttEngineIds": [
+      {
+        "id": "azure-speech-koreacentral",
+        "mode": "azure"
+      }
+    ]
+  },
+  "preservedFields": {
+    "manifest": "installationId(a1ad5f9d…), sequence(1), supabaseProjectRef(wtbdqy…), mode(community-cloud), supabaseAuthOrigin, supabasePublishableKey, publishedAt, expiresAt, schemaVersion, apiBase, clientOrigin, allowedOrigins, host, scheme, endpointDiscovery, signingKeyId 를 입력과 동일하게 보존했다.",
+    "approval": "schemaVersion, contractVersion, institutionId, projectRef, expectedOwnerOrgId, installationId, expiresAt, signingKeyId 를 입력과 동일하게 보존했다.",
+    "identityCheck": "installationId 앞 8자리 a1ad5f9d, supabaseProjectRef 앞 6자리 wtbdqy, sequence 1 — 세 값 모두 /current 입력과 동일하다."
+  },
+  "timestampDecision": {
+    "decision": "publishedAt 과 expiresAt 모두 기존 값을 그대로 둔다.",
+    "evidence": "verifySignedInstallManifest2(apps/community-cloud/dist/install-manifest-verifier.js)는 미래의 publishedAt 만 거부하고, verifySignedInstallManifest 는 과거의 expiresAt 만 거부한다. 기존 publishedAt 2026-09-10T16:49:18.708Z 는 과거라 유효하고, expiresAt 2026-10-10T16:50:18.708Z 는 release trust·baseline·approval 의 공통 상한이라 그대로 두는 것이 가장 길지 않은 유효 선택이다. 재서명 시각으로 publishedAt 을 요구하는 검사는 없다.",
+    "expiresAt": "2026-10-10T16:50:18.708Z (기존과 동일, 더 길게 잡지 않음)"
+  },
+  "verificationFunctions": {
+    "ownerPreflight": "requireSignedOwnerPreflight (scripts/supabase/manifest-preflight.mjs:266)",
+    "manifestVerify": "verifySignedInstallManifest (packages/contracts/src/install-manifest.ts:217, dist install-manifest-verifier.js)",
+    "baselineRequire": "requireProviderBaseline (scripts/supabase/provider-baseline.mjs:229)",
+    "baselineCurrent": "assertProviderBaselineCurrent (scripts/supabase/plan.mjs:172)"
+  },
+  "ownerPreflight": {
+    "result": "pass",
+    "detail": "새 manifest·approval 파일 경로를 requireSignedOwnerPreflight 에 그대로 넣어 통과했다. authorization.installationId 와 runtimeManifestSha256 이 서명 결과와 일치한다."
+  },
+  "baselineCheck": {
+    "requireProviderBaseline": "pass",
+    "assertProviderBaselineCurrent": "pass",
+    "detail": "/current 의 CCC_BETA_RELEASE_TRUST·CCC_PROVIDER_BASELINE·CCC_BETA_TRUST_ROOT_KEYS·CCC_BETA_REVOKED_ROOT_KEY_IDS 와 새 authorization 조합이 두 검사를 모두 통과했다. baselineVersion supabase-hosted-pg17-20260911-v1."
+  },
+  "planOutcome": {
+    "command": "scripts/install/stage-env.sh bash -c '… node scripts/supabase/bootstrap.mjs plan --target hosted --project-ref <manifest의 ref>'",
+    "exitCode": 6,
+    "blockers": [
+      "PROVIDER_BASELINE_MISMATCH",
+      "INSTALL_AUTHORIZATION_MISMATCH"
+    ],
+    "vsPrevious": "이전 종료 6 BETA_TRUST_INVALID 와 다르다. BETA_TRUST_INVALID 는 사라졌고, 읽기 전용 검사가 끝까지 진행돼 계획 단계의 차단 사유 두 개가 보고됐다.",
+    "interpretation": "INSTALL_AUTHORIZATION_MISMATCH 는 구조적이다. approvedSttEngineIds 가 runtimeConfigurationSha256 에 들어가므로(manifest-preflight.mjs:319-326) journal 의 stable 비교가 실패하고, sequence 를 1로 보존해야 해서 renewalAdvances 도 성립하지 않는다(manifest-preflight.mjs:252-261). PROVIDER_BASELINE_MISMATCH 는 2026-09-11 기준선 생성 이후 프로젝트 구성이 달라졌다는 뜻으로, baseline 재생산은 이번 범위 밖이다."
+  },
+  "planSummary": {
+    "projectRefPrefix": "wtbdqy",
+    "installState": "installed (journal.phase=installed, release 0.9.0-dev.2)",
+    "plannedResources": "12종 (journal·resources·schema_migrations·baseline+forward migrations·ccc_api·ccc_schema_owner·tenant RLS·invitation+MFA·community-cloud runtime·ccc-audio bucket·ccc_scheduler_tick·D85 삭제 정책)",
+    "unappliedMigrations": 11,
+    "fingerprintMatch": false,
+    "note": "지문 불일치는 위 두 차단 사유와 같은 원인이다. 적용된 마이그레이션 17/28, 미적용 0018~0028."
+  },
+  "sttEngineCondition": {
+    "conclusion": "manifest 승인만으로는 sttEngine 이 채워지지 않는다. 세 가지 gate 가 더 필요하다.",
+    "evidence": "packages/contracts/src/capabilities.ts:71-83 sttOption — azure 모드는 (1) sttGatePassed.azure(기관 readiness·외부 처리 gate)가 열려 있고, (2) registry 에 mode=azure entry 가 있고 agentStatus 가 inactive 가 아니며, (3) azureKeyPresent 가 true 일 때만 enabled 가 된다. enabled 일 때만 approvedSttEngineId(registry, entry.id, mode) 가 engine 을 채운다(41-47, 82). 이번 manifest 는 (2)의 registry 조건만 충족시킨다. AZURE_SPEECH_KEY 는 루트에 있으므로 (3)은 배포 시점에 충족 가능하지만, (1)의 기관 gate 는 설치·기관 생성 이후의 런타임 상태다."
+  },
+  "secretLeakCheck": {
+    "method": "생산물 두 파일의 모든 문자열 값을 /private key|BEGIN|bearer|password|service_role|secret/i 로 스캔해 0건. 보고 JSON 에는 지문 앞자리·keyId·버전 문자열만 적고 개인키·토큰·서명 바이트·연결 문자열을 넣지 않았다. infisical secrets get·export·--plain 을 실행하지 않았고 주입은 infisical run 만 사용했다.",
+    "leaks": 0
+  },
+  "mutations": {
+    "newKeysGenerated": 0,
+    "infisicalWrites": 0,
+    "applyRuns": 0,
+    "dbChanges": 0,
+    "supabaseResourcesCreated": 0,
+    "emailsSent": 0,
+    "managementApiCalls": "GET /v1/projects/<ref>, GET config/auth, POST database/query/read-only 만 사용(읽기 전용). 쓰기 호출 0건."
+  },
+  "gitStatus": {
+    "checkIgnore": "artifacts/install/.gitignore:2 current/ → install-manifest.json·install-approval.json 모두 ignore 됨",
+    "signedDocsInGit": false,
+    "modified": [
+      "artifacts/install/.gitignore",
+      "scripts/install/sign-install-documents.mjs",
+      "scripts/install/stage-env.sh"
+    ]
+  },
+  "commit": "HEAD — install: /current 정본으로 approvedSttEngineIds 만 채운 재서명 절차 (이 파일을 포함한 단일 커밋; 자기 참조로 해시는 심지 않음)",
+  "blocked": {
+    "status": "plan 은 차단됐으나 작업 자체는 완료",
+    "reasons": [
+      "INSTALL_AUTHORIZATION_MISMATCH: approvedSttEngineIds 변경은 runtimeConfigurationSha256 을 바꾸므로 sequence 1 보존 조건에서는 journal 과의 stable 비교를 통과할 수 없다. 전사를 켠 새 manifest 가 기존 설치 저널과 짝이 되려면 renewal(sequence 증가) 또는 재설치가 필요하며 둘 다 이번 범위 밖이다.",
+      "PROVIDER_BASELINE_MISMATCH: /current baseline(2026-09-11) 이후 프로젝트 provider 구성이 달라졌다. baseline 재생산은 비목표다."
+    ],
+    "discardedArtifacts": "artifacts/install/wtbdqy/ 의 직전 산출물(installationId 183152f0…)은 폐기 대상이며 그대로 둔다."
+  }
+}

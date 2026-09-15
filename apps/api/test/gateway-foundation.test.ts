@@ -299,7 +299,15 @@ describe('gateway foundation', () => {
     await processParticipantPiiRetention(t.env);
     await purgeParticipantPii({ ...t.env, PII_PURGE_ENABLED: '1' }, admin, created.id);
 
-    await expect(revealPii(t.env, admin, created.id)).resolves.toEqual({
+    // 파기가 legacy_case_id 를 지우므로(5d43bbef 원장) 파기 후에는 support_case.id 로만
+    // 케이스가 풀린다. vault 행 보존과 null 반환 계약은 그대로 검증한다.
+    const supportCase = await t.db
+      .prepare('SELECT id FROM support_cases WHERE beneficiary_id = ? AND org_id = ?')
+      .bind(created.id, counselor.orgId)
+      .first<{ id: string }>();
+    if (supportCase === null) throw new Error('expected support case row');
+
+    await expect(revealPii(t.env, admin, supportCase.id)).resolves.toEqual({
       name: null,
       phone: null,
       account: null,

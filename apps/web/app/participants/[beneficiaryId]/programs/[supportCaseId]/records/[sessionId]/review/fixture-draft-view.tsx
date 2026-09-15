@@ -1,3 +1,21 @@
+import {
+  GridContainer,
+  PageTitle,
+  ParticipantHeroCard,
+  WireBadge,
+  WireButton,
+  WireCallout,
+  WireCard,
+  WireCardSection,
+  WireChoice,
+  WireEmpty,
+  WireError,
+  WireFormField,
+  WireItem,
+  WireSourceQuotes,
+  type ParticipantHeroDetail,
+  type WireBadgeTone,
+} from '@ccc/wire';
 import type {
   AiContrastAxis,
   AiContrastAxisStatus,
@@ -9,16 +27,6 @@ import type {
   AiMaterialKind,
   TranscriptQuality,
 } from '../../../../../../../lib/api';
-import { GridContainer } from '../../../../../../../components/wire/grid-container';
-import { PageTitle } from '../../../../../../../components/wire/page-title';
-import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../../../components/wire/participant-hero-card';
-import { WireCallout, WireSourceQuotes } from '../../../../../../../components/wire/wire-callout';
-import { WireCard } from '../../../../../../../components/wire/wire-card';
-import { WireBadge, type WireBadgeTone } from '../../../../../../../components/wire/wire-badge';
-import { WireButton } from '../../../../../../../components/wire/wire-button';
-import { WireCardSection, WireItem } from '../../../../../../../components/wire/wire-section';
-import { WireChoice, WireFormField } from '../../../../../../../components/wire/wire-form-field';
-import { WireEmpty, WireError } from '../../../../../../../components/wire/wire-state';
 
 // 대조 3종 축 표시 순서 + 한글 라벨(D69 · ADR-0036 결정 1·3, CCC-100).
 const contrastAxisOrder: AiContrastAxis[] = ['missing_from_memo', 'missing_from_transcript', 'undiscussed_session_goal'];
@@ -51,10 +59,9 @@ function transcriptClock(seconds: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 const REVIEW_FORM_ID = 'ai-draft-review-form';
+// 첫 출고는 회기 목표별 요약만 보여 준다. 다른 분류와 자동 액션 생성 코드는 보존한다.
 const claimSectionOrder: AiClaimSection[] = [
   'session_goal_discussion',
-  'other_topics',
-  'next_session_commitments',
 ];
 const claimSectionLabels: Record<AiClaimSection, string> = {
   session_goal_discussion: '회기 목표별 논의 내용',
@@ -194,14 +201,14 @@ export function DraftReviewView({
     <div data-testid="ai-draft-review">
       <GridContainer as="main" className="page-content">
         <div className="page-header">
-          <PageTitle>AI 초안 검토</PageTitle>
+          <PageTitle>AI 정리 검토</PageTitle>
         </div>
 
         <ParticipantHeroCard
           name={participantName}
           beneficiaryId={beneficiaryId}
           details={[...details, { label: 'AI 검토 상태', value: reviewStatus, tone: 'lavender' }]}
-          actions={<WireButton href={recordsHref} variant="secondary">상담 기록 확인</WireButton>}
+          actions={<WireButton href={recordsHref} variant="secondary">상담 기록 확인하기</WireButton>}
         />
 
         {isFixture && (

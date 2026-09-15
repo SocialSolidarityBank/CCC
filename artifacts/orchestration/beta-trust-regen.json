@@ -1,0 +1,93 @@
+{
+  "generatorContract": {
+    "tool": "scripts/supabase/provider-baseline-generate.mjs (정본 생산기, 그대로 호출)",
+    "cliFlags": "정확히 3개 플래그 전수 필수, 각 1값: --source-evidence <JSON 파일 경로>, --release-trust-output <출력 경로>, --baseline-output <출력 경로> (parseCliArgs, provider-baseline-generate.mjs:637-652). 인자 수가 6이 아니면 거부.",
+    "envRequired": {
+      "CCC_INSTALL_MANIFEST": "서명된 install manifest (JSON 문자열 또는 파일 경로, readStrictJsonDocument)",
+      "CCC_INSTALL_APPROVAL": "서명된 소유권 승인서 (동일)",
+      "CCC_ORGANIZATION_ID": "기관 ID",
+      "CCC_INSTALL_SIGNING_KEYS": "설치 서명 공개키 맵 {keyId: base64}",
+      "CCC_INSTALL_REVOKED_KEY_IDS": "폐기 keyId JSON 배열 (선택, 기본 '[]')",
+      "CCC_SUPABASE_PROJECT_REF": "대상 프로젝트 참조 (authorization.projectRef 와 일치해야 함)",
+      "CCC_BETA_TRUST_ROOT_KEYS": "베타 루트 공개키 맵 {rootKeyId: base64} (readStrictJsonDocument)",
+      "CCC_BETA_REVOKED_ROOT_KEY_IDS": "폐기 루트 keyId JSON 배열 (선택, 기본 '[]')",
+      "CCC_BETA_ROOT_SIGNING_PRIVATE_KEY": "베타 루트 Ed25519 개인키 base64 pkcs8 (필수)",
+      "CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY": "베타 릴리스 Ed25519 개인키 base64 pkcs8 (필수)",
+      "SUPABASE_ACCESS_TOKEN": "Management API Bearer 토큰 (createHostedInspector)"
+    },
+    "outputShape": "두 문서를 한 번의 generateProviderBaseline 호출로 생산. releaseTrust: TRUST_KEYS 13키 (schemaVersion, profile, channel, provider, projectRefSha256, ownerOrgIdSha256, region, rootKeyId, releaseKeyId, releasePublicKey, notBefore, expiresAt, ed25519Signature). baseline: BASELINE_KEYS 20키 (provider-baseline.mjs:23-29). 출력은 O_EXCL 600 임시 파일을 hard link 로 설치, 대상 경로가 이미 존재하면 거부(installOutputs, provider-baseline-generate.mjs:412-445).",
+    "projectRefSha256Derivation": "releaseTrustUnsigned.projectRefSha256 = authorization.projectRefHash (provider-baseline-generate.mjs:729). authorization.projectRefHash = sha256Utf8(approval.projectRef) (manifest-preflight.mjs:335). approval.projectRef 는 CCC_SUPABASE_PROJECT_REF 와 manifest.supabaseProjectRef 와 모두 일치해야 한다(manifest-preflight.mjs:303-306). 즉 결속은 서명된 manifest/approval + env ref 에서 오고, 옛 trust 문서가 재료로 들어가지 않는다.",
+    "sameGeneration": "release trust 와 provider baseline 은 같은 생산에서 나온다. generateProviderBaseline 이 trust 를 루트 키로 서명(BETA_TRUST_DOMAIN)하고 baseline 을 릴리스 키로 서명(PROVIDER_BASELINE_DOMAIN)한 뒤 requireProviderBaseline 으로 자가 검증하고 두 출력을 함께 설치한다(provider-baseline-generate.mjs:524-626).",
+    "validReleaseTrustRequirement": "provider-baseline.mjs:153-171. 정확히 TRUST_KEYS 13키, schemaVersion=1, profile='development', channel='beta', provider='supabase', projectRefSha256===authorization.projectRefHash, ownerOrgIdSha256===authorization.expectedOwnerOrgIdHash, region='ap-northeast-2', rootKeyId·releaseKeyId 는 bounded identity 문자열, releasePublicKey·ed25519Signature 는 canonical base64, notBefore<=now<expiresAt, expiresAt<=manifestExpiry, expiresAt<=authorization.expiresAt. 호출부(provider-baseline.mjs:254-255)가 추가로 rootKeyId 가 rootKeys 에 있고 revokedRootKeyIds 에 없음을 요구한다."
+  },
+  "keysUsed": [
+    "RELAYER_BETA_ROOT_SIGNING_PRIVATE_KEY → CCC_BETA_ROOT_SIGNING_PRIVATE_KEY (trust 서명용, provider-baseline-generate.mjs:709,524)",
+    "RELAYER_BETA_RELEASE_SIGNING_PRIVATE_KEY → CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY (baseline 서명용, provider-baseline-generate.mjs:710,589)",
+    "RELAYER_RELEASE_ROOT_SIGNING_PRIVATE_KEY / RELAYER_RELEASE_SIGNING_PRIVATE_KEY: 이 생산에 불필요. release trust 는 베타 루트가 서명하고 baseline 은 베타 릴리스 키가 서명한다. release 키 쌍은 release bundle 서명(build-bundle)용이라 generator 가 읽지 않는다."
+  ],
+  "changedFields": "없음. 새 문서를 생산하지 못했다(아래 verifyResult·blocked).",
+  "expiresAtChosen": {
+    "value": null,
+    "intended": "generator 가 min(authorization.expiresAt, issuedAt+30일)로 고른다(provider-baseline-generate.mjs:718-721). authorization.expiresAt = min(manifest, approval 만료) = 2026-10-13T10:55:26.230Z 이므로 그 값이 됐을 것이다. 생산이 실패해 실제 값은 없다."
+  },
+  "verificationFunctions": [
+    "requireProviderBaseline — scripts/supabase/provider-baseline.mjs:229-317 (generator 내부 자가 검증 provider-baseline-generate.mjs:473-488,602-622 에서 호출)",
+    "validReleaseTrust — scripts/supabase/provider-baseline.mjs:153-171 (requireProviderBaseline 내부 253행에서 호출)",
+    "validProviderBaseline — scripts/supabase/provider-baseline.mjs:173-205 (requireProviderBaseline 내부 275행에서 호출)",
+    "assertProviderBaselineCurrent — scripts/supabase/plan.mjs:172-179",
+    "requireSignedOwnerPreflight — scripts/supabase/manifest-preflight.mjs:266-348 (generator 입력 authorization 생산, provider-baseline-generate.mjs:689-701)"
+  ],
+  "verifyResult": {
+    "documentsProduced": false,
+    "generatorOutcome": "실패. CLI 종료 1, 직접 호출 시 ProviderBaselineGenerationError code=PROVIDER_BASELINE_MISMATCH.",
+    "rootCause": "generateProviderBaseline 이 inspector.inspect() 를 두 번 호출한다(provider-baseline-generate.mjs:545,547). inspect() 는 private 스키마에 설치 메타데이터 7테이블이 있으면 buildInstallStateQuery(authorization.installationId) 로 저널을 읽는다(hosted-inspector.mjs:817-822). 대상 프로젝트 wtbdqy 의 저널은 installation_id=a1ad5f9d-… 인 완료된 설치(phase=installed, release 0.9.0-dev.2, 2026-09-11)가 이미 있고 새 manifest 의 installationId(183152f0-…)로는 행이 없어 install_state 가 null → RESOURCE_OWNERSHIP_MISMATCH → generator 가 PROVIDER_BASELINE_MISMATCH 로 감싼다.",
+    "secondaryBlocker": "inspect() 가 통과하더라도 stableObservation(provider-baseline-generate.mjs:447-467)이 EMPTY_BUSINESS_KEYS(userTableCount, userRowEstimate, authUserCount, bucketCount, storageObjectCount) 전부 0을 요구한다. 실측: auth.users 5, storage.buckets 1(ccc-audio), public 테이블 79, cron.job 1. 비어 있지 않으므로 어차피 PROVIDER_BASELINE_MISMATCH.",
+    "projectRefSha256Prefix": "c1e487cf (sha256('wtbdqy…') 앞 8자). 새 문서가 없어 검사 통과로 보이지 못했다. generator 가 authorization.projectRefHash 에서 계산하므로 생산이 됐다면 이 값이 들어갔을 것이다."
+  },
+  "manifestStillValid": {
+    "result": "유효. requireSignedOwnerPreflight(manifest-preflight.mjs:266-348)를 파일 경로 입력으로 호출해 authorization 반환 확인. installationId=183152f0-…, expiresAt=2026-10-13T10:55:26.230Z.",
+    "caveat": "manifest 자체는 유효하지만 그 installationId 가 대상 프로젝트의 기존 설치 저널(a1ad5f9d-…)과 다르다. 이 불일치가 generator 실패의 직접 원인이다. manifest 재서명은 이 작업의 비목표다."
+  },
+  "stageEnvWiring": {
+    "file": "scripts/install/stage-env.sh",
+    "changes": [
+      "provider-baseline-generate.mjs 호출 시에만 RELAYER_BETA_ROOT_SIGNING_PRIVATE_KEY→CCC_BETA_ROOT_SIGNING_PRIVATE_KEY, RELAYER_BETA_RELEASE_SIGNING_PRIVATE_KEY→CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY 매핑. 그 외 명령에서는 두 키를 unset 한다.",
+      "sign-install-documents.mjs 분기에서는 베타 개인키 두 개를 unset 하도록 추가(기존에는 무조건 unset 목록에 있었음).",
+      "기본 분기에 artifacts/install/wtbdqy/release-trust.json / provider-baseline.json 이 있으면 CCC_BETA_RELEASE_TRUST / CCC_PROVIDER_BASELINE 을 파일 경로로 대체하는 규칙 추가(manifest/approval 과 같은 패턴).",
+      "기존 매핑(nameMapping 전수)과 CCC_PROVIDER_BASELINE_FILE 운영자 우회는 그대로 유지."
+    ]
+  },
+  "planOutcome": {
+    "command": "scripts/install/stage-env.sh bash -c 'REF=<manifest 에서 추출>; node scripts/supabase/bootstrap.mjs plan --project-ref \"$REF\"'",
+    "exitCode": 6,
+    "code": "BETA_TRUST_INVALID",
+    "message": "[BETA_TRUST_INVALID] 개발판 신뢰 문서가 유효하지 않습니다.",
+    "whereItStopped": "bootstrap.mjs:306-315 requireProviderBaseline → provider-baseline.mjs:153-171 validReleaseTrust. Infisical 의 기존 trust/baseline 이 bukqtv 에 묶여 있어 projectRefSha256 불일치로 여전히 같은 지점에서 멈춘다. 새 문서를 생산하지 못해 이전 종료 6 과 동일하다.",
+    "previousVsNow": "이전과 같은 종료 6·같은 지점. 진전 없음이 아니라 생산 자체가 막힌 것이다.",
+    "plannedResources": "plan 이 통과하지 못해 적용 예정 자원 개수·종류를 보고할 수 없다."
+  },
+  "secretLeakCheck": {
+    "method": "개인키·토큰·서명·연결 문자열을 stdout 이나 파일에 쓰지 않았다. infisical run 주입만 사용하고 secrets get/export/--plain 은 실행하지 않았다. 보고에는 프로젝트 참조 앞 6자와 sha256 앞 8자만 적었다. git status 로 문서 미추적 확인.",
+    "findings": "개인키 값 0건, 토큰 0건, 서명 바이트 0건, 연결 문자열 0건, 프로젝트 참조 원본 0건.",
+    "note": "생산된 trust/baseline 문서가 없으므로 새 비밀 산출물 자체가 없다."
+  },
+  "mutations": {
+    "newKeysCreated": 0,
+    "infisicalWrites": 0,
+    "installExecutions": 0,
+    "dbChanges": 0,
+    "supabaseResourceCreations": 0,
+    "managementApiCalls": "GET /v1/projects, GET /v1/projects/{ref}, GET /v1/projects/{ref}/config/auth 와 POST /v1/projects/{ref}/database/query/read-only(읽기 전용 SQL 게이트웨이, inspector·plan 이 쓰는 것과 같은 경로). 쓰기·생성·삭제 0건.",
+    "filesWritten": [
+      "scripts/install/stage-env.sh (수정)",
+      "artifacts/orchestration/beta-trust-regen.json (이 파일)"
+    ]
+  },
+  "gitStatus": {
+    "checkIgnore": "git check-ignore -v → artifacts/install/.gitignore:1:wtbdqy/ 가 install-manifest.json, install-approval.json, release-trust.json, provider-baseline.json 을 제외(존재 여부와 무관하게 패턴 매칭).",
+    "statusShort": "M scripts/install/stage-env.sh, ?? artifacts/orchestration/*.json(보고 포함). 서명·trust 문서는 untracked 로도 나타나지 않는다(ignore 됨).",
+    "signedDocsCommitted": false
+  },
+  "commit": "scripts/install/stage-env.sh 와 이 보고만 한 번 커밋. 서명·trust 문서 없음. push 없음.",
+  "blocked": "release trust/provider baseline 재생산 불가. 대상 프로젝트 wtbdqy 에는 installation_id=a1ad5f9d-… 의 완료된 CCC 설치(phase=installed, release 0.9.0-dev.2, 2026-09-11, 만료 2026-10-10)가 이미 있고, 새 manifest 의 installationId(183152f0-…)와 다르다. generator 의 inspect() 가 manifest installationId 로 저널을 찾지 못해 PROVIDER_UNREADABLE→PROVIDER_BASELINE_MISMATCH 로 실패하고, 설령 통과해도 비어 있지 않은 사업 상태(auth.users 5, bucket 1, public 테이블 79)가 stableObservation 을 막는다. 검사 완화·수동 재결속은 과제가 금지한다. 필요한 결정: (a) manifest/approval 를 기존 설치 installationId 로 다시 서명해 갱신·재검증 절차로 전환하거나, (b) 진짜 빈 프로젝트를 대상으로 고르거나, (c) 기존 설치를 뜯는 절차를 별도 승인한다. 어느 쪽이든 이 작업 범위 밖이다."
+}

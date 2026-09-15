@@ -1,5 +1,5 @@
 import type {
-  MemoryGenerationRequest, MemoryGenerationOutput, MemoryHistoricalContext,
+  MemoryGenerationRequest, MemoryGenerationOutput,
   MemoryMaterial, MemoryItem, MemorySource, MemoryReference, MemoryItemUpdate,
 } from '@ccc/contracts/counseling-memory';
 import type { CoreSecretStore } from '@ccc/contracts/runtime';
@@ -28,9 +28,10 @@ export const AI_PROVIDER_REGISTRY = Object.freeze({
 // v4 (CCC-126 · D70~D72 · ADR-0037): claims 에 목표 중심 구획 라벨을 붙이고, 전사
 // 원문으로만 뒷받침되는 리스크 플래그 제안을 같은 호출에서 받는다. v3 활성 설정은
 // 해시가 어긋나 재활성화 전까지 fail-closed 된다.
-export const AI_DRAFT_PROMPT_VERSION = 'phase1.grounded.v4';
+// v5: product generation uses current-session materials only while memory remains shadow storage.
+export const AI_DRAFT_PROMPT_VERSION = 'phase1.grounded.v5';
 export const AI_DRAFT_SCHEMA_VERSION = 'phase1.grounded-draft.v4';
-export const DISCREPANCY_PROMPT_VERSION = 'phase1.discrepancy.v1';
+export const DISCREPANCY_PROMPT_VERSION = 'phase1.discrepancy.v2';
 export const DISCREPANCY_SCHEMA_VERSION = 'phase1.discrepancy-list.v1';
 export const MEMORY_PROMPT_VERSION = 'counseling-memory.v1';
 export const MEMORY_SCHEMA_VERSION = 'counseling-memory-patch.v1';
@@ -202,8 +203,6 @@ export interface AiProviderRequest {
   materials: readonly AiProviderMaterial[];
   /** 서버가 판정한 축별 적용 여부. applied 가 아닌 축은 항목을 만들면 안 된다. */
   contrastAxes: AiContrastAxisStates;
-  /** Background only; never part of the current-session evidence allowlist. */
-  historicalContext?: MemoryHistoricalContext;
 }
 
 /**
@@ -246,8 +245,10 @@ export interface DiscrepancyDetectionRequest {
 }
 
 /**
- * 불일치 한 쌍 — 판단 없이 양쪽 원문 인용과 회차 참조만(R5). 인용은 해당 소스 텍스트의
- * 문자 그대로의 부분 문자열이어야 검증을 통과한다(근거 없는 인용 금지, D9 와 같은 태도).
+ * G2: only mutually exclusive factual statements in a clear shared subject, event and time context.
+ * Normal evolution, explicit corrections, paraphrases, valid summaries and ambiguous context are
+ * not discrepancies. Numeric contradictions are included when that same context is explicit.
+ * Quotes remain verbatim source substrings; neither source is selected as correct (R5).
  */
 export interface DetectedDiscrepancy {
   kind: 'cross_session' | 'within_session';
@@ -577,6 +578,8 @@ export async function canonicalAiProviderConfigHash(config: AiProviderConfig): P
     providerId: metadata.providerId,
     registryVersion: metadata.registryVersion,
     schemaVersion: metadata.schemaVersion,
+    discrepancyPromptVersion: DISCREPANCY_PROMPT_VERSION,
+    discrepancySchemaVersion: DISCREPANCY_SCHEMA_VERSION,
     memoryPromptVersion: MEMORY_PROMPT_VERSION,
     memorySchemaVersion: MEMORY_SCHEMA_VERSION,
   });
@@ -591,7 +594,9 @@ export async function canonicalAiProviderConfigHash(config: AiProviderConfig): P
  */
 export function validateAiProviderRequest(value: unknown): AiProviderRequest {
   if (!isRecord(value)) throw new AiProviderInputError();
-  assertExactKeys(value, ['materials', 'contrastAxes', 'historicalContext'], new AiProviderInputError());
+  // Shadow memory is not a product input. Reject it rather than silently accepting background
+  // that a future adapter could consume. The separate updateMemory contract is unchanged.
+  assertExactKeys(value, ['materials', 'contrastAxes'], new AiProviderInputError());
   if (
     !Array.isArray(value.materials)
     || value.materials.length === 0
@@ -687,11 +692,6 @@ export function validateAiProviderRequest(value: unknown): AiProviderRequest {
       missing_from_transcript: axes.missing_from_transcript ?? 'no_transcript',
       undiscussed_session_goal: axes.undiscussed_session_goal ?? 'no_session_goal',
     },
-    ...(value.historicalContext === undefined ? {} : {
-      historicalContext: validateMemoryHistoricalContext(value.historicalContext, new Set([
-        ...materialRefs, ...evidenceIds, ...materials.flatMap((material) => material.evidence.map((evidence) => evidence.sourceRef)),
-      ])),
-    }),
   };
 }
 
@@ -1066,6 +1066,8 @@ export function validateDiscrepancyDetectionRequest(value: unknown): Discrepancy
  * 검출 출력 검증 — 판단·해석 필드는 스키마 자체가 거부하고(assertExactKeys), 인용은
  * 요청 소스 텍스트의 부분 문자열이어야 한다. 트리거 회차가 끼지 않은 쌍, 유형과 회차의
  * 모순(within 인데 회차가 다름 등)도 전부 fail-closed 다.
+ * This validates grounding and pair structure, not G2 semantic accuracy. Identical quotes cannot
+ * demonstrate mutual exclusion; all other contextual judgments require independent evaluation.
  */
 export function validateDiscrepancyDetectionOutput(
   value: unknown,
@@ -1114,6 +1116,7 @@ export function validateDiscrepancyDetectionOutput(
     if (
       leftQuote.length > MAX_DISCREPANCY_QUOTE_LENGTH
       || rightQuote.length > MAX_DISCREPANCY_QUOTE_LENGTH
+      || leftQuote === rightQuote
       // 원문 인용 강제 — 소스에 없는 문장은 인용이 아니다.
       || !leftText.includes(leftQuote)
       || !rightText.includes(rightQuote)
@@ -1257,7 +1260,7 @@ const codexResponseSchema = {
 // 축의 적용 여부는 요청의 contrastAxes 가 이미 정해서 온다. 모델이 다시 판단하지 않는다.
 const CODEX_INSTRUCTIONS = [
   'Each supplied material is masked counseling-record text: kind transcript is the recorded session, kind text_context is the worker memo together with labelled goal sections.',
-  'historicalContext, when present, is separately sourced past background, not evidence of anything said in this session. Never cite its material IDs, source IDs, snapshots or quotes in claims, questions, contrast or flags; all output evidence must come only from current materials. Never treat historical memory as more authoritative than the current record.',
+  'Use only current-session materials. Historical counseling memory is shadow storage and must not inform product claims, questions, contrast or flags.',
   'Generate only grounded counseling-record draft claims and exactly two or three structured briefing suggestions, using every supplied material without treating either transcript or worker memo as more authoritative.',
   'Give every claim exactly one section label and keep claims grouped in this order: session_goal_discussion, other_topics, next_session_commitments.',
   'Use session_goal_discussion for what was discussed under each labelled 회기 목표; omit that section when no session goal is supplied.',
@@ -1289,6 +1292,7 @@ const codexDiscrepancySchema = {
   properties: {
     discrepancies: {
       type: 'array',
+      description: 'Only mutually exclusive facts in a clear shared subject, event and time context. Exclude normal changes, explicit corrections, paraphrases, valid summaries and ambiguous context; include numeric contradictions when the context is clear.',
       maxItems: MAX_DISCREPANCIES,
       items: {
         type: 'object',
@@ -1308,12 +1312,17 @@ const codexDiscrepancySchema = {
 
 // R5: 어느 쪽이 맞는지 판단·해석·권고 금지 — 상반된 서술의 원문 인용 쌍만.
 const CODEX_DISCREPANCY_INSTRUCTIONS = [
-  'Compare the supplied counseling-record sources and list only pairs of directly conflicting factual statements.',
+  'Compare only factual statements in the supplied counseling-record sources. A discrepancy requires clear source context about the same subject, event and factual time, with two statements that cannot both be true.',
+  'A mere difference in values or wording is not a discrepancy. Exclude normal evolution over time, paraphrases, valid summaries and cases whose shared context is ambiguous; do not infer missing context.',
+  'Do not universally exclude numbers: mutually exclusive amounts about the same debt at the same explicit time are discrepancies. Debt balances at different times after repayment are normal change.',
+  'For the same month of rent at the same factual time, unpaid in the transcript and paid in the memo is a discrepancy. Keep both verbatim quotes with enough context to identify that month and time.',
+  'An explicit later correction or confirmation is not a new contradictory fact. Do not choose a winner, erase either source, or invent a discrepancy from that correction.',
+  'Omissions and undiscussed session goals belong to separate contrast axes. Absence of a statement is not a conflicting statement, and opinions or evaluations are not factual contradictions.',
   'Each pair must involve the trigger source; quote both sides verbatim as exact substrings of the source texts.',
   'Use kind within_session when both quotes come from the trigger source itself, cross_session otherwise.',
   'Do not judge which side is correct, do not interpret, summarize, diagnose, or recommend anything.',
   'Do not add names, contacts, accounts, or other personal data.',
-  'Return an empty list when there is no direct conflict.',
+  'Return an empty list when no pair meets this contextual contradiction rule, including when the context is insufficient.',
 ].join(' ');
 
 /** The sole Phase-1 external provider implementation. It never logs content. */
@@ -1627,16 +1636,6 @@ export function validateMemoryGenerationRequest(value: unknown): MemoryGeneratio
     materials, existingItems };
 }
 
-function validateMemoryHistoricalContext(value: unknown, currentRefs: ReadonlySet<string>): MemoryHistoricalContext {
-  const raw = memoryRecord(value, ['supportCaseId', 'revision', 'materials']);
-  const materials = memoryMaterials(raw.materials);
-  for (const material of materials) {
-    if ([material.id, material.snapshotId, material.sourceId].some((id) => currentRefs.has(id))) {
-      throw new AiProviderInputError();
-    }
-  }
-  return { supportCaseId: memoryId(raw.supportCaseId), revision: memoryInteger(raw.revision, 0), materials };
-}
 
 function memoryGeneratedText(value: unknown, max: number): string {
   const text = memoryText(value, max);

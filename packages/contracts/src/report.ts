@@ -1,3 +1,12 @@
+import type { IntakeArea } from './intake';
+
+export interface ReportQuestionRef {
+  kind: 'schedule' | 'record' | 'intake';
+  questionId: string;
+  sourceId: string;
+  sourceRevision: number;
+}
+
 /** Read-only P6 projection. All text is stored evidence, never generated on GET. */
 export interface ReportEvidence {
   sessionId: string;
@@ -6,10 +15,13 @@ export interface ReportEvidence {
   /** Stored field or canonical record-projection path within the source session. */
   source: string;
   text: string;
+  intakeSchemaVersion?: 1 | 2;
+  intakeRevision?: number;
+  area?: IntakeArea;
 }
 
 export interface SupportCaseReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   supportCaseId: string;
   beneficiaryId: string;
   programId: string;
@@ -20,13 +32,17 @@ export interface SupportCaseReport {
     sessionNumber: number;
     heldAt: string;
     kind: 'regular' | 'intake';
-    channel: 'in_person' | 'phone' | 'video';
+    channel: 'in_person' | 'phone' | 'video' | 'visit';
+    intakeSchemaVersion?: 1 | 2;
+    intakeRevision?: number;
     /** Approved one-liner/summary excerpt, otherwise a sourced manual excerpt. */
     summary?: ReportEvidence;
+    /** A practitioner's opinion belongs only to the session where it was recorded. */
+    counselorOpinion?: ReportEvidence;
   }>;
   /** One verbatim plan from the first intake, not the mutable current overall goal. */
   firstIntakeGoal?: ReportEvidence;
-  /** Explicit intake follow-up questions; no section/category is inferred. */
+  /** Explicit open questions with a completed source session. Legacy rows have no invented identity. */
   nextConfirmations?: Array<{
     item: string;
     reason?: string;
@@ -34,6 +50,7 @@ export interface SupportCaseReport {
     dueNote?: string;
     dueDate?: string;
     owner?: string;
+    questionRef: ReportQuestionRef | null;
     evidence: ReportEvidence;
   }>;
   /** No evidence means the section is absent, not "no risk" or "no change". */

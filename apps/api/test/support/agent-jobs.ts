@@ -11,18 +11,102 @@ import {
   type Actor,
   type AgentRuntime,
 } from '@ccc/core/gateway';
-import type { AgentJob, NerAttestation, ResultRequest } from '@ccc/contracts/agent-jobs';
+import type { AgentJob, CheckedTextSource, NerAttestation, ResultRequest, SourceResponse } from '@ccc/contracts/agent-jobs';
 import type { DeploymentMode } from '@ccc/contracts/runtime';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import worker from './local-worker';
-import { createTestSigner, signedManifest, SYNTHETIC_LOCAL_REGISTRY } from './install-manifest';
+import { createTestSigner, signedManifest, SYNTHETIC_AZURE_REGISTRY, SYNTHETIC_LOCAL_REGISTRY } from './install-manifest';
 
+const TEST_MASKING_PIPELINE_MANIFEST = {
+  schemaVersion: 2,
+  resultSchemaVersion: 2,
+  maskingPipelineVersion: 'ner-mask-v1-addr-cond-dict',
+  directIdentifierRulesVersion: 'direct-v1',
+  regexRulesVersion: 'regex-v2',
+  conditionDictionaryVersion: 'condition-dict-v1',
+  quasiIdentifierRulesVersion: 'quasi-v1',
+  g7RelativeDateRulesVersion: 'calendar-day-v1',
+  nerModelId: 'FrameByFrame/korean-pii-e5-base',
+  nerModelRevision: 'a'.repeat(40),
+  personLabels: ['PRIVATE_PERSON'],
+  addressLabels: ['PRIVATE_ADDRESS'],
+  conditionNerModelId: null,
+  conditionNerModelRevision: null,
+  conditionLabels: [],
+  labelSetHash: 'b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc',
+  nerHealthCorpusHash: 'b'.repeat(64),
+  nerHealthResultHash: 'c'.repeat(64),
+} as const;
+
+async function testMaskingPipelineHash(): Promise<string> {
+  return sha256Hex(canonicalizeJcs(TEST_MASKING_PIPELINE_MANIFEST));
+}
+export async function testMaskingPipelinePair(): Promise<{
+  maskingPipelineVersion: string;
+  maskingPipelineHash: string;
+}> {
+  return {
+    maskingPipelineVersion: TEST_MASKING_PIPELINE_MANIFEST.maskingPipelineVersion,
+    maskingPipelineHash: await testMaskingPipelineHash(),
+  };
+}
+
+export const TEST_PROTECTED_AUDIO_PATH = '/__test-audio/';
+
+export function testProtectedAudioEnv<T extends ApiEnv>(env: T, origin = 'https://storage.test'): T {
+  if (env.audioStore === null) throw new Error('test audio store is unavailable');
+  return {
+    ...env,
+    audioStore: {
+      ...env.audioStore,
+      createDownloadTarget: async (key: string) => ({
+        url: `${origin}${TEST_PROTECTED_AUDIO_PATH}${encodeURIComponent(key)}`,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    },
+  };
+}
+
+export async function readTestProtectedAudio(
+  env: ApiEnv,
+  response: Response,
+): Promise<{ bytes: Uint8Array<ArrayBuffer>; contentType: string }> {
+  const delivery = await response.json() as { delivery: string; url: string };
+  expect(delivery.delivery).toBe('signed-get');
+  const marker = delivery.url.indexOf(TEST_PROTECTED_AUDIO_PATH);
+  if (marker < 0) throw new Error('signed audio URL is invalid');
+  const key = decodeURIComponent(delivery.url.slice(marker + TEST_PROTECTED_AUDIO_PATH.length));
+  const object = await env.audioStore?.get(key);
+  if (object === null || object === undefined) throw new Error('signed audio object is missing');
+  return {
+    bytes: new Uint8Array(await new Response(object.body).arrayBuffer()),
+    contentType: object.contentType,
+  };
+}
+
+/** schemaVersion 1 registry JSON — claim/result 경로가 요구하는 활성 manifest 등록 형태. */
+export async function testMaskingPipelineRegistry(): Promise<string> {
+  const maskingPipelineHash = await testMaskingPipelineHash();
+  return JSON.stringify({
+    schemaVersion: 1,
+    activeMaskingPipelineVersion: TEST_MASKING_PIPELINE_MANIFEST.maskingPipelineVersion,
+    pipelines: [{ ...TEST_MASKING_PIPELINE_MANIFEST, maskingPipelineHash }],
+  });
+}
 /** Local 두 모드의 런타임. Community Cloud 는 modes 테스트가 따로 만든다. */
 export const LOCAL_SINGLE_RUNTIME: AgentRuntime = {
   route: 'local-single-agent',
   sttEngine: 'local',
   sttEngineId: 'qwen3-asr',
   audioDelivery: 'api-stream',
+};
+
+/** Azure 승인 엔진 런타임 — resolveAgentRuntime 이 내는 것과 같은 protected-get 전달. */
+export const AZURE_CLOUD_RUNTIME: AgentRuntime = {
+  route: 'community-cloud-agent',
+  sttEngine: 'azure',
+  sttEngineId: 'azure-speech-koreacentral',
+  audioDelivery: 'protected-get',
 };
 
 /**
@@ -56,7 +140,6 @@ export async function seedCanonicalSttConsent(
     'external_stt_processing', 'external_llm_cross_border_processing',
   ],
 ): Promise<void> {
-  const at = new Date().toISOString();
   env.CCC_KR_BUSINESS_CALENDAR = JSON.stringify({
     version: 'kr-business-days-v1',
     validFrom: '2025-01-01',
@@ -93,7 +176,7 @@ export async function seedCanonicalSttConsent(
       copyVersion: disclosure.copyVersion,
       copyHash: disclosure.copyHash,
       disclosureSnapshotId: disclosure.snapshotId,
-      effectiveAt: at,
+      effectiveAt: new Date().toISOString(),
       idempotencyKey: crypto.randomUUID(),
       correctionOfEventId: null,
       expectedRevision: null,
@@ -106,7 +189,7 @@ export async function registerFixtureRecording(
   actor: Actor,
   service: Actor,
   sessionId: string,
-  runtime: AgentRuntime = LOCAL_SINGLE_RUNTIME,
+  runtime: AgentRuntime = AZURE_CLOUD_RUNTIME,
   key = `audio/${sessionId}/${crypto.randomUUID()}`,
   overrides: { clientAssertedSha256?: string | null; storageSha256?: string | null } = {},
 ): Promise<{ key: string; sha256: string; generationId: string }> {
@@ -168,8 +251,8 @@ export async function seedNerQualification(
   const attestation: NerAttestation = {
     id: `attestation-${crypto.randomUUID()}`,
     modelId: 'FrameByFrame/korean-pii-e5-base',
-    modelRevision: 'fixture-rev-1',
-    labelSetHash: 'a'.repeat(64),
+    modelRevision: 'a'.repeat(40),
+    labelSetHash: 'b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc',
     corpusHash: 'b'.repeat(64),
     resultHash: 'c'.repeat(64),
     validatedAt: '2026-09-01T00:00:00.000Z',
@@ -212,8 +295,10 @@ export interface AgentResultOptions {
   qualification: NerQualification;
   resultId?: string;
   maskingPipelineVersion?: string;
+  maskingPipelineHash?: string;
   emotionScores?: Record<string, unknown>;
   transcriptReliable?: boolean;
+  checkedSource?: CheckedTextSource;
 }
 
 /** Agent 가 만드는 결과 payload. hash 3종을 계약대로 계산한다. */
@@ -227,11 +312,12 @@ export async function agentResultRequest(options: AgentResultOptions): Promise<R
     sourceStart: 0,
     sourceEnd: [...options.maskedText].length,
   }];
+  const defaultMaskingPipelineHash = await testMaskingPipelineHash();
   const masked = {
     maskedText: options.maskedText,
     sha256,
-    maskingPipelineVersion: options.maskingPipelineVersion ?? 'ner-mask-v1-addr-cond-dict',
-    maskingPipelineHash: 'd'.repeat(64),
+    maskingPipelineVersion: options.maskingPipelineVersion ?? TEST_MASKING_PIPELINE_MANIFEST.maskingPipelineVersion,
+    maskingPipelineHash: options.maskingPipelineHash ?? defaultMaskingPipelineHash,
     nerAvailable: true as const,
     nerAttestationId: options.qualification.attestation.id,
     nerAttestationResultHash: options.qualification.attestation.resultHash,
@@ -247,7 +333,8 @@ export async function agentResultRequest(options: AgentResultOptions): Promise<R
       transcriptReliable: options.transcriptReliable ?? true,
       transcriptWarnings: [],
     }
-    : { ...masked, kind: 'text' as const };
+    : { ...masked, kind: 'text' as const,
+      ...(options.checkedSource === undefined ? {} : { checkedSource: options.checkedSource }) };
   return {
     schemaVersion: 2,
     claimToken: options.claimToken,
@@ -265,14 +352,19 @@ export async function agentResultRequest(options: AgentResultOptions): Promise<R
  */
 export async function agentManifestEnv<T extends ApiEnv>(
   env: T,
-  options: { mode?: DeploymentMode; stt?: 'off' | 'local' } = {},
+  options: { mode?: DeploymentMode; stt?: 'off' | 'local' | 'azure' } = {},
 ): Promise<T> {
   const signer = await createTestSigner();
-  const manifest = await signedManifest(signer, options.mode ?? 'local-single', {
-    approvedSttEngineIds: SYNTHETIC_LOCAL_REGISTRY,
+  // verifiedInstallManifest 는 community-cloud manifest 만 받는다 — 기본을 그에 맞춘다.
+  const mode = options.mode ?? 'community-cloud';
+  const manifest = await signedManifest(signer, mode, {
+    approvedSttEngineIds: options.stt === 'azure' ? SYNTHETIC_AZURE_REGISTRY
+      : options.stt === 'local' ? SYNTHETIC_LOCAL_REGISTRY : [],
   });
   return {
     ...env,
+    installationMode: mode,
+    MEMORY_MASKING_PIPELINES: await testMaskingPipelineRegistry(),
     CCC_INSTALL_MANIFEST: JSON.stringify(manifest),
     CCC_INSTALL_SIGNING_KEYS: JSON.stringify(signer.publicKeys),
     CCC_STT_MODE: options.stt ?? 'off',
@@ -300,7 +392,7 @@ export async function claimOverHttp(
     headers,
     body: JSON.stringify(claimRequest(qualification)),
   }), env);
-  expect(response.status).toBe(200);
+  expect(response.status, await response.clone().text()).toBe(200);
   const claimed = await response.json() as { jobs: AgentJob[] };
   return { jobs: claimed.jobs, qualification };
 }
@@ -323,8 +415,8 @@ export async function runAgentTextJobs(
       headers: { ...headers, 'X-CCC-Job-Claim': job.claimToken, 'X-CCC-Job-Attempt': String(job.attempt) },
     }), env);
     if (sourceResponse.status !== 200) throw new Error(`job source failed: ${sourceResponse.status}`);
-    const { text } = await sourceResponse.json() as { text: string };
-    const masked = mask(text);
+    const source = await sourceResponse.json() as SourceResponse;
+    const masked = mask(source.text);
     const response = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/result`, {
       method: 'POST',
       headers,
@@ -334,6 +426,8 @@ export async function runAgentTextJobs(
         attempt: job.attempt,
         maskedText: masked.trim().length === 0 ? 'MASKED_SOURCE_BASELINE' : masked,
         qualification,
+        checkedSource: { sourceRevision: source.sourceRevision, sourceSha256: source.sourceSha256,
+          sourceStart: 0, sourceEnd: source.sourceLength },
       })),
     }), env);
     if (response.status !== 204) {

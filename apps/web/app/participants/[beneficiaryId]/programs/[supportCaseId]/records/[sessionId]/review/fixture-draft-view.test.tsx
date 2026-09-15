@@ -102,15 +102,16 @@ describe('DraftReviewView', () => {
     expect(screen.getByTestId('ai-draft-card')).toBeTruthy();
     expect(within(screen.getByTestId('ai-draft-section-one-liner')).getByText('핵심 한 줄 값')).toBeTruthy();
     expect(screen.getByTestId('ai-draft-claims-session_goal_discussion').textContent).toContain('회기 목표를 점검했다.');
-    expect(screen.getByTestId('ai-draft-claims-other_topics').textContent).toContain('주거비 변화를 확인했다.');
-    expect(screen.getByTestId('ai-draft-claims-next_session_commitments').textContent).toContain('상환 계획을 적어 보기로 했다.');
+    expect(screen.queryByTestId('ai-draft-claims-other_topics')).toBeNull();
+    expect(screen.queryByTestId('ai-draft-claims-next_session_commitments')).toBeNull();
     expect(within(screen.getByTestId('ai-draft-section-questions')).getByText('질문 제목')).toBeTruthy();
     expect(within(screen.getByTestId('ai-draft-section-questions')).getByText('질문 이유')).toBeTruthy();
     expect(within(screen.getByTestId('ai-draft-section-questions')).getByRole('list')).toBeTruthy();
     expect(within(screen.getByTestId('ai-draft-section-evidence')).getByText('근거 인용 값')).toBeTruthy();
     const evidenceList = within(screen.getByTestId('ai-draft-section-evidence')).getByRole('list');
     expect(within(evidenceList).getAllByRole('listitem')).toHaveLength(1);
-    expect(screen.getByRole('link', { name: '상담 기록 확인' }).getAttribute('href'))
+    expect(screen.getByRole('heading', { level: 1, name: 'AI 정리 검토' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: '상담 기록 확인하기' }).getAttribute('href'))
       .toBe('/participants/swallow-003/programs/case-1/records');
     // fixture 는 승인 불가(R2·서버 게이트) — 처리·재생성 폼이 없다.
     expect(screen.queryByRole('button')).toBeNull();
@@ -435,17 +436,14 @@ describe('DraftReviewView', () => {
       });
     });
 
-    it('prefills a commitment action form while leaving owner and due date to the worker', () => {
+    it('자동 카드 추출과 약속 갱신 진입점을 그리지 않는다', () => {
       const actionItemAction = vi.fn(async () => undefined);
       const { container } = render(<DraftReviewView {...reviewProps({ actionItemAction })} />);
-      const actionForm = screen.getByTestId('ai-commitment-action-commitment-1');
-      const field = (name: string) => actionForm.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement | null;
-      expect(field('description')?.value).toBe('상환 계획을 적어 보기로 했다.');
-      expect(field('sessionId')?.value).toBe('session-1');
-      expect(field('owner')?.getAttribute('required')).not.toBeNull();
-      expect(field('dueDate')).not.toBeNull();
-      expect(within(actionForm).getByRole('button', { name: '액션으로 등록' })).toBeTruthy();
-      expect(container.querySelector('[name="owner"] option:checked')?.textContent).toBe('담당 선택');
+
+      expect(screen.queryByTestId('ai-draft-claims-other_topics')).toBeNull();
+      expect(screen.queryByTestId('ai-draft-claims-next_session_commitments')).toBeNull();
+      expect(container.querySelector('[data-testid^="ai-commitment-action-"]')).toBeNull();
+      expect(screen.queryByRole('button', { name: '액션으로 등록' })).toBeNull();
     });
   });
 

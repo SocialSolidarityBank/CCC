@@ -14,7 +14,7 @@ export interface ShellDestination {
 const destinations: readonly ShellDestination[] = [
   { id: 'account', title: '내 정보', href: '/settings', roles: ['institution-admin', 'technical-admin', 'supervisor', 'worker'] },
   { id: 'schedule', title: '일정', href: '/schedule', roles: ['institution-admin', 'supervisor', 'worker'] },
-  { id: 'schedule-register', title: '상담 일정 등록', href: '/schedules/new', roles: ['institution-admin', 'worker'] },
+  { id: 'schedule-register', title: '상담 등록', href: '/schedules/new', roles: ['institution-admin', 'worker'] },
   { id: 'participants', title: '당사자 목록', href: '/participants', roles: ['institution-admin', 'supervisor', 'worker'] },
   { id: 'participant-register', title: '당사자 등록', href: '/participants/new', roles: ['institution-admin', 'worker'] },
   { id: 'participant-invite', title: '당사자 초대', href: '/participants/invite',
@@ -47,6 +47,9 @@ const SETTINGS_MODULES: readonly string[] = [
   'account', 'system', 'institution-profile', 'accounts', 'assignments', 'memory', 'audit', 'retention', 'retention-policy',
 ];
 
+/** 첫 출고에서 메뉴에 세우지 않는 자리. 라우트와 권한 묶음은 그대로라 주소 판정은 바뀌지 않는다. */
+const FIRST_RELEASE_HIDDEN: readonly ShellDestination['id'][] = ['participant-invite', 'staff-invites', 'memory'];
+
 export function canOpenDestination(destination: ShellDestination, roles: readonly HumanRole[]): boolean {
   return destination.roles.some((role) => roles.includes(role));
 }
@@ -55,7 +58,8 @@ export function visibleDestinations(
   roles: readonly HumanRole[],
   features: Partial<Record<'public_signup', boolean>> = { public_signup: true },
 ): readonly ShellDestination[] {
-  return destinations.filter((destination) => canOpenDestination(destination, roles)
+  return destinations.filter((destination) => !FIRST_RELEASE_HIDDEN.includes(destination.id)
+    && canOpenDestination(destination, roles)
     && (destination.feature === undefined || features[destination.feature] === true));
 }
 
@@ -74,16 +78,16 @@ export function destinationAt(pathname: string, search: string): ShellDestinatio
     return { ...schedule, title: '상담 계획', href: pathname };
   }
   if (participants !== undefined && BRIEFING.test(pathname)) {
-    return { ...participants, title: '15초 페이지', href: pathname };
+    return { ...participants, title: '상담 전 톺아보기', href: pathname };
   }
   if (participants !== undefined && REPORT.test(pathname)) {
-    return { ...participants, title: '전체 상담 리포트', href: pathname };
+    return { ...participants, title: '경과 리포트', href: pathname };
   }
   const records = RECORDS.exec(pathname);
   if (participants !== undefined && records !== null) {
-    const title = records[1] === undefined ? '상담 기록 확인하기'
-      : records[1] === '/new' ? '상담 기록하기'
-        : records[1] === '/intake' ? '인테이크 기록' : 'AI 정리 검토';
+    const title = records[1] === undefined ? '상담 기록'
+      : records[1] === '/new' ? '오늘 상담 기록'
+        : records[1] === '/intake' ? '첫 상담 기록' : 'AI 정리 검토';
     return { ...participants, title, href: pathname };
   }
   const detail = PARTICIPANT_DETAIL.exec(pathname);

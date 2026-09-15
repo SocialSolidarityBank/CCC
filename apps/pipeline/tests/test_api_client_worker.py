@@ -9,10 +9,18 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Callable
 from unittest import mock
 
 from ccc_pipeline import api_client as api_client_module
-from ccc_pipeline.api_client import ApiClient, ApiError, AudioDownloadError, USER_AGENT
+from ccc_pipeline.api_client import (
+    ApiClient,
+    ApiError,
+    AudioDownloadError,
+    EntityRegistrationProtocolError,
+    MemoryApiClient,
+    USER_AGENT,
+)
 from ccc_pipeline.azure_stt import AzureSttError
 from ccc_pipeline.backup import BackupPolicy
 from ccc_pipeline.config import Config, ConfigError, load_config
@@ -20,25 +28,50 @@ from ccc_pipeline.masking import MaskingConfigError
 from ccc_pipeline.results import canonical_sha256, sha256_hex
 from ccc_pipeline.worker import (
     claim_request,
-    masking_pipeline_hash,
-    masking_pipeline_version,
     process_text_job,
     run_once,
+    run_memory_once,
 )
 
 ATTESTATION = {
     "id": "attestation-fixture",
     "modelId": "FrameByFrame/korean-pii-e5-base",
-    "modelRevision": "fixture-rev-1",
-    "labelSetHash": "a" * 64,
-    "corpusHash": "b" * 64,
-    "resultHash": "c" * 64,
+    "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+    "labelSetHash": "b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc",
+    "corpusHash": "10265475ed38dbdc8f902cd78fb29654a948c96ddb9c9daeda3b485d4cdd46a5",
+    "resultHash": "fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72",
     "validatedAt": "2026-09-01T00:00:00.000Z",
     "expiresAt": "2099-01-01T00:00:00.000Z",
     "status": "passed",
 }
 RECEIPT_ID = "receipt-fixture"
 
+
+CANONICAL_MASKING_REGISTRY = json.dumps({
+    "schemaVersion": 1,
+    "activeMaskingPipelineVersion": "ner-mask-v3",
+    "pipelines": [{
+        "schemaVersion": 2,
+        "resultSchemaVersion": 2,
+        "maskingPipelineVersion": "ner-mask-v3",
+        "maskingPipelineHash": "28f1e35f975b44c6bce719e1f9cae23e88f9092164531618d739be2abb5a7b9a",
+        "directIdentifierRulesVersion": "direct-v1",
+        "regexRulesVersion": "regex-v2",
+        "conditionDictionaryVersion": "condition-dict-v1",
+        "quasiIdentifierRulesVersion": "quasi-v1",
+        "g7RelativeDateRulesVersion": "calendar-day-v1",
+        "nerModelId": "FrameByFrame/korean-pii-e5-base",
+        "nerModelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+        "personLabels": ["PRIVATE_PERSON"],
+        "addressLabels": ["PRIVATE_ADDRESS"],
+        "conditionNerModelId": None,
+        "conditionNerModelRevision": None,
+        "conditionLabels": [],
+        "labelSetHash": "b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc",
+        "nerHealthCorpusHash": "10265475ed38dbdc8f902cd78fb29654a948c96ddb9c9daeda3b485d4cdd46a5",
+        "nerHealthResultHash": "fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72",
+    }],
+})
 
 def make_config(work_dir: Path) -> Config:
     return Config(
@@ -56,6 +89,8 @@ def make_config(work_dir: Path) -> Config:
         stt_max_chunk_seconds=180.0,
         stt_min_chunk_seconds=30.0,
         stt_repeat_threshold=4,
+        masking_pipeline_version="ner-mask-v1-addr-cond-dict",
+        masking_pipeline_hash="d" * 64,
         ner_model_id="fixture/person-ner",
         ner_labels=("PS", "PER", "NAME"),
         address_labels=("LC", "ADDRESS", "PRIVATE_ADDRESS"),
@@ -117,6 +152,40 @@ def dictionary_client(entries: list[dict] | None = None) -> mock.Mock:
         "oneTime": True,
         "entries": entries or [],
     }
+
+    def source_bundle(*_args):
+        configured = client.get_source_bundle._mock_return_value
+        if isinstance(configured, dict):
+            return configured
+        source = client.get_source.return_value
+        is_audio = not isinstance(source, str)
+        source = source if isinstance(source, str) else ""
+        payload = {
+            "text": source,
+            "sessionId": "session-1",
+            "sourceRevision": "source-r1",
+            "sourceSha256": "" if is_audio else hashlib.sha256(source.encode()).hexdigest(),
+            "sourceLength": len(source),
+            "sourceBundleRevision": "bundle-r1",
+            "expectedMapRevision": 0,
+            "sources": [{
+                "sourceId": "session-1",
+                "sourceRevision": "source-r1",
+                "sourceKind": "transcript" if is_audio else "session",
+                "start": 0,
+                "end": 0 if is_audio else len(source),
+                "sha256": hashlib.sha256(source.encode("utf-8")).hexdigest() if not is_audio else hashlib.sha256(b"synthetic-audio").hexdigest(),
+                "consultationDate": "2026-09-14",
+                "dateRevision": "date-r1",
+            }],
+        }
+        if is_audio:
+            payload["audio"] = {
+                "generationId": "generation-1",
+                "rawSha256": hashlib.sha256(b"synthetic-audio").hexdigest(),
+            }
+        return payload
+    client.get_source_bundle.side_effect = source_bundle
     return client
 
 
@@ -167,6 +236,55 @@ class ApiClientTest(unittest.TestCase):
         self.assertNotIn("Cf-access-client-id", claim_http_request.headers)
         self.assertNotIn("Cf-access-client-secret", claim_http_request.headers)
         self.assertEqual(claim_http_request.get_header("Cookie"), "ccc_preview=preview-token")
+
+    def test_memory_registration_uses_exact_shared_route(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        scoped = MemoryApiClient(client)
+        body = {"family": "memory", "jobId": "job-1"}
+        request = scoped._request("POST", "/pipeline/entity-registrations", body)
+        self.assertEqual(request.full_url, "https://api.example/pipeline/entity-registrations")
+        self.assertEqual(json.loads(request.data), body)
+
+    def test_registration_decoder_rejects_unknown_response_keys(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        payload = {
+            "outcome": "applied",
+            "mapRevision": 1,
+            "entries": [{"index": 0, "number": 1, "reason": None}],
+            "unexpected": True,
+        }
+        with mock.patch.object(client, "_open", return_value=FakeResponse(json.dumps(payload).encode())):
+            with self.assertRaises(ApiError):
+                client.register_entities({"family": "generic"})
+
+    def test_source_bundle_rejects_body_and_descriptor_hash_mismatches(self):
+        text = "😀합성"
+        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        for scope in ("body", "descriptor"):
+            with self.subTest(scope=scope):
+                payload = {
+                    "text": text, "sessionId": "session-1", "sourceRevision": "1",
+                    "sourceSha256": "0" * 64 if scope == "body" else digest,
+                    "sourceLength": len(text), "sourceBundleRevision": "bundle-r1",
+                    "expectedMapRevision": 0,
+                    "sources": [{
+                        "sourceId": "session-1", "sourceRevision": "1", "sourceKind": "session",
+                        "start": 0, "end": len(text),
+                        "sha256": "0" * 64 if scope == "descriptor" else digest,
+                        "consultationDate": "2026-09-14", "dateRevision": "date-r1",
+                    }],
+                }
+                client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+                with mock.patch.object(client, "_open", return_value=FakeResponse(json.dumps(payload).encode())):
+                    with self.assertRaises(ApiError) as caught:
+                        client.get_source_bundle("job-1", "token", 1)
+                self.assertEqual(caught.exception.status, 200)
+
+    def test_registration_http_400_becomes_protocol_failure_even_for_unknown_code(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        with mock.patch.object(client, "_open", side_effect=ApiError(400, "unknown_code")):
+            with self.assertRaises(EntityRegistrationProtocolError):
+                client.register_entities({"family": "generic"})
 
     def test_claim_requires_schema_version_two(self):
         client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
@@ -389,14 +507,24 @@ class ClaimRequestTest(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             base = make_config(Path(tmp))
             # 어느 계층이 실제로 돌았는지가 스냅샷 기록에서 구분돼야 한다.
-            self.assertEqual(masking_pipeline_version(base), "ner-mask-v1-addr-cond-dict")
-            with_cond = replace(base, condition_ner_model_id="fixture/cond-ner")
-            self.assertEqual(masking_pipeline_version(with_cond), "ner-mask-v1-addr-cond-ner")
-            no_addr = replace(base, address_labels=())
-            self.assertEqual(masking_pipeline_version(no_addr), "ner-mask-v1-noaddr-cond-dict")
+            self.assertEqual(base.masking_pipeline_version, "ner-mask-v1-addr-cond-dict")
+            with_cond = replace(
+                base,
+                condition_ner_model_id="fixture/cond-ner",
+                masking_pipeline_version="ner-mask-v1-addr-cond-ner",
+                masking_pipeline_hash="e" * 64,
+            )
+            self.assertEqual(with_cond.masking_pipeline_version, "ner-mask-v1-addr-cond-ner")
+            no_addr = replace(
+                base,
+                address_labels=(),
+                masking_pipeline_version="ner-mask-v1-noaddr-cond-dict",
+                masking_pipeline_hash="f" * 64,
+            )
+            self.assertEqual(no_addr.masking_pipeline_version, "ner-mask-v1-noaddr-cond-dict")
             # 서버는 lower-case hex64 만 받는다. 구성이 바뀌면 지문도 바뀐다.
-            self.assertRegex(masking_pipeline_hash(base), r"^[0-9a-f]{64}$")
-            self.assertNotEqual(masking_pipeline_hash(base), masking_pipeline_hash(with_cond))
+            self.assertRegex(base.masking_pipeline_hash, r"^[0-9a-f]{64}$")
+            self.assertNotEqual(base.masking_pipeline_hash, with_cond.masking_pipeline_hash)
 
 
 class RunOnceTest(unittest.TestCase):
@@ -588,6 +716,136 @@ class RunOnceTest(unittest.TestCase):
         self.assertEqual(client.post_result.call_count, 1)
         client.release.assert_not_called()
 
+    def test_memory_registration_http_400_unknown_code_releases_once_permanently(self):
+        from ccc_pipeline import worker
+
+        scoped = mock.Mock()
+        scoped.claim_jobs.return_value = [{**text_job(), "purpose": "counseling_memory"}]
+        source = "김철수의 기한은 2026년 9월 20일이다."
+        scoped.get_source_bundle.return_value = {
+            "text": source,
+            "sourceRevision": "source-r1",
+            "sourceSha256": hashlib.sha256(source.encode()).hexdigest(),
+            "sourceLength": len(source),
+            "sourceBundleRevision": "bundle-r1",
+            "expectedMapRevision": 0,
+            "sources": [{
+                "sourceId": "session-1",
+                "sourceRevision": "source-r1",
+                "sourceKind": "session",
+                "start": 0,
+                "end": len(source),
+                "sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
+                "consultationDate": "2026-09-14",
+                "dateRevision": "date-r1",
+            }],
+        }
+        scoped.register_entities.side_effect = ApiError(400, "server_specific_unknown")
+        with TemporaryDirectory() as tmp, mock.patch.object(worker, "MemoryApiClient", return_value=scoped):
+            with mock.patch.object(
+                worker,
+                "_build_person_and_address_ner",
+                return_value=(lambda text: [(0, 3)], None),
+            ):
+                self.assertEqual(run_memory_once(mock.Mock(), make_config(Path(tmp))), 0)
+        scoped.release.assert_called_once_with(
+            "job-text-1", "t" * 64, 1, "permanent", "result_schema_invalid",
+        )
+
+    def test_memory_registration_superseded_skips_result_and_release(self):
+        from ccc_pipeline import worker
+
+        scoped = mock.Mock()
+        scoped.claim_jobs.return_value = [{**text_job(), "purpose": "counseling_memory"}]
+        source = "김철수 source"
+        scoped.get_source_bundle.return_value = {
+            "text": source,
+            "sourceRevision": "source-r1",
+            "sourceSha256": hashlib.sha256(source.encode()).hexdigest(),
+            "sourceLength": len(source),
+            "sourceBundleRevision": "bundle-r1",
+            "expectedMapRevision": 0,
+            "sources": [{
+                "sourceId": "session-1",
+                "sourceRevision": "source-r1",
+                "sourceKind": "session",
+                "start": 0,
+                "end": len(source),
+                "sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
+                "consultationDate": "2026-09-14",
+                "dateRevision": "date-r1",
+            }],
+        }
+        scoped.register_entities.return_value = {"outcome": "superseded"}
+        with TemporaryDirectory() as tmp, mock.patch.object(worker, "MemoryApiClient", return_value=scoped):
+            with mock.patch.object(
+                worker,
+                "_build_person_and_address_ner",
+                return_value=(lambda text: [(0, 3)], None),
+            ):
+                self.assertEqual(run_memory_once(mock.Mock(), make_config(Path(tmp))), 1)
+        scoped.post_result.assert_not_called()
+        scoped.release.assert_not_called()
+
+    def test_memory_registration_uses_delivered_codepoint_coordinates_and_hashes(self):
+        from ccc_pipeline import worker
+
+        raw_material = "원문 머리말😀010-1234-5678 김철수와 상담함"
+        original_chunk_start = len("원문 머리말")
+        raw_chunk = raw_material[original_chunk_start:]
+        delivered = raw_chunk.replace("010-1234-5678", "case-id")
+        self.assertGreater(original_chunk_start, 0)
+        self.assertNotEqual(raw_chunk, delivered)
+        expected_start = len("😀case-id ")
+        self.assertEqual(delivered[expected_start:expected_start + len("김철수")], "김철수")
+
+        scoped = mock.Mock()
+        scoped.claim_jobs.return_value = [{**text_job(), "purpose": "counseling_memory"}]
+        scoped.get_source_bundle.return_value = {
+            "text": delivered,
+            "sourceRevision": "source-r1",
+            "sourceSha256": hashlib.sha256(delivered.encode("utf-8")).hexdigest(),
+            "sourceLength": len(delivered),
+            "sourceBundleRevision": "bundle-r1",
+            "expectedMapRevision": 0,
+            "sources": [{
+                "sourceId": "session-1",
+                "sourceRevision": "source-r1",
+                "sourceKind": "memory",
+                "start": 0,
+                "end": len(delivered),
+                "sha256": hashlib.sha256(delivered.encode("utf-8")).hexdigest(),
+                "consultationDate": "2026-09-14",
+                "dateRevision": "date-r1",
+            }],
+        }
+        scoped.get_mask_dictionary.return_value = {
+            "entries": [],
+        }
+        scoped.register_entities.return_value = {
+            "outcome": "applied",
+            "mapRevision": 0,
+            "entries": [{"index": 0, "number": None, "reason": "ambiguous_identity"}],
+        }
+
+        with TemporaryDirectory() as tmp, mock.patch.object(worker, "MemoryApiClient", return_value=scoped):
+            with mock.patch.object(
+                worker,
+                "_build_person_and_address_ner",
+                return_value=(lambda text: [(expected_start, expected_start + len("김철수"))], None),
+            ):
+                self.assertEqual(run_memory_once(mock.Mock(), make_config(Path(tmp))), 1)
+
+        registration = scoped.register_entities.call_args.args[0]
+        occurrence = registration["entries"][0]["occurrences"][0]
+        self.assertEqual(occurrence["start"], expected_start)
+        self.assertEqual(occurrence["end"], expected_start + len("김철수"))
+        self.assertEqual(registration["entries"][0]["sourceValue"], "김철수")
+        result = scoped.post_result.call_args.args[1]["result"]
+        self.assertEqual(result["checkedSource"]["sourceStart"], 0)
+        self.assertEqual(result["checkedSource"]["sourceEnd"], len(delivered))
+        self.assertEqual(result["checkedSource"]["sourceSha256"], hashlib.sha256(delivered.encode("utf-8")).hexdigest())
+
     def test_azure_transport_and_provider_failures_use_safe_release_semantics(self):
         for error, outcome in (
             (AzureSttError("provider_transport_error", transient=True), "transient"),
@@ -645,6 +903,46 @@ class ResultReplayTest(unittest.TestCase):
 
 
 class TextJobTest(unittest.TestCase):
+    def test_ambiguous_registration_keeps_generic_mask_and_continues(self):
+        client = dictionary_client()
+        source = "김철수에게 연락함"
+        client.get_source.return_value = source
+        client.get_source_bundle.return_value = {
+            "text": source,
+            "sourceRevision": "source-r1",
+            "sourceSha256": hashlib.sha256(source.encode()).hexdigest(),
+            "sourceLength": len(source),
+            "sourceBundleRevision": "bundle-r1",
+            "expectedMapRevision": 0,
+            "sources": [{
+                "sourceId": "session-1",
+                "sourceRevision": "source-r1",
+                "sourceKind": "session",
+                "start": 0,
+                "end": len(source),
+                "sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
+                "consultationDate": "2026-09-14",
+                "dateRevision": "date-r1",
+            }],
+        }
+        client.register_entities.return_value = {
+            "outcome": "applied",
+            "mapRevision": 0,
+            "entries": [{"index": 0, "number": None, "reason": "ambiguous_identity"}],
+        }
+
+        with TemporaryDirectory() as tmp, mock.patch(
+            "ccc_pipeline.worker._build_person_and_address_ner",
+            return_value=(lambda text: [(0, 3)], None),
+        ):
+            process_text_job(client, replace(make_config(Path(tmp)), stt_engine="off"), text_job())
+
+        client.release.assert_not_called()
+        result = client.post_result.call_args.args[1]["result"]
+        self.assertIn("[인명]", result["maskedText"])
+        self.assertNotIn("김철수", result["maskedText"])
+        client.register_entities.assert_called_once()
+
     def test_masks_source_and_posts_a_v2_result_with_contract_hashes(self):
         client = dictionary_client([
             {"field": "phone", "sourceValue": "010-1234-5678", "replacement": "swallow-003"},
@@ -675,6 +973,12 @@ class TextJobTest(unittest.TestCase):
         self.assertIn("swallow-003", result["maskedText"])
         self.assertNotIn("김철수", result["maskedText"])
         self.assertIn("[인명]", result["maskedText"])
+        self.assertEqual(result["checkedSource"], {
+            "sourceRevision": "source-r1",
+            "sourceSha256": hashlib.sha256(client.get_source.return_value.encode()).hexdigest(),
+            "sourceStart": 0,
+            "sourceEnd": len(client.get_source.return_value),
+        })
         # hash 3종은 서버가 다시 계산해 대조한다.
         self.assertEqual(result["sha256"], sha256_hex(result["maskedText"]))
         self.assertEqual(result["evidenceHash"], canonical_sha256(result["evidence"]))
@@ -754,7 +1058,13 @@ class TextJobTest(unittest.TestCase):
 
 
 class AudioJobTest(unittest.TestCase):
-    def _run_audio_job(self, client: mock.Mock, config: Config, backup_adapters=None) -> None:
+    def _run_audio_job(
+        self,
+        client: mock.Mock,
+        config: Config,
+        backup_adapters=None,
+        person_ner: Callable[[str], list[tuple[int, int]]] | None = None,
+    ) -> None:
         from ccc_pipeline.speaker_mapping import Segment, Turn
         from ccc_pipeline.transcribe import TranscriptionResult
         from ccc_pipeline.worker import process_audio_job
@@ -778,7 +1088,7 @@ class AudioJobTest(unittest.TestCase):
             mock.patch("ccc_pipeline.emotion.build_speech_scorer", return_value=lambda path, spans: [0.1]),
             mock.patch(
                 "ccc_pipeline.worker._build_person_and_address_ner",
-                return_value=(lambda text: [], None),
+                return_value=(person_ner or (lambda text: []), None),
             ),
         ):
             if backup_adapters is None:
@@ -802,6 +1112,32 @@ class AudioJobTest(unittest.TestCase):
         self.assertTrue(result["transcriptReliable"])
         self.assertEqual(result["transcriptWarnings"], [])
 
+    def test_registers_audio_transcript_spans_against_zero_span_descriptor(self):
+        client = dictionary_client()
+        client.register_entities.return_value = {
+            "outcome": "applied",
+            "mapRevision": 1,
+            "entries": [{"index": 0, "number": None, "reason": "ambiguous_identity"}],
+        }
+        detected_texts = []
+        def person_spans(text):
+            detected_texts.append(text)
+            start = text.index("합성")
+            return [(start, start + len("합성"))]
+        with TemporaryDirectory() as tmp:
+            self._run_audio_job(client, make_config(Path(tmp)), person_ner=person_spans)
+
+        request = client.register_entities.call_args.args[0]
+        self.assertEqual(request["entries"][0]["sourceValue"], "합성")
+        self.assertEqual(request["entries"][0]["occurrences"], [{
+            "sourceId": "session-1",
+            "sourceRevision": "source-r1",
+            "start": detected_texts[0].index("합성"),
+            "end": detected_texts[0].index("합성") + len("합성"),
+        }])
+        client.get_mask_dictionary.assert_called_once()
+
+
     def test_cleans_work_dir_on_failure(self):
         # D13: 다운로드 후 어떤 단계가 실패해도 중간 파일은 남지 않는다.
         from ccc_pipeline.worker import process_audio_job
@@ -812,12 +1148,12 @@ class AudioJobTest(unittest.TestCase):
         def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path, *, delivery: str) -> Path:
             self.assertEqual(delivery, "api-stream")
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(b"audio")
+            dest.write_bytes(b"synthetic-audio")
             created_dirs.append(dest.parent)
             return dest
 
         client.download_audio.side_effect = fake_download
-        client.verify_audio.return_value = verified_audio_response(b"audio")
+        client.verify_audio.return_value = verified_audio_response(b"synthetic-audio")
         with TemporaryDirectory() as tmp:
             engine = mock.Mock()
             config = make_config(Path(tmp))
@@ -1043,6 +1379,7 @@ class EnvironmentIsolationTest(unittest.TestCase):
             "CCC_WORK_DIR": self.enterContext(TemporaryDirectory()),
             "CCC_NER_MODEL_ID": "FrameByFrame/korean-pii-e5-base",
             "CCC_ORIGINAL_BACKUP_ENABLED": "off",
+            "MEMORY_MASKING_PIPELINES": CANONICAL_MASKING_REGISTRY,
             "CCC_NER_ATTESTATION": json.dumps(ATTESTATION),
             "CCC_NER_RELEASE_RECEIPT_ID": RECEIPT_ID,
             "CCC_AUDIO_DOWNLOAD_ORIGIN": "https://storage.example",

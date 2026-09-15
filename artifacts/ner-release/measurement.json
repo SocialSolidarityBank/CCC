@@ -1,0 +1,102 @@
+{
+  "modelId": "FrameByFrame/korean-pii-e5-base",
+  "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+  "labelSetHash": "b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc",
+  "corpusHash": "d78db2f796072db69bbc2a5d2d7923c5911d932b6c2338fe4c8e0cf051dd8041",
+  "items": 870,
+  "strategies": {
+    "simple": {
+      "counts": {
+        "PRIVATE_PERSON": {
+          "tp": 1,
+          "fp": 717,
+          "fn": 379
+        },
+        "PRIVATE_ADDRESS": {
+          "tp": 0,
+          "fp": 1260,
+          "fn": 300
+        }
+      },
+      "metrics": {
+        "addressPrecision": 0.0,
+        "addressRecall": 0.0,
+        "overgeneralizationRate": 0.9994944388270981,
+        "personPrecision": 0.001392757660167131,
+        "personRecall": 0.002631578947368421
+      },
+      "resultHash": "8fd15626e625ce1565950c8ddb486550c16808e9b1e20a3bf48d1dc12baf12b6",
+      "wilson": {
+        "personPrecisionLower": 0.0002458982477765945,
+        "personRecallLower": 0.00046468944259882815,
+        "addressPrecisionLower": -2.1618134581634236e-19,
+        "addressRecallLower": 8.563957084937438e-19,
+        "overgeneralizationUpper": 0.9999107504637349
+      },
+      "verdict": "failed"
+    },
+    "first": {
+      "counts": {
+        "PRIVATE_PERSON": {
+          "tp": 224,
+          "fp": 141,
+          "fn": 156
+        },
+        "PRIVATE_ADDRESS": {
+          "tp": 0,
+          "fp": 704,
+          "fn": 300
+        }
+      },
+      "metrics": {
+        "addressPrecision": 0.0,
+        "addressRecall": 0.0,
+        "overgeneralizationRate": 0.7904583723105706,
+        "personPrecision": 0.6136986301369863,
+        "personRecall": 0.5894736842105263
+      },
+      "resultHash": "0f195cf5a18ac7172315e76d040d8fd6e2307565571c9c3dc5068974d43658cb",
+      "wilson": {
+        "personPrecisionLower": 0.5628103667218399,
+        "personRecallLower": 0.5393576559648858,
+        "addressPrecisionLower": 0.0,
+        "addressRecallLower": 8.563957084937438e-19,
+        "overgeneralizationUpper": 0.8137936836761117
+      },
+      "verdict": "failed"
+    },
+    "max": {
+      "counts": {
+        "PRIVATE_PERSON": {
+          "tp": 212,
+          "fp": 56,
+          "fn": 168
+        },
+        "PRIVATE_ADDRESS": {
+          "tp": 0,
+          "fp": 562,
+          "fn": 300
+        }
+      },
+      "metrics": {
+        "addressPrecision": 0.0,
+        "addressRecall": 0.0,
+        "overgeneralizationRate": 0.744578313253012,
+        "personPrecision": 0.7910447761194029,
+        "personRecall": 0.5578947368421052
+      },
+      "resultHash": "5b3f9cf15bc101df925dd4b866120fa7ee5ea54b52af0a65291d2f88d076a6d4",
+      "wilson": {
+        "personPrecisionLower": 0.738427201368809,
+        "personRecallLower": 0.5076285728799053,
+        "addressPrecisionLower": 0.0,
+        "addressRecallLower": 8.563957084937438e-19,
+        "overgeneralizationUpper": 0.7730729055439801
+      },
+      "verdict": "failed"
+    }
+  },
+  "deployedStrategy": "simple",
+  "verdict": "failed",
+  "resultHash": "8fd15626e625ce1565950c8ddb486550c16808e9b1e20a3bf48d1dc12baf12b6"
+}

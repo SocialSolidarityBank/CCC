@@ -21,6 +21,9 @@ import type { Bindable, Database, DatabaseResult, PreparedStatement } from '@ccc
 import type { AudioDeletionEvidence, AudioStore, CoreSecretStore } from '@ccc/contracts/runtime';
 import type { InstitutionReadiness, OrganizationProfile, OrganizationOnboardingInput, OrganizationOnboardingResponse } from '@ccc/contracts/institution';
 import type { ReportEvidence, SupportCaseReport } from '@ccc/contracts/report';
+import { isRecord } from '@ccc/contracts/guards';
+import { INTAKE_WRITE_SCHEMA_VERSION, parseIntakeQuestionLifecycle, parseIntakeCreateRequest, parseIntakeUpdateRequest, requiredIntakeQuestionKeys, intakeAnswerDisplayText, IntakeContractError, type IntakeArea, type IntakeCreateRequest, type IntakeUpdateRequest, type IntakeModuleSnapshot, type IntakeSavedRecord, type IntakeRevision, type IntakeResponseCode, type IntakeDebt, type IntakeLinkedOrg, type IntakeQuestionnaire, type IntakeAdditionalItem, type IntakeQuestionLifecycle, type IntakeQuestionLifecycleItem } from '@ccc/contracts/intake';
+import { MANUAL_RECORD_CONTEXT_SCHEMA_VERSION, parseCreateManualRecord, ManualRecordContractError, type CreateManualRecordInput, type ManualRecordDetails, type ManualRecordProjection, type ManualRecordContext, type ManualOpenAction, type ManualPendingQuestion, type ManualActionOutcome, type ManualQuestionOutcome } from '@ccc/contracts/manual-record';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import {
@@ -29,6 +32,10 @@ import {
   type StorageSignerRequest,
 } from '@ccc/contracts/audio';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
+import {
+  hasRegisteredMaskingPipeline,
+  registeredMaskingPipeline,
+} from '@ccc/contracts/masking-pipeline';
 import {
   CONSENT_COPY,
   CONSENT_COPY_VERSION,
@@ -83,9 +90,12 @@ import {
   type ReleaseRequest,
   type ResultRequest,
   type SourceResponse,
+  type TextProcessingStatus,
   type SttEngine as AgentSttEngine,
 } from '@ccc/contracts/agent-jobs';
+import type { EntitySourceBinding, EntitySourceDescriptor } from '@ccc/contracts/entity-registration';
 import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision } from './access-policy';
+import { serializeSupportCaseCsv, type SupportCaseCsvSection } from './support-case-csv';
 import {
   CONSENT_PRIVACY_NOTICE_TEXT,
   CONSENT_PRIVACY_NOTICE_VERSION,
@@ -128,7 +138,7 @@ export interface Env {
   TEXT_AI_PILOT_ENABLED?: string;
   /** 설치 LLM 축. 없거나 openai가 아니면 새 기억 처리를 중단한다. */
   CCC_LLM_MODE?: string;
-  /** Approved version -> canonical masking-manifest SHA-256. Absent means fail closed. */
+  /** Canonical masking registry JSON. Missing, malformed, or unmatched tuples fail closed. */
   MEMORY_MASKING_PIPELINES?: string;
   /**
    * 기관 관리자 최종 PII 파기 스위치(CCC-113·CCC-121). 정확히 '1'일 때만
@@ -1492,6 +1502,496 @@ async function decryptPii(env: Env, value: string | null): Promise<string | null
   return new TextDecoder().decode(decrypted);
 }
 
+type EntityRegistrationRequest = import('@ccc/contracts/entity-registration').EntityRegistrationRequest;
+type EntityRegistrationResponse = import('@ccc/contracts/entity-registration').EntityRegistrationResponse;
+type AppliedEntityRegistration = Extract<EntityRegistrationResponse, { outcome: 'applied' }>;
+interface EntityRegistrationReceipt {
+  family: EntityRegistrationRequest['family'];
+  jobId: string;
+  claimTokenHash: string;
+  attempt: number;
+  sourceBundleRevision: string;
+  entries: EntityRegistrationRequest['entries'];
+  response: AppliedEntityRegistration;
+}
+
+/** F1 내부 저장 계약. F2 호출 경계는 유효한 claim, 사례별 처리 동의, 근거의 동일인 판단을 검증해야 한다. */
+export interface CaseEntityEvidence {
+  sourceKind: string;
+  sourceId: string;
+  sourceRevision: string;
+  sourceStart: number;
+  sourceEnd: number;
+  quote: string;
+  identity?: { entityReference: string; sourceStart: number; sourceEnd: number; quote: string };
+}
+export interface CaseEntityMapping {
+  orgId: string;
+  supportCaseId: string;
+  beneficiaryId: string;
+  vaultCreatedAt: string;
+  vaultVersion: number;
+  keyVersion: number;
+  revision: number;
+  personCounter: number;
+  institutionCounter: number;
+  registrationReceipts?: EntityRegistrationReceipt[];
+  entities: Array<{
+    kind: 'person' | 'institution';
+    number: number;
+    value: string;
+    evidence: CaseEntityEvidence;
+    aliases: Array<{ value: string; evidence: CaseEntityEvidence }>;
+  }>;
+}
+export interface AppendCaseEntityMappingInput {
+  expectedRevision: number;
+  kind: 'person' | 'institution';
+  /** 없으면 새 번호, 있으면 해당 번호에 명시적 별칭 근거만 덧붙인다. */
+  number?: number;
+  value: string;
+  evidence: CaseEntityEvidence;
+}
+interface CaseEntityMappingRow {
+  beneficiary_id: string;
+  enc_entity_map: string | null;
+  entity_map_revision: number;
+  entity_map_key_version: number | null;
+  vault_created_at: string;
+  vault_version: number;
+  vault_key_version: number;
+}
+const caseEntityMappingScope = `SELECT sc.beneficiary_id,sc.enc_entity_map,sc.entity_map_revision,sc.entity_map_key_version,
+  v.created_at AS vault_created_at,v.version AS vault_version,v.key_version AS vault_key_version
+  FROM support_cases sc
+  JOIN beneficiaries b ON b.id=sc.beneficiary_id AND b.org_id=sc.org_id
+  JOIN participant_pii_vault v ON v.beneficiary_id=sc.beneficiary_id AND v.org_id=sc.org_id
+  WHERE sc.id=? AND sc.org_id=? AND b.initialization_state='complete' AND v.purged_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM participant_pii_archives a WHERE a.org_id=sc.org_id AND a.beneficiary_id=sc.beneficiary_id)`;
+
+const ENTITY_REGISTRATION_GENERIC_GUARD_SQL = `SELECT 1 FROM agent_jobs j JOIN support_cases c ON c.id=j.support_case_id AND c.org_id=j.org_id
+  JOIN counseling_memory_cases m ON m.org_id=j.org_id AND m.support_case_id=j.support_case_id
+  JOIN participant_pii_vault pv ON pv.org_id=c.org_id AND pv.beneficiary_id=c.beneficiary_id AND pv.purged_at IS NULL
+  JOIN ner_release_qualification_receipts n ON n.id=j.release_qualification_receipt_id AND n.org_id=j.org_id
+  WHERE j.id=? AND j.org_id=? AND j.state='leased' AND j.lease_owner=? AND j.claim_token_hash=?
+    AND j.attempt=? AND j.lease_expires_at>? AND c.entity_map_revision=?
+    AND c.entity_map_lease_family='generic' AND c.entity_map_lease_job_id=j.id
+    AND c.entity_map_lease_attempt=j.attempt AND c.entity_map_lease_expires_at>?
+    AND m.generation=? AND pv.created_at=? AND pv.version=? AND pv.key_version=?
+    AND n.status='passed' AND n.expires_at>? AND n.result_hash=j.ner_attestation_result_hash
+    AND (
+      (j.kind='text' AND j.source_generation=? AND j.source_sha256=?)
+      OR (j.kind='audio' AND EXISTS (SELECT 1 FROM audio_objects a
+        WHERE a.id=j.audio_object_id AND a.state='processing' AND a.generation_id=j.audio_generation_id
+          AND a.object_sha256 IS NOT DISTINCT FROM ?))
+    )`;
+
+const ENTITY_REGISTRATION_MEMORY_GUARD_SQL = `SELECT 1 FROM counseling_memory_materials m JOIN support_cases c ON c.id=m.support_case_id AND c.org_id=m.org_id
+  JOIN counseling_memory_cases k ON k.org_id=m.org_id AND k.support_case_id=m.support_case_id
+  JOIN participant_pii_vault pv ON pv.org_id=c.org_id AND pv.beneficiary_id=c.beneficiary_id AND pv.purged_at IS NULL
+  JOIN ner_release_qualification_receipts n ON n.id=m.receipt_id AND n.org_id=m.org_id
+  WHERE m.id=? AND m.org_id=? AND m.status='leased' AND m.actor_id=? AND m.lease_token=?
+    AND m.attempt=? AND m.lease_until>? AND m.entity_source_binding=?
+    AND c.entity_map_revision=? AND c.entity_map_lease_family='memory'
+    AND c.entity_map_lease_job_id=m.id AND c.entity_map_lease_attempt=m.attempt
+    AND c.entity_map_lease_expires_at>? AND k.generation=?
+    AND pv.created_at=? AND pv.version=? AND pv.key_version=?
+    AND n.status='passed' AND n.expires_at>?`;
+
+async function caseEntityMappingState(
+  env: Env, actor: Actor, supportCaseId: string,
+): Promise<{ row: CaseEntityMappingRow; mapping: CaseEntityMapping | null }> {
+  const row = actor.role !== 'service' ? null : await env.DB.prepare(caseEntityMappingScope)
+    .bind(supportCaseId, actor.orgId).first<CaseEntityMappingRow>();
+  if (row === null) {
+    await writeAudit(env, actor, { action: 'deny_access', targetTable: 'support_cases', targetId: supportCaseId });
+    throw new ForbiddenError('entity mapping is unavailable');
+  }
+  await writeCanonicalAudit(env, actor, {
+    action: row.enc_entity_map === null ? 'read' : 'decrypt_pii', targetTable: 'support_cases',
+    targetId: supportCaseId, supportCaseId, beneficiaryId: row.beneficiary_id,
+    detail: { entityMapping: true, revision: row.entity_map_revision },
+  });
+  if (row.enc_entity_map === null) return { row, mapping: null };
+  if (row.entity_map_key_version !== activePiiKeyVersion(env) || row.vault_key_version !== row.entity_map_key_version) {
+    throw new ValidationError('entity mapping key version is invalid');
+  }
+  let mapping: CaseEntityMapping;
+  try {
+    mapping = JSON.parse((await decryptPii(env, row.enc_entity_map))!) as CaseEntityMapping;
+  } catch {
+    throw new ValidationError('stored entity mapping is invalid');
+  }
+  // AES-GCM으로 인증된 본문 자체가 범위와 생애주기를 증명한다. 외부 metadata만 믿지 않는다.
+  if (mapping === null || typeof mapping !== 'object' || mapping.orgId !== actor.orgId
+    || mapping.supportCaseId !== supportCaseId || mapping.beneficiaryId !== row.beneficiary_id
+    || mapping.vaultCreatedAt !== row.vault_created_at || mapping.vaultVersion !== row.vault_version
+    || mapping.keyVersion !== row.entity_map_key_version || mapping.revision !== row.entity_map_revision
+    || !Number.isSafeInteger(mapping.personCounter) || mapping.personCounter < 0
+    || !Number.isSafeInteger(mapping.institutionCounter) || mapping.institutionCounter < 0
+    || !Array.isArray(mapping.entities)) throw new ValidationError('entity mapping binding is invalid');
+  return { row, mapping };
+}
+
+/** 일반 화면에 연결하지 않는 service 전용 내부 저장 관문이다. */
+export async function readCaseEntityMapping(
+  env: Env, actor: Actor, supportCaseId: string,
+): Promise<CaseEntityMapping | null> {
+  const state = await caseEntityMappingState(env, actor, supportCaseId);
+  // 복호화 중 원천 생애주기/표가 바뀌면 이전 평문을 반환하지 않는다.
+  const current = await env.DB.prepare(`${caseEntityMappingScope}
+    AND sc.entity_map_revision=? AND sc.enc_entity_map IS NOT DISTINCT FROM ?
+    AND v.version=? AND v.created_at=?`).bind(supportCaseId, actor.orgId,
+      state.row.entity_map_revision, state.row.enc_entity_map, state.row.vault_version, state.row.vault_created_at).first();
+  if (current === null) throw new ConflictError('entity mapping context changed');
+  return state.mapping;
+}
+
+function assertCaseEntityEvidence(evidence: CaseEntityEvidence): void {
+  if (evidence === null || typeof evidence !== 'object' || typeof evidence.sourceId !== 'string' || !evidence.sourceId
+    || typeof evidence.sourceRevision !== 'string' || !evidence.sourceRevision
+    || typeof evidence.quote !== 'string' || !evidence.quote.trim()
+    || !Number.isSafeInteger(evidence.sourceStart) || evidence.sourceStart < 0
+    || !Number.isSafeInteger(evidence.sourceEnd) || evidence.sourceEnd <= evidence.sourceStart
+    || Array.from(evidence.quote).length !== evidence.sourceEnd - evidence.sourceStart) {
+    throw new ValidationError('entity evidence is invalid');
+  }
+  if (!['support_case', 'session', 'goal', 'schedule'].includes(evidence.sourceKind)) {
+    throw new ValidationError('entity evidence is invalid');
+  }
+}
+
+/** CAS를 놓치면 재시도/재번호 발급하지 않는다. 호출자는 새 상태를 읽어 명시적으로 다시 결정한다. */
+export async function appendCaseEntityMapping(
+  env: Env, actor: Actor, supportCaseId: string, input: AppendCaseEntityMappingInput,
+): Promise<{ revision: number; number: number }> {
+  const { row, mapping: before } = await caseEntityMappingState(env, actor, supportCaseId);
+  if (input === null || typeof input !== 'object' || !Number.isSafeInteger(input.expectedRevision)
+    || input.expectedRevision < 0 || !['person', 'institution'].includes(input.kind)
+    || typeof input.value !== 'string' || !input.value.trim()
+    || (input.number !== undefined && (!Number.isSafeInteger(input.number) || input.number < 1))) {
+    throw new ValidationError('entity mapping input is invalid');
+  }
+  if (row.entity_map_revision !== input.expectedRevision || !Number.isSafeInteger(input.expectedRevision + 1)) {
+    throw new ConflictError('entity mapping revision changed');
+  }
+  if (row.vault_key_version !== activePiiKeyVersion(env)) throw new ValidationError('entity mapping key version is invalid');
+  assertCaseEntityEvidence(input.evidence);
+  const evidenceScope = {
+    sql: input.evidence.sourceKind === 'support_case'
+      ? 'SELECT 1 FROM support_cases WHERE id=? AND id=? AND org_id=?'
+      : input.evidence.sourceKind === 'session'
+        ? 'SELECT 1 FROM sessions WHERE id=? AND support_case_id=? AND org_id=?'
+        : input.evidence.sourceKind === 'goal'
+          ? 'SELECT 1 FROM goals WHERE id=? AND support_case_id=? AND org_id=?'
+          : 'SELECT 1 FROM counseling_schedules WHERE id=? AND support_case_id=? AND org_id=?',
+    bindings: [input.evidence.sourceId, supportCaseId, actor.orgId],
+  };
+  if (await env.DB.prepare(evidenceScope.sql).bind(...evidenceScope.bindings).first() === null) {
+    throw new ForbiddenError('entity evidence is unavailable');
+  }
+  const mapping: CaseEntityMapping = before ?? {
+    orgId: actor.orgId, supportCaseId, beneficiaryId: row.beneficiary_id,
+    vaultCreatedAt: row.vault_created_at, vaultVersion: row.vault_version, keyVersion: row.vault_key_version,
+    revision: 0, personCounter: 0, institutionCounter: 0, entities: [],
+  };
+  mapping.revision += 1;
+  // 임의 객체의 추가 필드/직렬화 함수를 저장하지 않는다. 식별 근거는 이 암호문 안에만 둔다.
+  const evidence: CaseEntityEvidence = {
+    sourceKind: input.evidence.sourceKind, sourceId: input.evidence.sourceId, sourceRevision: input.evidence.sourceRevision,
+    sourceStart: input.evidence.sourceStart, sourceEnd: input.evidence.sourceEnd, quote: input.evidence.quote,
+  };
+  let number = input.number;
+  if (number === undefined) {
+    const counter = input.kind === 'person' ? 'personCounter' : 'institutionCounter';
+    number = mapping[counter] + 1;
+    if (!Number.isSafeInteger(number)) throw new ConflictError('entity mapping counter exhausted');
+    mapping[counter] = number;
+    mapping.entities.push({ kind: input.kind, number, value: input.value, evidence, aliases: [] });
+  } else {
+    const entity = mapping.entities.find(entry => entry.kind === input.kind && entry.number === number);
+    if (entity === undefined) throw new ForbiddenError('entity reference is unavailable');
+    entity.aliases.push({ value: input.value, evidence });
+  }
+  const encrypted = await encryptPii(env, stringifyJson(mapping));
+  const results = await env.DB.batch([
+    // 기존 batch 패턴으로 DB 행을 잠근다. 프로세스 지역 잠금은 쓰지 않는다.
+    env.DB.prepare('UPDATE participant_pii_vault SET version=version WHERE beneficiary_id=? AND org_id=? AND purged_at IS NULL')
+      .bind(row.beneficiary_id, actor.orgId),
+    env.DB.prepare(`UPDATE support_cases SET enc_entity_map=?,entity_map_revision=?,entity_map_key_version=?
+      WHERE id=? AND org_id=? AND entity_map_revision=? AND enc_entity_map IS NOT DISTINCT FROM ?
+        AND EXISTS (${caseEntityMappingScope} AND v.version=? AND v.created_at=? AND v.key_version=?)
+        AND EXISTS (${evidenceScope.sql})`)
+      .bind(encrypted, mapping.revision, mapping.keyVersion, supportCaseId, actor.orgId,
+        row.entity_map_revision, row.enc_entity_map, supportCaseId, actor.orgId,
+        row.vault_version, row.vault_created_at, row.vault_key_version, ...evidenceScope.bindings),
+    conditionalCanonicalAuditStatement(env, actor, {
+      action: 'update', targetTable: 'support_cases', targetId: supportCaseId, supportCaseId,
+      beneficiaryId: row.beneficiary_id, detail: { entityMapping: true, revision: mapping.revision },
+    }, {
+      sql: 'SELECT 1 FROM support_cases WHERE id=? AND org_id=? AND entity_map_revision=? AND enc_entity_map=?',
+      bindings: [supportCaseId, actor.orgId, mapping.revision, encrypted],
+    }, now()),
+  ]);
+  // D1 meta.changes counts trigger writes too (the entity_map_revision superseded
+  // trigger bumps counseling_memory_cases org-wide), so the map UPDATE itself cannot
+  // be counted. The conditional audit insert is gated on the post-state and only
+  // lands when the CAS actually wrote — its count is the reliable CAS signal.
+  if (results[2]?.meta.changes !== 1) throw new ConflictError('entity mapping context changed');
+  return { revision: mapping.revision, number };
+}
+
+interface RegistrationAnchor {
+  evidence: CaseEntityEvidence;
+  points: readonly string[];
+  start: number;
+  order: number;
+}
+
+/** 두 표기가 같은 대상이라는 명시적 원천 표현만 허용한다. 근접성이나 철자는 증거가 아니다. */
+function registrationIdentityEvidence(
+  entity: CaseEntityMapping['entities'][number], value: string, reference: string, anchors: RegistrationAnchor[],
+): CaseEntityEvidence | null {
+  const known = [{ value: entity.value, evidence: entity.evidence }, ...entity.aliases];
+  for (const anchor of anchors) {
+    const evidence = anchor.evidence;
+    const points = anchor.points;
+    for (const previous of known) {
+      if (previous.value === value && previous.evidence.sourceId === evidence.sourceId
+        && previous.evidence.sourceRevision === evidence.sourceRevision
+        && previous.evidence.sourceStart >= anchor.start && previous.evidence.sourceEnd <= anchor.start + points.length
+        && points.slice(previous.evidence.sourceStart - anchor.start, previous.evidence.sourceEnd - anchor.start).join('') === value) {
+        return evidence;
+      }
+      const localStart = evidence.sourceStart - anchor.start;
+      const prefix = points.slice(Math.max(0, localStart - 160), localStart).join('');
+      const index = prefix.lastIndexOf(previous.value);
+      if (index < 0 || (index > 0 && !/[\s("'「『:：,]/.test(prefix[index - 1]!))) continue;
+      const relation = prefix.slice(index + previous.value.length);
+      if (!/^[\s(,:：]*(?:(?:의|은|는)\s*)?(?:별칭|별명|가명)(?:은|는|이|:|：)?[\s"'「『]*$/.test(relation)) continue;
+      const before = Array.from(prefix.slice(index)).length;
+      const sourceStart = evidence.sourceStart - before;
+      return { ...evidence, identity: { entityReference: reference, sourceStart,
+        sourceEnd: evidence.sourceEnd, quote: points.slice(sourceStart - anchor.start, evidence.sourceEnd - anchor.start).join('') } };
+    }
+  }
+  return null;
+}
+
+function registrationReceiptMatches(
+  receipt: EntityRegistrationReceipt, request: EntityRegistrationRequest, claimTokenHash: string,
+): boolean {
+  return receipt.family === request.family && receipt.jobId === request.jobId
+    && receipt.claimTokenHash === claimTokenHash && receipt.attempt === request.attempt
+    && receipt.sourceBundleRevision === request.sourceBundleRevision;
+}
+
+/** 등록값과 receipt의 원문은 F1 암호문 밖에 저장하지 않는다. */
+export async function registerCaseEntities(
+  env: Env, actor: Actor, request: EntityRegistrationRequest,
+): Promise<EntityRegistrationResponse> {
+  const context = await entityRegistrationContext(env, actor, request);
+  if (context === null) return { outcome: 'superseded' };
+  const { binding } = context;
+  const { row, mapping: before } = await caseEntityMappingState(env, actor, binding.supportCaseId);
+  const entries = request.entries.map(entry => ({
+    kind: entry.kind, sourceValue: entry.sourceValue, entityReference: entry.entityReference,
+    occurrences: entry.occurrences.map(occurrence => ({
+      sourceId: occurrence.sourceId, sourceRevision: occurrence.sourceRevision, start: occurrence.start, end: occurrence.end,
+    })),
+  }));
+  const exactRequest = canonicalizeJcs(entries);
+  const previousReceipts = (before?.registrationReceipts ?? [])
+    .filter(receipt => registrationReceiptMatches(receipt, request, binding.claimTokenHash));
+  const replay = previousReceipts.find(receipt => canonicalizeJcs(receipt.entries) === exactRequest);
+  if (replay !== undefined) {
+    if (await env.DB.prepare(context.binding.family === 'generic' ? ENTITY_REGISTRATION_GENERIC_GUARD_SQL : ENTITY_REGISTRATION_MEMORY_GUARD_SQL).bind(...context.guardBindings).first() === null) {
+      const current = await entityRegistrationContext(env, actor, request);
+      if (current === null) return { outcome: 'superseded' };
+      throw new AgentJobContractError('stale_claim', request.jobId);
+    }
+    return replay.response;
+  }
+  if (request.expectedMapRevision !== row.entity_map_revision || binding.mapRevision !== row.entity_map_revision) {
+    await supersedeEntityRegistration(env, actor, request);
+    return { outcome: 'superseded' };
+  }
+  if (row.vault_key_version !== activePiiKeyVersion(env)
+    || binding.vaultVersion !== row.vault_version || binding.vaultCreatedAt !== row.vault_created_at
+    || binding.beneficiaryId !== row.beneficiary_id) throw new AgentJobContractError('stale_claim', request.jobId);
+
+  type Group = { kind: 'person' | 'institution'; value: string; indices: number[];
+    references: Set<string>; anchors: RegistrationAnchor[]; order: number; firstStart: number };
+  const groups = new Map<string, Group>();
+  const sourceTexts = context.texts.map(source => ({ ...source, points: Array.from(source.text) }));
+  for (const [index, entry] of entries.entries()) {
+    const key = `${entry.kind}\0${entry.sourceValue}`;
+    let group = groups.get(key);
+    if (group === undefined) {
+      group = { kind: entry.kind, value: entry.sourceValue, indices: [], references: new Set(), anchors: [], order: Infinity, firstStart: Infinity };
+      groups.set(key, group);
+    }
+    group.indices.push(index);
+    if (entry.entityReference !== null) {
+      const prefix = `${binding.supportCaseId}:${entry.kind}:`;
+      if (!entry.entityReference.startsWith(prefix) || !/^[1-9][0-9]*$/.test(entry.entityReference.slice(prefix.length))
+        || !Number.isSafeInteger(Number(entry.entityReference.slice(prefix.length)))) {
+        throw new AgentJobContractError('forbidden', request.jobId);
+      }
+      group.references.add(entry.entityReference);
+    }
+    for (const occurrence of entry.occurrences) {
+      const ordinal = binding.sources.findIndex(source => source.sourceId === occurrence.sourceId
+        && source.sourceRevision === occurrence.sourceRevision
+        && ((source.start <= occurrence.start && occurrence.end <= source.end)
+          || (source.sourceKind === 'transcript' && source.start === 0 && source.end === 0
+            && binding.audio?.rawSha256 != null && source.sha256 === binding.audio.rawSha256
+            && source.sourceRevision === binding.audio.generationId)));
+      const descriptor = binding.sources[ordinal];
+      const source = sourceTexts.find(source => source.sourceId === occurrence.sourceId
+        && source.sourceRevision === occurrence.sourceRevision && source.start <= occurrence.start
+        && occurrence.end <= source.start + source.points.length);
+      // 음성은 코어에 전사 원문이 없다. 현재 원음과 NER 자격에 묶인 Agent 증언이며 원문 대조로 가장하지 않는다.
+      const audioWitness = source === undefined && descriptor?.sourceKind === 'transcript'
+        && descriptor.start === 0 && descriptor.end === 0 && binding.audio?.rawSha256 != null
+        && descriptor.sha256 === binding.audio.rawSha256 && descriptor.sourceRevision === binding.audio.generationId;
+      const points = audioWitness ? Array.from(entry.sourceValue) : source?.points;
+      const start = audioWitness ? occurrence.start : source?.start;
+      if (descriptor === undefined || points === undefined || start === undefined
+        || !Number.isSafeInteger(occurrence.start) || !Number.isSafeInteger(occurrence.end)
+        || occurrence.start < 0 || occurrence.end <= occurrence.start
+        || (audioWitness ? occurrence.end - occurrence.start !== points.length
+          : occurrence.start < descriptor.start || occurrence.end > descriptor.end
+            || points.slice(occurrence.start - start, occurrence.end - start).join('') !== entry.sourceValue)) {
+        const error = new AgentJobContractError('evidence_hash_mismatch', request.jobId);
+        if (request.family === 'generic') {
+          const job = await loadClaimedAgentJob(env, actor, request.jobId, request.claimToken, request.attempt);
+          await closeJobOnResultRejection(env, actor, job, request.claimToken, () => { throw error; });
+        } else {
+          await releaseCounselingMemorySource(env, actor, request.jobId, {
+            claimToken: request.claimToken, attempt: request.attempt, outcome: 'permanent', reason: 'masking_failed',
+          });
+        }
+        throw error;
+      }
+      const order = ordinal;
+      const evidence: CaseEntityEvidence = { sourceKind: descriptor.sourceKind, sourceId: descriptor.sourceId,
+        sourceRevision: descriptor.sourceRevision, sourceStart: occurrence.start, sourceEnd: occurrence.end, quote: entry.sourceValue };
+      group.anchors.push({ evidence, points, start, order });
+      if (order < group.order || (order === group.order && occurrence.start < group.firstStart)) {
+        group.order = order;
+        group.firstStart = occurrence.start;
+      }
+    }
+  }
+
+  const mapping: CaseEntityMapping = before ?? {
+    orgId: actor.orgId, supportCaseId: binding.supportCaseId, beneficiaryId: row.beneficiary_id,
+    vaultCreatedAt: row.vault_created_at, vaultVersion: row.vault_version, keyVersion: row.vault_key_version,
+    revision: 0, personCounter: 0, institutionCounter: 0, entities: [],
+  };
+  if (!Number.isSafeInteger(mapping.revision + 1)) throw new ConflictError('entity mapping revision exhausted');
+  const response: AppliedEntityRegistration = { outcome: 'applied', mapRevision: mapping.revision + 1,
+    entries: entries.map((_, index) => ({ index, number: null, reason: 'missing_identity_evidence' })) };
+  for (const group of [...groups.values()].sort((left, right) => left.order - right.order || left.firstStart - right.firstStart)) {
+    group.anchors.sort((left, right) => left.order - right.order || left.evidence.sourceStart - right.evidence.sourceStart);
+    let number: number | null = null;
+    let reason: 'ambiguous_identity' | 'missing_identity_evidence' | null = null;
+    const earlier = previousReceipts.flatMap(receipt => receipt.entries.flatMap((entry, index) =>
+      entry.kind === group.kind && entry.sourceValue === group.value ? [receipt.response.entries[index]!] : []));
+    const priorNumbers = new Set(earlier.flatMap(entry => entry.number === null ? [] : [entry.number]));
+    const referencedNumbers = new Set([...group.references].map(reference => Number(reference.slice(reference.lastIndexOf(':') + 1))));
+    const combinedNumbers = new Set([...priorNumbers, ...referencedNumbers]);
+    if (combinedNumbers.size > 1 || earlier.some(entry => entry.reason === 'ambiguous_identity')) {
+      reason = 'ambiguous_identity';
+    } else if (group.anchors.length === 0) {
+      reason = 'missing_identity_evidence';
+    } else if (priorNumbers.size === 1) {
+      number = [...priorNumbers][0]!;
+    } else if (referencedNumbers.size === 1) {
+      const target = [...referencedNumbers][0]!;
+      const entity = mapping.entities.find(entity => entity.kind === group.kind && entity.number === target);
+      const proof = entity === undefined ? null
+        : registrationIdentityEvidence(entity, group.value, [...group.references][0]!, group.anchors);
+      if (entity === undefined || proof === null) reason = 'missing_identity_evidence';
+      else {
+        number = target;
+        if (group.value !== entity.value && !entity.aliases.some(alias => alias.value === group.value)) {
+          entity.aliases.push({ value: group.value, evidence: proof });
+        }
+      }
+    } else if (mapping.entities.some(entity => entity.kind === group.kind
+      && (entity.value === group.value || entity.aliases.some(alias => alias.value === group.value)))) {
+      reason = 'ambiguous_identity';
+    } else {
+      const counter = group.kind === 'person' ? 'personCounter' : 'institutionCounter';
+      number = mapping[counter] + 1;
+      if (!Number.isSafeInteger(number)) throw new ConflictError('entity mapping counter exhausted');
+      mapping[counter] = number;
+      mapping.entities.push({ kind: group.kind, number, value: group.value, evidence: group.anchors[0]!.evidence, aliases: [] });
+    }
+    for (const index of group.indices) response.entries[index] = { index, number, reason };
+  }
+  mapping.revision = response.mapRevision;
+  (mapping.registrationReceipts ??= []).push({ family: request.family, jobId: request.jobId,
+    claimTokenHash: binding.claimTokenHash, attempt: request.attempt, sourceBundleRevision: request.sourceBundleRevision,
+    entries, response });
+  const encrypted = await encryptPii(env, stringifyJson(mapping));
+  const marker = newId();
+  const nextBinding = canonicalizeJcs({ ...binding, mapRevision: mapping.revision });
+  const table = request.family === 'generic' ? 'agent_jobs' : 'counseling_memory_materials';
+  const tokenColumn = request.family === 'generic' ? 'claim_token_hash' : 'lease_token';
+  const stateColumn = request.family === 'generic' ? 'state' : 'status';
+  try {
+    const results = await programPolicyBatch(env, context.programAdmission.context, [
+      env.DB.prepare('UPDATE participant_pii_vault SET version=version WHERE beneficiary_id=? AND org_id=?')
+        .bind(row.beneficiary_id, actor.orgId),
+      env.DB.prepare('UPDATE support_cases SET entity_map_revision=entity_map_revision WHERE id=? AND org_id=?')
+        .bind(binding.supportCaseId, actor.orgId),
+      env.DB.prepare(`UPDATE ${table} SET attempt=attempt WHERE id=? AND org_id=?`)
+        .bind(request.jobId, actor.orgId),
+      env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS (
+        ${caseEntityMappingScope} AND sc.entity_map_revision=? AND sc.enc_entity_map IS NOT DISTINCT FROM ?
+          AND v.version=? AND v.created_at=? AND v.key_version=?
+        ) AND EXISTS (${context.binding.family === 'generic' ? ENTITY_REGISTRATION_GENERIC_GUARD_SQL : ENTITY_REGISTRATION_MEMORY_GUARD_SQL}) THEN 1 ELSE 0 END)`)
+        .bind(marker, actor.orgId, binding.supportCaseId, actor.orgId, row.entity_map_revision, row.enc_entity_map,
+          row.vault_version, row.vault_created_at, row.vault_key_version, ...context.guardBindings),
+      // 이 claim의 결속부터 옮긴 뒤 map을 쓴다. 외부 정정 trigger가 자신의 등록을 폐기하지 않는다.
+      env.DB.prepare(`UPDATE ${table} SET entity_source_binding=? WHERE id=? AND org_id=? AND attempt=? AND ${tokenColumn}=?`)
+        .bind(nextBinding, request.jobId, actor.orgId, request.attempt, binding.claimTokenHash),
+      env.DB.prepare(`UPDATE support_cases SET enc_entity_map=?,entity_map_revision=?,entity_map_key_version=?
+        WHERE id=? AND org_id=? AND entity_map_revision=? AND enc_entity_map IS NOT DISTINCT FROM ?`)
+        .bind(encrypted, mapping.revision, mapping.keyVersion, binding.supportCaseId, actor.orgId, row.entity_map_revision, row.enc_entity_map),
+      env.DB.prepare(`UPDATE counseling_memory_guards SET ok=CASE WHEN EXISTS (
+        SELECT 1 FROM support_cases WHERE id=? AND org_id=? AND entity_map_revision=? AND enc_entity_map=?
+      ) AND EXISTS (SELECT 1 FROM ${table} WHERE id=? AND org_id=? AND ${stateColumn}='leased'
+        AND attempt=? AND ${tokenColumn}=? AND entity_source_binding=?) THEN 1 ELSE 0 END WHERE id=?`)
+        .bind(binding.supportCaseId, actor.orgId, mapping.revision, encrypted,
+          request.jobId, actor.orgId, request.attempt, binding.claimTokenHash, nextBinding, marker),
+      conditionalCanonicalAuditStatement(env, actor, {
+        action: 'update', targetTable: 'support_cases', targetId: binding.supportCaseId, supportCaseId: binding.supportCaseId,
+        beneficiaryId: row.beneficiary_id, detail: { entityMapping: true, revision: mapping.revision, registration: true },
+      }, { sql: 'SELECT 1 FROM support_cases WHERE id=? AND org_id=? AND entity_map_revision=? AND enc_entity_map=?',
+        bindings: [binding.supportCaseId, actor.orgId, mapping.revision, encrypted] }, now()),
+      env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(marker),
+    ], context.programAdmission.program);
+    if (results[4]?.meta.changes !== 1 || results[5]?.meta.changes !== 1) {
+      throw new ConflictError('entity registration context changed');
+    }
+  } catch (error) {
+    // 다른 요청이 먼저 같은 receipt를 저장한 경우만 재생한다. 번호 배정 자체를 재시도하지 않는다.
+    const current = await entityRegistrationContext(env, actor, request);
+    if (current === null) return { outcome: 'superseded' };
+    const stored = await caseEntityMappingState(env, actor, current.binding.supportCaseId);
+    const raced = stored.mapping?.registrationReceipts?.find(receipt =>
+      registrationReceiptMatches(receipt, request, current.binding.claimTokenHash)
+      && canonicalizeJcs(receipt.entries) === exactRequest);
+    if (raced !== undefined && await env.DB.prepare(current.binding.family === 'generic' ? ENTITY_REGISTRATION_GENERIC_GUARD_SQL : ENTITY_REGISTRATION_MEMORY_GUARD_SQL).bind(...current.guardBindings).first() !== null) return raced.response;
+    throw error;
+  }
+  return response;
+}
+
 async function readPiiValues(
   env: Env,
   orgId: string,
@@ -1926,6 +2426,13 @@ async function listAiDraftSourceMaterials(
   }));
 }
 
+const TEXT_SNAPSHOT_CURRENT_SQL = `NOT EXISTS (
+  SELECT 1 FROM ai_text_work_queue q JOIN agent_jobs j ON j.source_text_work_item_id=q.id
+  WHERE q.org_id=snapshot.org_id AND q.completed_snapshot_id=snapshot.id AND j.state='succeeded'
+    AND NOT EXISTS (SELECT 1 FROM counseling_memory_cases c WHERE c.org_id=j.org_id
+      AND c.support_case_id=j.support_case_id AND c.generation=j.source_generation AND j.checked_end IS NOT NULL)
+)`;
+
 async function listAiDraftContrastAxes(
   env: Env,
   draftVersionId: string,
@@ -1964,7 +2471,8 @@ async function getMaskedSourceSnapshotForOrg(
     `SELECT snapshot.*, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
      FROM ai_masked_source_snapshots AS snapshot
      JOIN support_cases AS support_case ON support_case.id = snapshot.support_case_id
-     WHERE snapshot.id = ? AND snapshot.org_id = ? AND snapshot.support_case_id = ? AND snapshot.session_id = ?`,
+     WHERE snapshot.id = ? AND snapshot.org_id = ? AND snapshot.support_case_id = ? AND snapshot.session_id = ?
+       AND ${TEXT_SNAPSHOT_CURRENT_SQL}`,
   ).bind(snapshotId, orgId, context.supportCaseId, sessionId).first<DbRow>();
   if (row === null) {
     throw new ForbiddenError('masked source snapshot is not available in this session');
@@ -1972,6 +2480,7 @@ async function getMaskedSourceSnapshotForOrg(
 
   return mapMaskedSourceSnapshot(row, await listMaskedSourceEvidenceItems(env, snapshotId));
 }
+
 
 async function getCurrentAiDraftVersion(env: Env, orgId: string, workItemId: string): Promise<AiDraftVersion> {
   const row = await env.DB.prepare(
@@ -2736,6 +3245,26 @@ export interface MaskedSourceSnapshot {
   evidence: MaskedSourceEvidenceItem[];
 }
 
+/** Durable identity of one fully attested provider material. */
+export interface OpenAiMaterialRef {
+  kind: 'snapshot' | 'memory';
+  id: string;
+  sha256: string;
+}
+
+/*
+ * The provider egress ledger stores only hashes of these values.  The full
+ * packet remains in its immutable snapshot/material row and is re-read at
+ * begin time before the CAS.
+ */
+interface OpenAiMaterialRecord {
+  ref: OpenAiMaterialRef;
+  proofJson: string;
+  bindingJson: string;
+  binding: EntitySourceBinding;
+  snapshot: MaskedSourceSnapshot;
+}
+
 export interface MaskedSourceEvidenceItemInput {
   id: string;
   sourceRef: string;
@@ -2745,11 +3274,22 @@ export interface MaskedSourceEvidenceItemInput {
   sourceEnd: number;   // exclusive Unicode code-point offset in maskedText
 }
 
+interface PersistedMaskedSourceProof {
+  schemaVersion: 2;
+  attempt: number;
+  payloadSha256: string;
+  result: ResultRequest['result'];
+}
+
 export interface RecordMaskedSourceSnapshotInput {
   maskedText: string;
   sha256: string;
   maskingPipelineVersion: string;
   evidence: MaskedSourceEvidenceItemInput[];
+  /** Internal acceptance proof; legacy callers intentionally omit it. */
+  proof?: PersistedMaskedSourceProof;
+  /** Internal F3 source binding; legacy callers intentionally omit it. */
+  entitySourceBinding?: EntitySourceBinding;
 }
 
 export interface RecordingResultInput extends RecordMaskedSourceSnapshotInput {
@@ -3594,6 +4134,18 @@ const UNMASKED_RESULT_PATTERNS = [
   /(?<![\d-])\d{2,6}-\d{2,6}-\d{2,8}(?:-\d{2,8})?(?![\d-])/u,
 ] as const;
 
+
+function assertNoRegisteredPii(text: string, pii: {
+  name: string | null;
+  phone: string | null;
+  account: string | null;
+  email: string | null;
+}): void {
+  if (Object.values(pii).some((value) => value !== null && value.length > 0 && text.includes(value))) {
+    throw new ValidationError('registered_pii_detected');
+  }
+}
+
 function assertNoObviousUnmaskedPii(maskedText: string): void {
   if (UNMASKED_RESULT_PATTERNS.some((pattern) => pattern.test(maskedText))) {
     throw new ValidationError('masked source contains an unmasked sensitive pattern');
@@ -3605,24 +4157,188 @@ function assertMaskedSourceEvidenceContent(
   snapshotHash: string,
   evidence: MaskedSourceEvidenceItemInput[],
 ): void {
+  const codepoints = Array.from(maskedText);
   for (const item of evidence) {
     if (
       item.sourceSha256 !== snapshotHash
-      || sourceTextSpan(maskedText, item.sourceStart, item.sourceEnd) !== item.evidenceQuote
+      || !Number.isSafeInteger(item.sourceStart) || !Number.isSafeInteger(item.sourceEnd)
+      || item.sourceStart < 0 || item.sourceEnd <= item.sourceStart || item.sourceEnd > codepoints.length
+      || codepoints.slice(item.sourceStart, item.sourceEnd).join('') !== item.evidenceQuote
     ) {
       throw new ValidationError('masked source evidence is invalid');
     }
   }
 }
+function openAiMaterialError(code: JobErrorCode): AgentJobContractError {
+  return new AgentJobContractError(code);
+}
 
+/**
+ * Revalidates a persisted generic snapshot.  Provider callers must not trust
+ * the snapshot hash alone: the complete packet, receipt, evidence spans, and
+ * F3 binding are all immutable inputs to the OpenAI authorization.
+ */
+async function verifyPersistedSnapshotProof(
+  env: Env, actor: Actor, row: DbRow, snapshot: MaskedSourceSnapshot,
+  proofJson: string | null, bindingJson: string | null,
+): Promise<{ proofJson: string; bindingJson: string; binding: EntitySourceBinding }> {
+  if (proofJson === null || bindingJson === null) throw openAiMaterialError('masking_snapshot_missing');
+  let capsule: PersistedMaskedSourceProof;
+  let binding: EntitySourceBinding;
+  try {
+    capsule = JSON.parse(proofJson);
+    binding = JSON.parse(bindingJson);
+  } catch {
+    throw openAiMaterialError('masking_snapshot_missing');
+  }
+  if (!capsule || !capsule.result || capsule.schemaVersion !== 2 || !Number.isSafeInteger(capsule.attempt)) {
+    throw openAiMaterialError('masking_snapshot_missing');
+  }
+  const result = capsule.result;
+  const maskingManifest = await registeredMaskingPipeline(
+    env.MEMORY_MASKING_PIPELINES,
+    result.maskingPipelineVersion,
+    result.maskingPipelineHash,
+  );
+  if (
+    maskingManifest === null
+    || result.nerAttestationResultHash !== maskingManifest.nerHealthResultHash
+  ) {
+    throw openAiMaterialError('masking_pipeline_version_mismatch');
+  }
+  await assertStoredProofBytes(result);
+  const storedEvidence = new Map(snapshot.evidence.map(item => [item.id, item]));
+  const evidenceMatches = result.evidence.every(item => {
+    const stored = storedEvidence.get(item.id);
+    storedEvidence.delete(item.id);
+    return stored !== undefined && stored.sourceRef === item.sourceRef
+      && stored.sourceSha256 === item.sourceSha256 && stored.evidenceQuote === item.evidenceQuote
+      && stored.sourceStart === item.sourceStart && stored.sourceEnd === item.sourceEnd;
+  }) && storedEvidence.size === 0;
+  if (result.sha256 !== snapshot.sha256 || result.maskedText !== snapshot.maskedText
+    || result.maskingPipelineVersion !== snapshot.maskingPipelineVersion
+    || await sha256Hex(canonicalizeJcs({schemaVersion: 2, attempt: capsule.attempt, result})) !== capsule.payloadSha256
+    || !evidenceMatches) throw openAiMaterialError('evidence_hash_mismatch');
+  if (!binding || binding.version !== 1 || binding.family !== 'generic'
+    || binding.orgId !== actor.orgId || binding.supportCaseId !== stringValue(row.support_case_id)) {
+    throw openAiMaterialError('stale_claim');
+  }
+  const scope = await env.DB.prepare(
+    `SELECT sc.beneficiary_id,sc.entity_map_revision,c.generation,pv.created_at,pv.version,pv.key_version
+     FROM support_cases sc
+     JOIN counseling_memory_cases c ON c.org_id=sc.org_id AND c.support_case_id=sc.id
+     JOIN participant_pii_vault pv ON pv.org_id=sc.org_id AND pv.beneficiary_id=sc.beneficiary_id
+     WHERE sc.org_id=? AND sc.id=? AND pv.purged_at IS NULL`,
+  ).bind(actor.orgId, binding.supportCaseId).first<DbRow>();
+  if (scope === null || Number(scope.entity_map_revision) !== binding.mapRevision
+    || Number(scope.generation) !== binding.generation || scope.beneficiary_id !== binding.beneficiaryId
+    || scope.created_at !== binding.vaultCreatedAt || Number(scope.version) !== binding.vaultVersion
+    || Number(scope.key_version) !== binding.keyVersion) throw openAiMaterialError('stale_claim');
+  const jobRow = await env.DB.prepare('SELECT * FROM agent_jobs WHERE id=? AND org_id=?')
+    .bind(binding.jobId, actor.orgId).first<DbRow>();
+  if (jobRow === null) throw openAiMaterialError('masking_snapshot_missing');
+  const job = mapAgentJobRow(jobRow);
+  if (job.state !== 'succeeded' || job.sessionId !== snapshot.sessionId
+    || job.supportCaseId !== binding.supportCaseId || job.attempt !== capsule.attempt
+    || job.resultPayloadSha256 !== capsule.payloadSha256) throw openAiMaterialError('evidence_hash_mismatch');
+  await assertAgentJobQualificationCurrent(env, actor, job);
+  await assertAgentJobResultIntegrity(env, job, {
+    schemaVersion: 2, claimToken: '', attempt: capsule.attempt, resultId: '',
+    payloadSha256: capsule.payloadSha256, result,
+  });
+  await writeAudit(env, actor, {
+    action: 'decrypt_pii', targetTable: 'participant_pii_vault', targetId: binding.beneficiaryId,
+    caseId: snapshot.caseId, detail: {purpose: 'provider_source_proof_verification'},
+  });
+  if (await agentJobConsentRevision(env, actor.orgId, job) !== binding.consentRevision) {
+    throw openAiMaterialError('consent_not_effective');
+  }
+  if (job.kind === 'text') await assertTextJobSourceCurrent(env, actor, job);
+  await assertAgentJobSourceBindingCurrent(env, actor, {
+    ...job, claimTokenHash: binding.claimTokenHash, entitySourceBinding: bindingJson,
+  });
+  return {proofJson, bindingJson, binding};
+}
+
+/** Identical attested-byte checks for generic, historical and derived material. */
+async function assertStoredProofBytes(result: ResultRequest['result']): Promise<void> {
+  if (!result || typeof result.maskedText !== 'string' || !SHA256_HEX.test(result.sha256)
+    || !Array.isArray(result.evidence) || !result.evidence.length
+    || !SHA256_HEX.test(result.evidenceHash)
+    || await sha256Hex(result.maskedText) !== result.sha256
+    || await sha256Hex(canonicalizeJcs(result.evidence)) !== result.evidenceHash) {
+    throw openAiMaterialError('evidence_hash_mismatch');
+  }
+  try {
+    assertMaskedSourceEvidenceContent(result.maskedText, result.sha256, result.evidence);
+  } catch {
+    throw openAiMaterialError('evidence_hash_mismatch');
+  }
+}
+
+async function loadOpenAiMaterialRecords(
+  env: Env, actor: Actor, sessionId: string, refs: readonly OpenAiMaterialRef[],
+): Promise<OpenAiMaterialRecord[]> {
+  if (!Array.isArray(refs) || refs.length === 0
+    || new Set(refs.map(ref => `${ref.kind}:${ref.id}`)).size !== refs.length) {
+    throw openAiMaterialError('masking_snapshot_missing');
+  }
+  const scope = await resolveSessionScope(env, actor.orgId, sessionId);
+  const records: OpenAiMaterialRecord[] = [];
+  for (const ref of refs) {
+    if (ref.kind !== 'snapshot' || !SHA256_HEX.test(ref.sha256)) throw openAiMaterialError('masking_snapshot_missing');
+    const row = await env.DB.prepare(
+      `SELECT snapshot.*,COALESCE(sc.legacy_case_id,sc.id) AS case_id
+       FROM ai_masked_source_snapshots snapshot
+       JOIN support_cases sc ON sc.id=snapshot.support_case_id AND sc.org_id=snapshot.org_id
+       WHERE snapshot.id=? AND snapshot.org_id=? AND snapshot.support_case_id=? AND snapshot.sha256=?`,
+    ).bind(ref.id, actor.orgId, scope.supportCaseId, ref.sha256).first<DbRow>();
+    if (row === null) throw openAiMaterialError('masking_snapshot_missing');
+    const snapshot = mapMaskedSourceSnapshot(row, await listMaskedSourceEvidenceItems(env, ref.id));
+    const checked = await verifyPersistedSnapshotProof(env, actor, row, snapshot,
+      nullableString(row.proof_json), nullableString(row.entity_source_binding));
+    records.push({ref, snapshot, ...checked});
+  }
+  return records;
+}
+
+const OPENAI_EGRESS_MATERIAL_CLAUSE = `EXISTS(SELECT 1 FROM ai_masked_source_snapshots s
+  JOIN counseling_memory_cases c ON c.org_id=s.org_id AND c.support_case_id=s.support_case_id
+  JOIN support_cases sc ON sc.org_id=s.org_id AND sc.id=s.support_case_id
+  JOIN participant_pii_vault pv ON pv.org_id=sc.org_id AND pv.beneficiary_id=sc.beneficiary_id
+  WHERE s.id=? AND s.org_id=? AND s.support_case_id=? AND s.session_id=?
+    AND s.sha256=? AND s.proof_json=? AND s.entity_source_binding=?
+    AND c.generation=? AND sc.entity_map_revision=? AND sc.beneficiary_id=?
+    AND pv.created_at=? AND pv.version=? AND pv.key_version=? AND pv.purged_at IS NULL)`;
+
+const OPENAI_EGRESS_FENCE_HEAD = `provider='openai' AND actor_id=? AND status=? AND operation=? AND consent_revision=?
+  AND material_proof_fingerprints_json=? AND binding_fingerprints_json=?
+  AND config_hash=? AND config_hash=(
+    SELECT p.config_hash FROM ai_provider_activations a
+    JOIN ai_provider_configs p ON p.id=a.config_id AND p.org_id=a.org_id
+    WHERE a.org_id=? AND a.deactivated_at IS NULL ORDER BY a.activated_at DESC,a.id DESC LIMIT 1
+  ) AND EXISTS(SELECT 1 FROM sessions WHERE sessions.id=? AND sessions.org_id=? AND `;
+
+const OPENAI_EGRESS_FENCE_TAIL = `) AND `;
+
+function openAiMaterialBindings(records: OpenAiMaterialRecord[]): Bindable[] {
+  const bindings: Bindable[] = [];
+  for (const item of records) {
+    const b = item.binding;
+    bindings.push(item.ref.id, b.orgId, b.supportCaseId, item.snapshot.sessionId,
+      item.ref.sha256, item.proofJson, item.bindingJson, b.generation, b.mapRevision,
+      b.beneficiaryId, b.vaultCreatedAt, b.vaultVersion, b.keyVersion);
+  }
+  return bindings;
+}
 interface MaskedResultGrant {
   session: Session;
   programAdmission: ProgramAdmissionGrant;
 }
 
+
 /**
- * 텍스트와 녹음 결과가 함께 쓰는 마스킹 결과 커밋 관문이다. 호출자는 동의 종류만
- * 고르고, 해시·근거 구간·등록 PII 재치환·스냅샷 저장·감사는 이 함수가 맡는다.
+ * 본문을 재치환하지 않는다. 해시, 근거 구간과 등록 PII를 검사하고 스냅샷과 감사를 저장한다.
  */
 async function commitMaskedResult(
   env: Env,
@@ -3655,10 +4371,9 @@ async function commitMaskedResult(
     targetId: grant.session.caseId,
     caseId: grant.session.caseId,
   });
-  const mask = (text: string): string => maskRegisteredPii(text, grant.session.caseId, pii);
-
-  const maskedText = mask(input.maskedText);
-  assertNoObviousUnmaskedPii(maskedText);
+  assertNoRegisteredPii(input.maskedText, pii);
+  assertNoObviousUnmaskedPii(input.maskedText);
+  const maskedText = input.maskedText;
   const snapshotHash = await sha256Hex(maskedText);
   if (snapshotHash !== input.sha256) {
     await writePhase1Denial(env, actor, {
@@ -3671,20 +4386,14 @@ async function commitMaskedResult(
   }
   const evidence: MaskedSourceEvidenceItem[] = [];
   try {
+    assertMaskedSourceEvidenceContent(maskedText, snapshotHash, input.evidence);
     for (const item of input.evidence) {
-      const evidenceQuote = mask(item.evidenceQuote);
-      if (
-        item.sourceSha256 !== snapshotHash
-        || sourceTextSpan(maskedText, item.sourceStart, item.sourceEnd) !== evidenceQuote
-      ) {
-        throw new ValidationError('masked source evidence is invalid');
-      }
       evidence.push({
         id: item.id,
         snapshotId: '',
         sourceRef: item.sourceRef,
         sourceSha256: snapshotHash,
-        evidenceQuote,
+        evidenceQuote: item.evidenceQuote,
         sourceStart: item.sourceStart,
         sourceEnd: item.sourceEnd,
         createdAt: '',
@@ -3716,10 +4425,13 @@ async function commitMaskedResult(
       createdAt,
     })),
   };
+  const proofJson = input.proof === undefined ? null : canonicalizeJcs(input.proof);
+  const entitySourceBindingJson = input.entitySourceBinding === undefined
+    ? null : canonicalizeJcs(input.entitySourceBinding);
   try {
     await programPolicyBatch(env, grant.programAdmission.context, [
       env.DB.prepare(
-        'INSERT INTO ai_masked_source_snapshots (id, org_id, support_case_id, session_id, masked_text, sha256, masking_pipeline_version, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO ai_masked_source_snapshots (id, org_id, support_case_id, session_id, masked_text, sha256, masking_pipeline_version, proof_json, entity_source_binding, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ).bind(
         snapshot.id,
         actor.orgId,
@@ -3728,6 +4440,8 @@ async function commitMaskedResult(
         snapshot.maskedText,
         snapshot.sha256,
         snapshot.maskingPipelineVersion,
+        proofJson,
+        entitySourceBindingJson,
         actor.userId,
         snapshot.createdAt,
       ),
@@ -3827,6 +4541,18 @@ export async function loadMaskedSourceSnapshotForService(
     throw error;
   }
 
+  const proofRow = await env.DB.prepare(
+    'SELECT support_case_id,proof_json,entity_source_binding FROM ai_masked_source_snapshots WHERE id=? AND org_id=?',
+  ).bind(snapshot.id, actor.orgId).first<DbRow>();
+  if (proofRow === null) throw new AgentJobContractError('masking_snapshot_missing');
+  await verifyPersistedSnapshotProof(
+    env,
+    actor,
+    proofRow,
+    snapshot,
+    nullableString(proofRow.proof_json),
+    nullableString(proofRow.entity_source_binding),
+  );
   await writeAudit(env, actor, {
     action: 'read',
     targetTable: 'ai_masked_source_snapshots',
@@ -3992,6 +4718,7 @@ export async function createGeneratedAiDraft(
   actor: Actor,
   sessionId: string,
   input: GeneratedAiDraftInput,
+  egressAuthorizationId?: string,
 ): Promise<AiDraftVersion> {
   const serviceGrant = await assertServiceTextAiSessionGrant(env, actor, sessionId, { allowCounselor: true });
   const session = serviceGrant.session;
@@ -4031,6 +4758,21 @@ export async function createGeneratedAiDraft(
   if (sourceSnapshotId === undefined) {
     throw new ValidationError('source snapshot id is required');
   }
+  const providerRuntime = await getActiveAiProviderRuntimeMetadataForService(env, actor, session.id);
+  if (
+    providerRuntime.providerConfigId !== normalizedInput.providerConfigId
+    || providerRuntime.consentEvidenceId !== normalizedInput.consentEvidenceId
+    || providerRuntime.consentRevision !== normalizedInput.consentRevision
+    || canonicalizeJcs(providerRuntime.consentReceipt) !== canonicalizeJcs(normalizedInput.consentReceipt)
+  ) {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'ai_draft_versions',
+      targetId: sessionId,
+      caseId: session.caseId,
+      reason: 'provider_execution_selection_stale',
+    });
+    throw new StaleDraftVersionError();
+  }
   let sourceSnapshot: MaskedSourceSnapshot;
   let materialSnapshots: Map<string, MaskedSourceSnapshot>;
   try {
@@ -4059,21 +4801,6 @@ export async function createGeneratedAiDraft(
   }
 
 
-  const providerRuntime = await getActiveAiProviderRuntimeMetadataForService(env, actor, session.id);
-  if (
-    providerRuntime.providerConfigId !== normalizedInput.providerConfigId
-    || providerRuntime.consentEvidenceId !== normalizedInput.consentEvidenceId
-    || providerRuntime.consentRevision !== normalizedInput.consentRevision
-    || canonicalizeJcs(providerRuntime.consentReceipt) !== canonicalizeJcs(normalizedInput.consentReceipt)
-  ) {
-    await writePhase1Denial(env, actor, {
-      targetTable: 'ai_draft_versions',
-      targetId: sessionId,
-      caseId: session.caseId,
-      reason: 'provider_execution_selection_stale',
-    });
-    throw new StaleDraftVersionError();
-  }
   const consentEvidenceId = normalizedInput.consentEvidenceId;
   const providerConfigId = normalizedInput.providerConfigId;
   const consentRevision = normalizedInput.consentRevision;
@@ -4217,7 +4944,11 @@ export async function createGeneratedAiDraft(
       ));
     }
     if (input.memoryContext) statements.push(...await memoryDraftContextStatements(env, actor, sessionId, draftId, input.memoryContext));
-    await memoryBatch(env, statements, serviceGrant.programAdmission);
+    if (egressAuthorizationId !== undefined) {
+      await openAiOutputBatch(env, actor, egressAuthorizationId, 'draft', statements);
+    } else {
+      await memoryBatch(env, statements, serviceGrant.programAdmission);
+    }
   } catch (error) {
     if (isUniqueConstraintError(error) || isStaleDraftVersionError(error)) {
       await writePhase1Denial(env, actor, {
@@ -4295,10 +5026,10 @@ export async function createGeneratedAiDraftForService(
   actor: Actor,
   sessionId: string,
   input: GeneratedAiDraftInput,
+  egressAuthorizationId?: string,
 ): Promise<AiDraftVersion> {
-  return createGeneratedAiDraft(env, actor, sessionId, input);
+  return createGeneratedAiDraft(env, actor, sessionId, input, egressAuthorizationId);
 }
-
 /**
  * Creates the built-in Preview fixture branch without selecting, reading, or
  * storing provider configuration. Source, current consent, and evidence
@@ -4309,6 +5040,7 @@ export async function createFixtureGeneratedAiDraftForService(
   actor: Actor,
   sessionId: string,
   input: FixtureGeneratedAiDraftInput,
+  egressAuthorizationId?: string,
 ): Promise<AiDraftVersion> {
   const serviceGrant = await assertServiceTextAiSessionGrant(env, actor, sessionId, { allowCounselor: true });
   const session = serviceGrant.session;
@@ -4516,7 +5248,11 @@ export async function createFixtureGeneratedAiDraftForService(
   );
   if (input.memoryContext) statements.push(...await memoryDraftContextStatements(env, actor, sessionId, draftId, input.memoryContext));
   try {
-    await memoryBatch(env,statements);
+    if (egressAuthorizationId !== undefined) {
+      await openAiOutputBatch(env, actor, egressAuthorizationId, 'draft', statements);
+    } else {
+      await memoryBatch(env, statements, serviceGrant.programAdmission);
+    }
   } catch (error) {
     if (isUniqueConstraintError(error) || isStaleDraftVersionError(error)) {
 
@@ -5441,8 +6177,9 @@ export interface DiscrepancyDetectionMaterial {
   caseId: string;
   supportCaseId: string;
   triggerSessionId: string;
-  /** 가명 처리 완료(R3) 공식 텍스트 — 회차당 수기 메모 + 승인된 AI 정리. 오래된 순. */
+  /** 저장된 proof-bearing snapshots only; approved summaries are not lineage. */
   sources: DiscrepancyDetectionSource[];
+  materialRefs: OpenAiMaterialRef[];
 }
 
 // 프로바이더에 보내는 회차 수 상한 — apps/api 의 MAX_DISCREPANCY_SOURCES 와 같은 값.
@@ -5475,16 +6212,9 @@ async function resolveSessionScope(
 }
 
 /**
- * 검출 재료 수집 — 공식 기록만(R2: 수기 메모(D5 즉시 공식) + 승인된 AI 정리).
- *
- * R3 (2026-07-31 · ADR-0027): 재료는 **처리 장비가 2차 마스킹(NER)한 스냅샷**
- * (`ai_masked_source_snapshots`)뿐이다. 수기 메모 원문을 쓰지 않는 이유는 금고에
- * 등록되지 않은 제3자("아들 김철수")를 1차 치환(maskRegisteredPii)이 잡지 못하기
- * 때문이다 — 그 텍스트는 사업자로 나갈 수 없다. 스냅샷이 없는 회차는 **재료에서
- * 빠지고**, 트리거 회차에 스냅샷이 없으면 호출자가 검출 자체를 스킵한다(D8:
- * 다음 공식화 때 재검출). 스냅샷을 만드는 것은 텍스트 일감 큐다.
- *
- * 권한: 담당 실무자 | admin (D7). 감사: PII 복호화 1건(decrypt_pii, D14).
+ * 검출에는 처리 장비가 만든 스냅샷만 사용한다. 수기 원문이나 승인 요약을
+ * 다시 가려 붙이지 않는다. 선택한 재료는 저장 proof와 현재 원천 결속을
+ * 검증하며, 트리거 스냅샷이 없으면 호출자가 검출을 보류한다.
  */
 export async function collectDiscrepancyDetectionSources(
   env: Env,
@@ -5502,86 +6232,44 @@ export async function collectDiscrepancyDetectionSources(
   }
   await requireSupportCaseProgramAdmission(env, actor.orgId, scope.supportCaseId, 'llm');
 
-  const [sessionRows, approvedRows] = await Promise.all([
-    // 회차당 최신 스냅샷 1건. 스냅샷이 없는 회차는 JOIN 에서 떨어진다.
-    env.DB.prepare(
-      `SELECT session.id AS id, session.held_at AS held_at, snapshot.masked_text AS masked_text
+  const sessionRows = await env.DB.prepare(
+    `SELECT session.id AS id, session.held_at AS held_at,
+            snapshot.id AS snapshot_id, snapshot.sha256 AS snapshot_sha256
        FROM sessions AS session
        JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id = (
          SELECT candidate.id FROM ai_masked_source_snapshots AS candidate
-         WHERE candidate.org_id = session.org_id AND candidate.session_id = session.id
-         ORDER BY candidate.created_at DESC, candidate.id DESC
-         LIMIT 1
+          WHERE candidate.org_id=session.org_id AND candidate.session_id=session.id
+          ORDER BY candidate.created_at DESC,candidate.id DESC LIMIT 1
        )
-       WHERE session.org_id = ? AND session.support_case_id = ?
-       ORDER BY session.held_at DESC, session.id DESC
-       LIMIT ?`,
-    ).bind(actor.orgId, scope.supportCaseId, DISCREPANCY_SOURCE_LIMIT).all<DbRow>(),
-    env.DB.prepare(
-      `SELECT session_id, summary_text FROM approved_ai_briefing_v1
-       WHERE org_id = ? AND support_case_id = ?
-       ORDER BY approved_at DESC NULLS LAST, draft_version DESC`,
-    ).bind(actor.orgId, scope.supportCaseId).all<DbRow>(),
-  ]);
-
-  const approvedBySession = new Map<string, string>();
-  for (const row of approvedRows.results) {
-    const sessionId = stringValue(row.session_id);
-    if (!approvedBySession.has(sessionId)) approvedBySession.set(sessionId, stringValue(row.summary_text));
-  }
-
-  const rows = [...sessionRows.results];
-  if (!rows.some((row) => stringValue(row.id) === triggerSessionId)) {
-    // 트리거 회차가 최근 N건 밖이면 따로 가져온다. 회차 자체가 없으면 권한 오류지만,
-    // 스냅샷이 아직 없는 것은 오류가 아니라 스킵 사유다(마스킹 대기 중, D8).
-    const triggerRow = await env.DB.prepare(
-      `SELECT session.id AS id, session.held_at AS held_at, snapshot.masked_text AS masked_text
-       FROM sessions AS session
-       LEFT JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id = (
-         SELECT candidate.id FROM ai_masked_source_snapshots AS candidate
-         WHERE candidate.org_id = session.org_id AND candidate.session_id = session.id
-         ORDER BY candidate.created_at DESC, candidate.id DESC
-         LIMIT 1
-       )
-       WHERE session.id = ? AND session.org_id = ? AND session.support_case_id = ?`,
-    ).bind(triggerSessionId, actor.orgId, scope.supportCaseId).first<DbRow>();
-    if (triggerRow === null) {
-      throw new ForbiddenError('session is not available in this organization');
-    }
-    if (nullableString(triggerRow.masked_text) !== null) rows.push(triggerRow);
-  }
-
-  const pii = await readPiiValues(env, actor.orgId, scope.caseId);
-  await writeAudit(env, actor, {
-    action: 'decrypt_pii',
-    targetTable: 'pii_vault',
-    targetId: scope.caseId,
-    caseId: scope.caseId,
-    detail: { purpose: 'discrepancy_detection_masking' },
-  });
-
-  // 오래된 순으로 정렬해 회차 흐름이 보이게 보낸다.
-  rows.sort((left, right) => stringValue(left.held_at).localeCompare(stringValue(right.held_at)));
+      WHERE session.org_id=? AND session.support_case_id=?
+      ORDER BY session.held_at DESC,session.id DESC LIMIT ?`,
+  ).bind(actor.orgId, scope.supportCaseId, DISCREPANCY_SOURCE_LIMIT).all<DbRow>();
+  const rows = sessionRows.results.filter((row) => stringValue(row.id) === triggerSessionId);
+  if (rows.length === 0) throw new AgentJobContractError('masking_snapshot_missing');
   const sources: DiscrepancyDetectionSource[] = [];
+  const materialRefs: OpenAiMaterialRef[] = [];
   for (const row of rows) {
-    const parts: string[] = [];
-    // 2차 마스킹을 마친 스냅샷만 재료다(R3). 1차 치환은 그 위에 한 겹 더 얹는다.
-    const maskedText = nullableString(row.masked_text);
-    if (maskedText !== null && maskedText.trim().length > 0) parts.push(maskedText);
-    const approvedSummary = approvedBySession.get(stringValue(row.id));
-    if (approvedSummary !== undefined && approvedSummary.trim().length > 0) parts.push(approvedSummary);
-    if (parts.length === 0) continue;
-    sources.push({
-      sessionId: stringValue(row.id),
-      text: maskRegisteredPii(parts.join('\n'), scope.caseId, pii),
-    });
+    const snapshotId = nullableString(row.snapshot_id);
+    const snapshotSha256 = nullableString(row.snapshot_sha256);
+    if (snapshotId === null || snapshotSha256 === null) continue;
+    const [record] = await loadOpenAiMaterialRecords(env, actor, stringValue(row.id), [{
+      kind: 'snapshot',
+      id: snapshotId,
+      sha256: snapshotSha256,
+    }]);
+    if (record === undefined || record.snapshot.maskedText.trim().length === 0) {
+      throw new AgentJobContractError('masking_snapshot_missing');
+    }
+    sources.push({ sessionId: stringValue(row.id), text: record.snapshot.maskedText });
+    materialRefs.push(record.ref);
   }
-
+  if (sources.length === 0) throw new AgentJobContractError('masking_snapshot_missing');
   return {
     caseId: scope.caseId,
     supportCaseId: scope.supportCaseId,
     triggerSessionId,
     sources,
+    materialRefs,
   };
 }
 
@@ -5632,17 +6320,14 @@ function mapSessionDiscrepancy(row: DbRow): SessionDiscrepancy {
 }
 
 /**
- * 검출 결과 저장 — 같은 트리거 회차의 **미처리** 행만 지우고 새 결과로 교체한다(재검출).
- * 처리된 행은 접힌 이력이라 남는다(ADR-0018, DB 트리거도 삭제를 막는다). 이미 이 참여 사업에
- * 있는 쌍(처리됨 또는 다른 트리거 회차의 미처리)은 새로 넣지 않는다 — 중복 방지. 인용은 저장 전에
- * 길이·유형 정합을 다시 검증하고, 회차 참조가 이 참여 사업의 회차인지도 확인한다.
- * 권한: 담당 실무자 배정. 감사: create 1건(D14).
+ * 검출 결과 저장 — 같은 트리거 회차의 **미처리** 행만 지우고 새 결과로 교체한다.
  */
 export async function replaceSessionDiscrepancies(
   env: Env,
   actor: Actor,
   triggerSessionId: string,
   items: DetectedSessionDiscrepancyInput[],
+  egressAuthorizationId?: string,
 ): Promise<SessionDiscrepancy[]> {
   assertOpaqueIdentifier(triggerSessionId, 'session id');
   if (!Array.isArray(items) || items.length > DISCREPANCY_ITEM_LIMIT) {
@@ -5760,7 +6445,11 @@ export async function replaceSessionDiscrepancies(
     supportCaseId: scope.supportCaseId,
     detail: { count: fresh.length, skippedExisting: items.length - fresh.length },
   }));
-  await env.DB.batch(statements);
+  if (egressAuthorizationId !== undefined) {
+    await openAiOutputBatch(env, actor, egressAuthorizationId, 'detect_discrepancies', statements);
+  } else {
+    await env.DB.batch(statements);
+  }
 
   if (insertedIds.length === 0) return [];
   const rows = await env.DB.prepare(
@@ -5811,6 +6500,9 @@ export async function resolveSessionDiscrepancy(
     throw new ForbiddenError('discrepancy is not available in this organization');
   }
   const current = mapSessionDiscrepancy(existing);
+  if (current.kind === 'cross_session') {
+    throw new ForbiddenError('discrepancy is not available in this release');
+  }
   // 주소가 가리킨 참여 사업과 실제 소속이 어긋나면 아무것도 바꾸기 전에 멈춘다.
   if (expectedSupportCaseId !== undefined && current.supportCaseId !== expectedSupportCaseId) {
     throw new ForbiddenError('discrepancy does not belong to this support case');
@@ -5860,7 +6552,7 @@ export async function listRecordErrorSessionIds(
   await assertSupportCaseAccess(env, actor, supportCaseId);
   const rows = await env.DB.prepare(
     `SELECT left_session_id, right_session_id FROM session_discrepancies
-     WHERE org_id = ? AND support_case_id = ? AND resolution_status = 'record_error'`,
+     WHERE org_id = ? AND support_case_id = ? AND kind = 'within_session' AND resolution_status = 'record_error'`,
   ).bind(actor.orgId, supportCaseId).all<DbRow>();
   const ids = new Set<string>();
   for (const row of rows.results) {
@@ -6341,6 +7033,7 @@ export async function createManualSession(
 ): Promise<Session> {
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   const result = await createCounselingRecord(env, actor, context.supportCaseId, {
+    schemaVersion: 2,
     submissionId: input.submissionId,
     heldAt: input.heldAt,
     channel: input.channel,
@@ -7469,9 +8162,9 @@ export async function enqueueTextWorkForGoalChange(
  * (무응답·모름·해당없음) 재료에 싣지 않는다. JSON 이 깨졌으면 그냥 없음으로 본다.
  * 재료 컨텍스트 때문에 마스킹 일감이 실패하면 안 된다(D8).
  */
-function intakeAnswerText(rawDetails: unknown, key: IntakeAnswerKey): string | null {
+function intakeAnswerText(rawDetails: unknown, key: string): string | null {
   if (typeof rawDetails !== 'string') return null;
-  const details = parseJson<Record<string, unknown>>(rawDetails);
+  const details = intakeReadView(rawDetails).details;
   if (details === null || !Array.isArray(details.answers)) return null;
   for (const answer of details.answers) {
     if (typeof answer !== 'object' || answer === null) continue;
@@ -7480,6 +8173,27 @@ function intakeAnswerText(rawDetails: unknown, key: IntakeAnswerKey): string | n
     if (typeof entry.text === 'string' && entry.text.trim().length > 0) return entry.text.trim();
   }
   return null;
+}
+
+/** Interpret v1 literally; v2 uses only explicitly applicable, human-entered answers. */
+function intakeReadView(raw: unknown): { schemaVersion: 1 | 2; details: Record<string, unknown> } {
+  const details = parseJson<Record<string, unknown>>(raw) ?? {};
+  if (details.schemaVersion === undefined || details.schemaVersion === 1) return { schemaVersion: 1, details };
+  // Writes are strict; historical version-2 extension keys remain literal on reads.
+  const form = details as unknown as IntakeQuestionnaire;
+  const selection = form.answers.find(answer => answer.key === 'difficulty_areas');
+  const areas = selection?.response === 'answered' && 'choices' in selection ? selection.choices as IntakeArea[] : [];
+  const applicable = new Set(requiredIntakeQuestionKeys(areas));
+  const answers = form.answers.filter(answer => applicable.has(answer.key)).map(answer => ({
+    key: answer.key, response: answer.response, ...(answer.response === 'answered' ? { text: intakeAnswerDisplayText(answer) } : {}),
+  }));
+  return { schemaVersion: 2, details: {
+    answers,
+    debts: form.debts?.response === 'answered' ? form.debts.rows : [],
+    linkedOrgs: form.linkedOrgs.response === 'answered' ? form.linkedOrgs.rows : [],
+    additionalItems: form.additionalItems.response === 'answered' ? form.additionalItems.rows : [],
+    managerOpinion: answers.find(answer => answer.key === 'managerOpinion')?.text ?? null,
+  } };
 }
 
 /**
@@ -7508,11 +8222,11 @@ async function buildAgentJobSourceText(
   env: Env,
   actor: Actor,
   sessionId: string,
-): Promise<SourceResponse> {
+): Promise<Pick<SourceResponse, 'sessionId' | 'text'>> {
   const scope = await resolveSessionScope(env, actor.orgId, sessionId);
 
   const [sessionRow, approvedRow, caseRow, intakeRow, detailGoalRows, sessionGoalRows] = await Promise.all([
-    env.DB.prepare('SELECT memo, record_details FROM sessions WHERE id = ? AND org_id = ?')
+    env.DB.prepare('SELECT id, held_at, memo, record_details, manual_schema_version, manual_revision FROM sessions WHERE id = ? AND org_id = ?')
       .bind(sessionId, actor.orgId).first<DbRow>(),
     env.DB.prepare(
       `SELECT summary_text FROM approved_ai_briefing_v1
@@ -7584,6 +8298,9 @@ async function buildAgentJobSourceText(
     parts.push(`${SESSION_GOAL_MATERIAL_LABEL} ${sessionGoalLines.join('\n')}`);
   }
   if (memo !== null) parts.push(memo);
+  if (sessionRow !== null) {
+    await appendManualSourceText(parts, env, actor.orgId, scope.supportCaseId, sessionRow);
+  }
   if (summary !== null) parts.push(summary);
   // 워크인 폴백 자유 글(D62 §7): 일정 없이 쓴 회차의 '이번 상담에서 확인할 것'.
   const goalNoteLines = sessionGoalNoteLines(sessionRow === null ? null : nullableString(sessionRow.record_details));
@@ -8151,6 +8868,11 @@ async function appendSupportCaseConsentEventUnchecked(
   if (llmConsentChanges) {
     statements.push(
       env.DB.prepare(
+        `UPDATE agent_job_egress_records SET status='revoked'
+         WHERE org_id=? AND support_case_id=? AND provider='openai' AND status='authorized'
+           AND EXISTS(SELECT 1 FROM consent_events WHERE id=?)`,
+      ).bind(actor.orgId, supportCaseId, eventId),
+      env.DB.prepare(
         `UPDATE counseling_memory_sources
          SET revision=revision+1,dirty=1,chunk_cursor=0
          WHERE org_id=? AND support_case_id=?
@@ -8481,6 +9203,11 @@ interface AgentJobRow {
   leaseExpiresAt: string | null;
   terminalFailureCode: string | null;
   resultPayloadSha256: string | null;
+  sourceGeneration: number | null;
+  sourceSha256: string | null;
+  sourceLength: number | null;
+  checkedStart: number | null;
+  checkedEnd: number | null;
   releaseQualificationReceiptId: string | null;
   nerAttestationId: string | null;
   nerAttestationResultHash: string | null;
@@ -8504,6 +9231,7 @@ interface AgentJobRow {
   requiredConsent: string;
   maskDictionaryId: string | null;
   maskDictionaryExpiresAt: string | null;
+  entitySourceBinding: string | null;
 }
 
 function mapAgentJobRow(row: DbRow): AgentJobRow {
@@ -8524,6 +9252,11 @@ function mapAgentJobRow(row: DbRow): AgentJobRow {
     leaseExpiresAt: nullableString(row.lease_expires_at),
     terminalFailureCode: nullableString(row.terminal_failure_code),
     resultPayloadSha256: nullableString(row.result_payload_sha256),
+    sourceGeneration: integerValue(row.source_generation),
+    sourceSha256: nullableString(row.source_sha256),
+    sourceLength: integerValue(row.source_length),
+    checkedStart: integerValue(row.checked_start),
+    checkedEnd: integerValue(row.checked_end),
     releaseQualificationReceiptId: nullableString(row.release_qualification_receipt_id),
     nerAttestationId: nullableString(row.ner_attestation_id),
     nerAttestationResultHash: nullableString(row.ner_attestation_result_hash),
@@ -8547,6 +9280,7 @@ function mapAgentJobRow(row: DbRow): AgentJobRow {
     requiredConsent: stringValue(row.required_consent),
     maskDictionaryId: nullableString(row.mask_dictionary_id),
     maskDictionaryExpiresAt: nullableString(row.mask_dictionary_expires_at),
+    entitySourceBinding: nullableString(row.entity_source_binding),
   };
 }
 
@@ -8743,6 +9477,17 @@ async function recoverAgentJobs(env: Env, orgId: string, nowIso: string): Promis
          lease_owner=NULL,claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
        WHERE org_id=? AND state='leased' AND lease_expires_at<=?`,
     ).bind(AGENT_JOB_MAX_ATTEMPTS, AGENT_JOB_MAX_ATTEMPTS, nowIso, orgId, nowIso),
+    env.DB.prepare(
+      `UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+         entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+       WHERE org_id=? AND (entity_map_lease_expires_at<=?
+         OR (entity_map_lease_family='generic' AND NOT EXISTS (
+           SELECT 1 FROM agent_jobs j
+           WHERE j.id=support_cases.entity_map_lease_job_id AND j.org_id=support_cases.org_id
+             AND j.support_case_id=support_cases.id AND j.attempt=support_cases.entity_map_lease_attempt
+             AND j.state='leased' AND j.lease_expires_at>?
+         )))`,
+    ).bind(orgId, nowIso, nowIso),
     env.DB.prepare(
       `UPDATE audio_objects SET
          state=CASE WHEN EXISTS(
@@ -8971,6 +9716,7 @@ export async function claimAgentJobs(
   const claimed: AgentJob[] = [];
   if (leases.length > 0) {
     const statements: PreparedStatement[] = [];
+    const slots: Array<{ lease: typeof leases[number]; jobIndex: number; audioIndex: number | null }> = [];
     for (const lease of leases) {
       const tokenHash = await sha256Hex(lease.claimToken);
       const receipt = parseJson<ConsentGateReceipt>(lease.job.consentReceiptJson);
@@ -8983,6 +9729,17 @@ export async function claimAgentJobs(
       const audioConsentGuard = lease.job.kind === 'audio' && receipt !== null
         ? consentSqlGuard(receipt, 'audio_objects')
         : { sql: '1=1', bindings: [] as Bindable[] };
+      // The case row is the map-consumer lock. It is deliberately acquired
+      // before the job CAS so a contending case never burns an attempt.
+      statements.push(env.DB.prepare(
+        `UPDATE support_cases SET entity_map_lease_family='generic',entity_map_lease_job_id=?,
+           entity_map_lease_attempt=?,entity_map_lease_expires_at=?
+         WHERE id=? AND org_id=? AND status='active'
+           AND ((entity_map_lease_family IS NULL AND entity_map_lease_job_id IS NULL
+             AND entity_map_lease_attempt IS NULL AND entity_map_lease_expires_at IS NULL)
+             OR entity_map_lease_expires_at<=?)`,
+      ).bind(lease.job.id, lease.attempt, lease.leaseExpiresAt, lease.job.supportCaseId, actor.orgId, nowIso));
+      const jobIndex = statements.length;
       statements.push(
         env.DB.prepare(
           `UPDATE agent_jobs
@@ -8995,6 +9752,10 @@ export async function claimAgentJobs(
              mask_dictionary_id=NULL,mask_dictionary_issued_at=NULL,
              mask_dictionary_expires_at=NULL,mask_dictionary_consumed_at=NULL,updated_at=?
            WHERE id=? AND org_id=? AND state=? AND attempt=?
+             AND EXISTS (SELECT 1 FROM support_cases AS leased
+               WHERE leased.id=agent_jobs.support_case_id AND leased.org_id=agent_jobs.org_id
+                 AND leased.entity_map_lease_family='generic' AND leased.entity_map_lease_job_id=agent_jobs.id
+                 AND leased.entity_map_lease_attempt=? AND leased.entity_map_lease_expires_at>?)
              AND (kind='text' OR (stt_engine=? AND stt_engine_id=? AND EXISTS(
                SELECT 1 FROM audio_objects AS audio
                WHERE audio.id=agent_jobs.audio_object_id AND audio.state='available'
@@ -9010,12 +9771,16 @@ export async function claimAgentJobs(
           attestation.id, attestation.modelId, attestation.modelRevision, attestation.labelSetHash,
           attestation.corpusHash, attestation.resultHash, attestation.validatedAt, attestation.expiresAt,
           request.releaseQualificationReceiptId, runtime.route, lease.processingDeadlineAt, nowIso,
-          lease.job.id, actor.orgId, lease.job.state, lease.job.attempt,
+          lease.job.id, actor.orgId, lease.job.state, lease.job.attempt, lease.attempt, nowIso,
           runtime.sttEngine, runtime.sttEngineId, nowIso, nowIso, nowIso,
           ...jobConsentGuard.bindings,
           ...(lease.job.kind === 'audio' ? audioAdmission : textAdmission),
         ),
-        env.DB.prepare(
+      );
+      let audioIndex: number | null = null;
+      if (lease.job.kind === 'audio') {
+        audioIndex = statements.length;
+        statements.push(env.DB.prepare(
           `UPDATE audio_objects
            SET state='claimed',first_agent_available_at=COALESCE(first_agent_available_at,?),
              processing_deadline_at=COALESCE(processing_deadline_at,?),claim_id=?,
@@ -9032,17 +9797,39 @@ export async function claimAgentJobs(
           lease.job.audioObjectId, actor.orgId, lease.job.audioGenerationId, nowIso, nowIso,
           ...audioConsentGuard.bindings,
           lease.job.id, actor.userId, tokenHash, lease.attempt,
-        ),
-      );
+        ));
+      }
+      // Roll back a claim whose paired audio CAS lost a race; this also
+      // prevents the case lock from becoming an orphaned lease.
+      statements.push(env.DB.prepare(
+        `UPDATE agent_jobs SET state=?,attempt=?,lease_owner=NULL,claim_token_hash=NULL,
+           claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+         WHERE id=? AND org_id=? AND state='leased' AND lease_owner=?
+           AND claim_token_hash=? AND attempt=? AND ? IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM audio_objects WHERE id=? AND claim_id=? AND claim_agent_id=?
+             AND claim_expires_at=? AND state='claimed')`,
+      ).bind(
+        lease.job.state, lease.job.attempt, nowIso, lease.job.id, actor.orgId, actor.userId,
+        tokenHash, lease.attempt, lease.job.kind === 'audio' ? lease.job.audioObjectId : null,
+        lease.job.audioObjectId, lease.job.id, actor.userId, lease.leaseExpiresAt,
+      ));
+      statements.push(env.DB.prepare(
+        `UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+           entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+         WHERE id=? AND org_id=? AND entity_map_lease_family='generic'
+           AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?
+           AND NOT EXISTS (SELECT 1 FROM agent_jobs WHERE id=? AND org_id=? AND state='leased'
+             AND lease_owner=? AND claim_token_hash=? AND attempt=?)`,
+      ).bind(lease.job.supportCaseId, actor.orgId, lease.job.id, lease.attempt,
+        lease.job.id, actor.orgId, actor.userId, tokenHash, lease.attempt));
+      slots.push({ lease, jobIndex, audioIndex });
     }
     const results = await programPolicyBatch(env, admissionContext, statements);
-    leases.forEach((lease, index) => {
-      const jobChanges = results[index * 2]?.meta?.changes ?? 0;
-      const audioChanges = lease.job.kind === 'audio'
-        ? results[index * 2 + 1]?.meta?.changes ?? 0
-        : 1;
-      if (jobChanges < 1 || audioChanges < 1) return;
-      claimed.push({
+    for (const { lease, jobIndex, audioIndex } of slots) {
+      const jobChanges = results[jobIndex]?.meta?.changes ?? 0;
+      const audioChanges = audioIndex === null ? 1 : results[audioIndex]?.meta?.changes ?? 0;
+      if (jobChanges < 1 || audioChanges < 1) continue;
+      const claimedJob: AgentJob = {
         jobId: lease.job.id,
         sessionId: lease.job.sessionId,
         caseId: lease.job.supportCaseId,
@@ -9075,8 +9862,9 @@ export async function claimAgentJobs(
             expiresAt: null,
           }
           : null,
-      });
-    });
+      };
+      claimed.push(claimedJob);
+    }
   }
 
   await writeAudit(env, actor, {
@@ -9140,12 +9928,21 @@ export async function heartbeatAgentJob(
   const nowIso = now();
   const leaseExpiresAt = agentLeaseExpiry(nowIso, job.claimedAt ?? nowIso, job);
   // 조회와 갱신 사이에 임대가 만료됐으면 연장하지 않는다 — 자연 만료는 되살릴 수 없다.
-  const updated = await env.DB.prepare(
-    `UPDATE agent_jobs SET lease_expires_at = ?, updated_at = ?
-     WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
-       AND lease_expires_at > ?`,
-  ).bind(leaseExpiresAt, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso).run();
-  if ((updated.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE agent_jobs SET lease_expires_at = ?, updated_at = ?
+       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+         AND lease_expires_at > ?`,
+    ).bind(leaseExpiresAt, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso),
+    env.DB.prepare(
+      `UPDATE support_cases SET entity_map_lease_expires_at=?
+       WHERE id=? AND org_id=? AND entity_map_lease_family='generic'
+         AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?
+         AND entity_map_lease_expires_at>?`,
+    ).bind(leaseExpiresAt, job.supportCaseId, actor.orgId, jobId, job.attempt, nowIso),
+  ]);
+  if ((results[0]?.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
+  if ((results[1]?.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
   return { jobId, state: 'leased', attempt: job.attempt, leaseExpiresAt };
 }
 
@@ -9281,8 +10078,30 @@ export async function releaseAgentJob(
     const results = await env.DB.batch(statements);
     if (
       (results[0]?.meta?.changes ?? 0) === 0 || (results[1]?.meta?.changes ?? 0) === 0
-    ) await throwAgentJobCasFailure(env, actor, jobId, request);
+    ) {
+      // 객체 행이 이미 종결 상태(삭제·만료)면 audio CAS 는 영원히 못 맞는다 — protected-get
+      // 에서 부재를 발견한 작업은 그래도 닫아야 한다(S5 §2.6: 열어 두지 않는다).
+      if (request.outcome === 'permanent' && request.reason === 'audio_object_missing') {
+        const closed = await env.DB.prepare(
+          `UPDATE agent_jobs
+           SET state='failed',terminal_failure_code='audio_object_missing',lease_owner=NULL,
+             claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+           WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=?
+             AND lease_expires_at>?`,
+        ).bind(nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso).run();
+        if ((closed.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
+      } else {
+        await throwAgentJobCasFailure(env, actor, jobId, request);
+      }
+    }
   }
+  const releasedLease = await env.DB.prepare(
+    `UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+       entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+     WHERE id=? AND org_id=? AND entity_map_lease_family='generic'
+       AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`,
+  ).bind(job.supportCaseId, actor.orgId, job.id, job.attempt).run();
+  if ((releasedLease.meta?.changes ?? 0) !== 1) await throwAgentJobCasFailure(env, actor, jobId, request);
   await writeAudit(env, actor, {
     action: 'update',
     targetTable: 'agent_jobs',
@@ -9300,6 +10119,183 @@ async function requireAgentJobProgramAdmission(env: Env, orgId: string, job: Age
   return admission;
 }
 
+/** A date revision binds the original instant and its institutional interpretation. */
+async function entityConsultationDate(
+  heldAt: unknown, timeZone: unknown, jobId: string,
+): Promise<Pick<EntitySourceDescriptor, 'consultationDate' | 'dateRevision'>> {
+  if (typeof heldAt !== 'string' || !/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(heldAt)
+    || !Number.isFinite(Date.parse(heldAt)) || typeof timeZone !== 'string' || timeZone.length === 0) {
+    throw new AgentJobContractError('result_schema_invalid', jobId);
+  }
+  let consultationDate: string;
+  try {
+    consultationDate = localDateAt(new Date(heldAt), timeZone);
+  } catch {
+    throw new AgentJobContractError('result_schema_invalid', jobId);
+  }
+  return { consultationDate, dateRevision: await sha256Hex(canonicalizeJcs({ heldAt, timeZone })) };
+}
+
+async function textSourceBinding(
+  env: Env, actor: Actor, job: AgentJobRow, sourceText: string, generation: number,
+): Promise<EntitySourceBinding> {
+  const session = await env.DB.prepare(
+    `SELECT s.held_at,sc.beneficiary_id,sc.entity_map_revision,pv.created_at AS vault_created_at,
+       pv.version AS vault_version,pv.key_version,os.time_zone
+     FROM sessions s JOIN support_cases sc ON sc.id=s.support_case_id AND sc.org_id=s.org_id
+     JOIN participant_pii_vault pv ON pv.beneficiary_id=sc.beneficiary_id AND pv.org_id=sc.org_id
+     JOIN organization_settings os ON os.org_id=sc.org_id
+     WHERE s.id=? AND s.org_id=? AND pv.purged_at IS NULL`,
+  ).bind(job.sessionId, actor.orgId).first<DbRow>();
+  if (session === null) throw new AgentJobContractError('consent_not_effective', job.id);
+  const { consultationDate, dateRevision } = await entityConsultationDate(session.held_at, session.time_zone, job.id);
+  const points = Array.from(sourceText);
+  const sources: EntitySourceDescriptor[] = [];
+  let start = 0;
+  for (const line of sourceText.split('\n')) {
+    const end = start + Array.from(line).length;
+    if (end > start) sources.push({
+      sourceId: job.sessionId,
+      sourceRevision: String(generation),
+      sourceKind: 'session',
+      start,
+      end,
+      sha256: await sha256Hex(line),
+      consultationDate,
+      dateRevision,
+    });
+    start = end + 1;
+  }
+  if (points.length > 0 && sources.length === 0) {
+    sources.push({
+      sourceId: job.sessionId, sourceRevision: String(generation), sourceKind: 'session',
+      start: 0, end: points.length, sha256: await sha256Hex(sourceText),
+      consultationDate, dateRevision,
+    });
+  }
+  const sourceBundleRevision = await sha256Hex(canonicalizeJcs({
+    version: 1, generation, sourceSha256: await sha256Hex(sourceText), sources,
+  }));
+  return {
+    version: 1,
+    sourceBundleRevision,
+    orgId: actor.orgId,
+    supportCaseId: job.supportCaseId,
+    beneficiaryId: stringValue(session.beneficiary_id),
+    vaultCreatedAt: stringValue(session.vault_created_at),
+    vaultVersion: Number(session.vault_version),
+    keyVersion: Number(session.key_version),
+    family: 'generic',
+    jobId: job.id,
+    attempt: job.attempt,
+    claimTokenHash: job.claimTokenHash!,
+    generation,
+    mapRevision: Number(session.entity_map_revision),
+    consentRevision: job.consentRevision!,
+    sources,
+    audio: null,
+  };
+}
+async function buildAudioSourceBinding(
+  env: Env,
+  actor: Actor,
+  job: AgentJobRow,
+  attempt: number,
+  claimTokenHash: string,
+): Promise<EntitySourceBinding> {
+  const row = await env.DB.prepare(
+    `SELECT s.held_at,sc.beneficiary_id,sc.entity_map_revision,cmc.generation,pv.created_at AS vault_created_at,
+       pv.version AS vault_version,pv.key_version,os.time_zone
+     FROM sessions s JOIN support_cases sc ON sc.id=s.support_case_id AND sc.org_id=s.org_id
+     JOIN counseling_memory_cases cmc ON cmc.org_id=sc.org_id AND cmc.support_case_id=sc.id
+     JOIN participant_pii_vault pv ON pv.beneficiary_id=sc.beneficiary_id AND pv.org_id=sc.org_id
+     JOIN organization_settings os ON os.org_id=sc.org_id
+     WHERE s.id=? AND s.org_id=? AND s.support_case_id=? AND pv.purged_at IS NULL`,
+  ).bind(job.sessionId, actor.orgId, job.supportCaseId).first<DbRow>();
+  if (row === null || job.audioGenerationId === null) throw new AgentJobContractError('consent_not_effective', job.id);
+  const { consultationDate, dateRevision } = await entityConsultationDate(row.held_at, row.time_zone, job.id);
+  const rawSha256 = job.rawAudioSha256;
+  const sources: EntitySourceDescriptor[] = rawSha256 === null ? [] : [{
+    sourceId: job.sessionId,
+    sourceRevision: job.audioGenerationId,
+    sourceKind: 'transcript',
+    start: 0,
+    end: 0,
+    sha256: rawSha256,
+    consultationDate,
+    dateRevision,
+  }];
+  const sourceBundleRevision = await sha256Hex(canonicalizeJcs({
+    version: 1, generation: Number(row.generation), rawSha256, sources,
+  }));
+  return {
+    version: 1,
+    sourceBundleRevision,
+    orgId: actor.orgId,
+    supportCaseId: job.supportCaseId,
+    beneficiaryId: stringValue(row.beneficiary_id),
+    vaultCreatedAt: stringValue(row.vault_created_at),
+    vaultVersion: Number(row.vault_version),
+    keyVersion: Number(row.key_version),
+    family: 'generic',
+    jobId: job.id,
+    attempt,
+    claimTokenHash,
+    generation: Number(row.generation),
+    mapRevision: Number(row.entity_map_revision),
+    consentRevision: job.consentRevision!,
+    sources,
+    audio: { generationId: job.audioGenerationId, rawSha256 },
+  };
+}
+
+async function audioSourceBinding(
+  env: Env,
+  actor: Actor,
+  job: AgentJobRow,
+  attempt: number,
+  claimTokenHash: string,
+): Promise<EntitySourceBinding> {
+  const binding = await buildAudioSourceBinding(env, actor, job, attempt, claimTokenHash);
+  const stored = await env.DB.prepare(
+    `UPDATE agent_jobs SET entity_source_binding=?
+     WHERE id=? AND org_id=? AND kind='audio' AND state='leased' AND claim_token_hash=? AND attempt=?
+       AND lease_expires_at>? AND audio_generation_id=?`,
+  ).bind(JSON.stringify(binding), job.id, actor.orgId, claimTokenHash, attempt, now(), job.audioGenerationId).run();
+  if ((stored.meta?.changes ?? 0) !== 1) throw new AgentJobContractError('stale_claim', job.id);
+  return binding;
+}
+
+
+
+async function sourceBindingForJob(
+  env: Env,
+  actor: Actor,
+  job: AgentJobRow,
+  sourceText: string,
+  generation: number,
+): Promise<EntitySourceBinding> {
+  const saved = parseJson<EntitySourceBinding>(job.entitySourceBinding);
+  if (saved !== null) {
+    if (saved.orgId !== actor.orgId || saved.supportCaseId !== job.supportCaseId
+      || saved.jobId !== job.id || saved.attempt !== job.attempt
+      || saved.generation !== generation || job.sourceSha256 !== await sha256Hex(sourceText)) {
+      throw new AgentJobContractError('stale_claim', job.id);
+    }
+    return saved;
+  }
+  const binding = await textSourceBinding(env, actor, job, sourceText, generation);
+  const stored = await env.DB.prepare(
+    `UPDATE agent_jobs SET entity_source_binding=?
+     WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=?
+       AND lease_expires_at>? AND source_generation=? AND source_sha256=?`,
+  ).bind(JSON.stringify(binding), job.id, actor.orgId, job.claimTokenHash, job.attempt, now(),
+    generation, await sha256Hex(sourceText)).run();
+  if ((stored.meta?.changes ?? 0) !== 1) throw new AgentJobContractError('stale_claim', job.id);
+  return binding;
+}
+
+
 /** claim 에 묶인 텍스트 원문. 1차 치환까지 끝난 공식 텍스트만 나간다. */
 export async function getAgentJobSource(
   env: Env,
@@ -9309,9 +10305,294 @@ export async function getAgentJobSource(
   attempt: number,
 ): Promise<SourceResponse> {
   const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
+  if (job.kind === 'audio') {
+    await requireAgentJobProgramAdmission(env, actor.orgId, job);
+    await agentJobConsentRevision(env, actor.orgId, job);
+    await assertAgentJobQualificationCurrent(env, actor, job);
+    const audio = await env.DB.prepare(
+      'SELECT generation_id,object_sha256,state FROM audio_objects WHERE id=? AND org_id=?',
+    ).bind(job.audioObjectId, actor.orgId).first<DbRow>();
+    if (audio === null || stringValue(audio.generation_id) !== job.audioGenerationId
+      || job.rawAudioSha256 === null || stringValue(audio.object_sha256) !== job.rawAudioSha256
+      || stringValue(audio.state) !== 'processing') {
+      throw new AgentJobContractError('stale_claim', jobId);
+    }
+    const binding = parseJson<EntitySourceBinding>(job.entitySourceBinding)
+      ?? await audioSourceBinding(env, actor, job, attempt, job.claimTokenHash!);
+    if (binding.jobId !== job.id || binding.attempt !== attempt
+      || binding.generation !== await textSourceGeneration(env, actor.orgId, job.supportCaseId)
+      || binding.audio?.generationId !== job.audioGenerationId
+      || binding.audio.rawSha256 !== job.rawAudioSha256) {
+      throw new AgentJobContractError('stale_claim', jobId);
+    }
+    return {
+      text: '',
+      sessionId: job.sessionId,
+      sourceRevision: job.audioGenerationId!,
+      sourceSha256: await sha256Hex(''),
+      sourceLength: 0,
+      sourceBundleRevision: binding.sourceBundleRevision,
+      expectedMapRevision: binding.mapRevision,
+      sources: binding.sources,
+      audio: { generationId: job.audioGenerationId!, rawSha256: job.rawAudioSha256 },
+    };
+  }
   if (job.kind !== 'text') throw new AgentJobContractError('forbidden', jobId);
   await requireAgentJobProgramAdmission(env, actor.orgId, job);
-  return buildAgentJobSourceText(env, actor, job.sessionId);
+  const generation = await textSourceGeneration(env, actor.orgId, job.supportCaseId);
+  const source = await buildAgentJobSourceText(env, actor, job.sessionId);
+  const hash = await sha256Hex(source.text);
+  const length = Array.from(source.text).length;
+  const saved = await env.DB.prepare(
+    `UPDATE agent_jobs SET source_generation=?,source_sha256=?,source_length=?
+     WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=? AND lease_expires_at>?
+       AND (source_generation IS NULL OR (source_generation=? AND (source_sha256=?
+         OR (source_sha256 IS NULL AND source_length IS NULL AND entity_source_binding IS NULL))))
+       AND EXISTS (SELECT 1 FROM counseling_memory_cases c WHERE c.org_id=agent_jobs.org_id
+         AND c.support_case_id=agent_jobs.support_case_id AND c.generation=?)`,
+  ).bind(generation, hash, length, jobId, actor.orgId, job.claimTokenHash, attempt, now(),
+    generation, hash, generation).run();
+  if ((saved.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
+  const bound = await sourceBindingForJob(env, actor, { ...job, sourceGeneration: generation, sourceSha256: hash, sourceLength: length }, source.text, generation);
+  return {
+    ...source,
+    sourceRevision: String(generation),
+    sourceSha256: hash,
+    sourceLength: length,
+    sourceBundleRevision: bound.sourceBundleRevision,
+    expectedMapRevision: bound.mapRevision,
+    sources: bound.sources,
+    audio: null,
+  };
+}
+
+/** Same context-generation fence used by memory work; no independent revision counter. */
+async function textSourceGeneration(env: Env, orgId: string, supportCaseId: string): Promise<number> {
+  const row = await env.DB.prepare(
+    'SELECT generation FROM counseling_memory_cases WHERE org_id=? AND support_case_id=?',
+  ).bind(orgId, supportCaseId).first<{ generation: number }>();
+  if (row === null) throw new ConflictError('source revision is unavailable');
+  return Number(row.generation);
+}
+
+async function assertTextJobSourceCurrent(env: Env, actor: Actor, job: AgentJobRow): Promise<void> {
+  if (job.sourceGeneration === null || job.sourceSha256 === null || job.sourceLength === null) {
+    throw new AgentJobContractError('result_schema_invalid', job.id);
+  }
+  if (await textSourceGeneration(env, actor.orgId, job.supportCaseId) !== job.sourceGeneration
+    || await sha256Hex((await buildAgentJobSourceText(env, actor, job.sessionId)).text) !== job.sourceSha256) {
+    throw new AgentJobContractError('stale_claim', job.id);
+  }
+}
+async function assertAgentJobSourceBindingCurrent(
+  env: Env,
+  actor: Actor,
+  job: AgentJobRow,
+): Promise<EntitySourceBinding> {
+  const binding = parseJson<unknown>(job.entitySourceBinding);
+  if (binding === null || typeof binding !== 'object' || Array.isArray(binding)) {
+    throw new AgentJobContractError('stale_claim', job.id);
+  }
+  const saved = binding as EntitySourceBinding;
+  const expected = job.kind === 'audio'
+    ? await buildAudioSourceBinding(env, actor, job, job.attempt, job.claimTokenHash!)
+    : await textSourceBinding(
+      env,
+      actor,
+      job,
+      (await buildAgentJobSourceText(env, actor, job.sessionId)).text,
+      job.sourceGeneration!,
+    );
+  if (canonicalizeJcs(saved) !== canonicalizeJcs(expected)) {
+    throw new AgentJobContractError('stale_claim', job.id);
+  }
+  return saved;
+}
+/**
+ * Atomically closes a live registration claim after the encrypted receipt
+ * lookup has established a map/source mismatch. This path intentionally does
+ * not inspect expectedMapRevision; callers perform replay lookup first.
+ */
+export async function supersedeEntityRegistration(
+  env: Env,
+  actor: Actor,
+  request: EntityRegistrationRequest,
+): Promise<void> {
+  assertAgentActor(actor);
+  if (request.family === 'generic') {
+    const job = await loadClaimedAgentJob(env, actor, request.jobId, request.claimToken, request.attempt);
+    const at = now();
+    const marker = newId();
+    const results = await env.DB.batch([
+      env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(
+        SELECT 1 FROM agent_jobs WHERE id=? AND org_id=? AND state='leased'
+          AND claim_token_hash=? AND attempt=? AND lease_expires_at>?) THEN 1 ELSE 0 END)`)
+        .bind(marker,actor.orgId,job.id,actor.orgId,job.claimTokenHash,job.attempt,at),
+      env.DB.prepare(`UPDATE agent_jobs SET state='failed',terminal_failure_code='stale_claim',
+        lease_owner=NULL,claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+        WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=?`).bind(at,job.id,actor.orgId,job.claimTokenHash,job.attempt),
+      env.DB.prepare(`UPDATE ai_text_work_queue SET status='pending',lease_owner=NULL,lease_expires_at=NULL
+        WHERE org_id=? AND id=? AND status='processing'`).bind(actor.orgId,job.sourceTextWorkItemId),
+      env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+        entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+        WHERE id=? AND org_id=? AND entity_map_lease_family='generic'
+          AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`).bind(job.supportCaseId,actor.orgId,job.id,job.attempt),
+      env.DB.prepare(`INSERT INTO agent_jobs(id,org_id,support_case_id,session_id,source_text_work_item_id,kind,state,
+        enqueued_at,required_consent,consent_revision,consent_receipt_json,attempt,source_generation,updated_at)
+        SELECT ?,j.org_id,j.support_case_id,j.session_id,j.source_text_work_item_id,'text','pending',
+          ?,j.required_consent,j.consent_revision,j.consent_receipt_json,0,c.generation,?
+        FROM agent_jobs j JOIN counseling_memory_cases c ON c.org_id=j.org_id AND c.support_case_id=j.support_case_id
+          JOIN ai_text_work_queue q ON q.org_id=j.org_id AND q.id=j.source_text_work_item_id
+          JOIN sessions s ON s.org_id=j.org_id AND s.id=j.session_id
+        WHERE j.id=? AND j.org_id=? AND j.kind='text' AND q.status='pending'
+          AND (TRIM(COALESCE(s.memo,''))<>'' OR EXISTS(SELECT 1 FROM approved_ai_briefing_v1 a
+            WHERE a.org_id=j.org_id AND a.session_id=j.session_id AND TRIM(COALESCE(a.summary_text,''))<>''))
+          AND NOT EXISTS(SELECT 1 FROM agent_jobs active WHERE active.org_id=j.org_id AND active.session_id=j.session_id
+            AND active.kind='text' AND active.state IN ('pending','leased','blocked'))`)
+        .bind(newId(),at,at,job.id,actor.orgId),
+      env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(marker),
+    ]);
+    if ((results[1]?.meta?.changes ?? 0) !== 1) throw new AgentJobContractError('stale_claim', job.id);
+    return;
+  }
+  const { row } = await memoryClaim(env, actor, request.jobId, request.claimToken, request.attempt);
+  const at = now();
+  const marker = newId();
+  const results = await env.DB.batch([
+    env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(
+      SELECT 1 FROM counseling_memory_materials WHERE id=? AND org_id=? AND status='leased'
+        AND lease_token=? AND attempt=? AND lease_until>? AND valid=1) THEN 1 ELSE 0 END)`)
+      .bind(marker,actor.orgId,row.id,actor.orgId,row.lease_token,row.attempt,at),
+    env.DB.prepare(`UPDATE counseling_memory_materials SET status='failed',valid=0,lease_token=NULL,lease_until=NULL,
+      actor_id=NULL,entity_source_binding=NULL
+      WHERE id=? AND org_id=? AND status='leased' AND lease_token=? AND attempt=? AND valid=1`)
+      .bind(row.id,actor.orgId,row.lease_token,row.attempt),
+    env.DB.prepare(`UPDATE counseling_memory_sources SET dirty=1,revision=revision+1 WHERE org_id=? AND support_case_id=?
+      AND kind=? AND source_id=? AND revision=?`).bind(actor.orgId,row.support_case_id,row.kind,row.source_id,row.source_revision),
+    env.DB.prepare(`UPDATE counseling_memory_cases SET not_before=? WHERE org_id=? AND support_case_id=?`)
+      .bind(at,actor.orgId,row.support_case_id),
+    env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+      entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+      WHERE id=? AND org_id=? AND entity_map_lease_family='memory'
+        AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`).bind(row.support_case_id,actor.orgId,row.id,row.attempt),
+    env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(marker),
+  ]);
+  if ((results[1]?.meta?.changes ?? 0) !== 1) throw new AgentJobContractError('stale_claim', row.id);
+}
+
+/** Shared currentness seam for the F2 registration operation. */
+export async function entityRegistrationContext(
+  env: Env,
+  actor: Actor,
+  request: EntityRegistrationRequest,
+): Promise<{ binding: EntitySourceBinding; texts: Array<{ sourceId: string; sourceRevision: string; text: string; start: number }>; programAdmission: ProgramAdmissionGrant; guardBindings: Bindable[] } | null> {
+  assertAgentActor(actor);
+  if (request.family === 'generic') {
+    const job = await loadClaimedAgentJob(env, actor, request.jobId, request.claimToken, request.attempt);
+    const binding = parseJson<EntitySourceBinding>(job.entitySourceBinding);
+    if (binding === null || binding.family !== 'generic') throw new AgentJobContractError('result_schema_invalid', job.id);
+    if (request.sourceBundleRevision !== binding.sourceBundleRevision) throw new AgentJobContractError('result_schema_invalid', job.id);
+    const generation = await textSourceGeneration(env, actor.orgId, job.supportCaseId);
+    const currentCase = await env.DB.prepare('SELECT entity_map_revision FROM support_cases WHERE id=? AND org_id=?')
+      .bind(job.supportCaseId, actor.orgId).first<{ entity_map_revision: number }>();
+    let sourceText = '';
+    if (job.kind === 'audio') {
+      const audio = await env.DB.prepare('SELECT generation_id,object_sha256,state FROM audio_objects WHERE id=? AND org_id=?')
+        .bind(job.audioObjectId, actor.orgId).first<DbRow>();
+      if (audio === null || stringValue(audio.generation_id) !== job.audioGenerationId
+        || job.rawAudioSha256 === null || stringValue(audio.object_sha256) !== job.rawAudioSha256 || stringValue(audio.state) !== 'processing') {
+        await supersedeEntityRegistration(env, actor, request);
+        return null;
+      }
+    } else {
+      const source = await buildAgentJobSourceText(env, actor, job.sessionId);
+      sourceText = source.text;
+    }
+    if (currentCase === null || generation !== binding.generation || Number(currentCase.entity_map_revision) !== binding.mapRevision
+      || (job.kind === 'text' && job.sourceSha256 !== await sha256Hex(sourceText))) {
+      await supersedeEntityRegistration(env, actor, request);
+      return null;
+    }
+    const admission = await requireAgentJobProgramAdmission(env, actor.orgId, job);
+    await agentJobConsentRevision(env, actor.orgId, job);
+    await assertAgentJobQualificationCurrent(env, actor, job);
+    return {
+      binding,
+      texts: job.kind === 'audio' ? [] : [{ sourceId: job.sessionId, sourceRevision: String(generation), text: sourceText, start: 0 }],
+      programAdmission: admission,
+      guardBindings: [job.id,actor.orgId,actor.userId,binding.claimTokenHash,binding.attempt,now(),binding.mapRevision,now(),binding.generation,
+        binding.vaultCreatedAt,binding.vaultVersion,binding.keyVersion,now(),binding.generation,job.sourceSha256,job.rawAudioSha256],
+    };
+  }
+  const { row, programAdmission, consentRevision } = await memoryClaim(env, actor, request.jobId, request.claimToken, request.attempt);
+  const binding = parseJson<EntitySourceBinding>(row.entity_source_binding);
+  if (binding === null || binding.family !== 'memory') throw new AgentJobContractError('result_schema_invalid', row.id);
+  if (request.sourceBundleRevision !== binding.sourceBundleRevision) throw new AgentJobContractError('result_schema_invalid', row.id);
+  const delivered = await memoryDeliveredText(env, actor, row);
+  if (delivered === null) { await supersedeEntityRegistration(env, actor, request); return null; }
+  const current = await memorySourceBinding(env, actor, row, delivered, consentRevision);
+  if (binding.sourceBundleRevision !== current.sourceBundleRevision
+    || binding.claimTokenHash !== row.lease_token || binding.mapRevision !== current.mapRevision
+    || binding.consentRevision !== consentRevision || binding.vaultCreatedAt !== current.vaultCreatedAt
+    || binding.vaultVersion !== current.vaultVersion || binding.keyVersion !== current.keyVersion) {
+    await supersedeEntityRegistration(env, actor, request);
+    return null;
+  }
+  return {
+    binding,
+    texts: [{ sourceId: row.source_id, sourceRevision: String(row.source_revision), text: delivered, start: 0 }],
+    programAdmission,
+    guardBindings: [row.id,actor.orgId,actor.userId,row.lease_token,row.attempt,now(),row.entity_source_binding,binding.mapRevision,now(),binding.generation,
+      binding.vaultCreatedAt,binding.vaultVersion,binding.keyVersion,now()],
+  };
+}
+
+export async function getSessionTextProcessing(
+  env: Env, actor: Actor, sessionId: string,
+): Promise<TextProcessingStatus> {
+  const scope = await resolveSessionScope(env, actor.orgId, sessionId);
+  await assertSupportCaseAccess(env, actor, scope.supportCaseId);
+  const generation = await textSourceGeneration(env, actor.orgId, scope.supportCaseId);
+  const row = await env.DB.prepare(
+    `SELECT * FROM agent_jobs WHERE org_id=? AND session_id=? AND kind='text'
+     ORDER BY enqueued_at DESC, id DESC LIMIT 1`,
+  ).bind(actor.orgId, sessionId).first<DbRow>();
+  const job = row === null ? null : mapAgentJobRow(row);
+  const previous = job !== null && job.sourceGeneration === null ? await env.DB.prepare(
+    `SELECT * FROM agent_jobs WHERE org_id=? AND session_id=? AND kind='text' AND source_generation IS NOT NULL
+     ORDER BY enqueued_at DESC, id DESC LIMIT 1`,
+  ).bind(actor.orgId, sessionId).first<DbRow>() : null;
+  const inspected = previous === null ? job : mapAgentJobRow(previous);
+  const changed = inspected?.sourceGeneration == null ? null
+    : inspected.sourceGeneration !== generation || inspected.terminalFailureCode === 'stale_claim';
+  const checkedRange = inspected?.checkedStart == null || inspected.checkedEnd === null ? null
+    : { start: inspected.checkedStart, end: inspected.checkedEnd };
+  const state = job === null ? 'not_started' : changed ? 'stale'
+    : job.state !== 'succeeded' ? job.state : checkedRange === null ? 'unknown'
+    : checkedRange.start !== 0 || checkedRange.end !== job.sourceLength ? 'partial' : 'succeeded';
+  await writeCanonicalAudit(env, actor, {
+    action: 'read', targetTable: 'agent_jobs', supportCaseId: scope.supportCaseId,
+    targetId: job?.id ?? null, beneficiaryId: scope.beneficiaryId,
+    detail: { purpose: 'text_processing_status' },
+  });
+  return {
+    state, jobId: job?.id ?? null, jobState: job?.state ?? null,
+    sourceRevision: inspected?.sourceGeneration == null ? null : String(inspected.sourceGeneration),
+    currentSourceRevision: String(generation), sourceChanged: changed,
+    sourceLength: inspected?.sourceLength ?? null, checkedRange, failureCode: inspected?.terminalFailureCode ?? null,
+  };
+}
+
+export async function retrySessionTextProcessing(env: Env, actor: Actor, sessionId: string): Promise<void> {
+  const scope = await resolveSessionScope(env, actor.orgId, sessionId);
+  await assertSupportCaseWriteAccess(env, actor, scope.supportCaseId);
+  await assertPilotTextAiConsent(env, actor, scope.supportCaseId);
+  await enqueueTextWorkItem(env, actor, sessionId, 'manual_record');
+  await writeCanonicalAudit(env, actor, {
+    action: 'create', targetTable: 'agent_jobs', supportCaseId: scope.supportCaseId,
+    targetId: sessionId, beneficiaryId: scope.beneficiaryId,
+    detail: { purpose: 'text_processing_retry' },
+  });
 }
 
 /**
@@ -10100,6 +11381,185 @@ export async function authorizeAgentJobEgress(
     expiresAt,
   };
 }
+/**
+ * Authorize one OpenAI operation against every material that will be sent.
+ * The existing agent_job_egress_records ledger is also the OpenAI ledger;
+ * Azure rows continue to use their original tuple unchanged.
+ */
+export async function authorizeOpenAiEgress(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  input: {
+    operation: 'generate' | 'regenerate' | 'detect_discrepancies';
+    configHash: string;
+    materials: OpenAiMaterialRef[];
+  },
+): Promise<{ egressAuthorizationId: string }> {
+  if (!SHA256_HEX.test(input.configHash)) throw new AgentJobContractError('route_mismatch');
+  const grant = await assertServiceTextAiSessionGrant(env, actor, sessionId, { allowCounselor: true });
+  const scope = await resolveSessionScope(env, actor.orgId, sessionId);
+  const records = await loadOpenAiMaterialRecords(env, actor, sessionId, input.materials);
+  const active = await env.DB.prepare(
+    `SELECT p.config_hash FROM ai_provider_activations a
+       JOIN ai_provider_configs p ON p.id=a.config_id AND p.org_id=a.org_id
+      WHERE a.org_id=? AND a.deactivated_at IS NULL
+      ORDER BY a.activated_at DESC,a.id DESC LIMIT 1`,
+  ).bind(actor.orgId).first<{ config_hash: string }>();
+  if (active === null || active.config_hash !== input.configHash) {
+    throw new AgentJobContractError('route_mismatch');
+  }
+  const work = await env.DB.prepare(
+    `SELECT id FROM ai_work_items WHERE org_id=? AND support_case_id=? AND session_id=?
+       ORDER BY created_at DESC,id DESC LIMIT 1`,
+  ).bind(actor.orgId, scope.supportCaseId, sessionId).first<{ id: string }>();
+  const consentRevision = grant.consentReceipt.consentRevision;
+  const refsJson = canonicalizeJcs(records.map((record) => record.ref));
+  const proofFingerprints = records.map(async (record) => sha256Hex(record.proofJson));
+  const bindingFingerprints = records.map(async (record) => sha256Hex(record.bindingJson));
+  const [proofs, bindings] = await Promise.all([Promise.all(proofFingerprints), Promise.all(bindingFingerprints)]);
+  const authorizationId = newId();
+  const at = now();
+  await programPolicyBatch(env, grant.programAdmission.context, [
+    env.DB.prepare(
+      `INSERT INTO agent_job_egress_records(
+         id,org_id,job_id,attempt,claim_token_hash,raw_audio_sha256,consent_revision,provider,status,
+         authorized_at,expires_at,support_case_id,session_id,work_item_id,actor_id,operation,config_hash,
+         material_refs_json,material_proof_fingerprints_json,binding_fingerprints_json
+       ) VALUES(?,?,?,?,?,?,?,'openai','authorized',?,?,?,?,?,?,?,?,?,?,?)`,
+    ).bind(
+      authorizationId, actor.orgId, null, null, null, null, consentRevision, at,
+      new Date(parseUtcTimestamp(at) + EGRESS_AUTHORIZATION_TTL_MS).toISOString(),
+      scope.supportCaseId, sessionId, work?.id ?? null, actor.userId, input.operation, input.configHash,
+      refsJson, canonicalizeJcs(proofs), canonicalizeJcs(bindings),
+    ),
+  ], grant.programAdmission.program);
+  return { egressAuthorizationId: authorizationId };
+}
+
+/** Linearization point immediately before the injected adapter call. */
+export async function beginOpenAiEgress(
+  env: Env, actor: Actor, egressAuthorizationId: string,
+  operation: 'generate' | 'regenerate' | 'detect_discrepancies',
+): Promise<void> {
+  const fence = await openAiEgressFence(env, actor, egressAuthorizationId, 'authorized', operation);
+  const at = now();
+  const consent = consentSqlGuard(fence.grant.consentReceipt, 'sessions');
+  const material = {
+    sql: fence.records.map(() => OPENAI_EGRESS_MATERIAL_CLAUSE).join(' AND '),
+    bindings: openAiMaterialBindings(fence.records),
+  };
+  const fenceSql = OPENAI_EGRESS_FENCE_HEAD + consent.sql + OPENAI_EGRESS_FENCE_TAIL + material.sql;
+  const fenceBindings = [...fence.headBindings, ...consent.bindings, ...material.bindings];
+  const [, updated] = await programPolicyBatch(env, fence.grant.programAdmission.context, [
+    env.DB.prepare('UPDATE support_cases SET updated_at=updated_at WHERE id=? AND org_id=?')
+      .bind(stringValue(fence.record.support_case_id), actor.orgId),
+    env.DB.prepare(
+      `UPDATE agent_job_egress_records SET status='in_flight',started_at=?
+       WHERE id=? AND org_id=? AND expires_at>? AND ${fenceSql}`,
+    ).bind(at, egressAuthorizationId, actor.orgId, at, ...fenceBindings),
+  ], fence.grant.programAdmission.program);
+  if ((updated?.meta?.changes ?? 0) !== 1) {
+    await openAiEgressFence(env, actor, egressAuthorizationId, 'authorized', operation);
+    throw new AgentJobContractError('stale_claim');
+  }
+  await writeAudit(env, actor, {
+    action: 'read', targetTable: 'agent_job_egress_records', targetId: egressAuthorizationId,
+    detail: { provider: 'openai', operation, status: 'in_flight' },
+  });
+}
+
+/** Completion is truthful about the already-started network attempt. */
+export async function finishOpenAiEgress(
+  env: Env,
+  actor: Actor,
+  egressAuthorizationId: string,
+): Promise<void> {
+  const at = now();
+  const result = await env.DB.prepare(
+    `UPDATE agent_job_egress_records SET status='completed',completed_at=?
+      WHERE id=? AND org_id=? AND actor_id=? AND provider='openai' AND status='in_flight'`,
+  ).bind(at, egressAuthorizationId, actor.orgId, actor.userId).run();
+  if ((result.meta?.changes ?? 0) !== 1) return;
+  await writeAudit(env, actor, {
+    action: 'update',
+    targetTable: 'agent_job_egress_records',
+    targetId: egressAuthorizationId,
+    detail: { provider: 'openai', status: 'completed' },
+  });
+}
+async function openAiEgressFence(
+  env: Env, actor: Actor, id: string, state: 'authorized' | 'in_flight',
+  operation: 'generate' | 'regenerate' | 'detect_discrepancies' | 'draft',
+) {
+  const record = await env.DB.prepare(
+    `SELECT * FROM agent_job_egress_records WHERE id=? AND org_id=? AND actor_id=? AND provider='openai'`,
+  ).bind(id, actor.orgId, actor.userId).first<DbRow>();
+  if (record === null) throw new AgentJobContractError('stale_claim');
+  const sessionId = stringValue(record.session_id);
+  const grant = await assertServiceTextAiSessionGrant(env, actor, sessionId, {allowCounselor: true});
+  if (record.consent_revision !== grant.consentReceipt.consentRevision) {
+    throw new AgentJobContractError('consent_not_effective');
+  }
+  const acceptedOperation = operation === 'draft'
+    ? record.operation === 'generate' || record.operation === 'regenerate'
+    : record.operation === operation;
+  if (record.status !== state || !acceptedOperation
+    || (state === 'authorized' && stringValue(record.expires_at) <= now())) {
+    throw new AgentJobContractError('stale_claim');
+  }
+  const refs = parseJson<OpenAiMaterialRef[]>(nullableString(record.material_refs_json));
+  const records = await loadOpenAiMaterialRecords(env, actor, sessionId, refs ?? []);
+  const proofs = canonicalizeJcs(await Promise.all(records.map(item => sha256Hex(item.proofJson))));
+  const bindings = canonicalizeJcs(await Promise.all(records.map(item => sha256Hex(item.bindingJson))));
+  if (proofs !== record.material_proof_fingerprints_json || bindings !== record.binding_fingerprints_json) {
+    throw new AgentJobContractError('stale_claim');
+  }
+  return {
+    record, grant, records,
+    headBindings: [
+      actor.userId, state, stringValue(record.operation), grant.consentReceipt.consentRevision,
+      proofs, bindings, stringValue(record.config_hash), actor.orgId, sessionId, actor.orgId,
+    ] as Bindable[],
+  };
+}
+
+
+/** Recheck the saved authorization in the same transaction as every output mutation. */
+async function openAiOutputBatch(
+  env: Env, actor: Actor, id: string,
+  operation: 'draft' | 'detect_discrepancies', statements: PreparedStatement[],
+): Promise<void> {
+  const fence = await openAiEgressFence(env, actor, id, 'in_flight', operation);
+  const marker = newId();
+  const consent = consentSqlGuard(fence.grant.consentReceipt, 'sessions');
+  const material = {
+    sql: fence.records.map(() => OPENAI_EGRESS_MATERIAL_CLAUSE).join(' AND '),
+    bindings: openAiMaterialBindings(fence.records),
+  };
+  const fenceSql = OPENAI_EGRESS_FENCE_HEAD + consent.sql + OPENAI_EGRESS_FENCE_TAIL + material.sql;
+  const fenceBindings = [...fence.headBindings, ...consent.bindings, ...material.bindings];
+  try {
+    await programPolicyBatch(env, fence.grant.programAdmission.context, [
+      env.DB.prepare('UPDATE support_cases SET updated_at=updated_at WHERE id=? AND org_id=?')
+        .bind(stringValue(fence.record.support_case_id), actor.orgId),
+      env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok)
+        VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM agent_job_egress_records
+          WHERE id=? AND org_id=? AND ${fenceSql}) THEN 1 ELSE 0 END)`)
+        .bind(marker, actor.orgId, id, actor.orgId, ...fenceBindings),
+      ...statements,
+      env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(marker),
+    ], fence.grant.programAdmission.program);
+  } catch (error) {
+    if (hasApplicationCode(error, 'counseling_memory_fence')) {
+      await openAiEgressFence(env, actor, id, 'in_flight', operation);
+      throw new AgentJobContractError('stale_claim');
+    }
+    throw error;
+  }
+}
+
+
 
 /** 전송 직전 at-most-once marker. 같은 tuple 의 authorized 행만 in_flight 로 바뀐다. */
 export async function markAgentJobEgressInFlight(
@@ -10179,9 +11639,6 @@ async function assertAgentJobResultIntegrity(
 ): Promise<void> {
   const result = request.result;
   if (result.nerAvailable !== true) throw new AgentJobContractError('local_ner_unavailable', job.id);
-  if (!SHA256_HEX.test(result.maskingPipelineHash)) {
-    throw new AgentJobContractError('masking_pipeline_version_mismatch', job.id);
-  }
   if (
     result.nerAttestationId !== job.nerAttestationId
     || result.nerAttestationResultHash !== job.nerAttestationResultHash
@@ -10203,15 +11660,42 @@ async function assertAgentJobResultIntegrity(
   ) {
     throw new AgentJobContractError('local_ner_unavailable', job.id);
   }
+  const maskingManifest = await registeredMaskingPipeline(
+    env.MEMORY_MASKING_PIPELINES,
+    result.maskingPipelineVersion,
+    result.maskingPipelineHash,
+  );
+  if (
+    maskingManifest === null
+    || job.nerModelId !== maskingManifest.nerModelId
+    || job.nerModelRevision !== maskingManifest.nerModelRevision
+    || job.nerLabelSetHash !== maskingManifest.labelSetHash
+    || job.nerCorpusHash !== maskingManifest.nerHealthCorpusHash
+    || job.nerAttestationResultHash !== maskingManifest.nerHealthResultHash
+  ) {
+    throw new AgentJobContractError('masking_pipeline_version_mismatch', job.id);
+  }
   if (!SHA256_HEX.test(result.sha256) || await sha256Hex(result.maskedText) !== result.sha256) {
     throw new AgentJobContractError('result_schema_invalid', job.id);
   }
   if (
-    !SHA256_HEX.test(result.evidenceHash)
+    !Array.isArray(result.evidence)
+    || !SHA256_HEX.test(result.evidenceHash)
     || await sha256Hex(canonicalizeJcs(result.evidence)) !== result.evidenceHash
-    || result.evidence.some((item) => item.sourceSha256 !== result.sha256)
+    || result.evidence.some((item) => item === null || typeof item !== 'object' || item.sourceSha256 !== result.sha256)
   ) {
     throw new AgentJobContractError('evidence_hash_mismatch', job.id);
+  }
+  const pii = await readPiiValues(env, job.orgId, job.supportCaseId);
+  try {
+    assertNoRegisteredPii(result.maskedText, pii);
+  } catch {
+    throw new AgentJobContractError('registered_pii_detected', job.id);
+  }
+  try {
+    assertNoObviousUnmaskedPii(result.maskedText);
+  } catch {
+    throw new AgentJobContractError('unmasked_identifier_detected', job.id);
   }
   const payloadSha256 = await sha256Hex(canonicalizeJcs({
     schemaVersion: request.schemaVersion,
@@ -10258,15 +11742,15 @@ const MALFORMED_RESULT_JOB_ERRORS: Readonly<Partial<Record<JobErrorCode, true>>>
  * 소모하지 않는 `blocked` 이고, 오디오는 그 attempt 의 STT 를 이미 쓴 뒤라 재큐잉으로
  * attempt 를 소모한다 - 같은 attempt 로 두 번 STT 를 돌리지 않기 위한 구분이다(S5 §2.2).
  */
-async function closeJobOnResultRejection(
+async function closeJobOnResultRejection<T>(
   env: Env,
   actor: Actor,
   job: AgentJobRow,
   claimToken: string,
-  verify: () => Promise<void> | void,
-): Promise<void> {
+  verify: () => Promise<T> | T,
+): Promise<T> {
   try {
-    await verify();
+    return await verify();
   } catch (error) {
     if (!(error instanceof AgentJobContractError)) throw error;
     let state: AgentJobState | null = null;
@@ -10352,33 +11836,30 @@ export async function acceptAgentJobResult(
     if (stored.resultPayloadSha256 !== request.payloadSha256) {
       throw new AgentJobContractError('result_conflict', jobId);
     }
-    // 같은 payload 재전송은 새 결과를 만들지 않는다. 다만 결과 수락 뒤 후속 초안 단계가
-    // 실패했을 수 있어, 오디오는 멱등 재생 결과를 돌려 호출부가 그 단계를 이어가게 한다.
-    const replayedRecording = request.result.kind === 'audio'
-      ? await commitRecordingResult(env, actor, stored.sessionId, {
-        maskedText: request.result.maskedText,
-        sha256: request.result.sha256,
-        maskingPipelineVersion: request.result.maskingPipelineVersion,
-        evidence: request.result.evidence,
-        emotionScores: request.result.emotionScores,
-        transcriptReliable: request.result.transcriptReliable,
-        transcriptWarnings: request.result.transcriptWarnings,
-      })
+    const recomputedPayloadSha256 = request.schemaVersion === 2
+      ? await sha256Hex(canonicalizeJcs({
+        schemaVersion: request.schemaVersion,
+        attempt: request.attempt,
+        result: request.result,
+      }))
       : null;
+    if (recomputedPayloadSha256 === null || recomputedPayloadSha256 !== request.payloadSha256) {
+      throw new AgentJobContractError('result_schema_invalid', jobId);
+    }
     return {
       jobId,
       kind: stored.kind,
       sessionId: stored.sessionId,
       replayed: true,
       audioObjectId: stored.audioObjectId,
-      recording: replayedRecording,
+      recording: null,
     };
   }
 
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
   const currentConsentRevision = await agentJobConsentRevision(env, actor.orgId, job);
   await requireAgentJobProgramAdmission(env, actor.orgId, job);
-  await closeJobOnResultRejection(env, actor, job, request.claimToken, async () => {
+  const acceptedBinding = await closeJobOnResultRejection(env, actor, job, request.claimToken, async () => {
     if (request.schemaVersion !== 2 || request.result.kind !== job.kind) {
       throw new AgentJobContractError('result_schema_invalid', jobId);
     }
@@ -10390,6 +11871,18 @@ export async function acceptAgentJobResult(
       )
     ) throw new AgentJobContractError('route_mismatch', jobId);
     await assertAgentJobResultIntegrity(env, job, request);
+    if (job.kind === 'text') {
+      await assertTextJobSourceCurrent(env, actor, job);
+      const checked = request.result.kind === 'text' ? request.result.checkedSource : undefined;
+      if (checked === undefined || checked.sourceRevision !== String(job.sourceGeneration)
+        || checked.sourceSha256 !== job.sourceSha256
+        || !Number.isSafeInteger(checked.sourceStart) || !Number.isSafeInteger(checked.sourceEnd)
+        || checked.sourceStart < 0 || checked.sourceEnd <= checked.sourceStart
+        || checked.sourceEnd > job.sourceLength!) {
+        throw new AgentJobContractError('result_schema_invalid', jobId);
+      }
+    }
+    const binding = await assertAgentJobSourceBindingCurrent(env, actor, job);
     if (job.sttEngine === 'azure') {
       const egress = await env.DB.prepare(
         `SELECT 1 AS present FROM agent_job_egress_records
@@ -10401,15 +11894,66 @@ export async function acceptAgentJobResult(
       ).first<{ present: number }>();
       if (egress === null) throw new AgentJobContractError('route_mismatch', jobId);
     }
+    return binding;
   });
   const result = request.result;
   const acceptedAt = now();
   const deletionAttemptId = job.kind === 'audio' ? newId() : null;
   const resultReceipt = parseJson<ConsentGateReceipt>(job.consentReceiptJson);
+  const proof: PersistedMaskedSourceProof = {
+    schemaVersion: 2,
+    attempt: request.attempt,
+    payloadSha256: request.payloadSha256,
+    result,
+  };
   if (resultReceipt === null) throw new AgentJobContractError('consent_not_effective', jobId);
   const resultConsentGuard = consentSqlGuard(resultReceipt, 'audio_objects');
+  if (job.entitySourceBinding === null) {
+    throw new AgentJobContractError('stale_claim', jobId);
+  }
+  const bindingJson = job.entitySourceBinding;
+  const sessionConsentGuard = consentSqlGuard(resultReceipt, 'sessions');
+  const guardMarker = newId();
   const transition = (snapshot: MaskedSourceSnapshot): PreparedStatement[] => [
-    // The acceptance trigger aborts the whole batch if claim, attempt, consent or clocks lost.
+    env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok)
+      VALUES(?,?,CASE WHEN EXISTS(
+        SELECT 1 FROM agent_jobs j
+        JOIN counseling_memory_cases c ON c.org_id=j.org_id AND c.support_case_id=j.support_case_id
+        JOIN support_cases sc ON sc.org_id=j.org_id AND sc.id=j.support_case_id
+        JOIN participant_pii_vault pv ON pv.org_id=sc.org_id AND pv.beneficiary_id=sc.beneficiary_id
+        JOIN sessions ON sessions.org_id=j.org_id AND sessions.id=j.session_id
+        WHERE j.id=? AND j.org_id=? AND j.state='leased' AND j.claim_token_hash=? AND j.attempt=?
+          AND j.lease_expires_at>? AND j.entity_source_binding=?
+          AND j.consent_revision=? AND c.generation=? AND sc.entity_map_revision=?
+          AND sc.entity_map_lease_family='generic' AND sc.entity_map_lease_job_id=j.id
+          AND sc.entity_map_lease_attempt=j.attempt AND sc.entity_map_lease_expires_at>?
+          AND pv.purged_at IS NULL AND pv.created_at=? AND pv.version=? AND pv.key_version=?
+          AND ((j.kind='audio' AND j.audio_generation_id=? AND j.raw_audio_sha256 IS NOT DISTINCT FROM ?)
+            OR (j.kind='text' AND j.source_generation=? AND j.source_sha256=? AND j.source_length=?))
+          AND ${sessionConsentGuard.sql}
+      ) THEN 1 ELSE 0 END)`).bind(
+      guardMarker,
+      actor.orgId,
+      jobId,
+      actor.orgId,
+      job.claimTokenHash,
+      job.attempt,
+      acceptedAt,
+      bindingJson,
+      acceptedBinding.consentRevision,
+      acceptedBinding.generation,
+      acceptedBinding.mapRevision,
+      acceptedAt,
+      acceptedBinding.vaultCreatedAt,
+      acceptedBinding.vaultVersion,
+      acceptedBinding.keyVersion,
+      job.audioGenerationId,
+      job.rawAudioSha256,
+      job.sourceGeneration,
+      job.sourceSha256,
+      job.sourceLength,
+      ...sessionConsentGuard.bindings,
+    ),
     env.DB.prepare(
       `INSERT INTO agent_job_result_acceptances (job_id, attempt, claim_token_hash, payload_sha256, accepted_at)
        VALUES (?, ?, ?, ?, ?)`,
@@ -10432,13 +11976,15 @@ export async function acceptAgentJobResult(
       `UPDATE agent_jobs
        SET state = 'succeeded', result_id = ?, result_payload_sha256 = ?, result_accepted_at = ?,
            lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
-           updated_at = ?
+           checked_start=?, checked_end=?, updated_at = ?
        WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
          AND lease_expires_at > ?`,
     ).bind(
       request.resultId,
       request.payloadSha256,
       acceptedAt,
+      result.kind === 'text' ? result.checkedSource!.sourceStart : null,
+      result.kind === 'text' ? result.checkedSource!.sourceEnd : null,
       acceptedAt,
       jobId,
       actor.orgId,
@@ -10446,6 +11992,13 @@ export async function acceptAgentJobResult(
       job.attempt,
       acceptedAt,
     ),
+    env.DB.prepare(
+      `UPDATE support_cases
+       SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+           entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+       WHERE id=? AND org_id=? AND entity_map_lease_family='generic'
+         AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`,
+    ).bind(job.supportCaseId, actor.orgId, jobId, job.attempt),
     ...(job.sourceTextWorkItemId === null ? [] : [env.DB.prepare(
       `UPDATE ai_text_work_queue SET status = 'done', completed_at = ?, completed_snapshot_id = ?
        WHERE id = ? AND org_id = ? AND status IN ('pending', 'processing')`,
@@ -10454,6 +12007,7 @@ export async function acceptAgentJobResult(
       `UPDATE agent_job_egress_records SET status = 'completed', completed_at = ?
        WHERE org_id = ? AND job_id = ? AND attempt = ? AND status = 'in_flight'`,
     ).bind(acceptedAt, actor.orgId, jobId, job.attempt),
+    env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(guardMarker),
   ];
 
   let recording: RecordingResultCommit | null = null;
@@ -10467,16 +12021,30 @@ export async function acceptAgentJobResult(
         emotionScores: result.emotionScores,
         transcriptReliable: result.transcriptReliable,
         transcriptWarnings: result.transcriptWarnings,
+        proof,
+        entitySourceBinding: acceptedBinding,
       }, transition);
-      // 결과가 이미 커밋돼 있으면(멱등 재전송) 새 스냅샷을 쓰지 않으므로 전이 문장이
-      // 실행되지 않는다. 이미 있는 스냅샷으로 작업만 닫는다 — terminal 은 여전히 하나다.
-      if (recording.replayed) await env.DB.batch(transition(recording.snapshot));
+      // 성공한 S5 재전송은 위에서 끝난다. 기존 녹음 결과를 새 작업의 proof로 승격하지 않는다.
+      if (recording.replayed) {
+        const stored = await env.DB.prepare(
+          'SELECT proof_json,entity_source_binding FROM ai_masked_source_snapshots WHERE id=? AND org_id=?',
+        ).bind(recording.snapshot.id, actor.orgId)
+          .first<{ proof_json: string | null; entity_source_binding: string | null }>();
+        throw new AgentJobContractError(
+          stored?.proof_json == null || stored.entity_source_binding === null
+            ? 'masking_snapshot_missing'
+            : 'result_conflict',
+          jobId,
+        );
+      }
     } else {
       await recordMaskedSourceSnapshot(env, actor, job.sessionId, {
         maskedText: result.maskedText,
         sha256: result.sha256,
         maskingPipelineVersion: result.maskingPipelineVersion,
         evidence: result.evidence,
+        proof,
+        entitySourceBinding: acceptedBinding,
       }, transition);
     }
   } catch (error) {
@@ -11918,6 +13486,68 @@ export interface AuditLogFilter {
   supportCaseId?: string;
 }
 
+export interface MonthlyAuditSummary {
+  month: string;
+  timeZone: string;
+  startUtc: string;
+  endUtc: string;
+  /** Audit rows do not store assignment-at-read evidence. Unknown is not zero. */
+  nonAssignedReadEvents: null;
+  /** Human read/PII-read events whose historical assignment cannot be classified. */
+  unclassifiedReadEvents: number;
+  /** Audit events, not decrypted fields, participants, or downloaded files. */
+  piiDecryptEvents: number;
+  exportEvents: number;
+}
+
+export async function getMonthlyAuditSummary(
+  env: Env,
+  actor: Actor,
+  month: string,
+): Promise<MonthlyAuditSummary> {
+  await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
+  assertMonthOnly(month);
+  // Institution-wide totals must not change with the requesting user's timezone.
+  const organization = await env.DB.prepare(
+    'SELECT time_zone FROM organization_settings WHERE org_id = ?',
+  ).bind(actor.orgId).first<{ time_zone: string }>();
+  const timeZone = organization?.time_zone;
+  if (typeof timeZone !== 'string' || timeZone.length === 0) {
+    throw new ForbiddenError('time zone is unavailable');
+  }
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone }).format();
+  } catch {
+    throw new ForbiddenError('time zone is unavailable');
+  }
+  const date = `${month}-01`;
+  const startUtc = localDateStartUtc(date, timeZone);
+  const endUtc = localDateStartUtc(addCalendarDays(date, daysInMonth(month)), timeZone);
+  // No current-assignee join: it cannot establish who was assigned when a row was written.
+  // This metadata-only aggregate deliberately does not audit itself (unlike listAuditLog).
+  const counts = await env.DB.prepare(
+    `SELECT
+       COUNT(CASE WHEN actor_role <> 'service'
+         AND action IN ('read', 'read_participant_pii', 'decrypt_pii') THEN 1 END) AS unclassified_reads,
+       COUNT(CASE WHEN action IN ('decrypt_pii', 'read_participant_pii') THEN 1 END) AS pii_decrypts,
+       COUNT(CASE WHEN action = 'export' THEN 1 END) AS exports
+     FROM audit_log
+     WHERE org_id = ? AND created_at >= ? AND created_at < ?`,
+  ).bind(actor.orgId, startUtc, endUtc).first<{
+    unclassified_reads: number | string;
+    pii_decrypts: number | string;
+    exports: number | string;
+  }>();
+  if (counts === null) throw new Error('audit summary is unavailable');
+  return {
+    month, timeZone, startUtc, endUtc,
+    nonAssignedReadEvents: null,
+    unclassifiedReadEvents: Number(counts.unclassified_reads),
+    piiDecryptEvents: Number(counts.pii_decrypts),
+    exportEvents: Number(counts.exports),
+  };
+}
+
 const DEFAULT_AUDIT_LOG_LIMIT = 50;
 const MAX_AUDIT_LOG_LIMIT = 100;
 
@@ -12066,9 +13696,413 @@ export async function listAuditLog(
   };
 }
 
+export interface SupportCaseCsvExportResponse {
+  filename: string;
+  csv: string;
+  rowCount: number;
+}
+
+function csvJson(value: unknown): unknown {
+  const text = nullableString(value);
+  return text === null ? null : parseJson<unknown>(text) ?? text;
+}
+
+/**
+ * 선택한 참여 사업 한 건의 현재 서버 읽기 모델을 CSV로 묶는다.
+ *
+ * 기존 JSON exportCase는 호환성 때문에 그대로 둔다. 이 생산자는 선택한 support_case_id로
+ * 모든 원시 조회를 고정하고, AI 내용은 approved_ai_briefing_v1만 읽는다. sessions의 원음
+ * 위치와 전사, ai_draft_versions의 미승인 내용, provider 설정은 CSV 재료가 아니다.
+ */
+export async function exportSupportCaseCsv(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<SupportCaseCsvExportResponse> {
+  assertHuman(actor);
+  assertOpaqueIdentifier(supportCaseId, 'support case id');
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const [
+    records,
+    report,
+    vault,
+    caseRow,
+    programRow,
+    assigneeRows,
+    consentRows,
+    goalRows,
+    goalRevisionRows,
+    scheduleRows,
+    scheduleGoalRows,
+    scheduleQuestionRows,
+    scheduleQuestionRevisionRows,
+    intakeRows,
+    intakeRevisionRows,
+    actionRows,
+    actionRevisionRows,
+    flagRows,
+    discrepancyRows,
+    approvedRows,
+    approvedEvidenceRows,
+    siblingActive,
+  ] = await Promise.all([
+    listCounselingRecords(env, actor, supportCaseId),
+    getSupportCaseReport(env, actor, supportCaseId),
+    env.DB.prepare(
+      `SELECT beneficiary_id, version, enc_name, enc_phone, enc_account, enc_email,
+              enc_birth_date, enc_region, enc_emergency_contact, enc_gender, purge_due, purged_at
+       FROM participant_pii_vault AS vault
+       WHERE vault.org_id = ? AND vault.beneficiary_id = ? AND vault.purged_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM participant_pii_archives AS archive
+           WHERE archive.org_id = vault.org_id AND archive.beneficiary_id = vault.beneficiary_id
+             AND archive.review_status <> 'purged'
+         )`,
+    ).bind(actor.orgId, supportCase.beneficiaryId).first<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, beneficiary_id, program_id, program_type, status, intake_at,
+              consent_recording_at, consent_text_ai_at, consent_privacy_at, overall_goal,
+              closed_at, closed_reason, creation_kind, emergency_registration_at,
+              emergency_registration_reason, consent_privacy_due_at, extra, created_at, updated_at
+       FROM support_cases WHERE org_id = ? AND id = ?`,
+    ).bind(actor.orgId, supportCaseId).first<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, display_name, status, program_type, storage_mode, processing_mode,
+              financial_support_enabled, created_at, updated_at
+       FROM programs WHERE org_id = ? AND id = ?`,
+    ).bind(actor.orgId, supportCase.programId).first<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, user_id, role, status, acceptance_requested_by, accepted_at,
+              transfer_reason, notified_by, notified_at, assigned_at, unassigned_at
+       FROM support_case_assignees
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY assigned_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, domain, decision, provider, provider_legal_recipient, provider_country,
+              purpose, retention_duration, copy_version, copy_hash, disclosure_snapshot_id,
+              effective_at, recorded_by, recorded_at, revision, event_sequence,
+              correction_of_event_id
+       FROM consent_events
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY event_sequence, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, title, scale_criteria, status, closed_reason, closed_at,
+              replaced_by_goal_id, created_at
+       FROM goals WHERE org_id = ? AND support_case_id = ?
+       ORDER BY created_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, goal_id, title, edited_by, edited_at
+       FROM goal_revisions WHERE org_id = ? AND support_case_id = ?
+       ORDER BY id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, scheduled_at, status, session_kind, channel, all_day, display_color,
+              version, completed_session_id, created_by_actor_id, updated_by_actor_id,
+              completed_by_actor_id, completed_at, created_at, updated_at
+       FROM counseling_schedules
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY scheduled_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, schedule_id, case_goal_id, body, ordinal, created_by, created_at
+       FROM schedule_session_goals
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY schedule_id, ordinal, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, schedule_id, body, ordinal, revision, created_by, created_at
+       FROM schedule_custom_questions
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY schedule_id, ordinal, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT revision.question_id, revision.revision, revision.body, revision.schedule_id
+       FROM schedule_question_revisions AS revision
+       JOIN schedule_custom_questions AS question
+         ON question.id = revision.question_id AND question.org_id = revision.org_id
+       WHERE question.org_id = ? AND question.support_case_id = ?
+       ORDER BY revision.question_id, revision.revision`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, held_at, channel, memo, intake_details, intake_schema_version,
+              intake_revision, intake_updated_by, intake_converted_from_revision,
+              intake_question_lifecycle, created_at, updated_at
+       FROM sessions
+       WHERE org_id = ? AND support_case_id = ? AND kind = 'intake'
+       ORDER BY held_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT revision.session_id, revision.revision, revision.schema_version,
+              revision.held_at, revision.channel, revision.details, revision.recorded_at,
+              revision.actor_id, revision.converted_from_revision, revision.question_lifecycle
+       FROM intake_record_revisions AS revision
+       JOIN sessions AS session
+         ON session.id = revision.session_id AND session.org_id = revision.org_id
+       WHERE session.org_id = ? AND session.support_case_id = ?
+       ORDER BY revision.session_id, revision.revision`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, session_id, description, owner, due_date, resolved_at, resolved_by,
+              resolution_status, resolution_note, resolution_at, resolution_session_id,
+              revision, stop_reason, created_at
+       FROM action_items
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY created_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT revision.action_item_id, revision.revision, revision.description,
+              revision.owner, revision.due_date, revision.resolution_status,
+              revision.resolution_note, revision.resolution_session_id,
+              revision.resolved_at, revision.stop_reason
+       FROM action_item_revisions AS revision
+       JOIN action_items AS item
+         ON item.id = revision.action_item_id AND item.org_id = revision.org_id
+       WHERE item.org_id = ? AND item.support_case_id = ?
+       ORDER BY revision.action_item_id, revision.revision`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, session_id, flag_type, quote, source, review_status,
+              reviewed_by, reviewed_at, created_at
+       FROM flags
+       WHERE org_id = ? AND support_case_id = ? AND review_status = 'confirmed'
+       ORDER BY created_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, kind, trigger_session_id, left_session_id, left_quote,
+              right_session_id, right_quote, detected_at, resolution_status,
+              resolved_by, resolved_at, created_at
+       FROM session_discrepancies
+       WHERE org_id = ? AND support_case_id = ? AND kind = 'within_session'
+       ORDER BY detected_at, id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT draft_version_id, draft_version, session_id, kind, summary_text,
+              claims_json, questions_json, one_liner, model_id, prompt_version,
+              schema_version, approved_by, approved_at
+       FROM approved_ai_briefing_v1
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY approved_at, draft_version_id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT approved.draft_version_id, evidence.id, evidence.claim_key,
+              evidence.evidence_quote, evidence.source_ref,
+              evidence.source_start, evidence.source_end, evidence.created_at
+       FROM approved_ai_briefing_v1 AS approved
+       JOIN ai_evidence_links AS evidence ON evidence.draft_version_id = approved.draft_version_id
+       WHERE approved.org_id = ? AND approved.support_case_id = ?
+       ORDER BY approved.approved_at, approved.draft_version_id, evidence.claim_key, evidence.id`,
+    ).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT 1 AS present FROM support_cases
+       WHERE org_id = ? AND beneficiary_id = ? AND status = 'active' AND id <> ?
+       LIMIT 1`,
+    ).bind(actor.orgId, supportCase.beneficiaryId, supportCaseId).first<DbRow>(),
+  ]);
+
+  if (caseRow === null || programRow === null) {
+    throw new ConflictError('support case export context is unavailable');
+  }
+
+  const pii = vault === null ? {
+    beneficiaryId: supportCase.beneficiaryId,
+    version: null,
+    name: null,
+    phone: null,
+    email: null,
+    account: null,
+    birthDate: null,
+    region: null,
+    emergencyContact: null,
+    gender: null,
+  } : {
+    beneficiaryId: supportCase.beneficiaryId,
+    version: integerValue(vault.version),
+    name: await decryptPii(env, nullableString(vault.enc_name)),
+    phone: await decryptPii(env, nullableString(vault.enc_phone)),
+    email: await decryptPii(env, nullableString(vault.enc_email)),
+    account: await decryptPii(env, nullableString(vault.enc_account)),
+    birthDate: await decryptPii(env, nullableString(vault.enc_birth_date)),
+    region: await decryptPii(env, nullableString(vault.enc_region)),
+    emergencyContact: await decryptPii(env, nullableString(vault.enc_emergency_contact)),
+    gender: await decryptPii(env, nullableString(vault.enc_gender)),
+  };
+  if (vault !== null) {
+    const contacts = new Map<string, ParticipantContact>([[
+      supportCase.beneficiaryId,
+      { name: pii.name, phone: pii.phone, email: pii.email, birthDate: pii.birthDate },
+    ]]);
+    const extraFields = ([
+      ['email', pii.email],
+      ['account', pii.account],
+      ['birth_date', pii.birthDate],
+      ['region', pii.region],
+      ['emergency_contact', pii.emergencyContact],
+      ['gender', pii.gender],
+    ] as const).filter(([, value]) => value !== null).map(([field]) => field);
+    await auditParticipantPiiRead(env, actor, contacts, {
+      targetId: supportCase.beneficiaryId,
+      supportCaseId,
+      extraFields,
+    });
+  }
+
+  const selectedCase = {
+    program: {
+      id: stringValue(programRow.id),
+      displayName: nullableString(programRow.display_name),
+      status: stringValue(programRow.status),
+      programType: stringValue(programRow.program_type),
+      storageMode: stringValue(programRow.storage_mode),
+      processingMode: stringValue(programRow.processing_mode),
+      financialSupportEnabled: integerValue(programRow.financial_support_enabled) === 1,
+      createdAt: stringValue(programRow.created_at),
+      updatedAt: stringValue(programRow.updated_at),
+    },
+    supportCase: {
+      id: stringValue(caseRow.id),
+      beneficiaryId: stringValue(caseRow.beneficiary_id),
+      programId: stringValue(caseRow.program_id),
+      programType: stringValue(caseRow.program_type),
+      status: stringValue(caseRow.status),
+      intakeAt: nullableString(caseRow.intake_at),
+      consentRecordingAt: nullableString(caseRow.consent_recording_at),
+      consentTextAiAt: nullableString(caseRow.consent_text_ai_at),
+      consentPrivacyAt: nullableString(caseRow.consent_privacy_at),
+      overallGoal: nullableString(caseRow.overall_goal),
+      closedAt: nullableString(caseRow.closed_at),
+      closedReason: nullableString(caseRow.closed_reason),
+      creationKind: stringValue(caseRow.creation_kind),
+      emergencyRegistrationAt: nullableString(caseRow.emergency_registration_at),
+      emergencyRegistrationReason: nullableString(caseRow.emergency_registration_reason),
+      consentPrivacyDueAt: nullableString(caseRow.consent_privacy_due_at),
+      extra: csvJson(caseRow.extra),
+      createdAt: stringValue(caseRow.created_at),
+      updatedAt: stringValue(caseRow.updated_at),
+    },
+  };
+  const schedules = {
+    schedules: scheduleRows.results,
+    sessionGoals: scheduleGoalRows.results,
+    customQuestions: scheduleQuestionRows.results,
+    customQuestionRevisions: scheduleQuestionRevisionRows.results,
+  };
+  const intake = {
+    records: intakeRows.results.map((row) => ({
+      id: stringValue(row.id),
+      heldAt: stringValue(row.held_at),
+      channel: stringValue(row.channel),
+      memo: nullableString(row.memo),
+      schemaVersion: integerValue(row.intake_schema_version),
+      revision: integerValue(row.intake_revision),
+      updatedBy: nullableString(row.intake_updated_by),
+      convertedFromRevision: nullableInteger(row.intake_converted_from_revision),
+      questionnaire: csvJson(row.intake_details),
+      questionLifecycle: csvJson(row.intake_question_lifecycle),
+      createdAt: stringValue(row.created_at),
+      updatedAt: stringValue(row.updated_at),
+    })),
+    history: intakeRevisionRows.results.map((row) => ({
+      ...row,
+      details: csvJson(row.details),
+      question_lifecycle: csvJson(row.question_lifecycle),
+    })),
+  };
+  const approvedAi = {
+    briefings: approvedRows.results.map((row) => ({
+      draftVersionId: stringValue(row.draft_version_id),
+      draftVersion: integerValue(row.draft_version),
+      sessionId: stringValue(row.session_id),
+      kind: stringValue(row.kind),
+      summaryText: stringValue(row.summary_text),
+      claims: csvJson(row.claims_json),
+      questions: csvJson(row.questions_json),
+      oneLiner: nullableString(row.one_liner),
+      modelId: nullableString(row.model_id),
+      promptVersion: nullableString(row.prompt_version),
+      schemaVersion: nullableString(row.schema_version),
+      approvedBy: nullableString(row.approved_by),
+      approvedAt: nullableString(row.approved_at),
+    })),
+    evidence: approvedEvidenceRows.results,
+  };
+
+  const item = (
+    kind: string,
+    value: unknown,
+    id: string | null = null,
+    sessionId: string | null = null,
+    ordinal: number | null = null,
+  ) => ({ kind, value, id, sessionId, ordinal });
+  const sections: SupportCaseCsvSection[] = [
+    { name: '당사자 기본정보', items: [item('당사자', pii, supportCase.beneficiaryId)] },
+    { name: '선택 사업과 사례', items: [item('사업과 사례', selectedCase, supportCaseId)] },
+    { name: '담당 이력', items: assigneeRows.results.map((row, index) => item('담당', row, nullableString(row.id), null, index + 1)) },
+    { name: '동의 이력', items: consentRows.results.map((row, index) => item('동의', row, nullableString(row.id), null, index + 1)) },
+    { name: '목표', items: [
+      item('현재 전체 목표', { overallGoal: supportCase.overallGoal }, supportCaseId),
+      ...goalRows.results.map((row, index) => item('세부 목표', row, nullableString(row.id), null, index + 1)),
+      ...goalRevisionRows.results.map((row, index) => item('목표 수정 이력', row, nullableString(row.goal_id), null, index + 1)),
+    ] },
+    { name: '일정', items: [item('일정 전체', schedules, supportCaseId)] },
+    { name: '인테이크 기록', items: [item('인테이크 전체', intake, supportCaseId)] },
+    { name: '상담 기록', items: records.map((record, index) => item('회차', record, record.id, record.id, index + 1)) },
+    { name: '액션', items: [
+      ...actionRows.results.map((row, index) => item('액션', row, nullableString(row.id), nullableString(row.session_id), index + 1)),
+      ...actionRevisionRows.results.map((row, index) => item('액션 수정 이력', row, nullableString(row.action_item_id), null, index + 1)),
+    ] },
+    { name: '리스크 플래그', items: flagRows.results.map((row, index) => item('확정 플래그', row, nullableString(row.id), nullableString(row.session_id), index + 1)) },
+    { name: '불일치', items: discrepancyRows.results.map((row, index) => item('불일치', row, nullableString(row.id), nullableString(row.trigger_session_id), index + 1)) },
+    { name: '승인 AI 기록', items: [item('승인 AI 전체', approvedAi, supportCaseId)] },
+    { name: '리포트', items: [item('사례 리포트', report, supportCaseId)] },
+    { name: '종결과 보관', items: [item('종결 상태', {
+      supportCaseId,
+      beneficiaryId: supportCase.beneficiaryId,
+      status: supportCase.status,
+      closedAt: supportCase.closedAt,
+      closedReason: supportCase.closedReason,
+      purgeDue: vault === null ? null : nullableString(vault.purge_due),
+      purgedAt: vault === null ? null : nullableString(vault.purged_at),
+      hasOtherActiveSupportCase: siblingActive !== null,
+    }, supportCaseId)] },
+  ];
+  const document = serializeSupportCaseCsv(supportCase.programId, supportCaseId, sections);
+  await env.DB.prepare(
+    `INSERT INTO audit_log (
+       org_id, actor_id, actor_role, action, target_table, target_id, case_id,
+       beneficiary_id, support_case_id, detail, created_at
+     ) VALUES (?, ?, ?, 'export', 'cases', ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    actor.orgId,
+    actor.userId,
+    actor.role,
+    supportCaseId,
+    supportCaseId,
+    supportCase.beneficiaryId,
+    supportCaseId,
+    stringifyJson({
+      schemaVersion: 1,
+      prepared: true,
+      format: 'csv',
+      rowCount: document.rowCount,
+      goalCount: goalRows.results.length,
+      sessionCount: records.length,
+      gasScoreCount: records.reduce((count, record) => count + record.gasScores.length, 0),
+    }),
+    now(),
+  ).run();
+  return {
+    filename: `ccc-support-case-${supportCaseId}.csv`,
+    csv: document.csv,
+    rowCount: document.rowCount,
+  };
+}
+
 /**
  * 케이스 내보내기(보고서 등 외부 반출). PII는 포함하지 않는다.
- * R2: 승인된 기록만 포함. 권한: 담당 실무자 배정. 감사: export (D14).
+ * R2: 승인된 기록만 포함. 권한: 담당 실무자 또는 같은 기관 관리자 읽기. 감사: export (D14).
  */
 export interface CaseExportResponse {
   schemaVersion: 1;
@@ -12091,7 +14125,7 @@ export async function exportCase(
   caseId: string,
 ): Promise<CaseExportResponse> {
   assertHuman(actor);
-  const caseRecord = await assertCaseWriteAccess(env, actor, caseId);
+  const caseRecord = await assertCaseAccess(env, actor, caseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   // 서로 독립적인 조회는 병렬로 실행한다.
   const [goals, sessionRows, gasScores, approvedBriefings] = await Promise.all([
@@ -12246,7 +14280,7 @@ export async function listCaseExportHistory(
   filter?: ExportHistoryFilter,
 ): Promise<ExportHistoryPage> {
   assertHuman(actor);
-  const caseRecord = await assertCaseWriteAccess(env, actor, caseId);
+  const caseRecord = await assertCaseAccess(env, actor, caseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   const limit = filter?.limit ?? DEFAULT_EXPORT_HISTORY_LIMIT;
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_EXPORT_HISTORY_LIMIT) {
@@ -13524,32 +15558,6 @@ async function resolveSupportCaseContentAccessDecision(
        ) AS has_active_assignment,
        EXISTS (
          SELECT 1
-         FROM team_supervisor_grants AS supervisor_grant
-         JOIN teams AS team
-           ON team.id = supervisor_grant.team_id
-          AND team.org_id = supervisor_grant.org_id
-          AND team.archived_at IS NULL
-         JOIN team_memberships AS membership
-           ON membership.team_id = team.id
-          AND membership.org_id = team.org_id
-          AND membership.ended_at IS NULL
-         JOIN support_case_assignees AS team_assignment
-           ON team_assignment.user_id = membership.user_id
-          AND team_assignment.org_id = membership.org_id
-          AND team_assignment.support_case_id = ?
-          AND team_assignment.unassigned_at IS NULL
-          AND team_assignment.status = 'active'
-         JOIN user_role_assignments AS team_practitioner_role
-           ON team_practitioner_role.org_id = team_assignment.org_id
-          AND team_practitioner_role.user_id = team_assignment.user_id
-          AND team_practitioner_role.role = 'practitioner'
-          AND team_practitioner_role.revoked_at IS NULL
-         WHERE supervisor_grant.org_id = ?
-           AND supervisor_grant.supervisor_user_id = ?
-           AND supervisor_grant.revoked_at IS NULL
-       ) AS has_active_team_supervision,
-       EXISTS (
-         SELECT 1
          FROM user_role_assignments AS admin_role
          WHERE admin_role.org_id = ?
            AND admin_role.user_id = ?
@@ -13560,30 +15568,25 @@ async function resolveSupportCaseContentAccessDecision(
     actor.orgId,
     supportCaseId,
     actor.userId,
-    supportCaseId,
-    actor.orgId,
-    actor.userId,
     actor.orgId,
     actor.userId,
   ).first<{
     has_active_assignment: number;
-    has_active_team_supervision: number;
     has_active_institution_admin_role: number;
   }>();
 
   return decideSupportCaseContentAccess({
     hasActiveAssignment: row?.has_active_assignment === 1,
-    hasActiveTeamSupervision: row?.has_active_team_supervision === 1,
     hasActiveInstitutionAdminRole: row?.has_active_institution_admin_role === 1,
   });
 }
 
 /**
  * Authorizes SupportCase content without granting mutation authority over a
- * closed participation. Access requires an active assignment, an active team
- * supervision grant, or an active institution administrator role. Mutation
- * requires both an active practitioner role and an active assignment. All
- * paths reject non-published beneficiaries.
+ * closed participation. Access requires an active assignment or an active
+ * institution administrator role. Mutation requires both an active
+ * practitioner role and an active assignment. All paths reject non-published
+ * beneficiaries.
  */
 export async function assertSupportCaseAccess(env: Env, actor: Actor, supportCaseId: string): Promise<SupportCase> {
   try {
@@ -13613,16 +15616,36 @@ export async function assertSupportCaseAccess(env: Env, actor: Actor, supportCas
   }
 }
 
+// The permission projection shares the write gates without auditing a denied mutation.
+async function resolveSupportCaseWriteAccess(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<SupportCase> {
+  const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
+  await assertPractitioner(env, actor);
+  await assertActiveAssignment(env, actor, supportCase.id);
+  return supportCase;
+}
+
+async function canWriteIntake(env: Env, actor: Actor, supportCaseId: string): Promise<boolean> {
+  try {
+    const supportCase = await resolveSupportCaseWriteAccess(env, actor, supportCaseId);
+    return supportCase.status === 'active'
+      && (await programForOrg(env, actor.orgId, supportCase.programId)).status === 'active';
+  } catch (error) {
+    if (error instanceof ForbiddenError) return false;
+    throw error;
+  }
+}
+
 async function assertSupportCaseWriteAccess(
   env: Env,
   actor: Actor,
   supportCaseId: string,
 ): Promise<SupportCase> {
   try {
-    const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
-    await assertPractitioner(env, actor);
-    await assertActiveAssignment(env, actor, supportCase.id);
-    return supportCase;
+    return await resolveSupportCaseWriteAccess(env, actor, supportCaseId);
   } catch (error) {
     if (error instanceof ForbiddenError) {
       try {
@@ -13913,6 +15936,7 @@ function mapProgram(row: DbRow): ProgramRecord {
   return {
     id: stringValue(row.id), orgId: stringValue(row.org_id), displayName: nullableString(row.display_name),
     programType: row.program_type, status: row.status, storageMode, processingMode, version,
+    financialSupportEnabled: row.financial_support_enabled === 1,
     confirmation: confirmedBy === null ? null : {
       by: confirmedBy, at: stringValue(row.admission_confirmed_at),
       storageMode: stringValue(row.admission_confirmed_storage_mode) as ProgramStorageMode,
@@ -14059,13 +16083,12 @@ async function programStaffOptions(env: Env, orgId: string): Promise<Array<{ use
   const rows = await env.DB.prepare(
     `SELECT directory.id, directory.name FROM users AS directory
      WHERE directory.org_id = ? AND directory.active = 1 AND directory.role IN ('admin', 'counselor')
-       AND (
-         EXISTS (SELECT 1 FROM user_role_assignments AS held
-           WHERE held.org_id = directory.org_id AND held.user_id = directory.id
-             AND held.role IN ('institution_admin', 'practitioner') AND held.revoked_at IS NULL)
-         OR EXISTS (SELECT 1 FROM team_supervisor_grants AS supervision
-           JOIN teams AS team ON team.id = supervision.team_id AND team.org_id = supervision.org_id AND team.archived_at IS NULL
-           WHERE supervision.org_id = directory.org_id AND supervision.supervisor_user_id = directory.id AND supervision.revoked_at IS NULL)
+       AND EXISTS (
+         SELECT 1 FROM user_role_assignments AS held
+         WHERE held.org_id = directory.org_id
+           AND held.user_id = directory.id
+           AND held.role IN ('institution_admin', 'practitioner')
+           AND held.revoked_at IS NULL
        )
      ORDER BY directory.name, directory.id`,
   ).bind(orgId).all<DbRow>();
@@ -14166,9 +16189,10 @@ export async function listProgramOptions(env: Env, actor: Actor): Promise<Progra
 
 export async function createProgram(env: Env, actor: Actor, input: CreateProgramInput): Promise<ProgramView> {
   await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
-  const optionalKeys = (['storageMode', 'processingMode', 'confirmation', 'staff'] as const).filter((key) => input[key] !== undefined);
+  const optionalKeys = (['storageMode', 'processingMode', 'confirmation', 'staff', 'financialSupportEnabled'] as const).filter((key) => input[key] !== undefined);
   assertExactKeys(input, ['displayName', ...optionalKeys]);
   const displayName = programName(input.displayName);
+  if (input.financialSupportEnabled !== undefined && typeof input.financialSupportEnabled !== 'boolean') throw new ValidationError('financial module is invalid');
   const context = await programAdmissionContext(env, actor.orgId);
   const storageMode = programStorageChoice(context, input.storageMode);
   const processingMode = programProcessingChoice(input.processingMode);
@@ -14179,17 +16203,17 @@ export async function createProgram(env: Env, actor: Actor, input: CreateProgram
   await programPolicyBatch(env, context, [
     env.DB.prepare(
       `INSERT INTO programs (
-         id, org_id, display_name, program_type, storage_mode, processing_mode, version,
+         id, org_id, display_name, program_type, storage_mode, processing_mode, version, financial_support_enabled,
          admission_confirmed_by, admission_confirmed_at, admission_confirmed_storage_mode, admission_confirmed_processing_mode,
          admission_copy_version, admission_copy_hash, admission_installation_config_hash, admission_installation_policy_version,
          created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, actor.orgId, displayName, FINANCIAL_SUPPORT_V1, storageMode, processingMode, ...programConfirmationValues(confirmation), at, at),
+       ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, actor.orgId, displayName, FINANCIAL_SUPPORT_V1, storageMode, processingMode, input.financialSupportEnabled ? 1 : 0, ...programConfirmationValues(confirmation), at, at),
     ...programStaffStatements(env, actor.orgId, id, staff),
     canonicalAuditStatement(env, actor, {
       action: 'create', targetTable: 'programs', targetId: id, beneficiaryId: null, supportCaseId: null,
       detail: { storageMode, processingMode, storageChoiceProvided: input.storageMode !== undefined,
-        processingChoiceProvided: input.processingMode !== undefined, confirmation, staff },
+        processingChoiceProvided: input.processingMode !== undefined, confirmation, staff, financialSupportEnabled: input.financialSupportEnabled ?? false },
     }),
   ]);
   return programReadback(env, actor, id);
@@ -14197,7 +16221,7 @@ export async function createProgram(env: Env, actor: Actor, input: CreateProgram
 
 export async function updateProgram(env: Env, actor: Actor, programId: string, input: UpdateProgramInput): Promise<ProgramView> {
   await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
-  const optionalKeys = (['displayName', 'storageMode', 'processingMode', 'confirmation', 'status', 'staff'] as const).filter((key) => input[key] !== undefined);
+  const optionalKeys = (['displayName', 'storageMode', 'processingMode', 'confirmation', 'status', 'staff', 'financialSupportEnabled'] as const).filter((key) => input[key] !== undefined);
   assertExactKeys(input, ['expectedVersion', ...optionalKeys]);
   if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1 || optionalKeys.length === 0) {
     throw new ValidationError('program update is invalid');
@@ -14206,6 +16230,8 @@ export async function updateProgram(env: Env, actor: Actor, programId: string, i
     programForOrg(env, actor.orgId, programId), programAdmissionContext(env, actor.orgId),
   ]);
   if (current.version !== input.expectedVersion) throw new ConflictError('program changed');
+  if (input.financialSupportEnabled !== undefined && typeof input.financialSupportEnabled !== 'boolean') throw new ValidationError('financial module is invalid');
+  const financialSupportEnabled = input.financialSupportEnabled ?? current.financialSupportEnabled;
   const status = input.status ?? current.status;
   if (status !== 'active' && status !== 'closed') throw new ValidationError('program status is invalid');
   const previousStaff = input.staff === undefined ? [] : (await programStaffByProgram(env, actor.orgId, programId)).get(programId) ?? [];
@@ -14220,15 +16246,15 @@ export async function updateProgram(env: Env, actor: Actor, programId: string, i
   try {
     await programPolicyBatch(env, context, [
       env.DB.prepare(
-        `UPDATE programs SET display_name = ?, status = ?, storage_mode = ?, processing_mode = ?, version = version + 1,
+        `UPDATE programs SET display_name = ?, status = ?, storage_mode = ?, processing_mode = ?, financial_support_enabled = ?, version = version + 1,
            admission_confirmed_by = ?, admission_confirmed_at = ?, admission_confirmed_storage_mode = ?, admission_confirmed_processing_mode = ?,
            admission_copy_version = ?, admission_copy_hash = ?, admission_installation_config_hash = ?, admission_installation_policy_version = ?,
            updated_at = ? WHERE org_id = ? AND id = ? AND version = ?`,
-      ).bind(displayName, status, storageMode, processingMode, ...programConfirmationValues(confirmation), now(), actor.orgId, programId, current.version),
+      ).bind(displayName, status, storageMode, processingMode, financialSupportEnabled ? 1 : 0, ...programConfirmationValues(confirmation), now(), actor.orgId, programId, current.version),
       ...(staff === undefined ? [] : programStaffStatements(env, actor.orgId, programId, staff)),
       canonicalAuditStatement(env, actor, {
         action: 'update', targetTable: 'programs', targetId: programId, beneficiaryId: null, supportCaseId: null,
-        detail: { storageMode, processingMode, status, previousStatus: current.status, staff, version: current.version + 1, choicesChanged,
+        detail: { storageMode, processingMode, status, previousStatus: current.status, staff, version: current.version + 1, choicesChanged, financialSupportEnabled,
           storageChoiceProvided: input.storageMode !== undefined, processingChoiceProvided: input.processingMode !== undefined, confirmation },
       }),
     ], current);
@@ -14333,6 +16359,7 @@ export interface SupportCaseCreationResult {
   supportCaseId: string;
   assignmentRole: 'primary';
   replayed: boolean;
+  canWriteIntake: boolean;
 }
 
 export interface OrganizationSettings {
@@ -14463,6 +16490,7 @@ export async function getInstitutionReadiness(env: Env, actor: Actor | IdentityA
   const firstProgram: InstitutionReadiness['firstProgram'] = program === null ? null : {
     id: program.id, displayName: program.displayName, programType: program.programType,
     status: program.status, version: program.version,
+    financialSupportEnabled: program.financialSupportEnabled,
     admissionState: context === null ? 'installation_unavailable' : programAdmissionState(program, context),
   };
   let creatorLinkState: InstitutionReadiness['creatorLinkState'] = 'unlinked';
@@ -14582,7 +16610,8 @@ export async function completeOrganizationOnboarding(
   input: OrganizationOnboardingInput,
 ): Promise<OrganizationOnboardingResponse> {
   await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
-  assertExactKeys(input, ['orgName', 'programDisplayName']);
+  assertExactKeys(input, ['orgName', 'programDisplayName', ...(input.financialSupportEnabled === undefined ? [] : ['financialSupportEnabled'])]);
+  if (input.financialSupportEnabled !== undefined && typeof input.financialSupportEnabled !== 'boolean') throw new ValidationError('financial module is invalid');
   assertNonBlankText(input.orgName, 'organization name');
   const orgName = input.orgName.trim();
   if (orgName.length > 80) throw new ValidationError('organization name is invalid');
@@ -14598,6 +16627,7 @@ export async function completeOrganizationOnboarding(
   const initialProgramId = nullableString(settings.initial_program_id);
   const current = initialProgramId === null ? null : await programForOrg(env, actor.orgId, initialProgramId);
   const programId = current?.id ?? newId();
+  const financialSupportEnabled = input.financialSupportEnabled ?? current?.financialSupportEnabled ?? false;
   const updatedAt = now();
   const setupGuardId = newId();
   try {
@@ -14609,20 +16639,20 @@ export async function completeOrganizationOnboarding(
          ) THEN 1 ELSE 0 END)`,
       ).bind(setupGuardId, actor.orgId, actor.orgId, version),
       current === null ? env.DB.prepare(
-        `INSERT INTO programs (id, org_id, display_name, program_type, storage_mode, processing_mode, version, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'undecided', 1, ?, ?)`,
+        `INSERT INTO programs (id, org_id, display_name, program_type, storage_mode, processing_mode, version, financial_support_enabled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'undecided', 1, ?, ?, ?)`,
       ).bind(programId, actor.orgId, displayName, FINANCIAL_SUPPORT_V1,
-        context.deploymentMode === 'community-cloud' ? 'undecided' : 'local_encrypted', updatedAt, updatedAt)
+        context.deploymentMode === 'community-cloud' ? 'undecided' : 'local_encrypted', financialSupportEnabled ? 1 : 0, updatedAt, updatedAt)
         : env.DB.prepare(
-          'UPDATE programs SET display_name = ?, version = version + 1, updated_at = ? WHERE org_id = ? AND id = ? AND version = ?',
-        ).bind(displayName, updatedAt, actor.orgId, current.id, current.version),
+          'UPDATE programs SET display_name = ?, financial_support_enabled = ?, version = version + 1, updated_at = ? WHERE org_id = ? AND id = ? AND version = ?',
+        ).bind(displayName, financialSupportEnabled ? 1 : 0, updatedAt, actor.orgId, current.id, current.version),
       env.DB.prepare(
         `UPDATE organization_settings SET org_name = ?, initial_program_id = ?, version = version + 1, updated_at = ?
          WHERE org_id = ? AND version = ? AND org_name IS NULL`,
       ).bind(orgName, programId, updatedAt, actor.orgId, version),
       canonicalAuditStatement(env, actor, {
         action: current === null ? 'create' : 'update', targetTable: 'programs', targetId: programId,
-        beneficiaryId: null, supportCaseId: null, detail: { onboarding: true },
+        beneficiaryId: null, supportCaseId: null, detail: { onboarding: true, financialSupportEnabled },
       }),
       canonicalAuditStatement(env, actor, {
         action: 'update', targetTable: 'organization_settings', targetId: actor.orgId,
@@ -14683,6 +16713,7 @@ async function supportCaseReceiptReplay(
     supportCaseId: supportCase.id,
     assignmentRole: 'primary',
     replayed: true,
+    canWriteIntake: await canWriteIntake(env, actor, supportCase.id),
   };
 }
 
@@ -14883,6 +16914,7 @@ detail: { role: 'primary', initial: true },
         supportCaseId,
         assignmentRole: 'primary',
         replayed: false,
+        canWriteIntake: await canWriteIntake(env, actor, supportCaseId),
       };
     } catch (error) {
       finalError = error;
@@ -14905,7 +16937,8 @@ async function registrationReceiptReplay(
   if (receipt === null) return null;
   if (receipt.request_hash !== requestHash) throw new ConsentContractError('idempotency_conflict');
   return { beneficiaryId: receipt.beneficiary_id, supportCaseId: receipt.support_case_id,
-    assignmentRole: 'primary', replayed: true };
+    assignmentRole: 'primary', replayed: true,
+    canWriteIntake: await canWriteIntake(env, actor, receipt.support_case_id) };
 }
 
 
@@ -15314,6 +17347,7 @@ export async function createSupportCase(
     supportCaseId,
     assignmentRole: 'primary',
     replayed: false,
+    canWriteIntake: await canWriteIntake(env, actor, supportCaseId),
   };
 }
 
@@ -15356,32 +17390,6 @@ export async function listAuthorizedSupportCaseIdsForBeneficiary(
          )
           OR EXISTS (
             SELECT 1
-            FROM team_supervisor_grants AS supervisor_grant
-            JOIN teams AS team
-              ON team.id = supervisor_grant.team_id
-             AND team.org_id = supervisor_grant.org_id
-             AND team.archived_at IS NULL
-            JOIN team_memberships AS membership
-              ON membership.team_id = team.id
-             AND membership.org_id = team.org_id
-             AND membership.ended_at IS NULL
-            JOIN support_case_assignees AS team_assignment
-              ON team_assignment.user_id = membership.user_id
-             AND team_assignment.org_id = membership.org_id
-             AND team_assignment.support_case_id = support_cases.id
-             AND team_assignment.unassigned_at IS NULL
-             AND team_assignment.status = 'active'
-            JOIN user_role_assignments AS team_practitioner_role
-              ON team_practitioner_role.org_id = team_assignment.org_id
-             AND team_practitioner_role.user_id = team_assignment.user_id
-             AND team_practitioner_role.role = 'practitioner'
-             AND team_practitioner_role.revoked_at IS NULL
-            WHERE supervisor_grant.org_id = support_cases.org_id
-              AND supervisor_grant.supervisor_user_id = ?
-              AND supervisor_grant.revoked_at IS NULL
-          )
-          OR EXISTS (
-            SELECT 1
             FROM user_role_assignments AS admin_role
             WHERE admin_role.org_id = support_cases.org_id
               AND admin_role.user_id = ?
@@ -15394,7 +17402,6 @@ export async function listAuthorizedSupportCaseIdsForBeneficiary(
   ).bind(
     actor.orgId,
     beneficiaryId,
-    actor.userId,
     actor.userId,
     actor.userId,
   ).all<{ id: string }>();
@@ -15428,8 +17435,8 @@ async function listPiiAuthorizedSupportCaseIdsForBeneficiary(
 
 /**
  * 당사자 정보 페이지(허브)가 보여주는 참여 사업 한 건 (D36 · ADR-0014 '개정' 1번).
- * `authorized` 가 false 면 이 사용자가 상담 내용을 읽을 수 없는 사업이다. 담당 배정,
- * 팀 감독, 기관 관리자 역할 중 하나가 있으면 true다.
+ * `authorized` 가 false 면 이 사용자가 상담 내용을 읽을 수 없는 사업이다. 담당 배정이나
+ * 기관 관리자 역할이 있으면 true다.
  */
 export interface ParticipantProgramEntry {
   supportCase: SupportCase;
@@ -17031,6 +19038,1144 @@ export async function listParticipantPiiRetentionReviews(
   return rows.results.map(mapParticipantPiiRetentionReview);
 }
 
+interface PrivacyPurgeScope {
+  beneficiaryId: string;
+  lifecycleId: string;
+  supportCaseIds: string[];
+  namespaceIds: string[];
+  sourceIds: string[];
+  sessionIds: string[];
+  audioObjectIds: string[];
+  goalIds: string[];
+  actionItemIds: string[];
+  flagIds: string[];
+  scheduleIds: string[];
+  snapshotIds: string[];
+  aiWorkIds: string[];
+  discrepancyIds: string[];
+  jobIds: string[];
+  egressIds: string[];
+  textWorkIds: string[];
+}
+
+interface PrivacyPurgeEventInput {
+  approvalId: string;
+  phase: 'intent' | 'complete';
+  actorId: string;
+  occurredAt: string;
+  previousEventDigest: string | null;
+  sequence: number;
+  scope: PrivacyPurgeScope;
+}
+
+async function privacyPurgeHead(env: Env, orgId: string): Promise<{ sequence: number; digest: string | null }> {
+  const row = await env.DB.prepare(
+    `SELECT sequence,metadata_digest FROM privacy_purge_events
+     WHERE org_id=? ORDER BY sequence DESC LIMIT 1`,
+  ).bind(orgId).first<DbRow>();
+  return row === null
+    ? { sequence: 0, digest: null }
+    : { sequence: integerValue(row.sequence) ?? 0, digest: stringValue(row.metadata_digest) };
+}
+
+async function privacyPurgeEventStatement(
+  env: Env,
+  orgId: string,
+  input: PrivacyPurgeEventInput,
+): Promise<PreparedStatement> {
+  const eventId = newId();
+  const keyVersion = activePiiKeyVersion(env);
+  const metadata = {
+    version: 1,
+    eventId,
+    orgId,
+    sequence: input.sequence,
+    approvalId: input.approvalId,
+    phase: input.phase,
+    actorId: input.actorId,
+    occurredAt: input.occurredAt,
+    beneficiaryId: input.scope.beneficiaryId,
+    lifecycleId: input.scope.lifecycleId,
+    supportCaseIds: input.scope.supportCaseIds,
+    namespaceIds: input.scope.namespaceIds,
+    sourceIds: input.scope.sourceIds,
+    previousEventDigest: input.previousEventDigest,
+    keyVersion,
+  };
+  const metadataDigest = await sha256Hex(canonicalizeJcs(metadata));
+  const scopeEnvelope = await encryptPii(env, canonicalizeJcs({
+    ...metadata,
+    metadataDigest,
+  }));
+  if (scopeEnvelope === null) throw new ConflictError('privacy purge scope encryption failed');
+  return env.DB.prepare(
+    `INSERT INTO privacy_purge_events(
+       event_id,org_id,sequence,approval_id,phase,actor_id,occurred_at,beneficiary_id,lifecycle_id,
+       support_case_ids_json,namespace_ids_json,source_ids_json,previous_event_digest,metadata_digest,
+       scope_envelope,key_version)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).bind(
+    eventId, orgId, input.sequence, input.approvalId, input.phase, input.actorId, input.occurredAt,
+    input.scope.beneficiaryId, input.scope.lifecycleId,
+    canonicalizeJcs(input.scope.supportCaseIds), canonicalizeJcs(input.scope.namespaceIds),
+    canonicalizeJcs(input.scope.sourceIds), input.previousEventDigest, metadataDigest,
+    scopeEnvelope, keyVersion,
+  );
+}
+
+async function hasPrivacyPurgeResidual(
+  env: Env,
+  orgId: string,
+  supportCaseIds: readonly string[],
+  sessionIds: readonly string[],
+): Promise<boolean> {
+  const caseMarks = supportCaseIds.map(() => '?').join(',');
+  if (await env.DB.prepare(
+    `SELECT 1 AS present FROM counseling_memory_draft_context
+     WHERE org_id=? AND support_case_id IN (${caseMarks}) LIMIT 1`,
+  ).bind(orgId, ...supportCaseIds).first() !== null) return true;
+  if (sessionIds.length === 0) return false;
+  const sessionMarks = sessionIds.map(() => '?').join(',');
+  for (const table of ['session_life_area_snapshots', 'intake_record_revisions']) {
+    if (await env.DB.prepare(
+      `SELECT 1 AS present FROM ${table}
+       WHERE org_id=? AND session_id IN (${sessionMarks}) LIMIT 1`,
+    ).bind(orgId, ...sessionIds).first() !== null) return true;
+  }
+  return false;
+}
+
+async function loadPrivacyPurgeScope(
+  env: Env,
+  actor: Actor,
+  beneficiaryId: string,
+  lifecycleId: string,
+): Promise<PrivacyPurgeScope> {
+  const cases = await env.DB.prepare(
+    `SELECT id,status,enc_entity_map,entity_map_revision FROM support_cases
+     WHERE org_id=? AND beneficiary_id=? ORDER BY id`,
+  ).bind(actor.orgId, beneficiaryId).all<DbRow>();
+  if (cases.results.length === 0 || cases.results.some(row => row.status !== 'closed')) {
+    throw new ConflictError('privacy purge scope ownership is ambiguous');
+  }
+  const supportCaseIds = cases.results.map(row => stringValue(row.id));
+  const caseMarks = supportCaseIds.map(() => '?').join(',');
+  const sessions = await env.DB.prepare(
+    `SELECT id FROM sessions WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+  ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>();
+  const sessionIds = sessions.results.map(row => row.id);
+
+  const ownsCase = (value: unknown): boolean => (
+    typeof value === 'string' && supportCaseIds.includes(value)
+  );
+  const ownsNullableCase = (value: unknown): boolean => value === null || ownsCase(value);
+
+  const audio = await env.DB.prepare(
+    `SELECT audio.id,audio.support_case_id,audio.state,audio.deletion_evidence,
+            session.support_case_id AS session_support_case_id
+     FROM audio_objects AS audio
+     LEFT JOIN sessions AS session ON session.id=audio.session_id AND session.org_id=audio.org_id
+     WHERE audio.org_id=? AND (
+       audio.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     ) ORDER BY audio.id`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (audio.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.session_support_case_id)
+    || row.session_support_case_id !== row.support_case_id
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const audioTerminalStates = new Set([
+    'processed_deleted', 'unprocessed_expired', 'upload_abandoned', 'retention_capped',
+  ]);
+  if (audio.results.some(row => (
+    !audioTerminalStates.has(stringValue(row.state))
+    || typeof row.deletion_evidence !== 'string'
+    || row.deletion_evidence.length === 0
+  ))) throw new ConflictError('privacy purge residual scope is not supported');
+  const [audioAttempts, audioOutbox, audioMints] = await Promise.all([
+    env.DB.prepare(
+      `SELECT attempt.id FROM audio_deletion_attempts AS attempt
+       JOIN audio_objects AS audio
+         ON audio.id=attempt.audio_object_id AND audio.org_id=attempt.org_id
+       WHERE audio.org_id=? AND audio.support_case_id IN (${caseMarks}) ORDER BY attempt.id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+    env.DB.prepare(
+      `SELECT outbox.id FROM audio_lifecycle_outbox AS outbox
+       JOIN audio_objects AS audio
+         ON audio.id=outbox.audio_object_id AND audio.org_id=outbox.org_id
+       WHERE audio.org_id=? AND audio.support_case_id IN (${caseMarks}) ORDER BY outbox.id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+    env.DB.prepare(
+      `SELECT mint.id FROM audio_download_target_mints AS mint
+       JOIN audio_objects AS audio
+         ON audio.id=mint.audio_object_id AND audio.org_id=mint.org_id
+       WHERE audio.org_id=? AND audio.support_case_id IN (${caseMarks}) ORDER BY mint.id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+  ]);
+  const audioObjectIds = audio.results.map(row => stringValue(row.id));
+
+  const goals = await env.DB.prepare(
+    `SELECT goal.id,goal.support_case_id,replacement.support_case_id AS replacement_case_id
+     FROM goals AS goal
+     LEFT JOIN goals AS replacement
+       ON replacement.id=goal.replaced_by_goal_id AND replacement.org_id=goal.org_id
+     WHERE goal.org_id=? AND (
+       goal.support_case_id IN (${caseMarks})
+       OR replacement.support_case_id IN (${caseMarks})
+     ) ORDER BY goal.id`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (goals.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsNullableCase(row.replacement_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const goalIds = goals.results.map(row => stringValue(row.id));
+  const goalRevisions = await env.DB.prepare(
+    `SELECT revision.goal_id,revision.edited_at,revision.support_case_id,
+            goal.support_case_id AS goal_case_id
+     FROM goal_revisions AS revision
+     LEFT JOIN goals AS goal ON goal.id=revision.goal_id AND goal.org_id=revision.org_id
+     WHERE revision.org_id=? AND (
+       revision.support_case_id IN (${caseMarks})
+       OR goal.support_case_id IN (${caseMarks})
+     ) ORDER BY revision.goal_id,revision.edited_at`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (goalRevisions.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || row.goal_id !== null && !ownsCase(row.goal_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const loadCaseSessionRows = async (table: 'action_items' | 'flags') => env.DB.prepare(
+    `SELECT item.id,item.support_case_id,session.support_case_id AS session_support_case_id
+     FROM ${table} AS item
+     LEFT JOIN sessions AS session ON session.id=item.session_id AND session.org_id=item.org_id
+     WHERE item.org_id=? AND (
+       item.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     ) ORDER BY item.id`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  const [actions, flags] = await Promise.all([
+    loadCaseSessionRows('action_items'),
+    loadCaseSessionRows('flags'),
+  ]);
+  if ([...actions.results, ...flags.results].some(row => (
+    !ownsCase(row.support_case_id) || !ownsNullableCase(row.session_support_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const actionItemIds = actions.results.map(row => stringValue(row.id));
+  const flagIds = flags.results.map(row => stringValue(row.id));
+
+  const schedules = await env.DB.prepare(
+    `SELECT schedule.id,schedule.beneficiary_id,schedule.support_case_id,
+            session.support_case_id AS completed_session_support_case_id
+     FROM counseling_schedules AS schedule
+     LEFT JOIN sessions AS session
+       ON session.id=schedule.completed_session_id AND session.org_id=schedule.org_id
+     WHERE schedule.org_id=? AND (
+       schedule.beneficiary_id=?
+       OR schedule.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     ) ORDER BY schedule.id`,
+  ).bind(actor.orgId, beneficiaryId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (schedules.results.some(row => (
+    row.beneficiary_id !== beneficiaryId
+    || !ownsCase(row.support_case_id)
+    || !ownsNullableCase(row.completed_session_support_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const scheduleIds = schedules.results.map(row => stringValue(row.id));
+  const actionRevisions = await env.DB.prepare(
+    `SELECT revision.action_item_id,revision.revision,revision.org_id,
+            item.org_id AS item_org_id,item.support_case_id AS item_case_id
+     FROM action_item_revisions AS revision
+     LEFT JOIN action_items AS item ON item.id=revision.action_item_id
+     WHERE item.support_case_id IN (${caseMarks})`,
+  ).bind(...supportCaseIds).all<DbRow>();
+  if (actionRevisions.results.some(row => (
+    row.org_id !== actor.orgId || row.item_org_id !== actor.orgId || !ownsCase(row.item_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const scheduleRevisions = await env.DB.prepare(
+    `SELECT revision.question_id,revision.revision,revision.org_id,
+            question.org_id AS question_org_id,question.support_case_id AS question_case_id
+     FROM schedule_question_revisions AS revision
+     LEFT JOIN schedule_custom_questions AS question ON question.id=revision.question_id
+     WHERE question.support_case_id IN (${caseMarks})`,
+  ).bind(...supportCaseIds).all<DbRow>();
+  if (scheduleRevisions.results.some(row => (
+    row.org_id !== actor.orgId
+    || row.question_org_id !== actor.orgId
+    || !ownsCase(row.question_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const actionOutcomes = await env.DB.prepare(
+    `SELECT outcome.id,outcome.support_case_id,
+            item.support_case_id AS item_case_id,
+            session.support_case_id AS session_case_id
+     FROM manual_action_outcomes AS outcome
+     LEFT JOIN action_items AS item
+       ON item.id=outcome.action_item_id AND item.org_id=outcome.org_id
+     LEFT JOIN sessions AS session
+       ON session.id=outcome.session_id AND session.org_id=outcome.org_id
+     WHERE outcome.org_id=? AND (
+       outcome.support_case_id IN (${caseMarks})
+       OR item.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (actionOutcomes.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.item_case_id)
+    || !ownsCase(row.session_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const questionOutcomes = await env.DB.prepare(
+    `SELECT outcome.id,outcome.kind,outcome.support_case_id,
+            session.support_case_id AS session_case_id,
+            schedule.support_case_id AS schedule_case_id,
+            source_session.support_case_id AS source_session_case_id
+     FROM manual_question_outcomes AS outcome
+     LEFT JOIN sessions AS session
+       ON session.id=outcome.session_id AND session.org_id=outcome.org_id
+     LEFT JOIN counseling_schedules AS schedule
+       ON outcome.kind='schedule' AND schedule.id=outcome.source_id AND schedule.org_id=outcome.org_id
+     LEFT JOIN sessions AS source_session
+       ON outcome.kind='record' AND source_session.id=outcome.source_id
+        AND source_session.org_id=outcome.org_id
+     WHERE outcome.org_id=? AND (
+       outcome.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+       OR schedule.support_case_id IN (${caseMarks})
+       OR source_session.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId,
+    ...supportCaseIds, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (questionOutcomes.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.session_case_id)
+    || row.kind === 'schedule' && !ownsCase(row.schedule_case_id)
+    || row.kind === 'record' && !ownsCase(row.source_session_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+
+  const snapshots = await env.DB.prepare(
+    `SELECT snapshot.id,snapshot.support_case_id,
+            session.support_case_id AS session_support_case_id
+     FROM ai_masked_source_snapshots AS snapshot
+     LEFT JOIN sessions AS session
+       ON session.id=snapshot.session_id AND session.org_id=snapshot.org_id
+     WHERE snapshot.org_id=? AND (
+       snapshot.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     ) ORDER BY snapshot.id`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (snapshots.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsCase(row.session_support_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const snapshotIds = snapshots.results.map(row => stringValue(row.id));
+
+  const aiWork = await env.DB.prepare(
+    `SELECT work.id,work.support_case_id,session.support_case_id AS session_support_case_id
+     FROM ai_work_items AS work
+     LEFT JOIN sessions AS session ON session.id=work.session_id AND session.org_id=work.org_id
+     WHERE work.org_id=? AND (
+       work.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+     ) ORDER BY work.id`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (aiWork.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsCase(row.session_support_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const aiWorkIds = aiWork.results.map(row => stringValue(row.id));
+
+  const discrepancies = await env.DB.prepare(
+    `SELECT discrepancy.id,discrepancy.support_case_id,
+            trigger_session.support_case_id AS trigger_case_id,
+            left_session.support_case_id AS left_case_id,
+            right_session.support_case_id AS right_case_id
+     FROM session_discrepancies AS discrepancy
+     LEFT JOIN sessions AS trigger_session
+       ON trigger_session.id=discrepancy.trigger_session_id AND trigger_session.org_id=discrepancy.org_id
+     LEFT JOIN sessions AS left_session
+       ON left_session.id=discrepancy.left_session_id AND left_session.org_id=discrepancy.org_id
+     LEFT JOIN sessions AS right_session
+       ON right_session.id=discrepancy.right_session_id AND right_session.org_id=discrepancy.org_id
+     WHERE discrepancy.org_id=? AND (
+       discrepancy.support_case_id IN (${caseMarks})
+       OR trigger_session.support_case_id IN (${caseMarks})
+       OR left_session.support_case_id IN (${caseMarks})
+       OR right_session.support_case_id IN (${caseMarks})
+     ) ORDER BY discrepancy.id`,
+  ).bind(
+    actor.orgId,
+    ...supportCaseIds, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (discrepancies.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.trigger_case_id)
+    || !ownsCase(row.left_case_id)
+    || !ownsCase(row.right_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const discrepancyIds = discrepancies.results.map(row => stringValue(row.id));
+
+  const scheduleGoals = await env.DB.prepare(
+    `SELECT item.id,item.support_case_id,item.case_goal_id,
+            schedule.support_case_id AS schedule_case_id,
+            goal.support_case_id AS goal_case_id
+     FROM schedule_session_goals AS item
+     LEFT JOIN counseling_schedules AS schedule
+       ON schedule.id=item.schedule_id AND schedule.org_id=item.org_id
+     LEFT JOIN goals AS goal ON goal.id=item.case_goal_id AND goal.org_id=item.org_id
+     WHERE item.org_id=? AND (
+       item.support_case_id IN (${caseMarks})
+       OR schedule.support_case_id IN (${caseMarks})
+       OR goal.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (scheduleGoals.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.schedule_case_id)
+    || row.case_goal_id !== null && !ownsCase(row.goal_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const scheduleQuestions = await env.DB.prepare(
+    `SELECT item.id,item.support_case_id,schedule.support_case_id AS schedule_case_id
+     FROM schedule_custom_questions AS item
+     LEFT JOIN counseling_schedules AS schedule
+       ON schedule.id=item.schedule_id AND schedule.org_id=item.org_id
+     WHERE item.org_id=? AND (
+       item.support_case_id IN (${caseMarks})
+       OR schedule.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (scheduleQuestions.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsCase(row.schedule_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  for (const table of ['session_goal_scores', 'ai_gas_evidence']) {
+    const goalEdges = await env.DB.prepare(
+      `SELECT session.support_case_id AS session_case_id,
+              goal.support_case_id AS goal_case_id
+       FROM ${table} AS item
+       LEFT JOIN sessions AS session ON session.id=item.session_id AND session.org_id=item.org_id
+       LEFT JOIN goals AS goal ON goal.id=item.goal_id AND goal.org_id=item.org_id
+       WHERE item.org_id=? AND (
+         session.support_case_id IN (${caseMarks})
+         OR goal.support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+    if (goalEdges.results.some(row => (
+      !ownsCase(row.session_case_id) || !ownsCase(row.goal_case_id)
+    ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  }
+
+  const evidenceItems = await env.DB.prepare(
+    `SELECT item.id,item.support_case_id,
+            session.support_case_id AS session_case_id,
+            snapshot.support_case_id AS snapshot_case_id
+     FROM ai_masked_source_evidence_items AS item
+     LEFT JOIN sessions AS session ON session.id=item.session_id AND session.org_id=item.org_id
+     LEFT JOIN ai_masked_source_snapshots AS snapshot
+       ON snapshot.id=item.snapshot_id AND snapshot.org_id=item.org_id
+     WHERE item.org_id=? AND (
+       item.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+       OR snapshot.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (evidenceItems.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.session_case_id)
+    || !ownsCase(row.snapshot_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const recordingResults = await env.DB.prepare(
+    `SELECT result.session_id,result.support_case_id,
+            session.support_case_id AS session_case_id,
+            snapshot.support_case_id AS snapshot_case_id
+     FROM recording_result_commits AS result
+     LEFT JOIN sessions AS session ON session.id=result.session_id AND session.org_id=result.org_id
+     LEFT JOIN ai_masked_source_snapshots AS snapshot
+       ON snapshot.id=result.snapshot_id AND snapshot.org_id=result.org_id
+     WHERE result.org_id=? AND (
+       result.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+       OR snapshot.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (recordingResults.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.session_case_id)
+    || !ownsCase(row.snapshot_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const drafts = await env.DB.prepare(
+    `SELECT draft.id,work.support_case_id AS work_case_id,
+            snapshot.support_case_id AS snapshot_case_id,
+            draft.source_snapshot_id,
+            parent_work.support_case_id AS parent_case_id,
+            draft.parent_version_id
+     FROM ai_draft_versions AS draft
+     LEFT JOIN ai_work_items AS work ON work.id=draft.work_item_id
+     LEFT JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id=draft.source_snapshot_id
+     LEFT JOIN ai_draft_versions AS parent ON parent.id=draft.parent_version_id
+     LEFT JOIN ai_work_items AS parent_work ON parent_work.id=parent.work_item_id
+     WHERE work.support_case_id IN (${caseMarks})
+        OR snapshot.support_case_id IN (${caseMarks})
+        OR parent_work.support_case_id IN (${caseMarks})`,
+  ).bind(...supportCaseIds, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (drafts.results.some(row => (
+    !ownsCase(row.work_case_id)
+    || row.source_snapshot_id !== null && !ownsCase(row.snapshot_case_id)
+    || row.parent_version_id !== null && !ownsCase(row.parent_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const draftMaterials = await env.DB.prepare(
+    `SELECT material.id,material.support_case_id,
+            session.support_case_id AS session_case_id,
+            snapshot.support_case_id AS snapshot_case_id,
+            work.support_case_id AS work_case_id
+     FROM ai_draft_source_materials AS material
+     LEFT JOIN sessions AS session ON session.id=material.session_id AND session.org_id=material.org_id
+     LEFT JOIN ai_masked_source_snapshots AS snapshot
+       ON snapshot.id=material.snapshot_id AND snapshot.org_id=material.org_id
+     LEFT JOIN ai_draft_versions AS draft ON draft.id=material.draft_version_id
+     LEFT JOIN ai_work_items AS work ON work.id=draft.work_item_id
+     WHERE material.org_id=? AND (
+       material.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+       OR snapshot.support_case_id IN (${caseMarks})
+       OR work.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(
+    actor.orgId,
+    ...supportCaseIds, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (draftMaterials.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsCase(row.session_case_id)
+    || !ownsCase(row.snapshot_case_id)
+    || !ownsCase(row.work_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const contrastAxes = await env.DB.prepare(
+    `SELECT axis.id,axis.support_case_id,work.support_case_id AS work_case_id
+     FROM ai_draft_contrast_axes AS axis
+     LEFT JOIN ai_draft_versions AS draft ON draft.id=axis.draft_version_id
+     LEFT JOIN ai_work_items AS work ON work.id=draft.work_item_id
+     WHERE axis.org_id=? AND (
+       axis.support_case_id IN (${caseMarks})
+       OR work.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (contrastAxes.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsCase(row.work_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const evidenceLinks = await env.DB.prepare(
+    `SELECT link.id,draft_work.support_case_id AS draft_case_id,
+            snapshot.support_case_id AS evidence_case_id
+     FROM ai_evidence_links AS link
+     LEFT JOIN ai_draft_versions AS draft ON draft.id=link.draft_version_id
+     LEFT JOIN ai_work_items AS draft_work ON draft_work.id=draft.work_item_id
+     LEFT JOIN ai_masked_source_evidence_items AS evidence
+       ON evidence.id=link.source_evidence_item_id
+     LEFT JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id=evidence.snapshot_id
+     WHERE draft_work.support_case_id IN (${caseMarks})
+        OR snapshot.support_case_id IN (${caseMarks})`,
+  ).bind(...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (evidenceLinks.results.some(row => (
+    !ownsCase(row.draft_case_id) || !ownsCase(row.evidence_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+
+  const reviewEvents = await env.DB.prepare(
+    `SELECT review.id,work.support_case_id AS work_case_id,
+            draft_work.support_case_id AS draft_case_id,
+            replacement_work.support_case_id AS replacement_case_id,
+            review.replacement_draft_id
+     FROM ai_review_events AS review
+     LEFT JOIN ai_work_items AS work ON work.id=review.work_item_id
+     LEFT JOIN ai_draft_versions AS draft ON draft.id=review.draft_version_id
+     LEFT JOIN ai_work_items AS draft_work ON draft_work.id=draft.work_item_id
+     LEFT JOIN ai_draft_versions AS replacement ON replacement.id=review.replacement_draft_id
+     LEFT JOIN ai_work_items AS replacement_work ON replacement_work.id=replacement.work_item_id
+     WHERE work.support_case_id IN (${caseMarks})
+        OR draft_work.support_case_id IN (${caseMarks})
+        OR replacement_work.support_case_id IN (${caseMarks})`,
+  ).bind(...supportCaseIds, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (reviewEvents.results.some(row => (
+    !ownsCase(row.work_case_id)
+    || !ownsCase(row.draft_case_id)
+    || row.replacement_draft_id !== null && !ownsCase(row.replacement_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const memoryDraftContexts = await env.DB.prepare(
+    `SELECT context.support_case_id,work.support_case_id AS draft_case_id
+     FROM counseling_memory_draft_context AS context
+     LEFT JOIN ai_draft_versions AS draft ON draft.id=context.draft_id
+     LEFT JOIN ai_work_items AS work ON work.id=draft.work_item_id
+     WHERE context.org_id=? AND (
+       context.support_case_id IN (${caseMarks})
+       OR work.support_case_id IN (${caseMarks})
+     )`,
+  ).bind(actor.orgId, ...supportCaseIds, ...supportCaseIds).all<DbRow>();
+  if (memoryDraftContexts.results.some(row => (
+    !ownsCase(row.support_case_id) || !ownsCase(row.draft_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  if (memoryDraftContexts.results.length > 0) {
+    throw new ConflictError('privacy purge residual scope is not supported');
+  }
+
+  if (await hasPrivacyPurgeResidual(env, actor.orgId, supportCaseIds, sessionIds)) {
+    throw new ConflictError('privacy purge residual scope is not supported');
+  }
+
+  const textWork = await env.DB.prepare(
+    `SELECT id FROM ai_text_work_queue
+     WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+  ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>();
+  const textWorkIds = textWork.results.map(row => row.id);
+  const jobs = await env.DB.prepare(
+    `SELECT job.id,job.support_case_id,job.audio_object_id,
+            session.support_case_id AS session_support_case_id,
+            audio.support_case_id AS audio_support_case_id
+     FROM agent_jobs AS job
+     LEFT JOIN sessions AS session ON session.id=job.session_id AND session.org_id=job.org_id
+     LEFT JOIN audio_objects AS audio
+       ON audio.id=job.audio_object_id AND audio.org_id=job.org_id
+     WHERE job.org_id=? AND (
+       job.support_case_id IN (${caseMarks})
+       OR session.support_case_id IN (${caseMarks})
+       OR audio.support_case_id IN (${caseMarks})
+     ) ORDER BY job.id`,
+  ).bind(
+    actor.orgId, ...supportCaseIds, ...supportCaseIds, ...supportCaseIds,
+  ).all<DbRow>();
+  if (jobs.results.some(row => (
+    !ownsCase(row.support_case_id)
+    || !ownsNullableCase(row.session_support_case_id)
+    || row.audio_object_id !== null && !ownsCase(row.audio_support_case_id)
+  ))) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  const jobIds = jobs.results.map(row => stringValue(row.id));
+  const egressSql = jobIds.length === 0
+    ? `SELECT id FROM agent_job_egress_records
+       WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`
+    : `SELECT id FROM agent_job_egress_records
+       WHERE org_id=? AND (support_case_id IN (${caseMarks})
+         OR job_id IN (${jobIds.map(() => '?').join(',')})) ORDER BY id`;
+  const egress = await env.DB.prepare(egressSql)
+    .bind(actor.orgId, ...supportCaseIds, ...jobIds).all<{ id: string }>();
+  const egressIds = egress.results.map(row => row.id);
+  const manualRevisions = sessionIds.length === 0
+    ? { results: [] as { session_id: string; revision: number }[] }
+    : await env.DB.prepare(
+      `SELECT session_id,revision FROM manual_record_revisions
+       WHERE org_id=? AND session_id IN (${sessionIds.map(() => '?').join(',')})
+       ORDER BY session_id,revision`,
+    ).bind(actor.orgId, ...sessionIds).all<{ session_id: string; revision: number }>();
+  const memorySources = await env.DB.prepare(
+    `SELECT kind,source_id,revision FROM counseling_memory_sources
+     WHERE org_id=? AND support_case_id IN (${caseMarks})
+     ORDER BY support_case_id,kind,source_id`,
+  ).bind(actor.orgId, ...supportCaseIds).all<{ kind: string; source_id: string; revision: number }>();
+  const [legacyConsents, consentEvents, consentDisclosures, pilotConsents] = await Promise.all([
+    env.DB.prepare(
+      `SELECT id FROM participant_consent_records
+       WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+    env.DB.prepare(
+      `SELECT id FROM consent_events
+       WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+    env.DB.prepare(
+      `SELECT id FROM consent_disclosure_snapshots
+       WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+    env.DB.prepare(
+      `SELECT id FROM pilot_text_ai_consent_evidence
+       WHERE org_id=? AND support_case_id IN (${caseMarks}) ORDER BY id`,
+    ).bind(actor.orgId, ...supportCaseIds).all<{ id: string }>(),
+  ]);
+  const namespaceIds = cases.results
+    .filter(row => row.enc_entity_map !== null)
+    .map(row => `entity-map:${stringValue(row.id)}:${integerValue(row.entity_map_revision) ?? 0}`);
+  const sourceIds = [
+    ...sessionIds.map(id => `session:${id}`),
+    ...audioObjectIds.map(id => `audio:${id}`),
+    ...goalIds.map(id => `goal:${id}`),
+    ...actionItemIds.map(id => `action-item:${id}`),
+    ...flagIds.map(id => `flag:${id}`),
+    ...scheduleIds.map(id => `schedule:${id}`),
+    ...snapshotIds.map(id => `snapshot:${id}`),
+    ...aiWorkIds.map(id => `ai-work:${id}`),
+    ...discrepancyIds.map(id => `discrepancy:${id}`),
+    ...audioAttempts.results.map(row => `audio-deletion-attempt:${row.id}`),
+    ...audioOutbox.results.map(row => `audio-outbox:${row.id}`),
+    ...audioMints.results.map(row => `audio-download-mint:${row.id}`),
+    ...goalRevisions.results.map(row => (
+      `goal-revision:${row.goal_id ?? 'overall'}:${row.edited_at}`
+    )),
+    ...actionRevisions.results.map(row => (
+      `action-item-revision:${stringValue(row.action_item_id)}:${integerValue(row.revision) ?? 0}`
+    )),
+    ...scheduleRevisions.results.map(row => (
+      `schedule-question-revision:${stringValue(row.question_id)}:${integerValue(row.revision) ?? 0}`
+    )),
+    ...actionOutcomes.results.map(row => `action-outcome:${stringValue(row.id)}`),
+    ...questionOutcomes.results.map(row => `question-outcome:${stringValue(row.id)}`),
+    ...scheduleGoals.results.map(row => `schedule-goal:${stringValue(row.id)}`),
+    ...scheduleQuestions.results.map(row => `schedule-question:${stringValue(row.id)}`),
+    ...evidenceItems.results.map(row => `snapshot-evidence:${stringValue(row.id)}`),
+    ...recordingResults.results.map(row => `recording-result:${stringValue(row.session_id)}`),
+    ...drafts.results.map(row => `ai-draft:${stringValue(row.id)}`),
+    ...draftMaterials.results.map(row => `ai-draft-material:${stringValue(row.id)}`),
+    ...contrastAxes.results.map(row => `ai-contrast:${stringValue(row.id)}`),
+    ...evidenceLinks.results.map(row => `ai-evidence-link:${stringValue(row.id)}`),
+    ...reviewEvents.results.map(row => `ai-review:${stringValue(row.id)}`),
+    ...pilotConsents.results.map(row => `pilot-consent-evidence:${row.id}`),
+    ...manualRevisions.results.map(row => `manual-record:${row.session_id}:${row.revision}`),
+    ...textWorkIds.map(id => `text-work:${id}`),
+    ...jobIds.map(id => `agent-job:${id}`),
+    ...egressIds.map(id => `egress:${id}`),
+    ...memorySources.results.map(row => `memory:${row.kind}:${row.source_id}:${row.revision}`),
+    ...legacyConsents.results.map(row => `legacy-consent:${row.id}`),
+    ...consentEvents.results.map(row => `consent-event:${row.id}`),
+    ...consentDisclosures.results.map(row => `consent-disclosure:${row.id}`),
+  ].sort();
+  return {
+    beneficiaryId,
+    lifecycleId,
+    supportCaseIds,
+    namespaceIds: namespaceIds.sort(),
+    sourceIds,
+    sessionIds,
+    audioObjectIds,
+    goalIds,
+    actionItemIds,
+    flagIds,
+    scheduleIds,
+    snapshotIds,
+    aiWorkIds,
+    discrepancyIds,
+    jobIds,
+    egressIds,
+    textWorkIds,
+  };
+}
+
+async function appendPrivacyPurgeIntent(
+  env: Env,
+  actor: Actor,
+  current: DbRow,
+  changedAt: string,
+): Promise<{ approvalId: string; scope: PrivacyPurgeScope }> {
+  const lifecycleId = stringValue(current.archive_id);
+  const scope = await loadPrivacyPurgeScope(env, actor, stringValue(current.beneficiary_id), lifecycleId);
+  const approvalId = newId();
+  const head = await privacyPurgeHead(env, actor.orgId);
+  const intent = await privacyPurgeEventStatement(env, actor.orgId, {
+    approvalId,
+    phase: 'intent',
+    actorId: actor.userId,
+    occurredAt: changedAt,
+    previousEventDigest: head.digest,
+    sequence: head.sequence + 1,
+    scope,
+  });
+  const caseMarks = scope.supportCaseIds.map(() => '?').join(',');
+  const statements: PreparedStatement[] = [
+    env.DB.prepare('UPDATE organization_settings SET version=version WHERE org_id=?').bind(actor.orgId),
+    env.DB.prepare(
+      `INSERT INTO participant_pii_retention_decisions(
+         id,archive_id,org_id,beneficiary_id,decision,reason_kind,reason,retain_until,decided_by,decided_at)
+       VALUES(?,?,?,?,'purge',NULL,NULL,NULL,?,?)`,
+    ).bind(approvalId, lifecycleId, actor.orgId, scope.beneficiaryId, actor.userId, changedAt),
+    env.DB.prepare(
+      `UPDATE participant_pii_archives
+       SET review_status='approved',approved_by=?,approved_at=?,
+           state_changed_by=?,state_changed_by_role='admin',state_changed_at=?,updated_at=?
+       WHERE id=? AND beneficiary_id=? AND org_id=? AND review_status='pending'`,
+    ).bind(
+      actor.userId, changedAt, actor.userId, changedAt, changedAt,
+      lifecycleId, scope.beneficiaryId, actor.orgId,
+    ),
+    intent,
+    env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state='cancelled',terminal_failure_code='privacy_purged',lease_owner=NULL,
+           claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+       WHERE org_id=? AND support_case_id IN (${caseMarks})
+         AND state IN ('pending','leased','blocked')`,
+    ).bind(changedAt, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `UPDATE agent_job_egress_records SET status='revoked'
+       WHERE org_id=? AND support_case_id IN (${caseMarks})
+         AND status IN ('authorized','in_flight')`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+  ];
+  if (scope.jobIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `UPDATE agent_job_egress_records SET status='revoked'
+       WHERE org_id=? AND job_id IN (${scope.jobIds.map(() => '?').join(',')})
+         AND status IN ('authorized','in_flight')`,
+    ).bind(actor.orgId, ...scope.jobIds));
+  }
+  if (scope.textWorkIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `UPDATE ai_text_work_queue
+       SET status='pending',lease_owner=NULL,lease_expires_at=NULL
+       WHERE org_id=? AND id IN (${scope.textWorkIds.map(() => '?').join(',')})
+         AND status='processing'`,
+    ).bind(actor.orgId, ...scope.textWorkIds));
+  }
+  const results = await env.DB.batch(statements);
+  if ((results[2]?.meta?.changes ?? 0) < 1 || (results[3]?.meta?.changes ?? 0) < 1) {
+    throw new ConflictError('PII retention review is unavailable');
+  }
+  return { approvalId, scope };
+}
+
+async function resumePrivacyPurgeIntent(
+  env: Env,
+  actor: Actor,
+  current: DbRow,
+): Promise<{ approvalId: string; scope: PrivacyPurgeScope }> {
+  if (stringValue(current.approved_by) !== actor.userId) {
+    throw new ConflictError('PII retention review is unavailable');
+  }
+  const intent = await env.DB.prepare(
+    `SELECT approval_id,support_case_ids_json,namespace_ids_json,source_ids_json
+     FROM privacy_purge_events
+     WHERE org_id=? AND lifecycle_id=? AND beneficiary_id=? AND phase='intent'`,
+  ).bind(actor.orgId, stringValue(current.archive_id), stringValue(current.beneficiary_id)).first<DbRow>();
+  if (intent === null) throw new ConflictError('PII retention review is unavailable');
+  const scope = await loadPrivacyPurgeScope(
+    env, actor, stringValue(current.beneficiary_id), stringValue(current.archive_id),
+  );
+  if (
+    canonicalizeJcs(scope.supportCaseIds) !== stringValue(intent.support_case_ids_json)
+    || canonicalizeJcs(scope.namespaceIds) !== stringValue(intent.namespace_ids_json)
+    || canonicalizeJcs(scope.sourceIds) !== stringValue(intent.source_ids_json)
+  ) throw new ConflictError('privacy purge scope ownership is ambiguous');
+  return { approvalId: stringValue(intent.approval_id), scope };
+}
+
+async function completePrivacyPurge(
+  env: Env,
+  actor: Actor,
+  current: DbRow,
+  approvalId: string,
+  scope: PrivacyPurgeScope,
+): Promise<void> {
+  const approvedAt = stringValue(current.approved_at);
+  const completedAt = now();
+  const erasedEntityMap = await encryptPii(env, canonicalizeJcs({ version: 1, entries: [] }));
+  if (erasedEntityMap === null) throw new ConflictError('privacy purge scope encryption failed');
+  const head = await privacyPurgeHead(env, actor.orgId);
+  const complete = await privacyPurgeEventStatement(env, actor.orgId, {
+    approvalId,
+    phase: 'complete',
+    actorId: actor.userId,
+    occurredAt: completedAt,
+    previousEventDigest: head.digest,
+    sequence: head.sequence + 1,
+    scope,
+  });
+  const caseMarks = scope.supportCaseIds.map(() => '?').join(',');
+  const statements: PreparedStatement[] = [
+    env.DB.prepare('UPDATE organization_settings SET version=version WHERE org_id=?').bind(actor.orgId),
+    env.DB.prepare(
+      `UPDATE participant_pii_vault
+       SET enc_name=NULL,enc_phone=NULL,enc_account=NULL,enc_email=NULL,enc_birth_date=NULL,
+           enc_region=NULL,enc_emergency_contact=NULL,enc_gender=NULL,purge_due=NULL,purged_at=?,
+           purged_by=?,purged_by_role='admin',retention_changed_by=?,
+           retention_context_support_case_id=NULL,retention_change_kind='purge_pii',
+           retention_changed_at=?,version=version+1,updated_at=?
+       WHERE beneficiary_id=? AND org_id=? AND purged_at IS NULL AND purge_due IS NOT NULL`,
+    ).bind(
+      approvedAt, actor.userId, actor.userId, approvedAt, approvedAt,
+      scope.beneficiaryId, actor.orgId,
+    ),
+    env.DB.prepare(
+      `UPDATE participant_pii_archives
+       SET enc_name=NULL,enc_phone=NULL,enc_account=NULL,enc_email=NULL,enc_birth_date=NULL,
+           enc_region=NULL,enc_emergency_contact=NULL,enc_gender=NULL,review_status='purged',
+           purged_at=?,state_changed_by=?,state_changed_by_role='admin',state_changed_at=?,updated_at=?
+       WHERE id=? AND beneficiary_id=? AND org_id=? AND review_status='approved'`,
+    ).bind(
+      approvedAt, actor.userId, approvedAt, approvedAt,
+      scope.lifecycleId, scope.beneficiaryId, actor.orgId,
+    ),
+    env.DB.prepare(
+      `UPDATE support_cases
+       SET legacy_case_id=NULL,intake_at=NULL,consent_recording_at=NULL,consent_text_ai_at=NULL,
+           extra=NULL,overall_goal=NULL,enc_entity_map=?,
+           entity_map_revision=entity_map_revision+1,entity_map_key_version=?,
+           entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+           entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL,updated_at=?
+       WHERE org_id=? AND id IN (${caseMarks}) AND beneficiary_id=? AND status='closed'`,
+    ).bind(
+      erasedEntityMap, activePiiKeyVersion(env), completedAt,
+      actor.orgId, ...scope.supportCaseIds, scope.beneficiaryId,
+    ),
+  ];
+  statements.push(
+    env.DB.prepare(
+      `DELETE FROM manual_action_outcomes
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM manual_question_outcomes
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM action_item_revisions
+       WHERE org_id=? AND action_item_id IN (
+         SELECT id FROM action_items
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM schedule_question_revisions
+       WHERE org_id=? AND question_id IN (
+         SELECT id FROM schedule_custom_questions
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM schedule_session_goals
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM schedule_custom_questions
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM session_goal_scores
+       WHERE org_id=? AND (
+         session_id IN (
+           SELECT id FROM sessions WHERE org_id=? AND support_case_id IN (${caseMarks})
+         )
+         OR goal_id IN (
+           SELECT id FROM goals WHERE org_id=? AND support_case_id IN (${caseMarks})
+         )
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_gas_evidence
+       WHERE org_id=? AND (
+         session_id IN (
+           SELECT id FROM sessions WHERE org_id=? AND support_case_id IN (${caseMarks})
+         )
+         OR goal_id IN (
+           SELECT id FROM goals WHERE org_id=? AND support_case_id IN (${caseMarks})
+         )
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM session_discrepancies
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM action_items
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM flags
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_evidence_links
+       WHERE draft_version_id IN (
+         SELECT draft.id FROM ai_draft_versions AS draft
+         JOIN ai_work_items AS work ON work.id=draft.work_item_id
+         WHERE work.org_id=? AND work.support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_review_events
+       WHERE work_item_id IN (
+         SELECT id FROM ai_work_items
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_draft_contrast_axes
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_draft_source_materials
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM recording_result_commits
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM agent_job_result_acceptances
+       WHERE job_id IN (
+         SELECT id FROM agent_jobs
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_draft_versions
+       WHERE work_item_id IN (
+         SELECT id FROM ai_work_items
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_work_items
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_masked_source_evidence_items
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM ai_masked_source_snapshots
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM pilot_text_ai_consent_evidence
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM goal_revisions
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_schedules
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM goals
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM audio_download_target_mints
+       WHERE org_id=? AND audio_object_id IN (
+         SELECT id FROM audio_objects
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM audio_deletion_attempts
+       WHERE org_id=? AND audio_object_id IN (
+         SELECT id FROM audio_objects
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM audio_lifecycle_outbox
+       WHERE org_id=? AND audio_object_id IN (
+         SELECT id FROM audio_objects
+         WHERE org_id=? AND support_case_id IN (${caseMarks})
+       )`,
+    ).bind(actor.orgId, actor.orgId, ...scope.supportCaseIds),
+  );
+  if (scope.egressIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `DELETE FROM agent_job_egress_records
+       WHERE org_id=? AND id IN (${scope.egressIds.map(() => '?').join(',')})`,
+    ).bind(actor.orgId, ...scope.egressIds));
+  }
+  if (scope.jobIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `DELETE FROM agent_jobs
+       WHERE org_id=? AND id IN (${scope.jobIds.map(() => '?').join(',')})`,
+    ).bind(actor.orgId, ...scope.jobIds));
+  }
+  if (scope.audioObjectIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `DELETE FROM audio_objects
+       WHERE org_id=? AND id IN (${scope.audioObjectIds.map(() => '?').join(',')})`,
+    ).bind(actor.orgId, ...scope.audioObjectIds));
+  }
+  if (scope.textWorkIds.length > 0) {
+    statements.push(env.DB.prepare(
+      `DELETE FROM ai_text_work_queue
+       WHERE org_id=? AND id IN (${scope.textWorkIds.map(() => '?').join(',')})`,
+    ).bind(actor.orgId, ...scope.textWorkIds));
+  }
+  if (scope.sessionIds.length > 0) {
+    const sessionMarks = scope.sessionIds.map(() => '?').join(',');
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM manual_record_revisions WHERE org_id=? AND session_id IN (${sessionMarks})`,
+      ).bind(actor.orgId, ...scope.sessionIds),
+      env.DB.prepare(
+        `DELETE FROM sessions WHERE org_id=? AND id IN (${sessionMarks})`,
+      ).bind(actor.orgId, ...scope.sessionIds),
+    );
+  }
+  statements.push(
+    env.DB.prepare(
+      `DELETE FROM consent_events
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM participant_consent_records
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM consent_disclosure_snapshots
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_materials
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_links
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_history
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_items
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_corrections
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_derived
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_sources
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM counseling_memory_cases
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    env.DB.prepare(
+      `DELETE FROM support_case_assignees
+       WHERE org_id=? AND support_case_id IN (${caseMarks})`,
+    ).bind(actor.orgId, ...scope.supportCaseIds),
+    complete,
+  );
+  const results = await env.DB.batch(statements);
+  if ((results[1]?.meta?.changes ?? 0) < 1
+    || (results[2]?.meta?.changes ?? 0) < 1
+    || (results[3]?.meta?.changes ?? 0) < scope.supportCaseIds.length
+    || (results.at(-1)?.meta?.changes ?? 0) < 1) {
+    throw new ConflictError('privacy purge did not erase the complete scope');
+  }
+}
+
 export async function reviewParticipantPiiRetention(
   env: Env,
   actor: Actor,
@@ -17041,9 +20186,9 @@ export async function reviewParticipantPiiRetention(
   assertBeneficiaryId(beneficiaryId);
   const current = await env.DB.prepare(
     `SELECT id AS archive_id, beneficiary_id, archived_at, review_status, review_due_at,
-            retention_cap_due_at, review_reason_kind
+            retention_cap_due_at, review_reason_kind, approved_by, approved_at
      FROM participant_pii_archives
-     WHERE beneficiary_id = ? AND org_id = ? AND review_status = 'pending'`,
+     WHERE beneficiary_id = ? AND org_id = ? AND review_status IN ('pending','approved')`,
   ).bind(beneficiaryId, actor.orgId).first<DbRow>();
   if (current === null) {
     throw new ConflictError('PII retention review is unavailable');
@@ -17051,6 +20196,9 @@ export async function reviewParticipantPiiRetention(
 
   const changedAt = now();
   if (input.decision === 'retain') {
+    if (current.review_status !== 'pending') {
+      throw new ConflictError('PII retention review is unavailable');
+    }
     const reason = input.reason.trim();
     if (reason.length < 1 || reason.length > 500) {
       throw new ValidationError('retention reason is invalid');
@@ -17106,40 +20254,18 @@ export async function reviewParticipantPiiRetention(
     }
   } else {
     if (!isPiiPurgeEnabled(env)) throw new PiiPurgeDisabledError();
-    const results = await env.DB.batch([
-      env.DB.prepare(
-        `INSERT INTO participant_pii_retention_decisions (
-           id, archive_id, org_id, beneficiary_id, decision, reason_kind, reason,
-           retain_until, decided_by, decided_at
-         ) VALUES (?, ?, ?, ?, 'purge', NULL, NULL, NULL, ?, ?)`,
-      ).bind(
-        newId(),
-        stringValue(current.archive_id),
-        actor.orgId,
-        beneficiaryId,
-        actor.userId,
-        changedAt,
-      ),
-      env.DB.prepare(
-        `UPDATE participant_pii_archives
-         SET review_status = 'approved',
-             approved_by = ?, approved_at = ?,
-             state_changed_by = ?, state_changed_by_role = 'admin',
-             state_changed_at = ?, updated_at = ?
-         WHERE beneficiary_id = ? AND org_id = ? AND review_status = 'pending'`,
-      ).bind(
-        actor.userId,
-        changedAt,
-        actor.userId,
-        changedAt,
-        changedAt,
-        beneficiaryId,
-        actor.orgId,
-      ),
-    ]);
-    if ((results[1]?.meta?.changes ?? 0) < 1) {
-      throw new ConflictError('PII retention review is unavailable');
-    }
+    const prepared = current.review_status === 'pending'
+      ? await appendPrivacyPurgeIntent(env, actor, current, changedAt)
+      : await resumePrivacyPurgeIntent(env, actor, current);
+    await completePrivacyPurge(
+      env,
+      actor,
+      current.review_status === 'pending'
+        ? { ...current, approved_by: actor.userId, approved_at: changedAt }
+        : current,
+      prepared.approvalId,
+      prepared.scope,
+    );
   }
 
   const reviewed = await env.DB.prepare(
@@ -18312,6 +21438,7 @@ export interface CounselingRecordDiscrepancy {
 }
 
 export interface CounselingRecordDetails extends CounselingRecord {
+  manual: ManualRecordProjection | null;
   completedSchedule: CounselingRecordCompletedSchedule | null;
   gasScores: CounselingRecordGasScore[];
   actionItems: ActionItem[];
@@ -18359,12 +21486,6 @@ export interface CounselingRecordFlagInput {
 export const ACTION_ITEM_RESOLUTION_STATUSES = ['done', 'in_progress', 'not_done', 'hold'] as const;
 export type ActionItemResolutionStatus = (typeof ACTION_ITEM_RESOLUTION_STATUSES)[number];
 
-export interface CounselingRecordActionItemResolutionInput {
-  actionItemId: string;
-  status: ActionItemResolutionStatus;
-  note?: string;
-
-}
 
 /**
  * 생활 6영역 스냅샷 (CCC-8). 키·상태값의 유일 출처.
@@ -18391,16 +21512,6 @@ export const LIFE_AREA_STATUSES = [
 ] as const;
 export type LifeAreaStatus = (typeof LIFE_AREA_STATUSES)[number];
 
-/**
- * 회차별 6영역 입력. changed=false('변화 없음')면 직전 세션 스냅샷 값을 복사한다
- * (직전 없으면 미기록 — 행 미생성). changed=true 면 제출된 status(+note)로 기록한다.
- */
-export interface CounselingRecordLifeAreaInput {
-  areaKey: LifeAreaKey;
-  changed: boolean;
-  status?: LifeAreaStatus;
-  note?: string;
-}
 
 /** 저장·조회되는 한 영역의 스냅샷 값. */
 export interface LifeAreaSnapshotEntry {
@@ -18409,50 +21520,9 @@ export interface LifeAreaSnapshotEntry {
   note: string | null;
 }
 
-/**
- * 정기 기록지 서술형 항목(CCC-10 · 0016 record_details). 전부 선택이며, 하나라도 채워진
- * 경우에만 details 를 보낸다(빈 객체는 거부). 값은 서술 기록일 뿐 자동 판정 입력이
- * 아니다 — 플래그 확정·GAS 점수는 여전히 실무자 몫이다(D6·D9·R5).
- */
-export interface CounselingRecordDetailsInput {
-  /** 이번 상담 목표 — 일정에 세션 목표가 연결되지 않은 회차에서만 기록한다(D28). */
-  sessionGoalNote?: string;
-  /** 지난 상담 이후 달라진 일. */
-  changeSinceLast?: string;
-  /** 위기·안전 확인 서술. */
-  safetyNote?: string;
-  /** 담당 실무자 의견(당사자 발언과 구분). */
-  counselorOpinion?: string;
-}
-
-export interface CreateCounselingRecordInput {
-  submissionId: string;
-  heldAt: string;
-  channel: Session['channel'];
-  memo: string;
-  gasScores: CounselingRecordGasScoreInput[];
-  actionItems: CounselingRecordActionItemInput[];
-  flags: CounselingRecordFlagInput[];
-  actionItemResolutions?: CounselingRecordActionItemResolutionInput[];
-  // 6영역 전체 스냅샷(CCC-8). 구 클라이언트 호환을 위해 옵션 — 생략 시 스냅샷 미저장.
-  lifeAreas?: CounselingRecordLifeAreaInput[];
-  // 서술형 항목(CCC-10). 생략 시 record_details 는 NULL.
-  details?: CounselingRecordDetailsInput;
-  // 구 목표 종료+신설(goalTransition)은 D62 §5 로 폐지. 닫기는 closeGoal 단일 관문이다.
-  scheduleId?: string;
-  expectedScheduleVersion?: number;
-}
-
-/** record_details 에 담기는 서술형 키 목록(CCC-10 · 0016). 유일 출처. */
-export const COUNSELING_RECORD_DETAIL_KEYS = [
-  'sessionGoalNote',
-  'changeSinceLast',
-  'safetyNote',
-  'counselorOpinion',
-] as const;
 
 export interface CounselingRecordResult {
-  record: CounselingRecord;
+  record: CounselingRecord & { manual: Pick<ManualRecordProjection, 'schemaVersion' | 'revision' | 'details'> };
   replayed: boolean;
 }
 
@@ -18471,134 +21541,15 @@ function mapCounselingRecord(row: DbRow, aiSummary: string | null = null, approv
   };
 }
 
-function assertCounselingRecordInput(input: CreateCounselingRecordInput): void {
-  const hasSchedule = input.scheduleId !== undefined || input.expectedScheduleVersion !== undefined;
-  const hasResolutions = input.actionItemResolutions !== undefined;
-  const hasLifeAreas = input.lifeAreas !== undefined;
-  const expectedKeys = ['submissionId', 'heldAt', 'channel', 'memo', 'gasScores', 'actionItems', 'flags'];
-  if (hasResolutions) expectedKeys.push('actionItemResolutions');
-  if (hasLifeAreas) expectedKeys.push('lifeAreas');
-  if (input.details !== undefined) expectedKeys.push('details');
-  if (hasSchedule) expectedKeys.push('scheduleId', 'expectedScheduleVersion');
-  assertExactKeys(input, expectedKeys);
+function assertCounselingRecordInput(input: CreateManualRecordInput): void {
+  try {
+    parseCreateManualRecord(input);
+  } catch (error) {
+    if (error instanceof ManualRecordContractError) throw new ValidationError(error.message);
+    throw error;
+  }
   assertCanonicalSubmissionId(input.submissionId);
-  canonicalUtcInstant(input.heldAt, 'record time');
-  if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
-    throw new ValidationError('record channel is invalid');
-  }
-  assertNonBlankText(input.memo, 'record memo');
-  assertBoundedArray(input.gasScores, 'GAS scores', MAX_ACTIVE_GOALS);
-  assertBoundedArray(input.actionItems, 'action items', 20);
-  assertBoundedArray(input.flags, 'flags', 20);
-  if (hasSchedule) {
-    assertOpaqueIdentifier(input.scheduleId, 'schedule id');
-    if (
-      typeof input.expectedScheduleVersion !== 'number'
-      || !Number.isInteger(input.expectedScheduleVersion)
-      || input.expectedScheduleVersion < 1
-    ) {
-      throw new ValidationError('schedule version is invalid');
-    }
-  }
-
-  const goalIds = new Set<string>();
-  for (const score of input.gasScores) {
-    assertExactKeys(score, ['goalId', 'score']);
-    assertOpaqueIdentifier(score.goalId, 'goal id');
-    if (!Number.isInteger(score.score) || score.score < -2 || score.score > 2) {
-      throw new ValidationError('GAS score is invalid');
-    }
-    if (goalIds.has(score.goalId)) {
-      throw new ValidationError('GAS score is duplicated');
-    }
-    goalIds.add(score.goalId);
-  }
-  for (const action of input.actionItems) {
-    assertExactKeys(action, action.dueDate === undefined ? ['description', 'owner'] : ['description', 'owner', 'dueDate']);
-    assertNonBlankText(action.description, 'action description');
-    if (action.owner !== 'counselor' && action.owner !== 'beneficiary' && action.owner !== 'org') {
-      throw new ValidationError('action owner is invalid');
-    }
-    if (action.dueDate !== undefined) assertDateOnly(action.dueDate);
-  }
-  for (const flag of input.flags) {
-    assertExactKeys(flag, flag.quote === undefined ? ['flagType'] : ['flagType', 'quote']);
-    toFlagType(flag.flagType);
-    if (flag.quote !== undefined) assertNonBlankText(flag.quote, 'flag quote');
-  }
-  if (input.actionItemResolutions !== undefined) {
-    assertBoundedArray(input.actionItemResolutions, 'action item resolutions', 20);
-    const resolvedActionIds = new Set<string>();
-    for (const resolution of input.actionItemResolutions) {
-      assertExactKeys(resolution, resolution.note === undefined ? ['actionItemId', 'status'] : ['actionItemId', 'status', 'note']);
-      assertOpaqueIdentifier(resolution.actionItemId, 'action item id');
-      if (!(ACTION_ITEM_RESOLUTION_STATUSES as readonly string[]).includes(resolution.status)) {
-        throw new ValidationError('action item resolution status is invalid');
-      }
-      if (resolution.note !== undefined) assertNonBlankText(resolution.note, 'action item resolution note');
-      if (resolvedActionIds.has(resolution.actionItemId)) {
-        throw new ValidationError('action item resolution is duplicated');
-      }
-      resolvedActionIds.add(resolution.actionItemId);
-    }
-  }
-  if (input.lifeAreas !== undefined) assertLifeAreaInputs(input.lifeAreas);
-  if (input.details !== undefined) assertCounselingRecordDetails(input.details);
-}
-
-/**
- * 서술형 항목 검증(CCC-10). 알려진 키만 허용하고 값은 공백이 아닌 문자열이어야 한다.
- * 빈 객체는 거부한다 — 채운 항목이 없으면 details 자체를 생략한다(제출 해시 정합).
- */
-function assertCounselingRecordDetails(details: CounselingRecordDetailsInput): void {
-  if (details === null || typeof details !== 'object' || Array.isArray(details)) {
-    throw new ValidationError('record details is invalid');
-  }
-  const keys = Object.keys(details);
-  if (keys.length === 0) throw new ValidationError('record details is empty');
-  for (const key of keys) {
-    if (!(COUNSELING_RECORD_DETAIL_KEYS as readonly string[]).includes(key)) {
-      throw new ValidationError('record details is invalid');
-    }
-    assertNonBlankText((details as Record<string, unknown>)[key], `record detail ${key}`);
-  }
-}
-
-/**
- * 6영역 입력 검증(CCC-8). 6영역 전부 포함(누락 거부)·중복 금지·알 수 없는 키 거부.
- * changed=true 면 유효한 status 필수(note 선택), changed=false 면 status/note 불허
- * (직전 스냅샷을 복사하므로 값을 받지 않는다).
- */
-function assertLifeAreaInputs(lifeAreas: CounselingRecordLifeAreaInput[]): void {
-  assertBoundedArray(lifeAreas, 'life areas', LIFE_AREA_KEYS.length);
-  const seen = new Set<string>();
-  for (const area of lifeAreas) {
-    if (typeof area !== 'object' || area === null || typeof area.changed !== 'boolean') {
-      throw new ValidationError('life area is invalid');
-    }
-    assertExactKeys(
-      area,
-      area.changed
-        ? (area.note === undefined ? ['areaKey', 'changed', 'status'] : ['areaKey', 'changed', 'status', 'note'])
-        : ['areaKey', 'changed'],
-    );
-    if (!(LIFE_AREA_KEYS as readonly string[]).includes(area.areaKey)) {
-      throw new ValidationError('life area key is invalid');
-    }
-    if (seen.has(area.areaKey)) {
-      throw new ValidationError('life area is duplicated');
-    }
-    seen.add(area.areaKey);
-    if (area.changed) {
-      if (area.status === undefined || !(LIFE_AREA_STATUSES as readonly string[]).includes(area.status)) {
-        throw new ValidationError('life area status is invalid');
-      }
-      if (area.note !== undefined) assertNonBlankText(area.note, 'life area note');
-    }
-  }
-  if (seen.size !== LIFE_AREA_KEYS.length) {
-    throw new ValidationError('life areas must cover all six areas');
-  }
+  for (const flag of input.flags ?? []) toFlagType(flag.flagType);
 }
 
 async function assertRecordGoalsBelongToSupportCase(
@@ -18618,29 +21569,12 @@ async function assertRecordGoalsBelongToSupportCase(
     throw new ForbiddenError('record context is unavailable');
   }
 }
-async function assertActionResolutionsAreOpenInSupportCase(
-  env: Env,
-  orgId: string,
-  supportCaseId: string,
-  resolutions: CounselingRecordActionItemResolutionInput[],
-): Promise<void> {
-  if (resolutions.length === 0) return;
-  const actionItemIds = resolutions.map((resolution) => resolution.actionItemId);
-  const placeholders = actionItemIds.map(() => '?').join(', ');
-  const found = await env.DB.prepare(
-    `SELECT id FROM action_items
-     WHERE org_id = ? AND support_case_id = ? AND resolved_at IS NULL AND id IN (${placeholders})`,
-  ).bind(orgId, supportCaseId, ...actionItemIds).all<{ id: string }>();
-  if (found.results.length !== actionItemIds.length) {
-    throw new ForbiddenError('record context is unavailable');
-  }
-}
 
 async function recordReplay(
   env: Env,
   actor: Actor,
   supportCaseId: string,
-  input: CreateCounselingRecordInput,
+  input: Pick<CreateManualRecordInput, 'submissionId'>,
   submissionHash: string,
 ): Promise<CounselingRecordResult | null> {
   const row = await env.DB.prepare(
@@ -18653,7 +21587,7 @@ async function recordReplay(
   if (row.submitted_by !== actor.userId || row.submission_hash !== submissionHash) {
     throw new ConflictError('submission conflicts with an existing official operation');
   }
-  return { record: mapCounselingRecord(row), replayed: true };
+  return { record: { ...mapCounselingRecord(row), manual: { schemaVersion: 2, revision: integerValue(row.manual_revision)!, details: storedManualDetails(row) } }, replayed: true };
 }
 
 function mapLifeAreaSnapshotRow(row: DbRow): LifeAreaSnapshotEntry {
@@ -18664,32 +21598,201 @@ function mapLifeAreaSnapshotRow(row: DbRow): LifeAreaSnapshotEntry {
   };
 }
 
-/**
- * 직전 6영역 스냅샷(CCC-8): 해당 support case 의 세션 중 스냅샷을 보유한 최신 회차의
- * 값. '변화 없음' 복사원본이자, 기록 작성 폼의 "직전 상태" 표시원이다. 순서는
- * listCounselingRecords 와 같은 held_at DESC, id DESC — 복사원본과 표시값이 일치한다.
- */
-async function getLatestLifeAreaSnapshot(
-  env: Env,
-  orgId: string,
-  supportCaseId: string,
-): Promise<LifeAreaSnapshotEntry[]> {
-  const rows = await env.DB.prepare(
-    `SELECT snapshot.area_key, snapshot.status, snapshot.note
-     FROM session_life_area_snapshots AS snapshot
-     WHERE snapshot.org_id = ? AND snapshot.session_id = (
-       SELECT session.id FROM sessions AS session
-       WHERE session.org_id = ? AND session.support_case_id = ?
-         AND EXISTS (
-           SELECT 1 FROM session_life_area_snapshots AS latest
-           WHERE latest.session_id = session.id
-         )
-       ORDER BY session.held_at DESC, session.id DESC
-       LIMIT 1
-     )
-     ORDER BY snapshot.area_key`,
-  ).bind(orgId, orgId, supportCaseId).all<DbRow>();
-  return rows.results.map(mapLifeAreaSnapshotRow);
+
+function storedManualDetails(row: DbRow): ManualRecordDetails | null {
+  if (integerValue(row.manual_schema_version) !== 2) return null;
+  return JSON.parse(stringValue(row.record_details)) as ManualRecordDetails;
+}
+
+/** Internal identities select rows and order them; they never enter provider text. */
+async function appendManualSourceText(
+  parts: string[], env: Env, orgId: string, supportCaseId: string, row: DbRow,
+): Promise<void> {
+  const details = storedManualDetails(row);
+  if (details === null) return;
+  const sessionId = stringValue(row.id);
+  const [actions, actionOutcomes, questionOutcomes] = await Promise.all([
+    env.DB.prepare(`SELECT description, owner, due_date, resolution_status, resolution_note, resolved_at, stop_reason
+      FROM action_items WHERE org_id = ? AND support_case_id = ? AND session_id = ? ORDER BY created_at, id`)
+      .bind(orgId, supportCaseId, sessionId).all<DbRow>(),
+    env.DB.prepare(`SELECT a.description, a.owner, o.outcome, o.continuation, o.reason
+      FROM manual_action_outcomes o JOIN action_items a ON a.id = o.action_item_id
+        AND a.org_id = o.org_id AND a.support_case_id = o.support_case_id
+      WHERE o.org_id = ? AND o.support_case_id = ? AND o.session_id = ? ORDER BY o.action_item_id`)
+      .bind(orgId, supportCaseId, sessionId).all<DbRow>(),
+    env.DB.prepare(`SELECT kind, source_text, outcome, answer FROM manual_question_outcomes
+      WHERE org_id = ? AND support_case_id = ? AND session_id = ? ORDER BY kind, question_id`)
+      .bind(orgId, supportCaseId, sessionId).all<DbRow>(),
+  ]);
+  parts.push(`[상담 방식] ${details.method}`);
+  if (details.reason !== null) parts.push(`[상담 사유] ${details.reason}`);
+  if (details.urgency !== null) parts.push(`[긴급도] ${details.urgency}`);
+  for (const change of details.changes) parts.push(`[영역 변화 ${change.area}] ${change.text}`);
+  if (details.counselorOpinion !== null) parts.push(`[이 회차 실무자 의견] ${details.counselorOpinion}`);
+  for (const question of details.nextQuestions) parts.push(`[다음 질문] ${question.body}`);
+  for (const action of actions.results) {
+    parts.push(`[액션] ${stringValue(action.description)}`, `[액션 담당] ${stringValue(action.owner)}`);
+    for (const [field, label] of [
+      ['due_date', '액션 기한'], ['resolution_status', '액션 상태'], ['resolution_note', '액션 처리 메모'],
+      ['resolved_at', '액션 해결 시각'], ['stop_reason', '액션 중단 사유'],
+    ] as const) {
+      const value = nullableString(action[field]);
+      if (value !== null) parts.push(`[${label}] ${value}`);
+    }
+  }
+  for (const outcome of actionOutcomes.results) {
+    parts.push(`[액션 결과] ${stringValue(outcome.description)}`, `[액션 담당] ${stringValue(outcome.owner)}`,
+      `[처리 결과] ${stringValue(outcome.outcome)}`);
+    const continuation = nullableString(outcome.continuation), reason = nullableString(outcome.reason);
+    if (continuation !== null) parts.push(`[계속 여부] ${continuation}`);
+    if (reason !== null) parts.push(`[처리 사유] ${reason}`);
+  }
+  for (const outcome of questionOutcomes.results) {
+    parts.push(`[질문 ${stringValue(outcome.kind)}] ${stringValue(outcome.source_text)}`,
+      `[질문 처리] ${stringValue(outcome.outcome)}`);
+    const answer = nullableString(outcome.answer);
+    if (answer !== null) parts.push(`[확정 답변] ${answer}`);
+  }
+}
+
+/** Canonical manual entities only. AI drafts and derived memory cards are not sources. */
+async function loadManualWork(env: Env, orgId: string, supportCaseId: string) {
+  // One statement selects all source IDs/revisions and result-owning sessions.
+  // Independent adapter reads after this point may observe later commits.
+  const sources = await env.DB.prepare(`SELECT * FROM (
+    SELECT 'action' AS source_kind, a.id, a.revision, NULL AS source_id,
+      a.session_id AS source_session_id, s.held_at AS source_held_at, NULL AS source_scheduled_at,
+      a.created_at, a.description AS body, a.owner, a.due_date, a.resolved_at, a.stop_reason,
+      NULL AS record_details, CAST(NULL AS BIGINT) AS manual_schema_version, NULL AS ordinal,
+      NULL AS intake_details, NULL AS intake_question_lifecycle, CAST(NULL AS BIGINT) AS intake_schema_version
+    FROM action_items a LEFT JOIN sessions s ON s.id = a.session_id AND s.org_id = a.org_id
+    WHERE a.org_id = ? AND a.support_case_id = ?
+    UNION ALL
+    SELECT 'schedule', q.id, q.revision, q.schedule_id, s.completed_session_id,
+      origin.held_at, s.scheduled_at, q.created_at, q.body, NULL, NULL, NULL, NULL, NULL, NULL, q.ordinal, NULL, NULL, NULL
+    FROM schedule_custom_questions q
+    JOIN counseling_schedules s ON s.id = q.schedule_id AND s.org_id = q.org_id
+    LEFT JOIN sessions origin ON origin.id = s.completed_session_id AND origin.org_id = s.org_id
+    WHERE q.org_id = ? AND q.support_case_id = ?
+    UNION ALL
+    SELECT 'record', s.id, s.manual_revision, NULL, s.id, s.held_at, NULL, s.created_at,
+      NULL, NULL, NULL, NULL, NULL, s.record_details, s.manual_schema_version, NULL, NULL, NULL, NULL
+    FROM sessions s WHERE s.org_id = ? AND s.support_case_id = ? AND s.kind = 'regular' AND s.manual_schema_version = 2
+    UNION ALL
+    SELECT 'intake', s.id, s.intake_revision, NULL, s.id, s.held_at, NULL, s.created_at,
+      NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, s.intake_details, s.intake_question_lifecycle, s.intake_schema_version
+    FROM sessions s WHERE s.org_id = ? AND s.support_case_id = ? AND s.kind = 'intake'
+  ) AS manual_work_sources
+  ORDER BY COALESCE(source_held_at, source_scheduled_at, created_at), created_at, ordinal, id`)
+    .bind(orgId, supportCaseId, orgId, supportCaseId, orgId, supportCaseId, orgId, supportCaseId).all<DbRow>();
+  const actions = new Map<string, ManualOpenAction>();
+  const questions = new Map<string, ManualPendingQuestion>();
+  const selectedRecordIds = new Set<string>();
+  let intake: Awaited<ReturnType<typeof loadIntakeQuestionHistory>> | null = null;
+  for (const row of sources.results) {
+    const id = stringValue(row.id);
+    if (row.source_kind === 'action') {
+      actions.set(id, {
+        id, revision: integerValue(row.revision)!, sourceSessionId: nullableString(row.source_session_id),
+        sourceHeldAt: nullableString(row.source_held_at), createdAt: stringValue(row.created_at),
+        description: stringValue(row.body), owner: stringValue(row.owner) as ActionItem['owner'], dueDate: nullableString(row.due_date),
+        state: row.resolved_at == null ? 'open' : row.stop_reason == null ? 'done' : 'stopped', history: [], outcomes: [],
+      });
+    } else if (row.source_kind === 'schedule') {
+      questions.set(`schedule:${id}`, {
+        kind: 'schedule', id, sourceId: stringValue(row.source_id), sourceRevision: integerValue(row.revision)!,
+        sourceSessionId: nullableString(row.source_session_id), sourceHeldAt: nullableString(row.source_held_at),
+        sourceScheduledAt: stringValue(row.source_scheduled_at), createdAt: stringValue(row.created_at),
+        body: stringValue(row.body), state: 'open', outcomes: [],
+      });
+    } else if (row.source_kind === 'intake') {
+      if (intake !== null) throw new ConflictError('intake source is ambiguous');
+      intake = await loadIntakeQuestionHistory(env, orgId, { ...row, intake_revision: row.revision, held_at: row.source_held_at });
+      for (const { item, value } of intake.references.values()) {
+        questions.set(`intake:${item.id}`, {
+          kind: 'intake', id: item.id, sourceId: id, sourceRevision: item.revision,
+          sourceSessionId: id, sourceHeldAt: stringValue(row.source_held_at), sourceScheduledAt: null,
+          createdAt: item.createdAt, body: value.item, state: item.withdrawn === null ? 'open' : 'withdrawn', outcomes: [],
+        });
+      }
+    } else {
+      selectedRecordIds.add(id);
+      for (const question of storedManualDetails(row)!.nextQuestions) {
+        questions.set(`record:${question.id}`, {
+          kind: 'record', id: question.id, sourceId: id, sourceRevision: integerValue(row.revision)!,
+          sourceSessionId: id, sourceHeldAt: stringValue(row.source_held_at), sourceScheduledAt: null,
+          createdAt: stringValue(row.created_at), body: question.body, state: 'open', outcomes: [],
+        });
+      }
+    }
+  }
+  const [actionHistory, actionOutcomes, questionOutcomes] = await Promise.all([
+    env.DB.prepare(`SELECT h.* FROM action_item_revisions h JOIN action_items a ON a.id = h.action_item_id AND a.org_id = h.org_id
+      WHERE a.org_id = ? AND a.support_case_id = ? ORDER BY h.revision`).bind(orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, s.held_at FROM manual_action_outcomes o JOIN manual_record_revisions s ON s.session_id = o.session_id AND s.org_id = o.org_id AND s.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? ORDER BY s.held_at, s.session_id`).bind(orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, s.held_at FROM manual_question_outcomes o JOIN manual_record_revisions s ON s.session_id = o.session_id AND s.org_id = o.org_id AND s.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? ORDER BY s.held_at, s.session_id`).bind(orgId, supportCaseId).all<DbRow>(),
+  ]);
+  for (const row of actionHistory.results) {
+    const action = actions.get(stringValue(row.action_item_id));
+    if (action === undefined || integerValue(row.revision)! > action.revision) continue;
+    action.history.push({
+      revision: integerValue(row.revision)!, description: stringValue(row.description), owner: stringValue(row.owner) as ActionItem['owner'],
+      dueDate: nullableString(row.due_date), resolutionStatus: nullableString(row.resolution_status) as ActionItemResolutionStatus | null,
+      resolutionNote: nullableString(row.resolution_note), sourceSessionId: nullableString(row.resolution_session_id),
+      resolvedAt: nullableString(row.resolved_at), stopReason: nullableString(row.stop_reason),
+    });
+  }
+  for (const row of actionOutcomes.results) {
+    const action = actions.get(stringValue(row.action_item_id));
+    if (action === undefined || integerValue(row.source_revision)! > action.revision
+      || !selectedRecordIds.has(stringValue(row.session_id))) continue;
+    action.outcomes.push({
+      actionItemId: stringValue(row.action_item_id), sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at),
+      sourceRevision: integerValue(row.source_revision)!, outcome: stringValue(row.outcome) as ManualActionOutcome['outcome'],
+      continuation: nullableString(row.continuation) as ManualActionOutcome['continuation'], reason: nullableString(row.reason),
+    });
+  }
+  for (const row of questionOutcomes.results) {
+    const question = questions.get(`${stringValue(row.kind)}:${stringValue(row.question_id)}`);
+    if (question === undefined || integerValue(row.source_revision)! > question.sourceRevision
+      || !selectedRecordIds.has(stringValue(row.session_id))) continue;
+    const outcome = stringValue(row.outcome) as ManualQuestionOutcome['outcome'];
+    question.outcomes.push({
+      sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at), outcome, answer: nullableString(row.answer),
+      sourceRevision: integerValue(row.source_revision)!, sourceText: stringValue(row.source_text),
+    });
+    if (outcome === 'confirmed' && question.state !== 'withdrawn') question.state = 'confirmed';
+  }
+  return {
+    intake,
+    actions: [...actions.values()],
+    questions: [...questions.values()].sort((a, b) =>
+      (a.sourceHeldAt ?? a.sourceScheduledAt ?? a.createdAt).localeCompare(b.sourceHeldAt ?? b.sourceScheduledAt ?? b.createdAt) || a.id.localeCompare(b.id)),
+  };
+}
+
+export async function getManualRecordContext(env: Env, actor: Actor, supportCaseId: string): Promise<ManualRecordContext> {
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const [work, scheduleRow, canWrite] = await Promise.all([
+    loadManualWork(env, actor.orgId, supportCaseId),
+    env.DB.prepare(`SELECT * FROM counseling_schedules WHERE org_id = ? AND support_case_id = ?
+      AND status = 'scheduled' AND session_kind = 'regular' ORDER BY scheduled_at, id LIMIT 1`)
+      .bind(actor.orgId, supportCaseId).first<DbRow>(),
+    canWriteIntake(env, actor, supportCaseId),
+  ]);
+  const schedule = scheduleRow === null ? null : mapCounselingSchedule(scheduleRow);
+  await writeCanonicalAudit(env, actor, { action: 'read', targetTable: 'sessions', beneficiaryId: supportCase.beneficiaryId, supportCaseId });
+  return {
+    schemaVersion: MANUAL_RECORD_CONTEXT_SCHEMA_VERSION, supportCaseId, canWrite,
+    defaults: { heldAt: schedule?.scheduledAt ?? null, channel: schedule?.channel ?? null, reason: null, scheduleId: schedule?.id ?? null, scheduleVersion: schedule?.version ?? null },
+    actions: work.actions.filter(action => action.state === 'open'),
+    questions: work.questions.filter(question => question.state === 'open'),
+    closedActions: work.actions.filter(action => action.state !== 'open'),
+    confirmedQuestions: work.questions.filter(question => question.state === 'confirmed'),
+    withdrawnQuestions: work.questions.filter(question => question.state === 'withdrawn'),
+  };
 }
 
 /**
@@ -18699,447 +21802,246 @@ async function getLatestLifeAreaSnapshot(
  * record without another audit.
  */
 export async function createCounselingRecord(
-  env: Env,
-  actor: Actor,
-  supportCaseId: string,
-  input: CreateCounselingRecordInput,
+  env: Env, actor: Actor, supportCaseId: string, input: CreateManualRecordInput,
 ): Promise<CounselingRecordResult> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
   assertCounselingRecordInput(input);
   const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
-  if (supportCase.status !== 'active') {
-    throw new ConflictError('support case is unavailable');
-  }
-  await assertRecordGoalsBelongToSupportCase(env, actor.orgId, supportCaseId, input.gasScores);
-  const actionItemResolutions = input.actionItemResolutions ?? [];
-
-  const submissionHash = await canonicalSha256({
-    actionItemResolutions,
-    actionItems: input.actionItems,
-    actorId: actor.userId,
-    channel: input.channel,
-    details: input.details ?? null,
-    flags: input.flags,
-    gasScores: input.gasScores,
-    heldAt: input.heldAt,
-    lifeAreas: input.lifeAreas ?? null,
-    memo: input.memo,
-    orgId: actor.orgId,
-    scheduleId: input.scheduleId ?? null,
-    scheduleVersion: input.expectedScheduleVersion ?? null,
-    supportCaseId,
-  });
+  const program = await programForOrg(env, actor.orgId, supportCase.programId);
+  if (supportCase.status !== 'active' || program.status !== 'active') throw new ConflictError('support case is unavailable');
+  await assertRecordGoalsBelongToSupportCase(env, actor.orgId, supportCaseId, input.gasScores ?? []);
+  const submissionHash = await canonicalSha256({ input, actorId: actor.userId, orgId: actor.orgId, supportCaseId });
   const replay = await recordReplay(env, actor, supportCaseId, input, submissionHash);
   if (replay !== null) return replay;
-  await assertActionResolutionsAreOpenInSupportCase(env, actor.orgId, supportCaseId, actionItemResolutions);
-
   let schedule: CounselingSchedule | null = null;
   if (input.scheduleId !== undefined) {
     schedule = await getCounselingScheduleForOrg(env, actor.orgId, input.scheduleId);
     await assertScheduleMutationAccess(env, actor, schedule);
-    if (
-      schedule.beneficiaryId !== supportCase.beneficiaryId
-      || schedule.supportCaseId !== supportCaseId
-      || schedule.status !== 'scheduled'
-      || schedule.version !== input.expectedScheduleVersion
-    ) {
+    if (schedule.supportCaseId !== supportCaseId || schedule.status !== 'scheduled'
+      || schedule.version !== input.expectedScheduleVersion || schedule.sessionKind !== 'regular') {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
       throw new ConflictError('counseling schedule is unavailable');
     }
   }
-
-  // 6영역 스냅샷 해석(CCC-8): changed=true 는 제출값, changed=false 는 직전 스냅샷 복사.
-  // 직전 없는(콜드스타트) '변화 없음' 영역은 미기록 — 행을 만들지 않는다.
-  const lifeAreaRows: LifeAreaSnapshotEntry[] = [];
-  if (input.lifeAreas !== undefined) {
-    const priorByArea = new Map(
-      (await getLatestLifeAreaSnapshot(env, actor.orgId, supportCaseId)).map((entry) => [entry.areaKey, entry] as const),
-    );
-    for (const area of input.lifeAreas) {
-      if (area.changed && area.status !== undefined) {
-        lifeAreaRows.push({ areaKey: area.areaKey, status: area.status, note: area.note ?? null });
-      } else if (!area.changed) {
-        const prior = priorByArea.get(area.areaKey);
-        if (prior !== undefined) {
-          lifeAreaRows.push({ areaKey: area.areaKey, status: prior.status, note: prior.note });
-        }
-      }
+  const work = await loadManualWork(env, actor.orgId, supportCaseId);
+  const heldAt = Date.parse(input.heldAt);
+  const actions = work.actions.filter(action => action.state === 'open'
+    && Date.parse(action.sourceHeldAt ?? action.createdAt) <= heldAt);
+  const questions = work.questions.filter(question => question.state === 'open'
+    && ((question.kind === 'schedule' && question.sourceId === schedule?.id)
+      || Date.parse(question.sourceHeldAt ?? question.sourceScheduledAt ?? question.createdAt) <= heldAt));
+  const outcomes = new Map((input.actionOutcomes ?? []).map(outcome => [outcome.actionItemId, outcome]));
+  const answers = new Map((input.questionAnswers ?? []).map(answer => [`${answer.kind}:${answer.questionId}`, answer]));
+  for (const outcome of outcomes.values()) {
+    const action = actions.find(candidate => candidate.id === outcome.actionItemId);
+    if (action === undefined || action.revision !== outcome.expectedRevision) {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
+      if (action === undefined) throw new ForbiddenError('manual action source is unavailable');
+      throw new ConflictError('manual action revision changed');
     }
-
   }
-
+  for (const answer of answers.values()) {
+    if (answer.kind === 'intake') {
+      const source = work.questions.find(question => question.kind === 'intake' && question.id === answer.questionId);
+      if (source === undefined || source.sourceId !== answer.sourceId) throw new ForbiddenError('manual question source is unavailable');
+      if (source.state !== 'open' || source.sourceRevision !== answer.expectedRevision
+        || Date.parse(source.sourceHeldAt!) > heldAt) throw new ConflictError('manual question context changed');
+    }
+    const question = questions.find(candidate => candidate.kind === answer.kind && candidate.id === answer.questionId);
+    if (question === undefined || question.sourceId !== answer.sourceId || question.sourceRevision !== answer.expectedRevision) {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
+      if (question === undefined || question.sourceId !== answer.sourceId) throw new ForbiddenError('manual question source is unavailable');
+      throw new ConflictError('manual question revision changed');
+    }
+  }
   const id = newId();
   const createdAt = now();
-  // 서술형 항목(CCC-10 · 0016): 채운 항목이 없으면 컬럼을 NULL 로 둔다.
-  const recordDetails = input.details === undefined ? null : stringifyJson({ ...input.details });
-  const activeSupportCaseGuard = `EXISTS (
-    SELECT 1 FROM support_cases
-    WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND status = 'active'
+  const details: ManualRecordDetails = {
+    schemaVersion: 2, method: input.channel, reason: input.reason ?? null, urgency: input.urgency ?? null,
+    changes: input.changes ?? [], counselorOpinion: input.counselorOpinion ?? null,
+    nextQuestions: (input.nextQuestions ?? []).map(body => ({ id: newId(), body })),
+  };
+  // The legacy transport column stays compatible with intake. Visit is explicit in versioned manual metadata.
+  const channel = input.channel === 'visit' ? 'in_person' : input.channel;
+  const guard = `EXISTS (
+    SELECT 1 FROM support_cases sc
+    JOIN programs p ON p.id = sc.program_id AND p.org_id = sc.org_id
+    JOIN users u ON u.id = ? AND u.org_id = sc.org_id AND u.active = 1
+    JOIN user_role_assignments r ON r.user_id = u.id AND r.org_id = u.org_id AND r.role = 'practitioner' AND r.revoked_at IS NULL
+    JOIN support_case_assignees a ON a.user_id = u.id AND a.org_id = sc.org_id AND a.support_case_id = sc.id
+    WHERE sc.id = ? AND sc.org_id = ? AND sc.status = 'active' AND p.status = 'active'
+      AND p.version = ? AND a.status = 'active' AND a.unassigned_at IS NULL
   )`;
-  const activeSupportCaseBindings = [supportCaseId, actor.orgId, supportCase.beneficiaryId];
-  const sessionExistsClause = `EXISTS (
-    SELECT 1 FROM sessions
-    WHERE id = ? AND org_id = ? AND support_case_id = ?
-  )`;
-  const sessionExistsBindings = [id, actor.orgId, supportCaseId];
-  const sessionStatement = schedule === null
-    ? env.DB.prepare(
-      `INSERT INTO sessions (
-         id, org_id, support_case_id, counselor_id, held_at, channel, memo, record_details,
-         submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?
-       WHERE ${activeSupportCaseGuard}`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-      input.heldAt,
-      input.channel,
-      input.memo,
-      recordDetails,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-      createdAt,
-      createdAt,
-      ...activeSupportCaseBindings,
-    )
-    : env.DB.prepare(
-      `INSERT INTO sessions (
-         id, org_id, support_case_id, counselor_id, held_at, channel, memo, record_details,
-         submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?
-       WHERE EXISTS (
-         SELECT 1 FROM counseling_schedules
-         WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND support_case_id = ?
-           AND status = 'scheduled' AND version = ?
-       )
-       AND ${activeSupportCaseGuard}`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-      input.heldAt,
-      input.channel,
-      input.memo,
-      recordDetails,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-      createdAt,
-      createdAt,
-      schedule.id,
-      actor.orgId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      input.expectedScheduleVersion ?? null,
-      ...activeSupportCaseBindings,
-    );
-
-  const statements: PreparedStatement[] = [sessionStatement];
-
-  for (const score of input.gasScores) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO session_goal_scores (
-         id, org_id, session_id, goal_id, score, evidence_quote, scored_by, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, NULL, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      id,
-      score.goalId,
-      score.score,
-      actor.userId,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
+  const guardBindings: Bindable[] = [actor.userId, supportCaseId, actor.orgId, program.version];
+  const preconditions = [guard];
+  const preconditionBindings: Bindable[] = [...guardBindings];
+  // 각 출처를 별도 문장으로 확인해 누적 미해결 건수가 SQL 식 깊이와 바인딩 한도에 걸리지 않게 한다.
+  const sourceAssertions: PreparedStatement[] = [];
+  const statements: PreparedStatement[] = [
+    env.DB.prepare('UPDATE programs SET version = version WHERE id = ? AND org_id = ?').bind(program.id, actor.orgId),
+    env.DB.prepare('UPDATE support_cases SET status = status WHERE id = ? AND org_id = ?').bind(supportCaseId, actor.orgId),
+  ];
+  if (work.intake !== null && questions.some(question => question.kind === 'intake')) {
+    const source = work.intake.source;
+    statements.push(intakeSourceLock(env, actor.orgId, supportCaseId, stringValue(source.id)));
+    sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND NOT EXISTS (
+      SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake'
+        AND intake_revision = ? AND held_at = ? AND held_at <= ? AND intake_question_lifecycle = ?)`)
+      .bind(id, stringValue(source.id), actor.orgId, supportCaseId, integerValue(source.intake_revision)!,
+        stringValue(source.held_at), input.heldAt, stringValue(source.intake_question_lifecycle)));
   }
-  for (const action of input.actionItems) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO action_items (
-         id, org_id, support_case_id, session_id, description, owner, due_date, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      supportCaseId,
-      id,
-      action.description,
-      action.owner,
-      action.dueDate ?? null,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
+  for (const action of actions) {
+    statements.push(env.DB.prepare('UPDATE action_items SET revision = revision WHERE id = ? AND org_id = ?').bind(action.id, actor.orgId));
+    sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+      NOT EXISTS (SELECT 1 FROM action_items a LEFT JOIN sessions origin ON origin.id = a.session_id AND origin.org_id = a.org_id
+        WHERE a.id = ? AND a.org_id = ? AND a.support_case_id = ? AND a.revision = ? AND a.resolved_at IS NULL
+          AND COALESCE(origin.held_at, a.created_at) = ?)`)
+      .bind(id, action.id, actor.orgId, supportCaseId, action.revision, action.sourceHeldAt ?? action.createdAt));
   }
-  for (const flag of input.flags) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO flags (
-         id, org_id, support_case_id, session_id, flag_type, quote, source, review_status,
-         reviewed_by, reviewed_at, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, 'counselor', 'confirmed', ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      supportCaseId,
-      id,
-      flag.flagType,
-      flag.quote ?? null,
-      actor.userId,
-      createdAt,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-  }
-  for (const area of lifeAreaRows) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO session_life_area_snapshots (
-         id, org_id, session_id, area_key, status, note, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      id,
-      area.areaKey,
-      area.status,
-      area.note,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-  }
-  for (const resolution of actionItemResolutions) {
-    const resolvedAt = resolution.status === 'done' ? createdAt : null;
-    const resolvedBy = resolution.status === 'done' ? actor.userId : null;
-    const operationMarker = newId();
-    statements.push(env.DB.prepare(
-      `UPDATE action_items
-       SET resolution_status = ?, resolution_note = ?, resolution_at = ?, resolution_session_id = ?,
-           resolved_at = ?, resolved_by = ?, operation_marker = ?
-       WHERE id = ? AND org_id = ? AND support_case_id = ? AND resolved_at IS NULL
-         AND ${sessionExistsClause}`,
-    ).bind(
-      resolution.status,
-      resolution.note ?? null,
-      createdAt,
-      id,
-      resolvedAt,
-      resolvedBy,
-      operationMarker,
-      resolution.actionItemId,
-      actor.orgId,
-      supportCaseId,
-      ...sessionExistsBindings,
-    ));
-    statements.push(env.DB.prepare(
-      `INSERT INTO audit_log (
-         org_id, actor_id, actor_role, action, target_table, target_id, case_id,
-         beneficiary_id, support_case_id, detail, created_at
-       )
-       SELECT ?, ?, ?, 'update', 'action_items', ?, NULL, ?, ?, ?, ?
-       WHERE EXISTS (
-         SELECT 1 FROM action_items
-         WHERE id = ? AND org_id = ? AND operation_marker = ?
-       )`,
-    ).bind(
-      actor.orgId,
-      actor.userId,
-      actor.role,
-      resolution.actionItemId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      stringifyJson({ resolutionStatus: resolution.status }),
-      createdAt,
-      resolution.actionItemId,
-      actor.orgId,
-      operationMarker,
-    ));
+  for (const question of questions) {
+    if (question.kind === 'schedule') {
+      statements.push(env.DB.prepare('UPDATE schedule_custom_questions SET revision = revision WHERE id = ? AND org_id = ?').bind(question.id, actor.orgId));
+      sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+        NOT EXISTS (SELECT 1 FROM schedule_custom_questions q
+          JOIN counseling_schedules s ON s.id = q.schedule_id AND s.org_id = q.org_id
+          LEFT JOIN sessions origin ON origin.id = s.completed_session_id AND origin.org_id = s.org_id
+          WHERE q.id = ? AND q.org_id = ? AND q.support_case_id = ? AND q.schedule_id = ? AND q.revision = ?
+            AND COALESCE(origin.held_at, s.scheduled_at, q.created_at) = ?)`)
+        .bind(id, question.id, actor.orgId, supportCaseId, question.sourceId, question.sourceRevision,
+          question.sourceHeldAt ?? question.sourceScheduledAt ?? question.createdAt));
+    } else if (question.kind === 'record') {
+      statements.push(env.DB.prepare('UPDATE sessions SET manual_revision = manual_revision WHERE id = ? AND org_id = ?').bind(question.sourceId, actor.orgId));
+      sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+        NOT EXISTS (SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND support_case_id = ? AND manual_revision = ?)`)
+        .bind(id, question.sourceId, actor.orgId, supportCaseId, question.sourceRevision));
+    }
+    sourceAssertions.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND
+      EXISTS (SELECT 1 FROM manual_question_outcomes WHERE org_id = ? AND support_case_id = ? AND kind = ? AND question_id = ? AND outcome = 'confirmed')`)
+      .bind(id, actor.orgId, supportCaseId, question.kind, question.id));
   }
   if (schedule !== null) {
-    statements.push(env.DB.prepare(
-      `UPDATE counseling_schedules
-       SET status = 'completed', completed_session_id = ?, completed_by_actor_id = ?,
-           completed_at = ?, updated_by_actor_id = ?, version = version + 1, updated_at = ?
-       WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND support_case_id = ?
-         AND status = 'scheduled' AND version = ?
-         AND ${sessionExistsClause}`,
-    ).bind(
-      id,
-      actor.userId,
-      createdAt,
-      actor.userId,
-      createdAt,
-      schedule.id,
-      actor.orgId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      input.expectedScheduleVersion ?? null,
-      ...sessionExistsBindings,
-    ));
+    preconditions.push("EXISTS (SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND support_case_id = ? AND status = 'scheduled' AND version = ?)");
+    preconditionBindings.push(schedule.id, actor.orgId, supportCaseId, schedule.version);
   }
-
+  const exists = 'EXISTS (SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND support_case_id = ?)';
+  const existsBindings = [id, actor.orgId, supportCaseId];
+  statements.push(env.DB.prepare(`INSERT INTO sessions (
+    id, org_id, support_case_id, counselor_id, held_at, channel, memo, record_details,
+    submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at, manual_schema_version
+  ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?, 2 WHERE ${preconditions.join(' AND ')}`)
+    .bind(id, actor.orgId, supportCaseId, actor.userId, input.heldAt, channel, input.memo, stringifyJson(details),
+      input.submissionId, submissionHash, actor.userId, createdAt, createdAt, ...preconditionBindings));
+  for (const assertion of sourceAssertions) statements.push(assertion);
+  for (const score of input.gasScores ?? []) {
+    statements.push(env.DB.prepare(`INSERT INTO session_goal_scores
+      (id, org_id, session_id, goal_id, score, evidence_quote, scored_by, created_at)
+      SELECT ?, ?, ?, ?, ?, NULL, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, id, score.goalId, score.score, actor.userId, createdAt, ...existsBindings));
+  }
+  for (const action of input.actionItems ?? []) {
+    statements.push(env.DB.prepare(`INSERT INTO action_items (id, org_id, support_case_id, session_id, description, owner, due_date, created_at)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, id, action.description, action.owner, action.dueDate ?? null, createdAt, ...existsBindings));
+  }
+  for (const flag of input.flags ?? []) {
+    statements.push(env.DB.prepare(`INSERT INTO flags
+      (id, org_id, support_case_id, session_id, flag_type, quote, source, review_status, reviewed_by, reviewed_at, created_at)
+      SELECT ?, ?, ?, ?, ?, ?, 'counselor', 'confirmed', ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, id, flag.flagType, flag.quote ?? null, actor.userId, createdAt, createdAt, ...existsBindings));
+  }
+  for (const action of actions) {
+    const outcome = outcomes.get(action.id);
+    const stop = outcome?.outcome === 'not_done' && outcome.continuation === 'stop';
+    const reason = stop ? outcome.reason : null;
+    statements.push(env.DB.prepare(`INSERT INTO manual_action_outcomes
+      (id, org_id, support_case_id, action_item_id, session_id, source_revision, outcome, continuation, reason)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, action.id, id, action.revision, outcome?.outcome ?? 'unconfirmed',
+        outcome?.outcome === 'not_done' ? outcome.continuation : null, reason, ...existsBindings));
+    if (outcome === undefined) continue;
+    const closes = outcome.outcome === 'done' || stop;
+    const dueDate = outcome.update !== undefined && Object.hasOwn(outcome.update, 'dueDate') ? outcome.update.dueDate ?? null : action.dueDate;
+    statements.push(env.DB.prepare(`UPDATE action_items SET description = ?, due_date = ?, resolution_status = ?, resolution_note = ?,
+      resolution_at = ?, resolution_session_id = ?, resolved_at = ?, resolved_by = ?, stop_reason = ?
+      WHERE id = ? AND org_id = ? AND revision = ? AND resolved_at IS NULL AND ${exists}`)
+      .bind(outcome.update?.description ?? action.description, dueDate, outcome.outcome, reason, createdAt, id,
+        closes ? createdAt : null, closes ? actor.userId : null, reason, action.id, actor.orgId, action.revision, ...existsBindings));
+    statements.push(env.DB.prepare(`INSERT INTO audit_log
+      (org_id, actor_id, actor_role, action, target_table, target_id, beneficiary_id, support_case_id, detail, created_at)
+      SELECT ?, ?, ?, 'update', 'action_items', ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(actor.orgId, actor.userId, actor.role, action.id, supportCase.beneficiaryId, supportCaseId,
+        stringifyJson({ outcome: outcome.outcome, sessionId: id }), createdAt, ...existsBindings));
+  }
+  for (const question of questions) {
+    const answer = answers.get(`${question.kind}:${question.id}`);
+    statements.push(env.DB.prepare(`INSERT INTO manual_question_outcomes
+      (id, org_id, support_case_id, kind, question_id, source_id, source_revision, source_text, session_id, outcome, answer)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${exists}`)
+      .bind(newId(), actor.orgId, supportCaseId, question.kind, question.id, question.sourceId, question.sourceRevision,
+        question.body, id, answer === undefined ? 'unconfirmed' : 'confirmed', answer?.answer ?? null, ...existsBindings));
+  }
+  if (schedule !== null) {
+    statements.push(env.DB.prepare(`UPDATE counseling_schedules SET status = 'completed', completed_session_id = ?, completed_by_actor_id = ?,
+      completed_at = ?, updated_by_actor_id = ?, version = version + 1, updated_at = ?
+      WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND ${exists}`)
+      .bind(id, actor.userId, createdAt, actor.userId, createdAt, schedule.id, actor.orgId, schedule.version, ...existsBindings));
+    // A lost schedule CAS must roll the entire batch back, not leave an unattached official record.
+    statements.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND NOT EXISTS (
+      SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND completed_session_id = ? AND status = 'completed')`)
+      .bind(id, schedule.id, actor.orgId, id));
+  }
+  statements.push(env.DB.prepare(`UPDATE sessions SET manual_revision = 0 WHERE id = ? AND NOT (${guard})`).bind(id, ...guardBindings));
   try {
     await env.DB.batch(statements);
-    const persisted = await env.DB.prepare(
-      `SELECT id FROM sessions
-       WHERE id = ? AND org_id = ? AND support_case_id = ?
-         AND submission_id = ? AND submission_hash = ? AND submitted_by = ?
-       LIMIT 1`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-    ).first<{ id: string }>();
-    if (persisted === null) {
-      throw new ConflictError('counseling record is unavailable');
-    }
   } catch (error) {
-    if (!isUniqueConstraintError(error)) throw error;
-    const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
-    if (matched !== null) return matched;
+    if (isUniqueConstraintError(error)) {
+      const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+      if (matched !== null) return matched;
+      throw new ConflictError('manual source changed');
+    }
+    if (isManualContextConstraint(error)) {
+      throw new ConflictError('manual record context changed');
+    }
     throw error;
   }
+  const persisted = await env.DB.prepare('SELECT id FROM sessions WHERE id = ? AND org_id = ?').bind(id, actor.orgId).first<DbRow>();
+  if (persisted === null) {
+    const matched = await recordReplay(env, actor, supportCaseId, input, submissionHash);
+    if (matched !== null) return matched;
+    throw new ConflictError('manual record context changed');
+  }
   return {
-    record: {
-      id,
-      supportCaseId,
-      counselorId: actor.userId,
-      heldAt: input.heldAt,
-      channel: input.channel,
-      memo: input.memo,
-      kind: 'regular',
-      aiSummary: null,
-      approvedAt: null,
-      createdAt,
-    },
+    record: { id, supportCaseId, counselorId: actor.userId, heldAt: input.heldAt, channel, memo: input.memo, kind: 'regular',
+      aiSummary: null, approvedAt: null, createdAt, manual: { schemaVersion: 2, revision: 1, details } },
     replayed: false,
   };
 }
 
 // ============================================================================
-// 인테이크 기록 (createIntakeRecord) — CCC-7 · 티켓 #54 · 인테이크 설계 v0.3
-// 첫 상담 기준선(동의·원하는 도움 3문·6영역·목표+GAS 기준·다음 행동)을 한 번의 호출로
-// 원자 저장한다. 정기 기록(createCounselingRecord)과 분리된 함수다 — 인테이크는 목표를
-// 신설하고(정기는 기존 목표에 GAS만), 6영역을 직접 입력하며('변화 없음' 개념 없음),
-// 동의를 기록하고, 케이스당 1회로 제한된다.
+// 버전이 명시된 인테이크 수기 기록. 케이스당 하나이며, 수정본과 이전 원문을 함께 보존한다.
+// 질문과 적용 조건은 contracts/intake가 소유한다. 개인정보, 동의, 목표, 액션은 이 경로에서 쓰지 않는다.
 // ============================================================================
 
-/** 원하는 도움 3문(P1, 코어의 심장). intake_details JSON 에 격리 저장 — 브리핑·통계 제외. */
-export interface IntakeHelpNarrativeInput {
+/** Old three-question narrative, retained only to interpret stored version 1 records. */
+interface LegacyIntakeHelpNarrative {
   todayHelp: string;      // 오늘 어떤 도움을 받고 싶어서 오셨나요?
   hardestPoint: string;   // 지금 가장 힘든 점 / 먼저 해결하고 싶은 것은?
   desiredChange: string;  // 상황이 어떻게 달라지면 좋겠나요?
 }
 
-/** 인테이크 6영역 기준선(P1). 정기와 달리 6영역 전부 상태를 직접 입력한다(복사 개념 없음). */
-export interface IntakeLifeAreaInput {
-  areaKey: LifeAreaKey;
-  status: LifeAreaStatus;
-  note?: string;
-}
-
-/** 인테이크 목표(P1 → goals, D12·D6). scaleCriteria 는 GAS 기준(-2~+2 정의) 자유 JSON. */
-export interface IntakeGoalInput {
-  title: string;
-  scaleCriteria?: unknown;
-}
-
-export interface IntakeActionItemInput {
-  description: string;
-  owner: 'counselor' | 'beneficiary' | 'org';
-  dueDate?: string;
-}
-
-
-// --------------------------------------------------------------------------
-// P3·P4 서술형 답변 (CCC-9) — 하나의 어휘로 통일
-// 설계 v0.3 은 "모든 질문에 답변거부/모름/해당없음 허용"을 요구한다(§0-5). 질문마다
-// 다른 필드를 만들면 5개 층(게이트웨이·핸들러·api·액션·위저드)에 같은 분기가 23번
-// 복제된다. 대신 질문 키를 고정 어휘로 두고 답변 1건을 {key, response, text} 로 통일해,
-// 검증기·파서·컴포넌트를 각각 하나만 둔다. 빈 문자열과 '답변거부'가 저장에서 구분된다.
-// 저장 위치는 sessions.intake_details JSON(확장 슬롯 격리 — 브리핑·통계 제외).
-// --------------------------------------------------------------------------
-
-/**
- * 서술형·선택형 답변 키 고정 어휘. 화면 문구·선택값 목록은 위저드가 갖고, 저장은 이 키로 한다.
- *
- * 2026-07-28 D41·D42: 인테이크 정본 질문지(`PRD/intake-questionnaire-v1.md`) 4부의 항목을
- * 이 어휘로 전부 덮는다. 선택형도 같은 {key,response,text} 로 저장한다 — 선택값 문자열이
- * text 로 들어가고, '무응답'·'해당 없음'은 text 대신 response 코드로 남는다(빈칸과 구분).
- * 구 6단계 위저드가 쓰던 키는 지우지 않는다(기존 기록의 해석 어휘라 삭제하면 과거 JSON 이
- * 읽히지 않는다). 화면에서 안 쓰는 키는 그냥 오지 않을 뿐이다.
- */
-export const INTAKE_ANSWER_KEYS = [
-  // ── 구 6단계 위저드 어휘(기존 기록 해석용, 화면에서는 일부만 계속 쓴다) ──
-  'referral_path', 'referral_org', 'referral_reason',
-  'more_since', 'more_trigger', 'more_focus',
-  'life_detail_economy', 'life_detail_housing', 'life_detail_employment',
-  'life_detail_health', 'life_detail_mental_health', 'life_detail_family',
-  'crisis_immediate_risk', 'crisis_needed_connection', 'crisis_safety_status', 'crisis_emergency_contact',
-  'strength_personal', 'strength_relational', 'strength_past_coping', 'strength_resources',
-  'participation_availability', 'participation_transport', 'participation_constraint',
-  // ── 1. 상담 신청 및 기본정보 ──
-  // 1-2 공적급여·수급자 여부
-  'welfare_basic_livelihood', 'welfare_benefit_type', 'welfare_near_poverty', 'welfare_other',
-  // 1-3 상담 운영정보(상담일=heldAt·실무자=작성자·회차=컨텍스트는 답변이 아니라 자동값)
-  'counsel_method', 'contact_time', 'contact_caution',
-  // 1-4 상담 신청 사유
-  'application_reason', 'application_reason_detail',
-  // ── 2. 현재 생활상황 ──
-  'difficulty_areas',
-  'economy_income_type', 'economy_monthly_income', 'economy_monthly_expense',
-  'economy_arrears', 'economy_debt_types',
-  'employment_status', 'employment_income_stability', 'employment_detail',
-  'housing_type', 'housing_instability', 'housing_detail',
-  'health_physical', 'health_care_barrier', 'health_stress', 'health_daily_impact', 'health_detail',
-  'family_household_type', 'family_care_burden', 'family_detail',
-  // ── 3. 필요한 도움과 활용 가능한 자원 ──
-  'need_primary', 'need_secondary', 'need_detail',
-  'previous_support_detail',
-  'strength_detail',
-  // ── 4. 상담 정리와 후속관리 ──
-  'participation_barrier', 'participation_preferred_method', 'participation_detail',
-  // 4-3 긴급도·주요 지원방향은 실무자가 직접 고른다 — AI 제안·자동값 없음(D41 ③ · R5).
-  'summary_urgency', 'summary_direction',
-] as const;
-export type IntakeAnswerKey = (typeof INTAKE_ANSWER_KEYS)[number];
-
-/** 답변 종류. 'answered' 만 text 를 갖고, 나머지 3종은 text 를 두지 않는다. */
-export const INTAKE_ANSWER_RESPONSES = ['answered', 'declined', 'unknown', 'not_applicable'] as const;
-export type IntakeAnswerResponse = (typeof INTAKE_ANSWER_RESPONSES)[number];
-
-export interface IntakeAnswerInput {
-  key: IntakeAnswerKey;
-  response: IntakeAnswerResponse;
+interface IntakeReadAnswer {
+  key: string;
+  response: IntakeResponseCode;
   text?: string;
 }
 
-/**
- * ① 시작 "기본정보 더 적기"(P4)의 추가 개인정보. 금고(participant_pii_vault)에 기존
- * AES-GCM 헬퍼로 암호화 저장한다(D3, 마이그레이션 0015). 실명·연락처·계좌·이메일은
- * 이 경로로 쓰지 않는다 — 그쪽은 admin 전용 updateParticipantPii 가 계속 유일한 관문이다.
- */
+/** Existing encrypted identity fields are read-only on the intake surface. */
 export const INTAKE_EXTENDED_PII_FIELDS = ['birthDate', 'region', 'emergencyContact', 'gender'] as const;
 export type IntakeExtendedPiiField = (typeof INTAKE_EXTENDED_PII_FIELDS)[number];
 
-export interface IntakeExtendedPiiInput {
-  birthDate?: string;        // YYYY-MM-DD (달력 또는 직접 입력)
-  region?: string;           // 거주 지역
-  emergencyContact?: string; // 긴급 연락처
-  gender?: string;           // 성별(자유 입력 — 고정 목록으로 좁히지 않는다, §0-4)
-}
 
 export type IntakeExtendedPii = Record<IntakeExtendedPiiField, string | null>;
 
@@ -19149,7 +22051,7 @@ export type IntakeExtendedPii = Record<IntakeExtendedPiiField, string | null>;
  * reason·method·dueNote 를 덧붙였다. dueNote 는 '다음 상담 전' 같은 서술을 허용하려고
  * 날짜형 dueDate 와 따로 둔다 — 정본 예시가 날짜가 아니다.
  */
-export interface IntakeAdditionalItemInput {
+interface LegacyIntakeAdditionalItem {
   item: string;
   owner?: string;
   dueDate?: string;
@@ -19158,62 +22060,13 @@ export interface IntakeAdditionalItemInput {
   dueNote?: string;
 }
 
-/** 2-1 대출·부채 현황 반복 행. 채무가 없으면 첫 행에 '해당 없음'을 적는다(정본 참고). */
-export interface IntakeDebtEntryInput {
-  creditor: string;
-  kind?: string;
-  balance?: string;
-  monthlyPayment?: string;
 
-  arrearsStatus?: string;
-}
-
-/** 3-3 현재 연계된 기관·서비스 반복 행. 연계 자원이 없으면 첫 행에 '해당 없음'. */
-export interface IntakeLinkedOrgInput {
-  orgName: string;
-  serviceName?: string;
-  supportDetail?: string;
-  usagePeriod?: string;
-  progressStatus?: string;
-}
-
-/** ⑤ 다음 만남(P3). 저장 후 상담 일정 등록 화면으로 이어 붙인다(schedules, D28). */
-export interface IntakeNextMeetingInput {
-  heldAt: string;
-  channel: Session['channel'];
-}
-
-/**
- * 인테이크 저장 입력.
- *
- * `red` 2026-07-28 D42: consent·helpNarrative·lifeAreas·goals·actionItems 5종은 **선택**이다.
- * 정본 질문지(D41)에 대응하는 항목이 없기 때문이다 — 동의 입력은 당사자 등록 화면으로
- * 옮겼고(D42 ②), 목표 입력은 통째로 빠졌으며(D42 ③ · D43), 원하는 도움 3문·6영역 상태·
- * 다음 행동은 정본에 없다. 값을 지어내 채우는 대신 안 보내는 쪽을 택했다. 주면 예전과
- * 똑같이 검증·저장하므로 기존 호출부·기록은 그대로 산다.
- */
-export interface CreateIntakeRecordInput {
-  submissionId: string;
-  heldAt: string;
-  channel: Session['channel'];
-  helpNarrative?: IntakeHelpNarrativeInput;
-  lifeAreas?: IntakeLifeAreaInput[];
-  goals?: IntakeGoalInput[];
-  actionItems?: IntakeActionItemInput[];
-  answers?: IntakeAnswerInput[];
-  extendedPii?: IntakeExtendedPiiInput;
-  additionalItems?: IntakeAdditionalItemInput[];
-  debts?: IntakeDebtEntryInput[];
-  linkedOrgs?: IntakeLinkedOrgInput[];
-  nextMeeting?: IntakeNextMeetingInput;
-  managerOpinion?: string;
-  scheduleId?: string;
-  expectedScheduleVersion?: number;
-}
 
 export interface IntakeRecordResult {
   record: CounselingRecord;
   replayed: boolean;
+  schemaVersion: 3;
+  revision: number;
 }
 
 /** 인테이크 작성 컨텍스트(회차 자동값·당사자 표시·기존 인테이크 여부). */
@@ -19226,6 +22079,10 @@ export interface IntakeRecordContext {
   sessionSequence: number;
   // 케이스에 이미 인테이크(kind='intake')가 있으면 재작성 불가(1회 규칙).
   hasIntake: boolean;
+  // Current mutation authority, independent of whether a saved intake is readable.
+  canWrite: boolean;
+  writeSchemaVersion: 3;
+  moduleSnapshot: IntakeModuleSnapshot;
   // 1-1 기본정보 표시용 금고 값(D42 ① — 인테이크 화면은 읽기만 한다). 감사는 화면 조회 1건에 합산.
   extendedPii: IntakeExtendedPii;
   // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫이라 여기서는 기록 여부만 읽는다.
@@ -19246,243 +22103,6 @@ export interface IntakeRecordContext {
   schedule: CounselingSchedule | null;
 }
 
-/**
- * 저장된 인테이크의 위저드 소유분(2026-08-08 Q "확인/수정"). intake_details JSON 중
- * 현행 위저드가 쓰고 고칠 수 있는 것만 꺼낸다. 구 6단계 위저드의 유산 키
- * (helpNarrative·nextMeeting)는 화면에 없으므로 싣지 않는다 — 수정 저장에서도 보존만 한다.
- */
-export interface IntakeSavedRecord {
-  sessionId: string;
-  heldAt: string;
-  channel: Session['channel'];
-  answers: IntakeAnswerInput[];
-  debts: IntakeDebtEntryInput[];
-  linkedOrgs: IntakeLinkedOrgInput[];
-  additionalItems: IntakeAdditionalItemInput[];
-  managerOpinion: string | null;
-}
-
-function assertIntakeLifeAreaInputs(lifeAreas: IntakeLifeAreaInput[]): void {
-  assertBoundedArray(lifeAreas, 'life areas', LIFE_AREA_KEYS.length);
-  const seen = new Set<string>();
-  for (const area of lifeAreas) {
-    if (typeof area !== 'object' || area === null) {
-      throw new ValidationError('life area is invalid');
-    }
-    assertExactKeys(area, area.note === undefined ? ['areaKey', 'status'] : ['areaKey', 'status', 'note']);
-    if (!(LIFE_AREA_KEYS as readonly string[]).includes(area.areaKey)) {
-      throw new ValidationError('life area key is invalid');
-    }
-    if (seen.has(area.areaKey)) {
-      throw new ValidationError('life area is duplicated');
-    }
-    seen.add(area.areaKey);
-    if (!(LIFE_AREA_STATUSES as readonly string[]).includes(area.status)) {
-      throw new ValidationError('life area status is invalid');
-    }
-    if (area.note !== undefined) assertNonBlankText(area.note, 'life area note');
-  }
-  if (seen.size !== LIFE_AREA_KEYS.length) {
-    throw new ValidationError('life areas must cover all six areas');
-  }
-}
-
-/** 서술형 답변(P3·P4) 공통 검증 — 키는 고정 어휘, 중복 금지, text 는 'answered' 에만. */
-function assertIntakeAnswerInputs(answers: IntakeAnswerInput[]): void {
-  assertBoundedArray(answers, 'intake answers', INTAKE_ANSWER_KEYS.length);
-  const seen = new Set<string>();
-  for (const answer of answers) {
-    if (typeof answer !== 'object' || answer === null) {
-      throw new ValidationError('intake answer is invalid');
-    }
-    assertExactKeys(answer, answer.text === undefined ? ['key', 'response'] : ['key', 'response', 'text']);
-    if (!(INTAKE_ANSWER_KEYS as readonly string[]).includes(answer.key)) {
-      throw new ValidationError('intake answer key is invalid');
-    }
-    if (seen.has(answer.key)) {
-      throw new ValidationError('intake answer is duplicated');
-    }
-    seen.add(answer.key);
-    if (!(INTAKE_ANSWER_RESPONSES as readonly string[]).includes(answer.response)) {
-      throw new ValidationError('intake answer response is invalid');
-    }
-    // 답변거부·모름·해당없음은 본문을 갖지 않는다 — 빈 문자열과 구분되게 저장한다.
-    if (answer.response === 'answered') {
-      assertNonBlankText(answer.text, 'intake answer text');
-    } else if (answer.text !== undefined) {
-      throw new ValidationError('intake answer text is invalid');
-    }
-  }
-}
-
-/** 추가 개인정보(P4). 준 필드만 갱신하고, 빈 패치는 거부한다. */
-function assertIntakeExtendedPiiInput(input: IntakeExtendedPiiInput): void {
-  const present = INTAKE_EXTENDED_PII_FIELDS.filter((field) => input[field] !== undefined);
-  assertExactKeys(input, present);
-  if (present.length === 0) {
-    throw new ValidationError('extended PII patch is empty');
-  }
-  for (const field of present) {
-    assertNonBlankText(input[field], `participant ${field}`);
-  }
-  if (input.birthDate !== undefined) {
-    assertDateOnly(input.birthDate);
-  }
-}
-
-function assertIntakeAdditionalItemInputs(items: IntakeAdditionalItemInput[]): void {
-  assertBoundedArray(items, 'additional items', 20);
-  for (const entry of items) {
-    if (typeof entry !== 'object' || entry === null) {
-      throw new ValidationError('additional item is invalid');
-    }
-    const expected = ['item'];
-    if (entry.owner !== undefined) expected.push('owner');
-    if (entry.dueDate !== undefined) expected.push('dueDate');
-    if (entry.reason !== undefined) expected.push('reason');
-    if (entry.method !== undefined) expected.push('method');
-    if (entry.dueNote !== undefined) expected.push('dueNote');
-    assertExactKeys(entry, expected);
-    assertNonBlankText(entry.item, 'additional item');
-    if (entry.owner !== undefined) assertNonBlankText(entry.owner, 'additional item owner');
-    if (entry.dueDate !== undefined) assertDateOnly(entry.dueDate);
-    if (entry.reason !== undefined) assertNonBlankText(entry.reason, 'additional item reason');
-    if (entry.method !== undefined) assertNonBlankText(entry.method, 'additional item method');
-    if (entry.dueNote !== undefined) assertNonBlankText(entry.dueNote, 'additional item due note');
-  }
-}
-
-/**
- * 반복 행 표 공통 검증(2-1 부채·3-3 연계 기관). 첫 열만 필수이고 나머지는 준 것만 검사한다 —
- * assertIntakeAdditionalItemInputs 와 같은 모양을 유지해 표가 늘어도 분기가 복제되지 않는다.
- */
-function assertIntakeTableRows(
-  rows: Array<Record<string, unknown>>,
-  label: string,
-  requiredKey: string,
-  optionalKeys: readonly string[],
-): void {
-  assertBoundedArray(rows, label, 20);
-  for (const row of rows) {
-    if (typeof row !== 'object' || row === null) {
-      throw new ValidationError(`${label} row is invalid`);
-    }
-    const expected = [requiredKey, ...optionalKeys.filter((key) => row[key] !== undefined)];
-    assertExactKeys(row, expected);
-    for (const key of expected) {
-      assertNonBlankText(row[key], `${label} ${key}`);
-    }
-  }
-}
-
-const INTAKE_DEBT_OPTIONAL_KEYS = ['kind', 'balance', 'monthlyPayment', 'arrearsStatus'] as const;
-const INTAKE_LINKED_ORG_OPTIONAL_KEYS = ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus'] as const;
-
-function assertIntakeRecordInput(input: CreateIntakeRecordInput): void {
-  const hasSchedule = input.scheduleId !== undefined || input.expectedScheduleVersion !== undefined;
-  const hasManagerOpinion = input.managerOpinion !== undefined;
-  const expectedKeys = ['submissionId', 'heldAt', 'channel'];
-  if (input.helpNarrative !== undefined) expectedKeys.push('helpNarrative');
-  if (input.lifeAreas !== undefined) expectedKeys.push('lifeAreas');
-  if (input.goals !== undefined) expectedKeys.push('goals');
-  if (input.actionItems !== undefined) expectedKeys.push('actionItems');
-  if (input.answers !== undefined) expectedKeys.push('answers');
-  if (input.extendedPii !== undefined) expectedKeys.push('extendedPii');
-  if (input.additionalItems !== undefined) expectedKeys.push('additionalItems');
-  if (input.debts !== undefined) expectedKeys.push('debts');
-  if (input.linkedOrgs !== undefined) expectedKeys.push('linkedOrgs');
-  if (input.nextMeeting !== undefined) expectedKeys.push('nextMeeting');
-  if (hasManagerOpinion) expectedKeys.push('managerOpinion');
-  if (hasSchedule) expectedKeys.push('scheduleId', 'expectedScheduleVersion');
-  assertExactKeys(input, expectedKeys);
-  assertCanonicalSubmissionId(input.submissionId);
-  canonicalUtcInstant(input.heldAt, 'record time');
-  if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
-    throw new ValidationError('record channel is invalid');
-  }
-
-
-  // 원하는 도움 3문 — 주면 전부 비어있지 않은 문자열.
-  if (input.helpNarrative !== undefined) {
-    assertExactKeys(input.helpNarrative, ['todayHelp', 'hardestPoint', 'desiredChange']);
-    assertNonBlankText(input.helpNarrative.todayHelp, 'help narrative todayHelp');
-    assertNonBlankText(input.helpNarrative.hardestPoint, 'help narrative hardestPoint');
-    assertNonBlankText(input.helpNarrative.desiredChange, 'help narrative desiredChange');
-  }
-
-  // 6영역 기준선 — 주면 6영역 전부.
-  if (input.lifeAreas !== undefined) assertIntakeLifeAreaInputs(input.lifeAreas);
-
-  // 목표 1~3(D12·D6). GAS 기준(scaleCriteria)은 자유 JSON. 인테이크 화면은 더 이상 보내지
-  // 않지만(D42 ③ · D43) 다른 호출부가 주면 예전 계약대로 검증한다.
-  if (input.goals !== undefined) {
-    assertBoundedArray(input.goals, 'goals', MAX_ACTIVE_GOALS);
-    if (input.goals.length < 1) throw new ValidationError('at least one goal is required');
-    for (const goal of input.goals) {
-      assertExactKeys(goal, goal.scaleCriteria === undefined ? ['title'] : ['title', 'scaleCriteria']);
-      assertNonBlankText(goal.title, 'goal title');
-    }
-  }
-
-  // 다음 행동 — 주면 1건 이상(→ action_items).
-  if (input.actionItems !== undefined) {
-  assertBoundedArray(input.actionItems, 'action items', 20);
-  if (input.actionItems.length < 1) throw new ValidationError('at least one action item is required');
-  for (const action of input.actionItems) {
-    assertExactKeys(action, action.dueDate === undefined ? ['description', 'owner'] : ['description', 'owner', 'dueDate']);
-    assertNonBlankText(action.description, 'action description');
-    if (action.owner !== 'counselor' && action.owner !== 'beneficiary' && action.owner !== 'org') {
-      throw new ValidationError('action owner is invalid');
-    }
-    if (action.dueDate !== undefined) assertDateOnly(action.dueDate);
-  }
-  }
-
-  // 나머지는 전부 선택. 있으면 형식만 강제한다(비면 인테이크 성립에 영향 없음).
-  if (input.answers !== undefined) assertIntakeAnswerInputs(input.answers);
-  if (input.extendedPii !== undefined) assertIntakeExtendedPiiInput(input.extendedPii);
-  if (input.additionalItems !== undefined) assertIntakeAdditionalItemInputs(input.additionalItems);
-  if (input.debts !== undefined) {
-    assertIntakeTableRows(
-      input.debts as unknown as Array<Record<string, unknown>>,
-      'debts',
-      'creditor',
-      INTAKE_DEBT_OPTIONAL_KEYS,
-    );
-  }
-  if (input.linkedOrgs !== undefined) {
-    assertIntakeTableRows(
-      input.linkedOrgs as unknown as Array<Record<string, unknown>>,
-      'linked orgs',
-      'orgName',
-      INTAKE_LINKED_ORG_OPTIONAL_KEYS,
-    );
-  }
-  if (input.nextMeeting !== undefined) {
-    assertExactKeys(input.nextMeeting, ['heldAt', 'channel']);
-    canonicalUtcInstant(input.nextMeeting.heldAt, 'next meeting time');
-    if (
-      input.nextMeeting.channel !== 'in_person'
-      && input.nextMeeting.channel !== 'phone'
-      && input.nextMeeting.channel !== 'video'
-    ) {
-      throw new ValidationError('next meeting channel is invalid');
-    }
-  }
-
-  if (hasManagerOpinion) assertNonBlankText(input.managerOpinion, 'manager opinion');
-
-  if (hasSchedule) {
-    assertOpaqueIdentifier(input.scheduleId, 'schedule id');
-    if (
-      typeof input.expectedScheduleVersion !== 'number'
-      || !Number.isInteger(input.expectedScheduleVersion)
-      || input.expectedScheduleVersion < 1
-    ) {
-      throw new ValidationError('schedule version is invalid');
-    }
-  }
-}
 
 async function intakeRecordReplay(
   env: Env,
@@ -19498,10 +22118,10 @@ async function intakeRecordReplay(
      LIMIT 1`,
   ).bind(actor.orgId, supportCaseId, submissionId).first<DbRow>();
   if (row === null) return null;
-  if (row.submitted_by !== actor.userId || row.submission_hash !== submissionHash) {
+  if (row.kind !== 'intake' || row.intake_schema_version !== 2 || row.submitted_by !== actor.userId || row.submission_hash !== submissionHash) {
     throw new ConflictError('submission conflicts with an existing official operation');
   }
-  return { record: mapCounselingRecord(row), replayed: true };
+  return { record: mapCounselingRecord(row), replayed: true, schemaVersion: INTAKE_WRITE_SCHEMA_VERSION, revision: Number(row.intake_revision) };
 }
 
 /**
@@ -19536,6 +22156,96 @@ async function readIntakeExtendedPii(
     emergencyContact: await decryptPii(env, row.enc_emergency_contact),
     gender: await decryptPii(env, row.enc_gender),
   };
+}
+
+function storedIntakeLifecycle(value: unknown): IntakeQuestionLifecycle | null {
+  if (value === null) return null;
+  try { return parseIntakeQuestionLifecycle(parseJson(value)); } catch {
+    throw new ConflictError('intake question history is unavailable');
+  }
+}
+
+/** Read only the named source rows. Historical JSON, including unknown keys, is never rewritten. */
+function intakeSourceRows(schemaVersion: number, detailsJson: unknown): IntakeAdditionalItem[] {
+  const details = parseJson<Record<string, unknown>>(detailsJson);
+  let rows: unknown;
+  if (schemaVersion === 1) {
+    if (detailsJson !== null && !isRecord(details)) throw new ConflictError('intake question source is unavailable');
+    if (details === null || details === undefined || !Object.hasOwn(details, 'additionalItems')) return [];
+    rows = details.additionalItems;
+  } else if (schemaVersion === 2 && isRecord(details) && isRecord(details.additionalItems)) {
+    if (typeof details.additionalItems.response === 'string' && ['declined', 'unknown', 'not_applicable'].includes(details.additionalItems.response)) return [];
+    if (details.additionalItems.response !== 'answered') throw new ConflictError('intake question source is unavailable');
+    rows = details.additionalItems.rows;
+  } else {
+    throw new ConflictError('intake question source is unavailable');
+  }
+  if (!Array.isArray(rows) || rows.some(row => !isRecord(row) || typeof row.item !== 'string' || row.item.trim() === ''
+    || (Object.hasOwn(row, 'dueNote') && typeof row.dueNote !== 'string'))) throw new ConflictError('intake question source is unavailable');
+  return rows as IntakeAdditionalItem[];
+}
+
+type IntakeQuestionReference = {
+  item: IntakeQuestionLifecycleItem;
+  value: IntakeAdditionalItem;
+  schemaVersion: 1 | 2;
+};
+
+/** Bound all secondary reads to the intake row already selected by the caller's source snapshot. */
+async function loadIntakeQuestionHistory(env: Env, orgId: string, source: DbRow) {
+  const revision = integerValue(source.intake_revision)!;
+  if (!Number.isSafeInteger(revision) || revision < 1) throw new ConflictError('intake revision is unavailable');
+  const history = await env.DB.prepare(
+    'SELECT * FROM intake_record_revisions WHERE session_id = ? AND org_id = ? AND revision <= ? ORDER BY revision',
+  ).bind(stringValue(source.id), orgId, revision).all<DbRow>();
+  const byRevision = new Map(history.results.map(row => [integerValue(row.revision)!, row]));
+  const rowsByRevision = new Map<number, IntakeAdditionalItem[]>();
+  const sourceRows = (sourceRevision: number, sourceRowIndex: number, schemaVersion?: number) => {
+    const row = byRevision.get(sourceRevision);
+    if (row === undefined || (schemaVersion !== undefined && row.schema_version !== schemaVersion)) throw new ConflictError('intake question source is unavailable');
+    let rows = rowsByRevision.get(sourceRevision);
+    if (rows === undefined) {
+      rows = intakeSourceRows(Number(row.schema_version), row.details);
+      rowsByRevision.set(sourceRevision, rows);
+    }
+    const value = rows[sourceRowIndex];
+    if (value === undefined) throw new ConflictError('intake question source is unavailable');
+    return { value, schemaVersion: Number(row.schema_version) as 1 | 2 };
+  };
+  const resolve = (lifecycle: IntakeQuestionLifecycle | null, bound: number) => {
+    const references = new Map<string, IntakeQuestionReference>();
+    if (lifecycle === null) return references;
+    for (const item of lifecycle.items) {
+      if (item.sourceRevision > bound) throw new ConflictError('intake question source is unavailable');
+      references.set(item.id, { item, ...sourceRows(item.sourceRevision, item.sourceRowIndex) });
+      if (item.origin !== null) {
+        if (item.origin.sourceRevision >= bound) throw new ConflictError('intake question origin is unavailable');
+        sourceRows(item.origin.sourceRevision, item.origin.sourceRowIndex, item.origin.schemaVersion);
+      }
+    }
+    if (lifecycle.conversion !== null) {
+      const conversion = lifecycle.conversion;
+      const origin = byRevision.get(conversion.sourceRevision);
+      if (origin === undefined || conversion.sourceRevision >= bound || origin.schema_version !== conversion.sourceSchemaVersion
+        || intakeSourceRows(conversion.sourceSchemaVersion, origin.details).length !== conversion.mechanical.mappings.length) {
+        throw new ConflictError('intake question conversion is unavailable');
+      }
+    }
+    return references;
+  };
+  const lifecycle = storedIntakeLifecycle(source.intake_question_lifecycle);
+  const references = resolve(lifecycle, revision);
+  const revisions: IntakeRevision[] = history.results.map(row => {
+    const questionLifecycle = storedIntakeLifecycle(row.question_lifecycle);
+    resolve(questionLifecycle, Number(row.revision));
+    return {
+      revision: Number(row.revision), schemaVersion: Number(row.schema_version) as 1 | 2,
+      heldAt: stringValue(row.held_at), channel: stringValue(row.channel) as Session['channel'],
+      actorId: nullableString(row.actor_id), recordedAt: stringValue(row.recorded_at),
+      convertedFromRevision: integerValue(row.converted_from_revision), detailsJson: nullableString(row.details), questionLifecycle,
+    };
+  });
+  return { source, lifecycle, references, revisions };
 }
 
 /**
@@ -19590,26 +22300,28 @@ export async function getIntakeRecordContext(
   let saved: IntakeSavedRecord | null = null;
   if (hasIntake) {
     const intakeRow = await env.DB.prepare(
-      `SELECT id, held_at, channel, intake_details FROM sessions
+      `SELECT id, held_at, channel, intake_details, intake_schema_version, intake_revision, intake_question_lifecycle FROM sessions
        WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
-    ).bind(actor.orgId, supportCaseId).first<{ id: string; held_at: string; channel: string; intake_details: string | null }>();
+    ).bind(actor.orgId, supportCaseId).first<DbRow>();
     if (intakeRow !== null) {
-      const details = parseJson<Record<string, unknown>>(intakeRow.intake_details) ?? {};
-      saved = {
-        sessionId: intakeRow.id,
-        heldAt: intakeRow.held_at,
-        channel: intakeRow.channel as Session['channel'],
-        answers: Array.isArray(details.answers) ? details.answers as IntakeAnswerInput[] : [],
-        debts: Array.isArray(details.debts) ? details.debts as IntakeDebtEntryInput[] : [],
-        linkedOrgs: Array.isArray(details.linkedOrgs) ? details.linkedOrgs as IntakeLinkedOrgInput[] : [],
-        additionalItems: Array.isArray(details.additionalItems) ? details.additionalItems as IntakeAdditionalItemInput[] : [],
-        managerOpinion: typeof details.managerOpinion === 'string' ? details.managerOpinion : null,
+      const snapshot = await loadIntakeQuestionHistory(env, actor.orgId, intakeRow);
+      const common = {
+        sessionId: stringValue(intakeRow.id), heldAt: stringValue(intakeRow.held_at), channel: stringValue(intakeRow.channel) as Session['channel'],
+        revision: Number(intakeRow.intake_revision), questionLifecycle: snapshot.lifecycle,
+        history: snapshot.revisions.filter(row => row.revision < Number(intakeRow.intake_revision)),
       };
+      saved = intakeRow.intake_schema_version === 1
+        ? { ...common, schemaVersion: 1, questionnaire: null, legacyDetailsJson: nullableString(intakeRow.intake_details) }
+        : { ...common, schemaVersion: 2, questionnaire: parseJson<IntakeQuestionnaire>(intakeRow.intake_details)!, legacyDetailsJson: null };
     }
   }
+  const program = await programForOrg(env, actor.orgId, supportCase.programId);
   return {
     beneficiaryId: supportCase.beneficiaryId,
     supportCaseId,
+    canWrite: await canWriteIntake(env, actor, supportCaseId),
+    writeSchemaVersion: INTAKE_WRITE_SCHEMA_VERSION,
+    moduleSnapshot: { programId: program.id, programVersion: program.version, financialSupportEnabled: program.financialSupportEnabled },
     participant: {
       name: contact?.name ?? null,
       phone: contact?.phone ?? null,
@@ -19625,564 +22337,253 @@ export async function getIntakeRecordContext(
   };
 }
 
-/**
- * 인테이크 기록을 한 번의 원자 배치로 저장한다: 세션(kind=intake) + 목표 1~3 + 액션 +
- * 6영역 스냅샷 + 동의 기록. 재현(replay)은 인테이크 1회 규칙보다 먼저 판정한다 —
- * 정당한 네트워크 재시도(같은 submissionId)가 중복으로 거부되지 않게 한다. 1회 규칙은
- * 사전 조회와 세션 INSERT 의 WHERE 가드로 이중 강제한다.
- */
+async function assertIntakeModuleSnapshot(env: Env, actor: Actor, supportCase: SupportCase, snapshot: IntakeModuleSnapshot): Promise<void> {
+  if (snapshot.programId !== supportCase.programId) throw new ForbiddenError('intake program is unavailable');
+  const program = await programForOrg(env, actor.orgId, supportCase.programId);
+  if (snapshot.programId !== program.id || snapshot.programVersion !== program.version
+    || snapshot.financialSupportEnabled !== program.financialSupportEnabled || program.status !== 'active') {
+    throw new ConflictError('intake program settings changed');
+  }
+}
+
+const INTAKE_WRITE_GUARD_SQL = `EXISTS (
+  SELECT 1 FROM support_cases AS sc
+  JOIN programs AS p ON p.id = sc.program_id AND p.org_id = sc.org_id
+  JOIN support_case_assignees AS a ON a.support_case_id = sc.id AND a.org_id = sc.org_id
+  JOIN user_role_assignments AS r ON r.user_id = a.user_id AND r.org_id = a.org_id
+  JOIN users AS u ON u.id = a.user_id AND u.org_id = a.org_id AND u.active = 1
+  WHERE sc.id = ? AND sc.org_id = ? AND sc.status = 'active'
+    AND p.id = ? AND p.version = ? AND p.financial_support_enabled = ? AND p.status = 'active'
+    AND a.user_id = ? AND a.status = 'active' AND a.unassigned_at IS NULL
+    AND r.role = 'practitioner' AND r.revoked_at IS NULL
+)`;
+
+function intakeWriteGuardBindings(actor: Actor, supportCaseId: string, snapshot: IntakeModuleSnapshot): Bindable[] {
+  return [supportCaseId, actor.orgId, snapshot.programId, snapshot.programVersion, snapshot.financialSupportEnabled ? 1 : 0, actor.userId];
+}
+
+function intakeProgramLock(env: Env, actor: Actor, snapshot: IntakeModuleSnapshot): PreparedStatement {
+  // Serialize module changes with this batch on PostgreSQL as well as SQLite.
+  return env.DB.prepare('UPDATE programs SET version = version WHERE id = ? AND org_id = ?')
+    .bind(snapshot.programId, actor.orgId);
+}
+
+function intakeSourceLock(env: Env, orgId: string, supportCaseId: string, id: string): PreparedStatement {
+  return env.DB.prepare("UPDATE sessions SET intake_revision = intake_revision WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake'")
+    .bind(id, orgId, supportCaseId);
+}
+
+function isManualContextConstraint(error: unknown): boolean {
+  return error !== null && typeof error === 'object' && 'kind' in error && error.kind === 'constraint'
+    && 'constraintSubtype' in error && ['check', 'trigger', 'foreign_key'].includes(String(error.constraintSubtype));
+}
+
+/** Versioned manual intake. Goal editing remains the dedicated audited goal operation. */
 export async function createIntakeRecord(
-  env: Env,
-  actor: Actor,
-  supportCaseId: string,
-  input: CreateIntakeRecordInput,
+  env: Env, actor: Actor, supportCaseId: string, input: IntakeCreateRequest,
 ): Promise<IntakeRecordResult> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
-  assertIntakeRecordInput(input);
-  const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
-  if (supportCase.status !== 'active') {
-    throw new ConflictError('support case is unavailable');
+  try { parseIntakeCreateRequest(input); } catch (error) {
+    if (error instanceof IntakeContractError) throw new ValidationError(error.message);
+    throw error;
   }
-
-  // 제출 해시는 저장되는 모든 입력을 덮어야 한다 — 빠뜨린 필드는 "서로 다른 제출"을
-  // 같은 해시로 만들고, 두 번째 제출이 재현(replay)으로 조용히 버려진다(CCC-9).
-  const submissionHash = await canonicalSha256({
-    actionItems: input.actionItems ?? null,
-    actorId: actor.userId,
-    additionalItems: input.additionalItems ?? null,
-    answers: input.answers ?? null,
-    channel: input.channel,
-    debts: input.debts ?? null,
-    extendedPii: input.extendedPii ?? null,
-    goals: (input.goals ?? []).map((goal) => ({ title: goal.title, scaleCriteria: goal.scaleCriteria ?? null })),
-    heldAt: input.heldAt,
-    helpNarrative: input.helpNarrative ?? null,
-    lifeAreas: input.lifeAreas ?? null,
-    linkedOrgs: input.linkedOrgs ?? null,
-    managerOpinion: input.managerOpinion ?? null,
-    nextMeeting: input.nextMeeting ?? null,
-    orgId: actor.orgId,
-    scheduleId: input.scheduleId ?? null,
-    scheduleVersion: input.expectedScheduleVersion ?? null,
-    supportCaseId,
-  });
-
-  // 재현 우선(정당한 재시도 보호) → 그다음 1회 규칙.
+  assertCanonicalSubmissionId(input.submissionId);
+  const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
+  if (supportCase.status !== 'active') throw new ConflictError('support case is unavailable');
+  if ((await programForOrg(env, actor.orgId, supportCase.programId)).status !== 'active') throw new ConflictError('support case is unavailable');
+  const submissionHash = await canonicalSha256({ input, actorId: actor.userId, orgId: actor.orgId, supportCaseId });
   const replay = await intakeRecordReplay(env, actor, supportCaseId, input.submissionId, submissionHash);
   if (replay !== null) return replay;
-
-  const existingIntake = await env.DB.prepare(
-    `SELECT 1 FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
-  ).bind(actor.orgId, supportCaseId).first<{ 1: number }>();
-  if (existingIntake !== null) {
-    throw new ConflictError('intake record already exists for this support case');
-  }
-
-  // 목표 상한(D12): 기존 활성 목표 + 신규 목표 ≤ 3.
-  const goalInputs = input.goals ?? [];
-  if (goalInputs.length > 0) {
-    const active = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM goals WHERE org_id = ? AND support_case_id = ? AND status = 'active'",
-    ).bind(actor.orgId, supportCaseId).first<{ count: number }>();
-    if ((Number(active?.count ?? 0)) + goalInputs.length > MAX_ACTIVE_GOALS) {
-      throw new ValidationError(`a case can have at most ${MAX_ACTIVE_GOALS} active goals`);
-    }
-  }
-
+  await assertIntakeModuleSnapshot(env, actor, supportCase, input.questionnaire.moduleSnapshot);
   let schedule: CounselingSchedule | null = null;
   if (input.scheduleId !== undefined) {
+    assertOpaqueIdentifier(input.scheduleId, 'schedule id');
     schedule = await getCounselingScheduleForOrg(env, actor.orgId, input.scheduleId);
     await assertScheduleMutationAccess(env, actor, schedule);
-    if (
-      schedule.beneficiaryId !== supportCase.beneficiaryId
-      || schedule.supportCaseId !== supportCaseId
-      || schedule.status !== 'scheduled'
-      || schedule.version !== input.expectedScheduleVersion
-    ) {
-      throw new ConflictError('counseling schedule is unavailable');
-    }
+    if (schedule.beneficiaryId !== supportCase.beneficiaryId || schedule.supportCaseId !== supportCaseId) throw new ForbiddenError('intake schedule source is unavailable');
+    if (schedule.status !== 'scheduled' || schedule.version !== input.expectedScheduleVersion) throw new ConflictError('counseling schedule is unavailable');
   }
-
-  // 추가 개인정보를 쓰려면 금고 행이 살아 있어야 한다. 없거나 파기됐으면 배치의 UPDATE 가
-  // 0행으로 조용히 지나가므로(세션만 저장되고 PII 는 사라짐) 여기서 먼저 막는다.
-  if (input.extendedPii !== undefined) {
-    const vault = await env.DB.prepare(
-      'SELECT 1 AS present FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ? AND purged_at IS NULL',
-    ).bind(supportCase.beneficiaryId, actor.orgId).first<{ present: number }>();
-    if (vault === null) {
-      throw new ConflictError('participant data is unavailable');
-    }
-  }
-
+  if (await env.DB.prepare("SELECT id FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake'")
+    .bind(actor.orgId, supportCaseId).first() !== null) throw new ConflictError('intake record already exists');
   const id = newId();
   const createdAt = now();
-  const intakeDetails = stringifyJson({
-    helpNarrative: input.helpNarrative ?? null,
-    managerOpinion: input.managerOpinion ?? null,
-    // 질문지 답변·반복 행 표는 확장 슬롯 성격의 JSON 으로 격리한다(브리핑·통계 제외, 3층 구조).
-    answers: input.answers ?? [],
-    additionalItems: input.additionalItems ?? [],
-    debts: input.debts ?? [],
-    linkedOrgs: input.linkedOrgs ?? [],
-    nextMeeting: input.nextMeeting ?? null,
-  });
-  const activeSupportCaseGuard = `EXISTS (
-    SELECT 1 FROM support_cases
-    WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND status = 'active'
+  // Candidates have no durable identity until this guarded batch commits.
+  const lifecycle: IntakeQuestionLifecycle = {
+    version: 1, conversion: null,
+    items: input.additionalItemRefs.map(ref => ({
+      id: newId(), revision: 1, sourceRevision: 1, sourceRowIndex: ref.rowIndex,
+      createdBy: actor.userId, createdAt, withdrawn: null, origin: null,
+    })),
+  };
+  const guardBindings = intakeWriteGuardBindings(actor, supportCaseId, input.questionnaire.moduleSnapshot);
+  const scheduleGuard = schedule === null ? '' : `AND EXISTS (
+    SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND support_case_id = ? AND status = 'scheduled' AND version = ?
   )`;
-  const activeSupportCaseBindings = [supportCaseId, actor.orgId, supportCase.beneficiaryId];
-  const noExistingIntakeGuard = `NOT EXISTS (
-    SELECT 1 FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake'
-  )`;
-  const noExistingIntakeBindings = [actor.orgId, supportCaseId];
-  const sessionExistsClause = `EXISTS (
-    SELECT 1 FROM sessions
-    WHERE id = ? AND org_id = ? AND support_case_id = ?
-  )`;
-  const sessionExistsBindings = [id, actor.orgId, supportCaseId];
-
-  const sessionStatement = schedule === null
-    ? env.DB.prepare(
-      `INSERT INTO sessions (
-         id, org_id, support_case_id, counselor_id, held_at, channel, memo,
-         kind, intake_details, submission_id, submission_hash, submitted_by,
-         ai_status, created_at, updated_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, NULL, 'intake', ?, ?, ?, ?, 'none', ?, ?
-       WHERE ${activeSupportCaseGuard} AND ${noExistingIntakeGuard}`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-      input.heldAt,
-      input.channel,
-      intakeDetails,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-      createdAt,
-      createdAt,
-      ...activeSupportCaseBindings,
-      ...noExistingIntakeBindings,
-    )
-    : env.DB.prepare(
-      `INSERT INTO sessions (
-         id, org_id, support_case_id, counselor_id, held_at, channel, memo,
-         kind, intake_details, submission_id, submission_hash, submitted_by,
-         ai_status, created_at, updated_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, NULL, 'intake', ?, ?, ?, ?, 'none', ?, ?
-       WHERE EXISTS (
-         SELECT 1 FROM counseling_schedules
-         WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND support_case_id = ?
-           AND status = 'scheduled' AND version = ?
-       )
-       AND ${activeSupportCaseGuard} AND ${noExistingIntakeGuard}`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-      input.heldAt,
-      input.channel,
-      intakeDetails,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-      createdAt,
-      createdAt,
-      schedule.id,
-      actor.orgId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      input.expectedScheduleVersion ?? null,
-      ...activeSupportCaseBindings,
-      ...noExistingIntakeBindings,
-    );
-
-  const statements: PreparedStatement[] = [sessionStatement];
-
-  // 인테이크 완료 시각(CCC-56): 등록은 더 이상 intake_at 을 채우지 않으므로, 인테이크
-  // 기록 저장이 곧 유일한 채움 지점이다. 값은 이 세션의 상담일(held_at)이다 — 위저드
-  // 기본 유형·1회 규칙 안내가 읽는 신호(ScheduleCandidate.intakeAt)와 기록 존재가 여기서
-  // 처음으로 같은 사실이 된다. 세션 INSERT 가 가드에 막히면 이 UPDATE 도 0행이다.
-  statements.push(env.DB.prepare(
-    `UPDATE support_cases
-     SET intake_at = ?, updated_at = ?
-     WHERE id = ? AND org_id = ? AND ${sessionExistsClause}`,
-  ).bind(
-    input.heldAt,
-    createdAt,
-    supportCaseId,
-    actor.orgId,
-    ...sessionExistsBindings,
-  ));
-
-  // 목표(신설) + 각 목표 생성 감사(세션 트리거는 세션 행만 감사하므로 goals 는 명시 감사 — D14).
-  for (const goal of goalInputs) {
-    const goalId = newId();
-    statements.push(env.DB.prepare(
-      `INSERT INTO goals (id, org_id, support_case_id, title, scale_criteria, status, created_at)
-       SELECT ?, ?, ?, ?, ?, 'active', ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      goalId,
-      actor.orgId,
-      supportCaseId,
-      goal.title.trim(),
-      goal.scaleCriteria === undefined || goal.scaleCriteria === null ? null : stringifyJson(goal.scaleCriteria),
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-    statements.push(conditionalCanonicalAuditStatement(env, actor, {
-      action: 'create',
-      targetTable: 'goals',
-      targetId: goalId,
-      beneficiaryId: supportCase.beneficiaryId,
-      supportCaseId,
-      detail: { kind: 'intake' },
-    }, {
-      sql: 'SELECT 1 FROM goals WHERE id = ? AND org_id = ?',
-      bindings: [goalId, actor.orgId],
-    }, createdAt));
-  }
-
-  for (const action of input.actionItems ?? []) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO action_items (
-         id, org_id, support_case_id, session_id, description, owner, due_date, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      supportCaseId,
-      id,
-      action.description,
-      action.owner,
-      action.dueDate ?? null,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-  }
-
-  for (const area of input.lifeAreas ?? []) {
-    statements.push(env.DB.prepare(
-      `INSERT INTO session_life_area_snapshots (
-         id, org_id, session_id, area_key, status, note, created_at
-       )
-       SELECT ?, ?, ?, ?, ?, ?, ?
-       WHERE ${sessionExistsClause}`,
-    ).bind(
-      newId(),
-      actor.orgId,
-      id,
-      area.areaKey,
-      area.status,
-      area.note ?? null,
-      createdAt,
-      ...sessionExistsBindings,
-    ));
-  }
-
-  // 추가 개인정보(0015) — 세션과 같은 원자 배치 안에서 금고에만 저장한다(D3).
-  // SET 목록은 새 4개 컬럼으로 한정한다: 실명·연락처·계좌·이메일은 이 경로로 절대 쓰지
-  // 않는다(그쪽은 admin 전용 updateParticipantPii 가 유일한 관문). 준 필드만 바꾸도록
-  // COALESCE(?, 기존값) 을 쓰고, key_version 은 updateParticipantPii 와 똑같이 건드리지
-  // 않는다. 파기된 금고는 WHERE purged_at IS NULL 로 되살아나지 않는다.
-  if (input.extendedPii !== undefined) {
-    const patch = input.extendedPii;
-    const [encBirthDate, encRegion, encEmergencyContact, encGender] = await Promise.all([
-      encryptPii(env, patch.birthDate ?? null),
-      encryptPii(env, patch.region ?? null),
-      encryptPii(env, patch.emergencyContact ?? null),
-      encryptPii(env, patch.gender ?? null),
-    ]);
-    const operationMarker = newId();
-    statements.push(env.DB.prepare(
-      `UPDATE participant_pii_vault
-       SET enc_birth_date = COALESCE(?, enc_birth_date),
-           enc_region = COALESCE(?, enc_region),
-           enc_emergency_contact = COALESCE(?, enc_emergency_contact),
-           enc_gender = COALESCE(?, enc_gender),
-           version = version + 1, updated_at = ?, operation_marker = ?
-       WHERE beneficiary_id = ? AND org_id = ? AND purged_at IS NULL
-         AND ${sessionExistsClause}`,
-    ).bind(
-      encBirthDate,
-      encRegion,
-      encEmergencyContact,
-      encGender,
-      createdAt,
-      operationMarker,
-      supportCase.beneficiaryId,
-      actor.orgId,
-      ...sessionExistsBindings,
-    ));
-    statements.push(conditionalCanonicalAuditStatement(env, actor, {
-      action: 'update',
-      targetTable: 'participant_pii_vault',
-      targetId: supportCase.beneficiaryId,
-      beneficiaryId: supportCase.beneficiaryId,
-      supportCaseId,
-      detail: {
-        fields: INTAKE_EXTENDED_PII_FIELDS.filter((field) => patch[field] !== undefined),
-        kind: 'intake',
-      },
-    }, {
-      sql: 'SELECT 1 FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ? AND operation_marker = ?',
-      bindings: [supportCase.beneficiaryId, actor.orgId, operationMarker],
-    }, createdAt));
-  }
-
-
-  if (schedule !== null) {
-    statements.push(env.DB.prepare(
-      `UPDATE counseling_schedules
-       SET status = 'completed', completed_session_id = ?, completed_by_actor_id = ?,
-           completed_at = ?, updated_by_actor_id = ?, version = version + 1, updated_at = ?
-       WHERE id = ? AND org_id = ? AND beneficiary_id = ? AND support_case_id = ?
-         AND status = 'scheduled' AND version = ?
-         AND ${sessionExistsClause}`,
-    ).bind(
-      id,
-      actor.userId,
-      createdAt,
-      actor.userId,
-      createdAt,
-      schedule.id,
-      actor.orgId,
-      supportCase.beneficiaryId,
-      supportCaseId,
-      input.expectedScheduleVersion ?? null,
-      ...sessionExistsBindings,
-    ));
-  }
-
+  const scheduleBindings = schedule === null ? [] : [schedule.id, actor.orgId, supportCaseId, input.expectedScheduleVersion ?? null];
+  const exists = 'EXISTS (SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND support_case_id = ?)';
+  const existsBindings = [id, actor.orgId, supportCaseId];
+  const statements = [
+    intakeProgramLock(env, actor, input.questionnaire.moduleSnapshot),
+    env.DB.prepare('UPDATE support_cases SET status = status WHERE id = ? AND org_id = ?').bind(supportCaseId, actor.orgId),
+    env.DB.prepare(
+      `INSERT INTO sessions (id, org_id, support_case_id, counselor_id, held_at, channel, memo, kind,
+        intake_details, intake_question_lifecycle, intake_schema_version, intake_revision, intake_updated_by, submission_id, submission_hash, submitted_by,
+        ai_status, created_at, updated_at)
+      SELECT ?, ?, ?, ?, ?, ?, NULL, 'intake', ?, ?, 2, 1, ?, ?, ?, ?, 'none', ?, ?
+      WHERE ${INTAKE_WRITE_GUARD_SQL} ${scheduleGuard}
+        AND NOT EXISTS (SELECT 1 FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake')`,
+    ).bind(id, actor.orgId, supportCaseId, actor.userId, input.heldAt, input.channel, stringifyJson(input.questionnaire), stringifyJson(lifecycle),
+      actor.userId, input.submissionId, submissionHash, actor.userId, createdAt, createdAt,
+      ...guardBindings, ...scheduleBindings, actor.orgId, supportCaseId),
+    env.DB.prepare(`UPDATE support_cases SET intake_at = ?, updated_at = ? WHERE id = ? AND org_id = ? AND ${exists}`)
+      .bind(input.heldAt, createdAt, supportCaseId, actor.orgId, ...existsBindings),
+  ];
+  if (schedule !== null) statements.push(env.DB.prepare(
+    `UPDATE counseling_schedules SET status = 'completed', completed_session_id = ?, completed_by_actor_id = ?,
+      completed_at = ?, updated_by_actor_id = ?, version = version + 1, updated_at = ?
+     WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND ${exists}`,
+  ).bind(id, actor.userId, createdAt, actor.userId, createdAt, schedule.id, actor.orgId, input.expectedScheduleVersion ?? null, ...existsBindings));
+  if (schedule !== null) statements.push(env.DB.prepare(`UPDATE sessions SET intake_revision = 0 WHERE id = ? AND NOT EXISTS (
+    SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND completed_session_id = ? AND status = 'completed')`)
+    .bind(id, schedule.id, actor.orgId, id));
+  statements.push(env.DB.prepare(`UPDATE sessions SET intake_revision = 0 WHERE id = ? AND NOT (${INTAKE_WRITE_GUARD_SQL})`).bind(id, ...guardBindings));
   try {
     await env.DB.batch(statements);
-    const persisted = await env.DB.prepare(
-      `SELECT id FROM sessions
-       WHERE id = ? AND org_id = ? AND support_case_id = ?
-         AND submission_id = ? AND submission_hash = ? AND submitted_by = ?
-       LIMIT 1`,
-    ).bind(
-      id,
-      actor.orgId,
-      supportCaseId,
-      input.submissionId,
-      submissionHash,
-      actor.userId,
-    ).first<{ id: string }>();
-    if (persisted === null) {
-      // WHERE 가드(1회 규칙 등)로 세션이 안 들어갔거나 경합에서 밀렸다.
-      const matched = await intakeRecordReplay(env, actor, supportCaseId, input.submissionId, submissionHash);
-      if (matched !== null) return matched;
-      throw new ConflictError('intake record already exists for this support case');
-    }
   } catch (error) {
+    if (isManualContextConstraint(error)) throw new ConflictError('intake record context changed');
     if (!isUniqueConstraintError(error)) throw error;
     const matched = await intakeRecordReplay(env, actor, supportCaseId, input.submissionId, submissionHash);
     if (matched !== null) return matched;
-    throw error;
+    throw new ConflictError('intake record already exists');
   }
-
-  return {
-    record: {
-      id,
-      supportCaseId,
-      counselorId: actor.userId,
-      heldAt: input.heldAt,
-      channel: input.channel,
-      memo: '',
-      kind: 'intake',
-      aiSummary: null,
-      approvedAt: null,
-      createdAt,
-    },
-    replayed: false,
-  };
+  const result = await intakeRecordReplay(env, actor, supportCaseId, input.submissionId, submissionHash);
+  if (result === null) throw new ConflictError('intake record or program settings changed');
+  return { ...result, replayed: result.record.id !== id };
 }
 
-/**
- * 인테이크 수정 입력(2026-08-08 Q "확인/수정"). 현행 위저드가 소유한 필드만 받는다.
- * 동의·기본정보(금고)·목표·다음 행동은 각자의 화면·수명 규칙이 있어 이 경로로 손대지
- * 않는다 — 그 다섯은 CreateIntakeRecordInput 에만 남는다.
- */
-export interface UpdateIntakeRecordInput {
-  heldAt: string;
-  channel: Session['channel'];
-  answers?: IntakeAnswerInput[];
-  debts?: IntakeDebtEntryInput[];
-  linkedOrgs?: IntakeLinkedOrgInput[];
-  additionalItems?: IntakeAdditionalItemInput[];
-  managerOpinion?: string;
-}
-
-function assertUpdateIntakeRecordInput(input: UpdateIntakeRecordInput): void {
-  const expectedKeys = ['heldAt', 'channel'];
-  if (input.answers !== undefined) expectedKeys.push('answers');
-  if (input.debts !== undefined) expectedKeys.push('debts');
-  if (input.linkedOrgs !== undefined) expectedKeys.push('linkedOrgs');
-  if (input.additionalItems !== undefined) expectedKeys.push('additionalItems');
-  if (input.managerOpinion !== undefined) expectedKeys.push('managerOpinion');
-  assertExactKeys(input, expectedKeys);
-  canonicalUtcInstant(input.heldAt, 'record time');
-  if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
-    throw new ValidationError('record channel is invalid');
-  }
-  if (input.answers !== undefined) assertIntakeAnswerInputs(input.answers);
-  if (input.additionalItems !== undefined) assertIntakeAdditionalItemInputs(input.additionalItems);
-  if (input.debts !== undefined) {
-    assertIntakeTableRows(
-      input.debts as unknown as Array<Record<string, unknown>>,
-      'debts',
-      'creditor',
-      INTAKE_DEBT_OPTIONAL_KEYS,
-    );
-  }
-  if (input.linkedOrgs !== undefined) {
-    assertIntakeTableRows(
-      input.linkedOrgs as unknown as Array<Record<string, unknown>>,
-      'linked orgs',
-      'orgName',
-      INTAKE_LINKED_ORG_OPTIONAL_KEYS,
-    );
-  }
-  if (input.managerOpinion !== undefined) assertNonBlankText(input.managerOpinion, 'manager opinion');
-}
-
-/**
- * 인테이크 수정(2026-08-08 Q "확인/수정"). 위저드 소유분(intake_details 의
- * answers·debts·linkedOrgs·additionalItems·managerOpinion + held_at·channel)만 덮어쓴다.
- * 구 위저드의 유산 키(helpNarrative·nextMeeting)는 화면이 편집하지 않으므로 보존한다 —
- * 지우면 과거 기록의 해석 재료가 사라진다. 세션 INSERT 감사 트리거는 UPDATE 를 덮지
- * 않으므로 감사는 명시로 남긴다(D14). 승인 개념이 없는 회차라(ai_status 'none')
- * R2 승인 게이트와 무관하다.
- */
+/** A revision is appended on every edit. Legacy conversion requires the exact source revision. */
 export async function updateIntakeRecord(
-  env: Env,
-  actor: Actor,
-  supportCaseId: string,
-  input: UpdateIntakeRecordInput,
+  env: Env, actor: Actor, supportCaseId: string, input: IntakeUpdateRequest,
 ): Promise<IntakeRecordResult> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
-  assertUpdateIntakeRecordInput(input);
+  try { parseIntakeUpdateRequest(input); } catch (error) {
+    if (error instanceof IntakeContractError) throw new ValidationError(error.message);
+    throw error;
+  }
   const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
-  if (supportCase.status !== 'active') {
-    throw new ConflictError('support case is unavailable');
-  }
+  if (supportCase.status !== 'active') throw new ConflictError('support case is unavailable');
+  await assertIntakeModuleSnapshot(env, actor, supportCase, input.questionnaire.moduleSnapshot);
   const intakeRow = await env.DB.prepare(
-    `SELECT id, intake_details, created_at FROM sessions
-     WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
-  ).bind(actor.orgId, supportCaseId).first<{ id: string; intake_details: string | null; created_at: string }>();
-  if (intakeRow === null) {
-    throw new ConflictError('intake record does not exist for this support case');
+    `SELECT * FROM sessions WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
+  ).bind(actor.orgId, supportCaseId).first<DbRow>();
+  if (intakeRow === null) throw new ConflictError('intake record does not exist');
+  const snapshot = await loadIntakeQuestionHistory(env, actor.orgId, intakeRow);
+  const existing = snapshot.references;
+  const converting = snapshot.lifecycle === null;
+  if (!converting && input.additionalItemRefs.some(ref => ref.legacySourceRowIndex !== undefined)) {
+    throw new ValidationError('legacy source rows are only allowed during conversion');
   }
-  const existing = parseJson<Record<string, unknown>>(intakeRow.intake_details) ?? {};
-  const intakeDetails = stringifyJson({
-    helpNarrative: existing.helpNarrative ?? null,
-    managerOpinion: input.managerOpinion ?? null,
-    answers: input.answers ?? [],
-    additionalItems: input.additionalItems ?? [],
-    debts: input.debts ?? [],
-    linkedOrgs: input.linkedOrgs ?? [],
-    nextMeeting: existing.nextMeeting ?? null,
+  for (const questionId of [
+    ...input.additionalItemRefs.flatMap(ref => ref.questionId === null ? [] : [ref.questionId]),
+    ...input.questionWithdrawals.map(item => item.questionId),
+  ]) {
+    if (!existing.has(questionId)) throw new ForbiddenError('intake question source is unavailable');
+  }
+  const revision = integerValue(intakeRow.intake_revision)!;
+  if (revision !== input.expectedRevision || !Number.isSafeInteger(revision + 1)) throw new ConflictError('intake revision changed');
+  if (converting ? input.conversion?.confirmed !== true || input.conversion.sourceRevision !== revision : input.conversion !== undefined) {
+    throw new ConflictError('intake conversion confirmation changed');
+  }
+  const legacyRows = converting ? intakeSourceRows(Number(intakeRow.intake_schema_version), intakeRow.intake_details) : [];
+  const mappings = input.additionalItemRefs.filter(ref => ref.legacySourceRowIndex !== undefined);
+  if (converting && (mappings.length !== legacyRows.length || mappings.some(ref => ref.legacySourceRowIndex! >= legacyRows.length))) {
+    throw new ConflictError('intake conversion requires every source row exactly once');
+  }
+  const rows = input.questionnaire.additionalItems.response === 'answered' ? input.questionnaire.additionalItems.rows : [];
+  const withdrawals = new Map(input.questionWithdrawals.map(item => [item.questionId, item]));
+  const bindings = new Map(input.additionalItemRefs.flatMap(ref => ref.questionId === null ? [] : [[ref.questionId, ref] as const]));
+  for (const ref of input.additionalItemRefs) {
+    if (ref.questionId === null) continue;
+    const source = existing.get(ref.questionId)!;
+    if (source.item.withdrawn !== null || ref.expectedRevision !== source.item.revision) throw new ConflictError('intake question revision changed');
+    const submitted = rows[ref.rowIndex]!;
+    if (withdrawals.has(ref.questionId) && (submitted.item !== source.value.item || submitted.dueNote !== source.value.dueNote)) {
+      throw new ConflictError('intake question edit and withdrawal conflict');
+    }
+  }
+  for (const withdrawal of withdrawals.values()) {
+    const source = existing.get(withdrawal.questionId)!;
+    if (source.item.withdrawn !== null || source.item.revision !== withdrawal.expectedRevision) throw new ConflictError('intake question revision changed');
+  }
+  const id = stringValue(intakeRow.id), updatedAt = now();
+  const items: IntakeQuestionLifecycleItem[] = (snapshot.lifecycle?.items ?? []).map(item => {
+    const ref = bindings.get(item.id), withdrawal = withdrawals.get(item.id);
+    if (ref === undefined && withdrawal === undefined) return item;
+    const source = existing.get(item.id)!.value;
+    const submitted = ref === undefined ? source : rows[ref.rowIndex]!;
+    const changed = submitted.item !== source.item || submitted.dueNote !== source.dueNote;
+    if ((changed || withdrawal !== undefined) && !Number.isSafeInteger(item.revision + 1)) throw new ConflictError('intake question revision changed');
+    return {
+      ...item, revision: item.revision + (changed || withdrawal !== undefined ? 1 : 0),
+      sourceRevision: ref === undefined ? item.sourceRevision : revision + 1,
+      sourceRowIndex: ref === undefined ? item.sourceRowIndex : ref.rowIndex,
+      withdrawn: withdrawal === undefined ? item.withdrawn : { actorId: actor.userId, recordedAt: updatedAt, fromRevision: item.revision },
+    };
   });
-  const updatedAt = now();
-  const operationMarker = newId();
-  // 권한을 변경 배치의 WHERE 에서 반복한다. 사전 검사만으로는 이후 상태 변화를 승인하지
-  // 못한다. 감사는 이 요청의 operation marker가 post-state에 남았을 때만 함께 기록한다.
-  const results = await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE sessions
-       SET held_at = ?, channel = ?, intake_details = ?, updated_at = ?, operation_marker = ?
-       WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake'
-         AND EXISTS (
-           SELECT 1 FROM support_cases AS support_case
-           WHERE support_case.id = sessions.support_case_id
-             AND support_case.org_id = sessions.org_id
-             AND support_case.status = 'active'
-         )
-         AND EXISTS (
-           SELECT 1
-           FROM support_case_assignees AS assignment
-           JOIN user_role_assignments AS practitioner_role
-             ON practitioner_role.org_id = assignment.org_id
-            AND practitioner_role.user_id = assignment.user_id
-            AND practitioner_role.role = 'practitioner'
-            AND practitioner_role.revoked_at IS NULL
-           WHERE assignment.org_id = sessions.org_id
-             AND assignment.support_case_id = sessions.support_case_id
-             AND assignment.user_id = ?
-             AND assignment.unassigned_at IS NULL
-             AND assignment.status = 'active'
-         )`,
-    ).bind(
-      input.heldAt,
-      input.channel,
-      intakeDetails,
-      updatedAt,
-      operationMarker,
-      intakeRow.id,
-      actor.orgId,
-      supportCaseId,
-      actor.userId,
-    ),
-    conditionalCanonicalAuditStatement(env, actor, {
-      action: 'update',
-      targetTable: 'sessions',
-      targetId: intakeRow.id,
-      beneficiaryId: supportCase.beneficiaryId,
-      supportCaseId,
-      detail: { kind: 'intake' },
-    }, {
-      sql: 'SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND operation_marker = ?',
-      bindings: [intakeRow.id, actor.orgId, operationMarker],
-    }, updatedAt),
-    // 인테이크 완료 시각 동기(CCC-56): 상담일(held_at)이 바뀌면 intake_at 도 따라간다.
-    // 앞 UPDATE 가 권한·상태 가드에 막혀 0행이면 여기도 0행이어야 하므로, 이 호출이 방금
-    // 쓴 값(held_at = ?, updated_at = ?)이 실제로 앉았는지를 조건으로 삼는다.
-    env.DB.prepare(
-      `UPDATE support_cases
-       SET intake_at = ?, updated_at = ?
-       WHERE id = ? AND org_id = ? AND EXISTS (
-         SELECT 1 FROM sessions
-         WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake'
-           AND held_at = ? AND updated_at = ?
-       )`,
-    ).bind(
-      input.heldAt,
-      updatedAt,
-      supportCaseId,
-      actor.orgId,
-      intakeRow.id,
-      actor.orgId,
-      supportCaseId,
-      input.heldAt,
-      updatedAt,
-    ),
-  ]);
-  const updated = results[0] as unknown as { meta?: { changes?: number } };
-  if ((updated.meta?.changes ?? 0) < 1) {
-    throw new ConflictError('intake record is no longer editable');
+  const allocatedMappings: Array<{ questionId: string; sourceRowIndex: number }> = [];
+  for (const ref of input.additionalItemRefs) {
+    if (ref.questionId !== null) continue;
+    const questionId = newId();
+    const origin = ref.legacySourceRowIndex === undefined ? null : {
+      schemaVersion: Number(intakeRow.intake_schema_version) as 1 | 2, sourceRevision: revision, sourceRowIndex: ref.legacySourceRowIndex,
+    };
+    items.push({ id: questionId, revision: 1, sourceRevision: revision + 1, sourceRowIndex: ref.rowIndex,
+      createdBy: actor.userId, createdAt: updatedAt, withdrawn: null, origin });
+    if (origin !== null) allocatedMappings.push({ questionId, sourceRowIndex: origin.sourceRowIndex });
   }
+  const lifecycle: IntakeQuestionLifecycle = {
+    version: 1, items,
+    conversion: converting ? {
+      sourceSchemaVersion: Number(intakeRow.intake_schema_version) as 1 | 2, sourceRevision: revision,
+      mechanical: { recordedAt: updatedAt, mappings: allocatedMappings },
+      confirmation: { actorId: actor.userId, recordedAt: updatedAt },
+    } : snapshot.lifecycle!.conversion,
+  };
+  const operationMarker = newId();
+  const guardBindings = intakeWriteGuardBindings(actor, supportCaseId, input.questionnaire.moduleSnapshot);
+  let results;
+  try {
+    results = await env.DB.batch([
+      intakeProgramLock(env, actor, input.questionnaire.moduleSnapshot),
+      env.DB.prepare('UPDATE support_cases SET status = status WHERE id = ? AND org_id = ?').bind(supportCaseId, actor.orgId),
+      intakeSourceLock(env, actor.orgId, supportCaseId, id),
+      env.DB.prepare(
+        `UPDATE sessions SET held_at = ?, channel = ?, intake_details = ?, intake_question_lifecycle = ?, updated_at = ?, operation_marker = ?,
+          intake_schema_version = 2, intake_revision = intake_revision + 1, intake_updated_by = ?, intake_converted_from_revision = ?
+         WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake' AND intake_revision = ?
+           AND intake_schema_version = ? AND held_at = ? AND COALESCE(intake_question_lifecycle, 'null') = ? AND ${INTAKE_WRITE_GUARD_SQL}`,
+      ).bind(input.heldAt, input.channel, stringifyJson(input.questionnaire), stringifyJson(lifecycle), updatedAt, operationMarker, actor.userId,
+        converting ? revision : null, id, actor.orgId, supportCaseId, revision, intakeRow.intake_schema_version as Bindable,
+        stringValue(intakeRow.held_at), nullableString(intakeRow.intake_question_lifecycle) ?? 'null', ...guardBindings),
+      conditionalCanonicalAuditStatement(env, actor, {
+        action: 'update', targetTable: 'sessions', targetId: id, beneficiaryId: supportCase.beneficiaryId, supportCaseId,
+        detail: { kind: 'intake', schemaVersion: 2, revision: revision + 1, convertedFromRevision: converting ? revision : null },
+      }, {
+        sql: 'SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND operation_marker = ?',
+        bindings: [id, actor.orgId, operationMarker],
+      }, updatedAt),
+      env.DB.prepare(`UPDATE support_cases SET intake_at = ?, updated_at = ? WHERE id = ? AND org_id = ? AND EXISTS (
+        SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND operation_marker = ?
+      )`).bind(input.heldAt, updatedAt, supportCaseId, actor.orgId, id, actor.orgId, operationMarker),
+    ]);
+  } catch (error) {
+    if (isManualContextConstraint(error)) throw new ConflictError('intake record context changed');
+    throw error;
+  }
+  if ((results[3]?.meta.changes ?? 0) < 1) throw new ConflictError('intake revision or program settings changed');
   return {
-    record: {
-      id: intakeRow.id,
-      supportCaseId,
-      counselorId: actor.userId,
-      heldAt: input.heldAt,
-      channel: input.channel,
-      memo: '',
-      kind: 'intake',
-      aiSummary: null,
-      approvedAt: null,
-      createdAt: intakeRow.created_at,
-    },
-    replayed: false,
+    record: { ...mapCounselingRecord(intakeRow), heldAt: input.heldAt, channel: input.channel },
+    replayed: false, schemaVersion: INTAKE_WRITE_SCHEMA_VERSION, revision: revision + 1,
   };
 }
 
@@ -20210,7 +22611,7 @@ export async function listCounselingRecords(
   }
 
   const placeholders = sessionIds.map(() => '?').join(', ');
-  const [approved, scores, actionItems, confirmedFlags, completedSchedules, lifeAreas, discrepancyRows] = await Promise.all([
+  const [approved, scores, actionItems, confirmedFlags, completedSchedules, lifeAreas, discrepancyRows, manualActionOutcomes, manualQuestionOutcomes, manualHistory] = await Promise.all([
     env.DB.prepare(
       // one_liner 는 D47 접힌 줄의 핵심 한 줄(0025) — 브리핑 영역 ②와 같은 승인 경로에서 읽는다(R2).
       `SELECT session_id, summary_text, approved_at, one_liner
@@ -20255,6 +22656,7 @@ export async function listCounselingRecords(
                 ) AS resolved_rank
          FROM session_discrepancies AS discrepancy
          WHERE discrepancy.org_id = ? AND discrepancy.support_case_id = ?
+           AND discrepancy.kind = 'within_session'
            AND (
              discrepancy.left_session_id IN (${placeholders})
              OR discrepancy.right_session_id IN (${placeholders})
@@ -20263,7 +22665,54 @@ export async function listCounselingRecords(
        WHERE resolution_status IS NULL OR resolved_rank <= ${DISCREPANCY_RESOLVED_HISTORY_LIMIT}
        ORDER BY (resolution_status IS NULL) DESC, detected_at DESC, id`,
     ).bind(actor.orgId, supportCaseId, ...sessionIds, ...sessionIds).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, h.held_at FROM manual_action_outcomes o
+      JOIN manual_record_revisions h ON h.session_id = o.session_id AND h.org_id = o.org_id AND h.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? AND o.session_id IN (${placeholders})
+      ORDER BY h.held_at, o.session_id, o.action_item_id`)
+      .bind(actor.orgId, supportCaseId, ...sessionIds).all<DbRow>(),
+    env.DB.prepare(`SELECT o.*, h.held_at FROM manual_question_outcomes o
+      JOIN manual_record_revisions h ON h.session_id = o.session_id AND h.org_id = o.org_id AND h.revision = 1
+      WHERE o.org_id = ? AND o.support_case_id = ? AND o.session_id IN (${placeholders})
+      ORDER BY h.held_at, o.session_id, o.kind, o.question_id`)
+      .bind(actor.orgId, supportCaseId, ...sessionIds).all<DbRow>(),
+    env.DB.prepare(`SELECT h.* FROM manual_record_revisions h JOIN sessions s ON s.id = h.session_id AND s.org_id = h.org_id
+      WHERE s.org_id = ? AND s.support_case_id = ? AND h.session_id IN (${placeholders})
+      ORDER BY h.revision`).bind(actor.orgId, supportCaseId, ...sessionIds).all<DbRow>(),
   ]);
+  const manualBySession = new Map<string, ManualRecordProjection>();
+  for (const row of sessions.results) {
+    if (row.kind !== 'regular') continue;
+    const schemaVersion = integerValue(row.manual_schema_version) === 2 ? 2 : 1;
+    manualBySession.set(stringValue(row.id), {
+      schemaVersion, revision: integerValue(row.manual_revision)!, details: storedManualDetails(row),
+      legacyDetailsJson: schemaVersion === 1 ? nullableString(row.record_details) : null,
+      history: [], actionOutcomes: [], questionOutcomes: [],
+    });
+  }
+  for (const row of manualHistory.results) {
+    // 최초 조회한 회차 revision 이후의 수정 이력은 다음 조회에서만 보인다.
+    const selected = manualBySession.get(stringValue(row.session_id))!;
+    if (integerValue(row.revision)! > selected.revision) continue;
+    selected.history.push({
+      revision: integerValue(row.revision)!, schemaVersion: integerValue(row.schema_version) === 2 ? 2 : 1,
+      heldAt: stringValue(row.held_at), channel: toChannel(row.channel), memo: nullableString(row.memo),
+      detailsJson: nullableString(row.details), recordedAt: stringValue(row.recorded_at), actorId: nullableString(row.actor_id),
+    });
+  }
+  for (const row of manualActionOutcomes.results) {
+    manualBySession.get(stringValue(row.session_id))!.actionOutcomes.push({
+      actionItemId: stringValue(row.action_item_id), sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at),
+      sourceRevision: integerValue(row.source_revision)!, outcome: stringValue(row.outcome) as ManualActionOutcome['outcome'],
+      continuation: nullableString(row.continuation) as ManualActionOutcome['continuation'], reason: nullableString(row.reason),
+    });
+  }
+  for (const row of manualQuestionOutcomes.results) {
+    manualBySession.get(stringValue(row.session_id))!.questionOutcomes.push({
+      kind: stringValue(row.kind) as ManualPendingQuestion['kind'], questionId: stringValue(row.question_id), sourceId: stringValue(row.source_id),
+      sessionId: stringValue(row.session_id), heldAt: stringValue(row.held_at), outcome: stringValue(row.outcome) as ManualQuestionOutcome['outcome'],
+      answer: nullableString(row.answer), sourceRevision: integerValue(row.source_revision)!, sourceText: stringValue(row.source_text),
+    });
+  }
   const approvedBySession = new Map(
     approved.results.map((row) => [
       stringValue(row.session_id),
@@ -20377,6 +22826,7 @@ export async function listCounselingRecords(
       : sessionGoalNoteLines(nullableString(row.record_details));
     return {
       ...mapCounselingRecord(row, projected?.summaryText ?? null, projected?.approvedAt ?? null),
+      manual: manualBySession.get(sessionId) ?? null,
       completedSchedule,
       gasScores: scoresBySession.get(sessionId) ?? [],
       actionItems: actionsBySession.get(sessionId) ?? [],
@@ -20393,10 +22843,12 @@ export async function listCounselingRecords(
 
 /** Preserve stored wording and attach a source field to every report value. */
 function reportEvidence(
-  record: CounselingRecord, sessionNumber: number, source: string, text: unknown,
+  record: CounselingRecord & { intakeSchemaVersion?: 1 | 2; intakeRevision?: number }, sessionNumber: number, source: string, text: unknown,
 ): ReportEvidence | undefined {
   return typeof text === 'string' && text.trim() !== ''
-    ? { sessionId: record.id, sessionNumber, heldAt: record.heldAt, source, text }
+    ? { sessionId: record.id, sessionNumber, heldAt: record.heldAt, source, text,
+      ...(source.startsWith('intake_details.') ? { intakeSchemaVersion: record.intakeSchemaVersion, intakeRevision: record.intakeRevision }
+        : record.kind === 'intake' && source.startsWith('session_life_area_snapshots.') ? { intakeSchemaVersion: 1 as const, intakeRevision: 1 } : {}) }
     : undefined;
 }
 
@@ -20405,9 +22857,9 @@ export async function getSupportCaseReport(
   env: Env, actor: Actor, supportCaseId: string,
 ): Promise<SupportCaseReport> {
   const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
-  const [records, detailRows, actionRows, program] = await Promise.all([
+  const [records, detailRows, actionRows, program, work] = await Promise.all([
     listCounselingRecords(env, actor, supportCaseId),
-    env.DB.prepare(`SELECT id, record_details, intake_details FROM sessions
+    env.DB.prepare(`SELECT id, record_details, intake_details, intake_schema_version, intake_revision FROM sessions
       WHERE org_id=? AND support_case_id=?`).bind(actor.orgId, supportCaseId).all<DbRow>(),
     env.DB.prepare(`SELECT id, session_id, description, due_date, resolved_at,
         resolution_status, resolution_note, resolution_session_id
@@ -20415,6 +22867,7 @@ export async function getSupportCaseReport(
       ORDER BY created_at, id`).bind(actor.orgId, supportCaseId).all<DbRow>(),
     env.DB.prepare('SELECT display_name FROM programs WHERE org_id=? AND id=?')
       .bind(actor.orgId, supportCase.programId).first<DbRow>(),
+    loadManualWork(env, actor.orgId, supportCaseId),
   ]);
   // Existing record projection is newest-first (held_at, id); reverse both axes.
   records.reverse();
@@ -20426,13 +22879,18 @@ export async function getSupportCaseReport(
   const nextConfirmations: NonNullable<SupportCaseReport['nextConfirmations']> = [];
   let firstIntakeGoal: ReportEvidence | undefined;
   let intakeSeen = false;
-  for (const [index, record] of records.entries()) {
+  for (const [index, originalRecord] of records.entries()) {
     const number = index + 1;
-    const row = detailsById.get(record.id);
-    const details = parseJson<Record<string, unknown>>(row?.record_details) ?? {};
-    const intake = parseJson<Record<string, unknown>>(row?.intake_details) ?? {};
-    const answers = Array.isArray(intake.answers) ? intake.answers as IntakeAnswerInput[] : [];
-    const answer = (key: IntakeAnswerKey) => answers.find((item) => item?.key === key && item.response === 'answered')?.text;
+    const row = detailsById.get(originalRecord.id);
+    const record = { ...originalRecord, ...(originalRecord.kind === 'intake'
+      ? { intakeSchemaVersion: Number(row?.intake_schema_version ?? 1) as 1 | 2, intakeRevision: Number(row?.intake_revision ?? 1) } : {}) };
+    const manual = originalRecord.manual?.details ?? null;
+    const details = manual === null ? parseJson<Record<string, unknown>>(row?.record_details) ?? {} : {};
+    const opinion = manual === null ? undefined
+      : reportEvidence(record, number, 'record_details.counselorOpinion', manual.counselorOpinion);
+    const intake = intakeReadView(row?.intake_details).details;
+    const answers = Array.isArray(intake.answers) ? intake.answers as IntakeReadAnswer[] : [];
+    const answer = (key: string) => answers.find((item) => item?.key === key && item.response === 'answered')?.text;
     if (record.kind === 'intake' && !intakeSeen) {
       intakeSeen = true;
       // One explicit plan, in questionnaire order. Never use the mutable overall_goal
@@ -20440,7 +22898,7 @@ export async function getSupportCaseReport(
       firstIntakeGoal = reportEvidence(record, number, 'intake_details.answers.need_primary', answer('need_primary'))
         ?? reportEvidence(record, number, 'intake_details.answers.summary_direction', answer('summary_direction'))
         ?? reportEvidence(record, number, 'intake_details.helpNarrative.desiredChange',
-          (intake.helpNarrative as IntakeHelpNarrativeInput | null)?.desiredChange);
+          (intake.helpNarrative as LegacyIntakeHelpNarrative | null)?.desiredChange);
     }
     let summary = reportEvidence(record, number, 'approved_ai_briefing_v1.one_liner', record.aiOneLiner)
       ?? reportEvidence(record, number, 'approved_ai_briefing_v1.summary_text', sessionMemoExcerpt(record.aiSummary))
@@ -20453,10 +22911,16 @@ export async function getSupportCaseReport(
     }
     sessions.push({
       sessionId: record.id, sessionNumber: number, heldAt: record.heldAt, kind: record.kind,
-      channel: record.channel, ...(summary === undefined ? {} : { summary }),
+      channel: manual?.method ?? record.channel, ...(summary === undefined ? {} : { summary }),
+      ...(record.kind === 'intake' ? { intakeSchemaVersion: record.intakeSchemaVersion, intakeRevision: record.intakeRevision } : {}),
+      ...(opinion === undefined ? {} : { counselorOpinion: opinion }),
     });
     const change = reportEvidence(record, number, 'record_details.changeSinceLast', details.changeSinceLast);
     if (change !== undefined) situations.push(change);
+    for (const [changeIndex, change] of (manual?.changes ?? []).entries()) {
+      const evidence = reportEvidence(record, number, `record_details.changes.${changeIndex}.text`, change.text);
+      if (evidence !== undefined) situations.push({ ...evidence, area: change.area });
+    }
     for (const area of record.lifeAreaSnapshot) {
       const status = reportEvidence(record, number, `session_life_area_snapshots.${area.areaKey}.status`, area.status);
       if (status !== undefined) situations.push(status);
@@ -20464,25 +22928,25 @@ export async function getSupportCaseReport(
       if (entry !== undefined) situations.push(entry);
     }
     for (const item of answers) {
-      if (item?.response !== 'answered' || !/^(economy_|employment_|housing_|health_|family_|life_detail_)/.test(item.key)) continue;
+      if (item?.response !== 'answered' || !/^(economy_|employment_|housing_|health_|family_|physical_health_|mental_health_|care_|legal_|other_detail|life_detail_)/.test(item.key)) continue;
       const entry = reportEvidence(record, number, `intake_details.answers.${item.key}`, item.text);
       if (entry !== undefined) situations.push(entry);
     }
     if (record.kind === 'intake' && Array.isArray(intake.debts)) {
-      for (const [debtIndex, debt] of (intake.debts as IntakeDebtEntryInput[]).entries()) {
-        // The questionnaire uses the same explicit sentinel for no debt.
-        if (debt?.creditor?.trim() === '해당 없음') continue;
+      for (const [debtIndex, debt] of (intake.debts as IntakeDebt[]).entries()) {
+        // Only legacy records used literal text as an unanswered sentinel.
+        if (record.intakeSchemaVersion !== 2 && debt?.creditor?.trim() === '해당 없음') continue;
         for (const field of ['creditor', 'kind', 'balance', 'monthlyPayment', 'arrearsStatus'] as const) {
           const entry = reportEvidence(record, number, `intake_details.debts.${debtIndex}.${field}`, debt?.[field]);
           if (entry !== undefined) situations.push(entry);
         }
       }
     }
-    if (record.kind === 'intake' && Array.isArray(intake.additionalItems)) {
-      for (const [itemIndex, item] of (intake.additionalItems as IntakeAdditionalItemInput[]).entries()) {
+    if (record.kind === 'intake' && work.intake?.lifecycle === null && Array.isArray(intake.additionalItems)) {
+      for (const [itemIndex, item] of (intake.additionalItems as LegacyIntakeAdditionalItem[]).entries()) {
         const evidence = reportEvidence(record, number, `intake_details.additionalItems.${itemIndex}.item`, item?.item);
         if (evidence === undefined) continue;
-        const entry: typeof nextConfirmations[number] = { item: item.item, evidence };
+        const entry: typeof nextConfirmations[number] = { item: item.item, evidence, questionRef: null };
         for (const field of ['reason', 'method', 'dueNote', 'dueDate', 'owner'] as const) {
           if (typeof item[field] === 'string' && item[field].trim() !== '') entry[field] = item[field];
         }
@@ -20495,6 +22959,8 @@ export async function getSupportCaseReport(
     }
     const safety = reportEvidence(record, number, 'record_details.safetyNote', details.safetyNote);
     if (safety !== undefined) risks.push(safety);
+    const manualUrgency = reportEvidence(record, number, 'record_details.urgency', manual?.urgency);
+    if (manualUrgency !== undefined) risks.push(manualUrgency);
     const urgency = reportEvidence(record, number, 'intake_details.answers.summary_urgency', answer('summary_urgency'));
     if (urgency !== undefined) risks.push(urgency);
     for (const flag of record.confirmedFlags) {
@@ -20502,9 +22968,9 @@ export async function getSupportCaseReport(
       if (entry !== undefined) risks.push(entry);
     }
     if (record.kind === 'intake' && Array.isArray(intake.linkedOrgs)) {
-      for (const [orgIndex, linked] of (intake.linkedOrgs as IntakeLinkedOrgInput[]).entries()) {
-        // D41's required no-resource row is an answer, not an institution.
-        if (linked?.orgName?.trim() === '해당 없음') continue;
+      for (const [orgIndex, linked] of (intake.linkedOrgs as IntakeLinkedOrg[]).entries()) {
+        // Only version 1 used a literal no-resource row.
+        if (record.intakeSchemaVersion !== 2 && linked?.orgName?.trim() === '해당 없음') continue;
         const evidence = reportEvidence(record, number, `intake_details.linkedOrgs.${orgIndex}`, linked?.orgName);
         if (evidence === undefined) continue;
         const entry: typeof resources[number] = { orgName: linked.orgName, evidence };
@@ -20514,6 +22980,41 @@ export async function getSupportCaseReport(
         resources.push(entry);
       }
     }
+  }
+  for (const question of work.questions) {
+    if (question.state !== 'open') continue;
+    // An uncompleted schedule has no report-session evidence.
+    if (question.kind === 'schedule' && question.sourceSessionId === null) continue;
+    const origin = question.sourceSessionId === null ? undefined : bySession.get(question.sourceSessionId);
+    if (origin === undefined || typeof question.id !== 'string' || !question.id || !question.sourceId
+      || !Number.isSafeInteger(question.sourceRevision) || question.sourceRevision < 1) {
+      throw new ConflictError('report question source is inconsistent');
+    }
+    if (question.kind === 'intake') {
+      const reference = work.intake?.references.get(question.id);
+      const source = work.intake?.revisions.find(revision => revision.revision === reference?.item.sourceRevision);
+      if (reference === undefined || source === undefined || work.intake?.source.id !== question.sourceId
+        || question.sourceId !== origin.record.id || reference.item.revision !== question.sourceRevision) {
+        throw new ConflictError('report intake question source is inconsistent');
+      }
+      const evidence = reportEvidence({
+        ...origin.record, heldAt: source.heldAt, intakeSchemaVersion: reference.schemaVersion, intakeRevision: source.revision,
+      }, origin.number, `intake_details.additionalItems.${reference.item.sourceRowIndex}.item`, reference.value.item);
+      if (evidence === undefined) throw new ConflictError('report question evidence is missing');
+      nextConfirmations.push({
+        item: reference.value.item, evidence,
+        questionRef: { kind: question.kind, questionId: question.id, sourceId: question.sourceId, sourceRevision: question.sourceRevision },
+        ...(reference.value.dueNote === undefined ? {} : { dueNote: reference.value.dueNote }),
+      });
+      continue;
+    }
+    const source = question.kind === 'record'
+      ? `record_details.nextQuestions.${question.id}.body` : `schedule_custom_questions.${question.id}.body`;
+    const evidence = reportEvidence(origin.record, origin.number, source, question.body);
+    if (evidence === undefined) throw new ConflictError('report question evidence is missing');
+    nextConfirmations.push({ item: question.body, evidence, questionRef: {
+      kind: question.kind, questionId: question.id, sourceId: question.sourceId, sourceRevision: question.sourceRevision,
+    } });
   }
   const actions: NonNullable<SupportCaseReport['sections']['actionItems']>['items'] = [];
   for (const row of actionRows.results) {
@@ -20533,7 +23034,7 @@ export async function getSupportCaseReport(
     });
   }
   return {
-    schemaVersion: 1, supportCaseId, beneficiaryId: supportCase.beneficiaryId,
+    schemaVersion: 2, supportCaseId, beneficiaryId: supportCase.beneficiaryId,
     programId: supportCase.programId, programName: nullableString(program?.display_name),
     status: supportCase.status, sessions,
     ...(firstIntakeGoal === undefined ? {} : { firstIntakeGoal }),
@@ -20855,6 +23356,7 @@ export async function getParticipantBriefing(
          JOIN sessions AS right_session
            ON right_session.id = discrepancy.right_session_id AND right_session.org_id = discrepancy.org_id
          WHERE discrepancy.org_id = ? AND discrepancy.support_case_id IN (${placeholders})
+           AND discrepancy.kind = 'within_session'
        )
        WHERE resolution_status IS NULL OR resolved_rank <= ${DISCREPANCY_RESOLVED_HISTORY_LIMIT}
        ORDER BY (resolution_status IS NULL) DESC, detected_at DESC, id`,
@@ -22412,18 +24914,18 @@ export interface StaffInviteAcceptResult {
  * 초대 수락(원자). 토큰 소비, users 등재, 초대에 적힌 역할 부여, legacy 자동 부여 역할 회수를
  * 한 배치에 묶는다. 이메일이 초대와 다르면 소비하지 않고 미존재와 같은 ForbiddenError다.
  *
- * 계정 결속(D90): 수락자가 이미 만든 Auth 계정의 검증된 `subject` 를 등재와 같은 배치에서 채운다.
+ * 계정 결속(D90): 초대로 받은 Auth 계정의 검증된 `subject` 를 등재와 같은 배치에서 채운다.
  * 초대 토큰은 한 번만 쓰는 비밀이고 subject 는 서명으로 검증된 값이라, 연결 근거가 이메일 claim 이
  * 아니라 이 둘이다. 연결되지 않은 users 행을 남기지 않으므로 나중에 가로챌 자리도 없다.
  */
 export async function acceptStaffInvite(
   env: Env,
   input: { token: string; name: string; email: string },
-  authSubject: string | null = null,
+  authSubject: string,
 ): Promise<StaffInviteAcceptResult> {
   assertExactKeys(input, ['token', 'name', 'email']);
   assertNonBlankText(input.name, 'name');
-  if (authSubject !== null) assertOpaqueIdentifier(authSubject, 'auth subject');
+  assertOpaqueIdentifier(authSubject, 'auth subject');
   const name = input.name.trim();
   const email = normalizedStaffEmail(input.email);
   const row = await liveStaffInviteByToken(env, input.token);
@@ -22501,6 +25003,7 @@ interface MemoryMaterialRow {
   status: string; attempt: number; lease_token: string | null; lease_until: string | null; actor_id: string | null;
   attestation_json: string | null; attestation_expires_at: string | null; receipt_id: string | null; snapshot_id: string | null; masked_text: string | null;
   sha256: string | null; proof_json: string | null; payload_hash: string | null; processed: number; valid: number;
+  entity_source_binding: string | null;
 }
 interface MemorySourceBody { text: string; sessionId: string | null; occurredAt: string }
 const memoryEligibleSql = `EXISTS (SELECT 1 FROM support_cases sc
@@ -22626,15 +25129,9 @@ export async function getCounselingMemoryTrialState(env: Env, actor: Actor, supp
   await assertSupportCaseAccess(env, actor, supportCaseId);
   const c = await memoryCase(env, actor.orgId, supportCaseId);
   const blockers: string[] = [];
-  let hasMaskingPipeline = false;
-  try {
-    const pipelines: unknown = JSON.parse(env.MEMORY_MASKING_PIPELINES ?? '{}');
-    hasMaskingPipeline = pipelines !== null && typeof pipelines === 'object' && !Array.isArray(pipelines)
-      && Object.values(pipelines).some(hash => typeof hash === 'string' && SHA256_HEX.test(hash));
-  } catch {
-    // Invalid configuration is a readiness blocker, never an invented approval.
+  if (!await hasRegisteredMaskingPipeline(env.MEMORY_MASKING_PIPELINES)) {
+    blockers.push('masking_pipeline_version_mismatch');
   }
-  if (!hasMaskingPipeline) blockers.push('masking_pipeline_version_mismatch');
   const setting = await env.DB.prepare('SELECT enabled FROM counseling_memory_settings WHERE org_id=?')
     .bind(actor.orgId).first<{ enabled: number }>();
   if (setting?.enabled === 0) blockers.push('memory_setting_off');
@@ -22837,10 +25334,18 @@ async function prepareMemoryWork(env: Env, limit: number, scope?: { orgId: strin
 }
 
 async function expireMemoryMaskLeases(env: Env, orgId: string, supportCaseId?: string): Promise<void> {
-  await env.DB.prepare(`UPDATE counseling_memory_materials SET status='failed',lease_token=NULL,lease_until=NULL
-    WHERE org_id=? AND (CAST(? AS TEXT) IS NULL OR support_case_id=?) AND valid=1
-    AND status='leased' AND attempt>=3 AND lease_until<=?`)
-    .bind(orgId, supportCaseId ?? null, supportCaseId ?? null, now()).run();
+  const at = now();
+  await env.DB.batch([
+    env.DB.prepare(`UPDATE counseling_memory_materials SET status='failed',lease_token=NULL,lease_until=NULL
+      WHERE org_id=? AND (CAST(? AS TEXT) IS NULL OR support_case_id=?) AND valid=1
+      AND status='leased' AND attempt>=3 AND lease_until<=?`)
+      .bind(orgId, supportCaseId ?? null, supportCaseId ?? null, at),
+    env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+      entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+      WHERE org_id=? AND entity_map_lease_family='memory' AND entity_map_lease_expires_at<=?
+        AND (CAST(? AS TEXT) IS NULL OR id=?)`)
+      .bind(orgId, at, supportCaseId ?? null, supportCaseId ?? null),
+  ]);
 }
 
 export async function claimCounselingMemorySources(env:Env,actor:Actor,request:ClaimRequest):Promise<MemoryMaskJob[]> {
@@ -22862,17 +25367,35 @@ export async function claimCounselingMemorySources(env:Env,actor:Actor,request:C
     ORDER BY m.occurred_at,m.id LIMIT ?`).bind(actor.orgId,at,...admission,normalizeClaimLimit(request.limit)).all<MemoryMaterialRow>();
   const jobs:MemoryMaskJob[]=[];
   for(const row of rows.results) {
-    const token=newId(),expires=new Date(Date.now()+300000).toISOString();
-    const [result]=await programPolicyBatch(env,context,[env.DB.prepare(`UPDATE counseling_memory_materials AS m SET status='leased',attempt=attempt+1,lease_token=?,lease_until=?,actor_id=?,attestation_json=?,attestation_expires_at=?,receipt_id=?
-      WHERE id=? AND org_id=? AND valid=1 AND attempt=? AND (status='pending' OR(status='leased' AND lease_until<=?))
-      AND EXISTS(SELECT 1 FROM support_cases admitted WHERE admitted.id=m.support_case_id AND admitted.org_id=m.org_id AND admitted.program_id IN (${ADMITTED_PROGRAM_SQL}))
-      AND EXISTS(SELECT 1 FROM counseling_memory_cases c WHERE c.support_case_id=m.support_case_id AND c.org_id=m.org_id AND ${memoryEligibleSql})`)
-      .bind(await sha256Hex(token),expires,actor.userId,attestationJson,attestationExpiresAt,request.releaseQualificationReceiptId,row.id,actor.orgId,row.attempt,now(),...admission)]);
-    if(result?.meta.changes) jobs.push({jobId:row.id,caseId:row.support_case_id,sessionId:row.session_id,kind:'text',purpose:'counseling_memory',sttEngine:null,sttEngineId:null,sourceKind:row.kind,sourceId:row.source_id,sourceRevision:String(row.source_revision),sourceStart:row.start_offset,sourceEnd:row.end_offset,claimToken:token,attempt:row.attempt+1,leaseExpiresAt:expires});
+    const token=newId(),expires=new Date(Date.now()+300000).toISOString(),attempt=row.attempt+1;
+    const tokenHash=await sha256Hex(token);
+    const results=await programPolicyBatch(env,context,[
+      env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family='memory',entity_map_lease_job_id=?,
+        entity_map_lease_attempt=?,entity_map_lease_expires_at=?
+        WHERE id=? AND org_id=? AND status='active'
+        AND ((entity_map_lease_family IS NULL AND entity_map_lease_job_id IS NULL
+          AND entity_map_lease_attempt IS NULL AND entity_map_lease_expires_at IS NULL)
+          OR entity_map_lease_expires_at<=?)`).bind(row.id,attempt,expires,row.support_case_id,actor.orgId,at),
+      env.DB.prepare(`UPDATE counseling_memory_materials AS m SET status='leased',attempt=attempt+1,lease_token=?,lease_until=?,actor_id=?,attestation_json=?,attestation_expires_at=?,receipt_id=?,entity_source_binding=NULL
+        WHERE id=? AND org_id=? AND valid=1 AND attempt=? AND (status='pending' OR(status='leased' AND lease_until<=?))
+        AND EXISTS(SELECT 1 FROM support_cases leased WHERE leased.id=m.support_case_id AND leased.org_id=m.org_id
+          AND leased.entity_map_lease_family='memory' AND leased.entity_map_lease_job_id=m.id
+          AND leased.entity_map_lease_attempt=? AND leased.entity_map_lease_expires_at>?)
+        AND EXISTS(SELECT 1 FROM support_cases admitted WHERE admitted.id=m.support_case_id AND admitted.org_id=m.org_id AND admitted.program_id IN (${ADMITTED_PROGRAM_SQL}))
+        AND EXISTS(SELECT 1 FROM counseling_memory_cases c WHERE c.support_case_id=m.support_case_id AND c.org_id=m.org_id AND ${memoryEligibleSql})`)
+        .bind(tokenHash,expires,actor.userId,attestationJson,attestationExpiresAt,request.releaseQualificationReceiptId,row.id,actor.orgId,row.attempt,at,attempt,at,...admission),
+      env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+        entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+        WHERE id=? AND org_id=? AND entity_map_lease_family='memory' AND entity_map_lease_job_id=?
+          AND entity_map_lease_attempt=? AND NOT EXISTS(SELECT 1 FROM counseling_memory_materials
+            WHERE id=? AND org_id=? AND status='leased' AND lease_token=? AND attempt=?)`)
+        .bind(row.support_case_id,actor.orgId,row.id,attempt,row.id,actor.orgId,tokenHash,attempt),
+    ]);
+    if((results[1]?.meta.changes ?? 0)) jobs.push({jobId:row.id,caseId:row.support_case_id,sessionId:row.session_id,kind:'text',purpose:'counseling_memory',sttEngine:null,sttEngineId:null,sourceKind:row.kind,sourceId:row.source_id,sourceRevision:String(row.source_revision),sourceStart:row.start_offset,sourceEnd:row.end_offset,claimToken:token,attempt,leaseExpiresAt:expires});
   }
-  await writeAudit(env,actor,{action:'poll_pipeline',targetTable:'counseling_memory_materials',detail:{claimed:jobs.length}});
   return jobs;
 }
+
 async function readMemoryClaim(env:Env,actor:Actor,id:string,token:string,attempt:number,replay=false):Promise<MemoryMaterialRow> {
   assertAgentActor(actor);
   const row=await env.DB.prepare(`SELECT m.* FROM counseling_memory_materials m JOIN counseling_memory_sources s
@@ -22881,24 +25404,116 @@ async function readMemoryClaim(env:Env,actor:Actor,id:string,token:string,attemp
   if(!row||(row.status!=='leased'&&!(replay&&row.status==='ready'))||(row.status==='leased'&&(!row.lease_until||row.lease_until<=now()))) throw new AgentJobContractError('stale_claim',id);
   return row;
 }
-async function memoryClaim(env:Env,actor:Actor,id:string,token:string,attempt:number,replay=false):Promise<{row:MemoryMaterialRow;programAdmission:ProgramAdmissionGrant}> {
+async function memoryClaim(env:Env,actor:Actor,id:string,token:string,attempt:number,replay=false):Promise<{row:MemoryMaterialRow;programAdmission:ProgramAdmissionGrant;consentRevision:string}> {
   const row=await readMemoryClaim(env,actor,id,token,attempt,replay);
-  const {programAdmission}=await memoryAuthorization(env,actor.orgId,row.support_case_id);
+  const {programAdmission,revision}=await memoryAuthorization(env,actor.orgId,row.support_case_id);
   await memoryNerQualification(env,actor.orgId,JSON.parse(row.attestation_json!),row.receipt_id!,id);
-  return {row,programAdmission};
+  return {row,programAdmission,consentRevision:revision};
 }
-export async function getCounselingMemorySource(env:Env,actor:Actor,id:string,token:string,attempt:number):Promise<{text:string;sessionId:string|null}> {
-  const {row}=await memoryClaim(env,actor,id,token,attempt);
-  const source=await env.DB.prepare('SELECT * FROM counseling_memory_sources WHERE org_id=? AND support_case_id=? AND kind=? AND source_id=? AND revision=?').bind(actor.orgId,row.support_case_id,row.kind,row.source_id,row.source_revision).first<MemorySourceRow>();
-  const body=source?await memorySourceBody(env,source):null;
-  if(!body) throw new AgentJobContractError('stale_claim',id);
-  const chunk=Array.from(body.text).slice(row.start_offset,row.end_offset).join('');
-  if(await sha256Hex(chunk)!==row.source_hash) throw new AgentJobContractError('stale_claim',id);
-  const pii=await memoryPii(env,actor.orgId,row.support_case_id);
+
+/** Stored chunk offsets address raw code points; every emitted offset addresses delivered text. */
+async function memoryDeliveredText(env: Env, actor: Actor, row: MemoryMaterialRow): Promise<string | null> {
+  const source = await env.DB.prepare(
+    'SELECT * FROM counseling_memory_sources WHERE org_id=? AND support_case_id=? AND kind=? AND source_id=? AND revision=?',
+  ).bind(actor.orgId, row.support_case_id, row.kind, row.source_id, row.source_revision).first<MemorySourceRow>();
+  const body = source === null ? null : await memorySourceBody(env, source);
+  if (body === null || body.sessionId !== row.session_id) return null;
+  const points = Array.from(body.text);
+  if (!Number.isSafeInteger(row.start_offset) || !Number.isSafeInteger(row.end_offset)
+    || row.start_offset < 0 || row.end_offset <= row.start_offset || row.end_offset > points.length) return null;
+  const chunk = points.slice(row.start_offset, row.end_offset).join('');
+  if (await sha256Hex(chunk) !== row.source_hash) return null;
+  const pii = await memoryPii(env, actor.orgId, row.support_case_id);
+  let delivered = chunk;
+  for (const value of Object.values(pii)) if (value) delivered = delivered.replaceAll(value, row.support_case_id);
+  return delivered;
+}
+async function memorySourceBinding(
+  env: Env,
+  actor: Actor,
+  row: MemoryMaterialRow,
+  deliveredText: string,
+  consentRevision: string,
+  sourceGeneration?: number,
+): Promise<EntitySourceBinding> {
+  const scope = await env.DB.prepare(
+    `SELECT sc.beneficiary_id,sc.entity_map_revision,pv.created_at AS vault_created_at,
+       pv.version AS vault_version,pv.key_version,c.generation,s.held_at,os.time_zone
+     FROM support_cases sc JOIN participant_pii_vault pv
+       ON pv.beneficiary_id=sc.beneficiary_id AND pv.org_id=sc.org_id
+     JOIN counseling_memory_cases c ON c.support_case_id=sc.id AND c.org_id=sc.org_id
+     JOIN organization_settings os ON os.org_id=sc.org_id
+     LEFT JOIN sessions s ON s.id=? AND s.org_id=sc.org_id AND s.support_case_id=sc.id
+     WHERE sc.id=? AND sc.org_id=? AND pv.purged_at IS NULL`,
+  ).bind(row.session_id, row.support_case_id, actor.orgId).first<DbRow>();
+  if (scope === null || row.lease_token === null || row.lease_until === null || row.receipt_id === null) {
+    throw new AgentJobContractError('consent_not_effective', row.id);
+  }
+  // Ready historical materials retain their accepted source epoch. The work lease
+  // separately fences the current case generation; source revisions still must match.
+  const generation = sourceGeneration ?? Number(scope.generation);
+  if (!Number.isSafeInteger(generation) || generation < 0 || generation > Number(scope.generation)) {
+    throw new AgentJobContractError('stale_claim', row.id);
+  }
+  const deliveredSha256 = await sha256Hex(deliveredText);
+  // Unattributed goals/actions keep ordinary masking; creation time cannot supply G7 evidence.
+  const sources: EntitySourceDescriptor[] = row.session_id === null ? [] : [{
+    sourceId: row.source_id,
+    sourceRevision: String(row.source_revision),
+    sourceKind: row.kind,
+    start: 0,
+    end: Array.from(deliveredText).length,
+    sha256: deliveredSha256,
+    ...await entityConsultationDate(scope.held_at, scope.time_zone, row.id),
+  }];
+  const sourceBundleRevision = await sha256Hex(canonicalizeJcs({
+    version: 1, generation, sources, deliveredSha256,
+    sourceId: row.source_id, sourceRevision: row.source_revision, sourceKind: row.kind,
+    sessionId: row.session_id, start: row.start_offset, end: row.end_offset, rawSha256: row.source_hash,
+  }));
+  return {
+    version: 1, sourceBundleRevision, orgId: actor.orgId, supportCaseId: row.support_case_id,
+    beneficiaryId: stringValue(scope.beneficiary_id), vaultCreatedAt: stringValue(scope.vault_created_at),
+    vaultVersion: Number(scope.vault_version), keyVersion: Number(scope.key_version), family: 'memory',
+    jobId: row.id, attempt: row.attempt, claimTokenHash: row.lease_token,
+    generation, mapRevision: Number(scope.entity_map_revision),
+    consentRevision, sources, audio: null,
+  };
+}
+
+export async function getCounselingMemorySource(env:Env,actor:Actor,id:string,token:string,attempt:number):Promise<{
+  text:string;sessionId:string|null;sourceRevision:string;sourceSha256:string;sourceLength:number;
+  sourceBundleRevision:string;expectedMapRevision:number;sources:EntitySourceDescriptor[];
+}> {
+  const {row,consentRevision}=await memoryClaim(env,actor,id,token,attempt);
+  const text = await memoryDeliveredText(env, actor, row);
+  if (text === null) throw new AgentJobContractError('stale_claim', id);
   await writeAudit(env,actor,{action:'read',targetTable:'counseling_memory_materials',targetId:id,caseId:row.support_case_id});
-  let text=chunk;
-  for(const value of Object.values(pii)) if(value) text=text.replaceAll(value,row.support_case_id);
-  return {text,sessionId:row.session_id};
+  const current = await memorySourceBinding(env, actor, row, text, consentRevision);
+  const binding = parseJson<EntitySourceBinding>(row.entity_source_binding) ?? current;
+  if (binding.jobId !== row.id || binding.attempt !== row.attempt
+    || binding.supportCaseId !== row.support_case_id || binding.claimTokenHash !== row.lease_token
+    || binding.sourceBundleRevision !== current.sourceBundleRevision
+    || binding.mapRevision !== current.mapRevision || binding.consentRevision !== consentRevision
+    || binding.vaultCreatedAt !== current.vaultCreatedAt || binding.vaultVersion !== current.vaultVersion
+    || binding.keyVersion !== current.keyVersion) {
+    throw new AgentJobContractError('stale_claim', id);
+  }
+  if (row.entity_source_binding === null) {
+    const stored = await env.DB.prepare(`UPDATE counseling_memory_materials SET entity_source_binding=?
+      WHERE id=? AND org_id=? AND status='leased' AND lease_token=? AND attempt=? AND lease_until>? AND valid=1
+        AND EXISTS (SELECT 1 FROM counseling_memory_cases c JOIN support_cases sc
+          ON sc.id=c.support_case_id AND sc.org_id=c.org_id
+          WHERE c.org_id=counseling_memory_materials.org_id AND c.support_case_id=counseling_memory_materials.support_case_id
+            AND c.generation=? AND sc.entity_map_revision=?
+            AND sc.entity_map_lease_family='memory' AND sc.entity_map_lease_job_id=counseling_memory_materials.id
+            AND sc.entity_map_lease_attempt=counseling_memory_materials.attempt AND sc.entity_map_lease_expires_at>?)`)
+      .bind(JSON.stringify(binding),id,actor.orgId,row.lease_token,row.attempt,now(),binding.generation,binding.mapRevision,now()).run();
+    if ((stored.meta?.changes ?? 0) !== 1) throw new AgentJobContractError('stale_claim', id);
+  }
+  return {text,sessionId:row.session_id,sourceRevision:String(row.source_revision),sourceSha256:await sha256Hex(text),
+    sourceLength:Array.from(text).length,sourceBundleRevision:binding.sourceBundleRevision,
+    expectedMapRevision:binding.mapRevision,sources:binding.sources};
 }
 export async function issueCounselingMemoryDictionary(env:Env,actor:Actor,id:string,request:MaskDictionaryRequest):Promise<MaskDictionaryResponse> {
   const {row}=await memoryClaim(env,actor,id,request.claimToken,request.attempt);
@@ -22909,26 +25524,79 @@ export async function issueCounselingMemoryDictionary(env:Env,actor:Actor,id:str
   return {dictionaryId:id,jobId:id,expiresAt:row.lease_until!,oneTime:true,entries};
 }
 async function verifyMemoryProof(env:Env,row:MemoryMaterialRow,result:ResultRequest['result']):Promise<void> {
+  if (result === null || typeof result !== 'object' || typeof result.maskedText !== 'string') {
+    throw new ValidationError('masking_snapshot_missing');
+  }
   if(result.kind!=='text'||result.nerAvailable!==true) throw new ValidationError('local_ner_unavailable');
-  let pipelines:Record<string,string>;
-  try { pipelines=JSON.parse(env.MEMORY_MASKING_PIPELINES??'{}') as Record<string,string>; } catch { throw new ValidationError('masking_pipeline_version_mismatch'); }
-  if(!pipelines||!SHA256_HEX.test(result.maskingPipelineHash)||pipelines[result.maskingPipelineVersion]!==result.maskingPipelineHash) throw new ValidationError('masking_pipeline_version_mismatch');
-  const attestation=JSON.parse(row.attestation_json!) as NerAttestation;
+  const maskingManifest = await registeredMaskingPipeline(
+    env.MEMORY_MASKING_PIPELINES,
+    result.maskingPipelineVersion,
+    result.maskingPipelineHash,
+  );
+  if (maskingManifest === null) {
+    throw new ValidationError('masking_pipeline_version_mismatch');
+  }
+  const attestation = parseJson<NerAttestation>(row.attestation_json);
+  if (!attestation || !row.receipt_id) throw new ValidationError('local_ner_unavailable');
+  if (
+    attestation.modelId !== maskingManifest.nerModelId
+    || attestation.modelRevision !== maskingManifest.nerModelRevision
+    || attestation.labelSetHash !== maskingManifest.labelSetHash
+    || attestation.corpusHash !== maskingManifest.nerHealthCorpusHash
+    || attestation.resultHash !== maskingManifest.nerHealthResultHash
+  ) throw new ValidationError('masking_pipeline_version_mismatch');
+  if (
+    result.nerAttestationId !== attestation.id
+    || result.nerAttestationResultHash !== attestation.resultHash
+    || result.releaseQualificationReceiptId !== row.receipt_id
+  ) throw new ValidationError('local_ner_unavailable');
   await memoryNerQualification(env,row.org_id,attestation,row.receipt_id!,row.id);
-  if(result.nerAttestationId!==attestation.id||result.nerAttestationResultHash!==attestation.resultHash||result.releaseQualificationReceiptId!==row.receipt_id) throw new ValidationError('local_ner_unavailable');
-  if(await sha256Hex(result.maskedText)!==result.sha256||await sha256Hex(canonicalizeJcs(result.evidence))!==result.evidenceHash) throw new ValidationError('evidence_hash_mismatch');
+  if (
+    !SHA256_HEX.test(result.sha256)
+    || !Array.isArray(result.evidence)
+    || !SHA256_HEX.test(result.evidenceHash)
+    || await sha256Hex(result.maskedText) !== result.sha256
+    || await sha256Hex(canonicalizeJcs(result.evidence)) !== result.evidenceHash
+  ) throw new ValidationError('evidence_hash_mismatch');
   const points=Array.from(result.maskedText);
   if(!points.length||points.length>24000||!result.evidence.length) throw new ValidationError('evidence_hash_mismatch');
   for(const evidence of result.evidence) {
-    if(!Number.isSafeInteger(evidence.sourceStart)||!Number.isSafeInteger(evidence.sourceEnd)||evidence.sourceStart<0||evidence.sourceEnd<=evidence.sourceStart||evidence.sourceEnd>points.length||evidence.sourceSha256!==result.sha256||points.slice(evidence.sourceStart,evidence.sourceEnd).join('')!==evidence.evidenceQuote) throw new ValidationError('evidence_hash_mismatch');
+    if(evidence===null||typeof evidence!=='object'||!Number.isSafeInteger(evidence.sourceStart)||!Number.isSafeInteger(evidence.sourceEnd)||evidence.sourceStart<0||evidence.sourceEnd<=evidence.sourceStart||evidence.sourceEnd>points.length||evidence.sourceSha256!==result.sha256||points.slice(evidence.sourceStart,evidence.sourceEnd).join('')!==evidence.evidenceQuote) throw new ValidationError('evidence_hash_mismatch');
   }
   const pii=await memoryPii(env,row.org_id,row.support_case_id);
   if(Object.values(pii).some(value=>value&&result.maskedText.includes(value))) throw new ValidationError('registered_pii_detected');
   try { assertNoObviousUnmaskedPii(result.maskedText); } catch { throw new ValidationError('unmasked_identifier_detected'); }
 }
+async function verifyMemoryMaterialBinding(env: Env, row: MemoryMaterialRow, actor: Actor): Promise<string> {
+  const stored = parseJson<EntitySourceBinding>(row.entity_source_binding);
+  if (stored === null) throw new ValidationError('masking_snapshot_missing');
+  if (stored.family !== 'memory') throw new AgentJobContractError('stale_claim', row.id);
+  const authorization = await memoryAuthorization(env, actor.orgId, row.support_case_id);
+  const delivered = await memoryDeliveredText(env, actor, row);
+  if (delivered === null) throw new AgentJobContractError('stale_claim', row.id);
+  const current = await memorySourceBinding(env, actor, row, delivered, authorization.revision,
+    row.status === 'ready' ? stored.generation : undefined);
+  if (canonicalizeJcs(stored) !== canonicalizeJcs(current)) {
+    throw new AgentJobContractError('stale_claim', row.id);
+  }
+  return delivered;
+}
+
+async function verifyMemoryCheckedSource(
+  row: MemoryMaterialRow, result: ResultRequest['result'], delivered: string,
+): Promise<void> {
+  const checked = result.kind === 'text' ? result.checkedSource : undefined;
+  if (!checked || checked.sourceRevision !== String(row.source_revision)
+    || checked.sourceStart !== 0 || checked.sourceEnd !== Array.from(delivered).length
+    || checked.sourceSha256 !== await sha256Hex(delivered)) {
+    throw new ValidationError('evidence_hash_mismatch');
+  }
+}
 export async function acceptCounselingMemorySource(env:Env,actor:Actor,id:string,request:ResultRequest):Promise<void> {
   const {row,programAdmission}=await memoryClaim(env,actor,id,request.claimToken,request.attempt,true);
   await verifyMemoryProof(env,row,request.result);
+  const delivered = await verifyMemoryMaterialBinding(env, row, actor);
+  await verifyMemoryCheckedSource(row, request.result, delivered);
   if(request.schemaVersion!==2||await sha256Hex(canonicalizeJcs({schemaVersion:request.schemaVersion,attempt:request.attempt,result:request.result}))!==request.payloadSha256) throw new ValidationError('evidence_hash_mismatch');
   if(row.status==='ready') {
     if(row.payload_hash!==request.payloadSha256) throw new AgentJobContractError('result_conflict',id);
@@ -22941,14 +25609,23 @@ export async function acceptCounselingMemorySource(env:Env,actor:Actor,id:string
       AND m.lease_until>? AND m.attestation_expires_at>?
       AND EXISTS(SELECT 1 FROM ner_release_qualification_receipts r WHERE r.id=m.receipt_id AND r.org_id=m.org_id AND r.status='passed' AND r.expires_at>?)
       AND ${memoryEligibleSql}) THEN 1 ELSE 0 END)`).bind(marker,actor.orgId,id,row.lease_token,row.attempt,c.generation,at,at,at),
-    env.DB.prepare("UPDATE counseling_memory_materials SET status='ready',snapshot_id=?,masked_text=?,sha256=?,proof_json=?,payload_hash=? WHERE id=? AND valid=1 AND status='leased' AND lease_token=? AND attempt=?").bind(newId(),request.result.maskedText,request.result.sha256,JSON.stringify(request.result),request.payloadSha256,id,row.lease_token,row.attempt),
+    env.DB.prepare("UPDATE counseling_memory_materials SET status='ready',snapshot_id=?,masked_text=?,sha256=?,proof_json=?,payload_hash=?,entity_source_binding=COALESCE(entity_source_binding,?) WHERE id=? AND valid=1 AND status='leased' AND lease_token=? AND attempt=?").bind(newId(),request.result.maskedText,request.result.sha256,JSON.stringify(request.result),request.payloadSha256,row.entity_source_binding,id,row.lease_token,row.attempt),
     memoryAuditStatement(env,actor,row.support_case_id,'create',{materialId:id,sourceRevision:row.source_revision}),
-    env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(marker),
+    env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+      entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+      WHERE id=? AND org_id=? AND entity_map_lease_family='memory'
+        AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`).bind(row.support_case_id,actor.orgId,row.id,row.attempt),
   ],programAdmission);
 }
 export async function releaseCounselingMemorySource(env:Env,actor:Actor,id:string,request:ReleaseRequest):Promise<void> {
   const row=await readMemoryClaim(env,actor,id,request.claimToken,request.attempt);
-  await env.DB.prepare("UPDATE counseling_memory_materials SET status=CASE WHEN attempt<3 AND ?='transient' THEN 'pending' ELSE 'failed' END,lease_token=NULL,lease_until=NULL WHERE id=? AND org_id=? AND valid=1 AND lease_token=? AND attempt=?").bind(request.outcome,id,actor.orgId,row.lease_token,row.attempt).run();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE counseling_memory_materials SET status=CASE WHEN attempt<3 AND ?='transient' THEN 'pending' ELSE 'failed' END,lease_token=NULL,lease_until=NULL WHERE id=? AND org_id=? AND valid=1 AND lease_token=? AND attempt=?").bind(request.outcome,id,actor.orgId,row.lease_token,row.attempt),
+    env.DB.prepare(`UPDATE support_cases SET entity_map_lease_family=NULL,entity_map_lease_job_id=NULL,
+      entity_map_lease_attempt=NULL,entity_map_lease_expires_at=NULL
+      WHERE id=? AND org_id=? AND entity_map_lease_family='memory'
+        AND entity_map_lease_job_id=? AND entity_map_lease_attempt=?`).bind(row.support_case_id,actor.orgId,row.id,row.attempt),
+  ]);
 }
 
 function memoryWorkGuard(env:Env,work:MemoryWork,id:string,egress:string|null):PreparedStatement {
@@ -22975,50 +25652,57 @@ function toMemoryMaterial(row:MemoryMaterialRow):MemoryMaterial {
   return {id:row.id,sourceKind:row.kind,sourceId:row.source_id,sourceRevision:String(row.source_revision),sessionId:row.session_id,occurredAt:row.occurred_at,snapshotId:row.snapshot_id!,sha256:row.sha256!,maskedText:row.masked_text!};
 }
 async function verifiedMemoryMaterials(env:Env,orgId:string,supportCaseId:string,limit:number|null=32,derivedOnly=false):Promise<MemoryMaterialRow[]> {
-  const limitClause=limit===null?'':' LIMIT ?';
   const statement=env.DB.prepare(`SELECT m.* FROM counseling_memory_materials m JOIN counseling_memory_sources s
     ON s.org_id=m.org_id AND s.support_case_id=m.support_case_id AND s.kind=m.kind AND s.source_id=m.source_id AND s.revision=m.source_revision
     WHERE m.org_id=? AND m.support_case_id=? AND m.valid=1 AND m.status='ready' AND s.deleted=0
     AND ((?=1 AND m.kind='derived_summary') OR (?=0 AND m.kind<>'derived_summary' AND m.processed=0))
-    ORDER BY m.occurred_at,m.id${limitClause}`);
-  const rows=limit===null
-    ?await statement.bind(orgId,supportCaseId,derivedOnly?1:0,derivedOnly?1:0).all<MemoryMaterialRow>()
-    :await statement.bind(orgId,supportCaseId,derivedOnly?1:0,derivedOnly?1:0,limit).all<MemoryMaterialRow>();
-  const verified:MemoryMaterialRow[]=[];
-  for (const row of rows.results) {
-    if (await memoryMaterialReady(env, row)) verified.push(row);
-  }
+    ORDER BY m.occurred_at,m.id${limit===null?'':' LIMIT ?'}`);
+  const rows=await (limit===null
+    ?statement.bind(orgId,supportCaseId,derivedOnly?1:0,derivedOnly?1:0)
+    :statement.bind(orgId,supportCaseId,derivedOnly?1:0,derivedOnly?1:0,limit)).all<MemoryMaterialRow>();
+  const verified: MemoryMaterialRow[] = [];
+  for (const row of rows.results) if (await memoryMaterialReady(env, row)) verified.push(row);
   return verified;
 }
-
-/** Renew qualification without turning already consumed facts into new source changes. */
+/** Immutable evidence fails closed; only expired or unavailable proof inputs are requeued for renewal. */
 async function memoryMaterialReady(env: Env, row: MemoryMaterialRow): Promise<boolean> {
   try {
-    if (!row.proof_json || !row.snapshot_id) throw new ValidationError('masking_snapshot_missing');
-    const proof = JSON.parse(row.proof_json) as ResultRequest['result'];
+    if (!row.proof_json || !row.entity_source_binding || !row.payload_hash || !row.snapshot_id || row.masked_text === null || row.sha256 === null) {
+      throw new ValidationError('masking_snapshot_missing');
+    }
+    let proof: ResultRequest['result'];
+    try {
+      proof = JSON.parse(row.proof_json) as ResultRequest['result'];
+    } catch {
+      throw new ValidationError('masking_snapshot_missing');
+    }
+    if (proof === null || typeof proof !== 'object') throw new ValidationError('masking_snapshot_missing');
     if (proof.maskedText !== row.masked_text || proof.sha256 !== row.sha256) {
       throw new ValidationError('evidence_hash_mismatch');
     }
     await verifyMemoryProof(env, row, proof);
+    if (await sha256Hex(canonicalizeJcs({schemaVersion: 2, attempt: row.attempt, result: proof})) !== row.payload_hash) {
+      throw new ValidationError('evidence_hash_mismatch');
+    }
+    const delivered = await verifyMemoryMaterialBinding(env, row, {
+      userId: row.actor_id!, orgId: row.org_id, role: 'service',
+    });
+    await verifyMemoryCheckedSource(row, proof, delivered);
     return true;
   } catch (error) {
     const code = error instanceof AgentJobContractError ? error.code
       : error instanceof ValidationError ? error.message : null;
-    if (code === 'local_ner_unavailable' || code === 'masking_pipeline_version_mismatch'
-      || code === 'masking_snapshot_missing') {
-      // Snapshot CAS prevents a late reader from erasing a newly accepted proof.
-      // Keep processed and the source revision: refreshing evidence is not new evidence.
-      await env.DB.prepare(`UPDATE counseling_memory_materials SET status='pending',attempt=0,
-        lease_token=NULL,lease_until=NULL,actor_id=NULL,attestation_json=NULL,attestation_expires_at=NULL,receipt_id=NULL,
-        snapshot_id=NULL,masked_text=NULL,sha256=NULL,proof_json=NULL,payload_hash=NULL
-        WHERE id=? AND org_id=? AND support_case_id=? AND source_revision=? AND valid=1
+    if (code !== 'local_ner_unavailable' && code !== 'masking_pipeline_version_mismatch'
+      && code !== 'masking_snapshot_missing') throw error;
+    // A late reader cannot erase a newer accepted proof. Refreshing proof is not new source evidence.
+    await env.DB.prepare(`UPDATE counseling_memory_materials SET status='pending',attempt=0,
+      lease_token=NULL,lease_until=NULL,actor_id=NULL,attestation_json=NULL,attestation_expires_at=NULL,
+      receipt_id=NULL,entity_source_binding=NULL,snapshot_id=NULL,masked_text=NULL,sha256=NULL,
+      proof_json=NULL,payload_hash=NULL
+      WHERE id=? AND org_id=? AND support_case_id=? AND source_revision=? AND valid=1
         AND status='ready' AND snapshot_id IS NOT DISTINCT FROM ? AND payload_hash IS NOT DISTINCT FROM ?`)
-        .bind(row.id, row.org_id, row.support_case_id, row.source_revision, row.snapshot_id, row.payload_hash).run();
-      return false;
-    }
-    if (code === 'evidence_hash_mismatch' || code === 'registered_pii_detected'
-      || code === 'unmasked_identifier_detected' || code === 'consent_not_effective') return false;
-    throw error;
+      .bind(row.id, row.org_id, row.support_case_id, row.source_revision, row.snapshot_id, row.payload_hash).run();
+    return false;
   }
 }
 export async function beginCounselingMemoryEgress(env:Env,work:MemoryWork,configHash:string):Promise<MemoryGenerationRequest> {
@@ -23117,7 +25801,9 @@ export async function commitCounselingMemoryWork(env:Env,work:MemoryWork,output:
   for(const material of request.materials) {
     const row=await env.DB.prepare('SELECT * FROM counseling_memory_materials WHERE id=? AND org_id=? AND support_case_id=? AND snapshot_id=? AND sha256=? AND valid=1').bind(material.id,work.orgId,work.supportCaseId,material.snapshotId,material.sha256).first<MemoryMaterialRow>();
     if(!row) throw new ConflictError('memory_superseded');
-    await verifyMemoryProof(env,row,JSON.parse(row.proof_json!));
+    if (!row.proof_json) throw new ValidationError('masking_snapshot_missing');
+    await verifyMemoryProof(env,row,JSON.parse(row.proof_json));
+    await verifyMemoryMaterialBinding(env,row,{userId:work.serviceActorId,orgId:work.orgId,role:'service'});
   }
   const reconciled=reconcileMemory({...request,existingItems:await memoryItems(env,work.orgId,work.supportCaseId)},output,newId,now());
   const piiValues=Object.values(await memoryPii(env,work.orgId,work.supportCaseId));
@@ -23307,8 +25993,9 @@ function memoryMaterialGuard(env:Env,id:string,orgId:string,supportCaseId:string
     env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_materials m
       JOIN counseling_memory_sources s ON s.org_id=m.org_id AND s.support_case_id=m.support_case_id AND s.kind=m.kind AND s.source_id=m.source_id AND s.revision=m.source_revision
       JOIN ner_release_qualification_receipts r ON r.id=m.receipt_id AND r.org_id=m.org_id
-      WHERE m.id=? AND m.org_id=? AND m.support_case_id=? AND m.snapshot_id=? AND m.sha256=? AND m.valid=1 AND m.status='ready' AND s.deleted=0
-      AND r.status='passed' AND r.expires_at>? AND m.attestation_expires_at>?
+      WHERE m.id=? AND m.org_id=? AND m.support_case_id=? AND m.snapshot_id=? AND m.sha256=? AND m.proof_json IS NOT NULL
+        AND m.entity_source_binding IS NOT NULL AND m.valid=1 AND m.status='ready' AND s.deleted=0
+        AND r.status='passed' AND r.expires_at>? AND m.attestation_expires_at>?
     ) THEN 1 ELSE 0 END)`).bind(id,orgId,material.id,orgId,supportCaseId,material.snapshotId,material.sha256,at,at),
     env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(id),
   ];

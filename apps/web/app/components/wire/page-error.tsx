@@ -1,8 +1,5 @@
+import { GridContainer, PageTitle, WireCard, WireError } from '@ccc/wire';
 import type { ReactNode } from 'react';
-import { GridContainer } from './grid-container';
-import { PageTitle } from './page-title';
-import { WireCard } from './wire-card';
-import { WireError } from './wire-state';
 
 // 오류 화면 공용 부품(2026-08-09 Q "당사자 정보 프리뷰 오류 화면" 정정). PageLoading 과
 // 같은 셸이다 — DESIGN.md §5 로딩 행 ③ "오류·빈 상태도 같은 셸을 쓴다"가 이미 계약인데,

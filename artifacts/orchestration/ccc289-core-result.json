@@ -1,0 +1,30 @@
+{
+  "수기_v2_소비_지점": {
+    "리포트": ["packages/core/src/gateway.ts: getSupportCaseReport, reportEvidence", "packages/contracts/src/report.ts: SupportCaseReport, ReportEvidence, ReportQuestionRef"],
+    "AI_재료": ["packages/core/src/gateway.ts: buildAgentJobSourceText, appendManualSourceText"],
+    "변경": "리포트 v2는 저장된 변화와 영역 코드, 명시적 위기도, visit, 완전한 questionRef를 보존한다. 기존 다섯 구획과 당사자 액션 투영을 유지한다. AI 원문은 수기 값과 해당 회차의 액션 및 질문 결과를 정해진 순서로 덧붙이며 내부 ID와 revision은 넣지 않는다. SourceResponse와 마스킹 후 전송 경계는 그대로다.",
+    "커밋": "46e32f8a85bf9142d76063b86f65bc96ded72a7f"
+  },
+  "실행한_검증": {
+    "표적_검사": [
+      {"명령": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/support-case-report.contract.test.ts --maxWorkers 1", "통과": 8, "실패": 0},
+      {"명령": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/text-work-materials.test.ts -t 'getAgentJobSource|녹음 회차의 메모' --maxWorkers 1", "통과": 9, "실패": 0, "무관한_검사_제외": 4}
+    ],
+    "타입_검사": {"명령": "pnpm --filter @ccc/api typecheck", "실행_횟수": 1, "결과": "통과"},
+    "합성_스모크": {"명령": "bun run /tmp/ccc289-consumer-smoke.ts", "실행": true, "결과": "실제 handleRequest에서 HTTP 200, no-store, schemaVersion 2, 회차 2건, 완전한 열린 질문 참조 1건, visit과 명시적 caution 및 not_done 보존 확인. 의견은 작성 회차에만 있고 미래 질문은 제외. STT와 LLM은 off. 임시 실행 파일 삭제 완료."},
+    "정상_훅": {"명령": "git -c core.hooksPath=.githooks commit --amend --no-edit", "결과": "레포 훅 8개 통과. 훅 경로는 이 명령에만 지정했고 영구 설정은 변경하지 않았다."},
+    "시크릿_검사": {"명령": "gitleaks git --log-opts=b429d93dc45365cf2550de8d3b1b5268a808a94d..HEAD --no-banner --redact", "결과": "최종 커밋 1개, 19999바이트 검사, 유출 0건"},
+    "마이그레이션": "0건. 동등성 검사는 실행하지 않았다.",
+    "이번_보고를_위한_재실행": false
+  },
+  "두_기본값의_구현_지점": {
+    "counselorOpinion": "getSupportCaseReport가 해당 record.manual.details.counselorOpinion을 sessions[].counselorOpinion에 ReportEvidence로만 넣는다. source는 record_details.counselorOpinion이며 작성 회차 ID와 시각을 갖는다. 상위 다섯 구획에는 합성하거나 섞지 않는다. SupportCaseReport.sessions 타입이 이 위치를 명시한다.",
+    "근거_없는_미래_질문": "getSupportCaseReport의 열린 질문 순회에서 kind가 schedule이고 sourceSessionId가 null이면 제외한다. 완료 회차가 있는 질문은 그 회차의 근거로만 반환한다. 저장소 변경 없이 이 조회 분기가 기본값을 소유한다."
+  },
+  "미달_항목과_남은_위험": {
+    "코어_범위_미달": [],
+    "프런트엔드_인계": "apps/client/src/business/report.ts decoder는 아직 schemaVersion 1을 요구한다. FRONTEND가 v2, 완전한 questionRef, visit, area, 회차 한정 counselorOpinion을 수용해야 한다. UI 파일은 수정하지 않았다.",
+    "의도적_제외": "기존 snapshot 재작성과 일괄 재처리, 기억 소비자 변경, CCC-301 감사 집계, 운영 설정 변경은 하지 않았다. 새 AI 원문은 기존 claim과 장비 마스킹 흐름에서 소비한다.",
+    "제품_기본값": "의견의 회차 한정 표시와 근거 없는 미래 질문 제외는 현재 지시의 기본값이며 저장 구조에 고정하지 않았다."
+  }
+}

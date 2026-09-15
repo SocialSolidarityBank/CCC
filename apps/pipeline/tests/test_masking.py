@@ -35,6 +35,59 @@ class MaskPatternsTest(unittest.TestCase):
         self.assertEqual(masking.mask_patterns(text), text)
 
 
+
+class DateNormalizationTest(unittest.TestCase):
+    def test_normalizes_explicit_event_dates_by_calendar_days(self):
+        self.assertEqual(
+            masking.normalize_event_date(
+                "2026-09-10",
+                "2026-09-14",
+                date_kind="event",
+                anchor_explicit=True,
+                date_explicit=True,
+                year_explicit=True,
+            ),
+            "[상담일 4일 전]",
+        )
+        self.assertEqual(
+            masking.normalize_event_date(
+                "2026-09-14",
+                "2026-09-14",
+                date_kind="deadline",
+                anchor_explicit=True,
+                date_explicit=True,
+                year_explicit=True,
+            ),
+            "[상담일]",
+        )
+        self.assertEqual(
+            masking.normalize_event_date(
+                "2026-09-20",
+                "2026-09-14",
+                date_kind="event",
+                anchor_explicit=True,
+                date_explicit=True,
+                year_explicit=True,
+            ),
+            "[상담일 6일 후]",
+        )
+
+    def test_rejects_birth_ambiguous_and_unanchored_dates(self):
+        self.assertIsNone(
+            masking.normalize_event_date(
+                "1990-01-02",
+                "2026-09-14",
+                date_kind="birth",
+                anchor_explicit=True,
+                date_explicit=True,
+                year_explicit=True,
+            ),
+        )
+        self.assertIsNone(masking.normalize_event_date("2026-09", "2026-09-14"))
+        self.assertIsNone(
+            masking.normalize_event_date("2026-09-10", "2026-09-14", anchor_explicit=False),
+        )
+
 class MaskTextWithNerTest(unittest.TestCase):
     def test_applies_ner_spans_from_end_to_keep_offsets(self):
         text = "김철수 씨가 박영희 씨에게 전화했다"
@@ -375,3 +428,116 @@ class ShortGoalSentenceMaskingTest(unittest.TestCase):
         # 문장 전체가 이름 하나인 극단: 전부 토큰 하나로 덮여야 한다.
         masked = masking.mask_text("김철수", lambda _t: [(0, 3)])
         self.assertEqual(masked, masking.PERSON_TOKEN)
+
+
+class BioesGroupingTest(unittest.TestCase):
+    """BIOES 태그가 엔티티 경계를 조각내지 않는다 (E5-4 재측정 게이트).
+
+    transformers 4.53.3 의 get_tag 는 "B-"/"I-" 만 떼므로 채택 모델의 E-/S- 토큰이
+    group_entities 에서 분리돼 이름 하나가 여러 스팬으로 찍혔다. 이 테스트는
+    `transformers.pipeline` 을 가짜로 세우되 **라이브러리의 진짜 group_entities** 를
+    그대로 돌려, 파이프라인의 id2label 이 BIO 로 정규화됐을 때 이름 둘이 정확히
+    두 스팬으로 모이는지 고정한다. transformers 가 없는 환경에서는 건너뛴다 —
+    이 검사는 라이브러리 동작에 대한 것이라 대체 구현으로는 의미가 없다.
+    """
+
+    def test_bioes_tokens_group_into_two_person_spans(self):
+        try:
+            import transformers
+        except ImportError:
+            raise unittest.SkipTest("transformers not installed")
+        from unittest import mock
+
+        text = "김철수 님이 박영희 씨에게 부탁했다"
+        # 모델이 내는 BIOES 토큰 스트림: 이름 둘, 둘째는 B-I-E 로 끝난다.
+        tokens = [
+            {"entity": "B-private_person", "word": "김철수", "start": 0, "end": 3, "score": 0.9},
+            {"entity": "O", "word": " 님이", "start": 3, "end": 6, "score": 0.9},
+            {"entity": "B-private_person", "word": "박", "start": 7, "end": 8, "score": 0.9},
+            {"entity": "I-private_person", "word": "영", "start": 8, "end": 9, "score": 0.9},
+            {"entity": "E-private_person", "word": "희", "start": 9, "end": 10, "score": 0.9},
+            {"entity": "O", "word": " 씨에게 부탁했다", "start": 10, "end": 20, "score": 0.9},
+        ]
+
+        class _StubConfig:
+            def __init__(self):
+                self.id2label = {
+                    0: "O",
+                    1: "B-private_person",
+                    2: "I-private_person",
+                    3: "E-private_person",
+                    4: "S-private_person",
+                }
+
+        class _StubTokenizer:
+            @staticmethod
+            def convert_tokens_to_string(pieces):
+                return "".join(pieces)
+
+        class _FakePipeline(transformers.TokenClassificationPipeline):
+            def __init__(self):
+                self.model = type("M", (), {"config": _StubConfig()})()
+                self.tokenizer = _StubTokenizer()
+
+            def __call__(self, _text):
+                # 진짜 라이브러리 묶음 로직 — config.id2label 로 토큰 라벨을 다시 쓴다.
+                remapped = [
+                    {**token, "entity": self.model.config.id2label[
+                        {"O": 0, "B": 1, "I": 2, "E": 3, "S": 4}[token["entity"].split("-", 1)[0]]
+                    ]}
+                    for token in tokens
+                ]
+                return self.group_entities(remapped)
+
+        with mock.patch("transformers.pipeline", return_value=_FakePipeline()):
+            person, _address = masking.build_person_and_address_ner(
+                "FrameByFrame/korean-pii-e5-base", ("PRIVATE_PERSON",), ()
+            )
+
+        spans = person(text)
+        self.assertEqual(spans, [(0, 3), (7, 10)])
+
+
+class SameLabelGapMergeTest(unittest.TestCase):
+    """같은 라벨 조각이 공백만 사이에 두고 이어지면 한 스팬으로 합친다 (E5-4).
+
+    채택 모델은 한국어 주소를 성분(시도·시군구·도로명·동호)별로 여러 엔티티로 낸다.
+    조각 사이가 공백뿐이면 합치고, 공백 외 문자가 끼면 모델이 태그하지 않은 자리를
+    채우는 셈이라 합치지 않는다.
+    """
+
+    class _FakeRecognizer:
+        def __init__(self, entities):
+            self._entities = entities
+
+        def __call__(self, _text):
+            return self._entities
+
+    def test_address_components_separated_by_spaces_merge_into_one_span(self):
+        text = "서울특별시 수원시 맑은동 543-4"
+        recognizer = self._FakeRecognizer([
+            {"entity_group": "private_address", "start": 0, "end": 5},
+            {"entity_group": "private_address", "start": 6, "end": 9},
+            {"entity_group": "private_address", "start": 10, "end": 18},
+        ])
+        ner = masking._span_fn(recognizer, ("PRIVATE_ADDRESS",))
+        self.assertEqual(ner(text), [(0, 18)])
+
+    def test_non_space_gap_does_not_merge(self):
+        # 조각 사이에 모델이 태그하지 않은 문자("도")가 끼면 합치지 않는다.
+        text = "경상북도 순천시"
+        recognizer = self._FakeRecognizer([
+            {"entity_group": "private_address", "start": 0, "end": 3},
+            {"entity_group": "private_address", "start": 5, "end": 8},
+        ])
+        ner = masking._span_fn(recognizer, ("PRIVATE_ADDRESS",))
+        self.assertEqual(ner(text), [(0, 3), (5, 8)])
+
+    def test_different_labels_do_not_merge(self):
+        text = "김철수 서울시"
+        recognizer = self._FakeRecognizer([
+            {"entity_group": "private_person", "start": 0, "end": 3},
+            {"entity_group": "private_address", "start": 4, "end": 7},
+        ])
+        ner = masking._span_fn(recognizer, ("PRIVATE_PERSON", "PRIVATE_ADDRESS"))
+        self.assertEqual(ner(text), [(0, 3), (4, 7)])

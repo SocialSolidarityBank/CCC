@@ -225,7 +225,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const { container } = render(<BriefingCards {...baseProps({ pendingReviewSessionIds: ['s-2'] })} />);
     const card = cardByTitle(container, '상담 내용 회차별 정리');
     const link = within(card).getByRole('link', {
-      name: '2026년 7월 15일 기본상담 AI 초안 검토',
+      name: '2026년 7월 15일 기본상담 AI 정리 검토',
     });
     expect(link.getAttribute('href')).toBe(`${baseProps().recordsHref}/s-2/review`);
     const pendingSection = within(card).getByTestId('pending-fixture-reviews');
@@ -244,7 +244,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
       sessionRows: [],
     })} />);
     const card = cardByTitle(container, '상담 내용 회차별 정리');
-    const link = within(card).getByRole('link', { name: /AI 초안 검토/ });
+    const link = within(card).getByRole('link', { name: /AI 정리 검토/ });
     expect(link.getAttribute('href')).toBe(
       `${baseProps().recordsHref}/fixture%2Fsession%20older/review`,
     );
@@ -295,27 +295,22 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
       ],
     })} />);
     const card = cardByTitle(container, '내용 불일치');
-    // 건수 배지 — 영역 ② '승인 대기'와 같은 자리 문법.
-    expect(card.querySelector('.wire-card-summary')?.textContent).toContain('2건');
+    // 첫 출고에서는 회차 간 AI 대조를 숨기고 같은 회차 안 모순만 남긴다.
+    expect(card.querySelector('.wire-card-summary')?.textContent).toContain('1건');
     expect(card.querySelector('.wire-card-summary .wire-badge')?.getAttribute('data-tone')).toBe('coral');
-    expect([...card.querySelectorAll('.wire-card-section')].every(
-      (section) => section.getAttribute('data-tone') === 'discrepancy',
-    )).toBe(true);
-    // 유형 라벨 2종.
-    expect(card.textContent).toContain('회차 간 불일치');
+    expect(card.textContent).not.toContain('회차 간 불일치');
     expect(card.textContent).toContain('회차 내 모순');
-    // 양쪽 원문 인용이 그대로 나온다.
-    expect(card.textContent).toContain('채무는 은행 대출뿐이라고 했다');
-    expect(card.textContent).toContain('지인에게 빌린 돈 상환이 밀려 있다');
-    // 회차 링크 — 상세 기록의 해당 회차 앵커로 간다.
+    expect(card.textContent).not.toContain('채무는 은행 대출뿐이라고 했다');
+    expect(card.textContent).not.toContain('지인에게 빌린 돈 상환이 밀려 있다');
+    expect(card.textContent).toContain('이번 달 지출을 정리했다');
+    expect(card.textContent).toContain('지출 내역은 아직 정리 전이다');
     const links = [...card.querySelectorAll('a')].map((a) => a.getAttribute('href'));
-    expect(links).toContain(`${recordsHref}#record-s-1`);
+    expect(links).not.toContain(`${recordsHref}#record-s-1`);
     expect(links).toContain(`${recordsHref}#record-s-2`);
     const recordButtons = within(card).getAllByRole('link', { name: '회차 확인하기' });
-    expect(recordButtons).toHaveLength(4);
+    expect(recordButtons).toHaveLength(2);
     expect(recordButtons.every((link) => link.classList.contains('wire-button'))).toBe(true);
-    // 각 인용 옆에 상담일이 붙는다.
-    expect(card.textContent).toContain('2026년 7월 1일 회차');
+    expect(card.textContent).not.toContain('2026년 7월 1일 회차');
     expect(card.textContent).toContain('2026년 7월 15일 회차');
     // AI 는 판단하지 않는다(R5) — 판단 어휘가 화면에 나오면 계약 위반이다.
     for (const banned of ['오류입니다', '틀렸', '맞습니다', '정확', '거짓']) {
@@ -326,9 +321,9 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
   it('처리 3종 버튼은 서버 액션이 있을 때만 그려지고 항목 ID를 함께 보낸다 (CCC-42)', () => {
     const unresolved = {
       id: 'd-1' as const,
-      kind: 'cross_session' as const,
-      left: { sessionId: 's-1', heldAt: '2026-07-01T05:00:00Z', quote: '채무는 은행 대출뿐이라고 했다' },
-      right: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '지인에게 빌린 돈 상환이 밀려 있다' },
+      kind: 'within_session' as const,
+      left: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '이번 달 지출을 정리했다' },
+      right: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '지출 내역은 아직 정리 전이다' },
       detectedAt: '2026-07-15T06:00:00Z',
       resolution: null,
     };
@@ -378,20 +373,17 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
       ],
     })} />);
     const card = cardByTitle(container, '내용 불일치');
-    // 배지가 이력까지 세면 '남은 일'을 알려주지 못한다 — 미처리 1건만.
-    expect(card.querySelector('.wire-card-summary')?.textContent).toContain('1건');
+    // 숨긴 회차 간 항목은 미처리 건수에도 들어가지 않는다.
+    expect(card.querySelector('.wire-card-summary')?.textContent).not.toContain('1건');
     const history = card.querySelector('.briefing-history');
     if (history === null) throw new Error('history not found');
     expect(history.querySelector('summary')?.textContent).toContain('처리된 항목 1건');
     const historyChevron = history.querySelector('.wire-disclosure-chevron');
     expect(historyChevron?.getAttribute('data-variant')).toBe('plain');
     expect(historyChevron?.classList.contains('wire-chevron-button')).toBe(false);
-    // 접혀 있을 뿐 지워지지 않는다 — 인용도 처리 상태도 이력 안에 남는다.
     expect(history.textContent).toContain('이번 달 지출을 정리했다');
     expect(history.textContent).toContain('상황 변경으로 처리됨');
-    // 미처리 항목은 이력 밖에 있다.
     expect(history.textContent).not.toContain('채무는 은행 대출뿐이라고 했다');
-    // 처리 종류는 다시 바꿀 수 있다(Q 결정) — 이력에도 버튼이 살아 있고 현재 상태만 비활성.
     const historyButtons = [...history.querySelectorAll('button')];
     expect(historyButtons).toHaveLength(3);
     expect(historyButtons.find((button) => button.value === 'situation_changed')?.disabled).toBe(true);
@@ -400,17 +392,19 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
 });
 
 describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D38·D9)', () => {
-  it('HERO 우상단은 행동 3개(당사자 정보, 상담 기록 확인, 상담 기록)다', () => {
+  it('HERO 우상단 행동은 각각 실제 목적지 이름과 경로를 쓴다', () => {
     const { container, queryByText } = render(<BriefingCards {...baseProps()} />);
     const actions = hero(container).querySelector('.page-actions');
-    expect([...(actions?.querySelectorAll('a') ?? [])].map((a) => a.textContent))
-      .toEqual(['당사자 정보', '상담 기록 확인', '상담 기록']);
-    // 이 화면만 D38 상한을 3개로 넓혔다(2026-08-06 Q). 프라이머리는 여전히 오른쪽 끝 1개다.
+    const links = [...(actions?.querySelectorAll('a') ?? [])];
+    expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
+      ['당사자 정보', baseProps().participantHref],
+      ['상담 기록 확인하기', baseProps().recordsHref],
+      ['상담 기록하기', baseProps().recordNewHref],
+    ]);
     expect(actions?.children).toHaveLength(3);
 
     const more = container.querySelector('.briefing-more');
     expect(more?.getAttribute('href')).toBe(baseProps().recordsHref);
-    expect(more?.textContent).toContain('상담 기록 확인');
     // 구 맨 아래 링크가 되살아나면 이 테스트가 잡는다.
     expect(queryByText('자세한 상담 기록 보기')).toBeNull();
     expect(queryByText('← 목록으로')).toBeNull();

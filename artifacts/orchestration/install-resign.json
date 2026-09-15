@@ -1,0 +1,103 @@
+{
+  "signScript": {
+    "path": "scripts/install/sign-install-documents.mjs",
+    "runtime": "bun",
+    "whyBun": "@ccc/contracts 는 TS 소스만 배포한다. node 24 type-stripping 은 parameter property 와 extensionless import 를 못 연다(실측 실패). bun 은 workspace 패키지의 TS 를 그대로 연다.",
+    "invocation": "scripts/install/stage-env.sh bun scripts/install/sign-install-documents.mjs",
+    "libraryCalls": [
+      "signInstallManifest — packages/contracts/src/install-manifest.ts:258 (@ccc/contracts/install-manifest 경유)",
+      "verifySignedInstallManifest — apps/community-cloud/dist/install-manifest-verifier.js (기존 manifest 재료 검증용)",
+      "sha256Jcs / canonicalizeJcs — 같은 dist 모듈",
+      "readStrictJsonDocument — scripts/supabase/manifest-preflight.mjs:113",
+      "configuredInstallTrust — scripts/supabase/manifest-preflight.mjs:161",
+      "requireSignedOwnerPreflight — scripts/supabase/manifest-preflight.mjs:266"
+    ],
+    "approvalSigning": "승인서 전용 서명 함수는 레포에 없다. signInstallManifest 와 동일한 JCS+Ed25519 절차를 crypto.subtle.sign 으로 호출하고, 검증은 기존 verifyJcsEd25519Signature 가 requireSignedOwnerPreflight 안에서 수행한다.",
+    "keyImport": "CCC_INSTALL_SIGNING_PRIVATE_KEY 는 base64 pkcs8(48바이트). raw 32바이트 시드면 pkcs8 로 감싸는 폴백만 있다. 개인키에서 JWK x 를 도출해 CCC_INSTALL_SIGNING_KEYS 와 매칭해 signingKeyId 를 고른다(값 출력 없이 키 정체를 증명).",
+    "projectSelection": "GET /v1/projects 는 4개를 반환했다(이전 조사의 '1개만 보인다'는 부실했다). 확정 속성(name=Relayer, region=ap-northeast-2, status=ACTIVE_HEALTHY)으로 필터해 정확히 1개일 때만 진행한다."
+  },
+  "manifestChanges": {
+    "supabaseProjectRef": "wtbdqy… (앞 여섯 글자만 기록)",
+    "supabaseAuthOrigin": "https://wtbdqy….supabase.co — 과제의 '세 자리' 목록에 없지만 assertModeFields 가 authOrigin 의 호스트 참조와 supabaseProjectRef 일치를 요구한다(install-manifest.ts:206-208 project_ref_mismatch). 바꾸지 않으면 검사가 거부하므로 파생 변경으로 처리했다.",
+    "supabasePublishableKey": "대상 프로젝트의 publishable 키로 교체(GET /v1/projects/{ref}/api-keys, type=publishable 1건). publishable 키는 프로젝트 범위라 지난 프로젝트 값을 쓰면 서명 검사는 통과해도 런타임이 깨진다. 과제의 '세 자리' 목록에 없는 파생 변경이다.",
+    "approvedSttEngineIds": "[{id:'azure-speech-koreacentral', mode:'azure'}] — 정렬·중복·두 키 객체 제약은 parseEngineRegistry(install-manifest.ts:110-125)가 보증한다.",
+    "publishedAt": "생산 시각으로 갱신 — dist verifier 가 publishedAt > now 를 거부한다(install-manifest-verifier.ts:25-29).",
+    "expiresAt": "아래 expiresAtChosen 참조",
+    "signingKeyId": "relayer-beta-20260910 — 개인키에서 도출한 공개키와 매칭되는 기존 keyId",
+    "unchanged": "schemaVersion, mode(community-cloud), apiBase, clientOrigin, allowedOrigins, host, scheme, endpointDiscovery, installationId, sequence",
+    "keyCount": "18키. 과제의 '정확히 16키'는 부실하다. MANIFEST_KEYS(install-manifest.ts:40-44)는 18개이고 parseManifestShape(install-manifest.ts:130-134)가 정확 일치를 강제한다. 생산물은 이 검사를 통과했다."
+  },
+  "installationIdDecision": {
+    "decision": "기존 installationId(183152f0-…, UUID)를 그대로 쓴다.",
+    "basis": "installationId 는 프로젝트가 아니라 설치(기관의 CCC 설치 인스턴스)의 정체다. 저널은 프로젝트 DB 안에 살고(install-journal.mjs) 대상 프로젝트는 설치된 적이 없어 이전 상태가 없다. verifySignedInstallManifest 의 expectedInstallationId 는 이전 manifest/DPAPI record 가 있을 때만 묶는다(install-manifest.ts:61-62,250-252). 새로 만들 근거가 코드에 없고, 재사용은 기존 승인 의도(같은 설치를 새 프로젝트로 옮김)와 일치한다."
+  },
+  "sequenceDecision": {
+    "decision": "기존 sequence=1 을 그대로 쓴다.",
+    "basis": "sequence replay 검사는 minSequence(이전에 받아들인 sequence)보다 작으면 거부다(install-manifest.ts:249). 대상 프로젝트에는 저널이 없어 이전 sequence 가 없고, ensureAuthorization 의 assertAuthorizationMatches 는 previous 가 있을 때만 비교한다(manifest-preflight.mjs:230-264). 첫 설치에서 1은 유효하다."
+  },
+  "expiresAtChosen": {
+    "value": "2026-10-13T10:55:26.230Z",
+    "basis": "validReleaseTrust 가 trust.expiresAt <= manifestExpiry 이고 <= authorization.expiresAt 를 요구한다(provider-baseline.mjs:168-170). 즉 manifest 와 approval 의 만료는 release trust 만료 이상이어야 하고, 신뢰 수명은 어차피 trust 만료에 묶인다. 가장 짧은 유효 선택은 trust 만료와 같게 두는 것이다. 기존 manifest 만료(2026-10-13T10:55:26.230Z)와 동일 값이며 그보다 길지 않다."
+  },
+  "verificationFunctions": [
+    "requireSignedOwnerPreflight — scripts/supabase/manifest-preflight.mjs:266-348 (파일 경로 입력으로 호출)",
+    "verifySignedInstallManifest — apps/community-cloud/dist/install-manifest-verifier.js (manifest-preflight.mjs:295 에서 호출)",
+    "verifyJcsEd25519Signature — 같은 dist 모듈 (manifest-preflight.mjs:317 에서 approval 서명 검증)",
+    "sha256Jcs — 같은 dist 모듈 (manifest-preflight.mjs:314 에서 runtimeManifestSha256 짝 검사)",
+    "parseManifestShape/parseEngineRegistry/assertModeFields — packages/contracts/src/install-manifest.ts:128,110,191 (verifySignedInstallManifest 내부)"
+  ],
+  "verifyResult": {
+    "preflight": "통과 — requireSignedOwnerPreflight 가 새 문서 두 개를 파일 경로로 읽어 authorization 을 반환했다.",
+    "manifestKeys": 18,
+    "mode": "community-cloud",
+    "supabaseProjectRefPrefix": "wtbdqy",
+    "sttEngine": "azure-speech-koreacentral (mode azure)",
+    "approvalPair": "approval.runtimeManifestSha256 === sha256Jcs(서명된 manifest 전체) — manifest-preflight.mjs:314-315 검사 통과",
+    "approvalKeys": "schemaVersion, contractVersion(S11-install-approval-v1), institutionId, projectRef, expectedOwnerOrgId, installationId, runtimeManifestSha256, expiresAt, signingKeyId, ed25519Signature — 기존 approval 과 같은 10키",
+    "expectedOwnerOrgId": "대상 프로젝트의 organization_id 로 갱신 — hosted-inspector.mjs:764 가 project.organization_id 와의 일치를 요구한다. 기존 approval 값과 같았다(같은 Supabase 조직)."
+  },
+  "stageEnvWiring": {
+    "privateKey": "RELAYER_INSTALL_SIGNING_PRIVATE_KEY 는 sign-install-documents.mjs 실행 때만 CCC_INSTALL_SIGNING_PRIVATE_KEY 로 매핑하고 그 외 명령에서는 unset 한다(기존 동작 유지).",
+    "documentFiles": "artifacts/install/wtbdqy/install-manifest.json / install-approval.json 이 존재하면 CCC_INSTALL_MANIFEST / CCC_INSTALL_APPROVAL 을 파일 경로로 대체한다. readStrictJsonDocument(manifest-preflight.mjs:113-137)가 '{'로 시작하지 않는 입력을 파일 경로로 읽는 것을 확인하고 구현했다. 재서명 절차 자체에서는 대체하지 않아 재료가 Infisical 현행본이다.",
+    "repoRoot": "안쪽 bash 의 $0 는 'bash' 라서 CCC_STAGE_REPO_ROOT 를 바깥에서 export 해 넘긴다.",
+    "staleValue": "CCC_SUPABASE_PROJECT_REF(Infisical RELAYER_SUPABASE_PROJECT_REF)는 아직 지난 프로젝트 참조다. 이번 plan 은 --project-ref 로 대상을 넘겼다. 오케스트레이터가 Infisical 값을 갱신하면 플래그 없이도 동작한다."
+  },
+  "planOutcome": {
+    "command": "scripts/install/stage-env.sh bash -c 'REF=$(node -e …manifest 파일에서 supabaseProjectRef 추출…); node scripts/supabase/bootstrap.mjs plan --project-ref \"$REF\"'",
+    "exitCode": 6,
+    "code": "BETA_TRUST_INVALID",
+    "message": "[BETA_TRUST_INVALID] 개발판 신뢰 문서가 유효하지 않습니다.",
+    "whereItStopped": "bootstrap.mjs:306-315 requireProviderBaseline → provider-baseline.mjs:153-171 validReleaseTrust. 서명 preflight(bootstrap.mjs:305 authorize)는 통과했다. 실패 원인은 release trust 와 provider baseline 의 projectRefSha256 이 지난 프로젝트(bukqtv…)에 묶여 있다는 점이다. 대상 프로젝트 참조의 sha256 와 trust.projectRefSha256 를 비교해 불일치를 확인했다(값은 출력하지 않고 일치 여부만).",
+    "previousVsNow": "이전 CREDENTIAL_INSUFFICIENT(종료 4)는 Management API 가 지난 프로젝트를 403으로 거부한 것이었다. 이번에는 서명 검사를 지나 baseline 신뢰 단계에서 멈췄다. 다른 지점이다.",
+    "dbConnectionStringNote": "과제는 '설치 DB 연결 문자열 단계에서 멈추는 것이 정상'이라고 했으나 plan 은 CCC_INSTALL_DATABASE_URL 을 열지 않는다. withInstallerConnection(installer-connection.mjs:10)은 apply/renew-authorization/create-institution/link-first-admin 에서만 호출된다(bootstrap.mjs:386,423,476,495). plan 의 다음 관문은 baseline 신뢰이고 거기서 멈췄다. 연결 문자열이 지난 프로젝트용이라는 사실은 형식 검사로 확인했다(pooler 호스트, username 이 .bukqtv… 로 끝남).",
+    "nextBlocker": "release trust 와 provider baseline 을 대상 프로젝트용으로 다시 만들어야 한다. CCC_BETA_ROOT_SIGNING_PRIVATE_KEY / CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY 는 주입돼 있고 provider-baseline-generate.mjs 가 그 절차다. 이 작업 범위 밖이다."
+  },
+  "secretLeakCheck": {
+    "method": "스크립트는 값을 출력하지 않고 경로·바이트 수·판정만 찍는다. 보고에는 프로젝트 참조 앞 여섯 글자만 적었다. 개인키는 길이와 인코딩 형태만 확인했다.",
+    "findings": "개인키 값 0건, 토큰 0건, 연결 문자열 0건, 서명 바이트 0건, 프로젝트 참조 원본 0건. publishable 키·organization_id 원본도 보고에 없다.",
+    "note": "서명 문서 파일 자체에는 publishable 키와 서명이 들어 있다(문서의 정의상). Git 에 들어가지 않고 권한 600 이다."
+  },
+  "mutations": {
+    "newKeysCreated": 0,
+    "infisicalWrites": 0,
+    "installExecutions": 0,
+    "dbChanges": 0,
+    "supabaseResourceCreations": 0,
+    "managementApiCalls": "GET /v1/projects, GET /v1/projects/{ref}/api-keys 만. POST/PUT/DELETE 0건.",
+    "filesWritten": [
+      "scripts/install/sign-install-documents.mjs",
+      "scripts/install/stage-env.sh (수정)",
+      "artifacts/install/.gitignore (신설, wtbdqy/ 한 줄)",
+      "artifacts/install/wtbdqy/install-manifest.json (600, gitignore 됨)",
+      "artifacts/install/wtbdqy/install-approval.json (600, gitignore 됨)",
+      "artifacts/orchestration/install-resign.json (이 파일)"
+    ]
+  },
+  "gitStatus": {
+    "checkIgnore": "git check-ignore -v → artifacts/install/.gitignore:1:wtbdqy/ 가 두 문서를 제외",
+    "statusShort": "?? artifacts/install/ (상위 디렉터리만 untracked 로 보이고 문서 파일은 ignore 됨), M scripts/install/stage-env.sh, ?? scripts/install/sign-install-documents.mjs",
+    "signedDocsCommitted": false
+  },
+  "commit": "스크립트·stage-env·.gitignore·보고만 한 번 커밋. 서명 문서는 커밋하지 않는다. push 없음.",
+  "blocked": "plan 은 BETA_TRUST_INVALID 에서 멈췄다. release trust/provider baseline 이 지난 프로젝트에 묶여 있어 대상 프로젝트용 재생산이 필요하다(별도 승인·작업)."
+}

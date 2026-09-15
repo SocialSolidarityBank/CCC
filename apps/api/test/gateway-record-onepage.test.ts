@@ -1,173 +1,70 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ValidationError,
-  type CreateCounselingRecordInput,
-  createBeneficiaryWithInitialSupportCase,
-  createCounselingRecord,
-  createIntakeRecord,
-  listCounselingRecords,
-} from '@ccc/core/gateway';
-import { setupD1, testProgramId } from './support/d1';
+import type { CreateManualRecordInput } from '@ccc/contracts/manual-record';
+import { ValidationError, createBeneficiaryWithInitialSupportCase, createCounselingRecord, createGoal, listCounselingRecords } from '@ccc/core/gateway';
+import { setupD1, testActors, testProgramId } from './support/d1';
 import { registrationInput } from './support/registration';
 
-// CCC-10 정기 기록지 원페이지: 서술형 항목(record_details · 0016)이 createCounselingRecord
-// 한 번의 호출로 원자 저장되는지 검증한다. 구 목표 종료+신설(goalTransition)은 D62 §5 로
-// 폐지됐고, 여기서는 그 키가 거부되는 것만 고정한다(CCC-73).
-
 const t = setupD1();
-
-const actor = { userId: 'user-counselor-10', orgId: 'org_demo', role: 'counselor' as const };
-
-async function seedCaseWithGoals(titles: string[]) {
-  await t.db.prepare(
-    "INSERT INTO users (id, org_id, email, role, active, time_zone) VALUES (?, ?, 'record-onepage@example.invalid', 'counselor', 1, NULL)",
-  ).bind(actor.userId, actor.orgId).run();
-  const initial = await createBeneficiaryWithInitialSupportCase(t.env, actor, await registrationInput(t.env, actor, {
-    programId: testProgramId(actor.orgId),
-    intakeAt: '2026-07-20T09:00:00.000Z',
-  }));
-  await createIntakeRecord(t.env, actor, initial.supportCaseId, {
-    submissionId: '01000000-0000-4000-8000-00000000ba01',
-    heldAt: '2026-07-20T10:00:00.000Z',
-    channel: 'in_person',
-    helpNarrative: { todayHelp: '월세 상담', hardestPoint: '체납', desiredChange: '안정' },
-    lifeAreas: [
-      { areaKey: 'economy', status: 'strained' },
-      { areaKey: 'housing', status: 'okay' },
-      { areaKey: 'employment', status: 'okay' },
-      { areaKey: 'health', status: 'okay' },
-      { areaKey: 'mental_health', status: 'okay' },
-      { areaKey: 'family', status: 'okay' },
-    ],
-    goals: titles.map((title) => ({ title })),
-    actionItems: [{ description: '서류 준비', owner: 'beneficiary' }],
-  });
-  const goals = await t.db.prepare(
-    "SELECT id, title FROM goals WHERE org_id = ? AND support_case_id = ? AND status = 'active' ORDER BY created_at, id",
-  ).bind(actor.orgId, initial.supportCaseId).all<{ id: string; title: string }>();
-  return { supportCaseId: initial.supportCaseId, goals: goals.results };
+const actor = testActors.counselor;
+async function seedCase() {
+  return createBeneficiaryWithInitialSupportCase(t.env, actor, await registrationInput(t.env, actor, { programId: testProgramId(actor.orgId) }));
+}
+function recordInput(overrides: Partial<CreateManualRecordInput> = {}): CreateManualRecordInput {
+  return { schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-09-12T09:00:00.000Z', channel: 'in_person', memo: '오늘 상담 내용을 수기로 남긴다', ...overrides };
 }
 
-/** 픽스처 목표 하나를 꺼낸다. 없으면 시드가 깨진 것이므로 바로 실패시킨다. */
-function goalAt(goals: Array<{ id: string; title: string }>, index: number): { id: string; title: string } {
-  const goal = goals[index];
-  if (goal === undefined) throw new Error(`goal fixture ${index} is missing`);
-  return goal;
-}
-
-function recordInput(overrides: Partial<CreateCounselingRecordInput> = {}): CreateCounselingRecordInput {
-  return {
-    submissionId: '01000000-0000-4000-8000-00000000bb01',
-    heldAt: '2026-07-24T10:00:00.000Z',
-    channel: 'in_person',
-    memo: '오늘 상담 내용을 수기로 남긴다',
-    gasScores: [],
-    actionItems: [],
-    flags: [],
-    ...overrides,
-  };
-}
-
-describe('createCounselingRecord — 정기 기록지 원페이지 (CCC-10)', () => {
-  it('수기 메모 하나만 채워도 저장된다 (P1 유일 실질 필수)', async () => {
+describe('versioned one-page manual record', () => {
+  it('makes a memo immediately official without supplying optional assessments', async () => {
     await t.reset();
-    const { supportCaseId } = await seedCaseWithGoals(['월세 체납 해소']);
-
-    const result = await createCounselingRecord(t.env, actor, supportCaseId, recordInput());
-
-    expect(result.replayed).toBe(false);
-    const session = await t.db.prepare(
-      'SELECT memo, kind, record_details FROM sessions WHERE id = ?',
-    ).bind(result.record.id).first<{ memo: string; kind: string; record_details: string | null }>();
-    expect(session?.memo).toBe('오늘 상담 내용을 수기로 남긴다');
-    expect(session?.kind).toBe('regular');
-    expect(session?.record_details).toBeNull();
+    const created = await seedCase();
+    const saved = await createCounselingRecord(t.env, actor, created.supportCaseId, recordInput());
+    const records = await listCounselingRecords(t.env, actor, created.supportCaseId);
+    expect(records.find(record => record.id === saved.record.id)).toMatchObject({
+      memo: '오늘 상담 내용을 수기로 남긴다', approvedAt: null, aiSummary: null,
+      manual: { schemaVersion: 2, details: { urgency: null, changes: [], reason: null, counselorOpinion: null } },
+    });
   });
-
-  it('담당 실무자 의견·위기 서술·지난 이후 변화·이번 상담 목표를 record_details 에 저장한다', async () => {
+  it('preserves explicit visit metadata and practitioner opinion without carrying them into another visit', async () => {
     await t.reset();
-    const { supportCaseId } = await seedCaseWithGoals(['월세 체납 해소']);
-
-    const result = await createCounselingRecord(t.env, actor, supportCaseId, recordInput({
-      details: {
-        sessionGoalNote: '이번 상담 목표: 임대차 계약 확인',
-        changeSinceLast: '지난주 아르바이트를 시작했다',
-        safetyNote: '거주지 안전 확인함',
-        counselorOpinion: '서류 준비 속도를 함께 맞출 필요가 있다',
-      },
+    const created = await seedCase();
+    const first = await createCounselingRecord(t.env, actor, created.supportCaseId, recordInput({
+      channel: 'visit', reason: 'walk_in', counselorOpinion: '주거 문제를 먼저 확인한다', urgency: 'caution',
+      changes: [{ area: 'physical_health', text: '다음 주 진료 일정을 정했다' }],
     }));
-
-    const session = await t.db.prepare(
-      'SELECT record_details FROM sessions WHERE id = ?',
-    ).bind(result.record.id).first<{ record_details: string | null }>();
-    const details = JSON.parse(session?.record_details ?? '{}');
-    expect(details.sessionGoalNote).toBe('이번 상담 목표: 임대차 계약 확인');
-    expect(details.changeSinceLast).toBe('지난주 아르바이트를 시작했다');
-    expect(details.safetyNote).toBe('거주지 안전 확인함');
-    expect(details.counselorOpinion).toBe('서류 준비 속도를 함께 맞출 필요가 있다');
+    const second = await createCounselingRecord(t.env, actor, created.supportCaseId, recordInput({ heldAt: '2026-09-13T09:00:00.000Z' }));
+    const records = await listCounselingRecords(t.env, actor, created.supportCaseId);
+    expect(records.find(record => record.id === first.record.id)).toMatchObject({
+      managerOpinion: '주거 문제를 먼저 확인한다', manual: { details: { method: 'visit', reason: 'walk_in', urgency: 'caution',
+        changes: [{ area: 'physical_health', text: '다음 주 진료 일정을 정했다' }] } },
+    });
+    expect(records.find(record => record.id === second.record.id)).toMatchObject({
+      managerOpinion: null, manual: { details: { urgency: null, changes: [], reason: null } },
+    });
   });
-
-  it('기록 조회가 담당 실무자 의견을 내려주고, 안 쓴 회차는 null 이다 (CCC-11)', async () => {
+  it('rejects retired write meanings and leaves the separately managed goal unchanged', async () => {
     await t.reset();
-    const { supportCaseId } = await seedCaseWithGoals(['월세 체납 해소']);
-    await createCounselingRecord(t.env, actor, supportCaseId, recordInput({
-      details: { counselorOpinion: '상담은 계속, 주거 문제 우선' },
-    }));
-    await createCounselingRecord(t.env, actor, supportCaseId, recordInput({
-      submissionId: '01000000-0000-4000-8000-00000000bb03',
-      heldAt: '2026-07-25T10:00:00.000Z',
-      memo: '의견 없는 회차',
-    }));
-
-    const records = await listCounselingRecords(t.env, actor, supportCaseId);
-    // held_at DESC — 최신(의견 없음)이 먼저다.
-    expect(records[0]?.managerOpinion).toBeNull();
-    expect(records[1]?.managerOpinion).toBe('상담은 계속, 주거 문제 우선');
+    const created = await seedCase();
+    const goal = await createGoal(t.env, actor, created.supportCaseId, { title: '주거 안정' });
+    for (const retired of [
+      { details: { changeSinceLast: 'legacy value' } },
+      { lifeAreas: [{ areaKey: 'health', changed: false }] },
+      { actionItemResolutions: [{ actionItemId: goal.id, status: 'hold' }] },
+      { goalTransition: { closeGoalId: goal.id, closedReason: '달성해서 종료' } },
+    ]) {
+      await expect(createCounselingRecord(t.env, actor, created.supportCaseId, { ...recordInput(), ...retired } as never))
+        .rejects.toBeInstanceOf(ValidationError);
+    }
+    const storedGoal = await t.db.prepare('SELECT status FROM goals WHERE id = ?').bind(goal.id).first<{ status: string }>();
+    expect(storedGoal?.status).toBe('active');
+    expect(await listCounselingRecords(t.env, actor, created.supportCaseId)).toEqual([]);
   });
-
-  it('빈 details 객체와 알 수 없는 키는 거부한다', async () => {
+  it('replays one submitted opinion without creating another official record', async () => {
     await t.reset();
-    const { supportCaseId } = await seedCaseWithGoals(['월세 체납 해소']);
-
-    await expect(createCounselingRecord(t.env, actor, supportCaseId, recordInput({ details: {} })))
-      .rejects.toBeInstanceOf(ValidationError);
-    await expect(createCounselingRecord(
-      t.env,
-      actor,
-      supportCaseId,
-      recordInput({ details: { unknownField: '값' } as never }),
-    )).rejects.toBeInstanceOf(ValidationError);
-  });
-
-  it('구 종료+신설(goalTransition) 키는 저장 경로가 거부한다 (D62 §5)', async () => {
-    await t.reset();
-    const { supportCaseId, goals } = await seedCaseWithGoals(['목표 하나']);
-
-    // 대조군: 같은 입력이 goalTransition 없이는 저장된다. 거부가 다른 이유면 안 된다.
-    await createCounselingRecord(t.env, actor, supportCaseId, recordInput());
-
-    await expect(createCounselingRecord(t.env, actor, supportCaseId, recordInput({
-      submissionId: '01000000-0000-4000-8000-00000000bb02',
-      goalTransition: { closeGoalId: goalAt(goals, 0).id, closedReason: '달성해서 종료' },
-    } as never))).rejects.toBeInstanceOf(ValidationError);
-
-    // 목표는 그대로다. 닫기는 closeGoal 단일 관문만 남는다.
-    const goal = await t.db.prepare(
-      'SELECT status FROM goals WHERE id = ?',
-    ).bind(goalAt(goals, 0).id).first<{ status: string }>();
-    expect(goal?.status).toBe('active');
-  });
-
-  it('같은 제출 ID·같은 입력의 재시도는 재현으로 처리한다', async () => {
-    await t.reset();
-    const { supportCaseId } = await seedCaseWithGoals(['목표 하나']);
-    const input = recordInput({ details: { counselorOpinion: '재시도 확인' } });
-
-    const first = await createCounselingRecord(t.env, actor, supportCaseId, input);
-    const second = await createCounselingRecord(t.env, actor, supportCaseId, input);
-
-    expect(first.replayed).toBe(false);
-    expect(second.replayed).toBe(true);
-    expect(second.record.id).toBe(first.record.id);
+    const created = await seedCase();
+    const input = recordInput({ counselorOpinion: '재시도 확인' });
+    const first = await createCounselingRecord(t.env, actor, created.supportCaseId, input);
+    const second = await createCounselingRecord(t.env, actor, created.supportCaseId, input);
+    expect(second).toMatchObject({ replayed: true, record: { id: first.record.id } });
+    expect((await listCounselingRecords(t.env, actor, created.supportCaseId)).map(record => record.id)).toEqual([first.record.id]);
   });
 });

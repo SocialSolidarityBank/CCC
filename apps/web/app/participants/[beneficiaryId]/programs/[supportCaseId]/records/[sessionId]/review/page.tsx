@@ -1,3 +1,6 @@
+import {
+  WireButton,
+} from '@ccc/wire';
 import { Suspense } from 'react';
 import {
   ApiError,
@@ -16,7 +19,6 @@ import {
 import { formatKoreanDate } from '../../../../../../../lib/format-korean-date';
 import { PageError } from '../../../../../../../components/wire/page-error';
 import { PageLoading } from '../../../../../../../components/wire/page-loading';
-import { WireButton } from '../../../../../../../components/wire/wire-button';
 import { DraftReviewView } from './fixture-draft-view';
 
 type ErrorKind = 'authentication_required' | 'access_or_not_found' | 'service_unavailable';
@@ -86,7 +88,7 @@ function recordsHref(beneficiaryId: string, supportCaseId: string): string {
 }
 
 function LoadingState() {
-  return <PageLoading title="AI 초안 검토" message="검토할 AI 초안을 불러오는 중입니다." />;
+  return <PageLoading title="AI 정리 검토" message="검토할 AI 초안을 불러오는 중입니다." />;
 }
 
 function ErrorState({
@@ -100,10 +102,10 @@ function ErrorState({
 }) {
   return (
     <PageError
-      title="AI 초안 검토"
+      title="AI 정리 검토"
       action={(
         <WireButton variant="secondary" href={recordsHref(beneficiaryId, supportCaseId)}>
-          상담 기록 확인
+          상담 기록 확인하기
         </WireButton>
       )}
     >

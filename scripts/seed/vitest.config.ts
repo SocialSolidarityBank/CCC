@@ -12,8 +12,11 @@ export default defineConfig({
   test: {
     include: ['scripts/seed/generate.ts'],
     environment: 'node',
-    testTimeout: 300_000,
-    hookTimeout: 300_000,
+    // 실측 근거: 100명 시나리오가 Miniflare D1 왕복(문장당 ~10ms, 순차 ~2.9만 문장)으로
+    // ~292s, 이어지는 재생 검증이 수십 초다. 300초는 100명 확장(9a59c19d) 이전 값이라
+    // 시나리오만으로 이미 한계에 닿는다. 600초는 실측의 약 1.6배 여유다.
+    testTimeout: 600_000,
+    hookTimeout: 600_000,
     maxWorkers: 1,
     minWorkers: 1,
     fileParallelism: false,

@@ -3,26 +3,27 @@
 // ③ 라우트 훅(수기 저장 시 검출 실행, 실패해도 저장은 성공 — D8) 을 검증한다.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
+  activateAiProviderConfiguration,
+  registerAiProviderConfiguration,
   collectDiscrepancyDetectionSources,
   createCase,
   createManualSession,
   enqueueTextWorkItem,
   ForbiddenError,
   claimAgentJobs,
-  recordMaskedSourceSnapshot,
   getParticipantBriefing,
   listCounselingRecords,
   listRecordErrorSessionIds,
   listSupportCasesForBeneficiary,
   replaceSessionDiscrepancies,
   resolveSessionDiscrepancy,
-  updateParticipantPii,
   ValidationError,
 } from '@ccc/core/gateway';
 import {
   AiProviderProhibitedOutputError,
   AiProviderUnavailableError,
   CodexProviderAdapter,
+  canonicalAiProviderConfigHash,
   DISCREPANCY_PROMPT_VERSION,
   validateDiscrepancyDetectionOutput,
   validateDiscrepancyDetectionRequest,
@@ -51,11 +52,8 @@ vi.setConfig({ testTimeout: 30_000 });
 
 const { counselor, admin, service } = testActors;
 const t = setupD1();
+let detectionConfigurationId: string | undefined;
 
-async function sha256Hex(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
 
 function serviceHeaders(): Record<string, string> {
   return {
@@ -66,41 +64,25 @@ function serviceHeaders(): Record<string, string> {
   };
 }
 
-function wholeTextEvidence(sessionId: string, maskedText: string, sha256: string) {
-  return {
-    id: crypto.randomUUID(),
-    sourceRef: sessionId,
-    sourceSha256: sha256,
-    evidenceQuote: maskedText,
-    sourceStart: 0,
-    sourceEnd: [...maskedText].length,
-  };
-}
-
-/** 장비가 만든 2차 마스킹 스냅샷을 직접 심는다 — 라우트 왕복 없이 같은 상태를 만든다. */
-async function seedMaskedSnapshot(sessionId: string, text: string): Promise<void> {
-  const maskedText = text.trim().length === 0 ? 'MASKED_SOURCE_BASELINE' : text;
-  const sha256 = await sha256Hex(maskedText);
-  await recordMaskedSourceSnapshot(t.env, service, sessionId, {
-    maskedText,
-    sha256,
-    maskingPipelineVersion: 'ner-mask-v1',
-    evidence: [wholeTextEvidence(sessionId, maskedText, sha256)],
-  });
-}
 
 /**
  * 처리 장비 흉내 (S5) — claim 한 텍스트 작업을 전부 마스킹해 결과로 제출한다. 결과
  * 라우트가 불일치 재검출을 돌린다. `mask` 로 NER 마스킹을 대신한다(기본값은 원문 그대로).
  */
 async function runDeviceTextJobs(mask: (text: string) => string = (text) => text): Promise<number> {
-  const env = await agentManifestEnv(t.env, { mode: t.env.installationMode ?? 'community-cloud' });
+  const env = await agentManifestEnv(
+    { ...t.env, installationMode: 'community-cloud', CCC_STT_MODE: 'off' },
+    { mode: 'community-cloud', stt: 'off' },
+  );
+  if (env.MEMORY_MASKING_PIPELINES === undefined) throw new Error('missing masking pipeline fixture');
+  t.env.MEMORY_MASKING_PIPELINES = env.MEMORY_MASKING_PIPELINES;
   return runAgentTextJobs(env, t.db, { mask, headers: serviceHeaders() });
 }
 
 // 테스트마다 독립 D1 — setupD1 계약상 reset() 이 컨텍스트를 만든다.
 beforeEach(async () => {
   await t.reset();
+  detectionConfigurationId = undefined;
 });
 
 // 제출 ID 는 케이스가 달라도 재사용하면 재생(replay)·유일성에 걸린다 — 매번 새로 발급.
@@ -114,10 +96,10 @@ async function createCaseWithSessions(memos: string[], withSnapshots = false): P
   sessionIds: string[];
 }> {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
-    sttMode: 'local',
+    sttMode: 'azure',
     llmMode: 'openai',
   });
-  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_STT_MODE = 'azure';
   t.env.CCC_LLM_MODE = 'openai';
   // 외부 LLM 도메인은 등록에서 거절한다 — 이 파일에는 "동의가 없으면 검출을 건너뛴다"는
   // 줄이 있고, 동의가 필요한 줄은 enableTextAiConsent 가 canonical 이벤트로 부여한다.
@@ -142,14 +124,24 @@ async function createCaseWithSessions(memos: string[], withSnapshots = false): P
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected initial support case');
 
-  // 검출 재료는 2차 마스킹 스냅샷뿐이다(R3 · ADR-0027). 라우트를 거치지 않고 만든
-  // 회차라 공식화 훅이 돌지 않으므로 스냅샷을 직접 심는다(장비가 한 일과 같은 결과).
-  // 저장·처리만 보는 테스트에는 필요 없어서 기본값은 끔 — 매 픽스처가 느려진다.
+  // 검출 재료는 처리 장비가 만든 2차 마스킹 스냅샷뿐이다(R3). 재료가 필요한
+  // 테스트만 텍스트 일감을 실제 HTTP Agent 계약으로 처리한다.
   if (withSnapshots) {
     await enableTextAiConsent(supportCaseId);
-    for (const [index, sessionId] of sessionIds.entries()) {
-      await seedMaskedSnapshot(sessionId, memos[index] ?? '');
+    if (detectionConfigurationId === undefined) {
+      const config = await registerAiProviderConfiguration(t.env, admin, {
+        adapterId: fakeProviderConfig.providerId,
+        adapterVersion: fakeProviderConfig.adapterVersion,
+        configHash: await canonicalAiProviderConfigHash(fakeProviderConfig),
+        approvalRefs: ['synthetic-discrepancy-approval'],
+      });
+      detectionConfigurationId = config.id;
+      await activateAiProviderConfiguration(t.env, admin, config.id);
     }
+    for (const sessionId of sessionIds) {
+      await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
+    }
+    await runDeviceTextJobs();
   }
 
   return { caseId: caseRecord.id, supportCaseId, sessionIds };
@@ -242,52 +234,65 @@ describe('validateDiscrepancyDetectionOutput — 인용 원문 강제·판단 �
   });
 });
 
-describe('collectDiscrepancyDetectionSources — 공식 텍스트 수집·가명 처리 (R2·R3)', () => {
-  it('회차별 수기 메모를 오래된 순으로 모으고 등록 실명은 가명 ID 로 치환한다', async () => {
-    const fixture = await createCaseWithSessions([
-      '홍길동 님은 채무가 은행 대출뿐이라고 말함',
-      '홍길동 님이 지인 채무 상환이 밀려 있다고 말함',
-    ], true);
-    await updateParticipantPii(t.env, counselor, fixture.caseId, {
-      supportCaseContextId: fixture.supportCaseId,
-      expectedVersion: 1,
-      name: '홍길동',
+describe('G2 grounded-pair structural boundary (semantic accuracy unmeasured)', () => {
+  it.each([
+    {
+      name: 'same rent and time, paid versus unpaid',
+      left: '팔월 월세는 구월 첫 상담 시점에 미납이다.',
+      right: '팔월 월세는 구월 첫 상담 시점에 납부 완료다.',
+    },
+    {
+      name: 'same debt and time, incompatible numeric amounts',
+      left: '구월 첫 상담 시점 은행 대출 잔액은 300만 원이다.',
+      right: '구월 첫 상담 시점 은행 대출 잔액은 500만 원이다.',
+    },
+  ])('preserves contextual contradiction quotes without banning numbers: $name', ({ left, right }) => {
+    const request = validateDiscrepancyDetectionRequest({
+      triggerRef: 'session-current',
+      sources: [{ sourceRef: 'session-current', text: `전사: ${left}\n수기: ${right}` }],
     });
-
-    const material = await collectDiscrepancyDetectionSources(t.env, counselor, fixture.sessionIds[1] ?? '');
-    expect(material.supportCaseId).toBe(fixture.supportCaseId);
-    expect(material.triggerSessionId).toBe(fixture.sessionIds[1]);
-    expect(material.sources.map((source) => source.sessionId)).toEqual(fixture.sessionIds);
-    for (const source of material.sources) {
-      expect(source.text).not.toContain('홍길동');
-      expect(source.text).toContain(fixture.caseId);
-    }
-    // PII 복호화 감사(D14)가 남는다.
-    const audit = await t.db.prepare(
-      "SELECT COUNT(*) AS count FROM audit_log WHERE action = 'decrypt_pii' AND target_table = 'pii_vault' AND detail LIKE '%discrepancy_detection_masking%'",
-    ).first<{ count: number }>();
-    expect(Number(audit?.count ?? 0)).toBeGreaterThan(0);
+    const pair = {
+      kind: 'within_session', leftRef: 'session-current', leftQuote: left,
+      rightRef: 'session-current', rightQuote: right,
+    };
+    expect(validateDiscrepancyDetectionOutput({ discrepancies: [pair] }, request)).toEqual({ discrepancies: [pair] });
   });
 
-  // ADR-0027 의 핵심 보증 — 이 테스트가 깨지면 1차 치환만 거친 메모가 사업자로 나간다.
-  it('2차 마스킹 스냅샷이 없는 회차는 재료에서 빠진다 (R3)', async () => {
-    const fixture = await createCaseWithSessions(['아들 김철수가 보증을 섰다고 말함'], true);
-    const later = await createManualSession(t.env, counselor, fixture.caseId, {
-      submissionId: submissionId(),
-      heldAt: '2026-07-09T10:00:00.000Z',
-      channel: 'in_person',
-      memo: '아들 김철수 연락처를 받아 적음',
-      gasScores: [],
+  it('rejects identical quoted statements even when their source sessions differ', () => {
+    const quote = '이번 달 월세 납부를 마쳤다.';
+    const request = validateDiscrepancyDetectionRequest({
+      triggerRef: 'current',
+      sources: [{ sourceRef: 'prior', text: quote }, { sourceRef: 'current', text: quote }],
     });
+    expect(() => validateDiscrepancyDetectionOutput({
+      discrepancies: [{
+        kind: 'cross_session', leftRef: 'prior', leftQuote: quote, rightRef: 'current', rightQuote: quote,
+      }],
+    }, request)).toThrow(AiProviderProhibitedOutputError);
+  });
+});
 
-    // 스냅샷이 있는 회차만 재료다 — 방금 만든 회차의 메모 원문은 나가지 않는다.
-    const material = await collectDiscrepancyDetectionSources(t.env, counselor, fixture.sessionIds[0] ?? '');
-    expect(material.sources.map((source) => source.sessionId)).toEqual([fixture.sessionIds[0]]);
-    expect(JSON.stringify(material.sources)).not.toContain('연락처를 받아 적음');
+describe('collectDiscrepancyDetectionSources — 공식 텍스트 수집·가명 처리 (R2·R3)', () => {
+  it('트리거 회차의 마스킹 스냅샷만 수집한다', async () => {
+    const fixture = await createCaseWithSessions([
+      'swallow-003이 지인 채무 상환이 밀려 있다고 말함',
+    ], true);
+    const triggerSessionId = fixture.sessionIds[0] ?? '';
+    const material = await collectDiscrepancyDetectionSources(t.env, counselor, triggerSessionId);
+    expect(material.supportCaseId).toBe(fixture.supportCaseId);
+    expect(material.triggerSessionId).toBe(triggerSessionId);
+    expect(material.sources).toHaveLength(1);
+    expect(material.sources[0]?.sessionId).toBe(triggerSessionId);
+    expect(material.sources[0]?.text).toContain('swallow-003이 지인 채무 상환이 밀려 있다고 말함');
+  });
 
-    // 트리거 회차 자체에 스냅샷이 없으면 재료가 비어 호출자가 검출을 스킵한다.
-    const skipped = await collectDiscrepancyDetectionSources(t.env, counselor, later.id);
-    expect(skipped.sources.some((source) => source.sessionId === later.id)).toBe(false);
+  it('트리거 회차에 2차 마스킹 스냅샷이 없으면 재료 수집을 닫는다', async () => {
+    const fixture = await createCaseWithSessions(['아들 김철수가 보증을 섰다고 말함']);
+    await expect(collectDiscrepancyDetectionSources(
+      t.env,
+      counselor,
+      fixture.sessionIds[0] ?? '',
+    )).rejects.toMatchObject({ code: 'masking_snapshot_missing' });
   });
 
   // 큐는 삭제가 없다(0029) — 처리할 수 없는 행을 내보내면 장비가 매 폴링마다 같은 행에
@@ -468,7 +473,7 @@ describe('replaceSessionDiscrepancies — 저장·교체·불변 (ADR-0018)', ()
 });
 
 describe('getParticipantBriefing — 영역 ③은 저장된 결과만 읽는다', () => {
-  it('미처리·처리됨을 상담일과 함께 싣고 미처리를 앞세운다 (CCC-42)', async () => {
+  it('cross_session 이력은 보존하되 브리핑에는 within_session만 반환한다', async () => {
     const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
     const [first, second] = fixture.sessionIds;
     const stored = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [
@@ -494,35 +499,36 @@ describe('getParticipantBriefing — 영역 ③은 저장된 결과만 읽는다
     ).bind(stored[1]?.id ?? '').run();
 
     const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
-    // 처리된 항목도 함께 온다 — 화면이 접힌 이력으로 내린다(ADR-0018: 삭제되지 않는다).
-    expect(briefing.discrepancies).toHaveLength(2);
-    const item = briefing.discrepancies[0];
-    // 미처리가 앞이다 — 화면이 정렬을 다시 만들지 않아도 되게.
-    expect(item?.resolution).toBeNull();
-    expect(item?.kind).toBe('cross_session');
-    expect(item?.left.sessionId).toBe(first);
-    expect(item?.left.heldAt).toBe('2026-07-01T10:00:00.000Z');
-    expect(item?.left.quote).toBe('첫 메모');
-    expect(item?.right.sessionId).toBe(second);
-    expect(item?.right.quote).toBe('둘째 메모');
-
-    const resolved = briefing.discrepancies[1];
-    expect(resolved?.id).toBe(stored[1]?.id);
-    expect(resolved?.resolution).toEqual({
-      status: 'situation_changed',
-      resolvedAt: '2026-07-29T00:00:00.000Z',
+    expect(briefing.discrepancies).toHaveLength(1);
+    expect(briefing.discrepancies[0]).toMatchObject({
+      id: stored[1]?.id,
+      kind: 'within_session',
+      left: { sessionId: second, quote: '둘째 메모' },
+      right: { sessionId: second, quote: '둘째 메모' },
+      resolution: {
+        status: 'situation_changed',
+        resolvedAt: '2026-07-29T00:00:00.000Z',
+      },
     });
-    // 처리자 userId 는 화면에 쓰지 않으므로 응답에 싣지 않는다 — 감사에만 남는다(D14).
-    expect(resolved).not.toHaveProperty('resolvedBy');
+    const retained = await t.db.prepare(
+      "SELECT COUNT(*) AS count FROM session_discrepancies WHERE support_case_id=? AND kind='cross_session'",
+    ).bind(fixture.supportCaseId).first<{ count: number }>();
+    expect(Number(retained?.count ?? 0)).toBe(1);
   });
 
-  it('상담 기록 조회가 각 회차에 걸린 불일치 연결을 함께 싣는다 (D73)', async () => {
+  it('상담 기록 조회에도 within_session 연결만 싣는다', async () => {
     const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
     const [first, second] = fixture.sessionIds;
-    const [stored] = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
+    const stored = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
       kind: 'cross_session',
       leftSessionId: first ?? '',
       leftQuote: '첫 메모',
+      rightSessionId: second ?? '',
+      rightQuote: '둘째 메모',
+    }, {
+      kind: 'within_session',
+      leftSessionId: second ?? '',
+      leftQuote: '둘째 메모',
       rightSessionId: second ?? '',
       rightQuote: '둘째 메모',
     }]);
@@ -530,15 +536,14 @@ describe('getParticipantBriefing — 영역 ③은 저장된 결과만 읽는다
     const records = await listCounselingRecords(t.env, counselor, fixture.supportCaseId);
     const firstRecord = records.find((record) => record.id === first);
     const secondRecord = records.find((record) => record.id === second);
-    const expected = [{
-      id: stored?.id,
-      kind: 'cross_session',
-      leftSessionId: first,
+    expect(firstRecord?.discrepancies).toEqual([]);
+    expect(secondRecord?.discrepancies).toEqual([{
+      id: stored[1]?.id,
+      kind: 'within_session',
+      leftSessionId: second,
       rightSessionId: second,
       resolutionStatus: null,
-    }];
-    expect(firstRecord?.discrepancies).toEqual(expected);
-    expect(secondRecord?.discrepancies).toEqual(expected);
+    }]);
   });
 
   it('처리된 이력은 최근 20건까지만 싣고 미처리는 자르지 않는다', async () => {
@@ -582,12 +587,7 @@ describe('getParticipantBriefing — 영역 ③은 저장된 결과만 읽는다
     const resolvedItems = briefing.discrepancies.filter((item) => item.resolution !== null);
     const openItems = briefing.discrepancies.filter((item) => item.resolution === null);
     expect(openItems).toHaveLength(1);
-    expect(resolvedItems).toHaveLength(20);
-    // 잘린 5건은 가장 오래 전에 처리한 것들이다 — 2026-07-01~05.
-    const oldest = resolvedItems
-      .map((item) => item.resolution?.resolvedAt ?? '')
-      .sort()[0];
-    expect(oldest).toBe('2026-07-06T00:00:00.000Z');
+    expect(resolvedItems).toEqual([]);
 
     const records = await listCounselingRecords(t.env, counselor, fixture.supportCaseId);
     const recordDiscrepancyIds = new Set(
@@ -607,13 +607,13 @@ describe('resolveSessionDiscrepancy — 처리 3종·원본 불변·감사 (CCC-
     sessionIds: string[];
     id: string;
   }> {
-    const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
-    const [first, second] = fixture.sessionIds;
-    const [row] = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
-      kind: 'cross_session',
-      leftSessionId: first ?? '',
+    const fixture = await createCaseWithSessions(['첫 메모와 둘째 메모']);
+    const [sessionId] = fixture.sessionIds;
+    const [row] = await replaceSessionDiscrepancies(t.env, counselor, sessionId ?? '', [{
+      kind: 'within_session',
+      leftSessionId: sessionId ?? '',
       leftQuote: '첫 메모',
-      rightSessionId: second ?? '',
+      rightSessionId: sessionId ?? '',
       rightQuote: '둘째 메모',
     }]);
     if (row === undefined) throw new Error('expected a stored discrepancy');
@@ -667,6 +667,26 @@ describe('resolveSessionDiscrepancy — 처리 3종·원본 불변·감사 (CCC-
     ).rejects.toThrowError(ForbiddenError);
   });
 
+  it('보존된 회차 간 불일치는 처리 API에서도 닫힌다', async () => {
+    const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
+    const [first, second] = fixture.sessionIds;
+    const [row] = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
+      kind: 'cross_session',
+      leftSessionId: first ?? '',
+      leftQuote: '첫 메모',
+      rightSessionId: second ?? '',
+      rightQuote: '둘째 메모',
+    }]);
+    if (row === undefined) throw new Error('expected a stored discrepancy');
+
+    await expect(resolveSessionDiscrepancy(t.env, counselor, row.id, 'confirmed'))
+      .rejects.toThrowError(ForbiddenError);
+    const stored = await t.db.prepare(
+      'SELECT resolution_status FROM session_discrepancies WHERE id = ?',
+    ).bind(row.id).first<{ resolution_status: string | null }>();
+    expect(stored?.resolution_status).toBeNull();
+  });
+
   it('비담당 실무자와 다른 기관 실무자는 실제 항목도 처리할 수 없다 (D7)', async () => {
     const fixture = await storedPair();
     for (const stranger of [testActors.unassignedCounselor, testActors.otherOrgCounselor]) {
@@ -698,24 +718,24 @@ describe('resolveSessionDiscrepancy — 처리 3종·원본 불변·감사 (CCC-
     const fixture = await storedPair();
     expect(await listRecordErrorSessionIds(t.env, counselor, fixture.supportCaseId)).toEqual([]);
     await resolveSessionDiscrepancy(t.env, counselor, fixture.id, 'record_error');
-    // 0027 에 어느 쪽이 오류인지 담는 칸이 없어 쌍의 양쪽 회차가 모두 표시 대상이다.
-    expect(new Set(await listRecordErrorSessionIds(t.env, counselor, fixture.supportCaseId)))
-      .toEqual(new Set([fixture.sessionIds[0], fixture.sessionIds[1]]));
+    // 회차 내 불일치이므로 해당 회차 하나가 표시 대상이다.
+    expect(await listRecordErrorSessionIds(t.env, counselor, fixture.supportCaseId))
+      .toEqual([fixture.sessionIds[0]]);
     // 원본 회차(수기 메모)는 그대로다.
     const session = await t.db.prepare('SELECT memo FROM sessions WHERE id = ?')
       .bind(fixture.sessionIds[0]).first<{ memo: string }>();
-    expect(session?.memo).toBe('첫 메모');
+    expect(session?.memo).toBe('첫 메모와 둘째 메모');
   });
 
   it('이미 처리한 쌍은 재검출이 다시 올리지 않는다 (Q 결정 — 중복 처리 방지)', async () => {
     const fixture = await storedPair();
     await resolveSessionDiscrepancy(t.env, counselor, fixture.id, 'confirmed');
-    const [first, second] = fixture.sessionIds;
-    const again = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
-      kind: 'cross_session',
-      leftSessionId: first ?? '',
+    const [sessionId] = fixture.sessionIds;
+    const again = await replaceSessionDiscrepancies(t.env, counselor, sessionId ?? '', [{
+      kind: 'within_session',
+      leftSessionId: sessionId ?? '',
       leftQuote: '첫 메모',
-      rightSessionId: second ?? '',
+      rightSessionId: sessionId ?? '',
       rightQuote: '둘째 메모',
     }]);
     expect(again).toHaveLength(0);
@@ -725,22 +745,22 @@ describe('resolveSessionDiscrepancy — 처리 3종·원본 불변·감사 (CCC-
     expect(Number(rows?.count ?? 0)).toBe(1);
 
     // 좌우가 뒤집혀 와도 같은 쌍이다 — 어느 쪽이 left 인지는 프로바이더가 그때 정한다.
-    const swapped = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
-      kind: 'cross_session',
-      leftSessionId: second ?? '',
+    const swapped = await replaceSessionDiscrepancies(t.env, counselor, sessionId ?? '', [{
+      kind: 'within_session',
+      leftSessionId: sessionId ?? '',
       leftQuote: '둘째 메모',
-      rightSessionId: first ?? '',
+      rightSessionId: sessionId ?? '',
       rightQuote: '첫 메모',
     }]);
     expect(swapped).toHaveLength(0);
 
     // 인용이 다르면 다른 건이므로 새로 올라온다.
-    const different = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
+    const different = await replaceSessionDiscrepancies(t.env, counselor, sessionId ?? '', [{
       kind: 'within_session',
-      leftSessionId: second ?? '',
-      leftQuote: '둘째 메모',
-      rightSessionId: second ?? '',
-      rightQuote: '둘째 메모',
+      leftSessionId: sessionId ?? '',
+      leftQuote: '첫 메모',
+      rightSessionId: sessionId ?? '',
+      rightQuote: '새 메모',
     }]);
     expect(different).toHaveLength(1);
   });
@@ -785,12 +805,13 @@ async function postManualRecord(supportCaseId: string, memo: string, sequence: n
     method: 'POST',
     headers: counselorHeaders(),
     body: JSON.stringify({
+      schemaVersion: 2,
       submissionId: submissionId(),
       heldAt: `2026-07-1${sequence}T10:00:00.000Z`,
       channel: 'in_person',
       memo,
       gasScores: [],
-      actions: [],
+      actionItems: [],
       flags: [],
     }),
   }), t.env);
@@ -803,36 +824,107 @@ async function enableTextAiConsent(supportCaseId: string): Promise<void> {
 }
 
 describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기준)', () => {
-  it('수기 메모 저장 → 장비 마스킹 → 검출 결과가 브리핑에 나타난다', async () => {
-    const fixture = await createCaseWithSessions(['첫 상담에서 채무는 은행 대출뿐이라고 말함'], true);
+  it.each([
+    ['normal numeric evolution', '팔월 부채 잔액은 500만 원이다.', '구월에 상환한 뒤 부채 잔액은 300만 원이다.'],
+    ['valid paraphrase', '이번 달 월세를 모두 냈다.', '이번 달 월세 납부를 마쳤다.'],
+    ['explicit correction', '팔월 월세를 납부했다고 적었다.', '앞 기록을 정정함. 팔월 월세는 미납으로 확인함.'],
+    ['ambiguous context', '잔액은 300만 원이다.', '잔액은 500만 원이다.'],
+  ])('keeps prior sessions out of the provider comparison: %s', async (_name, prior, current) => {
+    const fixture = await createCaseWithSessions([prior], true);
+    const inputs: DiscrepancyDetectionRequest[] = [];
+    // Canned output tests orchestration only, not whether a model can identify these exclusions.
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async request => {
+      inputs.push(request);
+      return { discrepancies: [] };
+    });
+    expect((await postManualRecord(fixture.supportCaseId, current, 2)).status).toBe(201);
+    await runDeviceTextJobs();
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]?.sources.map(source => source.text).join('\n')).not.toContain(prior);
+    expect(inputs[0]?.sources.map(source => source.text).join('\n')).toContain(current);
+    const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
+    expect(briefing.discrepancies).toEqual([]);
+    const records = await t.db.prepare('SELECT memo FROM sessions WHERE support_case_id=? ORDER BY held_at')
+      .bind(fixture.supportCaseId).all<{ memo: string }>();
+    expect(records.results.map(record => record.memo)).toEqual([prior, current]);
+  });
+
+  it('blocks discrepancy egress on a stale policy hash until explicit reactivation', async () => {
+    const fixture = await createCaseWithSessions(['팔월 월세는 구월 첫 상담 시점에 미납이다.'], true);
+    const stale = await registerAiProviderConfiguration(t.env, admin, {
+      adapterId: fakeProviderConfig.providerId, adapterVersion: fakeProviderConfig.adapterVersion,
+      configHash: 'b'.repeat(64), approvalRefs: ['synthetic-old-policy'],
+    });
+    await activateAiProviderConfiguration(t.env, admin, stale.id);
+    let calls = 0;
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => {
+      calls += 1;
+      return { discrepancies: [] };
+    });
+    expect((await postManualRecord(fixture.supportCaseId, '팔월 월세는 구월 첫 상담 시점에 납부 완료다.', 2)).status).toBe(201);
+    await runDeviceTextJobs();
+    expect(calls).toBe(0);
+    if (detectionConfigurationId === undefined) throw new Error('expected the registered current configuration');
+    await activateAiProviderConfiguration(t.env, admin, detectionConfigurationId);
+    expect((await postManualRecord(fixture.supportCaseId, '팔월 월세 납부 여부를 다시 확인함.', 3)).status).toBe(201);
+    await runDeviceTextJobs();
+    expect(calls).toBe(1);
+  });
+  it.each([
+    ['rent status', '팔월 월세는 구월 첫 상담 시점에 미납이다.', '팔월 월세는 구월 첫 상담 시점에 납부 완료다.'],
+    ['numeric contradiction', '구월 첫 상담 시점 은행 대출 잔액은 300만 원이다.', '구월 첫 상담 시점 은행 대출 잔액은 500만 원이다.'],
+  ])('does not validate, store, or return cross-session provider output: %s', async (_name, left, right) => {
+    const fixture = await createCaseWithSessions([left], true);
     t.env.CCC_LLM_MODE = 'openai';
+    let sourceCount = 0;
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => {
-      const priorRef = request.sources[0]?.sourceRef ?? '';
-      const priorText = request.sources[0]?.text ?? '';
-      const triggerText = request.sources.find((source) => source.sourceRef === request.triggerRef)?.text ?? '';
+      sourceCount = request.sources.length;
       return {
         discrepancies: [{
           kind: 'cross_session',
-          leftRef: priorRef,
-          leftQuote: priorText,
+          leftRef: 'release-excluded-prior',
+          leftQuote: '검증하지 않을 과거 인용',
           rightRef: request.triggerRef,
-          rightQuote: triggerText,
+          rightQuote: '검증하지 않을 현재 인용',
         }],
       };
     });
 
-    const response = await postManualRecord(fixture.supportCaseId, '지인 채무 상환이 밀려 있다고 말함', 2);
+    const response = await postManualRecord(fixture.supportCaseId, right, 2);
     expect(response.status).toBe(201);
-    // 저장 시점에는 스냅샷이 없어 검출이 스킵된다 — 장비가 마스킹을 마쳐야 돈다(ADR-0027).
     expect(await runDeviceTextJobs()).toBe(1);
+    expect(sourceCount).toBe(1);
+    const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
+    expect(briefing.discrepancies).toEqual([]);
+    const stored = await t.db.prepare(
+      "SELECT COUNT(*) AS count FROM session_discrepancies WHERE support_case_id=? AND kind='cross_session'",
+    ).bind(fixture.supportCaseId).first<{ count: number }>();
+    expect(Number(stored?.count ?? 0)).toBe(0);
+  });
 
+  it('keeps within-session provider output enabled', async () => {
+    const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.CCC_LLM_MODE = 'openai';
+    const leftQuote = '이번 주에는 연락하지 않았다.';
+    const rightQuote = '이번 주에 두 번 연락했다.';
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => ({
+      discrepancies: [{
+        kind: 'within_session',
+        leftRef: request.triggerRef,
+        leftQuote,
+        rightRef: request.triggerRef,
+        rightQuote,
+      }],
+    }));
+    expect((await postManualRecord(
+      fixture.supportCaseId,
+      `${leftQuote} ${rightQuote}`,
+      2,
+    )).status).toBe(201);
+    expect(await runDeviceTextJobs()).toBe(1);
     const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
     expect(briefing.discrepancies).toHaveLength(1);
-    expect(briefing.discrepancies[0]?.kind).toBe('cross_session');
-    expect(briefing.discrepancies[0]?.left.quote).toContain('은행 대출뿐');
-    expect(briefing.discrepancies[0]?.right.quote).toContain('지인 채무 상환');
-    // 검출 경로 PII 미유입(R3) — 프로바이더에 간 텍스트는 가명 처리본이라 인용도 실명이 없다.
-    expect(JSON.stringify(briefing.discrepancies)).not.toContain('홍길동');
+    expect(briefing.discrepancies[0]?.kind).toBe('within_session');
   });
 
   it('프로바이더 실패는 스킵일 뿐 기록 저장은 성공한다 (D8)', async () => {
@@ -1053,19 +1145,15 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
 
     const stored = await createCaseWithSessions(['첫 상담에서 채무는 은행 대출뿐이라고 말함'], true);
     t.env.CCC_LLM_MODE = 'openai';
-    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => {
-      const prior = request.sources[0];
-      const triggerText = request.sources.find((source) => source.sourceRef === request.triggerRef)?.text ?? '';
-      return {
-        discrepancies: [{
-          kind: 'cross_session',
-          leftRef: prior?.sourceRef ?? '',
-          leftQuote: prior?.text ?? '',
-          rightRef: request.triggerRef,
-          rightQuote: triggerText,
-        }],
-      };
-    });
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => ({
+      discrepancies: [{
+        kind: 'within_session',
+        leftRef: request.triggerRef,
+        leftQuote: '지인 채무',
+        rightRef: request.triggerRef,
+        rightQuote: '상환이 밀려',
+      }],
+    }));
     const storedSession = await postAndSession(stored.supportCaseId, '지인 채무 상환이 밀려 있다고 말함', 2);
     await runDeviceTextJobs();
 
@@ -1143,13 +1231,13 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
 
 describe('라우트 — 처리 3종 엔드포인트 (CCC-42)', () => {
   async function storedPair(): Promise<{ supportCaseId: string; id: string; sessionIds: string[] }> {
-    const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
-    const [first, second] = fixture.sessionIds;
-    const [row] = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
-      kind: 'cross_session',
-      leftSessionId: first ?? '',
+    const fixture = await createCaseWithSessions(['첫 메모와 둘째 메모']);
+    const [sessionId] = fixture.sessionIds;
+    const [row] = await replaceSessionDiscrepancies(t.env, counselor, sessionId ?? '', [{
+      kind: 'within_session',
+      leftSessionId: sessionId ?? '',
       leftQuote: '첫 메모',
-      rightSessionId: second ?? '',
+      rightSessionId: sessionId ?? '',
       rightQuote: '둘째 메모',
     }]);
     if (row === undefined) throw new Error('expected a stored discrepancy');
@@ -1199,6 +1287,6 @@ describe('라우트 — 처리 3종 엔드포인트 (CCC-42)', () => {
     ), t.env);
     expect(response.status).toBe(200);
     const body = await response.json() as { recordErrorSessionIds: string[] };
-    expect(new Set(body.recordErrorSessionIds)).toEqual(new Set(fixture.sessionIds));
+    expect(body.recordErrorSessionIds).toEqual(fixture.sessionIds);
   });
 });

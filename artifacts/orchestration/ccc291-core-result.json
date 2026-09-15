@@ -1,0 +1,142 @@
+{
+  "marker": "CORE_RESULT CCC291-CORE-SOURCE-FENCE-20260914",
+  "status": "COMMITTED_PARITY_PENDING",
+  "recipient": "ORCHESTRATOR",
+  "decision": "후속 지시에 따라 기존 소스와 테스트만 정상 훅으로 로컬 커밋했습니다. 새 구현과 검사 재실행은 하지 않았습니다. PostgreSQL parity 검증은 맥북 쓰기 담당자에게 넘깁니다.",
+  "worktree": "/Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND",
+  "branch": "core/relayer-domain-beta",
+  "commit": {
+    "hash": "e8208cf887eeed8203aaa2f41fb0b278538a6b92",
+    "subject": "CCC-291 원문 버전과 실제 검사 범위 경계 추가",
+    "body": "PostgreSQL parity는 Docker 저장소 I/O 오류로 미검증이며 맥북의 기존 격리 하니스에서 확인한다.",
+    "files": [
+      "apps/api/test/agent-job-contract.test.ts",
+      "apps/api/test/agent-source-fence.contract.test.ts",
+      "apps/api/test/migration-parity.test.ts",
+      "apps/api/test/support/agent-jobs.ts",
+      "apps/api/test/support/migration-parity.ts",
+      "migrations/postgres/0021_agent_text_source_fence.sql",
+      "migrations/sqlite/0065_agent_text_source_fence.sql",
+      "packages/contracts/src/agent-jobs.ts",
+      "packages/core/src/gateway.ts",
+      "packages/http-api/src/request-handler.ts"
+    ],
+    "normalHooks": {
+      "path": ".githooks",
+      "invocation": "git -c core.hooksPath=.githooks commit",
+      "result": "PASS",
+      "checks": [
+        "guard:db",
+        "guard:core-imports",
+        "guard:doc-numbers",
+        "guard:secrets",
+        "guard:tokens",
+        "guard:align",
+        "guard:hierarchy",
+        "guard:hierarchy:test"
+      ],
+      "hierarchyNote": "새 위반 0건, 기존 기준선 위반 2건 유지. 기준선이나 검사 기준은 바꾸지 않았습니다."
+    }
+  },
+  "parityManifest": {
+    "path": "migrations/parity.yaml",
+    "unchanged": true,
+    "includedInCommit": false,
+    "reason": "PostgreSQL 실행 증거가 없어 갱신하지 않았습니다. 통과하지 않은 검사를 통과한 것처럼 만드는 변경은 없습니다."
+  },
+  "macbookParity": {
+    "workingDirectory": "위 커밋을 적용한 맥북 CCC 워크트리의 저장소 루트",
+    "prerequisites": [
+      "e8208cf887eeed8203aaa2f41fb0b278538a6b92 커밋의 소스와 새 SQL 파일을 포함해야 합니다.",
+      "기존 pnpm 의존성과 정상 동작하는 맥북 Docker 환경을 사용합니다.",
+      "기존 apps/api/test/support/postgres.ts의 disposable 하니스를 사용합니다. 운영 DB나 외부 연결 문자열을 주입하지 않습니다."
+    ],
+    "environment": {
+      "CCC_UPDATE_MIGRATION_PARITY": "1"
+    },
+    "command": "env CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+    "harness": "apps/api/test/support/postgres.ts",
+    "pinnedPostgresImage": "postgres@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+    "checkpoint": "agent-text-source-fence",
+    "checkpointRegistry": "apps/api/test/support/migration-parity.ts",
+    "newSemanticProof": "apps/api/test/migration-parity.test.ts의 proveAgentTextSourceFence",
+    "expectedOutput": "양쪽 DB의 스키마 및 의미 검사가 통과한 뒤 migrations/parity.yaml을 생성합니다. 명령의 성공 종료와 새 checkpoint 포함 여부를 확인하고 그 실제 결과로 보고합니다.",
+    "expectedModifiedFile": "migrations/parity.yaml",
+    "currentResult": "NOT_VERIFIED_ON_POSTGRES"
+  },
+  "newMigrations": [
+    {
+      "dialect": "sqlite",
+      "number": "0065",
+      "file": "migrations/sqlite/0065_agent_text_source_fence.sql"
+    },
+    {
+      "dialect": "postgres",
+      "number": "0021",
+      "file": "migrations/postgres/0021_agent_text_source_fence.sql"
+    }
+  ],
+  "previousVerification": [
+    {
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/agent-source-fence.contract.test.ts apps/api/test/agent-job-contract.test.ts -t 'generic text source fence|F5' --maxWorkers 1",
+      "result": "PASS_BEFORE_COMMIT_INSTRUCTION",
+      "passed": 6,
+      "skipped": 35,
+      "covers": [
+        "임대한 원문 변경 뒤 기존 결과 거부 및 재요청",
+        "검사한 code-point 범위의 partial 표시와 이후 stale 표시",
+        "범위를 벗어난 검사 결과 거부",
+        "원문 변경 전 생성된 초안의 승인 거부 및 오래된 스냅샷 재사용 차단",
+        "검사 범위 메타데이터 누락 거부",
+        "동일 결과의 멱등 재전송"
+      ]
+    },
+    {
+      "command": "pnpm --filter @ccc/api typecheck",
+      "result": "PASS_BEFORE_COMMIT_INSTRUCTION",
+      "runs": 1
+    },
+    {
+      "command": "CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+      "result": "BLOCKED_BEFORE_POSTGRES_STARTUP",
+      "runs": 1,
+      "passed": 0,
+      "cause": "Colima Docker daemon의 chmod /var/lib/docker: input/output error",
+      "manifestWritten": false
+    }
+  ],
+  "notVerified": [
+    "새 PostgreSQL SQL과 양쪽 DB의 새 parity 의미 검사",
+    "독립 HTTP 소비자 smoke 실행"
+  ],
+  "excludedAndPreserved": [
+    {
+      "path": "artifacts/orchestration/.ccc291-smoke.ts",
+      "reason": "작성만 하고 실행하지 않은 임시 스크립트입니다. 커밋하지 않았고 작업 디렉터리에 그대로 보존했습니다."
+    },
+    {
+      "path": "artifacts/orchestration/ccc291-core-result.json",
+      "reason": "커밋 이후 실제 해시와 파일 목록으로 덮어쓴 인계 보고입니다. 위 코드 커밋에는 포함되지 않습니다."
+    }
+  ],
+  "implementationContract": {
+    "storage": "새 표 없이 agent_jobs에 source_generation, source_sha256, source_length, checked_start, checked_end 5개 컬럼을 추가했습니다.",
+    "revision": "기존 counseling_memory_cases.generation을 재사용합니다. 케이스 맥락 전체의 버전이라 같은 케이스의 다른 원문 변경도 보수적으로 stale 처리할 수 있습니다.",
+    "hash": "sourceSha256은 Agent에 반환한 1차 가림 텍스트의 hash입니다. 원본 메모만의 hash나 최종 마스킹 결과 hash와 다릅니다.",
+    "sourceResponse": ["sourceRevision", "sourceSha256", "sourceLength"],
+    "textResult": "일반 text 결과에 checkedSource { sourceRevision, sourceSha256, sourceStart, sourceEnd }가 필요합니다. 범위는 Unicode code-point 기준의 반열린 구간입니다.",
+    "statusEndpoint": "GET /sessions/:id/processing",
+    "retryEndpoint": "POST /sessions/:id/processing, body {}",
+    "statusFields": ["state", "jobId", "jobState", "sourceRevision", "currentSourceRevision", "sourceChanged", "sourceLength", "checkedRange", "failureCode"],
+    "frontend": "stale/partial/unknown과 실제 checkedRange를 구분해야 합니다. jobState는 재처리 대기 상태와 이전 원문 검사 상태를 구분합니다. 화면은 수정하지 않았습니다.",
+    "agent": "소유 범위 밖 Agent 런타임은 수정하지 않았습니다. 일반 text Agent는 source의 revision/hash와 실제 검사 범위를 checkedSource로 제출해야 합니다. 메타데이터 없는 기존 일반 text 제출은 fail-closed 거부됩니다. 기존 memory 결과 경로는 그대로입니다."
+  },
+  "finalState": {
+    "localCommitOnly": true,
+    "noNewImplementationAfterInstruction": true,
+    "noVmRestartOrDiskRepair": true,
+    "noPushMergeDeploy": true,
+    "noAdditionalTicketWork": true,
+    "waitingForOrchestrator": true
+  }
+}

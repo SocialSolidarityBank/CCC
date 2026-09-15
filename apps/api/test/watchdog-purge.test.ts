@@ -47,8 +47,8 @@ async function pollAgentQueue(): Promise<void> {
 }
 
 async function localEnv() {
-  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, { sttMode: 'local', llmMode: 'openai' });
-  t.env.CCC_STT_MODE = 'local';
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, { sttMode: 'azure', llmMode: 'openai' });
+  t.env.CCC_STT_MODE = 'azure';
   t.env.CCC_LLM_MODE = 'openai';
   return t.env;
 }

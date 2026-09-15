@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
+import { seedLegacyManualRecord } from './support/manual-record';
 import {
   ConflictError,
   SpeakerConfirmationRequiredError,
@@ -8,10 +9,12 @@ import {
   StaleDraftVersionError,
   ValidationError,
   activateAiProviderConfiguration,
+  acceptAgentJobResult,
   approveGeneratedAiDraft,
   approveSession,
   assignSupportCase,
   cancelCounselingSchedule,
+  claimAgentJobs,
   closeCase,
   closeGoal,
   closeSupportCase,
@@ -30,8 +33,10 @@ import {
   createManualSession,
   createSupportCase,
   editAiDraftForSession,
+  enqueueTextWorkItem,
   exportCase,
   getActiveAiProviderRuntimeMetadataForService,
+  getAgentJobSource,
   getApprovedAiBriefing,
   getBriefing,
   getCurrentGeneratedAiDraft,
@@ -69,7 +74,13 @@ import {
 } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId, seedTestProgramWithRuntimeModes } from './support/d1';
 import { registrationConsentEvents, registrationInput } from './support/registration';
-import { registerFixtureRecording, seedCanonicalSttConsent } from './support/agent-jobs';
+import {
+  agentResultRequest,
+  claimRequest,
+  registerFixtureRecording,
+  seedCanonicalSttConsent,
+  TEXT_ONLY_RUNTIME,
+} from './support/agent-jobs';
 
 /**
  * 재료 하나(텍스트 맥락)뿐인 초안의 재료 증빙과 대조 3종 (D69 · ADR-0036).
@@ -133,7 +144,7 @@ async function seedCanonicalLlmConsent(caseId: string): Promise<string> {
 }
 async function enablePilotForCase(caseId: string): Promise<void> {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
-    deploymentMode: t.env.installationMode ?? 'community-cloud', sttMode: 'local', llmMode: 'openai',
+    deploymentMode: t.env.installationMode ?? 'community-cloud', sttMode: 'azure', llmMode: 'openai',
   });
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   await seedCanonicalLlmConsent(caseId);
@@ -221,6 +232,147 @@ async function seedMaskedSourceSnapshot(
     })),
   });
   if (snapshot.caseId !== caseId) throw new Error('masked source snapshot case mismatch');
+  return {
+    snapshotId: snapshot.id,
+    snapshotHash: snapshot.sha256,
+    evidenceByKey,
+  };
+}
+async function seedProvenMaskedSourceSnapshot(
+  caseId: string,
+  sessionId: string,
+  idPrefix: string,
+  sources: ReadonlyArray<Readonly<{ key: string; sourceRef: string; evidenceQuote: string }>>,
+): Promise<SeededMaskedSource> {
+  const maskedText = sources.length === 0
+    ? 'MASKED_SOURCE_BASELINE'
+    : sources.map((source) => source.evidenceQuote).join('\n');
+  const evidenceByKey: Record<string, SeededSourceEvidence> = {};
+  let sourceStart = 0;
+  for (const source of sources) {
+    const sourceEnd = sourceStart + source.evidenceQuote.length;
+    evidenceByKey[source.key] = {
+      id: `${idPrefix}-evidence-${source.key}`,
+      sourceRef: source.sourceRef,
+      evidenceQuote: source.evidenceQuote,
+      sourceStart,
+      sourceEnd,
+    };
+    sourceStart = sourceEnd + 1;
+  }
+
+  const qualification = {
+    receiptId: `pilot-receipt-${crypto.randomUUID()}`,
+    attestation: {
+      id: `pilot-attestation-${crypto.randomUUID()}`,
+      modelId: 'FrameByFrame/korean-pii-e5-base',
+      modelRevision: 'a308c54b4407819624a5661e31e162a269f39818',
+      labelSetHash: 'b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc',
+      corpusHash: '10265475ed38dbdc8f902cd78fb29654a948c96ddb9c9daeda3b485d4cdd46a5',
+      resultHash: 'fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72',
+      validatedAt: '2026-09-01T00:00:00.000Z',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      status: 'passed' as const,
+    },
+  };
+  await t.db.prepare(
+    `INSERT INTO ner_release_qualification_receipts (
+       id, org_id, model_id, model_revision, label_set_hash, corpus_hash,
+       result_hash, validated_at, expires_at, status, created_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'passed', ?)`,
+  ).bind(
+    qualification.receiptId,
+    service.orgId,
+    qualification.attestation.modelId,
+    qualification.attestation.modelRevision,
+    qualification.attestation.labelSetHash,
+    qualification.attestation.corpusHash,
+    qualification.attestation.resultHash,
+    qualification.attestation.validatedAt,
+    qualification.attestation.expiresAt,
+    qualification.attestation.validatedAt,
+  ).run();
+  const unsignedManifest = {
+    schemaVersion: 2,
+    resultSchemaVersion: 2,
+    maskingPipelineVersion: 'ner-mask-v3',
+    directIdentifierRulesVersion: 'direct-v1',
+    regexRulesVersion: 'regex-v2',
+    conditionDictionaryVersion: 'condition-dict-v1',
+    quasiIdentifierRulesVersion: 'quasi-v1',
+    g7RelativeDateRulesVersion: 'calendar-day-v1',
+    nerModelId: qualification.attestation.modelId,
+    nerModelRevision: qualification.attestation.modelRevision,
+    personLabels: ['PRIVATE_PERSON'],
+    addressLabels: ['PRIVATE_ADDRESS'],
+    conditionNerModelId: null,
+    conditionNerModelRevision: null,
+    conditionLabels: [],
+    labelSetHash: qualification.attestation.labelSetHash,
+    nerHealthCorpusHash: qualification.attestation.corpusHash,
+    nerHealthResultHash: qualification.attestation.resultHash,
+  };
+  const maskingPipelineHash = await sha256Hex(canonicalizeJcs(unsignedManifest));
+  t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({
+    schemaVersion: 1,
+    activeMaskingPipelineVersion: unsignedManifest.maskingPipelineVersion,
+    pipelines: [{ ...unsignedManifest, maskingPipelineHash }],
+  });
+  await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
+  const claimed = (await claimAgentJobs(
+    t.env,
+    service,
+    TEXT_ONLY_RUNTIME,
+    claimRequest(qualification),
+  )).jobs.find((job) => job.sessionId === sessionId && job.kind === 'text');
+  if (claimed === undefined) throw new Error('expected claimed pilot text job');
+  const checkedSource = await getAgentJobSource(
+    t.env,
+    service,
+    claimed.jobId,
+    claimed.claimToken,
+    claimed.attempt,
+  );
+  const request = await agentResultRequest({
+    kind: 'text',
+    claimToken: claimed.claimToken,
+    attempt: claimed.attempt,
+    maskedText,
+    qualification,
+    maskingPipelineVersion: unsignedManifest.maskingPipelineVersion,
+    checkedSource: {
+      sourceRevision: checkedSource.sourceRevision,
+      sourceSha256: checkedSource.sourceSha256,
+      sourceStart: 0,
+      sourceEnd: checkedSource.sourceLength,
+    },
+  });
+  request.result.maskingPipelineHash = maskingPipelineHash;
+  request.result.evidence = Object.values(evidenceByKey).map((evidence) => ({
+    id: evidence.id,
+    sourceRef: evidence.sourceRef,
+    sourceSha256: request.result.sha256,
+    evidenceQuote: evidence.evidenceQuote,
+    sourceStart: evidence.sourceStart,
+    sourceEnd: evidence.sourceEnd,
+  }));
+  request.result.evidenceHash = await sha256Hex(canonicalizeJcs(request.result.evidence));
+  request.payloadSha256 = await sha256Hex(canonicalizeJcs({
+    schemaVersion: request.schemaVersion,
+    attempt: request.attempt,
+    result: request.result,
+  }));
+  await acceptAgentJobResult(t.env, service, claimed.jobId, request);
+  const snapshot = await t.db.prepare(
+    `SELECT snapshot.id, snapshot.sha256, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
+     FROM ai_masked_source_snapshots AS snapshot
+     JOIN support_cases AS support_case
+       ON support_case.id = snapshot.support_case_id AND support_case.org_id = snapshot.org_id
+     WHERE snapshot.org_id = ? AND snapshot.session_id = ?
+     ORDER BY snapshot.created_at DESC, snapshot.id DESC LIMIT 1`,
+  ).bind(service.orgId, sessionId).first<{ id: string; sha256: string; case_id: string }>();
+  if (snapshot === null) throw new Error('expected proven pilot source snapshot');
+  if (snapshot.case_id !== caseId) throw new Error('proven source snapshot case mismatch');
   return {
     snapshotId: snapshot.id,
     snapshotHash: snapshot.sha256,
@@ -393,6 +545,12 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
 }
 
 async function createReviewReadySession() {
+  t.env.installationMode = 'community-cloud';
+  t.env.CCC_STT_MODE = 'azure';
+  t.env.CCC_LLM_MODE = 'openai';
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
+    deploymentMode: 'community-cloud', sttMode: 'azure', llmMode: 'openai',
+  });
   // 녹음 동의는 이제 컬럼이 아니라 등록 6종 동의의 counseling_recording grant 다(기본 grant).
   const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
   await enablePilotForCase(caseRecord.id);
@@ -415,7 +573,7 @@ async function createReviewReadySession() {
     approvalRefs: ['privacy-security-approval'],
   });
   await activateAiProviderConfiguration(t.env, admin, config.id);
-  const source = await seedMaskedSourceSnapshot(
+  const source = await seedProvenMaskedSourceSnapshot(
     caseRecord.id,
     session.id,
     'review-ready-source',
@@ -526,8 +684,11 @@ async function createPilotDraft(
   }],
 ) {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
-    sttMode: 'off', llmMode: 'openai',
+    deploymentMode: 'community-cloud', sttMode: 'off', llmMode: 'openai',
   });
+  t.env.installationMode = 'community-cloud';
+  t.env.CCC_STT_MODE = 'off';
+  t.env.CCC_LLM_MODE = 'openai';
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   const config = await registerAiProviderConfiguration(t.env, admin, {
     adapterId: 'codex',
@@ -546,7 +707,7 @@ async function createPilotDraft(
     gasScores: [],
   });
   await seedCanonicalLlmConsent(caseRecord.id);
-  const source = await seedMaskedSourceSnapshot(
+  const source = await seedProvenMaskedSourceSnapshot(
     caseRecord.id,
     session.id,
     'pilot-source',
@@ -849,21 +1010,40 @@ describe('gateway domain records', () => {
     await expect(reviewFlag(t.env, service, aiFlag.id, 'confirmed')).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it('keeps an unassigned institution administrator read-only across legacy counseling records', async () => {
+  it('lets an unassigned institution administrator read and export but not mutate counseling records', async () => {
     await t.reset();
-    const { caseRecord, goal, session, draft } = await createReviewReadySession();
+    const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
+    const goal = await createGoal(t.env, counselor, caseRecord.id, {
+      title: '관리자 쓰기 경계를 확인할 목표',
+    });
+    const session = await createManualSession(t.env, counselor, caseRecord.id, {
+      submissionId: '01000000-0000-4000-8000-000000000099',
+      heldAt: '2026-01-02T10:00:00.000Z',
+      channel: 'in_person',
+      memo: '관리자 읽기와 내보내기 확인용 공식 기록',
+      gasScores: [{ goalId: goal.id, score: 0 }],
+    });
+    const supportCase = await t.db.prepare(
+      'SELECT id FROM support_cases WHERE org_id = ? AND (legacy_case_id = ? OR id = ?)',
+    ).bind(admin.orgId, caseRecord.id, caseRecord.id).first<{ id: string }>();
+    if (supportCase === null) throw new Error('expected canonical support case');
+    const workItemId = 'release-role-admin-ai-work';
+    await t.db.prepare(
+      `INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at)
+       VALUES (?, ?, ?, ?, 'text_ai_briefing', ?)`,
+    ).bind(workItemId, admin.orgId, supportCase.id, session.id, '2026-01-02T10:00:00.000Z').run();
 
     await expect(getSession(t.env, admin, session.id))
       .resolves.toMatchObject({ id: session.id });
-    await expect(getCurrentGeneratedAiDraft(t.env, admin, draft.workItemId))
-      .resolves.toMatchObject({ id: draft.id });
     await expect(getSession(t.env, otherOrgAdmin, session.id))
       .rejects.toBeInstanceOf(ForbiddenError);
     await expect(approveGeneratedAiDraft(
       t.env,
       admin,
-      draft.workItemId,
-      draft.version,
+      workItemId,
+      1,
       { speakerMappingConfirmed: true },
     )).rejects.toBeInstanceOf(ForbiddenError);
     await expect(approveSession(t.env, admin, session.id, {}))
@@ -879,7 +1059,15 @@ describe('gateway domain records', () => {
       sessionId: session.id,
     })).rejects.toBeInstanceOf(ForbiddenError);
     await expect(exportCase(t.env, admin, caseRecord.id))
+      .resolves.toMatchObject({ case: { id: expect.any(String) } });
+    await expect(exportCase(t.env, otherOrgAdmin, caseRecord.id))
       .rejects.toBeInstanceOf(ForbiddenError);
+    await expect(t.db.prepare(
+      `SELECT COUNT(*) AS count FROM audit_log
+       WHERE org_id = ? AND actor_id = ? AND action = 'export'
+         AND target_table = 'cases' AND case_id = ?`,
+    ).bind(admin.orgId, admin.userId, caseRecord.id).first<{ count: number }>())
+      .resolves.toEqual({ count: 1 });
   });
 
   it('manages action items and flags while excluding unapproved AI data from export', async () => {
@@ -1605,6 +1793,7 @@ describe('canonical participant gateway', () => {
       status: 'scheduled',
     });
     const input = {
+      schemaVersion: 2 as const,
       submissionId: '22222222-2222-4222-8222-222222222222',
       heldAt: '2026-07-16T10:05:00.000Z',
       channel: 'in_person' as const,
@@ -1633,12 +1822,7 @@ describe('canonical participant gateway', () => {
     await expect(t.db.prepare(
       'SELECT COUNT(*) AS count FROM audit_log WHERE target_table = ? AND target_id = ?',
     ).bind('sessions', first.record.id).first<{ count: number }>()).resolves.toEqual({ count: 1 });
-    await expect(createCounselingRecord(
-      t.env,
-      canonicalActors.counselor,
-      initial.supportCaseId,
-      { ...input, memo: 'CHANGED_REPLAY_PAYLOAD' },
-    )).rejects.toBeInstanceOf(ConflictError);
+    await expect(createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, { ...input, memo: 'CHANGED_REPLAY_PAYLOAD' })).rejects.toBeInstanceOf(ConflictError);
     await expect(t.db.prepare(
       `SELECT
          (SELECT COUNT(*) FROM session_goal_scores WHERE session_id = ?) AS scores,
@@ -1700,6 +1884,7 @@ describe('canonical participant gateway', () => {
       intakeAt: '2026-07-15T09:00:00.000Z',
     }));
     const input = {
+      schemaVersion: 2 as const,
       submissionId: '99999999-9999-4999-8999-999999999999',
       heldAt: '2026-07-15T10:00:00.000Z',
       channel: 'in_person' as const,
@@ -1717,12 +1902,7 @@ describe('canonical participant gateway', () => {
     await expect(t.db.prepare(
       'SELECT COUNT(*) AS count FROM sessions WHERE support_case_id = ?',
     ).bind(initial.supportCaseId).first<{ count: number }>()).resolves.toEqual({ count: 1 });
-    await expect(createCounselingRecord(
-      t.env,
-      canonicalActors.counselor,
-      initial.supportCaseId,
-      { ...input, memo: 'CONFLICTING_CONCURRENT_RECEIPT_PAYLOAD' },
-    )).rejects.toBeInstanceOf(ConflictError);
+    await expect(createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, { ...input, memo: 'CONFLICTING_CONCURRENT_RECEIPT_PAYLOAD' })).rejects.toBeInstanceOf(ConflictError);
   });
   it('saves manual records with GAS recommended, not required — empty and partial GAS both persist', async () => {
     await t.reset();
@@ -1739,6 +1919,7 @@ describe('canonical participant gateway', () => {
     });
 
     const input = {
+      schemaVersion: 2 as const,
       submissionId: '11111111-1111-4111-8111-111111111111',
       heldAt: '2026-07-15T10:00:00.000Z',
       channel: 'in_person' as const,
@@ -1753,17 +1934,10 @@ describe('canonical participant gateway', () => {
       'SELECT COUNT(*) AS count FROM session_goal_scores WHERE session_id = ?',
     ).bind(withoutScores.record.id).first<{ count: number }>()).resolves.toEqual({ count: 0 });
 
-    const partial = await createCounselingRecord(
-      t.env,
-      canonicalActors.counselor,
-      initial.supportCaseId,
-      {
-        ...input,
-        submissionId: '22222222-2222-4222-8222-222222222222',
-        memo: 'GAS_OPTIONAL_PARTIAL_SCORES',
-        gasScores: [{ goalId: activeGoal.id, score: 1 }],
-      },
-    );
+    const partial = await createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
+      ...input, submissionId: '22222222-2222-4222-8222-222222222222',
+      memo: 'GAS_OPTIONAL_PARTIAL_SCORES', gasScores: [{ goalId: activeGoal.id, score: 1 }],
+    });
     expect(partial.replayed).toBe(false);
     const savedScores = await t.db.prepare(
       `SELECT goal_id FROM session_goal_scores
@@ -1773,25 +1947,23 @@ describe('canonical participant gateway', () => {
     // The second active goal stays unscored without blocking the record.
     expect(savedScores.results.some((row) => row.goal_id === secondActiveGoal.id)).toBe(false);
   });
-  it('processes unresolved action items with four-state resolutions, rejects other-case targets, and replays without duplicating', async () => {
+  it('keeps not-done work open, rejects other-case targets, and replays without duplicating', async () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
       programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     }));
-    const seeded = await createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
-      submissionId: '33333333-3333-4333-8333-333333333333',
-      heldAt: '2026-07-15T10:00:00.000Z',
-      channel: 'in_person' as const,
-      memo: 'SEED_ACTIONS_FOR_RESOLUTION',
-      gasScores: [],
-      actionItems: [
-        { description: 'ACTION_TO_HOLD', owner: 'counselor' as const },
-        { description: 'ACTION_TO_COMPLETE', owner: 'beneficiary' as const },
-      ],
-      flags: [],
-    });
+    const seeded = await createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, { schemaVersion: 2, submissionId: '33333333-3333-4333-8333-333333333333',
+    heldAt: '2026-07-15T10:00:00.000Z',
+    channel: 'in_person' as const,
+    memo: 'SEED_ACTIONS_FOR_RESOLUTION',
+    gasScores: [],
+    actionItems: [
+      { description: 'ACTION_TO_HOLD', owner: 'counselor' as const },
+      { description: 'ACTION_TO_COMPLETE', owner: 'beneficiary' as const },
+    ],
+    flags: [], });
     const open = await listOpenActionItems(t.env, canonicalActors.counselor, initial.supportCaseId);
     expect(open).toHaveLength(2);
     const holdAction = open.find((item) => item.description === 'ACTION_TO_HOLD');
@@ -1803,30 +1975,27 @@ describe('canonical participant gateway', () => {
       programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     }));
-    await createCounselingRecord(t.env, canonicalActors.counselor, other.supportCaseId, {
-      submissionId: '44444444-4444-4444-8444-444444444444',
-      heldAt: '2026-07-15T10:00:00.000Z',
-      channel: 'in_person' as const,
-      memo: 'OTHER_CASE_ACTION',
-      gasScores: [],
-      actionItems: [{ description: 'OTHER_CASE_ACTION_ITEM', owner: 'counselor' as const }],
-      flags: [],
-    });
+    await createCounselingRecord(t.env, canonicalActors.counselor, other.supportCaseId, { schemaVersion: 2, submissionId: '44444444-4444-4444-8444-444444444444',
+    heldAt: '2026-07-15T10:00:00.000Z',
+    channel: 'in_person' as const,
+    memo: 'OTHER_CASE_ACTION',
+    gasScores: [],
+    actionItems: [{ description: 'OTHER_CASE_ACTION_ITEM', owner: 'counselor' as const }],
+    flags: [], });
     const otherOpen = await listOpenActionItems(t.env, canonicalActors.counselor, other.supportCaseId);
     const foreignAction = otherOpen[0];
     if (foreignAction === undefined) throw new Error('expected other-case action');
-    await expect(createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
-      submissionId: '55555555-5555-4555-8555-555555555555',
-      heldAt: '2026-07-15T11:00:00.000Z',
-      channel: 'in_person' as const,
-      memo: 'REJECT_FOREIGN_ACTION',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-      actionItemResolutions: [{ actionItemId: foreignAction.id, status: 'done' as const }],
-    })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, { schemaVersion: 2, submissionId: '55555555-5555-4555-8555-555555555555',
+    heldAt: '2026-07-15T11:00:00.000Z',
+    channel: 'in_person' as const,
+    memo: 'REJECT_FOREIGN_ACTION',
+    gasScores: [],
+    actionItems: [],
+    flags: [],
+    actionOutcomes: [{ actionItemId: foreignAction.id, expectedRevision: 1, outcome: 'done' }], })).rejects.toBeInstanceOf(ForbiddenError);
 
     const resolveInput = {
+      schemaVersion: 2 as const,
       submissionId: '66666666-6666-4666-8666-666666666666',
       heldAt: '2026-07-15T12:00:00.000Z',
       channel: 'in_person' as const,
@@ -1834,23 +2003,23 @@ describe('canonical participant gateway', () => {
       gasScores: [],
       actionItems: [],
       flags: [],
-      actionItemResolutions: [
-        { actionItemId: holdAction.id, status: 'hold' as const, note: 'WAITING_ON_DOCS' },
-        { actionItemId: doneAction.id, status: 'done' as const },
+      actionOutcomes: [
+        { actionItemId: holdAction.id, expectedRevision: 1, outcome: 'not_done' as const, continuation: 'continue' as const },
+        { actionItemId: doneAction.id, expectedRevision: 1, outcome: 'done' as const },
       ],
     };
     const resolved = await createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, resolveInput);
     expect(resolved.replayed).toBe(false);
 
-    // 'done' drops off the open list; 'hold' stays open but carries the processing row.
+    // A missed action stays open until a human explicitly completes or stops it.
     const afterOpen = await listOpenActionItems(t.env, canonicalActors.counselor, initial.supportCaseId);
     expect(afterOpen.map((item) => item.id)).toEqual([holdAction.id]);
     await expect(t.db.prepare(
       `SELECT resolution_status, resolution_note, resolution_session_id, resolved_at
        FROM action_items WHERE id = ?`,
     ).bind(holdAction.id).first()).resolves.toEqual({
-      resolution_status: 'hold',
-      resolution_note: 'WAITING_ON_DOCS',
+      resolution_status: 'not_done',
+      resolution_note: null,
       resolution_session_id: resolved.record.id,
       resolved_at: null,
     });
@@ -1877,177 +2046,29 @@ describe('canonical participant gateway', () => {
        WHERE action = 'update' AND target_table = 'action_items' AND target_id IN (?, ?)`,
     ).bind(holdAction.id, doneAction.id).first<{ count: number }>()).resolves.toEqual({ count: 2 });
   });
-  it('captures 6-area snapshots per session, copies unchanged areas from the prior session, cold-starts as unrecorded, and replays without duplicating', async () => {
+  it('keeps historical six-area readings without copying them into new records', async () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
-      programId: testProgramId(canonicalActors.counselor.orgId),
-      intakeAt: '2026-07-15T09:00:00.000Z',
+      programId: testProgramId(canonicalActors.counselor.orgId), intakeAt: '2026-07-15T09:00:00.000Z',
     }));
-
-    // Session 1 (cold start): two changed areas recorded, four '변화 없음' with no prior → unrecorded.
-    const first = await createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
-      submissionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      heldAt: '2026-07-15T10:00:00.000Z',
-      channel: 'in_person' as const,
-      memo: 'FIRST_SNAPSHOT',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-      lifeAreas: [
-        { areaKey: 'economy' as const, changed: true as const, status: 'crisis' as const },
-        { areaKey: 'housing' as const, changed: true as const, status: 'okay' as const, note: 'STABLE_HOUSING' },
-        { areaKey: 'employment' as const, changed: false as const },
-        { areaKey: 'health' as const, changed: false as const },
-        { areaKey: 'mental_health' as const, changed: false as const },
-        { areaKey: 'family' as const, changed: false as const },
-      ],
+    const old = await seedLegacyManualRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
+      heldAt: '2026-07-15T10:00:00.000Z', channel: 'in_person', memo: 'historical reading',
+      lifeAreas: [{ areaKey: 'health', status: 'strained', note: 'historical health wording' }],
     });
-    await expect(t.db.prepare(
-      `SELECT area_key, status, note FROM session_life_area_snapshots
-       WHERE session_id = ? ORDER BY area_key`,
-    ).bind(first.record.id).all()).resolves.toMatchObject({
-      results: [
-        { area_key: 'economy', status: 'crisis', note: null },
-        { area_key: 'housing', status: 'okay', note: 'STABLE_HOUSING' },
-      ],
+    const current = await createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
+      schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-07-16T10:00:00.000Z', channel: 'in_person', memo: 'current reading',
     });
-
-    // Session 2 (later): economy changes, the rest '변화 없음'. housing copies status+note from session 1;
-    // the four areas without a prior value stay unrecorded.
-    const second = await createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
-      submissionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      heldAt: '2026-07-16T10:00:00.000Z',
-      channel: 'in_person' as const,
-      memo: 'SECOND_SNAPSHOT',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-      lifeAreas: [
-        { areaKey: 'economy' as const, changed: true as const, status: 'strained' as const },
-        { areaKey: 'housing' as const, changed: false as const },
-        { areaKey: 'employment' as const, changed: false as const },
-        { areaKey: 'health' as const, changed: false as const },
-        { areaKey: 'mental_health' as const, changed: false as const },
-        { areaKey: 'family' as const, changed: false as const },
-      ],
-    });
-    await expect(t.db.prepare(
-      `SELECT area_key, status, note FROM session_life_area_snapshots
-       WHERE session_id = ? ORDER BY area_key`,
-    ).bind(second.record.id).all()).resolves.toMatchObject({
-      results: [
-        { area_key: 'economy', status: 'strained', note: null },
-        { area_key: 'housing', status: 'okay', note: 'STABLE_HOUSING' },
-      ],
-    });
-
-    // listCounselingRecords exposes each session's own snapshot; latest (held_at DESC) is session 2.
     const records = await listCounselingRecords(t.env, canonicalActors.counselor, initial.supportCaseId);
-    expect(records[0]).toMatchObject({
-      id: second.record.id,
-      lifeAreaSnapshot: [
-        { areaKey: 'economy', status: 'strained', note: null },
-        { areaKey: 'housing', status: 'okay', note: 'STABLE_HOUSING' },
-      ],
+    expect(records.find(record => record.id === old.record.id)?.lifeAreaSnapshot).toEqual([
+      { areaKey: 'health', status: 'strained', note: 'historical health wording' },
+    ]);
+    expect(records.find(record => record.id === current.record.id)).toMatchObject({
+      lifeAreaSnapshot: [], manual: { schemaVersion: 2, details: { changes: [], urgency: null } },
     });
-    expect(records[1]).toMatchObject({
-      id: first.record.id,
-      lifeAreaSnapshot: [
-        { areaKey: 'economy', status: 'crisis', note: null },
-        { areaKey: 'housing', status: 'okay', note: 'STABLE_HOUSING' },
-      ],
+    await expect(getSession(t.env, canonicalActors.counselor, old.record.id)).resolves.toMatchObject({
+      lifeAreaSnapshot: [{ areaKey: 'health', status: 'strained', note: 'historical health wording' }],
     });
-
-    // getSession 계열도 그 회차의 스냅샷을 싣는다.
-    await expect(getSession(t.env, canonicalActors.counselor, second.record.id)).resolves.toMatchObject({
-      lifeAreaSnapshot: [
-        { areaKey: 'economy', status: 'strained', note: null },
-        { areaKey: 'housing', status: 'okay', note: 'STABLE_HOUSING' },
-      ],
-    });
-
-    // Replay of session 2 does not duplicate snapshot rows.
-    const replay = await createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
-      submissionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      heldAt: '2026-07-16T10:00:00.000Z',
-      channel: 'in_person' as const,
-      memo: 'SECOND_SNAPSHOT',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-      lifeAreas: [
-        { areaKey: 'economy' as const, changed: true as const, status: 'strained' as const },
-        { areaKey: 'housing' as const, changed: false as const },
-        { areaKey: 'employment' as const, changed: false as const },
-        { areaKey: 'health' as const, changed: false as const },
-        { areaKey: 'mental_health' as const, changed: false as const },
-        { areaKey: 'family' as const, changed: false as const },
-      ],
-    });
-    expect(replay).toMatchObject({ replayed: true, record: { id: second.record.id } });
-    await expect(t.db.prepare(
-      'SELECT COUNT(*) AS count FROM session_life_area_snapshots WHERE session_id = ?',
-    ).bind(second.record.id).first<{ count: number }>()).resolves.toEqual({ count: 2 });
-  });
-  it('rejects 6-area snapshots that omit an area, carry an unknown key, duplicate, or change without a status', async () => {
-    await t.reset();
-    await seedCanonicalDirectory();
-    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, await registrationInput(t.env, canonicalActors.counselor, {
-      programId: testProgramId(canonicalActors.counselor.orgId),
-      intakeAt: '2026-07-15T09:00:00.000Z',
-    }));
-    const base = {
-      heldAt: '2026-07-15T10:00:00.000Z',
-      channel: 'in_person' as const,
-      memo: 'INVALID_SNAPSHOT',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-    };
-    const allSix = [
-      { areaKey: 'economy' as const, changed: false as const },
-      { areaKey: 'housing' as const, changed: false as const },
-      { areaKey: 'employment' as const, changed: false as const },
-      { areaKey: 'health' as const, changed: false as const },
-      { areaKey: 'mental_health' as const, changed: false as const },
-      { areaKey: 'family' as const, changed: false as const },
-    ];
-
-    // Missing an area (only five).
-    await expect(createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
-      ...base,
-      submissionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-      lifeAreas: allSix.slice(0, 5),
-    })).rejects.toBeInstanceOf(ValidationError);
-
-    // Unknown area key (replaces family).
-    await expect(createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
-      ...base,
-      submissionId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-      lifeAreas: [...allSix.slice(0, 5), { areaKey: 'unknown_area' as unknown as 'family', changed: false as const }],
-    })).rejects.toBeInstanceOf(ValidationError);
-
-    // Duplicate area (economy twice, family missing).
-    await expect(createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
-      ...base,
-      submissionId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-      lifeAreas: [...allSix.slice(0, 5), { areaKey: 'economy' as const, changed: false as const }],
-    })).rejects.toBeInstanceOf(ValidationError);
-
-    // changed=true without a status.
-    await expect(createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
-      ...base,
-      submissionId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
-      lifeAreas: [{ areaKey: 'economy' as const, changed: true as unknown as false }, ...allSix.slice(1)],
-    })).rejects.toBeInstanceOf(ValidationError);
-
-    // No snapshot rows were written by any rejected attempt.
-    await expect(t.db.prepare(
-      `SELECT COUNT(*) AS count FROM session_life_area_snapshots AS snapshot
-       JOIN sessions AS session ON session.id = snapshot.session_id
-       WHERE session.support_case_id = ?`,
-    ).bind(initial.supportCaseId).first<{ count: number }>()).resolves.toEqual({ count: 0 });
   });
   it('does not fork concurrent secondary assignment transfers', async () => {
     await t.reset();
@@ -2358,24 +2379,20 @@ describe('canonical participant gateway', () => {
       intakeAt: '2026-07-16T09:00:00.000Z',
       initialAssigneeUserId: canonicalActors.secondCounselor.userId,
     });
-    await createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
-      submissionId: '55555555-5555-4555-8555-555555555555',
-      heldAt: '2026-07-15T10:00:00.000Z',
-      channel: 'in_person',
-      memo: 'VISIBLE_MANUAL_MEMO',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-    });
-    await createCounselingRecord(t.env, canonicalActors.secondCounselor, hidden.supportCaseId, {
-      submissionId: '66666666-6666-4666-8666-666666666666',
-      heldAt: '2026-07-16T10:00:00.000Z',
-      channel: 'in_person',
-      memo: 'HIDDEN_MANUAL_MEMO',
-      gasScores: [],
-      actionItems: [],
-      flags: [],
-    });
+    await createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, { schemaVersion: 2, submissionId: '55555555-5555-4555-8555-555555555555',
+    heldAt: '2026-07-15T10:00:00.000Z',
+    channel: 'in_person',
+    memo: 'VISIBLE_MANUAL_MEMO',
+    gasScores: [],
+    actionItems: [],
+    flags: [], });
+    await createCounselingRecord(t.env, canonicalActors.secondCounselor, hidden.supportCaseId, { schemaVersion: 2, submissionId: '66666666-6666-4666-8666-666666666666',
+    heldAt: '2026-07-16T10:00:00.000Z',
+    channel: 'in_person',
+    memo: 'HIDDEN_MANUAL_MEMO',
+    gasScores: [],
+    actionItems: [],
+    flags: [], });
 
     const briefing = await getParticipantBriefing(
       t.env,

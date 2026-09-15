@@ -1,0 +1,51 @@
+{
+  "files": [
+    "docs/manual/external-institution-guide.md",
+    "docs/ops/supabase-backup-restore-drill.md"
+  ],
+  "supportedItems": [
+    "기관 소유 클라우드(Community Cloud) 한 모드",
+    "기관 관리자·실무자 역할 (packages/contracts/src/runtime.ts:140)",
+    "당사자 등록과 인테이크 (packages/core/src/gateway.ts:16702 createBeneficiaryWithInitialSupportCase)",
+    "상담 기록 수기 작성 (packages/core/src/gateway.ts:6998 createManualSession)",
+    "회차 요약과 실무자 승인 (packages/core/src/gateway.ts:12772 approveSession, request-handler.ts:3382)",
+    "녹음 파일 업로드 (request-handler.ts:3366-3381, admitRecordingUpload gateway.ts:9112-9141; STT 켜진 설치 한정, 회차 상세 화면 진입은 AudioUploadScreen 담당으로 동시 작업)",
+    "CSV 반출 (request-handler.ts:2947-2955 export.csv, gateway.ts:13698 exportSupportCaseCsv)"
+  ],
+  "unsupportedItems": [
+    "당사자 로그인과 요청 링크: 코드는 있으나 PUBLIC_SIGNUP_ENABLED 스위치가 닫혀 있어 404 fail-closed (request-handler.ts:2379-2380), 화면은 준비 중 안내 (app.tsx:240-242)",
+    "로컬 설치 모드 둘: 계약상 존재하나 이번 출고는 Community Cloud 한 모드 (AGENTS.md 2장, S12 §10)",
+    "로컬 전사 엔진: 코드 경로(qwen3-asr)는 있으나 이번 출고 선택지로 열지 않음 (AGENTS.md D77, gateway.ts:7424)",
+    "감정 분석: 보류, 계산 중지 (AGENTS.md D64, EMOTION_DEFERRED)",
+    "HWPX·DOCX 반출: 코드에 0건, 반출은 CSV뿐",
+    "사업 도입 확인의 서버 거부 잠금: 미구현 (AGENTS.md 8장, release-gap-audit.md:41)"
+  ],
+  "evidence": {
+    "doc1Sources": [
+      "apps/community-cloud/RUN.md (설치 명령·연결값 정본)",
+      "docs/specs/S12-install-release.md (설치·갱신·복구 계약)",
+      "docs/ops.md:282-313 (기관 소유 Supabase 사전 점검)",
+      "AGENTS.md 2장·8장 (스택·미결)",
+      "LICENSE (Apache-2.0)",
+      "git remote: github.com/SocialSolidarityBank/CCC"
+    ],
+    "doc2Sources": [
+      "docs/ops.md (운영 절차)",
+      "docs/adr/0010-archive-before-purge.md (아카이브·파기 생애주기)",
+      "docs/specs/S11-supabase-edge-template.md:335-348 (rollback·backup binding 계약)",
+      "CCC_OPEN_PILOT_PLAN.md:348 (E6-7 항목)",
+      "packages/core/src/gateway.ts:9151-9152 (원음 7일 절대 상한)",
+      "migrations/postgres/0001_baseline.sql (sessions:145, participant_pii_vault:131, participant_consent_records:232, audit_log:238)"
+    ],
+    "doc2NotExecuted": "문서 서두와 이 보고에 모두 명기. 실제 백업·복구·자원 생성 0건",
+    "adr0048Missing": "지시된 읽기 대상 docs/adr/0048-*은 존재하지 않음. 최신 ADR은 0047 (release-gap-audit.md:49도 같은 관측)",
+    "readmeMissing": "지시된 읽기 대상 README.md는 레포 루트에 없음"
+  },
+  "emDashCounts": {
+    "docs/manual/external-institution-guide.md": 0,
+    "docs/ops/supabase-backup-restore-drill.md": 0
+  },
+  "gitStatus": "?? artifacts/orchestration/install-apply-gate.json\n?? artifacts/orchestration/install-inputs-draft.json\n?? artifacts/orchestration/install-preflight.json\n?? artifacts/orchestration/release-gap-audit.json\n?? artifacts/orchestration/release-gap-audit.md\n?? artifacts/orchestration/secret-consumer-map.json",
+  "commit": "HEAD of integrate/ccc291-parity (docs commit, hash changes on amend; verify with git log -1)",
+  "blocked": []
+}

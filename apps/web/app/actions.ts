@@ -18,21 +18,14 @@ import {
   goalCloseReasons,
   type Goal,
   type GoalCloseReason,
-  intakeAnswerKeys,
-  intakeAnswerResponses,
-  type IntakeAdditionalItemInput,
-  type IntakeAnswerInput,
-  type IntakeDebtEntryInput,
-  type IntakeLinkedOrgInput,
-  type IntakeExtendedPiiInput,
-  type IntakeGoalInput,
-  type IntakeLifeAreaInput,
-  type IntakeNextMeetingInput,
   completeOrganizationOnboarding,
   createCounselingSchedule,
   createInitialParticipantProgram,
   createParticipantInvite,
   getPublicInviteInfo,
+  issueRegistrationConsentDisclosures,
+  listProgramOptions,
+  getParticipantInviteConsentDisclosures,
   signupParticipant,
   createWorkerInvite,
   signupWorker,
@@ -53,14 +46,8 @@ import {
   updateScheduleSessionGoals,
   updateSupportCaseOverallGoal,
   resolveDiscrepancy,
-  type ManualActionItem,
-  type ManualActionItemResolution,
-  type ActionItemResolutionStatus,
-  actionItemResolutionStatuses,
   type FlagType,
   type ManualGasScore,
-  type ManualLifeArea,
-  type ManualRecordDetails,
   type ManualRecordFlag,
   lifeAreaKeys,
   lifeAreaStatuses,
@@ -69,6 +56,25 @@ import {
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { getCounselingMemorySettings, setCounselingMemorySettings } from './lib/api';
 import type { MemorySettingsInput } from '@ccc/contracts/counseling-memory';
+import {
+  INTAKE_WRITE_SCHEMA_VERSION,
+  parseIntakeQuestionnaire,
+  type IntakeAdditionalItemRef,
+  type IntakeQuestionnaire,
+  type IntakeQuestionWithdrawalInput,
+  type IntakeUpdateRequest,
+} from '@ccc/contracts/intake';
+import {
+  CONSENT_DOMAINS,
+  type AppendConsentEventInput,
+  type ConsentDisclosureSnapshot,
+  type ConsentDomain,
+} from '@ccc/contracts/consent';
+import {
+  MANUAL_RECORD_SCHEMA_VERSION,
+  type ManualActionOutcomeInput,
+  type ManualNextAction,
+} from '@ccc/contracts/manual-record';
 
 export async function setCounselingMemorySettingsAction(input: MemorySettingsInput) {
   try {
@@ -189,9 +195,44 @@ function optionalOpaqueId(formData: FormData, name: string): string | undefined 
   return input;
 }
 
+// 화면의 날짜·시각 칸(DateTimePickerControl)은 오프셋 없는 `YYYY-MM-DDTHH:mm` 을 보낸다.
+// 그 값은 **기관 벽시계**로 읽어야 한다 — 표시 계약이 쓰는 시간대와 같은 Asia/Seoul
+// (format-korean-date.ts 의 DEFAULT_TIME_ZONE). Workers 런타임은 UTC 라 `new Date(naive)`
+// 가 그대로 UTC 로 읽혀 저장이 9시간 당겨지고, 표시에서 다시 +9시간 되어 하루가 밀렸다
+// (2026-09-16 preview 리허설: 16:30 입력 → 다음날 01:30 표시). 오프셋·Z 가 붙은 값은
+// 브라우저가 준 절대 시각이므로 그대로 파싱한다.
+const ORG_WALL_TIME_ZONE = 'Asia/Seoul';
+
+function orgWallTimeOffsetMinutes(at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: ORG_WALL_TIME_ZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(at);
+  const field = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  const asUtc = Date.UTC(field('year'), field('month') - 1, field('day'), field('hour'), field('minute'), field('second'));
+  return (asUtc - at.getTime()) / 60000;
+}
+
+// naive `YYYY-MM-DDTHH:mm[:ss]` 를 기관 벽시계로 해석한 Date 를 돌려준다.
+// UTC 로 읽은 추정값에서 그 시각의 기관 오프셋을 빼면 벽시계의 절대 시각이다.
+// 오프셋 경계(DST 전환)에서 한 번 더 보정한다 — Asia/Seoul 은 DST 가 없지만 계산은 일반적이다.
+function parseOrgWallDateTime(input: string): Date {
+  const trimmed = input.trim();
+  const naive = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2}))?$/.exec(trimmed);
+  if (naive === null) return new Date(trimmed);
+  const utcGuess = new Date(`${naive[1]}T${naive[2]}:${naive[3] ?? '00'}.000Z`);
+  if (Number.isNaN(utcGuess.valueOf())) return utcGuess;
+  const offset = orgWallTimeOffsetMinutes(utcGuess);
+  const resolved = new Date(utcGuess.getTime() - offset * 60000);
+  const refined = orgWallTimeOffsetMinutes(resolved);
+  return refined === offset ? resolved : new Date(utcGuess.getTime() - refined * 60000);
+}
+
 function canonicalUtcDateTime(formData: FormData, name: string): string {
   const input = requiredValue(formData, name);
-  const parsed = new Date(input);
+  const parsed = parseOrgWallDateTime(input);
   if (Number.isNaN(parsed.valueOf())) throw new FormInputError();
   return parsed.toISOString();
 }
@@ -225,6 +266,90 @@ function submissionId(formData: FormData): string {
     throw new FormInputError();
   }
   return input;
+}
+
+// ── 동의 6영역 이벤트 배선 (신계약, 2026-09-16 계약 드리프트 수정) ──────────────
+// 서버는 등록·가입·동의 수정 모두에서 영역별 AppendConsentEventInput 을 요구한다.
+// 동의 기록의 존재 이유는 "무엇에 동의했는지"를 증명하는 것이다 — 이벤트는 사용자가
+// 실제로 본 고지 스냅샷에 묶여야 한다. 그래서 폼은 영역마다 두 필드를 보낸다:
+//   consentDecision_<domain>  'grant' | 'decline'
+//   consentSnapshot_<domain>  화면이 고지를 렌더할 때 서버가 발급한 스냅샷의 JSON
+//     (snapshotId·copyVersion·copyHash·provider·providerLegalRecipient·country·
+//      purpose·retentionDuration — 발급 응답 그대로)
+// 제출 시점에 새 스냅샷을 발급해 덮어쓰면 읽은 문안과 기록된 문안이 갈라져 증명이
+// 성립하지 않는다. 서버가 snapshotId 로 저장된 스냅샷을 찾아 copyVersion·copyHash·
+// 사업자 범위를 대조하므로 여기서 위조해도 통과하지 않는다. 필드가 없는 영역은 이벤트를
+// 만들지 않는다 — 받지 않은 동의를 받은 것처럼 싣지 않는다. 등록·가입처럼 서버가
+// 정확히 6건을 요구하는 경로는 requireAll 로 빠진 영역을 거부한다.
+
+interface ConsentFormDecision {
+  domain: ConsentDomain;
+  decision: 'grant' | 'decline';
+  snapshot: ConsentDisclosureSnapshot;
+}
+
+function consentDecisionsFromForm(formData: FormData, requireAll: boolean): ConsentFormDecision[] {
+  const decisions: ConsentFormDecision[] = [];
+  for (const domain of CONSENT_DOMAINS) {
+    const raw = value(formData, `consentDecision_${domain}`).trim();
+    const snapshotJson = value(formData, `consentSnapshot_${domain}`).trim();
+    if (raw.length === 0 && snapshotJson.length === 0) {
+      if (requireAll) throw new FormInputError();
+      continue;
+    }
+    if (raw.length === 0 || snapshotJson.length === 0) throw new FormInputError();
+    if (raw !== 'grant' && raw !== 'decline') throw new FormInputError();
+    let snapshot: ConsentDisclosureSnapshot;
+    try {
+      const parsed: unknown = JSON.parse(snapshotJson);
+      const record = recordObject(parsed);
+      // 스냅샷의 영역이 결정의 영역과 같아야 한다 — 다른 영역의 고지를 끼워 넣는 것을 막는다.
+      if (record.domain !== domain) throw new FormInputError();
+      snapshot = parsed as ConsentDisclosureSnapshot;
+    } catch (error) {
+      if (error instanceof FormInputError) throw error;
+      throw new FormInputError();
+    }
+    decisions.push({ domain, decision: raw, snapshot });
+  }
+  return decisions;
+}
+
+// 폼이 실어 보낸 고지 스냅샷을 이벤트에 묶는다. decline 은 사업자 범위를 null 로 둔다
+// (게이트웨이가 decline 의 provider 필드를 null 로 요구한다). grant 는 스냅샷의 사업자
+// 범위를 그대로 싣고 서버가 저장된 스냅샷과 대조한다.
+function consentEventsFromDecisions(
+  decisions: ReadonlyArray<ConsentFormDecision>,
+  idempotencySeed: string,
+): AppendConsentEventInput[] {
+  const effectiveAt = new Date().toISOString();
+  return decisions.map(({ domain, decision, snapshot }) => ({
+    domain,
+    decision,
+    provider: decision === 'decline' ? null : snapshot.provider,
+    providerLegalRecipient: decision === 'decline' ? null : snapshot.providerLegalRecipient,
+    providerCountry: decision === 'decline' ? null : snapshot.country,
+    purpose: decision === 'decline' ? null : snapshot.purpose,
+    // 게이트웨이는 retentionDuration 을 voice_original_retention_period 에만 허용한다.
+    retentionDuration: decision === 'decline' || domain !== 'voice_original_retention_period' ? null : snapshot.retentionDuration,
+    copyVersion: snapshot.copyVersion,
+    copyHash: snapshot.copyHash,
+    disclosureSnapshotId: snapshot.snapshotId,
+    effectiveAt,
+    idempotencyKey: `${idempotencySeed}-${domain}`,
+    correctionOfEventId: null,
+    expectedRevision: null,
+  }));
+}
+
+// 등록이 지목할 사업을 고른다. 폼은 아직 사업 선택 칸이 없어 programType 이
+// financial_support_v1 인 활성 사업이 정확히 하나일 때만 자동 해석한다 — 둘 이상이면
+// 임의 선택이 다른 사업에 등록하는 사고라 FormInputError 로 멈춘다(폼에 선택 칸 필요).
+async function resolveRegistrationProgramId(): Promise<string> {
+  const options = await listProgramOptions();
+  const matches = options.filter((option) => option.programType === 'financial_support_v1');
+  if (matches.length !== 1) throw new FormInputError();
+  return matches[0]!.id;
 }
 
 function jsonArray(formData: FormData, name: string): unknown[] {
@@ -268,7 +393,7 @@ function parseManualGasScores(formData: FormData): ManualGasScore[] {
   });
 }
 
-function parseManualActionItems(formData: FormData): ManualActionItem[] {
+function parseManualActionItems(formData: FormData): ManualNextAction[] {
   return jsonArray(formData, 'actionItemsJson').map((item) => {
     const action = recordObject(item);
     hasOnlyKeys(action, ['description', 'owner', 'dueDate']);
@@ -289,29 +414,37 @@ function parseManualActionItems(formData: FormData): ManualActionItem[] {
   });
 }
 
-function parseManualActionItemResolutions(formData: FormData): ManualActionItemResolution[] {
-  const allowed = new Set(actionItemResolutionStatuses);
+// 미해결 액션 처리 → v2 actionOutcomes. 화면이 렌더 시점에 본 revision 을
+// expectedRevision 으로 실어야 서버의 낙관적 동시성 검사가 동작한다 — 제출 시점에
+// 다시 읽어 채우면 검사가 무력화되므로 없으면 저장하지 않는다.
+// v2 에 자리가 없는 입력은 조용히 버리지 않고 거부한다: 'hold' 상태(v2 는
+// not_done+continue/stop 뿐)와 처리 메모(v2 는 stop 사유만 받는다).
+function parseManualActionItemResolutions(formData: FormData): ManualActionOutcomeInput[] {
   const actionItemIds = new Set<string>();
   return jsonArray(formData, 'actionResolutionsJson').map((item) => {
     const resolution = recordObject(item);
-    hasOnlyKeys(resolution, ['actionItemId', 'status', 'note']);
+    hasOnlyKeys(resolution, ['actionItemId', 'status', 'expectedRevision', 'note']);
     const actionItemId = resolution.actionItemId;
     const status = resolution.status;
-    const note = resolution.note;
+    const expectedRevision = resolution.expectedRevision;
     if (
       typeof actionItemId !== 'string'
       || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(actionItemId)
-      || typeof status !== 'string'
-      || !allowed.has(status as ActionItemResolutionStatus)
       || actionItemIds.has(actionItemId)
+      || typeof expectedRevision !== 'number'
+      || !Number.isSafeInteger(expectedRevision)
+      || expectedRevision < 1
+      || resolution.note !== undefined
     ) throw new FormInputError();
-    if (note !== undefined && (typeof note !== 'string' || note.trim().length === 0)) {
-      throw new FormInputError();
-    }
     actionItemIds.add(actionItemId);
-    return note === undefined
-      ? { actionItemId, status: status as ActionItemResolutionStatus }
-      : { actionItemId, status: status as ActionItemResolutionStatus, note: note.trim() };
+    if (status === 'done' || status === 'in_progress') {
+      return { actionItemId, expectedRevision, outcome: status };
+    }
+    // '못 함'은 v2 의 not_done+continue 에 대응한다. '보류'(hold)는 v2 에 없다.
+    if (status === 'not_done') {
+      return { actionItemId, expectedRevision, outcome: 'not_done', continuation: 'continue' };
+    }
+    throw new FormInputError();
   });
 }
 
@@ -331,13 +464,15 @@ function parseManualFlags(formData: FormData): ManualRecordFlag[] {
   });
 }
 
-// 6영역 스냅샷(CCC-8): 폼이 6영역을 전부 보내면 파싱해 전달하고, 비어 있으면 생략(undefined).
-function parseManualLifeAreas(formData: FormData): ManualLifeArea[] | undefined {
+// 6영역 스냅샷(CCC-8): v2 계약에는 구조화된 상태 스냅샷 자리가 없다 — changes 는
+// IntakeArea 키의 자유 텍스트다. 상태 선택이 하나라도 오면 옮길 곳이 없으므로
+// 조용히 버리지 않고 거부한다. '변화 없음'만 온 폼은 정상 제출이다.
+function assertNoLifeAreaChanges(formData: FormData): void {
   const raw = jsonArray(formData, 'lifeAreasJson');
-  if (raw.length === 0) return undefined;
+  if (raw.length === 0) return;
   const allowedKeys = new Set<string>(lifeAreaKeys);
   const allowedStatuses = new Set<string>(lifeAreaStatuses);
-  return raw.map((item) => {
+  for (const item of raw) {
     const area = recordObject(item);
     const areaKey = area.areaKey;
     const changed = area.changed;
@@ -346,17 +481,15 @@ function parseManualLifeAreas(formData: FormData): ManualLifeArea[] | undefined 
     }
     if (!changed) {
       hasOnlyKeys(area, ['areaKey', 'changed']);
-      return { areaKey: areaKey as ManualLifeArea['areaKey'], changed: false };
+      continue;
     }
     hasOnlyKeys(area, area.note === undefined ? ['areaKey', 'changed', 'status'] : ['areaKey', 'changed', 'status', 'note']);
     const status = area.status;
     const note = area.note;
     if (typeof status !== 'string' || !allowedStatuses.has(status)) throw new FormInputError();
     if (note !== undefined && (typeof note !== 'string' || note.trim().length === 0)) throw new FormInputError();
-    return note === undefined
-      ? { areaKey: areaKey as ManualLifeArea['areaKey'], changed: true, status: status as (typeof lifeAreaStatuses)[number] }
-      : { areaKey: areaKey as ManualLifeArea['areaKey'], changed: true, status: status as (typeof lifeAreaStatuses)[number], note: note.trim() };
-  });
+    throw new FormInputError();
+  }
 }
 
 const manualRecordDetailKeys = ['sessionGoalNote', 'changeSinceLast', 'safetyNote', 'counselorOpinion'] as const;
@@ -374,21 +507,24 @@ function jsonObjectOrUndefined(formData: FormData, name: string): Record<string,
 }
 
 /**
- * 서술형 항목(CCC-10): 채운 항목만 실어 보내고, 하나도 없으면 undefined 로 바디에서 뺀다
- * (게이트웨이가 빈 객체를 거부하고, 제출 해시도 details 없음으로 계산된다).
+ * 서술형 항목(CCC-10): v2 계약에서 살아남은 것은 counselorOpinion 뿐이다.
+ * sessionGoalNote·changeSinceLast·safetyNote 는 v2 details 에 자리가 없다 —
+ * 채워져 오면 조용히 버리지 않고 거부한다.
  */
-function parseManualRecordDetails(formData: FormData): ManualRecordDetails | undefined {
+function parseManualRecordCounselorOpinion(formData: FormData): string | undefined {
   const details = jsonObjectOrUndefined(formData, 'detailsJson');
   if (details === undefined) return undefined;
   hasOnlyKeys(details, manualRecordDetailKeys);
-  const parsed: ManualRecordDetails = {};
   for (const key of manualRecordDetailKeys) {
+    if (key === 'counselorOpinion') continue;
     const item = details[key];
-    if (item === undefined) continue;
-    if (typeof item !== 'string' || item.trim().length === 0) throw new FormInputError();
-    parsed[key] = item.trim();
+    if (item !== undefined && (typeof item !== 'string' || item.trim().length === 0)) throw new FormInputError();
+    if (item !== undefined) throw new FormInputError();
   }
-  return Object.keys(parsed).length === 0 ? undefined : parsed;
+  const opinion = details.counselorOpinion;
+  if (opinion === undefined) return undefined;
+  if (typeof opinion !== 'string' || opinion.trim().length === 0) throw new FormInputError();
+  return opinion.trim();
 }
 
 function noticeFor(error: unknown): Notice {
@@ -691,10 +827,12 @@ export async function updateParticipantConsentAction(formData: FormData): Promis
   try {
     beneficiaryId = participantId(formData, 'beneficiaryId');
     const supportCaseId = requiredValue(formData, 'supportCaseId');
-    await updateParticipantConsent(supportCaseId, {
-      privacy: checkbox(formData, 'consentPrivacy'),
-      recordingAi: checkbox(formData, 'consentRecordingAi'),
-    });
+    // 신계약은 영역별 결정을 받는다. 폼이 consentDecision_<domain>으로 보낸 값만 이벤트가
+    // 된다. 결정과 고지 snapshot 중 하나만 오거나 바뀐 영역이 하나도 없으면 fail-closed로
+    // 멈춘다. 구 2체크박스는 여섯 영역을 대표할 수 없어 읽지 않는다.
+    const decisions = consentDecisionsFromForm(formData, false);
+    if (decisions.length === 0) throw new FormInputError();
+    await updateParticipantConsent(supportCaseId, decisions);
     revalidateParticipantProgram(beneficiaryId, supportCaseId);
   } catch (error) {
     const fallback = beneficiaryId === undefined ? '/participants' : participantPath(beneficiaryId);
@@ -937,17 +1075,23 @@ export async function createInitialParticipantProgramAction(formData: FormData):
     const emergencyReason = checkbox(formData, 'emergencyRegistration')
       ? (optionalTrimmedText(formData, 'emergencyReason', 500) ?? '')
       : undefined;
+    // 신계약 등록: 사업은 programId 로 지목하고 동의는 6영역 이벤트로 보낸다.
+    // 폼이 영역별 결정(consentDecision_<domain>)과 사용자에게 보여 준 고지 스냅샷
+    // (consentSnapshot_<domain>)을 모두 보내야 한다 — 하나라도 빠지면 FormInputError 로
+    // 멈춘다. 받지 않은 동의를 지어내 싣지 않는다(동의 게이트 우회 금지).
+    const programId = await resolveRegistrationProgramId();
+    const idempotencyKey = crypto.randomUUID();
+    const decisions = consentDecisionsFromForm(formData, true);
     const created = await createInitialParticipantProgram({
-      programType: 'financial_support_v1',
+      programId,
+      idempotencyKey,
       // intakeAt 을 싣지 않는다(CCC-56): 등록 시각을 인테이크 완료로 기록하던 오염을 중단.
       // 인테이크 완료 시각은 인테이크 기록 저장이 채운다.
-      // 항목별 동의 2종(D49·D23·D44): ② 는 기본 미체크이고 미동의여도 등록은 진행된다.
-      // ① 은 하드 게이트다(G1) — 미체크면 긴급 등록 사유가 있어야 서버가 받아 준다.
-      consentPrivacy: checkbox(formData, 'consentPrivacy'),
-      consentRecordingAi: checkbox(formData, 'consentRecordingAi'),
+      // ① personal_data_collection_use 의 grant 는 하드 게이트다(G1) — 미동의면
+      // 긴급 등록 사유가 있어야 서버가 받아 준다.
+      consentEvents: consentEventsFromDecisions(decisions, idempotencyKey),
       ...(emergencyReason === undefined ? {} : { emergencyReason }),
       ...(identity.role === 'admin' ? { initialAssigneeUserId: identity.id } : {}),
-      // 등록 폼의 이름·연락처·이메일을 금고에 저장한다(#37 보완, 계좌만 이후 updateParticipantPii).
       ...(name === undefined ? {} : { name }),
       ...(phone === undefined ? {} : { phone }),
       ...(email === undefined ? {} : { email }),
@@ -984,15 +1128,17 @@ export async function createSubsequentParticipantProgramAction(formData: FormDat
     const emergencyReason = checkbox(formData, 'emergencyRegistration')
       ? (optionalTrimmedText(formData, 'emergencyReason', 500) ?? '')
       : undefined;
+    const submission = submissionId(formData);
+    // 신계약: programId 지목 + 6영역 동의 이벤트. 폼이 영역별 결정을 모두 보내야 한다.
+    const programId = await resolveRegistrationProgramId();
+    const decisions = consentDecisionsFromForm(formData, true);
     const created = await createSubsequentParticipantProgram(beneficiaryId, {
       schemaVersion: 1,
-      submissionId: submissionId(formData),
-      programType: 'financial_support_v1',
+      submissionId: submission,
+      programId,
       // intakeAt 을 싣지 않는다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
       sourceSupportCaseId: opaqueId(formData, 'sourceSupportCaseId'),
-      // D49: 두 번째 참여 사업도 2종을 여기서 받는다 — 전에는 ② 를 보낼 경로가 없었다.
-      consentPrivacy: checkbox(formData, 'consentPrivacy'),
-      consentRecordingAi: checkbox(formData, 'consentRecordingAi'),
+      consentEvents: consentEventsFromDecisions(decisions, submission),
       ...(emergencyReason === undefined ? {} : { emergencyReason }),
     });
     supportCaseId = created.supportCaseId;
@@ -1166,20 +1312,18 @@ export async function signupParticipantAction(formData: FormData): Promise<Parti
   const name = requiredValue(formData, 'name');
   const phone = formData.get('phone');
   const email = formData.get('email');
-  // 항목별 동의 2종(D49): 등록 화면과 같은 체크박스 이름·순서. ① 은 하드 게이트라
-  // 미체크면 서버가 privacy_consent_required 로 되돌린다(G1 — 자기 가입에는 긴급 예외가 없다).
-  // ② 는 기본 미체크이고 미동의여도 가입은 진행된다(D15).
-  const consent = {
-    privacy: checkbox(formData, 'consentPrivacy'),
-    recordingAi: checkbox(formData, 'consentRecordingAi'),
-  };
   try {
+    // 신계약: 6영역 동의 이벤트. 폼이 영역별 결정(consentDecision_<domain>)과 사용자에게
+    // 보여 준 고지 스냅샷(consentSnapshot_<domain>, 공개 초대 경로로 발급된 것)을 모두
+    // 보내야 한다 — 받지 않은 동의를 지어내 싣지 않는다. ① personal_data_collection_use
+    // 의 grant 는 하드 게이트다(G1 — 자기 가입에는 긴급 예외가 없다).
+    const decisions = consentDecisionsFromForm(formData, true);
     const result = await signupParticipant({
       token,
       name,
       ...(typeof phone === 'string' && phone.trim().length > 0 ? { phone: phone.trim() } : {}),
       ...(typeof email === 'string' && email.trim().length > 0 ? { email: email.trim() } : {}),
-      consent,
+      consentEvents: consentEventsFromDecisions(decisions, token),
     });
     return { status: 'created', beneficiaryId: result.beneficiaryId, supportCaseId: result.supportCaseId };
   } catch (error) {
@@ -1264,7 +1408,7 @@ export async function createSchedulePlanAction(
 ): Promise<CreateSchedulePlanResult> {
   try {
     assertScheduleTargetScope(input.beneficiaryId, input.supportCaseId);
-    const scheduledAt = new Date(input.scheduledAt);
+    const scheduledAt = parseOrgWallDateTime(input.scheduledAt);
     if (Number.isNaN(scheduledAt.valueOf())) throw new FormInputError();
     const customQuestions = input.customQuestions
       .map((question) => question.trim())
@@ -1344,52 +1488,42 @@ export type CounselingRecordActionResult =
   | { status: 'replayed' }
   | { status: Notice };
 
-// 인테이크 위저드 제출 입력(CCC-7). 클라이언트 위저드가 6단계 상태를 이 객체로 모아
-// 한 번 호출한다. 형식·범위 검증은 여기(경계)와 게이트웨이가 이중으로 하고, P1 충족 여부는
-// 게이트웨이가 최종 강제한다(R1). 저장은 최종 "완료" 1회다 — 부분 저장 없음.
+// 인테이크 위저드는 계약 봉투와 화면 라우팅 값만 함께 보낸다.
 export interface CreateIntakeRecordActionInput {
   beneficiaryId: string;
   supportCaseId: string;
   submissionId: string;
+  schemaVersion: typeof INTAKE_WRITE_SCHEMA_VERSION;
   heldAt: string;
   channel: 'in_person' | 'phone' | 'video';
-  // D42: 5종은 선택. 4단계 위저드는 보내지 않는다(동의는 등록 화면, 목표는 보류).
-  consent?: { privacy: boolean; recordingAi: boolean };
-  helpNarrative?: { todayHelp: string; hardestPoint: string; desiredChange: string };
-  lifeAreas?: IntakeLifeAreaInput[];
-  goals?: IntakeGoalInput[];
-  actions?: ManualActionItem[];
-  // 전부 선택 — 비어 있으면 아예 보내지 않는다.
-  answers?: IntakeAnswerInput[];
-  extendedPii?: IntakeExtendedPiiInput;
-  additionalItems?: IntakeAdditionalItemInput[];
-  debts?: IntakeDebtEntryInput[];
-  linkedOrgs?: IntakeLinkedOrgInput[];
-  nextMeeting?: IntakeNextMeetingInput;
-  managerOpinion?: string;
-  /**
-   * 완료로 넘길 연결 일정(CCC-57). 둘은 언제나 함께 온다. 정기 기록지와 같은 규칙이다.
-   * **작성 경로 전용이다**: 수정 경로(updateIntakeRecordAction)는 실려 와도 버린다.
-   */
+  questionnaire: IntakeQuestionnaire;
+  additionalItemRefs: IntakeAdditionalItemRef[];
+  questionWithdrawals: IntakeQuestionWithdrawalInput[];
+  expectedRevision?: number;
+  conversion?: IntakeUpdateRequest['conversion'];
   scheduleId?: string;
   expectedScheduleVersion?: number;
-  /**
-   * 전체 목표(D62 · CCC-68). 인테이크 기록 화면이 주 입력 자리다. 세 값이 구분된다:
-   * undefined = 서버 현재값에서 안 바뀜(호출 안 함) / null = 지움(설정 전으로) / 문자열 = 새 값.
-   * 위저드가 서버 프리필과 비교해 바뀐 경우에만 싣는다 — 안 바뀐 저장마다 감사·이력이
-   * 쌓이지 않게 한다. 저장은 인테이크 기록과 별개 호출(setSupportCaseOverallGoal)이라
-   * 이력·권한·감사는 그쪽 게이트웨이가 갖는다.
-   */
   overallGoal?: string | null;
 }
 
 export type IntakeRecordActionResult =
-  /** overallGoalSaved: 전체 목표 별개 호출의 결과(D62). 시도하지 않았으면(값 안 바뀜) true. */
-  | { status: 'saved'; overallGoalSaved: boolean }
-  | { status: 'replayed'; overallGoalSaved: boolean }
+  | { status: 'saved'; revision: number; overallGoalSaved: boolean }
+  | { status: 'replayed'; revision: number; overallGoalSaved: boolean }
   | { status: Notice };
 
 const INTAKE_SUBMISSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+function assertIntakeActionInput(input: CreateIntakeRecordActionInput): Date {
+  if (input.schemaVersion !== INTAKE_WRITE_SCHEMA_VERSION) throw new FormInputError();
+  const heldAt = parseOrgWallDateTime(input.heldAt);
+  if (Number.isNaN(heldAt.valueOf())) throw new FormInputError();
+  if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
+    throw new FormInputError();
+  }
+  parseIntakeQuestionnaire(input.questionnaire);
+  assertIntakeOverallGoalInput(input.overallGoal);
+  return heldAt;
+}
 
 export async function createIntakeRecordAction(
   input: CreateIntakeRecordActionInput,
@@ -1397,31 +1531,9 @@ export async function createIntakeRecordAction(
   try {
     assertScheduleTargetScope(input.beneficiaryId, input.supportCaseId);
     if (!INTAKE_SUBMISSION_UUID.test(input.submissionId)) throw new FormInputError();
-    const heldAt = new Date(input.heldAt);
-    if (Number.isNaN(heldAt.valueOf())) throw new FormInputError();
-    if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
-      throw new FormInputError();
-    }
-    for (const area of input.lifeAreas ?? []) {
-      if (
-        !(lifeAreaKeys as readonly string[]).includes(area.areaKey)
-        || !(lifeAreaStatuses as readonly string[]).includes(area.status)
-      ) throw new FormInputError();
-    }
-    // P3·P4 어휘 검사(CCC-9). 최종 강제는 게이트웨이지만 경계에서도 한 번 거른다.
-    for (const answer of input.answers ?? []) {
-      if (
-        !(intakeAnswerKeys as readonly string[]).includes(answer.key)
-        || !(intakeAnswerResponses as readonly string[]).includes(answer.response)
-      ) throw new FormInputError();
-    }
-    if (input.nextMeeting !== undefined) {
-      const nextMeetingAt = new Date(input.nextMeeting.heldAt);
-      if (Number.isNaN(nextMeetingAt.valueOf())) throw new FormInputError();
-    }
-    assertIntakeOverallGoalInput(input.overallGoal);
-    // 연결 일정 완료(CCC-57). 정기 기록지와 같은 짝 규칙이다. 둘 다 있거나 둘 다 없다.
-    // 한쪽만 오면 게이트웨이가 버전 검사를 못 하므로 여기서 막는다.
+    if (input.expectedRevision !== undefined || input.conversion !== undefined) throw new FormInputError();
+    if (input.questionWithdrawals.length !== 0) throw new FormInputError();
+    const heldAt = assertIntakeActionInput(input);
     const hasSchedule = input.scheduleId !== undefined;
     if (hasSchedule !== (input.expectedScheduleVersion !== undefined)) throw new FormInputError();
     if (input.scheduleId !== undefined && !SCHEDULE_UUID_PATTERN.test(input.scheduleId)) throw new FormInputError();
@@ -1430,78 +1542,41 @@ export async function createIntakeRecordAction(
       && (!Number.isSafeInteger(input.expectedScheduleVersion) || input.expectedScheduleVersion < 1)
     ) throw new FormInputError();
     await getParticipantProgram(input.beneficiaryId, input.supportCaseId);
-    const managerOpinion = input.managerOpinion?.trim();
     const result = await createIntakeRecord(input.supportCaseId, {
+      schemaVersion: INTAKE_WRITE_SCHEMA_VERSION,
       submissionId: input.submissionId,
       heldAt: heldAt.toISOString(),
       channel: input.channel,
-      ...(input.consent === undefined ? {} : { consent: input.consent }),
-      ...(input.helpNarrative === undefined ? {} : {
-        helpNarrative: {
-          todayHelp: input.helpNarrative.todayHelp.trim(),
-          hardestPoint: input.helpNarrative.hardestPoint.trim(),
-          desiredChange: input.helpNarrative.desiredChange.trim(),
-        },
-      }),
-      ...(input.lifeAreas === undefined ? {} : {
-        lifeAreas: input.lifeAreas.map((area) => {
-          const note = area.note?.trim();
-          return note !== undefined && note.length > 0
-            ? { areaKey: area.areaKey, status: area.status, note }
-            : { areaKey: area.areaKey, status: area.status };
-        }),
-      }),
-      ...(input.goals === undefined ? {} : {
-        goals: input.goals.map((goal) => (
-          goal.scaleCriteria !== undefined
-            ? { title: goal.title.trim(), scaleCriteria: goal.scaleCriteria }
-            : { title: goal.title.trim() }
-        )),
-      }),
-      ...(input.actions === undefined ? {} : { actions: input.actions }),
-      ...(input.debts === undefined || input.debts.length === 0 ? {} : { debts: input.debts }),
-      ...(input.linkedOrgs === undefined || input.linkedOrgs.length === 0 ? {} : { linkedOrgs: input.linkedOrgs }),
-      ...(input.answers === undefined || input.answers.length === 0 ? {} : { answers: input.answers }),
-      ...(input.extendedPii === undefined || Object.keys(input.extendedPii).length === 0
-        ? {}
-        : { extendedPii: input.extendedPii }),
-      ...(input.additionalItems === undefined || input.additionalItems.length === 0
-        ? {}
-        : { additionalItems: input.additionalItems }),
-      ...(input.nextMeeting === undefined
-        ? {}
-        : {
-          nextMeeting: {
-            heldAt: new Date(input.nextMeeting.heldAt).toISOString(),
-            channel: input.nextMeeting.channel,
-          },
-        }),
-      ...(managerOpinion === undefined || managerOpinion.length === 0 ? {} : { managerOpinion }),
-      // 연결 일정 완료(CCC-57). 게이트웨이가 소유·상태·버전을 다시 검사하고, 어긋나면
-      // 기록 저장 자체가 서지 않는다(버전 검사 유지, 티켓 지시).
+      questionnaire: input.questionnaire,
+      additionalItemRefs: input.additionalItemRefs,
+      questionWithdrawals: input.questionWithdrawals,
       ...(input.scheduleId === undefined || input.expectedScheduleVersion === undefined
         ? {}
         : { scheduleId: input.scheduleId, expectedScheduleVersion: input.expectedScheduleVersion }),
     });
-    // 전체 목표(D62 · CCC-68). 인테이크 저장이 선 다음에만 시도한다 — 보조 값의 실패가
-    // 주 기록 저장을 막으면 안 된다. 실패해도 인테이크는 저장된 채로, 화면이 15초 페이지
-    // 카드(보조 입력 자리)로 안내한다.
     const overallGoalSaved = await saveIntakeOverallGoal(input.supportCaseId, input.overallGoal);
     revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
-    return { status: result.replayed ? 'replayed' : 'saved', overallGoalSaved };
+    return {
+      status: result.replayed ? 'replayed' : 'saved',
+      revision: result.revision,
+      overallGoalSaved,
+    };
   } catch (error) {
     return { status: noticeFor(error) };
   }
 }
 
-/** 전체 목표 입력 검증(D62). undefined = 안 바뀜, null = 지움, 문자열은 200자 상한(게이트웨이와 동일). */
+/** 전체 목표 입력 검증(D62). undefined = 안 바뀜, null = 지움, 문자열은 200자 상한. */
 function assertIntakeOverallGoalInput(overallGoal: string | null | undefined): void {
   if (overallGoal === undefined || overallGoal === null) return;
   if (typeof overallGoal !== 'string' || overallGoal.trim().length > 200) throw new FormInputError();
 }
 
-/** 전체 목표 별개 호출(D62). 시도하지 않았으면 true, 시도해서 실패하면 false — 던지지 않는다. */
-async function saveIntakeOverallGoal(supportCaseId: string, overallGoal: string | null | undefined): Promise<boolean> {
+/** 전체 목표 별개 호출. 시도하지 않았으면 true, 실패하면 인테이크 성공을 되돌리지 않는다. */
+async function saveIntakeOverallGoal(
+  supportCaseId: string,
+  overallGoal: string | null | undefined,
+): Promise<boolean> {
   if (overallGoal === undefined) return true;
   try {
     const trimmed = overallGoal === null ? null : overallGoal.trim();
@@ -1512,50 +1587,41 @@ async function saveIntakeOverallGoal(supportCaseId: string, overallGoal: string 
   }
 }
 
-/**
- * 인테이크 수정(2026-08-08 Q "확인/수정"). 위저드가 create 와 같은 입력형으로 부르므로
- * 프런트 검증도 같은 규칙을 쓴다 — 다만 서버로는 수정 경로가 받는 위저드 소유분만 보낸다.
- * submissionId 는 수정 경로에 없다(덮어쓰기는 본질상 멱등이라 재현 보호가 필요 없다).
- *
- * **일정 연결(scheduleId·expectedScheduleVersion)은 실려 와도 버린다**(CCC-57). 수정 경로
- * 파서(parseIntakeUpdate)가 허용 키 목록으로 막고 있어 보내면 요청 전체가 거부된다.
- * 일정 완료는 처음 저장할 때 한 번 하는 일이고, 고쳐 쓰기는 그 자리가 아니다.
- */
 export async function updateIntakeRecordAction(
   input: CreateIntakeRecordActionInput,
 ): Promise<IntakeRecordActionResult> {
   try {
     assertScheduleTargetScope(input.beneficiaryId, input.supportCaseId);
-    const heldAt = new Date(input.heldAt);
-    if (Number.isNaN(heldAt.valueOf())) throw new FormInputError();
-    if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
-      throw new FormInputError();
-    }
-    for (const answer of input.answers ?? []) {
-      if (
-        !(intakeAnswerKeys as readonly string[]).includes(answer.key)
-        || !(intakeAnswerResponses as readonly string[]).includes(answer.response)
-      ) throw new FormInputError();
-    }
-    assertIntakeOverallGoalInput(input.overallGoal);
+    const heldAt = assertIntakeActionInput(input);
+    if (
+      !Number.isSafeInteger(input.expectedRevision)
+      || input.expectedRevision === undefined
+      || input.expectedRevision < 1
+      || input.scheduleId !== undefined
+      || input.expectedScheduleVersion !== undefined
+    ) throw new FormInputError();
+    if (
+      input.conversion !== undefined
+      && (
+        input.conversion.confirmed !== true
+        || !Number.isSafeInteger(input.conversion.sourceRevision)
+        || input.conversion.sourceRevision < 1
+      )
+    ) throw new FormInputError();
     await getParticipantProgram(input.beneficiaryId, input.supportCaseId);
-    const managerOpinion = input.managerOpinion?.trim();
-    await updateIntakeRecord(input.supportCaseId, {
+    const result = await updateIntakeRecord(input.supportCaseId, {
+      schemaVersion: INTAKE_WRITE_SCHEMA_VERSION,
+      expectedRevision: input.expectedRevision,
       heldAt: heldAt.toISOString(),
       channel: input.channel,
-      ...(input.answers === undefined || input.answers.length === 0 ? {} : { answers: input.answers }),
-      ...(input.debts === undefined || input.debts.length === 0 ? {} : { debts: input.debts }),
-      ...(input.linkedOrgs === undefined || input.linkedOrgs.length === 0 ? {} : { linkedOrgs: input.linkedOrgs }),
-      ...(input.additionalItems === undefined || input.additionalItems.length === 0
-        ? {}
-        : { additionalItems: input.additionalItems }),
-      ...(managerOpinion === undefined || managerOpinion.length === 0 ? {} : { managerOpinion }),
+      questionnaire: input.questionnaire,
+      additionalItemRefs: input.additionalItemRefs,
+      questionWithdrawals: input.questionWithdrawals,
+      ...(input.conversion === undefined ? {} : { conversion: input.conversion }),
     });
-    // 전체 목표(D62 · CCC-68). 작성 경로와 같은 규칙 — 바뀐 경우에만 실려 오고, 실패해도
-    // 인테이크 수정은 저장된 채다.
     const overallGoalSaved = await saveIntakeOverallGoal(input.supportCaseId, input.overallGoal);
     revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
-    return { status: 'saved', overallGoalSaved };
+    return { status: 'saved', revision: result.revision, overallGoalSaved };
   } catch (error) {
     return { status: noticeFor(error) };
   }
@@ -1570,25 +1636,23 @@ export async function createCounselingRecordAction(
     await getParticipantProgram(beneficiaryId, supportCaseId);
     const channel = requiredValue(formData, 'channel');
     if (channel !== 'in_person' && channel !== 'phone' && channel !== 'video') throw new FormInputError();
-
     const scheduleId = optionalOpaqueId(formData, 'scheduleId');
     const scheduleVersionValue = value(formData, 'expectedScheduleVersion');
     if ((scheduleId === undefined) !== (scheduleVersionValue.length === 0)) throw new FormInputError();
 
-    const gasScores = parseManualGasScores(formData);
-    const lifeAreas = parseManualLifeAreas(formData);
-    const details = parseManualRecordDetails(formData);
+    assertNoLifeAreaChanges(formData);
+    const counselorOpinion = parseManualRecordCounselorOpinion(formData);
     const result = await createCounselingRecord(supportCaseId, {
+      schemaVersion: MANUAL_RECORD_SCHEMA_VERSION,
       submissionId: submissionId(formData),
       heldAt: canonicalUtcDateTime(formData, 'heldAt'),
       channel,
       memo: requiredValue(formData, 'memo'),
-      gasScores,
-      actions: parseManualActionItems(formData),
+      gasScores: parseManualGasScores(formData),
+      actionItems: parseManualActionItems(formData),
       flags: parseManualFlags(formData),
-      actionResolutions: parseManualActionItemResolutions(formData),
-      ...(lifeAreas === undefined ? {} : { lifeAreas }),
-      ...(details === undefined ? {} : { details }),
+      actionOutcomes: parseManualActionItemResolutions(formData),
+      ...(counselorOpinion === undefined ? {} : { counselorOpinion }),
       ...(scheduleId === undefined
         ? {}
         : { scheduleId, expectedScheduleVersion: positiveInteger(formData, 'expectedScheduleVersion') }),

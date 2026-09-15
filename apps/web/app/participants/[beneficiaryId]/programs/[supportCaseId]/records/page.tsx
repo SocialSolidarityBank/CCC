@@ -1,11 +1,14 @@
-import { WireBadge } from '../../../../../components/wire/wire-badge';
-import { WireError } from '../../../../../components/wire/wire-state';
+import {
+  GridContainer,
+  PageTitle,
+  ParticipantHeroCard,
+  WireBadge,
+  WireButton,
+  WireCard,
+  WireError,
+  type ParticipantHeroDetail,
+} from '@ccc/wire';
 import Link from 'next/link';
-import { GridContainer } from '../../../../../components/wire/grid-container';
-import { PageTitle } from '../../../../../components/wire/page-title';
-import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../components/wire/participant-hero-card';
-import { WireButton } from '../../../../../components/wire/wire-button';
-import { WireCard } from '../../../../../components/wire/wire-card';
 import { getDisplayLabels } from '../../../../../lib/display-labels';
 import {
   ApiError,
@@ -202,7 +205,7 @@ export default async function RecordHistoryPage({
   ];
 
   return <GridContainer as="main" className="page-content">
-    {/* 페이지 타이틀(2026-08-08 Q). 이 화면의 이름은 '전체 상담 기록'이다 — 용어 통일. */}
+    {/* 목적지와 PageTitle은 CONTEXT.md의 화면 표시명 '상담 기록 확인하기'를 함께 쓴다. */}
     <div className="page-header"><PageTitle>상담 기록 확인하기</PageTitle></div>
     <RecordHashOpener />
     {/* 케이스 정보는 공통 HERO에서 표시하고, 확인되지 않은 슬롯은 생략한다. */}
@@ -217,8 +220,8 @@ export default async function RecordHistoryPage({
               돌아가고, 인테이크 확인·수정 입구는 아래 목록의 인테이크 회차가 갖는다
               (2026-08-08 Q — 구 '인테이크 작성' 라벨 대체). */}
           {result.data !== null && !hasIntake
-            ? <WireButton variant="primary" href={`${basePath}/records/intake`}>인테이크</WireButton>
-            : <WireButton variant="primary" href={`${basePath}/records/new`}>상담 기록</WireButton>}
+            ? <WireButton variant="primary" href={`${basePath}/records/intake`}>인테이크 기록</WireButton>
+            : <WireButton variant="primary" href={`${basePath}/records/new`}>상담 기록하기</WireButton>}
         </>,
       })}
     />

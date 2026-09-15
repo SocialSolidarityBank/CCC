@@ -20,7 +20,7 @@
 
 실행 조건은 `CCC_LLM_MODE=openai`, `TEXT_AI_PILOT_ENABLED=1`, 현재 유효한 동의 근거, 활성 공급자 설정, 적격 NER 증빙과 최근 폴링한 처리 Agent다. 실제 유료 호출은 기존 `EXTERNAL_AI_CALLS_ENABLED` 잠금도 통과해야 한다. 기억 prompt/schema가 설정 해시에 포함되므로 배포 후 공급자 설정 재확인이 필요할 수 있다.
 
-`MEMORY_MASKING_PIPELINES`에는 승인된 마스킹 버전과 해당 manifest SHA-256의 JSON 매핑을 배포한다. 값은 검증된 Agent 릴리스에서 가져오며 임의 hash나 테스트 증빙으로 채우지 않는다. 누락 또는 불일치 시 `masking_pipeline_version_mismatch`로 차단한다.
+`MEMORY_MASKING_PIPELINES`에는 canonical masking registry JSON을 배포한다. 활성 manifest 하나가 S6 정적 규칙, G7 상대 날짜 규칙, NER 모델과 revision, 라벨, health 증빙, 결과 스키마, 출력 version/hash를 모두 정한다. `maskingPipelineHash`는 자기 필드를 제외한 manifest의 JCS UTF-8 bytes SHA-256이다. 서버와 Agent가 같은 값을 읽으며 임의 hash, 별도 모델 설정, alias, wildcard를 허용하지 않는다. 누락, 불일치, 미지원 tuple은 `masking_pipeline_version_mismatch`로 차단한다.
 
 기억 마스킹은 `/pipeline/memory`의 claim, source, mask-dictionary, result, release 경로를 사용한다. 일반 회차 `/pipeline/jobs`와 섞지 않으며 회차가 없는 목표와 액션에 가짜 회차 ID를 만들지 않는다. 완료된 마스킹 증빙이 만료되면 같은 원본 revision을 다시 마스킹하고, 증빙 갱신 자체를 새로운 상담 사실로 세지 않는다. 안전한 과거 맥락이 없으면 현재 회차 초안에는 과거 기억을 붙이지 않는다.
 
@@ -108,7 +108,7 @@ pnpm --filter @ccc/api eval:memory --live --allow-external-ai
 | `EXTERNAL_AI_CALLS_ENABLED` | Workers 환경 변수 | `0` | 유료 외부 AI HTTPS 호출의 최종 스위치. 정확히 `1`일 때만 호출한다. 설정·키가 있어도 이 값이 없거나 `0`이면 fail closed한다. 합성 스모크와 Preview 점검은 별도 실호출 승인 없이는 켜지 않는다. |
 | `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0027). |
 | `CCC_LLM_MODE` | API 런타임 환경 변수 | (없음 = 기억 생성 중단) | 설치 LLM 축. 정확히 `openai`일 때만 자동 상담 기억의 새 처리를 허용한다. |
-| `MEMORY_MASKING_PIPELINES` | API 런타임 환경 변수(JSON 문자열) | (없음 = 차단) | 승인된 마스킹 버전을 canonical manifest SHA-256에 연결한다. 적격 Agent 릴리스의 실제 값만 사용한다. |
+| `MEMORY_MASKING_PIPELINES` | API와 Agent 런타임 환경 변수(JSON 문자열) | (없음 = 차단) | S6 정적 규칙, G7 상대 날짜 규칙, NER 모델과 revision, 라벨, health 증빙, 결과 스키마, 출력 version/hash를 묶은 canonical registry다. 활성 manifest는 자기 hash를 제외한 JCS SHA-256과 정확히 일치해야 한다. |
 | `PII_PURGE_ENABLED` | Workers 환경 변수 | (없음 = 닫힘) | 최종 관리자 승인 파기 스위치. 정확히 `1`일 때만 `decision=purge`가 실행된다. 미설정·`0`이어도 cron의 아카이브·재검토는 계속되며, 최종 파기 요청만 409 `purge_disabled`로 거절된다. |
 | `PUBLIC_SIGNUP_ENABLED` | Workers 환경 변수 (`apps/api`·`apps/web` 양쪽) | (없음) | 공개 가입 표면(CCC-112)의 스위치. 정확히 `1`일 때만 공개 초대 조회·가입 API 와 초대 발급, 웹 `/join`·`/join/*` 화면이 열린다. 없거나 `0`이면 404 로 fail closed. 미리보기 env 에만 `1`(코드 게이트 뒤 팀 검수용), 운영에는 두지 않는다. |
 
@@ -212,6 +212,19 @@ pnpm seed:apply:local
 ```
 
 `LOCAL_DEV_ACTOR_EMAIL`을 상담사 계정(예: ai00@ggbss.or.kr)으로 바꾸면 상담사 시점으로 볼 수 있다.
+
+시드가 들어간 로컬에서 업무 읽기 한 바퀴를 밟는 순서다(2026-09-16 실측). 각 화면이
+시드 당사자로 렌더되고 API 로그에 5xx 가 없으면 통과다.
+
+1. `/participants`: 당사자 목록에 시드 100명이 뜬다.
+2. `/participants/<id>`(예: `deer-001`): 당사자 정보·참여 사업·목표·동의 체크가 채워진다.
+3. `/participants/<id>/programs/<caseId>/records`: 회차별 기록과 수기 메모가 보인다.
+4. `/participants/<id>/programs/<caseId>/briefing`: 15초 페이지. 상담일·세부 목표·
+   확인된 리스크·회차별 정리가 시드 내용으로 렌더된다.
+
+`seed:generate:local` 은 100명 시나리오를 Miniflare D1 왕복으로 순차 실행해 실측
+약 5~6분이 걸린다. `scripts/seed/vitest.config.ts` 의 testTimeout 600초는 이 실측의
+약 1.6배 여유다.
 
 #### 원격(테일넷)에서 로컬 프리뷰 열기 (2026-09-07)
 
@@ -464,10 +477,39 @@ SQL만 만들고, 적용 대상은 여전히 `ccc-preview`로 고정한다.
 
 manifest 를 넣지 않는 이유는 넣을 값이 없기 때문이다. `mode` 는 `community-cloud`·`local-single`·`local-office` 셋뿐인데(`packages/contracts/src/runtime.ts`) 호스팅 프리뷰는 Cloudflare Workers + D1 이라 어디에도 해당하지 않는다. `community-cloud` 는 `assertModeFields` 가 Supabase 세 값과 project ref 일치를 요구하므로 가짜 값을 만들어야 하고, `local-office` 는 프리뷰를 기관 내부망 설치라고 선언하게 된다. manifest 생성 주체는 설치기(D83 `install`)이며 아직 없다. 배포용 생성기는 레포에 0건이고 있는 것은 테스트 헬퍼 `apps/api/test/support/install-manifest.ts` 하나다.
 
-엔진별 상태(`사용 가능`·`승인 전`·`설치에 없음`·`자격 없음`)를 실제로 보려면 로컬에서 설치 하나를 흉내 낸다. `unsignedManifest('local-office')` 값으로 서명해 `apps/api/.dev.vars` 에 두 변수를 넣고 API 를 다시 띄운다. 함정 둘:
+로컬에서 엔진별 상태(`사용 가능`·`승인 전`·`설치에 없음`·`자격 없음`)나 사업 도입 관문을 확인하려면 설치를 합성해야 한다. **5096f6b7 기준으로 동작하는 절차는 `community-cloud` manifest뿐이다.** 빈 로컬 D1이라면 레포 루트에서 먼저 다음 순서로 준비한다.
 
-- `local-office` 는 `apiBase` 와 `scheme` 이 **https** 여야 검증을 통과한다. `http://127.0.0.1` 로 만들면 503 이다.
-- 서명은 `crypto.subtle` Ed25519 + JCS 정규화라 TypeScript 경로에서만 돌아간다. `apps/web` vitest 로 헬퍼를 불러 만드는 것이 가장 짧다.
+```bash
+pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-local --local
+pnpm seed:generate:local
+pnpm seed:apply:local
+```
+
+`apps/api/.dev.vars`에 `PII_ENC_KEY`, `PII_KEY_VERSION`, `LOCAL_DEV_ACTOR_EMAIL`을 준비한 뒤 레포 루트에서 다음 명령을 실행한다. 이 명령은 기존 두 `CCC_INSTALL_*` 줄만 교체하며, 값과 개인키를 stdout에 출력하지 않는다.
+
+```bash
+bun - <<'EOF'
+import { createTestSigner, signedManifest } from './apps/api/test/support/install-manifest.ts';
+
+const signer = await createTestSigner('local-smoke');
+const manifest = await signedManifest(signer, 'community-cloud');
+const path = 'apps/api/.dev.vars';
+const file = Bun.file(path);
+const current = await file.exists() ? await file.text() : '';
+const lines = current.split('\n').filter((line) =>
+  line.length > 0
+  && !line.startsWith('CCC_INSTALL_MANIFEST=')
+  && !line.startsWith('CCC_INSTALL_SIGNING_KEYS=')
+);
+lines.push(`CCC_INSTALL_MANIFEST='${JSON.stringify(manifest)}'`);
+lines.push(`CCC_INSTALL_SIGNING_KEYS='${JSON.stringify(signer.publicKeys)}'`);
+await Bun.write(path, `${lines.join('\n')}\n`);
+EOF
+```
+
+개인키는 메모리에서만 쓰고 저장하거나 출력하지 않는다. 테스트 헬퍼의 Supabase 값은 합성 자료이므로 이 절차는 로컬 disposable D1에서만 쓴다. 미리보기와 운영 환경에는 넣지 않는다. `apps/api`에서 `pnpm exec wrangler dev --port 8876`으로 API를 다시 띄운 뒤 `GET /program-options`가 200이고 대상 사업의 `admissionState`가 `ready`인지 확인한다.
+
+`local-single`과 `local-office`는 D76에서 정식 지원 방향으로 결정됐지만, 아직 이 Worker 경로에는 구현되지 않았다. `packages/http-api/src/capabilities.ts`의 `verifiedInstallManifest`가 `community-cloud`가 아닌 manifest를 거부하고, `packages/http-api/src/request-handler.ts`도 Worker binding에 직접 들어온 두 local mode를 `service_unavailable`로 닫는다. 이는 D76을 취소한 것이 아니라 D79의 평문 SQLite 금지 등 선행 조건을 포함한 구현 대기 상태다. 따라서 local mode 거부를 풀어서 이 절차를 통과시키지 않는다.
 
 ### 미리보기에서 종단 경로 돌리기 (D57 · ADR-0027, 2026-07-31 실측)
 
@@ -512,12 +554,12 @@ pnpm exec wrangler d1 execute ccc-preview --env preview --remote --command \
 
 `yellow` 남는 것 하나: 이 기록은 **불일치 검출(D51 ④ 두 번째 호출)** 만 덮는다. 승인 대상 초안 생성(`generateAiDraft`)은 요청-응답이라 실패가 호출자에게 그대로 돌아가므로 같은 공백이 없다.
 
-`yellow` **인명 마스킹은 NER 모델이 있어야 동작한다** — 실측에서 `[전화번호]`·`[질환]` 은 정규식·사전 계층이 잡았지만 `아들 김철수` 는 그대로 남았다(`CCC_NER_MODEL_ID` 미설정으로 돌린 결과). ADR-0027 가 인용한 바로 그 사례다.
+`yellow` **인명 마스킹은 canonical manifest가 지정한 NER 모델이 있어야 동작한다.** 실측에서 `[전화번호]`와 `[질환]`은 정규식과 사전 계층이 잡았지만 `아들 김철수`는 그대로 남았다. 인명 NER 없이 돌린 ADR-0027 사례다.
 
 **그래서 2026-07-31 Q 결정으로 두 가지를 못 박았다**(구 동작은 "경고만 내고 통과"였다):
 
-1. **인명 NER 이 없으면 그 회차를 처리하지 않는다.** 스냅샷도 만들지 않고 일감도 완료하지 않아, 큐에 남아 다음 폴링에서 다시 잡힌다. 늦는 것(D8 SLA · 브리핑은 수기 메모 폴백 D5)이 새는 것보다 낫다.
-2. **모델과 라벨 접두를 한 쌍으로 설정하고**(`CCC_NER_MODEL_ID` + `CCC_NER_LABELS`), 모델을 불러올 때 그 모델이 **선언한 라벨 목록과 대조**한다. 안 맞으면 뜨지 않는다.
+1. **인명 NER이 없으면 그 회차를 처리하지 않는다.** 스냅샷도 만들지 않고 일감도 완료하지 않아, 큐에 남아 다음 폴링에서 다시 잡힌다. 늦는 것(D8 SLA, 브리핑은 수기 메모 폴백 D5)이 새는 것보다 낫다.
+2. **모델, revision, 라벨 접두, health 증빙을 같은 canonical manifest에 묶고**, 모델을 불러올 때 그 모델이 선언한 라벨 목록과 대조한다. 별도 환경 변수로 덮어쓸 수 없고, 안 맞으면 뜨지 않는다.
 
 `red` 2번이 필요한 이유: 라벨 체계는 모델마다 다르다(KLUE 계열 `PS`/`PER` vs PII 전용 모델 `NAME` 계열). 접두가 어긋나면 파이프라인은 **정상 동작하는데 치환만 0건**이 되고, 그 결과는 "이름이 없는 상담 기록"과 구분되지 않는다 — 경고조차 남지 않는다. 사람 눈 확인에 기대지 않고 기계가 대조한다.
 

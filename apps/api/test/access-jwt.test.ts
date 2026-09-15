@@ -435,10 +435,12 @@ describe('canonical-to-gateway migration boundary', () => {
     expect(() => gatewayActorFromIdentity({ ...actor, roles: ['technical-admin'] })).toThrow(ForbiddenError);
   });
 
-  it('preserves the current gateway role for institution admin, worker, supervisor and service', () => {
+  it('projects only administrator, practitioner and service identities onto business routes', () => {
     expect(gatewayActorFromIdentity({ ...actor, roles: ['institution-admin'] }).role).toBe('admin');
     expect(gatewayActorFromIdentity({ ...actor, roles: ['worker'] }).role).toBe('counselor');
-    expect(gatewayActorFromIdentity({ ...actor, roles: ['supervisor'] }).role).toBe('counselor');
+    expect(gatewayActorFromIdentity({ ...actor, roles: ['worker', 'supervisor'] }).role).toBe('counselor');
+    expect(() => gatewayActorFromIdentity({ ...actor, roles: ['supervisor'] })).toThrow(ForbiddenError);
+    expect(() => gatewayActorFromIdentity({ ...actor, roles: ['technical-admin', 'supervisor'] })).toThrow(ForbiddenError);
     expect(gatewayActorFromIdentity({ ...actor, kind: 'agent', roles: ['service'] }).role).toBe('service');
   });
 });

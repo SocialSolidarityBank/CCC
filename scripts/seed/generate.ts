@@ -30,6 +30,7 @@ if (SEED_TARGET !== 'local' && SEED_TARGET !== 'preview') {
   throw new Error('[seed] SEED_TARGET=local 또는 SEED_TARGET=preview 가 필요합니다.');
 }
 
+
 /**
  * 향후 7일 예정 일정 판정 하한(브리핑에 바로 뜨는 기준).
  *
@@ -47,21 +48,64 @@ interface EmittedRich extends EmittedStatement {
 }
 
 function tableOf(sql: string): string {
-  const match = sql.match(/^\s*(?:INSERT\s+INTO|UPDATE)\s+([A-Za-z_][A-Za-z0-9_]*)/i);
+  const match = sql.match(/^\s*(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+([A-Za-z_][A-Za-z0-9_]*)/i);
   return match ? match[1]! : 'unknown';
 }
 
-/** 캡처 로그 → 방출 문장(INSERT/UPDATE만, DELETE 는 hard-fail). */
+/**
+ * 캡처 로그 → 방출 문장(INSERT/UPDATE만).
+ *
+ * DELETE 는 두 갈래다.
+ *  - changes=0: 교체 관용구의 빈 집합 적용(예: createProgram 이 새 사업에 무조건 거는
+ *    DELETE FROM program_staff). 재생에서 생략해도 최종 상태가 같으므로 건너뛴다.
+ *  - `*_guards` 표의 같은 배치 INSERT↔DELETE 쌍: 게이트웨이의 CAS 가드 토큰 관용구
+ *    (programPolicyBatch 등이 배치 안에서 guard 행을 넣고 검사 뒤 지운다). 한 원자
+ *    배치 안에서 넣고 지운 행은 최종 상태에 남지 않으므로 INSERT 와 DELETE 를 함께
+ *    상쇄한다. 삭제된 행 수만큼 같은 배치의 INSERT 가 대응하지 못하면 실제 삭제로
+ *    보고 hard-fail 한다(캡처/필터 버그 신호).
+ */
+const GUARD_TABLE = /^[a-z_]+_guards$/;
+
 function emitStatements(writes: readonly WriteEntry[]): EmittedRich[] {
-  return writes.map((write) => {
-    const keyword = firstKeyword(write.sql);
-    if (keyword === 'DELETE') {
-      throw new Error('[seed] DELETE 문장이 캡처됨 — 방출 금지(캡처/필터 버그).');
+  // 같은 원자 배치 안의 guard INSERT↔DELETE 쌍을 먼저 상쇄한다.
+  const dropped = new Set<WriteEntry>();
+  const byBatch = new Map<number, WriteEntry[]>();
+  for (const write of writes) {
+    const group = byBatch.get(write.batchId) ?? [];
+    group.push(write);
+    byBatch.set(write.batchId, group);
+  }
+  for (const group of byBatch.values()) {
+    const inserts = group.filter((write) => firstKeyword(write.sql) === 'INSERT');
+    for (const write of group) {
+      if (firstKeyword(write.sql) !== 'DELETE' || write.changes === 0) continue;
+      const table = tableOf(write.sql);
+      if (!GUARD_TABLE.test(table)) {
+        throw new Error(`[seed] 실제 삭제 DELETE 문장이 캡처됨 — 방출 금지: ${write.sql.slice(0, 120)}`);
+      }
+      // DELETE 의 바인딩(id 목록)과 같은 배치 INSERT 의 첫 바인딩(id)을 대조한다.
+      const matched = inserts.filter(
+        (candidate) => !dropped.has(candidate)
+          && tableOf(candidate.sql) === table
+          && write.params.includes(candidate.params[0] ?? null),
+      );
+      if (matched.length < write.changes) {
+        throw new Error(`[seed] 배치 밖 행을 지우는 DELETE 가 캡처됨 — 방출 금지: ${write.sql.slice(0, 120)}`);
+      }
+      for (const candidate of matched.slice(0, write.changes)) dropped.add(candidate);
+      dropped.add(write);
     }
+  }
+
+  const emitted: EmittedRich[] = [];
+  for (const write of writes) {
+    if (dropped.has(write)) continue;
+    const keyword = firstKeyword(write.sql);
+    if (keyword === 'DELETE') continue; // 여기까지 오면 changes=0 이다.
     if (keyword !== 'INSERT' && keyword !== 'UPDATE') {
       throw new Error(`[seed] 예상치 못한 쓰기 키워드: ${keyword}`);
     }
-    return {
+    emitted.push({
       inlinedSql: inlineSql(write.sql, write.params),
       batchId: write.batchId,
       participantId: write.participantId,
@@ -69,8 +113,9 @@ function emitStatements(writes: readonly WriteEntry[]): EmittedRich[] {
       keyword,
       table: tableOf(write.sql),
       params: write.params,
-    };
-  });
+    });
+  }
+  return emitted;
 }
 
 /**
@@ -122,6 +167,7 @@ SELECT 'preview_preload_only', CASE WHEN
          AND id IN (${PREVIEW_BENEFICIARY_STUBS.map((id) => `'${id}'`).join(', ')})) = ${PREVIEW_BENEFICIARY_STUBS.length}
   AND (SELECT COUNT(*) FROM support_cases) = 0
   AND (SELECT COUNT(*) FROM participant_consent_records) = 0
+  AND (SELECT COUNT(*) FROM consent_events) = 0
   AND (SELECT COUNT(*) FROM audit_log) = 0
 THEN 1 ELSE 0 END;`,
     'DROP TABLE ccc_preview_seed_target_assertions;',
@@ -204,14 +250,14 @@ function buildVerifySql(emitted: readonly EmittedRich[], sessionCount: number): 
   const confirmedFlags = emitted.filter((entry) => entry.keyword === 'INSERT' && entry.table === 'flags').length;
   return [
     '-- 미리보기 시드 적용 후 대조 쿼리.',
-    `-- 기대: 참여자 ${PARTICIPANTS.length}, 세션 ${sessionCount}, 동의 ${PARTICIPANTS.length}, vault ${PARTICIPANTS.length}, confirmed 플래그 ${confirmedFlags}`,
+    `-- 기대: 참여자 ${PARTICIPANTS.length}, 세션 ${sessionCount}, 동의 이벤트 ${PARTICIPANTS.length * 6}, vault ${PARTICIPANTS.length}, confirmed 플래그 ${confirmedFlags}`,
     `-- audit_log 기대 총합: ${expectedAudit}`,
     '',
     `SELECT 'beneficiaries_slug_complete' AS check_name, COUNT(*) AS value`,
     `  FROM beneficiaries WHERE org_id = '${ORG_ID}' AND id GLOB '*-*' AND initialization_state = 'complete';`,
     `SELECT 'support_cases_active', COUNT(*) FROM support_cases WHERE org_id = '${ORG_ID}' AND status = 'active';`,
     `SELECT 'sessions_total', COUNT(*) FROM sessions WHERE org_id = '${ORG_ID}';`,
-    `SELECT 'consent_records', COUNT(*) FROM participant_consent_records WHERE org_id = '${ORG_ID}';`,
+    `SELECT 'consent_events', COUNT(*) FROM consent_events WHERE org_id = '${ORG_ID}';`,
     `SELECT 'vault_key_version_2', COUNT(*) FROM participant_pii_vault WHERE org_id = '${ORG_ID}' AND key_version = 2;`,
     `SELECT 'flags_confirmed', COUNT(*) FROM flags WHERE org_id = '${ORG_ID}' AND review_status = 'confirmed';`,
     `SELECT 'upcoming_schedules', COUNT(*) FROM counseling_schedules`,
@@ -381,7 +427,6 @@ describe('preview seed generation', () => {
   it('captures the gateway scenario, serializes seed.sql, and replays it into a fresh DB', async () => {
     const piiKey = requireEnv('PII_ENC_KEY');
     assertPiiKeyMaterial(piiKey);
-
     const harness = await createCaptureHarness();
     let summarySessions = 0;
     let seedSql = '';
@@ -406,7 +451,7 @@ describe('preview seed generation', () => {
         emitted: emitted.map((entry) => ({ inlinedSql: entry.inlinedSql, batchId: entry.batchId })),
         piiKey,
       });
-      expect(report.consentRecords).toBe(PARTICIPANTS.length);
+      expect(report.consentRecords).toBe(PARTICIPANTS.length * 6);
       expect(report.vaultRows).toBe(PARTICIPANTS.length);
       expect(report.activeGoalsMaxPerCase).toBeLessThanOrEqual(3);
       expect(report.decryptedParticipants).toBe(PARTICIPANTS.length);

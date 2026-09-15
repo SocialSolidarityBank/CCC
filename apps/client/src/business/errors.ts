@@ -26,6 +26,13 @@ const messages = {
   emergency_reason_required: '긴급 등록을 고르면 사유를 적어야 합니다.',
   privacy_consent_required: '개인정보 수집과 이용 동의가 없어 등록할 수 없습니다. 동의를 아직 받지 못했으면 긴급 등록 사유를 적어 주세요.',
   unavailable: '서버에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요. 저장 요청이었다면 최신 상태를 먼저 확인해 주세요.',
+  not_found: '요청한 자료를 찾을 수 없습니다. 이전 화면으로 돌아가 다시 선택해 주세요.',
+  consent_not_effective: '현재 동의 상태로는 외부 AI 처리를 진행할 수 없습니다. 당사자 정보에서 동의를 확인하고 수기 기록을 이용해 주세요.',
+  engine_unavailable: '전사 처리 장비가 아직 준비되지 않아 녹음을 받을 수 없습니다. 수기 기록으로 남겨 주세요.',
+  text_ai_pilot_disabled: '이 기관에서는 텍스트 AI 처리가 꺼져 있습니다. 수기 기록은 계속 이용할 수 있습니다.',
+  ai_provider_not_configured: 'AI 처리 설정이 준비되지 않았습니다. 관리자에게 설정 확인을 요청하고 수기 기록을 이용해 주세요.',
+  ai_prohibited_output: 'AI가 만든 결과가 허용 기준을 통과하지 못했습니다. 직접 쓴 공식 기록은 그대로 유지됩니다.',
+  ai_provider_unavailable: 'AI 처리 기능을 일시적으로 사용할 수 없습니다. 수기 기록은 계속 이용할 수 있습니다.',
   invalid_credentials: '이메일 또는 비밀번호를 확인해 주세요.',
   email_not_confirmed: '이메일 확인이 필요합니다. 받은 초대나 확인 메일을 확인해 주세요.',
   password_mismatch: '비밀번호와 확인 값이 다릅니다. 두 칸에 같은 비밀번호를 입력해 주세요.',
@@ -53,6 +60,7 @@ export function safeError(error: unknown): BusinessError {
 
 export function httpError(status: number, value: unknown): BusinessError {
   if (status === 401) return new BusinessError('unauthenticated', status);
+  if (status === 404) return new BusinessError('not_found', status);
   if (status === 403) {
     const code = typeof value === 'object' && value !== null && 'error' in value ? value.error : undefined;
     if (code === 'mfa_required') return new BusinessError('mfa_required', status);
@@ -63,6 +71,9 @@ export function httpError(status: number, value: unknown): BusinessError {
     const code = typeof value === 'object' && value !== null && 'error' in value ? value.error : undefined;
     if (code === 'purge_disabled') return new BusinessError('purge_disabled', status);
     if (code === 'program_admission_required') return new BusinessError('program_admission_required', status);
+    if (code === 'consent_not_effective' || code === 'text_ai_pilot_disabled' || code === 'ai_provider_not_configured') {
+      return new BusinessError(code, status);
+    }
     // 동의 계약 위반은 낙관 잠금 충돌이 아니다. 같은 409 라도 사람이 할 일이 다르다.
     if (code === 'provider_scope_mismatch' || code === 'consent_disclosure_mismatch') {
       return new BusinessError('consent_scope_mismatch', status);
@@ -78,10 +89,14 @@ export function httpError(status: number, value: unknown): BusinessError {
   if (status === 429) return new BusinessError('rate_limited', status);
   if (status === 422 || status === 400) {
     const code = typeof value === 'object' && value !== null && 'error' in value ? value.error : undefined;
+    if (status === 422 && code === 'ai_prohibited_output') return new BusinessError('ai_prohibited_output', status);
+    if (status === 422 && code === 'engine_unavailable') return new BusinessError('engine_unavailable', status);
     if (code === 'privacy_consent_required') return new BusinessError('privacy_consent_required', status);
     if (code === 'emergency_reason_required') return new BusinessError('emergency_reason_required', status);
     return new BusinessError('invalid_request', status);
   }
+  if (status === 503 && typeof value === 'object' && value !== null && 'error' in value
+    && value.error === 'ai_provider_unavailable') return new BusinessError('ai_provider_unavailable', status);
   return new BusinessError('unavailable', status);
 }
 

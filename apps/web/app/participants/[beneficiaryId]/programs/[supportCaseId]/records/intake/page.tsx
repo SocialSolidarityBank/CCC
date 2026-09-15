@@ -1,5 +1,8 @@
+import {
+  WireButton,
+} from '@ccc/wire';
+import type { CurrentConsentState } from '@ccc/contracts/consent';
 import { PageError } from '../../../../../../components/wire/page-error';
-import { WireButton } from '../../../../../../components/wire/wire-button';
 import { ApiError, getIntakeRecordContext, getMyIdentity, type IntakeRecordContext } from '../../../../../../lib/api';
 import { createIntakeRecordAction, updateIntakeRecordAction } from '../../../../../../actions';
 import { IntakeReadView } from './intake-read-view';
@@ -17,6 +20,10 @@ const messages: Record<LoadError, string> = {
 
 function safeId(value: string): string | null {
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value) ? value : null;
+}
+
+function consentStates(value: unknown): CurrentConsentState[] {
+  return Array.isArray(value) ? value as CurrentConsentState[] : [];
 }
 
 async function load(supportCaseId: string): Promise<{ data: IntakeRecordContext; error: null } | { data: null; error: LoadError }> {
@@ -77,8 +84,8 @@ export default async function NewIntakePage({
   if (context.error !== null) {
     return (
       <PageError
-        title="인테이크"
-        action={<WireButton variant="secondary" href={recordsHref}>상담 기록 확인</WireButton>}
+        title="인테이크 기록"
+        action={<WireButton variant="secondary" href={recordsHref}>상담 기록 확인하기</WireButton>}
       >
         {messages[context.error]}
       </PageError>
@@ -91,17 +98,18 @@ export default async function NewIntakePage({
   if (context.data.hasIntake && context.data.saved !== null) {
     const saved = context.data.saved;
     const intakeHref = `${programPath}/records/intake`;
-    if (query.edit !== '1') {
+    if (query.edit !== '1' || !context.data.canWrite) {
       return (
         <IntakeReadView
           beneficiaryId={beneficiaryId}
           participant={context.data.participant}
-          consent={context.data.consent}
+          consent={consentStates(context.data.consent)}
           saved={saved}
           overallGoal={context.data.overallGoal}
           editHref={`${intakeHref}?edit=1`}
           recordsHref={recordsHref}
           participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
+          canWrite={context.data.canWrite}
         />
       );
     }
@@ -110,10 +118,12 @@ export default async function NewIntakePage({
         mode="edit"
         beneficiaryId={beneficiaryId}
         supportCaseId={supportCaseId}
+        writeSchemaVersion={context.data.writeSchemaVersion}
+        moduleSnapshot={context.data.moduleSnapshot}
         submissionId={crypto.randomUUID()}
         participant={context.data.participant}
         extendedPii={context.data.extendedPii}
-        consent={context.data.consent}
+        consent={consentStates(context.data.consent)}
         participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
         basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
         sessionSequence={context.data.sessionSequence}
@@ -129,9 +139,23 @@ export default async function NewIntakePage({
           linkedOrgs: saved.linkedOrgs,
           additionalItems: saved.additionalItems,
           managerOpinion: saved.managerOpinion,
+          ...(saved.schemaVersion === undefined ? {} : { schemaVersion: saved.schemaVersion }),
+          ...(saved.revision === undefined ? {} : { revision: saved.revision }),
+          ...(saved.questionLifecycle === undefined ? {} : { questionLifecycle: saved.questionLifecycle }),
         }}
         submit={updateIntakeRecordAction}
       />
+    );
+  }
+
+  if (!context.data.canWrite) {
+    return (
+      <PageError
+        title="인테이크 기록"
+        action={<WireButton variant="secondary" href={recordsHref}>상담 기록 확인하기</WireButton>}
+      >
+        지금은 읽기만 할 수 있어요. 새 인테이크 기록을 작성할 수 없습니다.
+      </PageError>
     );
   }
 
@@ -140,9 +164,11 @@ export default async function NewIntakePage({
       beneficiaryId={beneficiaryId}
       supportCaseId={supportCaseId}
       submissionId={crypto.randomUUID()}
+      writeSchemaVersion={context.data.writeSchemaVersion}
+      moduleSnapshot={context.data.moduleSnapshot}
       participant={context.data.participant}
       extendedPii={context.data.extendedPii}
-      consent={context.data.consent}
+      consent={consentStates(context.data.consent)}
       participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
       basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
       sessionSequence={context.data.sessionSequence}

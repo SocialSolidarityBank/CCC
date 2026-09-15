@@ -11,15 +11,17 @@
 //     하지 않는다 — 저장마다 감사 기록이 남는 구조이고 D62 잠금 경계가 모호해진다(Q 확정).
 //  3. 목표 한 묶음 = 전폭 접이식 카드(WireCardDetails) 하나. 본문은 2열(왼쪽 연결 select +
 //     추가/삭제, 오른쪽 목표 문장), 기본 전부 펼침. 구 .wizard-row 720 제한은 쓰지 않는다.
+import {
+  Icon,
+  PageTitle,
+  WireBadge,
+  WireButton,
+  WireCallout,
+  WireCardDetails,
+  WireFormField,
+} from '@ccc/wire';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DraftRestorePrompt, DraftRetentionNote, DraftStatus } from '../../../components/draft/draft-notice';
-import { PageTitle } from '../../../components/wire/page-title';
-import { WireBadge } from '../../../components/wire/wire-badge';
-import { WireButton } from '../../../components/wire/wire-button';
-import { Icon } from '../../../components/wire/wire-icon';
-import { WireCallout } from '../../../components/wire/wire-callout';
-import { WireCardDetails } from '../../../components/wire/wire-card';
-import { WireFormField } from '../../../components/wire/wire-form-field';
 import { WireRepeatActions } from '../../../components/wire/wire-repeat-actions';
 import { draftKey, readDraft, type FieldValues } from '../../../lib/form-draft';
 import { useDomDraft } from '../../../lib/use-dom-draft';
@@ -192,7 +194,7 @@ export function SessionPlanEditor({
       {/* 카드 밖 페이지 제목 줄 + 저장(기본정보 수정 화면과 같은 문법). 자동 저장 상태는
           별도 임시 저장 버튼이 없으므로 저장 옆에 상시 보여준다(상담 기록지와 같은 이유). */}
       <div className="page-header">
-        <PageTitle>세션 목표 수정</PageTitle>
+        <PageTitle>상담 계획</PageTitle>
         <div className="page-actions">
           <DraftStatus savedAt={draft.savedAt} available={draft.available} />
           <WireButton type="submit" variant="primary" form="session-plan-form" disabled={busy} icon={<Icon name="check" />}>저장</WireButton>

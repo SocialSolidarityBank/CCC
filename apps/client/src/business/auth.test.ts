@@ -1,12 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CloudAuth, type AuthSnapshot } from './auth';
 import { installation, json } from './test-support';
+import { createClient } from '@supabase/supabase-js';
+import type * as SupabaseSdk from '@supabase/supabase-js';
+
+vi.mock('@supabase/supabase-js', async (original) => {
+  const sdk = await original<typeof SupabaseSdk>();
+  return { ...sdk, createClient: vi.fn(sdk.createClient) };
+});
 
 const sessions = new Set<CloudAuth>();
 afterEach(async () => {
   for (const auth of sessions) await auth.signOut();
   sessions.clear();
   vi.useRealTimers();
+  vi.clearAllMocks();
 });
 
 async function waitForPhase(auth: CloudAuth, phase: AuthSnapshot['phase']): Promise<void> {
@@ -21,7 +29,7 @@ async function waitForPhase(auth: CloudAuth, phase: AuthSnapshot['phase']): Prom
 }
 
 // 실제 SDK와 메모리 세션을 사용하고 네트워크 경계만 합성 Auth 서버로 바꾼다.
-async function authServer(options: { enrolled?: boolean; revokeFails?: boolean; confirmEmail?: boolean } = {}) {
+async function authServer(options: { enrolled?: boolean; revokeFails?: boolean } = {}) {
   const verified = await installation();
   const requests: Request[] = [];
   let enrolled = options.enrolled ?? true;
@@ -50,14 +58,6 @@ async function authServer(options: { enrolled?: boolean; revokeFails?: boolean; 
     requests.push(request);
     const url = new URL(request.url);
     if (url.pathname === '/auth/v1/token') return json(session());
-    if (url.pathname === '/auth/v1/signup') {
-      const body: unknown = await request.clone().json();
-      if (typeof body === 'object' && body !== null && 'password' in body && String(body.password).length < 8) {
-        return json({ code: 'weak_password', error_code: 'weak_password', msg: 'provider-private-detail' }, 422);
-      }
-      // 이메일 확인이 켜진 프로젝트의 응답에는 access_token 이 없다(SDK는 세션 없음으로 읽는다).
-      return json(options.confirmEmail ? user() : session());
-    }
     if (url.pathname === '/auth/v1/user') return json(user());
     if (url.pathname === '/auth/v1/factors' && request.method === 'POST') {
       pendingEnrollment = true;
@@ -193,33 +193,176 @@ describe('first TOTP enrollment completion', () => {
   });
 });
 
-describe('초대 수락 뒤 첫 계정 생성', () => {
-  it('같은 설치 클라이언트로 계정을 만들고 연결용 접근 토큰만 돌려준다', async () => {
-    const { auth, requests } = await authServer({ enrolled: false });
-    const { accessToken } = await auth.signUpWithPassword('invited@example.invalid', 'synthetic-passphrase');
-    expect(accessToken).not.toBeNull();
-    const signup = requests.filter((request) => new URL(request.url).pathname === '/auth/v1/signup');
-    expect(signup.length).toBe(1);
-    expect(await signup[0]?.clone().json()).toMatchObject({ email: 'invited@example.invalid', password: 'synthetic-passphrase' });
-    // 비밀번호는 가입 요청 본문에만 실린다. 나머지 경계에는 남지 않는다.
-    for (const request of requests.filter((candidate) => candidate !== signup[0])) {
-      expect(await request.clone().text()).not.toContain('synthetic-passphrase');
+
+async function manualHarness(search = '', hash = '', capture = true) {
+  // Bootstrap lifetime is per document; static imports cannot isolate its one-shot state.
+  vi.resetModules();
+  const boundary = await import('./auth');
+  const support = await import('./test-support');
+  const verified = await support.installation();
+  const location = { pathname: '/auth/invite', search, hash };
+  const history = { state: { idx: 2 }, replaceState: vi.fn(() => { location.search = ''; location.hash = ''; }) };
+  if (capture) boundary.captureInviteUrlBeforeRender(location, history);
+  const requests: Request[] = [];
+  const email = 'otp-person@example.invalid', password = 'Synthetic-Password-Only', code = '739162';
+  const user = { id: 'validated-provider-subject', email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, factors: [], created_at: '2026-01-01T00:00:00Z' };
+  const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const token = encode({ alg: 'HS256' }) + '.' + encode({ aal: 'aal1', amr: [], exp: Math.floor(Date.now()/1000)+3600 }) + '.c3ludGhldGlj';
+  const session = { access_token: token, refresh_token: 'otp-refresh-private', token_type: 'bearer', expires_in: 3600, user };
+  const control = { verifyStatus: 200, updateStatus: 200, logoutStatus: 204, tokenStatus: 200,
+    code: 'private-provider-code', network: '', malformed: '', gate: null as Promise<void> | null,
+    tokenGate: null as Promise<void> | null };
+  const auth = new boundary.CloudAuth(verified, async (input, init) => {
+    const request = new Request(input, init); requests.push(request);
+    const path = new URL(request.url).pathname;
+    if (control.network === path) throw new Error('private-provider-message');
+    const fail = (status: number) => json({ code: control.code, message: 'private-provider-message' }, status);
+    if (path === '/auth/v1/verify') {
+      await control.gate;
+      if (control.verifyStatus !== 200) return fail(control.verifyStatus);
+      if (control.malformed === 'session') return json({ user });
+      if (control.malformed === 'subject') return json({ ...session, user: { ...user, id: '' } });
+      if (control.malformed === 'email') return json({ ...session, user: { ...user, email: 'other@example.invalid' } });
+      return json(session);
     }
-    expect(JSON.stringify(auth.getSnapshot())).not.toContain('synthetic-passphrase');
-    expect(JSON.stringify(auth.getSnapshot())).not.toContain(accessToken);
+    if (path === '/auth/v1/user' && request.method === 'PUT') {
+      if (control.updateStatus !== 200) return fail(control.updateStatus);
+      return json(control.malformed === 'update' ? { ...user, id: 'another-subject' } : user);
+    }
+    if (path === '/auth/v1/token') {
+      await control.tokenGate;
+      return control.tokenStatus === 200 ? json(session) : fail(control.tokenStatus);
+    }
+    if (path === '/auth/v1/user') return json(user);
+    if (path.endsWith('/logout')) return control.logoutStatus === 204 ? new Response(null,{status:204}) : fail(control.logoutStatus);
+    return fail(404);
   });
+  sessions.add(auth);
+  const complete = () => auth.completeFirstAdminInvite(email,code,password);
+  const paths = () => requests.map(request => request.method+' '+new URL(request.url).pathname);
+  return { auth,boundary,control,complete,paths,requests,location,history,email,password,code,token };
+}
 
-  it('이메일 확인이 필요한 프로젝트에서는 연결할 토큰이 없다고 알린다', async () => {
-    const { auth } = await authServer({ enrolled: false, confirmEmail: true });
-    await expect(auth.signUpWithPassword('invited@example.invalid', 'synthetic-passphrase'))
-      .resolves.toEqual({ accessToken: null });
+describe('manual invitation OTP boundary', () => {
+  it('classifies clean startup without creating Auth and never replaces its first classification', async () => {
+    const h=await manualHarness();
+    expect(h.boundary.firstAdminInviteBootstrap()).toBe('entry');
+    expect(h.requests).toHaveLength(0);
+    expect(vi.mocked(createClient)).not.toHaveBeenCalled();
+    h.boundary.captureInviteUrlBeforeRender({pathname:'/auth/invite',search:'?x=synthetic',hash:''},h.history);
+    expect(h.boundary.firstAdminInviteBootstrap()).toBe('entry');
   });
+  it.each([['?x=synthetic',''],['','#synthetic'],['?x=synthetic','#synthetic']])('rejects dirty startup without Auth (%s %s)',async(search,hash)=>{
+    const h=await manualHarness(search,hash);
+    expect(h.location).toEqual({pathname:'/auth/invite',search:'',hash:''});
+    expect(h.history.replaceState).toHaveBeenCalledWith(h.history.state,'','/auth/invite');
+    expect(await h.complete()).toEqual({status:'failure',code:'invite_invalid',retry:'none'});
+    expect(h.requests).toHaveLength(0);
+  });
+  it('rejects unseen startup and leaves participant fragments and legacy classification separate',async()=>{
+    const h=await manualHarness('','',false);
+    expect(h.boundary.firstAdminInviteBootstrap()).toBe('invite_invalid');
+    const location={pathname:'/join',search:'',hash:'#t=synthetic'};
+    h.boundary.captureInviteUrlBeforeRender(location,h.history);
+    expect(location.hash).toBe('#t=synthetic'); expect(h.history.replaceState).not.toHaveBeenCalled();
+    h.boundary.captureInviteUrlBeforeRender({pathname:'/staff/join',search:'',hash:'#synthetic'},h.history);
+    expect(h.boundary.firstAdminInviteBootstrap()).toBe('invite_invalid');
+    expect(await h.complete()).toMatchObject({retry:'none'}); expect(h.requests).toHaveLength(0);
+  });
+  it('throws a fixed bootstrap failure if dirty history cannot be replaced',async()=>{
+    const h=await manualHarness('','',false);
+    expect(()=>h.boundary.captureInviteUrlBeforeRender({pathname:'/auth/invite',search:'?x=synthetic',hash:''},{state:null,replaceState(){throw new Error('private-provider-message');}})).toThrow('invite_bootstrap_invalid');
+    expect(h.boundary.firstAdminInviteBootstrap()).toBe('invite_invalid');
+  });
+  it('verifies once, updates once and disposes without opening business access',async()=>{
+    const h=await manualHarness(); const phases:string[]=[];
+    h.auth.subscribe(()=>phases.push(h.auth.getSnapshot().phase));
+    const first=h.complete(),second=h.complete(); expect(first).toBe(second);
+    expect(h.auth.getToken()).toBeNull();
+    expect(await first).toEqual({status:'complete'});
+    expect(h.paths()).toEqual(['POST /auth/v1/verify','PUT /auth/v1/user','POST /auth/v1/logout']);
+    expect(await h.requests[0]!.clone().json()).toEqual({email:h.email,token:h.code,type:'invite',gotrue_meta_security:{}});
+    expect(await h.requests[1]!.clone().json()).toMatchObject({password:h.password});
+    expect(phases.includes('ready')).toBe(false); expect(h.auth.getToken()).toBeNull();
+    expect(vi.mocked(createClient).mock.calls).toHaveLength(1);
+    expect(vi.mocked(createClient).mock.calls[0]![2]!.auth).toMatchObject({persistSession:false,detectSessionInUrl:false});
+    for(const value of [h.email,h.code,h.password,h.token,'otp-refresh-private','validated-provider-subject','private-provider-message']) expect(JSON.stringify(h.auth).includes(value)).toBe(false);
+  });
+  it('preserves any ordinary current session without verification or logout',async()=>{
+    const h=await manualHarness();await h.auth.signIn('ordinary@example.invalid','ordinary-password');await waitForPhase(h.auth,'ready');
+    const count=h.requests.length;
+    expect(await h.complete()).toEqual({status:'failure',code:'invite_session_conflict',retry:'none'});
+    await h.auth.cancelFirstAdminInvite(); expect(h.auth.getToken()!==null).toBe(true); expect(h.requests).toHaveLength(count);
+  });
+  it('preserves a pending ordinary sign-in without verification or logout',async()=>{
+    const h=await manualHarness(),gate=Promise.withResolvers<void>();h.control.tokenGate=gate.promise;
+    const signIn=h.auth.signIn('ordinary@example.invalid','ordinary-password');
+    await vi.waitFor(()=>expect(h.paths()).toContain('POST /auth/v1/token'));const count=h.requests.length;
+    expect(await h.complete()).toEqual({status:'failure',code:'invite_session_conflict',retry:'none'});
+    expect(h.requests).toHaveLength(count);
+    gate.resolve();await signIn;await waitForPhase(h.auth,'ready');expect(h.auth.getToken()).not.toBeNull();
+  });
+  it('maps a failed pre-OTP session check to an empty provider retry',async()=>{
+    const h=await manualHarness();h.control.tokenStatus=400;
+    await h.auth.signIn('ordinary@example.invalid','ordinary-password');
+    const sdk=vi.mocked(createClient).mock.results.at(-1)?.value;
+    expect(sdk).toBeDefined();
+    vi.spyOn(sdk!.auth,'getSession').mockResolvedValue({
+      data:{session:null},error:Object.assign(new Error('private-provider-message'),{status:400,code:'otp_expired'}),
+    } as never);
+    const count=h.requests.length;
+    expect(await h.complete()).toEqual({status:'failure',code:'provider_unavailable',retry:'entry'});
+    expect(h.requests).toHaveLength(count);
+  });
+  it.each([400,429,503])('returns full entry retry for unconfirmed verify status %i',async(status)=>{
+    const h=await manualHarness();h.control.verifyStatus=status;
+    expect(await h.complete()).toEqual({status:'failure',code:status===400?'invite_invalid':'provider_unavailable',retry:'entry'});
+    expect(h.paths()).toEqual(['POST /auth/v1/verify']);
+    h.control.verifyStatus=200;expect(await h.complete()).toEqual({status:'complete'});
+  });
+  it.each(['otp_expired','invite_not_found','session_expired'])('treats %s as terminal at both provider stages',async(code)=>{
+    const h=await manualHarness();h.control.code=code;h.control.verifyStatus=401;
+    expect(await h.complete()).toEqual({status:'failure',code:'invite_expired',retry:'none'});
+    const other=await manualHarness();other.control.code=code;other.control.updateStatus=401;
+    expect(await other.complete()).toEqual({status:'failure',code:'invite_expired',retry:'none'});
+    expect(other.auth.getToken()).toBeNull();
+  });
+  it.each(['session','subject','email','update'])('disposes malformed %s success without a retry',async(malformed)=>{
+    const h=await manualHarness();h.control.malformed=malformed;
+    expect(await h.complete()).toEqual({status:'failure',code:'provider_unavailable',retry:'none'});
+    expect(await h.auth.retryFirstAdminPassword('new-password')).toMatchObject({retry:'none'});
+    if(malformed!=='update')expect(h.paths().includes('PUT /auth/v1/user')).toBe(false);
+  });
+  it.each([422,429,503])('retains only the verified session for password retry at %i',async(status)=>{
+    const h=await manualHarness();h.control.updateStatus=status;
+    expect(await h.complete()).toEqual({status:'failure',code:status===422?'password_rejected':'provider_unavailable',retry:'password'});
+    h.control.updateStatus=200;
+    const a=h.auth.retryFirstAdminPassword('fresh-password'),b=h.auth.retryFirstAdminPassword('another-password');expect(a).toBe(b);
+    expect(await a).toEqual({status:'complete'});
+    expect(h.paths().filter(path=>path==='POST /auth/v1/verify')).toHaveLength(1);
+  });
+  it('handles network loss by stage and makes local signout failure complete',async()=>{
+    const h=await manualHarness();h.control.network='/auth/v1/verify';expect(await h.complete()).toMatchObject({code:'provider_unavailable',retry:'entry'});
+    h.control.network='/auth/v1/user';expect(await h.complete()).toMatchObject({code:'provider_unavailable',retry:'password'});
+    h.control.network='';h.control.logoutStatus=503;
+    expect(await h.auth.retryFirstAdminPassword('fresh-password')).toEqual({status:'complete'});
+    expect(h.auth.getSnapshot()).toMatchObject({phase:'signed-out',error:null});
+  });
+  it('cancels an in-flight verification without starting password update or double disposal',async()=>{
+    const h=await manualHarness(),gate=Promise.withResolvers<void>();h.control.gate=gate.promise;
+    const completion=h.complete();await vi.waitFor(()=>expect(h.paths()).toContain('POST /auth/v1/verify'));
+    const cancel=h.auth.cancelFirstAdminInvite();gate.resolve();await completion;await cancel;await h.auth.cancelFirstAdminInvite();
+    expect(h.paths().includes('PUT /auth/v1/user')).toBe(false);expect(h.auth.getToken()).toBeNull();
+    expect(h.paths().filter(path=>path==='POST /auth/v1/logout').length).toBeLessThanOrEqual(1);
+  });
+});
 
-  it('공급자 거절은 고정된 인증 오류로 바꿔 올린다', async () => {
-    const { auth } = await authServer({ enrolled: false });
-    const failure = await auth.signUpWithPassword('invited@example.invalid', 'short').catch((cause: unknown) => cause);
-    expect(failure).toMatchObject({ code: 'auth_failed', status: 422 });
-    expect(JSON.stringify(failure)).not.toContain('provider-private-detail');
-    expect((failure as Error).message).not.toContain('provider-private-detail');
-  });
+it('restores an ordinary sign-in inspection interrupted by an invitation submit', async () => {
+  const h = await manualHarness();
+  await h.auth.signIn('ordinary@example.invalid', 'ordinary-password');
+  expect(await h.complete()).toMatchObject({ code: 'invite_session_conflict', retry: 'none' });
+  await vi.waitFor(() => expect(h.auth.getSnapshot().phase).toBe('ready'));
+  await h.auth.cancelFirstAdminInvite();
+  expect(h.auth.getToken()).not.toBeNull();
+  expect(h.paths().includes('POST /auth/v1/verify')).toBe(false);
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ForbiddenError,
   assertSupportCaseAccess,
+  assignCase,
   createActionItem,
   createBeneficiaryWithInitialSupportCase,
   createCounselingSchedule,
@@ -196,7 +197,34 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     })).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it('allows a supervisor to read a case assigned to an active team member', async () => {
+  it('allows an administrator to receive case work only after an explicit practitioner grant and assignment', async () => {
+    await t.reset();
+
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
+      programId: testProgramId(counselor.orgId),
+    }));
+    const before = await t.db.prepare(
+      `SELECT COUNT(*) AS count FROM user_role_assignments
+       WHERE org_id = ? AND user_id = ? AND role = 'practitioner' AND revoked_at IS NULL`,
+    ).bind(admin.orgId, admin.userId).first<{ count: number }>();
+    expect(before).toEqual({ count: 0 });
+
+    await t.db.prepare(
+      `INSERT INTO user_role_assignments (id, org_id, user_id, role, source, granted_by)
+       VALUES (?, ?, ?, 'practitioner', 'manual', ?)`,
+    ).bind('release-admin-practitioner', admin.orgId, admin.userId, admin.userId).run();
+    await assignCase(t.env, admin, created.supportCaseId, admin.userId, 'secondary');
+
+    await expect(createActionItem(t.env, admin, created.supportCaseId, {
+      description: '관리자에게 명시적으로 배정된 상담 업무',
+      owner: 'counselor',
+    })).resolves.toMatchObject({
+      caseId: created.supportCaseId,
+      description: '관리자에게 명시적으로 배정된 상담 업무',
+    });
+  });
+
+  it('keeps team supervision records without granting effective API access', async () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, await registrationInput(t.env, counselor, {
@@ -223,35 +251,18 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     ]);
 
     await expect(assertSupportCaseAccess(t.env, unassignedCounselor, created.supportCaseId))
-      .resolves.toMatchObject({ id: created.supportCaseId });
-
-    await updateParticipantPii(t.env, admin, created.beneficiaryId, {
-      supportCaseContextId: created.supportCaseId,
-      expectedVersion: 1,
-      name: 'SUPERVISED_NAME',
-      phone: 'SUPERVISED_PHONE',
-      account: 'SUPERVISED_ACCOUNT',
-    });
+      .rejects.toBeInstanceOf(ForbiddenError);
     await expect(getParticipantBasicInfo(
       t.env,
       unassignedCounselor,
       created.beneficiaryId,
-    )).resolves.toMatchObject({
-      name: 'SUPERVISED_NAME',
-      phone: 'SUPERVISED_PHONE',
-      account: 'SUPERVISED_ACCOUNT',
-    });
+    )).rejects.toBeInstanceOf(ForbiddenError);
     await expect(getParticipantBriefing(
       t.env,
       unassignedCounselor,
       created.beneficiaryId,
       created.supportCaseId,
-    )).resolves.toMatchObject({
-      participant: {
-        name: 'SUPERVISED_NAME',
-        phone: 'SUPERVISED_PHONE',
-      },
-    });
+    )).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('rejects a supervisor after the team grant is revoked', async () => {

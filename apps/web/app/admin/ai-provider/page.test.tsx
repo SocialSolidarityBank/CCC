@@ -42,7 +42,7 @@ beforeEach(() => {
 describe('AI·STT·연결 화면의 STT 상태', () => {
   // 사유는 서버 계약의 고정 3종이다. 화면이 임의 문구를 만들면 실무자가 "왜 못 켜는지"를
   // 화면마다 다르게 읽는다.
-  it('엔진별 고정 사유를 그대로 보여준다', async () => {
+  it('첫 출고에서 Local과 Qwen은 숨기고 Azure와 처리 장비 상태는 남긴다', async () => {
     getSttCapabilities.mockResolvedValue({
       sttMode: 'off',
       sttEngine: null,
@@ -57,13 +57,14 @@ describe('AI·STT·연결 화면의 STT 상태', () => {
     const { container } = render(await AdminAiProviderPage());
     const text = container.textContent ?? '';
 
-    expect(text).toContain('설치에 승인된 엔진이 없거나 처리 장비가 연결되지 않았습니다.');
+    expect(text).not.toContain('기관 안 처리');
+    expect(text).not.toContain('qwen');
+    expect(text).toContain('Azure 외부 처리');
     expect(text).toContain('처리 장비에 이 엔진의 자격이 없습니다.');
     expect(text).toContain('연결 없음');
-    expect(text).toContain('지정된 엔진 없음');
   });
 
-  it('켜져 있으면 엔진 이름과 사용 가능 상태를 보여준다', async () => {
+  it('서버가 Local을 현재값으로 내려도 화면은 Local 엔진을 드러내지 않는다', async () => {
     getSttCapabilities.mockResolvedValue({
       sttMode: 'local',
       sttEngine: 'qwen3-asr',
@@ -78,10 +79,10 @@ describe('AI·STT·연결 화면의 STT 상태', () => {
     const { container } = render(await AdminAiProviderPage());
     const text = container.textContent ?? '';
 
-    expect(text).toContain('qwen3-asr');
+    expect(text).not.toContain('qwen3-asr');
+    expect(text).not.toContain('기관 안 처리');
+    expect(text).toContain('Azure 외부 처리');
     expect(text).toContain('연결됨');
-    expect(text).toContain('품질 승인 전에는 고를 수 없습니다.');
-    expect(text).not.toContain('수기 경로로 남깁니다');
   });
 
   // signed install manifest 가 없으면 API 가 503 이다(D77). 그때 사업자 카드까지 사라지면

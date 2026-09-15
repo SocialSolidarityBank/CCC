@@ -20,7 +20,7 @@ export interface InstitutionReadiness {
   /** The linked first program must be active and pass the current admission policy. */
   firstProgramAdmissionState: 'not_admitted' | 'admitted';
   /** Only the persisted initial_program_id link; never the first listing result. */
-  firstProgram: (ProgramOption & { status: 'active' | 'closed'; version: number }) | null;
+  firstProgram: (ProgramOption & { status: 'active' | 'closed'; version: number; financialSupportEnabled: boolean }) | null;
   installationState: 'available' | 'unavailable';
   /** Stored settings, not proof that an administrator reviewed the retention policy. */
   retentionPolicyStatus: 'missing' | 'configured' | 'review_required';
@@ -47,6 +47,7 @@ export interface MeResponse {
 export interface OrganizationOnboardingInput {
   orgName: string;
   programDisplayName: string;
+  financialSupportEnabled?: boolean;
 }
 
 export interface OrganizationOnboardingResponse extends OrganizationProfile {

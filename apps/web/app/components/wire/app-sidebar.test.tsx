@@ -35,9 +35,9 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     // 상단 줄이 메뉴보다 위다.
     expect(head.compareDocumentPosition(container.querySelector('.sidebar .navigation-list') as Node))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    // 메뉴는 묶음 2개 안의 항목 5개다(2026-08-30 Q 3차 — 한 계층 통일. 일정 두 메뉴는 D75 로 화면 하나).
+    // 첫 출고에서 당사자 직접 접점은 닫히고, 필수 업무 메뉴 네 개만 남는다.
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['상담 일정 보기', '상담 일정 등록', '당사자 목록', '당사자 등록', '당사자 초대']);
+      .toEqual(['일정', '상담 일정 등록', '당사자 목록', '당사자 등록']);
     // 드로어에는 기관명·사업 전환기가 없다 — 두 벌 두면 다시 갈라진다.
     expect(container.querySelector('.sidebar .program-switcher')).toBeNull();
     expect(container.querySelector('.sidebar .brand')).toBeNull();
@@ -91,16 +91,23 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     // 항목은 전부 같은 계층이다 — 하위 목록이 없다.
     expect(container.querySelector('.sidebar .navigation-sublist')).toBeNull();
     expect(sidebarLinks(container).map((link) => [link.label, link.href])).toEqual([
-      ['상담 일정 보기', `/programs/${DEFAULT_PROGRAM_TYPE}/schedule`],
+      ['일정', `/programs/${DEFAULT_PROGRAM_TYPE}/schedule`],
       ['상담 일정 등록', '/schedules/new'],
       ['당사자 목록', '/participants'],
       ['당사자 등록', '/participants/new'],
-      ['당사자 초대', '/participants/invite'],
     ]);
     // 항목은 전부 아이콘을 갖는다(2026-08-30 Q 2차).
     for (const link of container.querySelectorAll('.sidebar .navigation-link')) {
       expect(link.querySelector('svg')).not.toBeNull();
     }
+  });
+
+  it('기존 공개 가입 capability를 켠 설치에서만 당사자 요청 링크 입구를 보인다', () => {
+    const { container } = render(<AppSidebar activePath="/participants" publicSignupEnabled />);
+    expect(sidebarLinks(container).map((link) => [link.label, link.href])).toContainEqual([
+      '당사자 초대',
+      '/participants/invite',
+    ]);
   });
 
   it('온보딩 저장 이름을 넘기면 기관·사업 라벨이 그 값으로 바뀐다 (CCC-32)', () => {
@@ -218,7 +225,7 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     expect(drawer.querySelector('.brand')).toBeNull();
     expect(drawer.querySelector('.program-switcher')).toBeNull();
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['상담 일정 보기', '상담 일정 등록', '당사자 목록', '당사자 등록', '당사자 초대']);
+      .toEqual(['일정', '상담 일정 등록', '당사자 목록', '당사자 등록']);
     // 계정 행동은 상단 줄의 원형 아이콘 버튼 3개다(웹 헤더와 같은 옷).
     expect(Array.from(drawer.querySelectorAll('.sidebar-actions .header-icon-button'))
       .map((el) => el.getAttribute('aria-label'))).toEqual(['설정', '다크 모드', '로그아웃']);
@@ -228,7 +235,7 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     const labels = Array.from(container.querySelectorAll('.sidebar .navigation-link'))
       .map((el) => el.querySelector('span:not(.wire-badge)')?.textContent?.trim());
-    expect(labels).toEqual(['상담 일정 보기', '상담 일정 등록', '당사자 목록', '당사자 등록', '당사자 초대']);
+    expect(labels).toEqual(['일정', '상담 일정 등록', '당사자 목록', '당사자 등록']);
   });
 });
 

@@ -1,5 +1,7 @@
+import {
+  WireSourceQuotes,
+} from '@ccc/wire';
 import { MetaRow } from '../../../../../components/wire/meta-row';
-import { WireSourceQuotes } from '../../../../../components/wire/wire-callout';
 import type { FlagType } from '../../../../../lib/api';
 
 // 순수 프레젠테이션 컴포넌트로 분리한다: lib/api 런타임 값을 가져오지 않으므로(`import type`만 사용)

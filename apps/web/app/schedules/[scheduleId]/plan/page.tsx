@@ -1,13 +1,17 @@
+import {
+  GridContainer,
+  PageTitle,
+  WireBullets,
+  WireCallout,
+  WireCard,
+  WireEmpty,
+  WireError,
+} from '@ccc/wire';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { ApiError, getScheduleSessionPlan, listGoals } from '../../../lib/api';
 import { updateScheduleSessionGoalsAction } from '../../../actions';
-import { GridContainer } from '../../../components/wire/grid-container';
 import { MetaRow } from '../../../components/wire/meta-row';
-import { PageTitle } from '../../../components/wire/page-title';
-import { WireBullets, WireCard } from '../../../components/wire/wire-card';
-import { WireCallout } from '../../../components/wire/wire-callout';
-import { WireEmpty, WireError } from '../../../components/wire/wire-state';
 import { formatKoreanDateTime } from '../../../lib/format-korean-date';
 import { SessionPlanEditor, type SessionPlanGoalOption } from './session-plan-editor';
 
@@ -54,7 +58,7 @@ export default async function ScheduleSessionPlanPage({
 
   const frame = (body: ReactNode) => (
     <GridContainer as="main" className="page-content">
-      <div className="page-header"><PageTitle>세션 목표 수정</PageTitle></div>
+      <div className="page-header"><PageTitle>상담 계획</PageTitle></div>
       {body}
     </GridContainer>
   );

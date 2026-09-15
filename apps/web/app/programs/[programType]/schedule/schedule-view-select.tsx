@@ -1,8 +1,10 @@
 'use client';
 
+import {
+  Chevron,
+  WireToolbarField,
+} from '@ccc/wire';
 import { useRouter } from 'next/navigation';
-import { Chevron } from '../../../components/wire/chevron';
-import { WireToolbarField } from '../../../components/wire/wire-form-field';
 import { scheduleViewHref, type ScheduleView } from './schedule-calendar';
 
 const viewOptions: readonly { readonly value: ScheduleView; readonly label: string }[] = [

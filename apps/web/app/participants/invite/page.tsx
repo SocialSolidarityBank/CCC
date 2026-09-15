@@ -1,6 +1,10 @@
-import { GridContainer } from '../../components/wire/grid-container';
-import { PageTitle } from '../../components/wire/page-title';
-import { WireCard, WireField } from '../../components/wire/wire-card';
+import {
+  GridContainer,
+  PageTitle,
+  WireCard,
+  WireField,
+} from '@ccc/wire';
+import { notFound } from 'next/navigation';
 import { getDisplayLabels } from '../../lib/display-labels';
 import { InviteIssue } from './invite-issue';
 
@@ -8,6 +12,7 @@ import { InviteIssue } from './invite-issue';
 // 실무자가 당사자 가입 링크(사업+발급 실무자 묶음 토큰 URL)를 발급해 링크·QR·이메일
 // 문안으로 전달한다. 발급·감사는 API 게이트웨이(R1·D14), 이메일 발송은 없다(D39).
 export default async function ParticipantInvitePage() {
+  if (process.env.PUBLIC_SIGNUP_ENABLED !== '1') notFound();
   // 초대 사업 표기도 온보딩 저장 이름을 되비춘다(CCC-32) — 미설정이면 하드코딩 폴백.
   const { orgLabel, programLabels } = await getDisplayLabels();
 

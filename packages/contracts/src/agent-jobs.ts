@@ -1,7 +1,7 @@
 import type { DeploymentMode } from './runtime';
 import type { ConsentDomain } from './consent';
 import type { SttEngineId } from './stt-readiness';
-
+import type { EntitySourceDescriptor } from './entity-registration';
 export type { DeploymentMode } from './runtime';
 
 export const AGENT_JOB_STATES = [
@@ -90,11 +90,21 @@ export interface OpenAiEgressAuthorization {
     consentRevision: string;
   };
   status: 'authorized';
-  expiresAt: string;
 }
-
-export type EgressAuthorization = AzureEgressAuthorization | OpenAiEgressAuthorization;
-export type EgressRecordStatus = 'authorized' | 'in_flight' | 'completed' | 'revoked' | 'expired';
+export interface SourceResponse {
+  text: string;
+  sessionId: string;
+  sourceRevision: string;
+  sourceSha256: string;
+  sourceLength: number;
+  sourceBundleRevision: string;
+  expectedMapRevision: number;
+  sources: EntitySourceDescriptor[];
+  audio: null | {
+    generationId: string;
+    rawSha256: string | null;
+  };
+}
 
 export interface EgressAuthorizationRequest {
   claimToken: string;
@@ -225,12 +235,24 @@ export interface AudioResult extends MaskedSource {
   transcriptWarnings: Array<{ startSeconds: number; endSeconds: number; reason: string }>;
 }
 
-export interface TextResult extends MaskedSource {
-  kind: 'text';
+export interface CheckedTextSource {
+  sourceRevision: string;
+  sourceSha256: string;
+  /** Half-open Unicode code-point offsets in SourceResponse.text, before second masking. */
+  sourceStart: number;
+  sourceEnd: number;
 }
 
+export interface TextResult extends MaskedSource {
+  kind: 'text';
+  /** Required for generic jobs; memory jobs already bind revision and range in their claim. */
+  checkedSource?: CheckedTextSource;
+}
+
+export const RESULT_SCHEMA_VERSION = 2 as const;
+
 export interface ResultRequest {
-  schemaVersion: 2;
+  schemaVersion: typeof RESULT_SCHEMA_VERSION;
   claimToken: string;
   attempt: number;
   resultId: string;
@@ -241,6 +263,25 @@ export interface ResultRequest {
 export interface SourceResponse {
   sessionId: string;
   text: string;
+  sourceRevision: string;
+  sourceSha256: string;
+  sourceLength: number;
+  /** Server-ordered source/date witnesses fixed at the first source fetch. */
+  sourceBundleRevision: string;
+  expectedMapRevision: number;
+  sources: EntitySourceDescriptor[];
+}
+
+export interface TextProcessingStatus {
+  state: AgentJobState | 'not_started' | 'partial' | 'stale' | 'unknown';
+  jobId: string | null;
+  jobState: AgentJobState | null;
+  sourceRevision: string | null;
+  currentSourceRevision: string;
+  sourceChanged: boolean | null;
+  sourceLength: number | null;
+  checkedRange: { start: number; end: number } | null;
+  failureCode: string | null;
 }
 
 export interface SignedGetResponse {
@@ -309,7 +350,8 @@ export interface JobError {
   retryable: boolean;
 }
 
-export function jobErrorHttpStatus(error: JobErrorCode): 401 | 403 | 404 | 409 | 422 {
+export function jobErrorHttpStatus(error: JobErrorCode): 400 | 401 | 403 | 404 | 409 | 422 {
+  if (error === 'unmasked_identifier_detected') return 400;
   if (error === 'authentication_required') return 401;
   if (error === 'forbidden') return 403;
   if (error === 'job_not_found' || error === 'audio_object_missing') return 404;

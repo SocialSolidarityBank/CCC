@@ -82,11 +82,7 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_STT_MAX_CHUNK_SECONDS` | | `180` | 조각 최대 길이. 실측에서 3분 조각이 반복 붕괴를 없앴다 |
 | `CCC_STT_MIN_CHUNK_SECONDS` | | `30` | 조각 최소 길이. 너무 잘게 나누면 조각마다 문맥이 사라져 정확도가 떨어진다 |
 | `CCC_STT_REPEAT_THRESHOLD` | | `4` | 같은 문장이 몇 번 연속되면 붕괴로 볼지. 상담에서 두세 번 반복은 흔하므로 그 위 |
-| `CCC_NER_MODEL_ID` | **예** | (없음) | 2차 마스킹용 한국어 인명 NER 모델. `red` **미설정이면 회차를 처리하지 않는다**(2026-07-31 Q 결정) — 인명 계층이 빈 채로 돌면 금고에 없는 제3자가 그대로 사업자로 나간다(R3). **라이선스 표기 확인 후 지정**(§5 규칙) |
-| `CCC_NER_LABELS` | | `PS,PER,NAME,PRIVATE_PERSON` | 위 모델이 **인명에 붙이는 라벨 접두**. 모델과 한 쌍이다 — KLUE 계열은 `PS`/`PER`, PII 전용 모델은 `NAME` 계열로 다르다. 모델을 불러올 때 그 모델이 선언한 라벨과 대조하고, **안 맞으면 뜨지 않는다**(조용한 0건 마스킹 방지) |
-| `CCC_NER_ADDRESS_LABELS` | | `LC,ADDRESS,PRIVATE_ADDRESS` | 주소 라벨 접두. `none`·`off` 로 두면 **주소 계층을 끈다**(주소를 안 잡는 모델로 갈아탈 때). 비어 있지 않은데 모델이 그 라벨을 선언하지 않으면 뜨지 않는다 |
-| `CCC_CONDITION_NER_MODEL_ID` | | (없음) | 질병명 NER(G3). 미설정이면 사전 계층만 동작하고 **진행한다** — 인명과 달리 사전이 주 계층이다 |
-| `CCC_CONDITION_NER_LABELS` | | `DS,DISEASE,SYMPTOM,CV_DISEASE,TRM` | 위 모델의 질병 라벨 접두. 대조 규칙은 인명과 같다 |
+| `MEMORY_MASKING_PIPELINES` | **필수** | 없음 | 서버와 Agent가 함께 읽는 canonical masking registry JSON. 활성 manifest 하나가 S6 정적 규칙, G7 상대 날짜 규칙, NER 모델과 revision, 라벨, health 증빙, 결과 스키마, 출력 version/hash를 모두 정한다. 모양, JCS SHA-256, 고정 규칙 tuple, 모델 manifest 또는 attestation이 어긋나면 기동하지 않는다 |
 | `HF_TOKEN` | pyannote 사용 시 | — | Hugging Face 토큰(게이트 모델) |
 | `CCC_NER_ATTESTATION` | **필수** | 없음 | S5 claim 이 요구하는 S6 NER attestation JSON(`id`·`modelId`·`modelRevision`·`labelSetHash`·`corpusHash`·`resultHash`·`validatedAt`·`expiresAt`·`status:"passed"`). 모양이 어긋나면 기동하지 않는다 |
 | `CCC_NER_RELEASE_RECEIPT_ID` | **필수** | 없음 | E5-4 가 발급한 release qualification 영수증 ID. 서버가 만료·해시 일치를 확인하고, 어긋나면 claim 이 `local_ner_unavailable` 로 닫힌다 |
@@ -278,11 +274,9 @@ RTF 자격은 실행 프로세스가 읽은 OS와 워커의 CPU device로 정한
 **`FrameByFrame/korean-pii-e5-base`** — 라이선스 **MIT**(§5 규칙 충족, 모델 카드 확인).
 베이스는 `intfloat/multilingual-e5-base`. 대화체 KDPII F1 0.943 / KLUE 인명 0.866.
 
-```bash
-CCC_NER_MODEL_ID=FrameByFrame/korean-pii-e5-base
-CCC_NER_LABELS=PRIVATE_PERSON
-CCC_NER_ADDRESS_LABELS=PRIVATE_ADDRESS   # 주소도 가린다(2026-08-01 Q 결정). 끄려면 none
-```
+모델 ID, revision, 인명과 주소 라벨은 `MEMORY_MASKING_PIPELINES`의 활성 manifest에 함께 둔다.
+Agent는 이 값을 개별 환경 변수로 덮어쓰지 않는다. manifest의 `maskingPipelineHash`는 자기
+필드를 제외한 manifest 전체를 JCS로 직렬화한 UTF-8 bytes의 SHA-256이다.
 
 인명과 주소는 **같은 모델**이 잡으므로 가중치는 한 번만 올린다. 다만 치환 토큰은 갈라서
 `[인명]`·`[주소]` 로 따로 남긴다 — 주소를 `[인명]` 으로 치환하면 검토 화면과 마스킹 집계가
@@ -291,10 +285,9 @@ CCC_NER_ADDRESS_LABELS=PRIVATE_ADDRESS   # 주소도 가린다(2026-08-01 Q 결�
 `yellow` **생년월일(`private_date`)은 일부러 넣지 않았다.** 상담에서 날짜는 "지난달 퇴사",
 "3월 계약 만료" 처럼 맥락 자체인 경우가 많아, 가리면 AI 가 시간 흐름을 읽지 못한다.
 
-`yellow` **이 모델의 라벨은 `PS`/`PER` 가 아니다.** 실제 라벨은 `private_person`·`private_address`·
-`private_phone` … 9종이고 태깅은 **BIOES**(B-/I-/E-/S-)다. 기본값에 `PRIVATE_PERSON` 을 넣어 뒀지만,
-세팅 때 `CCC_NER_LABELS` 로 **의도한 라벨만 명시**하는 쪽을 권한다 — 무엇을 가리기로 했는지가
-설정에 남는다.
+`yellow` **이 모델의 라벨은 `PS`/`PER`가 아니다.** 실제 라벨은 `private_person`, `private_address`,
+`private_phone` 등 9종이고 태깅은 **BIOES**(B-/I-/E-/S-)다. 업무 Agent는 활성 manifest에
+명시된 `PRIVATE_PERSON`과 `PRIVATE_ADDRESS`만 사용한다.
 
 이 모델은 전화·이메일·계좌·주소·URL·IP·생년월일도 함께 잡는다. 정규식 계층과 **겹치지만 겹쳐 둔다** —
 한쪽이 놓쳐도 다른 쪽이 잡는 게 목적이고, 같은 자리를 두 번 치환해도 결과는 같다.
@@ -327,7 +320,7 @@ CCC_NER_ADDRESS_LABELS=PRIVATE_ADDRESS   # 주소도 가린다(2026-08-01 Q 결�
 | 확인 | 왜 |
 | --- | --- |
 | `ffmpeg` 설치 | 없으면 무음 경계 분할이 통짜 전사로 폴백한다 — ADR-0024 가 금지한 방식이고, 실측에서 반복 붕괴(254회 반복·48% 손실)를 일으켰다 |
-| `CCC_NER_MODEL_ID` 설정 | 없으면 2차 방어의 인명 계층이 빈 채로 돈다(R3) |
+| canonical masking manifest의 인명 NER tuple | 없거나 model manifest와 어긋나면 2차 방어의 인명 계층이 빈 채로 돈다(R3) |
 
 `yellow` 기동 후에 생긴 정체(모델 로드 실패·라벨 불일치 등)는 이 점검이 못 잡는다 — 감시 쪽 몫이고 별도 티켓이다.
 

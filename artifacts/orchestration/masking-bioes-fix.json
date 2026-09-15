@@ -1,0 +1,146 @@
+{
+  "diagnosis": "transformers 4.53.3 TokenClassificationPipeline.get_tag(venv …/transformers/pipelines/token_classification.py:609-622)는 'B-'/'I-' 접두만 벗기고 나머지는 bi='I', tag=원문 그대로로 취급한다. group_entities(:623-660)는 tag==last_tag and bi!='B' 일 때만 묶으므로 E-/S- 토큰은 tag 가 'E-private_person' 처럼 남아 같은 엔티티 안에서도 분리된다. 채택 모델 FrameByFrame/korean-pii-e5-base 는 BIOES 라벨을 쓰므로 aggregation_strategy='simple' 경로(masking.py 의 build_person_and_address_ner → _build_span_ner)에서 엔티티 하나가 여러 스팬으로 조각났다. 제품 증거: 합성 한 줄에 이름 둘인데 [인명] 4개. 원시 태그 분포 B=13, I=41, E=13, S=2.",
+  "labelSet": {
+    "model": "FrameByFrame/korean-pii-e5-base",
+    "revision": "a308c54b4407819624a5661e31e162a269f39818",
+    "scheme": "BIOES (소문자 라벨)",
+    "labels": [
+      "O",
+      "B-private_person",
+      "I-private_person",
+      "E-private_person",
+      "S-private_person",
+      "B-personal_handle",
+      "I-personal_handle",
+      "E-personal_handle",
+      "S-personal_handle",
+      "B-private_phone",
+      "I-private_phone",
+      "E-private_phone",
+      "S-private_phone",
+      "B-private_email",
+      "I-private_email",
+      "E-private_email",
+      "S-private_email",
+      "B-private_address",
+      "I-private_address",
+      "E-private_address",
+      "S-private_address",
+      "B-private_date",
+      "I-private_date",
+      "E-private_date",
+      "S-private_date",
+      "B-private_url",
+      "I-private_url",
+      "E-private_url",
+      "S-private_url",
+      "B-account_number",
+      "I-account_number",
+      "E-account_number",
+      "S-account_number",
+      "B-ip_address",
+      "I-ip_address",
+      "E-ip_address",
+      "S-ip_address"
+    ],
+    "source": "HF cache config.json on mini (models--FrameByFrame--korean-pii-e5-base/snapshots/a308c54b…/config.json)"
+  },
+  "libraryScope": "transformers 4.53.3 get_tag 는 'B-'/'I-' 만 인식한다. E-/S-/L-/U- 는 접두로 해석되지 않아 group_entities 가 엔티티를 분리한다. group_sub_entities 는 entity.split('-',1)[-1] 로 라벨명만은 올바르게 복원하므로 조각난 스팬도 라벨 필터는 통과한다 — 그래서 조각이 전부 FP 로 쌓였다.",
+  "fixChosen": "파이프라인 생성 직후 recognizer.model.config.id2label 을 BIO 로 정규화한다(E-→I-, S-→B-, L-→I-, U-→B-). label2id 도 같은 매핑으로 재구성한다. 선택 이유: (1) id2label 은 추론 시점에만 읽히므로(token_classification.py:515,536,542,547) 생성 후 in-place 변경이 가장 작은 수정이다. (2) pipeline(config=…) 경로는 from_pretrained 에 config 가 전달되지 않아(base.py infer_framework_load_model) 동작하지 않음을 실측으로 확인했다. (3) aggregation_strategy='none' + 자체 BIOES 그루퍼는 라이브러리 묶음 로직을 재구현하는 것이라 더 크다.",
+  "fixScope": "apps/pipeline/ccc_pipeline/masking.py 한 파일. _BIO_NORMALIZE 맵, _normalize_bio_labels(recognizer), _build_recognizer(spec) 헬퍼를 추가하고 _build_span_ner 와 build_person_and_address_ner 의 파이프라인 생성을 _build_recognizer 로 모았다. 탐지 범위·토큰 점수·임계값·corpus·지표 정의 변경 0건.",
+  "noWidening": "정규화는 모델이 낸 토큰 라벨의 접두만 바꾼다. 새 탐지 규칙·정규식·사전 추가 0건. 검사 방법: 870행 corpus 에 대해 수정 전 파이프라인(정규화 없는 동일 생성 인자)과 수정 후 제품 함수의 스팬을 비교해 커버 문자 집합이 동일하고 스팬 수만 줄었는지 확인했다(아래 previouslyMaskedStillMasked).",
+  "previouslyMaskedStillMasked": {
+    "method": "corpus 870행 전체에 대해 old(정규화 전 생성)와 new(build_person_and_address_ner)의 (start,end) 스팬을 문자 집합으로 환산해 old-new 차집합이 빈 것을 확인",
+    "rows": 870,
+    "oldSpanCount": 1978,
+    "newSpanCount": 1007,
+    "rowsLosingCoverage": 0,
+    "script": "/tmp/ner-release/coverage_check.py (mini, 일회성 검사 스크립트)"
+  },
+  "unitChecks": {
+    "command": "cd apps/pipeline && HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 venv/bin/python -m unittest tests.test_masking",
+    "result": "Ran 41 tests — OK (mini, transformers 4.53.3 환경)",
+    "existingTestsChanged": "없음. 조각 마스킹을 정답으로 박은 기존 테스트는 없었다 — 기존 테스트는 전부 결정론 계층(정규식·사전·스팬 산수)과 라벨 대조만 고정한다."
+  },
+  "newTest": {
+    "name": "tests.test_masking.BioesGroupingTest.test_bioes_tokens_group_into_two_person_spans",
+    "what": "transformers.pipeline 을 가짜로 세우되 라이브러리의 진짜 TokenClassificationPipeline.group_entities 를 그대로 돌린다. '김철수 님이 박영희 씨에게 부탁했다' 의 BIOES 토큰 스트림(둘째 이름이 B-I-E)이 build_person_and_address_ner 를 거쳐 정확히 [(0,3),(7,10)] 두 스팬으로 모이는지 고정한다. 정규화를 되돌리면 E- 조각이 분리돼 실패한다.",
+    "result": "pass (unittest, mini)"
+  },
+  "rerunMetrics": {
+    "script": "scripts/ner-release/rerun_production_path.py (corpus·정답·지표·Wilson 계산 변경 0건)",
+    "corpus": "870 rows, corpusHash d78db2f796072db69bbc2a5d2d7923c5911d932b6c2338fe4c8e0cf051dd8041",
+    "before": {
+      "PRIVATE_PERSON": {
+        "tp": 1,
+        "fp": 717,
+        "fn": 379
+      },
+      "PRIVATE_ADDRESS": {
+        "tp": 0,
+        "fp": 1260,
+        "fn": 300
+      },
+      "personPrecision": 0.001392757660167131,
+      "personRecall": 0.002631578947368421,
+      "addressPrecision": 0.0,
+      "addressRecall": 0.0,
+      "overgeneralizationRate": 0.9994944388270981
+    },
+    "after": {
+      "PRIVATE_PERSON": {
+        "tp": 344,
+        "fp": 21,
+        "fn": 36
+      },
+      "PRIVATE_ADDRESS": {
+        "tp": 50,
+        "fp": 592,
+        "fn": 250
+      },
+      "personPrecision": 0.9424657534246575,
+      "personRecall": 0.9052631578947369,
+      "addressPrecision": 0.0778816199376947,
+      "addressRecall": 0.16666666666666666,
+      "overgeneralizationRate": 0.608738828202582,
+      "resultHash": "9d606d2c9201ca5f3aee9698617ca5f88b68b423d3fc7582e4ad401fb3e59854",
+      "spanFnVsRawMismatchedRows": 554,
+      "smokeMaskedTokenCounts": {
+        "[인명]": 2,
+        "[전화번호]": 1
+      }
+    },
+    "notes": "spanFnVsRawMismatchedRows=554 는 기대된 결과다 — 스크립트의 raw 파이프라인은 정규화 없는 구 경로라 제품 함수와 스팬이 달라진다(수정이 실제로 동작했다는 증거). smoke 의 [인명] 4→2 는 조각 마스킹이 사라졌음을 보인다."
+  },
+  "wilsonLower": {
+    "personPrecisionLower": 0.913650564322678,
+    "personRecallLower": 0.8716311767684809,
+    "addressPrecisionLower": 0.05957254862924239,
+    "addressRecallLower": 0.1287653312036807,
+    "overgeneralizationUpper": 0.6384138065491913
+  },
+  "thresholdVerdict": "failed — 지표가 크게 올랐지만 미달이다. 인명 precision Wilson 하한 0.9137 은 0.90 을 넘으나 인명 recall 하한 0.8716, 주소 precision 0.0596·recall 0.1288, overgen 상한 0.6384 가 전부 기준(각 ≥0.90, overgen ≤0.05)에 못 미친다. BIOES 해석 결함은 진짜 원인이었고 고쳐졌다(인명 tp 1→344, 스팬 1978→1007, 커버 손실 0). 남은 격차는 태그 해석이 아니라 모델의 주소 탐지력 자체다 — 주소 fp 592·fn 250 은 경계 조각이 아니라 모델이 corpus 의 도로명·지번·건물 표기를 다른 라벨로 내거나 놓치는 문제다. 다음 후보는 모델 재선정·주소 라벨 매핑 재검토·corpus 와 모델 도메인 정합성 점검이며, 이 범위(태그 해석 수정) 밖이다.",
+  "receiptFields": null,
+  "attestationFields": null,
+  "mutations": {
+    "files": [
+      "apps/pipeline/ccc_pipeline/masking.py",
+      "apps/pipeline/tests/test_masking.py",
+      "artifacts/orchestration/masking-bioes-fix.json"
+    ],
+    "miniCopySynced": [
+      "/Users/barq/.local/share/ccc-pipeline/repo/apps/pipeline/ccc_pipeline/masking.py",
+      "/Users/barq/.local/share/ccc-pipeline/repo/apps/pipeline/tests/test_masking.py",
+      "/tmp/ner-release/rerun_production_path.py",
+      "/tmp/ner-release/coverage_check.py (일회성 검사 스크립트)"
+    ],
+    "modelDownloads": 0,
+    "dbInserts": 0,
+    "otherLaneFiles": 0,
+    "secretValuesPrinted": 0,
+    "thresholdOrCorpusChanges": 0
+  },
+  "gitStatus": "release/0916 worktree: M apps/pipeline/ccc_pipeline/masking.py, M apps/pipeline/tests/test_masking.py, ?? artifacts/orchestration/masking-bioes-fix.json (배포 레인의 ?? artifacts/prod-migration-2026-09-16/, ?? artifacts/release/ 는 건드리지 않음)",
+  "commit": "release/0916 HEAD — fix: NER 파이프라인 BIOES 라벨을 BIO로 정규화해 엔티티 조각 마스킹 해소 (이 보고서를 포함한 단일 커밋; push 하지 않음)",
+  "blocked": false
+}

@@ -9,6 +9,7 @@ import {
 } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId } from './support/d1';
 import { registrationInput } from './support/registration';
+import { intakeInput } from './support/intake';
 
 // CCC-26 새 가입 배지 — 게이트웨이 파생 값의 단위 테스트.
 // 새 알림 테이블 없이 케이스 상태에서 파생한다(티켓 본문):
@@ -73,11 +74,10 @@ describe('new signup badge derivation (CCC-26)', () => {
       programId: testProgramId(counselor.orgId),
       intakeAt: '2026-08-20T09:00:00.000Z',
     }));
-    await createIntakeRecord(t.env, counselor, created.supportCaseId, {
+    await createIntakeRecord(t.env, counselor, created.supportCaseId, await intakeInput(t.env, counselor, created.supportCaseId, {
       submissionId: '01000000-0000-4000-8000-00000000cd01',
       heldAt: '2026-08-20T10:00:00.000Z',
-      channel: 'in_person',
-    });
+    }));
 
     const newSignups = await listNewSignupBeneficiaryIds(t.env, counselor);
     expect(newSignups.has(created.beneficiaryId)).toBe(false);

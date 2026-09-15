@@ -27,6 +27,7 @@ const AGENT_STATUSES: readonly AgentStatus[] = ['connected', 'delayed', 'authent
 const DISABLED_REASONS: readonly CapabilityDisabledReason[] = ['unverified', 'missing_key', 'unsupported', null];
 const FEATURE_KEYS: readonly CapabilityFeature[] = ['recording', 'multi_user', 'offline', 'public_signup', 'cloud_audio_temp', 'ai_draft'];
 const MANIFEST_KEYS = ['schemaVersion', 'mode', 'sttMode', 'sttEngine', 'sttOptions', 'llmMode', 'llmOptions', 'features', 'agentStatus'] as const;
+const RELEASE_STT_MODES: readonly SttMode[] = ['off', 'azure'];
 const OPTION_KEYS = ['mode', 'enabled', 'disabledReason'] as const;
 /** URL, credential, 임의 문자열은 engine ID 가 될 수 없다. */
 const ENGINE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -92,7 +93,7 @@ function llmOption(input: CapabilityInput, mode: LlmMode): CapabilityOption<LlmM
 }
 
 export function buildCapabilityManifest(input: CapabilityInput): CapabilityManifest {
-  const sttOptions = STT_MODES.map((mode) => sttOption(input, mode));
+  const sttOptions = RELEASE_STT_MODES.map((mode) => sttOption(input, mode));
   const llmOptions = LLM_MODES.map((mode) => llmOption(input, mode));
   const selectedStt = sttOptions.find((option) => option.mode === input.requestedSttMode && option.enabled) ?? sttOptions[0]!;
   const selectedLlm = llmOptions.find((option) => option.mode === input.requestedLlmMode && option.enabled) ?? llmOptions[0]!;
@@ -156,10 +157,10 @@ export function decodeCapabilityManifest(value: unknown, registry: readonly Appr
   const mode = value.mode;
   if (!DEPLOYMENT_MODES.includes(mode as DeploymentMode)) throw new CapabilityManifestError('mode is invalid');
   const sttMode = value.sttMode;
-  if (!STT_MODES.includes(sttMode as SttMode)) throw new CapabilityManifestError('sttMode is invalid');
+  if (!RELEASE_STT_MODES.includes(sttMode as SttMode)) throw new CapabilityManifestError('sttMode is invalid');
   const llmMode = value.llmMode;
   if (!LLM_MODES.includes(llmMode as LlmMode)) throw new CapabilityManifestError('llmMode is invalid');
-  const sttOptions = decodeOptions(value.sttOptions, STT_MODES, 'sttOptions');
+  const sttOptions = decodeOptions(value.sttOptions, RELEASE_STT_MODES, 'sttOptions');
   const llmOptions = decodeOptions(value.llmOptions, LLM_MODES, 'llmOptions');
   assertSelected(sttOptions, sttMode as SttMode, 'sttMode');
   assertSelected(llmOptions, llmMode as LlmMode, 'llmMode');

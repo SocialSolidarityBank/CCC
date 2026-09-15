@@ -97,7 +97,7 @@ async function renderContent(errorCode?: string, errorSource?: string, noticeCod
   }));
 }
 
-describe('AI 초안 검토 페이지', () => {
+describe('AI 정리 검토 페이지', () => {
   it('loads a draft only after session and participant scope match', async () => {
     const { container } = await renderContent();
 

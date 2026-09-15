@@ -1,18 +1,22 @@
 'use client';
 
+import {
+  WireBadge,
+  WireButton,
+  WireCard,
+  WireCardDetails,
+  WireChoice,
+  WireEmpty,
+  WireFormField,
+  WireItem,
+} from '@ccc/wire';
 import Link from 'next/link';
 import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
-import { WireBadge } from '../../../../../../components/wire/wire-badge';
-import { WireCard, WireCardDetails } from '../../../../../../components/wire/wire-card';
-import { WireItem } from '../../../../../../components/wire/wire-section';
-import { WireEmpty } from '../../../../../../components/wire/wire-state';
-import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { DateTimePickerControl } from '../../../../../../components/wire/date-picker-control';
 import { dateTextHint } from '../../../../../../components/wire/date-text-input';
-import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireRepeatActions } from '../../../../../../components/wire/wire-repeat-actions';
 import { draftKey } from '../../../../../../lib/form-draft';
 import { useDomDraft } from '../../../../../../lib/use-dom-draft';

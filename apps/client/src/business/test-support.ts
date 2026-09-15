@@ -3,6 +3,9 @@ import { signInstallManifest } from '@ccc/contracts/install-manifest';
 import { buildCapabilityManifest } from '@ccc/contracts/capabilities';
 import type { SignedInstallManifest } from '@ccc/contracts/runtime';
 import { loadInstallation } from './installation';
+import {
+  requiredIntakeQuestionKeys, type IntakeAnswer, type IntakeArea, type IntakeModuleSnapshot, type IntakeQuestionnaire,
+} from '@ccc/contracts/intake';
 
 // 테스트 전용이다. 이 키와 주소는 런타임 진입점에서 가져오지 않는다.
 export const origin = 'https://client.example';
@@ -13,7 +16,9 @@ export async function fixture(overrides: Partial<Omit<SignedInstallManifest, 'ed
   const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
   if (!('publicKey' in pair)) throw new Error('Expected an Ed25519 key pair');
   const raw = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey));
-  const keys = JSON.stringify({ test: btoa(String.fromCharCode(...raw)) });
+  // Synthetic installer state is fixed independently of the manifest and its overrides.
+  const trust = JSON.stringify({ publicKeys: { test: btoa(String.fromCharCode(...raw)) },
+    revokedKeyIds: [], minSequence: 1, expectedInstallationId: installationId });
   const manifest = await signInstallManifest({
     schemaVersion: 1, mode: 'community-cloud', apiBase, clientOrigin: origin,
     allowedOrigins: [origin], host: 'abcdefghijklmnopqrst.supabase.co', scheme: 'https',
@@ -24,7 +29,7 @@ export async function fixture(overrides: Partial<Omit<SignedInstallManifest, 'ed
     supabaseAuthOrigin: 'https://abcdefghijklmnopqrst.supabase.co',
     supabasePublishableKey: 'sb_publishable_synthetic', signingKeyId: 'test', ...overrides,
   }, pair.privateKey);
-  return { manifest, keys };
+  return { manifest, trust };
 }
 
 export function json(value: unknown, status = 200, headers: HeadersInit = {}) {
@@ -32,8 +37,8 @@ export function json(value: unknown, status = 200, headers: HeadersInit = {}) {
 }
 
 export async function installation() {
-  const { manifest, keys } = await fixture();
-  return loadInstallation(origin, keys, async (input) => String(input).endsWith('/ccc-install-manifest.json')
+  const { manifest, trust } = await fixture();
+  return loadInstallation(origin, trust, async (input) => String(input).endsWith('/ccc-install-manifest.json')
     ? json(manifest) : json({ mode: manifest.mode, apiBase: manifest.apiBase }));
 }
 
@@ -61,3 +66,21 @@ export const readiness = (orgId = 'org-1', overrides: Record<string, unknown> = 
   },
   ...overrides,
 });
+
+export const intakeModule: IntakeModuleSnapshot = { programId: 'program-1', programVersion: 3, financialSupportEnabled: false };
+
+/** Valid synthetic answers, not an automatic production response policy. */
+export function intakeQuestionnaire(
+  moduleSnapshot: IntakeModuleSnapshot = intakeModule,
+  areas: IntakeArea[] = [],
+  replacements: IntakeAnswer[] = [],
+): IntakeQuestionnaire {
+  const overrides = new Map(replacements.map((answer) => [answer.key, answer]));
+  if (areas.length > 0) overrides.set('difficulty_areas', { key: 'difficulty_areas', response: 'answered', choices: areas });
+  return {
+    schemaVersion: 2, moduleSnapshot,
+    answers: requiredIntakeQuestionKeys(areas).map((key) => overrides.get(key) ?? { key, response: 'unknown' }),
+    linkedOrgs: { response: 'not_applicable' }, additionalItems: { response: 'unknown' },
+    debts: moduleSnapshot.financialSupportEnabled && areas.includes('economy') ? { response: 'unknown' } : null,
+  };
+}

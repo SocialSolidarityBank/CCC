@@ -108,10 +108,8 @@ beforeAll(async () => {
     }));
     if (actor === actorA) caseA = created;
     else caseB = created;
-    const session = await createCounselingRecord(env, actor, created.supportCaseId, {
-      submissionId: crypto.randomUUID(), heldAt: '2026-09-08T00:00:00.000Z',
-      channel: 'in_person', memo: 'Synthetic RLS fixture', gasScores: [], actionItems: [], flags: [],
-    });
+    const session = await createCounselingRecord(env, actor, created.supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-09-08T00:00:00.000Z',
+    channel: 'in_person', memo: 'Synthetic RLS fixture', gasScores: [], actionItems: [], flags: [], });
     await admin.prepare(`INSERT INTO ner_release_qualification_receipts
       (id,org_id,model_id,model_revision,label_set_hash,corpus_hash,result_hash,validated_at,expires_at,status,created_at)
       VALUES (?,?,'synthetic','v1',?,?,?,'2026-09-08T00:00:00.000Z','2027-09-08T00:00:00.000Z','passed','2026-09-08T00:00:00.000Z')`)
@@ -138,7 +136,10 @@ beforeAll(async () => {
       ner_attestation_id='synthetic',ner_model_id='synthetic',ner_model_revision='v1',
       ner_label_set_hash=?,ner_corpus_hash=?,ner_attestation_result_hash=?,
       ner_attestation_validated_at='2026-09-08T00:00:00.000Z',ner_attestation_expires_at='2027-09-08T00:00:00.000Z',
-      release_qualification_receipt_id=? WHERE org_id=?`)
+      release_qualification_receipt_id=?,
+      source_generation=(SELECT generation FROM counseling_memory_cases
+        WHERE org_id=agent_jobs.org_id AND support_case_id=agent_jobs.support_case_id),
+      source_sha256=repeat('d',64),source_length=1 WHERE org_id=?`)
       .bind('a'.repeat(64), 'a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64), `receipt-${actor.orgId}`, actor.orgId).run();
   }
 }, 240_000);
@@ -210,12 +211,13 @@ it('enforces tenant scope for insert, update, delete, and memory guards', async 
      VALUES ('org-b','UTC',365,1)`,
   ).run()).rejects.toThrow();
 
-  const update = await scopedA.prepare("UPDATE organization_settings SET time_zone='Asia/Seoul'").run();
+  const update = await scopedA.prepare('UPDATE organization_settings SET pii_purge_grace_days=366').run();
   const remove = await scopedA.prepare("DELETE FROM organization_settings WHERE org_id='org-b'").run();
   expect(update.meta.changes).toBe(1);
   expect(remove.meta.changes).toBe(0);
-  expect(await admin.prepare('SELECT time_zone FROM organization_settings WHERE org_id=\'org-b\'').first())
-    .toMatchObject({ time_zone: 'UTC' });
+  expect(await admin.prepare("SELECT pii_purge_grace_days FROM organization_settings WHERE org_id='org-b'").first())
+    .toMatchObject({ pii_purge_grace_days: 365 });
+  await scopedA.prepare('UPDATE organization_settings SET pii_purge_grace_days=365').run();
 
   await scopedA.prepare(
     "INSERT INTO counseling_memory_guards(id,ok,org_id) VALUES ('same-org-fence',1,'org-a')",

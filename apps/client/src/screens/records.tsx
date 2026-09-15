@@ -4,17 +4,21 @@ import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireChoice, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireFormField, WireItem,
 } from '@ccc/wire';
-import { CLAIM_SECTION_LABELS, CONTRAST_AXIS_LABELS, type AiDraft } from '../business/ai-review';
+import { CLAIM_SECTION_LABELS, CONTRAST_AXIS_LABELS, CONTRAST_UNAVAILABLE_LABELS, type AiDraft } from '../business/ai-review';
 import { type BusinessError, safeError } from '../business/errors';
 import {
-  ACTION_OWNER_LABELS, FLAG_LABELS, FLAG_TYPES, GOAL_CLOSE_LABELS, GOAL_CLOSE_REASONS,
+  ACTION_OWNER_LABELS, AUDIO_ACCEPT, FLAG_LABELS, FLAG_TYPES, GOAL_CLOSE_LABELS, GOAL_CLOSE_REASONS,
   RECORD_DETAIL_KEYS, RECORD_DETAIL_LABELS,
-  type ActionOwner, type ClosureInfo, type CounselingRecordList, type FlagType,
-  type GoalCloseReason, type GoalTreeCase, type RecordDetailKey,
+  type ActionOwner, type AudioDelivery, type ClosureInfo, type CounselingRecordList, type FlagType,
+  type GoalCloseReason, type GoalTreeCase, type ManualPendingQuestion, type ManualRecordContext,
+  type RecordDetailKey,
 } from '../business/records';
 import type { Session } from '../business/session';
 
 interface ActionDraft { description: string; owner: ActionOwner; dueDate: string }
+const QUESTION_KIND_LABELS: Record<ManualPendingQuestion['kind'], string> = {
+  schedule: '일정 질문', record: '상담 질문', intake: '첫 상담 질문',
+};
 
 function useRecordList(session: Session, supportCaseId: string) {
   const [value, setValue] = useState<CounselingRecordList | null>(null);
@@ -24,6 +28,30 @@ function useRecordList(session: Session, supportCaseId: string) {
     const own = ++generation.current;
     setError(null);
     void session.records.list(supportCaseId).then((next) => {
+      if (own === generation.current) setValue(next);
+    }).catch((cause: unknown) => {
+      if (own !== generation.current) return;
+      const safe = safeError(cause);
+      if (safe.code === 'session_changed') return;
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    });
+  }, [session.records, session.auth, supportCaseId]);
+  useEffect(() => {
+    reload();
+    return () => { generation.current += 1; };
+  }, [reload]);
+  return { value, error, reload };
+}
+
+function useManualContext(session: Session, supportCaseId: string) {
+  const [value, setValue] = useState<ManualRecordContext | null>(null);
+  const [error, setError] = useState<BusinessError | null>(null);
+  const generation = useRef(0);
+  const reload = useCallback(() => {
+    const own = ++generation.current;
+    setError(null);
+    void session.records.context(supportCaseId).then((next) => {
       if (own === generation.current) setValue(next);
     }).catch((cause: unknown) => {
       if (own !== generation.current) return;
@@ -87,14 +115,15 @@ function GoalTreeCard({ session, beneficiaryId, supportCaseId }: {
     }
   };
 
-  return <WireCard title="세부 목표">
+  return <WireCard title="단기목표">
     {error && <WireError>{error.message}</WireError>}
     {tree === null && error === null && <WireEmpty live reserve>목표 트리를 불러오고 있습니다.</WireEmpty>}
     {tree !== null && <>
+      <p className="wire-section-value">장기목표는 당사자와 합의한 방향이고, 단기목표는 그 방향을 나눈 목표예요.</p>
       <WireDataRows>
-        <WireDataRow label="전체 목표" value={tree.overallGoal ?? '설정 전'} />
+        <WireDataRow label="장기목표" value={tree.overallGoal ?? '설정 전'} />
       </WireDataRows>
-      {tree.goals.length === 0 && <WireEmpty>등록된 세부 목표가 없습니다.</WireEmpty>}
+      {tree.goals.length === 0 && <WireEmpty>등록된 단기목표가 없어요.</WireEmpty>}
       {tree.goals.map((goal) => <WireCardSection key={goal.id} title={goal.title}
         action={<WireBadge tone={goal.status === 'active' ? 'mint' : 'neutral'}>
           {goal.status === 'active'
@@ -156,13 +185,13 @@ function GoalTreeCard({ session, beneficiaryId, supportCaseId }: {
           setTitle('');
         });
       }}>
-        <WireFormField label="새 세부 목표" htmlFor="goal-new-title" required
-          hint="측정할 수 있는 한 문장으로 적습니다">
+        <WireFormField label="새 단기목표" htmlFor="goal-new-title" required
+          hint="측정할 수 있는 한 문장으로 적어요">
           <input id="goal-new-title" value={title} required disabled={busy}
             onChange={(event) => setTitle(event.target.value)} />
         </WireFormField>
         <div className="business-actions">
-          <WireButton type="submit" variant="primary" disabled={busy || title.trim() === ''}>세부 목표 추가</WireButton>
+          <WireButton type="submit" variant="primary" disabled={busy || title.trim() === ''}>단기목표 추가</WireButton>
         </div>
       </form>
       <WireCallout tone="info" title="점수는 매기지 않습니다">
@@ -214,7 +243,7 @@ function ClosureCard({ session, supportCaseId }: { session: Session; supportCase
     }
   };
 
-  return <WireCard title="사업 종결">
+  return <WireCard title="사례 종결">
     {error && <WireError>{error.message}</WireError>}
     {closure === null && error === null && <WireEmpty live reserve>종결 상태를 불러오고 있습니다.</WireEmpty>}
     {closure !== null && <>
@@ -232,7 +261,7 @@ function ClosureCard({ session, supportCaseId }: { session: Session; supportCase
               onChange={(event) => setReason(event.target.value)} />
           </WireFormField>
           <div className="business-actions">
-            <WireButton type="submit" variant="primary" disabled={busy || reason.trim() === ''}>사업 종결</WireButton>
+            <WireButton type="submit" variant="primary" disabled={busy || reason.trim() === ''}>종결</WireButton>
           </div>
         </form>
         : <WireCallout tone="info" title="종결된 사업입니다">
@@ -259,9 +288,9 @@ export function RecordListScreen() {
   if (value === null) return <WireCard><WireEmpty live reserve>상담 기록을 불러오고 있습니다.</WireEmpty></WireCard>;
 
   return <>
-    <WireCard title="상담 기록 확인하기">
+    <WireCard title="상담 기록">
       <WireDataRows>
-        <WireDataRow label="전체 목표" value={value.overallGoal ?? '설정 전'} />
+        <WireDataRow label="장기목표" value={value.overallGoal ?? '설정 전'} />
         <WireDataRow label="사업 상태" value={value.caseStatus === 'active' ? '진행 중' : '종결'} />
         <WireDataRow label="다음 일정" value={value.nextSchedule?.scheduledAt ?? '예정 없음'} />
       </WireDataRows>
@@ -269,31 +298,43 @@ export function RecordListScreen() {
         <WireButton variant="primary" href={value.nextSchedule === null
           ? `${base}/records/new`
           : `${base}/records/new?scheduleId=${encodeURIComponent(value.nextSchedule.id)}`}>
-          상담 기록하기
+          오늘 상담 기록
         </WireButton>
-        <WireButton variant="neutral" href={`${base}/records/intake`}>인테이크 기록</WireButton>
-        <WireButton variant="neutral" href={`${base}/briefing`}>15초 페이지</WireButton>
-      <WireButton variant="neutral" href={`${base}/report`}>전체 상담 리포트</WireButton>
+        <WireButton variant="neutral" href={`${base}/records/intake`}>첫 상담 기록</WireButton>
+        <WireButton variant="neutral" href={`${base}/briefing`}>상담 전 톺아보기</WireButton>
+      <WireButton variant="neutral" href={`${base}/report`}>경과 리포트</WireButton>
       </div>
     </WireCard>
     <WireCard title="회차">
       {value.records.length === 0 && <WireEmpty>아직 공식 기록이 없습니다.</WireEmpty>}
       {value.records.map((row) => <WireCardSection key={row.id}
-        title={`${row.heldAt}, ${row.kind === 'intake' ? '인테이크' : '기본 상담'}`}
+        title={`${row.heldAt}, ${row.kind === 'intake' ? '첫 상담' : '기본 상담'}`}
         action={row.aiOneLiner === null ? <WireBadge tone="neutral">수기</WireBadge> : <WireBadge tone="lavender">AI 승인</WireBadge>}>
         <p className="wire-section-value">{row.aiOneLiner ?? row.memoExcerpt ?? row.memo}</p>
+        {row.manual && row.manual.questionOutcomes.length > 0 && <WireCardSection title="다음 회차 확인 결과">
+          {row.manual.questionOutcomes.map((outcome) => <WireItem
+            key={`${outcome.kind}-${outcome.questionId}-${outcome.sessionId}`}
+            title={outcome.sourceText}
+            description={outcome.outcome === 'confirmed' ? outcome.answer ?? '확인한 답 없음' : '확인하지 않음'}
+            status={<WireBadge tone="neutral">{QUESTION_KIND_LABELS[outcome.kind]}</WireBadge>} />)}
+        </WireCardSection>}
         {value.recordErrorSessionIds.includes(row.id)
           && <WireCallout tone="info" title="기록 오류로 처리된 회차">
             원본은 그대로 두고 처리 표시만 붙습니다.
           </WireCallout>}
         {row.actionItems.length > 0 && <WireDataRows>
           {row.actionItems.map((action) => <WireDataRow key={action.id}
-            label={action.resolved ? '해결된 액션' : '미해결 액션'}
+            label={action.resolved ? '해결된 할 일' : '남은 할 일'}
             value={`${action.description} (${ACTION_OWNER_LABELS[action.owner as ActionOwner] ?? action.owner}, 기한 ${action.dueDate ?? '없음'})`} />)}
         </WireDataRows>}
         {row.flags.filter((flag) => flag.reviewStatus === 'confirmed').map((flag) => <WireItem key={flag.id}
           title={FLAG_LABELS[flag.flagType as FlagType] ?? flag.flagType}
           description={flag.quote ?? undefined} />)}
+        {(session.capabilities.sttMode === 'local' || session.capabilities.sttMode === 'azure')
+          && <div className="business-actions">
+            <WireButton variant="neutral"
+              href={`${base}/records/${encodeURIComponent(row.id)}/review`}>녹음 올리기</WireButton>
+          </div>}
       </WireCardSection>)}
     </WireCard>
     <GoalTreeCard session={session} beneficiaryId={beneficiaryId} supportCaseId={supportCaseId} />
@@ -307,25 +348,30 @@ export function RecordCreateScreen() {
   const { beneficiaryId = '', supportCaseId = '' } = useParams();
   const [params] = useSearchParams();
   const scheduleId = params.get('scheduleId');
-  const { value: list, error: listError } = useRecordList(session, supportCaseId);
+  const { value: manualContext, error: contextError, reload: reloadContext } = useManualContext(session, supportCaseId);
   // 재전송해도 회차가 두 번 생기지 않도록 이 폼 한 벌이 같은 제출 ID를 계속 쓴다.
   const submissionId = useMemo(() => crypto.randomUUID(), []);
   const [heldAt, setHeldAt] = useState('');
   const [memo, setMemo] = useState('');
-  const [details, setDetails] = useState<Record<RecordDetailKey, string>>({
-    sessionGoalNote: '', changeSinceLast: '', safetyNote: '', counselorOpinion: '',
-  });
+  const [details, setDetails] = useState<Record<RecordDetailKey, string>>({ counselorOpinion: '' });
   const [actions, setActions] = useState<ActionDraft[]>([]);
   const [flags, setFlags] = useState<FlagType[]>([]);
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
   const [replayed, setReplayed] = useState(false);
 
-  const schedule = list?.nextSchedule ?? null;
-  const linked = scheduleId !== null && schedule !== null && schedule.id === scheduleId ? schedule : null;
+  const linked = scheduleId !== null && manualContext?.defaults.scheduleId === scheduleId
+    && manualContext.defaults.scheduleVersion !== null
+    ? { id: scheduleId, version: manualContext.defaults.scheduleVersion } : null;
+  const questionCanAnswer = (question: ManualPendingQuestion) => {
+    if (heldAt === '') return false;
+    if (question.kind === 'schedule') return question.sourceId === linked?.id;
+    return Date.parse(question.sourceHeldAt ?? question.createdAt) <= Date.parse(new Date(heldAt).toISOString());
+  };
 
   const submit = async () => {
-    if (busy || heldAt === '' || memo.trim() === '') return;
+    if (busy || manualContext?.canWrite !== true || heldAt === '' || memo.trim() === '') return;
     setBusy(true);
     setError(null);
     try {
@@ -339,6 +385,12 @@ export function RecordCreateScreen() {
           ...(action.dueDate === '' ? {} : { dueDate: action.dueDate }),
         })),
         flagTypes: flags,
+        questionAnswers: manualContext.questions.flatMap((question) => {
+          const answer = questionAnswers[`${question.kind}:${question.id}`]?.trim();
+          return answer && questionCanAnswer(question)
+            ? [{ kind: question.kind, questionId: question.id, sourceId: question.sourceId,
+              expectedRevision: question.sourceRevision, answer }] : [];
+        }),
         ...(linked === null ? {} : { schedule: { id: linked.id, expectedVersion: linked.version } }),
       });
       setReplayed(result.replayed);
@@ -352,19 +404,28 @@ export function RecordCreateScreen() {
     }
   };
 
-  return <WireCard title="상담 기록하기">
-    {listError && <WireError>{listError.message}</WireError>}
+  if (contextError !== null && manualContext === null) return <WireCard>
+    <WireError>{contextError.message}</WireError>
+    <div className="business-actions"><WireButton variant="neutral" onClick={reloadContext}>다시 불러오기</WireButton></div>
+  </WireCard>;
+  if (manualContext === null) return <WireCard><WireEmpty live reserve>다음 회차 확인 항목을 불러오고 있습니다.</WireEmpty></WireCard>;
+
+  return <WireCard title="오늘 상담 기록">
+    {contextError && <WireError>{contextError.message}</WireError>}
     {error && <WireError>{error.message}</WireError>}
     {replayed && <WireCallout tone="info" title="이미 저장된 제출입니다">
       같은 제출을 다시 보냈고 서버가 기존 회차를 그대로 돌려줬습니다. 회차가 두 번 생기지 않았습니다.
     </WireCallout>}
-    <WireCallout tone="info" title="저장하면 바로 공식 기록입니다">
-      직접 쓴 기록은 저장 즉시 공식 기록입니다. AI 정리는 승인 전까지 이 기록을 대신하지 않습니다.
-    </WireCallout>
+    {!manualContext.canWrite && <WireCallout tone="info" title="읽기 전용이에요">
+      저장은 진행 중인 사례의 담당 실무자만 할 수 있어요.
+    </WireCallout>}
+    {manualContext.canWrite && <WireCallout tone="info" title="저장하면 바로 공식 기록이에요">
+      직접 쓴 기록은 저장 즉시 공식 기록이에요. AI 정리는 승인 전까지 이 기록을 대신하지 않아요.
+    </WireCallout>}
     {scheduleId !== null && linked === null && <WireCallout tone="info" title="일정 연결 없음">
       주소가 가리키는 일정을 이 사업의 다음 일정으로 확인하지 못해 일정 없이 기록합니다.
     </WireCallout>}
-    <form className="business-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+    {manualContext.canWrite && <form className="business-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <WireFormField label="상담 일시" htmlFor="record-held-at" required hint="이 기기의 시간대로 입력합니다">
         <input id="record-held-at" type="datetime-local" value={heldAt} required disabled={busy}
           onChange={(event) => setHeldAt(event.target.value)} />
@@ -377,7 +438,37 @@ export function RecordCreateScreen() {
         <textarea id={`record-${key}`} rows={3} value={details[key]} disabled={busy}
           onChange={(event) => setDetails({ ...details, [key]: event.target.value })} />
       </WireFormField>)}
-      {actions.map((action, index) => <WireCardSection key={`action-${index}`} title={`액션 ${index + 1}`}>
+      {manualContext.questions.length > 0 && <WireCardSection title="다음 회차에 확인할 질문">
+        {manualContext.questions.map((question) => {
+          const key = `${question.kind}:${question.id}`;
+          const canAnswer = questionCanAnswer(question);
+          return <WireCardSection key={key} title={question.body}
+            action={<WireBadge tone="neutral">{QUESTION_KIND_LABELS[question.kind]}</WireBadge>}>
+            <p className="record-writing-help">{canAnswer
+              ? '답을 적지 않으면 열린 질문으로 남아요.'
+              : question.kind === 'schedule' ? '이 질문은 연결된 일정으로 기록할 때 답할 수 있어요.'
+                : '상담 일시가 질문의 출처보다 빠르면 답을 저장하지 않아요.'}</p>
+            <WireFormField label="확인한 답" htmlFor={`question-answer-${question.kind}-${question.id}`} control="textarea">
+              <textarea id={`question-answer-${question.kind}-${question.id}`} rows={3}
+                value={questionAnswers[key] ?? ''} disabled={busy || !canAnswer}
+                onChange={(event) => setQuestionAnswers({ ...questionAnswers, [key]: event.target.value })} />
+            </WireFormField>
+          </WireCardSection>;
+        })}
+      </WireCardSection>}
+      {manualContext.confirmedQuestions.length > 0 && <WireCardSection title="확정된 질문">
+        {manualContext.confirmedQuestions.map((question) => <WireItem key={`${question.kind}:${question.id}`}
+          title={question.body}
+          description={question.outcomes.findLast((outcome) => outcome.outcome === 'confirmed')?.answer ?? '확인한 답 없음'}
+          status={<WireBadge tone="neutral">{QUESTION_KIND_LABELS[question.kind]} 확정</WireBadge>} />)}
+      </WireCardSection>}
+      {manualContext.withdrawnQuestions.length > 0 && <WireCardSection title="철회된 질문">
+        {manualContext.withdrawnQuestions.map((question) => <WireItem key={`${question.kind}:${question.id}`}
+          title={question.body}
+          description={question.outcomes.findLast((outcome) => outcome.outcome === 'confirmed')?.answer ?? '확정된 답 없음'}
+          status={<WireBadge tone="neutral">{QUESTION_KIND_LABELS[question.kind]} 철회</WireBadge>} />)}
+      </WireCardSection>}
+      {actions.map((action, index) => <WireCardSection key={`action-${index}`} title={`할 일 ${index + 1}`}>
         <WireFormField label="할 일" htmlFor={`action-description-${index}`} required>
           <input id={`action-description-${index}`} value={action.description} disabled={busy}
             onChange={(event) => setActions(actions.map((entry, position) => (
@@ -398,13 +489,15 @@ export function RecordCreateScreen() {
               position === index ? { ...entry, dueDate: event.target.value } : entry)))} />
         </WireFormField>
       </WireCardSection>)}
+      <p className="record-writing-help">약속한 일 중 업무로 관리할 것을 등록해요. 담당과 기한은 실무자가 정해요.</p>
       <div className="business-actions">
         <WireButton variant="neutral" disabled={busy}
           onClick={() => setActions([...actions, { description: '', owner: 'counselor', dueDate: '' }])}>
-          액션 추가
+          할 일 추가
         </WireButton>
       </div>
-      <WireCardSection title="리스크 플래그">
+      <WireCardSection title="위험 신호 표시">
+        <p className="record-writing-help">실무자가 직접 표시해요. 수기 메모만 있는 회차에는 AI가 위험 신호를 제안하지 않아요.</p>
         {FLAG_TYPES.map((flagType) => <WireChoice key={flagType} type="checkbox" label={FLAG_LABELS[flagType]}
           checked={flags.includes(flagType)} disabled={busy}
           onChange={(checked) => setFlags(checked ? [...flags, flagType] : flags.filter((entry) => entry !== flagType))} />)}
@@ -414,8 +507,88 @@ export function RecordCreateScreen() {
           기록 저장
         </WireButton>
       </div>
-    </form>
+    </form>}
   </WireCard>;
+}
+
+/** 업로드 거부를 서버 코드별로 가른다. 사유를 한 문구로 뭉개지 않는다. */
+function audioDenialCopy(error: BusinessError, session: Session): string {
+  if (error.code === 'engine_unavailable') {
+    return session.capabilities.sttEngine === null
+      ? '이 설치는 아직 녹음 전사가 켜지지 않았습니다. 수기 기록으로 남겨 주세요.'
+      : '녹음을 처리할 장비가 아직 준비되지 않았습니다. 잠시 뒤 다시 시도하거나 수기 기록으로 남겨 주세요.';
+  }
+  if (error.code === 'consent_not_effective') {
+    return session.capabilities.sttMode === 'azure'
+      ? '녹음 동의와 외부 전사 처리 동의가 모두 필요합니다. 당사자 정보에서 두 동의를 확인한 뒤 다시 올려 주세요.'
+      : '녹음 동의가 확인되지 않아 올릴 수 없습니다. 당사자 정보에서 동의를 확인한 뒤 다시 올려 주세요.';
+  }
+  if (error.code === 'program_admission_required') {
+    return '이 사업의 도입 확인이 녹음 처리를 허용하지 않습니다. 사업 설정을 확인한 뒤 다시 시도해 주세요.';
+  }
+  if (error.code === 'forbidden') return '이 회차의 담당 실무자만 녹음을 올릴 수 있습니다.';
+  if (error.code === 'conflict') return '이미 처리가 끝났거나 다른 변경이 먼저 저장된 회차입니다.';
+  if (error.code === 'invalid_request') {
+    return '지원하지 않는 파일이거나 회차 상태가 맞지 않습니다. 대면 상담 회차의 200MB 이하 녹음 파일인지 확인해 주세요.';
+  }
+  return error.message;
+}
+
+/**
+ * 회차 녹음 올리기. 서버 계약은 세 단계다: 업로드 대상 발급(cloud) 또는 본문 직접 전송(local),
+ * 파일 전송, 완료 등록. 처리 시점은 서버가 응답에 싣지 않으므로 서버가 정한 문구만 보인다.
+ */
+function AudioUploadSection({ session, sessionId }: { session: Session; sessionId: string }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [phase, setPhase] = useState<'idle' | 'sending' | 'done'>('idle');
+  const [denial, setDenial] = useState<string | null>(null);
+  const delivery: AudioDelivery = session.capabilities.mode === 'community-cloud' ? 'protected-get' : 'api-stream';
+  const engineMissing = session.capabilities.sttEngine === null;
+  const agentIdle = session.capabilities.agentStatus !== 'connected';
+
+  const submit = async () => {
+    if (file === null || phase === 'sending') return;
+    setPhase('sending');
+    try {
+      await session.records.uploadAudio(sessionId, file, delivery);
+      setPhase('done');
+      setFile(null);
+    } catch (cause) {
+      const safe = safeError(cause);
+      setDenial(audioDenialCopy(safe, session));
+      setPhase('idle');
+      if (safe.status === 401) void session.auth.signOut(safe);
+    }
+  };
+
+  return <WireCardSection title="녹음 올리기">
+    {denial !== null && <WireError>{denial}</WireError>}
+    <p className="wire-section-value">
+      {engineMissing
+        ? '전사 엔진이 정해지지 않아 지금은 녹음을 올릴 수 없습니다.'
+        : agentIdle
+          ? '처리 장비가 아직 준비되지 않았습니다. 올려도 서버가 거부할 수 있습니다.'
+          : '지금 녹음을 올릴 수 있습니다.'}
+    </p>
+    <WireFormField label="녹음 파일" htmlFor="audio-upload-file">
+      <input key={phase} id="audio-upload-file" type="file" accept={AUDIO_ACCEPT}
+        disabled={phase === 'sending'}
+        onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+    </WireFormField>
+    <div className="business-actions">
+      <WireButton variant="primary" disabled={file === null || phase === 'sending'}
+        onClick={() => { void submit(); }}>
+        {phase === 'sending' ? '올리는 중' : '녹음 올리기'}
+      </WireButton>
+    </div>
+    {phase === 'sending' && <WireEmpty live>녹음을 올리고 있습니다.</WireEmpty>}
+    {phase === 'done' && <WireCallout tone="info" title="녹음을 받았습니다">
+      다음 영업일 처리 기회부터 전사됩니다. 원음은 처리 직후 지워지며 늦어도 올린 뒤 7일 안에 지워집니다.
+    </WireCallout>}
+    <p className="record-writing-help">
+      원음은 처리 직후 지워집니다. 외부 전사 경로에서는 가림 처리 전 원음이 외부로 나갑니다.
+    </p>
+  </WireCardSection>;
 }
 
 export function RecordReviewScreen() {
@@ -508,19 +681,25 @@ export function RecordReviewScreen() {
   };
 
   const base = `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
+  const manualRecovery = error?.code === 'not_found' || error?.code === 'consent_not_effective'
+    || error?.code === 'text_ai_pilot_disabled' || error?.code === 'ai_provider_not_configured'
+    || error?.code === 'ai_prohibited_output' || error?.code === 'ai_provider_unavailable';
   return <WireCard title="AI 정리 검토">
     {error && <><WireError>{error.message}</WireError>
-      {(error.code === 'draft_changed' || error.code === 'conflict') && <WireCallout tone="info" title="선택한 내용은 그대로 두었습니다">
-        최신 초안을 불러와 비교하기 전까지 승인, 반려, 액션 등록 상태를 완료로 처리하지 않습니다.
+      {(error.code === 'draft_changed' || error.code === 'conflict') && <WireCallout tone="info" title="선택한 내용은 그대로 두었어요">
+        최신 초안을 불러와 비교하기 전까지 승인, 반려, 할 일 등록 상태를 완료로 처리하지 않아요.
       </WireCallout>}
-      <div className="business-actions"><WireButton variant="neutral" onClick={load}>최신 초안 다시 불러오기</WireButton></div></>}
+      {!manualRecovery && <div className="business-actions"><WireButton variant="neutral" onClick={load}>최신 초안 다시 불러오기</WireButton></div>}</>}
     {aiOff && <WireCallout tone="info" title="AI 처리가 꺼져 있습니다">
       이 설치는 AI 정리를 쓰지 않습니다. 상담은 직접 쓴 기록으로 남고, 이 화면은 저장된 초안이 있을 때만 내용을 보여 줍니다.
     </WireCallout>}
     {draft === null && error === null && <WireEmpty live reserve>초안을 확인하고 있습니다.</WireEmpty>}
     {draft === 'none' && <WireEmpty>이 회차에는 AI 초안이 없습니다.</WireEmpty>}
+    {/* 녹음은 초안이 생기기 전 회차에만 올린다. 초안이 있거나 전사가 꺼진 설치면 구획을 숨긴다. */}
+    {draft === 'none' && (session.capabilities.sttMode === 'local' || session.capabilities.sttMode === 'azure')
+      && <AudioUploadSection session={session} sessionId={sessionId} />}
     <div className="business-actions">
-      <WireButton variant="neutral" href={`${base}/records`}>상담 기록 확인하기</WireButton>
+      <WireButton variant="neutral" href={`${base}/records`}>상담 기록</WireButton>
     </div>
     {draft !== null && draft !== 'none' && <>
       <WireDataRows>
@@ -529,23 +708,24 @@ export function RecordReviewScreen() {
           : draft.reviewDecision === 'rejected' ? '반려됨' : '승인 전 초안'} />
         <WireDataRow label="핵심 한 줄" value={draft.oneLiner ?? '없음'} />
       </WireDataRows>
-      {draft.reviewDecision !== 'approved' && <WireCallout tone="info" title="승인 전에는 공식 기록이 아닙니다">
-        이 내용은 브리핑, 통계, 기록 목록 어디에도 아직 나가지 않습니다. 승인하면 그때 공식 기록이 됩니다.
+      {draft.reviewDecision !== 'approved' && <WireCallout tone="info" title="승인해야 공식 기록이 돼요">
+        이 AI 정리는 상담 전 톺아보기, 통계, 기록 목록에 아직 나오지 않아요. 직접 쓴 수기 기록은 저장 즉시 공식 기록이에요.
       </WireCallout>}
       <WireCardSection title="요약">
         <p className="wire-section-value">{draft.summaryText}</p>
-        {draft.claims.map((claim) => <WireItem key={claim.claimKey}
+        {/* 첫 출고는 회기 목표별 요약만 보인다. 다른 분류와 할 일 등록 코드는 보존한다. */}
+        {draft.claims.filter((claim) => claim.section === 'session_goal_discussion').map((claim) => <WireItem key={claim.claimKey}
           title={CLAIM_SECTION_LABELS[claim.section] ?? claim.section} description={claim.text}
           action={claim.section === 'next_session_commitments'
             ? <WireButton variant="neutral" disabled={busy}
               onClick={() => { setActionDraft({ claimKey: claim.claimKey, description: claim.text, owner: 'counselor', dueDate: '' }); }}>
-              액션으로 등록
+              할 일로 등록
             </WireButton>
             : undefined} />)}
         {/* D70: 문구만 프리필하고 담당과 기한은 실무자가 정한다. AI가 추정하지 않는다. */}
         {actionDraft !== null && <form className="business-form"
           onSubmit={(event) => { event.preventDefault(); void registerAction(); }}>
-          <WireFormField label="액션 내용" htmlFor="review-action-description" required>
+          <WireFormField label="할 일 내용" htmlFor="review-action-description" required>
             <input id="review-action-description" value={actionDraft.description} required disabled={busy}
               onChange={(event) => setActionDraft({ ...actionDraft, description: event.target.value })} />
           </WireFormField>
@@ -563,23 +743,24 @@ export function RecordReviewScreen() {
           </WireFormField>
           <div className="business-actions">
             <WireButton type="submit" variant="primary" disabled={busy || actionDraft.description.trim() === ''}>
-              액션 등록
+              할 일 등록
             </WireButton>
             <WireButton variant="neutral" disabled={busy} onClick={() => setActionDraft(null)}>취소</WireButton>
           </div>
         </form>}
-        {actionSaved !== null && <WireCallout tone="info" title="액션을 등록했습니다">
-          {actionSaved} 항목이 미해결 액션 목록에 올라갔습니다. 승인 상태는 이 등록으로 바뀌지 않습니다.
+        {actionSaved !== null && <WireCallout tone="info" title="할 일을 등록했어요">
+          {actionSaved} 항목이 남은 할 일 목록에 올라갔어요. AI 정리의 승인 상태는 바뀌지 않아요.
         </WireCallout>}
       </WireCardSection>
       <WireCardSection title="대조">
-        {draft.contrast.length === 0 && <WireEmpty>대조 결과가 없습니다.</WireEmpty>}
-        {draft.contrast.map((axis) => <WireItem key={axis.axis}
-          title={CONTRAST_AXIS_LABELS[axis.axis] ?? axis.axis}
-          description={axis.findings.length === 0
-            ? `재료 없음 또는 처리 안 함 (${axis.status})`
-            : axis.findings.map((finding) => finding.quote === null
-              ? finding.description : `${finding.description}: ${finding.quote}`).join(' / ')} />)}
+        {(['missing_from_memo', 'undiscussed_session_goal'] as const).map((key) => {
+          const axis = draft.contrast.find((entry) => entry.axis === key);
+          return <WireItem key={key} title={CONTRAST_AXIS_LABELS[key]}
+            description={axis === undefined ? '이 초안의 대조 상태를 받지 못했어요.'
+              : axis.status !== 'applied' ? CONTRAST_UNAVAILABLE_LABELS[axis.status]
+                : axis.findings.length === 0 ? '이 초안에 표시할 대조 항목이 없어요.'
+                  : axis.findings.map((finding) => `${finding.description}: ${finding.quote}`).join(' / ')} />;
+        })}
       </WireCardSection>
       <WireCardSection title="확인할 질문">
         {draft.questions.length === 0 && <WireEmpty>제안된 질문이 없습니다.</WireEmpty>}
@@ -587,6 +768,7 @@ export function RecordReviewScreen() {
           title={question.title} description={question.reason ?? undefined} />)}
       </WireCardSection>
       <WireCardSection title="근거 인용">
+        <p className="wire-section-value">AI 정리가 근거로 삼은 원문 구절이에요. 인용한 내용과 AI 정리를 함께 확인해 주세요.</p>
         {draft.evidence.length === 0 && <WireEmpty>인용된 근거가 없습니다.</WireEmpty>}
         {draft.evidence.map((item) => <WireItem key={item.id} title={item.quote} description={item.claimKey} />)}
       </WireCardSection>

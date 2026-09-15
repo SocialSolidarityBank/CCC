@@ -14,6 +14,9 @@
  *
  * 실행: pnpm --filter @ccc/web test   (이 파일이 돌면 harness.html 이 다시 쓰인다)
  */
+import {
+  WireButton,
+} from '@ccc/wire';
 import { describe, it, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { render, fireEvent, waitFor, cleanup } from '@testing-library/react';
@@ -21,12 +24,17 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ComponentProps, ReactElement } from 'react';
+import {
+  CONSENT_COPY,
+  CONSENT_DOMAINS,
+  type ConsentDisclosureSnapshot,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 
 import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
 import { wireStyles } from '../components/wire/wire-styles';
 import KitPage from './page';
 import { PageLoading } from '../components/wire/page-loading';
-import { WireButton } from '../components/wire/wire-button';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
 import { RecordOnepage, type RecordOnepageProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/record-onepage';
 import { GoalSection } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/goal-section';
@@ -52,6 +60,35 @@ const OUT_DIR = join(repoRoot, 'artifacts/hierarchy-harness');
 
 const CASE_ID = '11111111-1111-4111-8111-111111111111';
 const SESSION_ID = '22222222-2222-4222-8222-222222222222';
+const CONSENT_STATES: CurrentConsentState[] = CONSENT_DOMAINS.map((domain) => ({
+  domain,
+  state: 'granted',
+  provider: CONSENT_COPY[domain].provider,
+  providerLegalRecipient: null,
+  providerCountry: null,
+  purpose: CONSENT_COPY[domain].purpose,
+  retentionDuration: domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null,
+  effectiveAt: null,
+  eventId: null,
+  revision: null,
+  eventSequence: null,
+}));
+const REGISTRATION_DISCLOSURES: ConsentDisclosureSnapshot[] = CONSENT_DOMAINS.map((domain, index) => ({
+  snapshotId: `registration-snapshot-${index + 1}`,
+  scopeBinding: { orgId: 'org-1', programId: 'program-1', issuerId: 'user-1', supportCaseId: null },
+  domain,
+  fullKoreanCopy: `${CONSENT_COPY[domain].label} 서버 고지 전문입니다.`,
+  provider: CONSENT_COPY[domain].provider,
+  providerLegalRecipient: '사회연대은행',
+  country: 'KR',
+  purpose: CONSENT_COPY[domain].purpose,
+  retentionProfile: 'default_temporary_d85',
+  retentionDuration: 'default_temporary_d85',
+  copyVersion: 'server-copy-v1',
+  copyHash: `copy-hash-${index + 1}`,
+  issuedAt: '2026-09-16T00:00:00.000Z',
+  expiresAt: '2026-09-16T00:30:00.000Z',
+}));
 const noop = async () => ({ status: 'saved' as const });
 
 // ---------------------------------------------------------------------------
@@ -131,7 +168,7 @@ const recordProps: RecordOnepageProps = {
 const intakeReadProps = {
   beneficiaryId: 'swallow-003',
   participant: { name: '홍서희', phone: '010-1234-5678', email: 'sample@example.test' },
-  consent: { privacy: true, recordingAi: false },
+  consent: CONSENT_STATES,
   saved: {
     sessionId: SESSION_ID,
     heldAt: '2026-07-15T05:00:00.000Z',
@@ -272,7 +309,7 @@ const SCREENS: Screen[] = [
       submissionId="a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1"
       participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
       extendedPii={{ birthDate: '1984-03-11', region: '서울시 은평구', emergencyContact: null, gender: '여성' }}
-      consent={{ privacy: true, recordingAi: true }}
+      consent={CONSENT_STATES}
       sessionSequence={1}
       recorderLabel="이지은"
       briefingHref={`/participants/swallow-003/programs/${CASE_ID}/briefing`}
@@ -295,7 +332,7 @@ const SCREENS: Screen[] = [
         submissionId="b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2"
         participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
         extendedPii={{ birthDate: '1984-03-11', region: '서울시 은평구', emergencyContact: null, gender: '여성' }}
-        consent={{ privacy: true, recordingAi: true }}
+        consent={CONSENT_STATES}
         sessionSequence={2}
         recorderLabel="이지은"
         briefingHref={`/participants/swallow-003/programs/${CASE_ID}/records/intake`}
@@ -354,7 +391,7 @@ const SCREENS: Screen[] = [
   },
   {
     id: 'session-plan',
-    label: '세션 목표 수정',
+    label: '상담 계획',
     node: <SessionPlanEditor
       scheduleId="s1"
       beneficiaryId="swallow-003"
@@ -369,9 +406,9 @@ const SCREENS: Screen[] = [
   {
     id: 'register',
     label: '당사자 등록',
-    node: <RegisterForm currentUser={{ name: '이지은', email: 'staff@example.test' } as never} action={noop as never} />,
+    node: <RegisterForm currentUser={{ name: '이지은', email: 'staff@example.test' } as never} action={noop as never} disclosures={REGISTRATION_DISCLOSURES} />,
   },
-  { id: 'review', label: 'AI 초안 검토', node: <DraftReviewView {...reviewProps} /> },
+  { id: 'review', label: 'AI 정리 검토', node: <DraftReviewView {...reviewProps} /> },
 ];
 
 // ---------------------------------------------------------------------------

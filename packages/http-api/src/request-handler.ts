@@ -1,8 +1,10 @@
 import type { MeResponse } from '@ccc/contracts/institution';
 import type { CreateProgramInput, UpdateProgramInput, ProgramOptionsResponse, ProgramMutationResponse, ProgramAdmissionDeniedResponse } from '@ccc/contracts/program-admission';
+import { parseIntakeCreateRequest, parseIntakeUpdateRequest, IntakeContractError, type IntakeMutationResponse } from '@ccc/contracts/intake';
+import { parseCreateManualRecord, ManualRecordContractError } from '@ccc/contracts/manual-record';
 import {
-  ACTION_ITEM_RESOLUTION_STATUSES,
-  type ActionItemResolutionStatus,
+  type IntakeRecordResult,
+  type IntakeRecordContext,
   AiProviderNotConfiguredError,
   assertSupportCaseAccess,
   listSettingsSupportCaseOptions,
@@ -12,20 +14,13 @@ import {
   getInstitutionReadiness,
   listMyRoles,
   listAuditLog,
+  getMonthlyAuditSummary,
   listDirectoryAccounts,
   updateDirectoryRoles,
   deactivateDirectoryAccount,
   type DirectoryRole,
   correctCounselingMemory,
   getCounselingMemory,
-  getCounselingMemorySettings,
-  loadCounselingMemoryContext,
-  setCounselingMemorySettings,
-  acceptCounselingMemorySource,
-  claimCounselingMemorySources,
-  getCounselingMemorySource,
-  issueCounselingMemoryDictionary,
-  releaseCounselingMemorySource,
   ConflictError,
   ProgramAdmissionRequiredError,
   createProgram,
@@ -39,11 +34,6 @@ import {
   ForbiddenError,
   GroundedEvidenceRequiredError,
   FixtureDraftApprovalForbiddenError,
-  LIFE_AREA_KEYS,
-  LIFE_AREA_STATUSES,
-  INTAKE_ANSWER_KEYS,
-  INTAKE_ANSWER_RESPONSES,
-  INTAKE_EXTENDED_PII_FIELDS,
   PARTICIPANT_BASIC_INFO_FIELDS,
   NotApprovedError,
   PilotTextAiConsentRequiredError,
@@ -67,6 +57,9 @@ import {
   completeRecordingUploadStorageWrite,
   failAgentJobAudioTargetMint,
   authorizeSessionTextAiEgress,
+  authorizeOpenAiEgress,
+  beginOpenAiEgress,
+  finishOpenAiEgress,
   approveSession,
   activateAiProviderConfiguration,
   collectDiscrepancyDetectionSources,
@@ -74,7 +67,6 @@ import {
   resolveSessionDiscrepancy,
   listRecordErrorSessionIds,
   acceptSupportCaseAssignment,
-  COUNSELING_RECORD_DETAIL_KEYS,
   cancelCounselingSchedule,
   closeGoal,
   closeSupportCase,
@@ -85,6 +77,7 @@ import {
   issueRegistrationConsentDisclosures,
   createCase,
   createCounselingRecord,
+  getManualRecordContext,
   createActionItem,
   createIntakeRecord,
   updateIntakeRecord,
@@ -130,6 +123,7 @@ import {
   listAudioManualNoteFallbacks,
   getPipelineHealth,
   exportCase,
+  exportSupportCaseCsv,
   listCaseExportHistory,
   getLastProgramType,
   getOrganizationProfile,
@@ -148,11 +142,12 @@ import {
   getSupportCaseReport,
   listCounselorAssignments,
   listMySupportCaseAssignmentRequests,
-  listGoals,
   claimAgentJobs,
   heartbeatAgentJob,
   releaseAgentJob,
   getAgentJobSource,
+  getSessionTextProcessing,
+  retrySessionTextProcessing,
   issueAgentJobMaskDictionary,
   verifyAgentJobAudio,
   authorizeAgentJobEgress,
@@ -191,6 +186,7 @@ import {
   PiiPurgeDisabledError,
   recordAiCallOutcome,
   registerAiProviderConfiguration,
+  registerCaseEntities,
   registerRecording,
   rescheduleCounselingSchedule,
   reviewAiDraftForSession,
@@ -256,6 +252,8 @@ import {
   type ReleaseRequest,
   type ResultRequest,
 } from '@ccc/contracts/agent-jobs';
+import type { EntityRegistrationRequest } from '@ccc/contracts/entity-registration';
+import { listGoals } from '@ccc/core/gateway';
 import {
   CONSENT_DOMAINS,
   type AppendConsentEventInput,
@@ -267,8 +265,6 @@ import {
 import { isSttReadinessReport } from '@ccc/contracts/stt-readiness';
 // preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
 import { previewModeEnabled } from './preview-gate';
-import { memoryTrialEnabled, memoryTrialReadiness } from './counseling-memory-trial';
-import { runCounselingMemory, runCounselingMemoryTrial } from './counseling-memory-runner';
 import { createScheduledJobRunner, dueScheduledJobKinds } from '@ccc/core/scheduled-job-runner';
 import { decodeStorageSignerRequest, type StorageSignerRequest } from '@ccc/contracts/audio';
 import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, MfaRequiredError, type Actor as IdentityActor, type AudioContentType, type AudioObjectMetadata, type JobReport } from '@ccc/contracts/runtime';
@@ -603,130 +599,12 @@ function requiredSchemaVersion(body: JsonObject): 1 {
 }
 
 function parseRecordCreation(body: JsonObject) {
-  const hasSchedule = Object.hasOwn(body, 'scheduleId') || Object.hasOwn(body, 'expectedScheduleVersion');
-  const hasResolutions = Object.hasOwn(body, 'actionResolutions');
-  const hasLifeAreas = Object.hasOwn(body, 'lifeAreas');
-  const hasDetails = Object.hasOwn(body, 'details');
-  const allowedKeys = ['submissionId', 'heldAt', 'channel', 'memo', 'gasScores', 'actions', 'flags'];
-  if (hasResolutions) allowedKeys.push('actionResolutions');
-  if (hasLifeAreas) allowedKeys.push('lifeAreas');
-  if (hasDetails) allowedKeys.push('details');
-  if (hasSchedule) allowedKeys.push('scheduleId', 'expectedScheduleVersion');
-  requireOnlyKeys(body, allowedKeys);
-  const channelValue = requiredString(body, 'channel');
-  if (channelValue !== 'in_person' && channelValue !== 'phone' && channelValue !== 'video') {
-    throw new ValidationError('record channel is invalid');
+  try {
+    return parseCreateManualRecord(body);
+  } catch (error) {
+    if (error instanceof ManualRecordContractError) throw new ValidationError(error.message);
+    throw error;
   }
-  const channel: 'in_person' | 'phone' | 'video' = channelValue;
-  const gasScores = objectArray(body.gasScores, 'gasScores').map((score) => {
-    requireOnlyKeys(score, ['goalId', 'score']);
-    const value = score.score;
-    if (!Number.isInteger(value) || (value as number) < -2 || (value as number) > 2) {
-      throw new ValidationError('GAS score is invalid');
-    }
-    return { goalId: requiredUuid(score, 'goalId'), score: value as -2 | -1 | 0 | 1 | 2 };
-  });
-  if (new Set(gasScores.map((score) => score.goalId)).size !== gasScores.length) {
-    throw new ValidationError('GAS score is duplicated');
-  }
-  const actionItems = objectArray(body.actions, 'actions').map((action) => {
-    requireOnlyKeys(action, Object.hasOwn(action, 'dueDate') ? ['description', 'owner', 'dueDate'] : ['description', 'owner']);
-    const ownerValue = requiredString(action, 'owner');
-    if (ownerValue !== 'counselor' && ownerValue !== 'beneficiary' && ownerValue !== 'org') {
-      throw new ValidationError('action owner is invalid');
-    }
-    const owner: 'counselor' | 'beneficiary' | 'org' = ownerValue;
-    const dueDate = action.dueDate;
-    if (dueDate !== undefined && typeof dueDate !== 'string') {
-      throw new ValidationError('dueDate is invalid');
-    }
-    return {
-      description: requiredString(action, 'description'),
-      owner,
-      ...(dueDate === undefined ? {} : { dueDate: canonicalDate(dueDate, 'dueDate') }),
-    };
-  });
-  const flags = objectArray(body.flags, 'flags').map((flag) => {
-    requireOnlyKeys(flag, ['flagType']);
-    const flagType = requiredString(flag, 'flagType');
-    if (!(FLAG_TYPES as readonly string[]).includes(flagType)) {
-      throw new ValidationError('flag type is invalid');
-    }
-    return { flagType: flagType as typeof FLAG_TYPES[number] };
-  });
-  const actionItemResolutions = hasResolutions
-    ? objectArray(body.actionResolutions, 'actionResolutions').map((resolution) => {
-      requireOnlyKeys(resolution, Object.hasOwn(resolution, 'note') ? ['actionItemId', 'status', 'note'] : ['actionItemId', 'status']);
-      const status = requiredString(resolution, 'status');
-      if (!(ACTION_ITEM_RESOLUTION_STATUSES as readonly string[]).includes(status)) {
-        throw new ValidationError('action item resolution status is invalid');
-      }
-      return {
-        actionItemId: requiredUuid(resolution, 'actionItemId'),
-        status: status as ActionItemResolutionStatus,
-        ...(Object.hasOwn(resolution, 'note') ? { note: requiredString(resolution, 'note') } : {}),
-      };
-    })
-    : undefined;
-  const lifeAreas = hasLifeAreas
-    ? objectArray(body.lifeAreas, 'lifeAreas').map((area) => {
-      const changed = area.changed;
-      if (typeof changed !== 'boolean') throw new ValidationError('life area changed is invalid');
-      requireOnlyKeys(
-        area,
-        changed
-          ? (Object.hasOwn(area, 'note') ? ['areaKey', 'changed', 'status', 'note'] : ['areaKey', 'changed', 'status'])
-          : ['areaKey', 'changed'],
-      );
-      const areaKey = requiredString(area, 'areaKey');
-      if (!(LIFE_AREA_KEYS as readonly string[]).includes(areaKey)) {
-        throw new ValidationError('life area key is invalid');
-      }
-      if (!changed) {
-        return { areaKey: areaKey as typeof LIFE_AREA_KEYS[number], changed: false as const };
-      }
-      const status = requiredString(area, 'status');
-      if (!(LIFE_AREA_STATUSES as readonly string[]).includes(status)) {
-        throw new ValidationError('life area status is invalid');
-      }
-      return {
-        areaKey: areaKey as typeof LIFE_AREA_KEYS[number],
-        changed: true as const,
-        status: status as typeof LIFE_AREA_STATUSES[number],
-        ...(Object.hasOwn(area, 'note') ? { note: requiredString(area, 'note') } : {}),
-      };
-    })
-    : undefined;
-  // 서술형 항목(CCC-10): 알려진 키만, 값은 공백 아닌 문자열. 빈 객체는 게이트웨이가 거부한다.
-  const details = hasDetails
-    ? (() => {
-      const raw = asObject(body.details);
-      requireOnlyKeys(raw, COUNSELING_RECORD_DETAIL_KEYS);
-      const parsed: Record<string, string> = {};
-      for (const key of COUNSELING_RECORD_DETAIL_KEYS) {
-        if (Object.hasOwn(raw, key)) parsed[key] = requiredString(raw, key);
-      }
-      return parsed;
-    })()
-    : undefined;
-  return {
-    submissionId: requiredUuid(body, 'submissionId'),
-    heldAt: requiredCanonicalUtc(body, 'heldAt'),
-    channel,
-    memo: requiredString(body, 'memo'),
-    gasScores,
-    actionItems,
-    flags,
-    ...(actionItemResolutions === undefined ? {} : { actionItemResolutions }),
-    ...(lifeAreas === undefined ? {} : { lifeAreas }),
-    ...(details === undefined ? {} : { details }),
-    ...(hasSchedule
-      ? {
-        scheduleId: requiredUuid(body, 'scheduleId'),
-        expectedScheduleVersion: requiredExpectedVersion(body, 'expectedScheduleVersion'),
-      }
-      : {}),
-  };
 }
 
 function requiredBoolean(body: JsonObject, key: string): boolean {
@@ -735,281 +613,18 @@ function requiredBoolean(body: JsonObject, key: string): boolean {
   return value;
 }
 
-// 인테이크 제출 파서(CCC-7). 게이트웨이 createIntakeRecord 입력으로 정규화한다.
-// 바디 키는 정기 기록과 맞춰 액션은 'actions' 로 받고, 게이트웨이엔 actionItems 로 넘긴다.
 function parseIntakeCreation(body: JsonObject) {
-  const hasSchedule = Object.hasOwn(body, 'scheduleId') || Object.hasOwn(body, 'expectedScheduleVersion');
-  const hasManagerOpinion = Object.hasOwn(body, 'managerOpinion');
-  const hasAnswers = Object.hasOwn(body, 'answers');
-  const hasExtendedPii = Object.hasOwn(body, 'extendedPii');
-  const hasAdditionalItems = Object.hasOwn(body, 'additionalItems');
-  const hasNextMeeting = Object.hasOwn(body, 'nextMeeting');
-  // D42: 동의·원하는 도움 3문·6영역·목표·다음 행동은 정본 질문지에 대응 항목이 없어 선택이다.
-  const hasHelpNarrative = Object.hasOwn(body, 'helpNarrative');
-  const hasLifeAreas = Object.hasOwn(body, 'lifeAreas');
-  const hasGoals = Object.hasOwn(body, 'goals');
-  const hasActions = Object.hasOwn(body, 'actions');
-  const hasDebts = Object.hasOwn(body, 'debts');
-  const hasLinkedOrgs = Object.hasOwn(body, 'linkedOrgs');
-  const allowedKeys = ['submissionId', 'heldAt', 'channel'];
-  if (hasHelpNarrative) allowedKeys.push('helpNarrative');
-  if (hasLifeAreas) allowedKeys.push('lifeAreas');
-  if (hasGoals) allowedKeys.push('goals');
-  if (hasActions) allowedKeys.push('actions');
-  if (hasAnswers) allowedKeys.push('answers');
-  if (hasExtendedPii) allowedKeys.push('extendedPii');
-  if (hasAdditionalItems) allowedKeys.push('additionalItems');
-  if (hasDebts) allowedKeys.push('debts');
-  if (hasLinkedOrgs) allowedKeys.push('linkedOrgs');
-  if (hasNextMeeting) allowedKeys.push('nextMeeting');
-  if (hasManagerOpinion) allowedKeys.push('managerOpinion');
-  if (hasSchedule) allowedKeys.push('scheduleId', 'expectedScheduleVersion');
-  requireOnlyKeys(body, allowedKeys);
-
-  const channelValue = requiredString(body, 'channel');
-  if (channelValue !== 'in_person' && channelValue !== 'phone' && channelValue !== 'video') {
-    throw new ValidationError('record channel is invalid');
+  try { return parseIntakeCreateRequest(body); } catch (error) {
+    if (error instanceof IntakeContractError) throw new ValidationError(error.message);
+    throw error;
   }
-  const channel: 'in_person' | 'phone' | 'video' = channelValue;
-
-
-  const helpNarrative = !hasHelpNarrative ? undefined : (() => {
-    const narrativeObject = asObject(body.helpNarrative);
-    requireOnlyKeys(narrativeObject, ['todayHelp', 'hardestPoint', 'desiredChange']);
-    return {
-      todayHelp: requiredString(narrativeObject, 'todayHelp'),
-      hardestPoint: requiredString(narrativeObject, 'hardestPoint'),
-      desiredChange: requiredString(narrativeObject, 'desiredChange'),
-    };
-  })();
-
-  const lifeAreas = !hasLifeAreas ? undefined : objectArray(body.lifeAreas, 'lifeAreas').map((area) => {
-    requireOnlyKeys(area, Object.hasOwn(area, 'note') ? ['areaKey', 'status', 'note'] : ['areaKey', 'status']);
-    const areaKey = requiredString(area, 'areaKey');
-    if (!(LIFE_AREA_KEYS as readonly string[]).includes(areaKey)) {
-      throw new ValidationError('life area key is invalid');
-    }
-    const status = requiredString(area, 'status');
-    if (!(LIFE_AREA_STATUSES as readonly string[]).includes(status)) {
-      throw new ValidationError('life area status is invalid');
-    }
-    return {
-      areaKey: areaKey as typeof LIFE_AREA_KEYS[number],
-      status: status as typeof LIFE_AREA_STATUSES[number],
-      ...(Object.hasOwn(area, 'note') ? { note: requiredString(area, 'note') } : {}),
-    };
-  });
-
-  const goals = !hasGoals ? undefined : objectArray(body.goals, 'goals').map((goal) => {
-    requireOnlyKeys(goal, Object.hasOwn(goal, 'scaleCriteria') ? ['title', 'scaleCriteria'] : ['title']);
-    return {
-      title: requiredString(goal, 'title'),
-      ...(Object.hasOwn(goal, 'scaleCriteria') ? { scaleCriteria: goal.scaleCriteria } : {}),
-    };
-  });
-
-  const actionItems = !hasActions ? undefined : objectArray(body.actions, 'actions').map((action) => {
-    requireOnlyKeys(action, Object.hasOwn(action, 'dueDate') ? ['description', 'owner', 'dueDate'] : ['description', 'owner']);
-    const ownerValue = requiredString(action, 'owner');
-    if (ownerValue !== 'counselor' && ownerValue !== 'beneficiary' && ownerValue !== 'org') {
-      throw new ValidationError('action owner is invalid');
-    }
-    const owner: 'counselor' | 'beneficiary' | 'org' = ownerValue;
-    const dueDate = action.dueDate;
-    if (dueDate !== undefined && typeof dueDate !== 'string') {
-      throw new ValidationError('dueDate is invalid');
-    }
-    return {
-      description: requiredString(action, 'description'),
-      owner,
-      ...(dueDate === undefined ? {} : { dueDate: canonicalDate(dueDate, 'dueDate') }),
-    };
-  });
-
-  // 질문지 답변(D41). 키·응답 어휘는 게이트웨이 상수를 그대로 쓴다.
-  const answers = !hasAnswers ? undefined : objectArray(body.answers, 'answers').map((answer) => {
-    requireOnlyKeys(answer, Object.hasOwn(answer, 'text') ? ['key', 'response', 'text'] : ['key', 'response']);
-    const key = requiredString(answer, 'key');
-    if (!(INTAKE_ANSWER_KEYS as readonly string[]).includes(key)) {
-      throw new ValidationError('intake answer key is invalid');
-    }
-    const response = requiredString(answer, 'response');
-    if (!(INTAKE_ANSWER_RESPONSES as readonly string[]).includes(response)) {
-      throw new ValidationError('intake answer response is invalid');
-    }
-    return {
-      key: key as typeof INTAKE_ANSWER_KEYS[number],
-      response: response as typeof INTAKE_ANSWER_RESPONSES[number],
-      ...(Object.hasOwn(answer, 'text') ? { text: requiredString(answer, 'text') } : {}),
-    };
-  });
-
-  // 추가 개인정보(P4) — 준 필드만 넘긴다. 값은 게이트웨이가 금고에 암호화 저장한다(D3).
-  const extendedPiiObject = hasExtendedPii ? asObject(body.extendedPii) : undefined;
-  const extendedPii = extendedPiiObject === undefined ? undefined : (() => {
-    requireOnlyKeys(extendedPiiObject, INTAKE_EXTENDED_PII_FIELDS);
-    const patch: Record<string, string> = {};
-    for (const field of INTAKE_EXTENDED_PII_FIELDS) {
-      if (Object.hasOwn(extendedPiiObject, field)) patch[field] = requiredString(extendedPiiObject, field);
-    }
-    return patch;
-  })();
-
-  const additionalItems = !hasAdditionalItems
-    ? undefined
-    : objectArray(body.additionalItems, 'additionalItems').map((entry) => {
-      const entryKeys = ['item'];
-      for (const key of ['owner', 'dueDate', 'reason', 'method', 'dueNote']) {
-        if (Object.hasOwn(entry, key)) entryKeys.push(key);
-      }
-      requireOnlyKeys(entry, entryKeys);
-      return {
-        item: requiredString(entry, 'item'),
-        ...(Object.hasOwn(entry, 'owner') ? { owner: requiredString(entry, 'owner') } : {}),
-        ...(Object.hasOwn(entry, 'dueDate') ? { dueDate: canonicalDate(requiredString(entry, 'dueDate'), 'dueDate') } : {}),
-        ...(Object.hasOwn(entry, 'reason') ? { reason: requiredString(entry, 'reason') } : {}),
-        ...(Object.hasOwn(entry, 'method') ? { method: requiredString(entry, 'method') } : {}),
-        ...(Object.hasOwn(entry, 'dueNote') ? { dueNote: requiredString(entry, 'dueNote') } : {}),
-      };
-    });
-
-  // 반복 행 표 2종(2-1 부채 · 3-3 연계 기관). 첫 열만 필수이고 나머지는 준 것만 넘긴다.
-  function tableRows(value: unknown, label: string, requiredKey: string, optionalKeys: readonly string[]) {
-    return objectArray(value, label).map((row) => {
-      const keys = [requiredKey, ...optionalKeys.filter((key) => Object.hasOwn(row, key))];
-      requireOnlyKeys(row, keys);
-      return Object.fromEntries(keys.map((key) => [key, requiredString(row, key)]));
-    });
-  }
-  const debts = !hasDebts
-    ? undefined
-    : tableRows(body.debts, 'debts', 'creditor', ['kind', 'balance', 'monthlyPayment', 'arrearsStatus']) as Array<
-      { creditor: string; kind?: string; balance?: string; monthlyPayment?: string; arrearsStatus?: string }>;
-  const linkedOrgs = !hasLinkedOrgs
-    ? undefined
-    : tableRows(body.linkedOrgs, 'linkedOrgs', 'orgName', ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus']) as Array<
-      { orgName: string; serviceName?: string; supportDetail?: string; usagePeriod?: string; progressStatus?: string }>;
-
-  const nextMeeting = !hasNextMeeting ? undefined : (() => {
-    const meeting = asObject(body.nextMeeting);
-    requireOnlyKeys(meeting, ['heldAt', 'channel']);
-    const meetingChannel = requiredString(meeting, 'channel');
-    if (meetingChannel !== 'in_person' && meetingChannel !== 'phone' && meetingChannel !== 'video') {
-      throw new ValidationError('next meeting channel is invalid');
-    }
-    return {
-      heldAt: requiredCanonicalUtc(meeting, 'heldAt'),
-      channel: meetingChannel as 'in_person' | 'phone' | 'video',
-    };
-  })();
-
-  return {
-    submissionId: requiredUuid(body, 'submissionId'),
-    heldAt: requiredCanonicalUtc(body, 'heldAt'),
-    channel,
-    ...(helpNarrative === undefined ? {} : { helpNarrative }),
-    ...(lifeAreas === undefined ? {} : { lifeAreas }),
-    ...(goals === undefined ? {} : { goals }),
-    ...(actionItems === undefined ? {} : { actionItems }),
-    ...(answers === undefined ? {} : { answers }),
-    ...(extendedPii === undefined ? {} : { extendedPii }),
-    ...(additionalItems === undefined ? {} : { additionalItems }),
-    ...(debts === undefined ? {} : { debts }),
-    ...(linkedOrgs === undefined ? {} : { linkedOrgs }),
-    ...(nextMeeting === undefined ? {} : { nextMeeting }),
-    ...(hasManagerOpinion ? { managerOpinion: requiredString(body, 'managerOpinion') } : {}),
-    ...(hasSchedule
-      ? {
-        scheduleId: requiredUuid(body, 'scheduleId'),
-        expectedScheduleVersion: requiredExpectedVersion(body, 'expectedScheduleVersion'),
-      }
-      : {}),
-  };
 }
 
-/**
- * 인테이크 수정 입력(2026-08-08 Q "확인/수정"). parseIntakeCreation 의 부분집합이다 —
- * 위저드가 소유한 필드만 받고, 동의·목표·금고·일정 연결은 이 경로에 없다.
- */
 function parseIntakeUpdate(body: JsonObject) {
-  const hasManagerOpinion = Object.hasOwn(body, 'managerOpinion');
-  const hasAnswers = Object.hasOwn(body, 'answers');
-  const hasAdditionalItems = Object.hasOwn(body, 'additionalItems');
-  const hasDebts = Object.hasOwn(body, 'debts');
-  const hasLinkedOrgs = Object.hasOwn(body, 'linkedOrgs');
-  const allowedKeys = ['heldAt', 'channel'];
-  if (hasAnswers) allowedKeys.push('answers');
-  if (hasAdditionalItems) allowedKeys.push('additionalItems');
-  if (hasDebts) allowedKeys.push('debts');
-  if (hasLinkedOrgs) allowedKeys.push('linkedOrgs');
-  if (hasManagerOpinion) allowedKeys.push('managerOpinion');
-  requireOnlyKeys(body, allowedKeys);
-
-  const channelValue = requiredString(body, 'channel');
-  if (channelValue !== 'in_person' && channelValue !== 'phone' && channelValue !== 'video') {
-    throw new ValidationError('record channel is invalid');
+  try { return parseIntakeUpdateRequest(body); } catch (error) {
+    if (error instanceof IntakeContractError) throw new ValidationError(error.message);
+    throw error;
   }
-
-  const answers = !hasAnswers ? undefined : objectArray(body.answers, 'answers').map((answer) => {
-    requireOnlyKeys(answer, Object.hasOwn(answer, 'text') ? ['key', 'response', 'text'] : ['key', 'response']);
-    const key = requiredString(answer, 'key');
-    if (!(INTAKE_ANSWER_KEYS as readonly string[]).includes(key)) {
-      throw new ValidationError('intake answer key is invalid');
-    }
-    const response = requiredString(answer, 'response');
-    if (!(INTAKE_ANSWER_RESPONSES as readonly string[]).includes(response)) {
-      throw new ValidationError('intake answer response is invalid');
-    }
-    return {
-      key: key as typeof INTAKE_ANSWER_KEYS[number],
-      response: response as typeof INTAKE_ANSWER_RESPONSES[number],
-      ...(Object.hasOwn(answer, 'text') ? { text: requiredString(answer, 'text') } : {}),
-    };
-  });
-
-  const additionalItems = !hasAdditionalItems
-    ? undefined
-    : objectArray(body.additionalItems, 'additionalItems').map((entry) => {
-      const entryKeys = ['item'];
-      for (const key of ['owner', 'dueDate', 'reason', 'method', 'dueNote']) {
-        if (Object.hasOwn(entry, key)) entryKeys.push(key);
-      }
-      requireOnlyKeys(entry, entryKeys);
-      return {
-        item: requiredString(entry, 'item'),
-        ...(Object.hasOwn(entry, 'owner') ? { owner: requiredString(entry, 'owner') } : {}),
-        ...(Object.hasOwn(entry, 'dueDate') ? { dueDate: canonicalDate(requiredString(entry, 'dueDate'), 'dueDate') } : {}),
-        ...(Object.hasOwn(entry, 'reason') ? { reason: requiredString(entry, 'reason') } : {}),
-        ...(Object.hasOwn(entry, 'method') ? { method: requiredString(entry, 'method') } : {}),
-        ...(Object.hasOwn(entry, 'dueNote') ? { dueNote: requiredString(entry, 'dueNote') } : {}),
-      };
-    });
-
-  function tableRows(value: unknown, label: string, requiredKey: string, optionalKeys: readonly string[]) {
-    return objectArray(value, label).map((row) => {
-      const keys = [requiredKey, ...optionalKeys.filter((key) => Object.hasOwn(row, key))];
-      requireOnlyKeys(row, keys);
-      return Object.fromEntries(keys.map((key) => [key, requiredString(row, key)]));
-    });
-  }
-  const debts = !hasDebts
-    ? undefined
-    : tableRows(body.debts, 'debts', 'creditor', ['kind', 'balance', 'monthlyPayment', 'arrearsStatus']) as Array<
-      { creditor: string; kind?: string; balance?: string; monthlyPayment?: string; arrearsStatus?: string }>;
-  const linkedOrgs = !hasLinkedOrgs
-    ? undefined
-    : tableRows(body.linkedOrgs, 'linkedOrgs', 'orgName', ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus']) as Array<
-      { orgName: string; serviceName?: string; supportDetail?: string; usagePeriod?: string; progressStatus?: string }>;
-
-  return {
-    heldAt: requiredCanonicalUtc(body, 'heldAt'),
-    channel: channelValue as 'in_person' | 'phone' | 'video',
-    ...(answers === undefined ? {} : { answers }),
-    ...(additionalItems === undefined ? {} : { additionalItems }),
-    ...(debts === undefined ? {} : { debts }),
-    ...(linkedOrgs === undefined ? {} : { linkedOrgs }),
-    ...(hasManagerOpinion ? { managerOpinion: requiredString(body, 'managerOpinion') } : {}),
-  };
 }
 
 function parseScheduleSessionGoals(body: JsonObject): Array<{ body: string; caseGoalId: string | null }> | undefined {
@@ -1178,7 +793,7 @@ function parseProgramStaff(value: unknown): NonNullable<CreateProgramInput['staf
   });
 }
 
-function parseProgramChoices(body: JsonObject): Pick<CreateProgramInput, 'storageMode' | 'processingMode' | 'confirmation' | 'staff'> {
+function parseProgramChoices(body: JsonObject): Pick<CreateProgramInput, 'storageMode' | 'processingMode' | 'confirmation' | 'staff' | 'financialSupportEnabled'> {
   const storageMode = optionalNullableString(body, 'storageMode');
   if (storageMode !== undefined && storageMode !== null && storageMode !== 'supabase_seoul'
     && storageMode !== 'naver_public' && storageMode !== 'local_encrypted' && storageMode !== 'undecided') {
@@ -1196,6 +811,7 @@ function parseProgramChoices(body: JsonObject): Pick<CreateProgramInput, 'storag
     ...(processingMode === undefined ? {} : { processingMode }),
     ...(confirmation === undefined ? {} : { confirmation }),
     ...(body.staff === undefined ? {} : { staff: parseProgramStaff(body.staff) }),
+    ...(body.financialSupportEnabled === undefined ? {} : { financialSupportEnabled: requiredBoolean(body, 'financialSupportEnabled') }),
   };
 }
 
@@ -1520,25 +1136,29 @@ function counselingRecordResponse(record: Awaited<ReturnType<typeof createCounse
     heldAt: record.heldAt,
     channel: record.channel,
     memo: record.memo,
+    manual: record.manual,
   };
 }
 
-function intakeRecordResponse(record: Awaited<ReturnType<typeof createIntakeRecord>>['record']) {
+function intakeRecordResponse(record: IntakeRecordResult['record']): IntakeMutationResponse['record'] {
   return {
     id: record.id,
     heldAt: record.heldAt,
     channel: record.channel,
-    kind: record.kind,
+    kind: 'intake',
   };
 }
 
-function intakeContextResponse(context: Awaited<ReturnType<typeof getIntakeRecordContext>>) {
+function intakeContextResponse(context: IntakeRecordContext) {
   return {
     beneficiaryId: context.beneficiaryId,
     supportCaseId: context.supportCaseId,
     participant: context.participant,
     sessionSequence: context.sessionSequence,
     hasIntake: context.hasIntake,
+    canWrite: context.canWrite,
+    writeSchemaVersion: context.writeSchemaVersion,
+    moduleSnapshot: context.moduleSnapshot,
     extendedPii: context.extendedPii,
     consent: context.consent,
     // 저장된 인테이크 내용(확인/수정 화면 재료, 2026-08-08 Q). 없으면 null.
@@ -1562,6 +1182,7 @@ function counselingRecordDetailsResponse(
     memo: record.memo,
     kind: record.kind,
     createdAt: record.createdAt,
+    manual: record.manual,
     gasScores: record.gasScores.map((score) => ({
       goalId: score.goalId,
       goalTitle: goalTitles.get(score.goalId)!,
@@ -1712,9 +1333,11 @@ function parseAgentResultRequest(body: JsonObject): ResultRequest {
     raw,
     kind === 'audio'
       ? [...AGENT_MASKED_SOURCE_KEYS, 'emotionScores', 'transcriptReliable', 'transcriptWarnings']
-      : AGENT_MASKED_SOURCE_KEYS,
+      : [...AGENT_MASKED_SOURCE_KEYS, 'checkedSource'],
   );
   const masked = parseAgentMaskedSource(raw);
+  const checked = kind === 'text' && raw.checkedSource !== undefined ? asObject(raw.checkedSource) : null;
+  if (checked !== null) requireOnlyKeys(checked, ['sourceRevision', 'sourceSha256', 'sourceStart', 'sourceEnd']);
   const result = kind === 'audio'
     ? {
       ...masked,
@@ -1723,7 +1346,12 @@ function parseAgentResultRequest(body: JsonObject): ResultRequest {
       transcriptReliable: requiredBoolean(raw, 'transcriptReliable'),
       transcriptWarnings: parseTranscriptWarnings(raw),
     }
-    : { ...masked, kind: 'text' as const };
+    : { ...masked, kind: 'text' as const, ...(checked === null ? {} : { checkedSource: {
+      sourceRevision: requiredString(checked, 'sourceRevision'),
+      sourceSha256: requiredString(checked, 'sourceSha256'),
+      sourceStart: requiredInteger(checked, 'sourceStart'),
+      sourceEnd: requiredInteger(checked, 'sourceEnd'),
+    } }) };
   return {
     schemaVersion: 2,
     claimToken: requiredString(body, 'claimToken'),
@@ -1737,6 +1365,71 @@ function parseAgentResultRequest(body: JsonObject): ResultRequest {
 function parseClaimCredentials(body: JsonObject): { claimToken: string; attempt: number } {
   requireOnlyKeys(body, ['claimToken', 'attempt']);
   return { claimToken: requiredString(body, 'claimToken'), attempt: requiredInteger(body, 'attempt') };
+}
+
+function parseEntityRegistrationRequest(body: JsonObject): EntityRegistrationRequest {
+  requireOnlyKeys(body, [
+    'family', 'jobId', 'claimToken', 'attempt', 'sourceBundleRevision', 'expectedMapRevision', 'entries',
+  ]);
+  const credentials = parseClaimCredentials({ claimToken: body.claimToken, attempt: body.attempt });
+  const familyValue = requiredString(body, 'family');
+  if (familyValue !== 'generic' && familyValue !== 'memory') {
+    throw new ValidationError('family is invalid');
+  }
+  const attempt = credentials.attempt;
+  if (!Number.isSafeInteger(attempt) || attempt < 1) {
+    throw new ValidationError('attempt is invalid');
+  }
+  const expectedMapRevision = body.expectedMapRevision;
+  if (!Number.isSafeInteger(expectedMapRevision) || (expectedMapRevision as number) < 0) {
+    throw new ValidationError('expectedMapRevision is invalid');
+  }
+  const rawEntries = objectArray(body.entries, 'entries');
+  if (rawEntries.length === 0) throw new ValidationError('entries must not be empty');
+  const entries = rawEntries.map<EntityRegistrationRequest['entries'][number]>((entry) => {
+    requireOnlyKeys(entry, ['kind', 'sourceValue', 'occurrences', 'entityReference']);
+    const kind = requiredString(entry, 'kind');
+    if (kind !== 'person' && kind !== 'institution') throw new ValidationError('entry kind is invalid');
+    const occurrences = objectArray(entry.occurrences, 'occurrences').map((occurrence) => {
+      requireOnlyKeys(occurrence, ['sourceId', 'sourceRevision', 'start', 'end']);
+      const start = occurrence.start;
+      const end = occurrence.end;
+      if (!Number.isSafeInteger(start) || (start as number) < 0
+        || !Number.isSafeInteger(end) || (end as number) <= (start as number)) {
+        throw new ValidationError('occurrence bounds are invalid');
+      }
+      return {
+        sourceId: requiredString(occurrence, 'sourceId'),
+        sourceRevision: requiredString(occurrence, 'sourceRevision'),
+        start: start as number,
+        end: end as number,
+      };
+    });
+    if (occurrences.length === 0) throw new ValidationError('occurrences must not be empty');
+    let entityReference: string | null;
+    if (entry.entityReference === null) {
+      entityReference = null;
+    } else if (typeof entry.entityReference === 'string' && entry.entityReference.trim().length > 0) {
+      entityReference = entry.entityReference;
+    } else {
+      throw new ValidationError('entityReference is invalid');
+    }
+    return {
+      kind,
+      sourceValue: requiredString(entry, 'sourceValue'),
+      occurrences,
+      entityReference,
+    };
+  });
+  return {
+    family: familyValue,
+    jobId: requiredString(body, 'jobId'),
+    claimToken: requiredString(body, 'claimToken'),
+    attempt: attempt as number,
+    sourceBundleRevision: requiredString(body, 'sourceBundleRevision'),
+    expectedMapRevision: expectedMapRevision as number,
+    entries,
+  };
 }
 
 /** claim 자격은 GET 에서도 필요하다. URL 에 토큰을 싣지 않고 헤더로만 받는다. */
@@ -1896,9 +1589,9 @@ function parseConsentEventInput(body: JsonObject): AppendConsentEventInput {
 }
 async function resolveAgentRuntime(env: ApiEnv): Promise<AgentRuntime> {
   const manifest = await verifiedInstallManifest(env);
-  const requested = env.CCC_STT_MODE === 'local' || env.CCC_STT_MODE === 'azure' ? env.CCC_STT_MODE : 'off';
-  const requestedId = requested === 'local' ? 'qwen3-asr'
-    : requested === 'azure' ? 'azure-speech-koreacentral' : null;
+  if (env.CCC_STT_MODE === 'local') throw new CapabilitiesUnavailableError('stt mode unavailable');
+  const requested = env.CCC_STT_MODE === 'azure' ? 'azure' : 'off';
+  const requestedId = requested === 'azure' ? 'azure-speech-koreacentral' : null;
   const approved = requestedId !== null && manifest.approvedSttEngineIds.some(
     (entry) => entry.id === requestedId && entry.mode === requested,
   );
@@ -1906,7 +1599,7 @@ async function resolveAgentRuntime(env: ApiEnv): Promise<AgentRuntime> {
     route: routeForMode(manifest.mode),
     sttEngine: requested === 'off' || !approved ? null : requested,
     sttEngineId: approved ? requestedId : null,
-    audioDelivery: manifest.mode === 'community-cloud' ? 'protected-get' : 'api-stream',
+    audioDelivery: 'protected-get',
   };
 }
 
@@ -1998,6 +1691,21 @@ const CONFIGURATION_REASONS: ReadonlySet<AiProviderUnavailableReason> = new Set(
   'adapter_invalid',
 ]);
 
+/** Share the existing activation check across product generation and discrepancy egress. */
+async function resolveActiveSessionAiProvider(env: ApiEnv, actor: Actor, sessionId: string) {
+  const { adapter, config } = await resolveAiProviderAdapter(env);
+  const runtimeConfigHash = await canonicalAiProviderConfigHash(config);
+  const activeProvider = await getActiveAiProviderRuntimeMetadataForService(env, actor, sessionId);
+  if (
+    activeProvider.adapterId !== adapter.providerId
+    || activeProvider.adapterVersion !== adapter.adapterVersion
+    || activeProvider.configHash !== runtimeConfigHash
+  ) {
+    throw new AiProviderUnavailableError();
+  }
+  return { adapter, config, activeProvider };
+}
+
 async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: string): Promise<void> {
   // CCC-47 — 어떻게 끝났든 사실 한 줄을 남긴다. 이 값들은 전부 분류·숫자·설정값이고
   // 상담 내용은 하나도 들어가지 않는다(R3). 관측이 없으면 아래 스킵 경로들이 "정상적으로
@@ -2010,16 +1718,12 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
   let sourceCount: number | null = null;
   let storedCount: number | null = null;
   let model: string | null = null;
+  let egressAuthorizationId: string | undefined;
 
   try {
     const material = await collectDiscrepancyDetectionSources(env, actor, sessionId);
     caseId = material.caseId;
     sourceCount = material.sources.length;
-    if (!material.sources.some((source) => source.sessionId === material.triggerSessionId)) {
-      // 가장 흔한 상태다 — 장비가 아직 2차 마스킹 스냅샷을 올리지 않았다(대기 중, D8).
-      outcome = 'skipped_no_snapshot';
-      return;
-    }
     // 텍스트 AI 동의 게이트 (D15 · D44) — 파일럿 중지·동의 부재면 여기서 던져 스킵된다.
     // 서비스 역할(장비 스냅샷 직후 경로)은 수집 단계에서 이미 같은 게이트를 통과했다.
     if (actor.role !== 'service') await assertPilotTextAiConsent(env, actor, material.caseId);
@@ -2038,33 +1742,57 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
           outcome = 'skipped_unsupported';
           return;
         }
-        await authorizeSessionTextAiEgress(env, actor, sessionId);
+        const authorization = await authorizeOpenAiEgress(env, actor, sessionId, {
+          operation: 'detect_discrepancies',
+          configHash: await canonicalAiProviderConfigHash(config),
+          materials: material.materialRefs,
+        });
+        egressAuthorizationId = authorization.egressAuthorizationId;
+        await beginOpenAiEgress(env, actor, egressAuthorizationId, 'detect_discrepancies');
         rawOutput = await adapter.detectDiscrepancies(providerRequest);
       }
     } else {
-      const { adapter, config } = (await resolveAiProviderAdapter(env));
+      const { adapter, config } = await resolveActiveSessionAiProvider(env, actor, sessionId);
       model = config.model;
       if (adapter.detectDiscrepancies === undefined) {
         outcome = 'skipped_unsupported';
         return;
       }
-      await authorizeSessionTextAiEgress(env, actor, sessionId);
+      const authorization = await authorizeOpenAiEgress(env, actor, sessionId, {
+        operation: 'detect_discrepancies',
+        configHash: await canonicalAiProviderConfigHash(config),
+        materials: material.materialRefs,
+      });
+      egressAuthorizationId = authorization.egressAuthorizationId;
+      await beginOpenAiEgress(env, actor, egressAuthorizationId, 'detect_discrepancies');
       rawOutput = await adapter.detectDiscrepancies(providerRequest);
     }
-    const output = validateDiscrepancyDetectionOutput(rawOutput, providerRequest);
+    const withinSessionRawOutput = typeof rawOutput === 'object' && rawOutput !== null
+      && !Array.isArray(rawOutput) && Array.isArray((rawOutput as JsonObject).discrepancies)
+      ? {
+          ...rawOutput,
+          discrepancies: ((rawOutput as JsonObject).discrepancies as unknown[]).filter((item) => !(
+            typeof item === 'object' && item !== null && !Array.isArray(item)
+            && (item as JsonObject).kind === 'cross_session'
+          )),
+        }
+      : rawOutput;
+    const output = validateDiscrepancyDetectionOutput(withinSessionRawOutput, providerRequest);
     await replaceSessionDiscrepancies(env, actor, sessionId, output.discrepancies.map((item) => ({
       kind: item.kind,
       leftSessionId: item.leftRef,
       leftQuote: item.leftQuote,
       rightSessionId: item.rightRef,
       rightQuote: item.rightQuote,
-    })));
+    })), egressAuthorizationId);
     storedCount = output.discrepancies.length;
     outcome = storedCount === 0 ? 'empty' : 'stored';
   } catch (error) {
     // 내용 무로깅(R3) — 실패는 스킵이 계약이다(D8). 기록 저장은 이미 성공했다.
     // 분류만 갈라 둔다: 어느 실패인지 모르면 고칠 자리도 알 수 없다(CCC-47).
-    if (error instanceof PilotTextAiConsentRequiredError) {
+    if (error instanceof AgentJobContractError && error.code === 'masking_snapshot_missing') {
+      outcome = 'skipped_no_snapshot';
+    } else if (error instanceof PilotTextAiConsentRequiredError) {
       outcome = 'skipped_consent';
     } else if (error instanceof TextAiPilotDisabledError) {
       outcome = 'skipped_pilot_disabled';
@@ -2082,6 +1810,11 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
   } finally {
     // 게이트웨이 안에서도 삼키지만, finally 에서 새어 나가는 예외는 성공한 기록 저장의
     // 201 을 500 으로 바꾼다 — 관측 때문에 그럴 수는 없다(D8).
+    try {
+      if (egressAuthorizationId !== undefined) await finishOpenAiEgress(env, actor, egressAuthorizationId);
+    } catch {
+      // 완료 표시 실패가 이미 저장된 상담을 실패로 바꾸지는 않는다. 시작 장부는 보존한다.
+    }
     try {
       await recordAiCallOutcome(env, actor, {
         kind: 'discrepancy_detection',
@@ -2256,6 +1989,8 @@ async function generateAiDraft(
   let reason: AiCallFailureReason | null = null;
   let status: number | null = null;
   let model: string | null = null;
+  let egressAuthorizationId: string | undefined;
+  const operation = actor.role === 'service' ? 'generate' : 'regenerate';
   const { sourceSnapshotId } = parseAiDraftGeneration(body);
   try {
     // 요청은 스냅샷 하나만 지목하고, 반대편 재료는 게이트웨이가 붙인다(ADR-0036 결정 2).
@@ -2267,16 +2002,29 @@ async function generateAiDraft(
       contrastAxes: contrastAxisStates(materials),
     });
     const materialRefs = draftMaterialRefs(materialSet.materials);
+    const egressMaterials = materialSet.materials.map(({ snapshot }) => ({
+      kind: 'snapshot' as const,
+      id: snapshot.id,
+      sha256: snapshot.sha256,
+    }));
 
     if (previewModeEnabled(env)) {
-      const historicalContext = await loadCounselingMemoryContext(env, actor, sessionId);
-      const generationRequest = historicalContext === null
-        ? providerRequest
-        : validateAiProviderRequest({ ...providerRequest, historicalContext });
-      const rawOutput = env.AI_PROVIDER_ADAPTER === undefined
-        ? generatePreviewFixtureAiDraft(generationRequest)
-        : await (await resolveAiProviderAdapter(env)).adapter.generate(generationRequest);
-      const output = validateAiProviderOutput(rawOutput, generationRequest);
+      let rawOutput: unknown;
+      if (env.AI_PROVIDER_ADAPTER === undefined) {
+        await authorizeSessionTextAiEgress(env, actor, sessionId);
+        rawOutput = generatePreviewFixtureAiDraft(providerRequest);
+      } else {
+        const { adapter, config } = await resolveAiProviderAdapter(env);
+        const authorization = await authorizeOpenAiEgress(env, actor, sessionId, {
+          operation,
+          configHash: await canonicalAiProviderConfigHash(config),
+          materials: egressMaterials,
+        });
+        egressAuthorizationId = authorization.egressAuthorizationId;
+        await beginOpenAiEgress(env, actor, egressAuthorizationId, operation);
+        rawOutput = await adapter.generate(providerRequest);
+      }
+      const output = validateAiProviderOutput(rawOutput, providerRequest);
       const draft = await createFixtureGeneratedAiDraftForService(env, actor, sessionId, {
         origin: 'fixture_generated',
         creationMode: 'fixture_generated',
@@ -2299,41 +2047,24 @@ async function generateAiDraft(
         questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
         evidence: providerEvidenceLinks(output),
         materials: materialRefs,
-        ...(historicalContext === null ? {} : {
-          memoryContext: {
-            supportCaseId: historicalContext.supportCaseId,
-            revision: historicalContext.revision,
-            materialSnapshotIds: historicalContext.materials.map((material) => material.snapshotId),
-          },
-        }),
         contrast: draftContrastAxes(output, providerRequest.contrastAxes),
-      });
+      }, egressAuthorizationId);
       outcome = 'stored';
       return draft;
     }
 
     // 주입형 testOnly adapter는 기존 테스트 seam이다. Preview 전용 내장 fixture 선택과
     // 구분하며, 실제 provider와 같은 활성 설정·동의·스냅샷 검증을 그대로 거친다.
-    const { adapter, config } = (await resolveAiProviderAdapter(env));
+    const { adapter, config, activeProvider } = await resolveActiveSessionAiProvider(env, actor, sessionId);
     model = config.model;
-    const runtimeConfigHash = await canonicalAiProviderConfigHash(config);
-
-    // Check the active provider, then reload verified historical context at the outbound boundary.
-    const activeProvider = await getActiveAiProviderRuntimeMetadataForService(env, actor, sessionId);
-    if (
-      activeProvider.adapterId !== adapter.providerId
-      || activeProvider.adapterVersion !== adapter.adapterVersion
-      || activeProvider.configHash !== runtimeConfigHash
-    ) {
-      throw new AiProviderUnavailableError();
-    }
-
-    const historicalContext = await loadCounselingMemoryContext(env, actor, sessionId);
-    const generationRequest = historicalContext === null
-      ? providerRequest
-      : validateAiProviderRequest({ ...providerRequest, historicalContext });
-    await authorizeSessionTextAiEgress(env, actor, sessionId);
-    const output = validateAiProviderOutput(await adapter.generate(generationRequest), generationRequest);
+    const authorization = await authorizeOpenAiEgress(env, actor, sessionId, {
+      operation,
+      configHash: await canonicalAiProviderConfigHash(config),
+      materials: egressMaterials,
+    });
+    egressAuthorizationId = authorization.egressAuthorizationId;
+    await beginOpenAiEgress(env, actor, egressAuthorizationId, operation);
+    const output = validateAiProviderOutput(await adapter.generate(providerRequest), providerRequest);
     const draft = await createGeneratedAiDraftForService(env, actor, sessionId, {
       summaryText: validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n')),
       claims: output.claims.map((claim) => ({
@@ -2359,15 +2090,8 @@ async function generateAiDraft(
       questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
       evidence: providerEvidenceLinks(output),
       materials: materialRefs,
-      ...(historicalContext === null ? {} : {
-        memoryContext: {
-          supportCaseId: historicalContext.supportCaseId,
-          revision: historicalContext.revision,
-          materialSnapshotIds: historicalContext.materials.map((material) => material.snapshotId),
-        },
-      }),
       contrast: draftContrastAxes(output, providerRequest.contrastAxes),
-    });
+    }, egressAuthorizationId);
     outcome = 'stored';
     return draft;
   } catch (error) {
@@ -2382,16 +2106,20 @@ async function generateAiDraft(
     }
     throw error;
   } finally {
-    await recordAiCallOutcome(env, actor, {
-      kind: 'draft_generation',
-      outcome,
-      sessionId,
-      reason,
-      status,
-      durationMs: Date.now() - startedAt,
-      model,
-      promptVersion: AI_DRAFT_PROMPT_VERSION,
-    });
+    try {
+      if (egressAuthorizationId !== undefined) await finishOpenAiEgress(env, actor, egressAuthorizationId);
+    } finally {
+      await recordAiCallOutcome(env, actor, {
+        kind: 'draft_generation',
+        outcome,
+        sessionId,
+        reason,
+        status,
+        durationMs: Date.now() - startedAt,
+        model,
+        promptVersion: AI_DRAFT_PROMPT_VERSION,
+      });
+    }
   }
 }
 
@@ -2651,6 +2379,9 @@ export async function handleRequest(
     // D86 실무자 초대 공개 경로는 이 스위치 밖이지만 미리보기 코드 게이트는 같이 받는다.
     const publicSignupEnabled = env.PUBLIC_SIGNUP_ENABLED === '1';
     if (publicSignupPath && !publicSignupEnabled) return json({ error: 'not_found' }, 404);
+    if (env.installationMode === 'local-single' || env.installationMode === 'local-office') {
+      throw new CapabilitiesUnavailableError('installation mode unavailable');
+    }
     if (env.installationMode === undefined && env.CCC_INSTALL_MANIFEST !== undefined) {
       const installation = await verifiedInstallManifest(env);
       env = { ...env, installationMode: installation.mode };
@@ -2710,18 +2441,21 @@ export async function handleRequest(
       const body = await requestBody(request);
       requireOnlyKeys(body, ['name', 'email']);
       const email = requiredString(body, 'email');
-      // D90: 수락자는 자기 Auth 계정으로 부른다. 서명으로 검증한 subject 만 등재 행에 결속하고,
-      // 토큰 이메일이 초대 이메일과 다르면 결속하지 않는다. 자격이 없으면 결속 없이 등재만 한다.
-      let authSubject: string | null = null;
+      // 검증된 subject가 있어야 수락한다. 이메일은 여기서 요청과 대조한 뒤
+      // gateway가 초대의 정규화된 이메일과 다시 대조한다.
       const verifyLinkClaims = env.verifyIdentityLinkClaims;
-      if (verifyLinkClaims !== undefined && request.headers.get('authorization') !== null) {
-        const claims = await verifyLinkClaims(request);
-        if (claims.email.trim().toLowerCase() === email.trim().toLowerCase()) authSubject = claims.subject;
+      if (verifyLinkClaims === undefined || request.headers.get('authorization') === null) {
+        return json({ error: 'not_found' }, 404);
+      }
+      const claims = await verifyLinkClaims(request);
+      if (typeof claims.subject !== 'string' || claims.subject.trim().length === 0
+        || typeof claims.email !== 'string' || claims.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
+        return json({ error: 'not_found' }, 404);
       }
       try {
         return json(await acceptStaffInvite(env, {
           token: pubParts[2] ?? '', name: requiredString(body, 'name'), email,
-        }, authSubject), 201);
+        }, claims.subject), 201);
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
@@ -2766,7 +2500,7 @@ export async function handleRequest(
       if (audioStore === null) return json({ error: 'service_unavailable' }, 503);
       const ranAt = new Date().toISOString();
       const runtimeEnv = env;
-      const runner = createScheduledJobRunner({ ...runtimeEnv, audioStore }, () => runCounselingMemory(runtimeEnv));
+      const runner = createScheduledJobRunner({ ...runtimeEnv, audioStore });
       const jobs: JobReport[] = [];
       for (const kind of dueScheduledJobKinds(ranAt)) jobs.push(await runner.run(kind, ranAt));
       return json({ ranAt, jobs }, 200, { 'cache-control': 'no-store' });
@@ -2875,7 +2609,7 @@ export async function handleRequest(
       if (request.method === 'GET') return json(await listPrograms(env, actor));
       if (request.method === 'POST') {
         const body = await requestBody(request);
-        requireOnlyKeys(body, ['displayName', 'storageMode', 'processingMode', 'confirmation', 'staff']);
+        requireOnlyKeys(body, ['displayName', 'storageMode', 'processingMode', 'confirmation', 'staff', 'financialSupportEnabled']);
         const program = await createProgram(env, actor, {
           displayName: requiredString(body, 'displayName'), ...parseProgramChoices(body),
         });
@@ -2885,7 +2619,7 @@ export async function handleRequest(
     if (parts.length === 2 && parts[0] === 'programs' && request.method === 'PATCH') {
       requestQuery(url, []);
       const body = await requestBody(request);
-      requireOnlyKeys(body, ['expectedVersion', 'displayName', 'storageMode', 'processingMode', 'confirmation', 'status', 'staff']);
+      requireOnlyKeys(body, ['expectedVersion', 'displayName', 'storageMode', 'processingMode', 'confirmation', 'status', 'staff', 'financialSupportEnabled']);
       const displayName = optionalString(body, 'displayName');
       const input: UpdateProgramInput = {
         expectedVersion: requiredExpectedVersion(body, 'expectedVersion'),
@@ -2903,6 +2637,10 @@ export async function handleRequest(
       const query = requestQuery(url, ['limit', 'cursor', 'actorId', 'from', 'to', 'supportCaseId']);
       return json(await listAuditLog(env, actor, parseAuditLogQuery(query)));
     }
+    if (request.method === 'GET' && parts.length === 2 && parts[0] === 'audit-log' && parts[1] === 'monthly-summary') {
+      const query = requestQuery(url, ['month']);
+      return json(await getMonthlyAuditSummary(env, actor, query.get('month') ?? ''));
+    }
     if (request.method === 'POST' && parts.length === 1 && parts[0] === 'schedules') {
       // 상담 등록(#20): 담당 케이스 한정·감사는 createCounselingSchedule(R1 관문) 내장.
       requestQuery(url, []);
@@ -2912,18 +2650,7 @@ export async function handleRequest(
       );
     }
     if (parts.length === 2 && parts[0] === 'settings' && parts[1] === 'counseling-memory') {
-      requestQuery(url, []);
-      if (request.method === 'GET') {
-        return json(await getCounselingMemorySettings(env, actor), 200, { 'cache-control': 'no-store' });
-      }
-      if (request.method === 'PUT') {
-        const body = await requestBody(request);
-        requireOnlyKeys(body, ['enabled', 'expectedVersion']);
-        return json(await setCounselingMemorySettings(env, actor, {
-          enabled: requiredBoolean(body, 'enabled'),
-          expectedVersion: requiredExpectedVersion(body, 'expectedVersion'),
-        }), 200, { 'cache-control': 'no-store' });
-      }
+      return json({ error: 'not_found' }, 404);
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'organization' && parts[1] === 'profile') {
       // 기관·첫 사업 표시 이름 (CCC-32). 모든 화면의 셸(사이드바)이 읽으므로 역할 무관,
@@ -2944,13 +2671,14 @@ export async function handleRequest(
       // 관리자 온보딩 2단계 저장 (CCC-32 · 스펙 #78 US 1). admin 검사·감사는 게이트웨이 내장(R1).
       requestQuery(url, []);
       const body = await requestBody(request);
-      requireOnlyKeys(body, ['orgName', 'programDisplayName']);
+      requireOnlyKeys(body, ['orgName', 'programDisplayName', 'financialSupportEnabled']);
       const orgName = body.orgName;
       const programDisplayName = body.programDisplayName;
       if (typeof orgName !== 'string' || typeof programDisplayName !== 'string') {
         throw new ValidationError('organization onboarding payload is invalid');
       }
-      return json(await completeOrganizationOnboarding(env, actor, { orgName, programDisplayName }));
+      return json(await completeOrganizationOnboarding(env, actor, { orgName, programDisplayName,
+        ...(body.financialSupportEnabled === undefined ? {} : { financialSupportEnabled: requiredBoolean(body, 'financialSupportEnabled') }) }));
     }
     if (request.method === 'PUT' && parts.length === 2 && parts[0] === 'me' && parts[1] === 'last-program') {
       // 마지막에 선택한 사업을 본인 계정에 기억시킨다. 본인 행만 쓰고 감사는 남기지 않는다
@@ -3209,6 +2937,18 @@ export async function handleRequest(
         requestQuery(url, []);
         return json(await getSupportCaseReport(env, actor, supportCaseId), 200, { 'cache-control': 'no-store' });
       }
+      if (request.method === 'GET' && parts.length === 3 && parts[2] === 'export.csv') {
+        requestQuery(url, []);
+        const document = await exportSupportCaseCsv(env, actor, supportCaseId);
+        return new Response(document.csv, {
+          status: 200,
+          headers: {
+            'cache-control': 'no-store',
+            'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(document.filename)}; filename="${document.filename}"`,
+            'content-type': 'text/csv; charset=utf-8',
+          },
+        });
+      }
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'export') {
         requestQuery(url, []);
         return json(await exportCase(env, actor, supportCaseId));
@@ -3218,21 +2958,7 @@ export async function handleRequest(
         return json(await listCaseExportHistory(env, actor, supportCaseId, parseExportHistoryQuery(query)));
       }
       if (parts.length === 4 && parts[2] === 'memory' && parts[3] === 'trial') {
-        if (!memoryTrialEnabled(env)) return json({ error: 'not_found' }, 404);
-        requestQuery(url, []);
-        if (request.method === 'GET') {
-          return json(await memoryTrialReadiness(env, actor, supportCaseId), 200, { 'cache-control': 'no-store' });
-        }
-        if (request.method === 'POST') {
-          const body = await requestBody(request);
-          requireOnlyKeys(body, ['confirmExternalAi']);
-          if (body.confirmExternalAi !== true) throw new ValidationError('external_call_confirmation_required');
-          const state = await memoryTrialReadiness(env, actor, supportCaseId);
-          if (!state.ready) return json(state, 409, { 'cache-control': 'no-store' });
-          const counters = await runCounselingMemoryTrial(env, actor, supportCaseId);
-          return json({ ...await memoryTrialReadiness(env, actor, supportCaseId), counters },
-            200, { 'cache-control': 'no-store' });
-        }
+        return json({ error: 'not_found' }, 404);
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'memory') {
         requestQuery(url, []);
@@ -3388,6 +3114,10 @@ export async function handleRequest(
         // 여기서 응답을 받아 놓고 걸러내면 이미 저장·감사가 끝난 뒤라 상태를 바꾼 403 이 된다.
         return json(await resolveSessionDiscrepancy(env, actor, discrepancyId, status, supportCaseId));
       }
+      if (request.method === 'GET' && parts.length === 4 && parts[2] === 'records' && parts[3] === 'context') {
+        requestQuery(url, []);
+        return json(await getManualRecordContext(env, actor, supportCaseId));
+      }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'records') {
         const query = requestQuery(url, ['official']);
         const official = query.get('official');
@@ -3438,7 +3168,7 @@ export async function handleRequest(
         // 인테이크도 수기 공식 기록이다(D5) — 회차 내 모순 검출 대상(CCC-43).
         if (!result.replayed) await onRecordOfficialized(env, actor, result.record.id, 'manual_record');
         return json(
-          { record: intakeRecordResponse(result.record), replayed: result.replayed },
+          { schemaVersion: result.schemaVersion, revision: result.revision, record: intakeRecordResponse(result.record), replayed: result.replayed } satisfies IntakeMutationResponse,
           result.replayed ? 200 : 201,
         );
       }
@@ -3448,7 +3178,7 @@ export async function handleRequest(
         const result = await updateIntakeRecord(env, actor, supportCaseId, parseIntakeUpdate(await requestBody(request)));
         // 수정본도 수기 공식 기록이다(D5) — 공식화 시점 불일치 검출을 다시 돈다(CCC-43).
         await onRecordOfficialized(env, actor, result.record.id, 'manual_record');
-        return json({ record: intakeRecordResponse(result.record) });
+        return json({ schemaVersion: result.schemaVersion, revision: result.revision, record: intakeRecordResponse(result.record), replayed: false } satisfies IntakeMutationResponse);
       }
     }
 
@@ -3554,6 +3284,15 @@ export async function handleRequest(
     }
     if (parts[0] === 'sessions' && parts[1] !== undefined) {
       const sessionId = parts[1];
+      if (parts.length === 3 && parts[2] === 'processing') {
+        requestQuery(url, []);
+        if (request.method === 'GET') return json(await getSessionTextProcessing(env, actor, sessionId));
+        if (request.method === 'POST') {
+          requireOnlyKeys(await requestBody(request), []);
+          await retrySessionTextProcessing(env, actor, sessionId);
+          return json(await getSessionTextProcessing(env, actor, sessionId), 202);
+        }
+      }
       if (request.method === 'GET' && parts.length === 2) return json(sessionResponse(await getSession(env, actor, sessionId)));
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'ai') {
         requireAiDraftReviewActor(actor);
@@ -3706,8 +3445,10 @@ export async function handleRequest(
       && parts[0] === 'pipeline' && parts[1] === 'readiness'
     ) {
       requestQuery(url, []);
+      const report = parseSttReadinessReport(await requestBody(request));
+      if (report.sttMode === 'local') return json({ error: 'not_found' }, 404);
       return json(await recordSttReadiness(
-        env, actor, parseSttReadinessReport(await requestBody(request)),
+        env, actor, report,
       ), 200, { 'cache-control': 'no-store' });
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'health') {
@@ -3733,32 +3474,14 @@ export async function handleRequest(
         return new Response(null, { status: 204 });
       }
     }
-    if (parts[0] === 'pipeline' && parts[1] === 'memory') {
+    if (parts[0] === 'pipeline' && parts[1] === 'entity-registrations') {
       requestQuery(url, []);
+      if (request.method !== 'POST' || parts.length !== 2) return json({ error: 'not_found' }, 404);
       if (actor.role !== 'service') throw new ForbiddenError();
-      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'claim') {
-        await verifiedInstallManifest(env);
-        const jobs = await claimCounselingMemorySources(env, actor, parseClaimRequest(await requestBody(request)));
-        return json({ schemaVersion: 2, jobs }, 200, { 'cache-control': 'no-store' });
-      }
-      if (parts[2] !== undefined && parts.length === 4) {
-        const jobId = requireRouteUuid(parts[2], 'memory job id');
-        if (request.method === 'GET' && parts[3] === 'source') {
-          const { claimToken, attempt } = claimCredentialsFromHeaders(request);
-          return json(await getCounselingMemorySource(env, actor, jobId, claimToken, attempt), 200, { 'cache-control': 'no-store' });
-        }
-        if (request.method === 'POST' && parts[3] === 'mask-dictionary') {
-          return json(await issueCounselingMemoryDictionary(env, actor, jobId, parseClaimCredentials(await requestBody(request))), 200, { 'cache-control': 'no-store' });
-        }
-        if (request.method === 'POST' && parts[3] === 'result') {
-          await acceptCounselingMemorySource(env, actor, jobId, parseAgentResultRequest(await requestBody(request)));
-          return new Response(null, { status: 204 });
-        }
-        if (request.method === 'POST' && parts[3] === 'release') {
-          await releaseCounselingMemorySource(env, actor, jobId, parseReleaseRequest(await requestBody(request)));
-          return new Response(null, { status: 204 });
-        }
-      }
+      return json(await registerCaseEntities(env, actor, parseEntityRegistrationRequest(await requestBody(request))));
+    }
+    if (parts[0] === 'pipeline' && parts[1] === 'memory') {
+      return json({ error: 'not_found' }, 404);
     }
     // Agent 작업 계약 v2 (S5). 모든 endpoint 가 service 자격과 live claim 을 요구한다.
     if (parts[0] === 'pipeline' && parts[1] === 'jobs') {

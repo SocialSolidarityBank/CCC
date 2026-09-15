@@ -3,6 +3,11 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { IntakeReadView } from './intake-read-view';
 import { ACTIVE_QUESTIONS, STEP_TITLES } from './intake-questions';
 import type { IntakeAnswerInput, IntakeSavedRecord } from '../../../../../../lib/api';
+import {
+  CONSENT_COPY,
+  CONSENT_DOMAINS,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 
 afterEach(cleanup);
 
@@ -14,11 +19,38 @@ function fullAnswers(): IntakeAnswerInput[] {
   });
 }
 
+const CONSENT_STATES: CurrentConsentState[] = CONSENT_DOMAINS.map((domain, index) => ({
+  domain,
+  state: index === 0 ? 'granted' : index === 1 ? 'not_granted' : 'unconfirmed',
+  provider: CONSENT_COPY[domain].provider,
+  providerLegalRecipient: null,
+  providerCountry: null,
+  purpose: CONSENT_COPY[domain].purpose,
+  retentionDuration: domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null,
+  effectiveAt: null,
+  eventId: null,
+  revision: null,
+  eventSequence: null,
+}));
+
 function savedRecord(overrides: Partial<IntakeSavedRecord> = {}): IntakeSavedRecord {
   return {
     sessionId: 'session-1',
     heldAt: '2026-07-15T10:00:00.000Z',
     channel: 'in_person',
+    schemaVersion: 2,
+    revision: 7,
+    history: [],
+    questionLifecycle: { version: 1, items: [], conversion: null },
+    questionnaire: {
+      schemaVersion: 2,
+      moduleSnapshot: { programId: 'program-1', programVersion: 4, financialSupportEnabled: true },
+      answers: [],
+      debts: { response: 'answered', rows: [{ creditor: 'OO은행' }] },
+      linkedOrgs: { response: 'answered', rows: [{ orgName: 'OO구 주민센터' }] },
+      additionalItems: { response: 'answered', rows: [{ item: '전체 채무 잔액' }] },
+    },
+    legacyDetailsJson: null,
     answers: fullAnswers(),
     debts: [{ creditor: 'OO은행', kind: '신용대출', balance: '1,200만 원', monthlyPayment: '30만 원', arrearsStatus: '3개월 연체' }],
     linkedOrgs: [{ orgName: 'OO구 주민센터', serviceName: '긴급복지 생계지원', supportDetail: '', usagePeriod: '', progressStatus: '' }],
@@ -31,17 +63,19 @@ function savedRecord(overrides: Partial<IntakeSavedRecord> = {}): IntakeSavedRec
 function renderView(
   saved: IntakeSavedRecord = savedRecord(),
   overallGoal: string | null = '3개월 안에 채무조정 신청을 마친다',
+  canWrite = true,
 ) {
   return render(
     <IntakeReadView
       beneficiaryId="swallow-003"
       participant={{ name: '홍서희', phone: '010-1234-5678', email: 'sample@example.test' }}
-      consent={{ privacy: true, recordingAi: false }}
+      consent={CONSENT_STATES}
       saved={saved}
       overallGoal={overallGoal}
       editHref="/participants/swallow-003/programs/case-1/records/intake?edit=1"
       recordsHref="/participants/swallow-003/programs/case-1/records"
       participantHref="/participants/swallow-003"
+      canWrite={canWrite}
     />,
   );
 }
@@ -76,6 +110,23 @@ describe('IntakeReadView (CCC-58)', () => {
     expect(container.querySelector('[data-testid="intake-step-rail"] h2')?.textContent).toBe('인테이크 4단계');
     expect(container.querySelector('[data-testid="intake-step-rail"] h2')?.classList.contains('wire-card-title')).toBe(true);
     expect(steps[2]?.getAttribute('aria-label')).toBe('3. 필요한 도움과 활용 가능한 자원, 8/8 완료');
+  });
+
+  it('동의 여섯 영역을 정본 순서와 문안, 현재 상태로 표시한다', () => {
+    renderView();
+    const card = screen.getByTestId('intake-read-consent');
+    const sections = [...card.querySelectorAll('.wire-card-section')];
+    expect(sections.map((section) => section.querySelector('h3')?.textContent)).toEqual([
+      `${CONSENT_COPY.personal_data_collection_use.label}동의함`,
+      `${CONSENT_COPY.sensitive_information_processing.label}동의하지 않음`,
+      ...CONSENT_DOMAINS.slice(2).map((domain) => `${CONSENT_COPY[domain].label}미기록`),
+    ]);
+    for (const domain of CONSENT_DOMAINS) {
+      expect(card.textContent).toContain(CONSENT_COPY[domain].copy);
+    }
+    expect(within(card).getByText('동의함')).toBeTruthy();
+    expect(within(card).getByText('동의하지 않음')).toBeTruthy();
+    expect(within(card).getAllByText('미기록')).toHaveLength(4);
   });
 
   it('shows the no-response and not-applicable codes as the canonical phrases', () => {
@@ -125,9 +176,10 @@ describe('IntakeReadView (CCC-58)', () => {
 
   it('uses the participant hero for identity and removes the duplicated vault-information card', () => {
     const { container } = renderView();
+    expect(screen.getByRole('heading', { level: 1, name: '인테이크 기록' })).toBeTruthy();
     const edit = screen.getByRole('link', { name: '수정' });
     expect(edit.getAttribute('href')).toBe('/participants/swallow-003/programs/case-1/records/intake?edit=1');
-    const records = screen.getByRole('link', { name: '상담 기록 확인' });
+    const records = screen.getByRole('link', { name: '상담 기록 확인하기' });
     expect(records.getAttribute('href')).toBe('/participants/swallow-003/programs/case-1/records');
     expect(screen.getByText('010-1234-5678')).toBeTruthy();
     expect(screen.getByText('sample@example.test')).toBeTruthy();
@@ -137,9 +189,97 @@ describe('IntakeReadView (CCC-58)', () => {
     expect(hero?.querySelector('.wire-field-row[data-tone="blue"] .wire-field-label')?.textContent).toBe('상담일');
     expect(screen.queryByTestId('intake-read-basic-info')).toBeNull();
 
-    // ② 미기록이므로 동의 수정처 안내가 뜬다(D44). 인테이크는 읽기만 한다.
-    expect(within(screen.getByTestId('intake-read-consent')).getByText('미기록 1')).toBeTruthy();
+    // 미확정 4개가 있어 동의 수정처 안내가 뜬다.
+    expect(within(screen.getByTestId('intake-read-consent')).getByText('미기록 4')).toBeTruthy();
     expect(screen.getByRole('link', { name: '당사자 정보로 이동' })).toBeTruthy();
+  });
+
+  it('schema 1 원본은 저장된 키와 값을 그대로 보여 주고 현재 질문지로 분류하지 않는다', () => {
+    const legacy = {
+      ...savedRecord(),
+      schemaVersion: 1,
+      questionnaire: null,
+      legacyDetailsJson: JSON.stringify({
+        old_label: '원본 값',
+        unknown_shape: { kept: true },
+      }),
+      answers: [],
+      debts: [],
+      linkedOrgs: [],
+      additionalItems: [],
+      managerOpinion: null,
+      questionLifecycle: null,
+    } as unknown as IntakeSavedRecord;
+
+    renderView(legacy);
+
+    const record = screen.getByTestId('intake-legacy-record');
+    expect(within(record).getByText('old_label')).toBeTruthy();
+    expect(within(record).getByText('원본 값')).toBeTruthy();
+    expect(within(record).getByText('{"kept":true}')).toBeTruthy();
+    expect(screen.queryByTestId('intake-read-current-step')).toBeNull();
+  });
+
+  it('쓰기 권한이 없으면 저장 기록을 읽되 수정 진입을 숨긴다', () => {
+    renderView(savedRecord(), null, false);
+
+    expect(screen.queryByRole('link', { name: '수정' })).toBeNull();
+    expect(screen.getByText('지금은 읽기만 할 수 있어요. 저장된 내용은 계속 확인할 수 있어요.')).toBeTruthy();
+  });
+
+  it('추가 확인사항의 유지와 철회와 전환 확정 이력을 구분한다', () => {
+    renderView(savedRecord({
+      questionLifecycle: {
+        version: 1,
+        items: [
+          {
+            id: 'question-retained',
+            revision: 2,
+            sourceRevision: 7,
+            sourceRowIndex: 0,
+            createdBy: 'worker-1',
+            createdAt: '2026-07-15T10:00:00.000Z',
+            withdrawn: null,
+            origin: {
+              schemaVersion: 2,
+              sourceRevision: 6,
+              sourceRowIndex: 0,
+            },
+          },
+          {
+            id: 'question-withdrawn',
+            revision: 3,
+            sourceRevision: 6,
+            sourceRowIndex: 1,
+            createdBy: 'worker-1',
+            createdAt: '2026-07-15T10:00:00.000Z',
+            withdrawn: {
+              actorId: 'worker-1',
+              recordedAt: '2026-07-16T10:00:00.000Z',
+              fromRevision: 2,
+            },
+            origin: null,
+          },
+        ],
+        conversion: {
+          sourceSchemaVersion: 2,
+          sourceRevision: 6,
+          mechanical: {
+            recordedAt: '2026-07-15T10:00:00.000Z',
+            mappings: [{ questionId: 'question-retained', sourceRowIndex: 0 }],
+          },
+          confirmation: {
+            actorId: 'worker-1',
+            recordedAt: '2026-07-15T10:01:00.000Z',
+          },
+        },
+      },
+    }));
+
+    const history = screen.getByTestId('intake-question-history');
+    expect(within(history).getByText('유지')).toBeTruthy();
+    expect(within(history).getByText('철회')).toBeTruthy();
+    expect(within(history).getByText('전환 확정')).toBeTruthy();
   });
 
   it('renders every current-step group as an accordion and supports open-all and close-all', () => {

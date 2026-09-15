@@ -7,9 +7,9 @@
 - 정규식 계층(항상 동작): 전화번호·주민등록번호·이메일·계좌형 숫자열
 - 질병명 사전 계층(항상 동작, G3): 구체 병명·진단명을 `[질환]` 으로 치환. 사전은
   `condition_terms.py` — 무엇을 일부러 뺐는지도 거기 적혀 있다.
-- NER 계층(선택): CCC_NER_MODEL_ID 설정 시 한국어 개체명 인식으로 인명을 추가 마스킹.
-  질병명도 NER 을 병행할 수 있다(`build_condition_ner`) — 사전이 놓친 표기를 잡는 몫이다.
-  모델은 라이선스 표기를 확인한 것만 지정한다 (CLAUDE.md §5 규칙).
+- NER 계층(선택): canonical masking manifest가 지정한 한국어 개체명 인식 모델과 라벨로
+  인명을 추가 마스킹한다. 질병명도 독립 NER 모델을 병행할 수 있고(`build_condition_ner`),
+  사전이 놓친 표기를 잡는다. 모델은 라이선스 표기를 확인한 것만 지정한다(CLAUDE.md §5).
 
 **집계만 남긴다(R3)**: `mask_text_with_report` 는 "어떤 토큰을 몇 건 치환했는지" 숫자만
 돌려준다. 치환된 원문은 보고서에 담지 않는다 — 그걸 담으면 마스킹의 의미가 없어진다.
@@ -20,6 +20,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import date
 
 from .condition_terms import ALL_TERMS
 from .model_registry import ModelRegistryError, model_spec
@@ -33,15 +34,101 @@ PERSON_TOKEN = "[인명]"
 ADDRESS_TOKEN = "[주소]"
 CONDITION_TOKEN = "[질환]"
 
+def calendar_day_delta(
+    event_date: str,
+    consultation_date: str,
+    *,
+    date_kind: str | None = None,
+    anchor_explicit: bool = False,
+    date_explicit: bool = False,
+    year_explicit: bool = False,
+) -> int | None:
+    """Return an explicit event/deadline delta in calendar days, or ``None`` to generic-mask."""
+    if (
+        not isinstance(date_kind, str)
+        or date_kind.lower() not in ("event", "deadline")
+        or not anchor_explicit
+        or not date_explicit
+        or not year_explicit
+    ):
+        return None
+    try:
+        event = date.fromisoformat(event_date)
+        consultation = date.fromisoformat(consultation_date)
+    except (TypeError, ValueError):
+        return None
+    return (event - consultation).days
+
+
+def normalize_event_date(
+    event_date: str,
+    consultation_date: str,
+    *,
+    date_kind: str | None = None,
+    anchor_explicit: bool = False,
+    date_explicit: bool = False,
+    year_explicit: bool = False,
+) -> str | None:
+    """Render the approved calendar-day token; ``None`` means retain generic masking."""
+    delta = calendar_day_delta(
+        event_date,
+        consultation_date,
+        date_kind=date_kind,
+        anchor_explicit=anchor_explicit,
+        date_explicit=date_explicit,
+        year_explicit=year_explicit,
+    )
+    if delta is None:
+        return None
+    if delta == 0:
+        return "[상담일]"
+    return f"[상담일 {abs(delta)}일 {'후' if delta > 0 else '전'}]"
+
+
+
 # 태깅 접두(BIO·BIOES·BILOU). 라벨 대조 전에 떼어 낸다.
 _TAG_PREFIXES = ("B-", "I-", "E-", "S-", "L-", "U-")
 
-# 라벨 접두 기본값 — **여러 계열을 함께 담는다.** 모델마다 이름이 달라서다:
-#   KLUE·모두의 말뭉치 계열 → PS / PER
-#   PII 전용 모델 → NAME 또는 PRIVATE_PERSON (채택 모델 korean-pii-e5-base 가 후자)
-# 접두가 그 모델과 하나도 안 맞으면 로드 단계에서 죽으므로(_assert_labels_exist),
-# 기본값이 넓어도 조용히 어긋난 채 도는 일은 없다. 모델을 정하면 CCC_NER_LABELS 로
-# 그 모델의 라벨만 명시하는 쪽이 더 안전하다 — 의도한 라벨이 문서에 남는다.
+# transformers 4.53.3 의 get_tag(token_classification.py:609)는 "B-"/"I-" 만 떼고
+# 나머지는 "I-" 로 취급한다 — E-/S-/L-/U- 가 group_entities 에서 같은 태그로 인식되지
+# 않아 BIOES 모델(korean-pii-e5-base)의 한 엔티티가 조각난다. 파이프라인을 만든 뒤
+# id2label 을 BIO 로 정규화해 라이브러리의 묶음이 의도대로 동작하게 한다. 토큰 점수와
+# 탐지 범위는 그대로다 — 같은 문자 구간이 더 적은 스팬으로 모일 뿐이다.
+_BIO_NORMALIZE = {"E-": "I-", "S-": "B-", "L-": "I-", "U-": "B-"}
+
+
+def _normalize_bio_labels(recognizer) -> None:  # noqa: ANN001 — transformers pipeline
+    """파이프라인 모델의 BIOES·BILOU 라벨을 BIO 로 바꾼다 (in-place)."""
+    config = getattr(getattr(recognizer, "model", None), "config", None)
+    id2label = getattr(config, "id2label", None)
+    if not isinstance(id2label, dict):
+        return
+    config.id2label = {
+        index: _BIO_NORMALIZE[str(label)[:2]] + str(label)[2:]
+        if str(label)[:2] in _BIO_NORMALIZE
+        else str(label)
+        for index, label in id2label.items()
+    }
+    config.label2id = {label: index for index, label in config.id2label.items()}
+
+
+def _build_recognizer(spec):  # noqa: ANN001, ANN202 — 반환은 transformers pipeline
+    """revision 고정 토큰 분류 파이프라인. 라벨은 BIO 정규화본으로 돌린다."""
+    from transformers import pipeline  # noqa: PLC0415
+
+    recognizer = pipeline(
+        "token-classification",
+        model=spec.name,
+        revision=spec.revision,
+        aggregation_strategy="simple",
+    )
+    _normalize_bio_labels(recognizer)
+    return recognizer
+
+
+# 태깅 라벨 접두 기본값. 독립 도구와 명시적 함수 호출의 기본값이며, 업무 Agent는
+# canonical masking manifest가 지정한 모델별 라벨만 전달한다. 모델과 라벨이 어긋나면
+# 로드 단계에서 죽으므로(_assert_labels_exist) 조용히 0건 마스킹한 채 진행하지 않는다.
 DEFAULT_PERSON_LABELS = ("PS", "PER", "NAME", "PRIVATE_PERSON")
 # 주소 계층(2026-08-01 Q 결정 — 이름과 함께 가린다). "○○아파트 3동" 만으로도 사람이
 # 특정되는데, 상담 내용을 이해하는 데는 주소가 없어도 지장이 없다. 빈 튜플로 두면 계층이 꺼진다.
@@ -242,30 +329,34 @@ def _span_fn(recognizer, label_prefixes: tuple[str, ...]):  # noqa: ANN001, ANN2
     """이미 불러온 파이프라인에서 특정 라벨 접두만 고르는 스팬 함수를 만든다."""
 
     def ner(text: str) -> list[tuple[int, int]]:
-        spans: list[tuple[int, int]] = []
+        spans: list[tuple[int, int, str]] = []
         for entity in recognizer(text):
             group = str(entity.get("entity_group", "")).upper()
-            if group.startswith(label_prefixes):
-                spans.append((int(entity["start"]), int(entity["end"])))
-        return spans
+            if not group.startswith(label_prefixes):
+                continue
+            start, end = int(entity["start"]), int(entity["end"])
+            # 같은 라벨 조각이 공백만 사이에 두고 이어지면 한 스팬으로 합친다.
+            # 채택 모델은 한국어 주소를 시도·시군구·도로명·동호 성분별로 여러 엔티티로
+            # 낸다(E5-4 실측: 주소 FN 250 중 218 이 이런 조각). 사이가 공백뿐일 때만
+            # 합친다 — 공백 외 문자가 끼면 모델이 태그하지 않은 자리를 채우는 셈이라
+            # 넘지 않고, 다른 라벨이 사이에 있어도 그 구간이 공백이 아니게 되어 자연히
+            # 끊긴다. 탐지 범위는 늘지 않는다 — 이미 탐지된 스팬의 경계만 바로잡는다.
+            if spans and spans[-1][2] == group and text[spans[-1][1]:start].strip() == "":
+                spans[-1] = (spans[-1][0], max(spans[-1][1], end), group)
+                continue
+            spans.append((start, end, group))
+        return [(start, end) for start, end, _group in spans]
 
     return ner
 
 
 def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: ANN202 — 반환은 NerFn
     """transformers NER 파이프라인을 manifest revision으로 고정한다."""
-    from transformers import pipeline  # noqa: PLC0415
-
     try:
         spec = model_spec(model_id)
     except ModelRegistryError as error:
         raise MaskingConfigError("NER model is not declared in model manifest") from error
-    recognizer = pipeline(
-        "token-classification",
-        model=spec.name,
-        revision=spec.revision,
-        aggregation_strategy="simple",
-    )
+    recognizer = _build_recognizer(spec)
     _assert_labels_exist(recognizer, model_id, label_prefixes)
     return _span_fn(recognizer, label_prefixes)
 
@@ -289,18 +380,11 @@ def build_person_and_address_ner(  # noqa: ANN201 — 반환은 (NerFn, NerFn | 
     `address_prefixes` 가 비면 주소 계층 없이 인명만 돌린다 — 주소를 안 잡는 모델로
     갈아탈 때의 경로다. 비어 있지 **않은데** 모델이 그 라벨을 선언하지 않으면 뜨지 않는다.
     """
-
-    from transformers import pipeline  # noqa: PLC0415
     try:
         spec = model_spec(model_id)
     except ModelRegistryError as error:
         raise MaskingConfigError("NER model is not declared in model manifest") from error
-    recognizer = pipeline(
-        "token-classification",
-        model=spec.name,
-        revision=spec.revision,
-        aggregation_strategy="simple",
-    )
+    recognizer = _build_recognizer(spec)
     _assert_labels_exist(recognizer, model_id, person_prefixes)
     person = _span_fn(recognizer, person_prefixes)
     if not address_prefixes:

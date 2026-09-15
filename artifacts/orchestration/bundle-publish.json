@@ -1,0 +1,115 @@
+{
+  "distBuild": {
+    "command": "pnpm --filter @ccc/community-cloud run build",
+    "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/release-16",
+    "branch": "release/0916",
+    "tip": "bce602650bf29c8b21d723199629c42470d10a2d",
+    "files": {
+      "apps/community-cloud/dist/index.js": 1288483,
+      "apps/community-cloud/dist/install-consent-registry.js": 37695,
+      "apps/community-cloud/dist/install-manifest-verifier.js": 13389,
+      "apps/community-cloud/dist/storage-signer.js": 45054
+    },
+    "note": "dist 를 지우고 오늘 병합된 나무(tip bce60265)에서 다시 만들었다."
+  },
+  "componentRoot": {
+    "path": "artifacts/release/component-root",
+    "contents": [
+      "functions/ccc-storage-signer/index.js (= apps/community-cloud/dist/storage-signer.js 복사본)"
+    ],
+    "rationale": "build-bundle.mjs:521 주석이 호출자가 dist/storage-signer.js 를 이 자리에 복사해 두라고 명시하고, requireSignerComponent(522-525)가 function 종류 정확히 1개이고 경로가 SIGNER_COMPONENT_PATH(functions/ccc-storage-signer/index.js, edge-component-manifest.mjs:30)인 것만 요구한다. migration 은 component-root 가 아니라 copyInstallerRuntime(413-457)이 REPOSITORY_ROOT/migrations/postgres 에서 cli/ 아래로 직접 복사하므로 component-root 에는 signer 하나만 둔다."
+  },
+  "bundleFiles": {
+    "outDir": "artifacts/release/0.9.0-dev.3",
+    "files": {
+      "community-cloud-cli-community-cloud-0.9.0-dev.3-macos-arm64.tar.gz": 350441,
+      "community-cloud-cli-community-cloud-0.9.0-dev.3-macos-arm64.tar.gz.manifest.json": 577,
+      "release-bundle.json": 1550,
+      "release-floor.json": 196
+    },
+    "command": "infisical run --projectId=78d6f149-5ef7-43f2-b20c-4c89c3dc473c --env=prod --path=/CURRENT -- node scripts/release/build-bundle.mjs --component-root artifacts/release/component-root --out-dir artifacts/release/0.9.0-dev.3 --version 0.9.0-dev.3 --sequence 3 --channel dev",
+    "artifactSha256": "40ae8a9570850451d7f158e7c0f54c65c41f68e88a3590c17ba6e6ca00250319",
+    "manifestSha256": "c53a8777e0b52bdc72beac9fb7a09d36cef74fe60204fbe1210384f57570a7d8",
+    "bundleSha256": "ff4f1fc9c8879a18c0d5515da140b0acc08c0af19e7e970d4cd712c0ad4a1e2b"
+  },
+  "publishedAt": "2026-09-15T14:20:29.097Z",
+  "expiresAt": "2026-09-22T14:20:29.097Z",
+  "expiresAtComparison": "이전 2026-09-18T18:50:34Z 보다 뒤다(게시 시각 + 7일, build-bundle.mjs:544 고정).",
+  "verifyResult": {
+    "command": "node scripts/release/verify.mjs (정본 호출 = pnpm release:verify, 인자 없음)",
+    "result": "통과 — SBOM dependency 635개, model 10개, fixture/manifest 5개, tracked file 1384개 검사 (호스트 외 optional 122개 제외)",
+    "note": "--artifact-dir 를 주면 E10-1 의 최종 artifact 증거(third-party/python-sbom.cdx.json)를 추가로 요구해 실패한다. 그 증거는 이 번들이 아니라 별도 최종 산출물의 것이라 정본 호출에는 플래그를 붙이지 않는다. 검사를 수정하지 않았다."
+  },
+  "publishMethod": "apps/release-origin/README.md 절차: build-bundle 출력물을 apps/release-origin/public/ 아래 서빙 경로로 복사한 뒤 pnpm exec wrangler deploy --config apps/release-origin/wrangler.toml. 자격은 이 맥의 wrangler OAuth(account@bss.or.kr, workers write, 계정 8855a07cd6da28d8f6120fa95081854e)를 썼고 CLOUDFLARE_WORKERS_API_TOKEN 주입은 필요 없었다(로테이션 영향 없음). 이전 dev.2 파일은 origin 에서 GET 으로 내려받아 public/ 에 함께 둬서 assets 교체 배포에서도 살아 있게 했다.",
+  "publishResult": "wrangler deploy 성공. Uploaded 4 files (2 already uploaded). Version ID 93a52ab0-0699-465e-a82b-6d4b22425eb4. 올린 파일: .well-known/ccc/release-bundle.json, manifests/…-0.9.0-dev.3-….manifest.json, artifacts/…-0.9.0-dev.3-….tar.gz, release-floor.json(서빙 경로군 밖이라 GET 은 404, 자산으로만 올라감).",
+  "originGetCheck": {
+    "bundle": "GET /.well-known/ccc/release-bundle.json → 200, version=0.9.0-dev.3, sequence=3, expiresAt=2026-09-22T14:20:29.097Z",
+    "artifact": "GET /artifacts/community-cloud-cli-community-cloud-0.9.0-dev.3-macos-arm64.tar.gz → 200",
+    "manifest": "GET /manifests/community-cloud-cli-community-cloud-0.9.0-dev.3-macos-arm64.tar.gz.manifest.json → 200"
+  },
+  "previousVersionIntact": "GET /artifacts/…-0.9.0-dev.2-….tar.gz → 200, GET /manifests/…-0.9.0-dev.2-….manifest.json → 200. 지우지 않았다.",
+  "resignedDocs": {
+    "dir": "artifacts/install/qlzwas/ (권한 600, artifacts/install/.gitignore:3 qlzwas/ 로 ignore 확인, 커밋 안 함)",
+    "files": [
+      "inputs.json(만료만 갱신)",
+      "install-manifest.json",
+      "install-approval.json"
+    ],
+    "installationIdPrefix": "86be2554",
+    "sequence": 1,
+    "projectRefPrefix": "qlzwas",
+    "expiresAt": "2026-09-22T14:20:29.097Z (새 번들 만료와 동일)",
+    "command": "scripts/install/stage-env.sh bun scripts/install/sign-install-documents.mjs --new-install",
+    "releaseTrustAndBaseline": "재생산 포기. NewProjectProvisionAndRotate 가 qlzwas 에 auth 사용자(98c0bb32…)를 이미 만들었고 pg_cron·pg_net 도 켰다. generator 의 EMPTY_BUSINESS_KEYS 게이트(provider-baseline-generate.mjs:454, authUserCount===0 요구)가 PROVIDER_BASELINE_MISMATCH 로 막는다(실측). Q 가 qlzwas 경로 중단을 확정해 삭제·재생산을 하지 않기로 했다."
+  },
+  "verificationFunctions": [
+    "requireSignedOwnerPreflight — scripts/supabase/manifest-preflight.mjs:266-348, sign-install-documents.mjs:184-190 에서 호출, 통과(installationId 86be2554…, runtimeManifestSha256 일치 확인)",
+    "requireProviderBaseline — scripts/supabase/provider-baseline.mjs:229-317, sign-install-documents.mjs:207-214 에서 호출 조건(baseline 문서 존재 시). 재생산 포기로 미호출",
+    "assertProviderBaselineCurrent — scripts/supabase/plan.mjs:172-179, sign-install-documents.mjs:215-219 에서 호출 조건(동일). 재생산 포기로 미호출"
+  ],
+  "nextStepCommands": {
+    "note": "Q 결정으로 qlzwas 신규 프로젝트 경로는 중단됐다. 아래 plan/apply 명령은 별도 레인이 재개할 때의 참조다. 재개 전에 auth 사용자 삭제 → baseline+trust 재생산 → 사용자 재생성 순서가 필요하다.",
+    "plan": "CCC_STAGE_NEW_PROJECT=1 scripts/install/stage-env.sh node scripts/supabase/bootstrap.mjs plan  (주입: Infisical RELAYER prod /INSTALL+/API+/CURRENT 를 stage-env 가 매핑, 문서는 artifacts/install/qlzwas/{install-manifest,install-approval,release-trust,provider-baseline}.json 을 CCC_STAGE_NEW_PROJECT=1 분기가 파일 경로로 주입)",
+    "apply": "CCC_STAGE_NEW_PROJECT=1 scripts/install/stage-env.sh node scripts/supabase/bootstrap.mjs apply  (plan 통과 후, 같은 주입)",
+    "baselineRegen": "CCC_STAGE_NEW_PROJECT=1 scripts/install/stage-env.sh node scripts/supabase/provider-baseline-generate.mjs --source-evidence artifacts/beta-0.9/2026-09-11-provider-source-review.json --release-trust-output artifacts/install/qlzwas/release-trust.json --baseline-output artifacts/install/qlzwas/provider-baseline.json  (출력 경로가 존재하면 거부되므로 재생산 전에 기존 파일을 치운다)"
+  },
+  "existingStackFor16": {
+    "deployProcedure": "오늘 병합 코드를 운영에 내려면 release/0916 을 main 에 올려야 한다 — deploy-production.mjs:68-79 가 HEAD===origin/main 을 강제하고 워크플로는 main 을 체크아웃한다. 이후 pnpm deploy:production (= node scripts/deploy-production.mjs) 이 사전 점검(버전 3곳 일치, main CI 초록, D1 미적용 0, 시크릿 이름) 뒤 gh workflow run deploy-production.yml -f confirm=deploy-production 을 보낸다. 워크플로는 verify(typecheck·test·guards) → schema-gate(D1 미적용 확인만, 적용 안 함) → environment: production 승인 → wrangler deploy --env production(ccc-api) → opennextjs-cloudflare deploy(ccc) → 스모크 3종 순서다.",
+    "secrets": {
+      "githubActions": [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID"
+      ],
+      "workerRequired": [
+        "PII_ENC_KEY"
+      ],
+      "workerPresent": [
+        "PII_ENC_KEY",
+        "NOTIFY_WEBHOOK_URL"
+      ],
+      "missing": "없음. wrangler secret list --env production 실측으로 PII_ENC_KEY·NOTIFY_WEBHOOK_URL 두 이름이 있다."
+    },
+    "d1PendingMigrations": "19건 미적용(0054_program_admission.sql ~ 0072_privacy_purge_owned_graph.sql, wrangler d1 migrations list ccc --env production --remote 실측). 마지막 적용은 0053_ai_draft_canonical_consent.sql. 적용 명령: pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc --env production --remote (실행하지 않았다). schema-gate 가 미적용 상태에서 배포를 막으므로 배포 전에 사람이 적용해야 한다.",
+    "workerAlive": "GET https://ccc-api.account-855.workers.dev/ → 302, location 이 socialsolidaritybank.cloudflareaccess.com 로그인으로 향한다(Access 가로채기 = fail-closed 정상). 웹 https://ccc.account-855.workers.dev/ 도 302. 둘 다 살아 있다."
+  },
+  "secretLeakCheck": "개인키·토큰·서명·연결 문자열 값을 stdout·파일·커밋에 쓰지 않았다. infisical run 주입만 사용했고 infisical secrets/get/export/--plain 은 한 번도 실행하지 않았다. 보고에는 sha256·installationId·projectRef 접두만 적었다.",
+  "mutations": {
+    "plan": 0,
+    "apply": 0,
+    "dbChanges": 0,
+    "supabaseResourceCreations": 0,
+    "gitPush": 0,
+    "newKeys": 0,
+    "infisicalSecretsCommandRuns": 0,
+    "managementApiCalls": "provider-baseline-generate 의 읽기 전용 inspect(POST /database/query/read-only, SELECT 만) 1회 — 문서 생산은 실패해 쓰기 0건",
+    "workerDeploys": "ccc-releases 1회(파일 게시가 목적)"
+  },
+  "gitStatus": {
+    "release-16": "?? artifacts/release/ 만 untracked(번들 산출물, 커밋 안 함). install 문서·public/ 은 ignore 됨.",
+    "parity-291": "?? artifacts/orchestration/*.json 다수(선행 작업의 기존 untracked, 내 변경 0건)",
+    "frontend": "?? artifacts/orchestration/ (기존 untracked, 내 변경 0건)",
+    "miniBackend": "M CCC_OPEN_PILOT_PLAN.md·CONTEXT.md·DESIGN-RULES.md·DESIGN.md·packages/core/src/gateway.ts, ?? artifacts·docs·inbox (기존 작업 상태, 내 변경 0건, 읽기만 함)"
+  },
+  "commit": "이 보고 파일 하나만 커밋(메시지: chore(release): 0.9.0-dev.3 번들 게시와 qlzwas 재서명 보고). 번들 산출물·설치 문서·public/ 은 커밋하지 않는다. push 없음. 커밋 사이에 형제 작업이 8fa83d03(측정 보고, 산출물만)을 같은 브랜치에 올렸고 bce60265 는 여전히 ancestor 라 번들 내용에 영향 없다.",
+  "blocked": "release-trust.json·provider-baseline.json 재생산은 Q 결정(qlzwas 경로 중단)으로 포기. 두 문서는 만들지 않았고 세 검사 중 baseline 두 개는 미호출이다. 나머지 목표(번들·게시·manifest/approval 재서명)는 완료."
+}

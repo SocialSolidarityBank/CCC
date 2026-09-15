@@ -3,6 +3,35 @@ import { headers } from 'next/headers';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import type { MemorySettingsInput, MemorySettingsView } from '@ccc/contracts/counseling-memory';
 import { STT_MODES, type AgentStatus, type CapabilityDisabledReason, type SttMode } from '@ccc/contracts/runtime';
+import {
+  INTAKE_WRITE_SCHEMA_VERSION,
+  parseIntakeQuestionLifecycle,
+  parseIntakeQuestionnaire,
+  type IntakeAdditionalItemRef,
+  type IntakeCreateRequest,
+  type IntakeModuleSnapshot,
+  type IntakeMutationResponse,
+  type IntakeQuestionLifecycle,
+  type IntakeQuestionWithdrawalInput,
+  type IntakeQuestionnaire,
+  type IntakeRevision,
+  type IntakeUpdateRequest,
+} from '@ccc/contracts/intake';
+import {
+  CONSENT_DOMAINS,
+  type AppendConsentEventInput,
+  type ConsentDisclosureSnapshot,
+  type ConsentDomain,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
+import {
+  MANUAL_RECORD_CONTEXT_SCHEMA_VERSION,
+  MANUAL_RECORD_SCHEMA_VERSION,
+  type ManualActionOutcomeInput,
+  type ManualNextAction,
+  type ManualRecordMethod,
+} from '@ccc/contracts/manual-record';
+import { consentUpdateEvent, decodeCurrentConsentStates } from './consent-contract';
 
 export type ApiErrorCode =
   | 'authentication_required'
@@ -299,7 +328,8 @@ export interface ParticipantProgram {
   authorized: boolean;
   /** 활성 담당 실무자 표시 이름. 비담당 사업에서 "누구에게 물어보나"를 답한다. */
   assigneeNames: string[];
-  /** 동의 2종의 현재 상태(D44 · 항목 수는 D49). 등록 시 받고 당사자 정보 페이지에서 고친다. */
+  /** 동의 2종의 현재 상태(D44 · 항목 수는 D49). 서버는 6영역 이벤트 원장을 쓰고
+   *  이 필드는 화면 표기용으로 접은 값이다 — foldCurrentConsent 참조. */
   consent: ParticipantConsent;
   /** 마지막으로 동의 상태를 기록한 시각. 한 번도 없으면 null(최초 동의일이 아니다). */
   consentRecordedAt: string | null;
@@ -468,22 +498,16 @@ export interface ManualGasScore {
   score: number;
 }
 
-export interface ManualActionItem {
-  description: string;
-  owner: 'counselor' | 'beneficiary' | 'org';
-  dueDate?: string;
-}
 
 export interface ManualRecordFlag {
   flagType: FlagType;
 }
 
-export const actionItemResolutionStatuses = ['done', 'in_progress', 'not_done', 'hold'] as const;
-export type ActionItemResolutionStatus = (typeof actionItemResolutionStatuses)[number];
-
 export interface ManualActionItemResolution {
   actionItemId: string;
-  status: ActionItemResolutionStatus;
+  /** 화면이 렌더 시점에 본 액션의 revision — 서버가 낙관적 동시성 검사에 쓴다. */
+  expectedRevision: number;
+  status: 'done' | 'in_progress' | 'not_done' | 'hold';
   note?: string;
 }
 
@@ -496,8 +520,9 @@ export interface OpenActionItem {
 
 export interface RecordFormOpenActionItem extends OpenActionItem {
   sourceHeldAt: string;
+  /** v2 actionOutcomes.expectedRevision 의 재료 — 폼이 렌더 시점의 값을 그대로 돌려보낸다. */
+  revision: number;
 }
-
 // 생활 6영역 스냅샷(CCC-8).
 export type LifeAreaKey = (typeof lifeAreaKeys)[number];
 export type LifeAreaStatus = (typeof lifeAreaStatuses)[number];
@@ -507,9 +532,9 @@ export interface LifeAreaSnapshotEntry {
   status: LifeAreaStatus;
   note: string | null;
 }
-
-// 회차별 6영역 입력: changed=false('변화 없음')면 직전 스냅샷을 복사하고,
-// changed=true 면 status(+note)로 기록한다.
+// 회차별 6영역 입력 폼이 보내는 모양(lifeAreasJson). v2 계약에는 이 구조화된
+// 상태의 저장 자리가 없어 actions.ts 는 changed=true 가 오면 거부한다 — 이 타입은
+// 폼 계약의 문서로만 남는다.
 export type ManualLifeArea =
   | { areaKey: LifeAreaKey; changed: false }
   | { areaKey: LifeAreaKey; changed: true; status: LifeAreaStatus; note?: string };
@@ -619,15 +644,18 @@ export interface NewRecordContext {
 }
 
 export interface CreateInitialParticipantProgramInput {
-  programType: ParticipantProgramType;
+  /** 신계약은 사업을 programId 로 지목한다 — programType 문자열은 받지 않는다. */
+  programId: string;
+  /** 등록 트랜잭션 멱등 키(서버 필수). */
+  idempotencyKey: string;
   // intakeAt 은 없다(CCC-56): 등록은 인테이크가 아니다. 인테이크 완료 시각은 인테이크
   // 기록 저장이 채우고, 그 전까지 위저드는 이 당사자를 '인테이크 전'으로 본다.
   initialAssigneeUserId?: string;
-  // 항목별 동의 2종(D49·D23·D44). ② 는 기본 미동의이고 미동의여도 등록은 진행된다.
-  // ① consentPrivacy 만은 **하드 게이트**다(G1) — 없으면 emergencyReason 이 있어야 통과한다.
-  consentPrivacy?: boolean;
-  consentRecordingAi?: boolean;
-  /** 긴급 등록 사유 (G1 예외). ① 미체크로 등록해야 하는 급박한 위기 개입에만 쓴다. */
+  /** 6영역 동의 이벤트 — 서버가 정확히 6건(영역당 1건)을 요구한다.
+   *  personal_data_collection_use 의 grant 만은 **하드 게이트**다(G1) — 없으면
+   *  emergencyReason 이 있어야 통과한다. */
+  consentEvents: AppendConsentEventInput[];
+  /** 긴급 등록 사유 (G1 예외). ① 미동의로 등록해야 하는 급박한 위기 개입에만 쓴다. */
   emergencyReason?: string;
   // 등록 시 받은 이름·연락처·이메일(선택). pii_vault enc_* 로 저장된다(D3 · D24 · #32·#37).
   // JSON 직렬화가 undefined 를 지우므로 미입력은 바디에서 자연히 빠진다.
@@ -658,14 +686,13 @@ export interface ScheduleCandidate {
 export interface CreateSubsequentParticipantProgramInput {
   schemaVersion: 1;
   submissionId: string;
-  programType: ParticipantProgramType;
+  /** 신계약은 사업을 programId 로 지목한다 — programType 문자열은 받지 않는다. */
+  programId: string;
   // intakeAt 은 없다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
   sourceSupportCaseId?: string;
   initialAssigneeUserId?: string;
-  /** ① 개인정보 동의 (G1). 두 번째 참여 사업도 동의 2종이 미체크로 시작하므로 여기서 다시 받는다(D44). */
-  consentPrivacy: boolean;
-  /** ② AI를 활용한 녹취기록 동의 (D49). 선택 — 보내지 않으면 미동의로 시작한다. */
-  consentRecordingAi?: boolean;
+  /** 6영역 동의 이벤트 — 서버가 정확히 6건(영역당 1건)을 요구한다. */
+  consentEvents: AppendConsentEventInput[];
   /** 긴급 등록 사유 (G1 예외). */
   emergencyReason?: string;
 }
@@ -677,27 +704,26 @@ export interface ParticipantProgramCreation {
   replayed: boolean;
 }
 
+/**
+ * 수기 기록 작성 요청 — manual-record v2 계약(`@ccc/contracts/manual-record`의
+ * parseCreateManualRecord). 서버는 schemaVersion 2 와 아래 키만 받는다. v1 의
+ * actions·actionResolutions·lifeAreas·details 는내면 전체가 거부된다.
+ * v2 에 대응 항목이 없는 화면 입력(6영역 상태, 서술형 3종, hold, 처리 메모)은
+ * actions.ts 가 API 호출 전에 invalid_request 로 멈춘다 — 조용히 버리지 않는다.
+ */
 export interface CreateCounselingRecordInput {
+  schemaVersion: typeof MANUAL_RECORD_SCHEMA_VERSION;
   submissionId: string;
   heldAt: string;
-  channel: SupportCaseRecord['channel'];
+  channel: ManualRecordMethod;
   memo: string;
   gasScores: ManualGasScore[];
-  actions: ManualActionItem[];
+  actionItems: ManualNextAction[];
   flags: ManualRecordFlag[];
-  actionResolutions?: ManualActionItemResolution[];
-  lifeAreas?: ManualLifeArea[];
-  details?: ManualRecordDetails;
+  actionOutcomes: ManualActionOutcomeInput[];
+  counselorOpinion?: string;
   scheduleId?: string;
   expectedScheduleVersion?: number;
-}
-
-// 정기 기록지 서술형 항목(CCC-10 · 0016). 전부 선택이며 채운 항목이 없으면 details 를 보내지 않는다.
-export interface ManualRecordDetails {
-  sessionGoalNote?: string;
-  changeSinceLast?: string;
-  safetyNote?: string;
-  counselorOpinion?: string;
 }
 
 
@@ -713,10 +739,16 @@ export interface CreateCounselingRecordResult {
   replayed: boolean;
 }
 
-// 인테이크 작성 컨텍스트(CCC-7). 회차 자동값·당사자 표시(D31)·기존 인테이크 여부.
+// 인테이크 작성 컨텍스트(CCC-7, W03 v2 확장). 회차 자동값·당사자 표시(D31)·기존 인테이크 여부.
 export interface IntakeRecordContext {
   beneficiaryId: string;
   supportCaseId: string;
+  /** 담당 실무자인지(쓰기 가능 여부). */
+  canWrite: boolean;
+  /** 새 인테이크 쓰기 봉투 버전. 구값과 누락은 계약 위반이다. */
+  writeSchemaVersion: typeof INTAKE_WRITE_SCHEMA_VERSION;
+  /** 사업 모듈 스냅샷. 위저드가 질문 표시 여부에 사용한다. */
+  moduleSnapshot: IntakeModuleSnapshot;
   participant: { name: string | null; phone: string | null; email: string | null };
   sessionSequence: number;
   hasIntake: boolean;
@@ -724,7 +756,7 @@ export interface IntakeRecordContext {
   extendedPii: IntakeExtendedPii;
   // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫.
   consent: { privacy: boolean; recordingAi: boolean };
-  // 저장된 인테이크 내용(2026-08-08 Q "확인/수정"). hasIntake 일 때만 온다.
+  // 저장된 인테이크 내용(W03 v2). hasIntake 일 때만 온다. schemaVersion 에 따라 모양이 다르다.
   saved: IntakeSavedRecord | null;
   // 전체 목표 현재값(D62 · CCC-68). 인테이크 화면의 전체 목표 칸 프리필 재료 — null 은 설정 전.
   overallGoal: string | null;
@@ -735,11 +767,17 @@ export interface IntakeRecordContext {
   schedule: CounselingSchedule | null;
 }
 
-// 저장된 인테이크의 위저드 소유분 — 수정 화면 프리필 재료.
+// 서버 응답의 판별값은 디코더가 엄격히 검사한다. 투영 필드는 기존 웹 화면 전용이다.
 export interface IntakeSavedRecord {
   sessionId: string;
   heldAt: string;
   channel: 'in_person' | 'phone' | 'video';
+  schemaVersion?: 1 | 2;
+  revision?: number;
+  history?: IntakeRevision[];
+  questionLifecycle?: IntakeQuestionLifecycle | null;
+  questionnaire?: IntakeQuestionnaire | null;
+  legacyDetailsJson?: string | null;
   answers: IntakeAnswerInput[];
   debts: Array<Record<string, string>>;
   linkedOrgs: Array<Record<string, string>>;
@@ -831,38 +869,10 @@ export interface IntakeNextMeetingInput {
   channel: SupportCaseRecord['channel'];
 }
 
-export interface CreateIntakeRecordInput {
-  submissionId: string;
-  heldAt: string;
-  channel: SupportCaseRecord['channel'];
-  // D42: 5종은 선택 — 정본 질문지에 대응 항목이 없다(동의는 등록 화면, 목표는 보류).
-  consent?: { privacy: boolean; recordingAi: boolean };
-  helpNarrative?: { todayHelp: string; hardestPoint: string; desiredChange: string };
-  lifeAreas?: IntakeLifeAreaInput[];
-  goals?: IntakeGoalInput[];
-  actions?: ManualActionItem[];
-  answers?: IntakeAnswerInput[];
-  extendedPii?: IntakeExtendedPiiInput;
-  additionalItems?: IntakeAdditionalItemInput[];
-  debts?: IntakeDebtEntryInput[];
-  linkedOrgs?: IntakeLinkedOrgInput[];
-  nextMeeting?: IntakeNextMeetingInput;
-  managerOpinion?: string;
-  scheduleId?: string;
-  expectedScheduleVersion?: number;
-}
-
-export interface CreatedIntakeRecord {
-  id: string;
-  heldAt: string;
-  channel: SupportCaseRecord['channel'];
-  kind: SessionKind;
-}
-
-export interface CreateIntakeRecordResult {
-  record: CreatedIntakeRecord;
-  replayed: boolean;
-}
+export type CreateIntakeRecordInput = IntakeCreateRequest;
+export type UpdateIntakeRecordInput = IntakeUpdateRequest;
+export type CreateIntakeRecordResult = IntakeMutationResponse;
+export type CreatedIntakeRecord = IntakeMutationResponse['record'];
 
 export interface CounselingSchedule {
   id: string;
@@ -990,9 +1000,29 @@ function decodeSourceSupportCase(value: unknown): SourceSupportCase {
     status: responseEnum(responseProperty(record, 'status'), caseStatuses),
   };
 }
-
 function decodeParticipantProgram(value: unknown): ParticipantProgram {
   const record = responseObject(value);
+  const authorized = responseBoolean(record, 'authorized');
+  // 비담당 사업은 허브 응답이 식별 필드만 싣는다(D36) — 본문 필드를 요구하면 목록 전체가 죽는다.
+  if (!authorized) {
+    return {
+      id: responseString(record, 'id'),
+      beneficiaryId: responseString(record, 'beneficiaryId'),
+      programType: responseEnum(responseProperty(record, 'programType'), participantProgramTypes),
+      status: responseEnum(responseProperty(record, 'status'), caseStatuses),
+      intakeAt: null,
+      creationKind: 'initial',
+      sourceSupportCase: null,
+      authorized,
+      assigneeNames: responseArray(record, 'assigneeNames').map((name) => {
+        if (typeof name !== 'string') contractViolation();
+        return name;
+      }),
+      consent: { privacy: false, recordingAi: false },
+      consentRecordedAt: null,
+      upcomingSchedule: null,
+    };
+  }
   const sourceSupportCase = responseProperty(record, 'sourceSupportCase');
   return {
     id: responseString(record, 'id'),
@@ -1002,15 +1032,109 @@ function decodeParticipantProgram(value: unknown): ParticipantProgram {
     intakeAt: responseNullableString(record, 'intakeAt'),
     creationKind: responseEnum(responseProperty(record, 'creationKind'), creationKinds),
     sourceSupportCase: sourceSupportCase === null ? null : decodeSourceSupportCase(sourceSupportCase),
-    authorized: responseBoolean(record, 'authorized'),
+    authorized,
     assigneeNames: responseArray(record, 'assigneeNames').map((name) => {
       if (typeof name !== 'string') contractViolation();
       return name;
     }),
-    consent: decodeParticipantConsent(responseProperty(record, 'consent')),
+    // 동의 상태는 사업 응답에 없다 — 6영역 원장을 GET consent 으로 따로 읽어 접는다.
+    consent: { privacy: false, recordingAi: false },
     consentRecordedAt: responseNullableString(record, 'consentRecordedAt'),
     upcomingSchedule: decodeProgramUpcomingSchedule(responseProperty(record, 'upcomingSchedule')),
   };
+}
+
+// 서버의 6영역 동의 원장(consent_events fold)을 화면의 2종 표기로 접는다.
+// ① 개인정보 수집·이용 = personal_data_collection_use + sensitive_information_processing
+// ② AI 녹취기록 = counseling_recording + external_stt_processing
+//   + external_llm_cross_border_processing + voice_original_retention_period
+// 접은 표기는 "모두 grant 일 때만 체크"다 — 하나라도 미동의면 빈 칸으로 보여 과대 표시를 막는다.
+const PRIVACY_CONSENT_DOMAINS: readonly ConsentDomain[] = [
+  'personal_data_collection_use',
+  'sensitive_information_processing',
+];
+const RECORDING_AI_CONSENT_DOMAINS: readonly ConsentDomain[] = [
+  'counseling_recording',
+  'external_stt_processing',
+  'external_llm_cross_border_processing',
+  'voice_original_retention_period',
+];
+
+
+function foldCurrentConsent(states: CurrentConsentState[]): ParticipantConsent {
+  const granted = (domains: readonly ConsentDomain[]) =>
+    domains.every((domain) => states.find((entry) => entry.domain === domain)?.state === 'granted');
+  return { privacy: granted(PRIVACY_CONSENT_DOMAINS), recordingAi: granted(RECORDING_AI_CONSENT_DOMAINS) };
+}
+
+/** 사업 1건의 6영역 동의 현재 상태. GET /support-cases/:id/consent */
+export async function getSupportCaseConsent(supportCaseId: string): Promise<CurrentConsentState[]> {
+  return decodeCurrentConsentStates(await requestJson<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/consent`,
+  ));
+}
+
+function decodeConsentDisclosures(value: unknown): ConsentDisclosureSnapshot[] {
+  return responseArray(responseObject(value), 'disclosures').map((entry) => {
+    const record = responseObject(entry);
+    const domain = responseString(record, 'domain') as ConsentDomain;
+    if (!CONSENT_DOMAINS.includes(domain)) contractViolation();
+    return record as unknown as ConsentDisclosureSnapshot;
+  });
+}
+
+/** 사업 1건의 6영역 동의 고지 스냅샷 발급. GET /support-cases/:id/consent/disclosures */
+export async function issueSupportCaseConsentDisclosures(supportCaseId: string): Promise<ConsentDisclosureSnapshot[]> {
+  return decodeConsentDisclosures(await requestJson<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/consent/disclosures`,
+  ));
+}
+
+/** 등록 전 6영역 동의 고지 스냅샷 발급(케이스 없이 org·program·issuer 에 묶인다). */
+export async function issueRegistrationConsentDisclosures(programId: string): Promise<ConsentDisclosureSnapshot[]> {
+  return decodeConsentDisclosures(await requestJson<unknown>(
+    `/programs/${encodeURIComponent(programId)}/consent/disclosures`,
+  ));
+}
+
+export interface ProgramOption {
+  id: string;
+  displayName: string | null;
+  programType: ParticipantProgramType;
+}
+
+/** 등록 가능한 활성 사업 목록 — 신계약 등록이 요구하는 programId 해석에 쓴다. */
+export async function listProgramOptions(): Promise<ProgramOption[]> {
+  const payload = responseObject(await requestJson<unknown>('/program-options'));
+  return responseArray(payload, 'programs').map((entry) => {
+    const record = responseObject(entry);
+    return {
+      id: responseString(record, 'id'),
+      displayName: responseNullableString(record, 'displayName'),
+      programType: responseEnum(responseProperty(record, 'programType'), participantProgramTypes),
+    };
+  });
+}
+
+// 사업 목록 응답에는 동의가 없으므로 담당 사업마다 GET consent 을 붙여 접은 값을 채운다.
+
+/** 당사자 자기 가입 링크의 6영역 동의 고지(공개 경로, Access 불필요). */
+export async function getParticipantInviteConsentDisclosures(token: string): Promise<ConsentDisclosureSnapshot[]> {
+  const response = await fetchApi(endpoint(`/invites/participant/${encodeURIComponent(token)}/consent/disclosures`), {
+    headers: { accept: 'application/json' },
+    cache: 'no-store',
+    redirect: 'manual',
+  });
+  const payload: unknown = await response.json().catch(() => null);
+  if (!response.ok) throw new ApiError(errorCode(response.status, payload));
+  return decodeConsentDisclosures(payload);
+}
+// 비담당 사업은 동의를 읽을 권한이 없어 호출하지 않는다(화면도 그리지 않는다).
+async function withFoldedConsent(programs: ParticipantProgram[]): Promise<ParticipantProgram[]> {
+  return Promise.all(programs.map(async (program) => {
+    if (!program.authorized) return program;
+    return { ...program, consent: foldCurrentConsent(await getSupportCaseConsent(program.id)) };
+  }));
 }
 
 function decodeProgramUpcomingSchedule(value: unknown): ParticipantProgram['upcomingSchedule'] {
@@ -1508,7 +1632,6 @@ export async function listScheduleCandidates(): Promise<ScheduleCandidate[]> {
   const payload = await requestJson<{ candidates: ScheduleCandidate[] }>('/schedules/candidates');
   return payload.candidates;
 }
-
 export async function listParticipantPrograms(beneficiaryId: string): Promise<ParticipantProgram[]> {
   const payload = await requestJson<unknown>(
     `/participants/${encodeURIComponent(beneficiaryId)}/support-cases`,
@@ -1516,7 +1639,7 @@ export async function listParticipantPrograms(beneficiaryId: string): Promise<Pa
   if (!Array.isArray(payload)) contractViolation();
   const programs = payload.map(decodeParticipantProgram);
   if (programs.some((program) => program.beneficiaryId !== beneficiaryId)) contractViolation();
-  return programs;
+  return withFoldedConsent(programs);
 }
 
 /** 일반 기록 화면이 쓰는 당사자 실명·연락처와 참여 사업. 이메일은 이 응답에 없다. */
@@ -1533,7 +1656,7 @@ export async function getParticipantDetail(beneficiaryId: string): Promise<Parti
     beneficiaryId,
     name: contact === null ? null : responseNullableString(contact, 'participantName'),
     phone: contact === null ? null : responseNullableString(contact, 'participantPhone'),
-    programs,
+    programs: await withFoldedConsent(programs),
   };
 }
 
@@ -1550,7 +1673,7 @@ export async function getParticipantHubDetail(beneficiaryId: string): Promise<Pa
     name: responseNullableString(record, 'participantName'),
     phone: responseNullableString(record, 'participantPhone'),
     email: responseNullableString(record, 'participantEmail'),
-    programs,
+    programs: await withFoldedConsent(programs),
   };
 }
 
@@ -1657,56 +1780,11 @@ export async function listSupportCaseRecords(
   return records;
 }
 
-export async function getNewRecordContext(
-  beneficiaryId: string,
-  supportCaseId: string,
-): Promise<NewRecordContext> {
-  const history = await listSupportCaseRecords(beneficiaryId, supportCaseId);
-  const openActionItems: RecordFormOpenActionItem[] = [];
-  for (const record of history.records) {
-    for (const action of record.actionItems) {
-      if (!action.resolved) {
-        openActionItems.push({
-          id: action.id,
-          description: action.description,
-          owner: action.owner,
-          dueDate: action.dueDate,
-          sourceHeldAt: record.heldAt,
-        });
-      }
-    }
-  }
-  // 직전 상태 = held_at 내림차순 기록 중 스냅샷을 보유한 첫 회차의 값(콜드스타트면 빈 배열).
-  // history.records 는 listCounselingRecords 와 같은 held_at DESC 순서다.
-  const latestLifeAreaSnapshot = history.records.find((record) => record.lifeAreaSnapshot.length > 0)?.lifeAreaSnapshot ?? [];
-  // 지난 상담 한 줄 요약(CCC-10): 수기 메모가 있는 최신 회차의 첫 줄만 참고로 싣는다(D5).
-  const lastRecordWithMemo = history.records.find((record) => record.memo.trim().length > 0);
-  const plan = history.schedule === null
-    ? { sessionGoals: [], customQuestions: [] }
-    : await loadScheduleSessionPlan(history.schedule.id);
-  return {
-    goals: history.goals,
-    schedules: history.schedule === null ? [] : [history.schedule],
-    openActionItems,
-    latestLifeAreaSnapshot,
-    sessionGoals: plan.sessionGoals,
-    customQuestions: plan.customQuestions,
-    lastRecordSummary: lastRecordWithMemo === undefined
-      ? null
-      : { heldAt: lastRecordWithMemo.heldAt, text: firstLine(lastRecordWithMemo.memo) },
-    nextSessionSequence: history.records.length + 1,
-  };
-}
-
 function firstLine(memo: string): string {
   const line = memo.split('\n').map((part) => part.trim()).find((part) => part.length > 0) ?? '';
   return line.length > 80 ? `${line.slice(0, 80)}…` : line;
 }
 
-/**
- * 다가오는 일정의 세션 목표·맞춤형 질문(D28). 기록지의 참고 표시용이라 실패해도 폼을 막지
- * 않는다 — 조회가 어떤 이유로든 실패하면 빈 목록으로 낮춰 "수기 메모만으로 저장" 경로를 지킨다.
- */
 async function loadScheduleSessionPlan(
   scheduleId: string,
 ): Promise<{ sessionGoals: RecordSessionGoal[]; customQuestions: string[] }> {
@@ -1730,20 +1808,86 @@ export async function createInitialParticipantProgram(
   return jsonRequest<ParticipantProgramCreation>('/participants', 'POST', input);
 }
 
+export async function getNewRecordContext(
+  beneficiaryId: string,
+  supportCaseId: string,
+): Promise<NewRecordContext> {
+  const history = await listSupportCaseRecords(beneficiaryId, supportCaseId);
+  // 미해결 액션은 v2 컨텍스트 엔드포인트에서 가져온다 — 목록 응답에는 action 의
+  // revision 이 없어 actionOutcomes.expectedRevision(낙관적 동시성 검사)를 못 만든다.
+  const manualContext = responseObject(await requestJson<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/records/context`,
+  ));
+  if (responseInteger(manualContext, 'schemaVersion') !== MANUAL_RECORD_CONTEXT_SCHEMA_VERSION) {
+    contractViolation();
+  }
+  const openActionItems: RecordFormOpenActionItem[] = responseArray(manualContext, 'actions').map((value) => {
+    const action = responseObject(value);
+    return {
+      id: responseString(action, 'id'),
+      description: responseString(action, 'description'),
+      owner: responseEnum(responseProperty(action, 'owner'), actionOwners),
+      dueDate: responseNullableString(action, 'dueDate'),
+      sourceHeldAt: responseNullableString(action, 'sourceHeldAt') ?? responseString(action, 'createdAt'),
+      revision: responseInteger(action, 'revision'),
+    };
+  });
+  // 직전 상태 = held_at 내림차순 기록 중 스냅샷을 보유한 첫 회차의 값(콜드스타트면 빈 배열).
+  // history.records 는 listCounselingRecords 와 같은 held_at DESC 순서다.
+  const latestLifeAreaSnapshot = history.records.find((record) => record.lifeAreaSnapshot.length > 0)?.lifeAreaSnapshot ?? [];
+  // 지난 상담 한 줄 요약(CCC-10): 수기 메모가 있는 최신 회차의 첫 줄만 참고로 싣는다(D5).
+  const lastRecordWithMemo = history.records.find((record) => record.memo.trim().length > 0);
+  const plan = history.schedule === null
+    ? { sessionGoals: [], customQuestions: [] }
+    : await loadScheduleSessionPlan(history.schedule.id);
+  return {
+    goals: history.goals,
+    schedules: history.schedule === null ? [] : [history.schedule],
+    openActionItems,
+    latestLifeAreaSnapshot,
+    sessionGoals: plan.sessionGoals,
+    customQuestions: plan.customQuestions,
+    lastRecordSummary: lastRecordWithMemo === undefined
+      ? null
+      : { heldAt: lastRecordWithMemo.heldAt, text: firstLine(lastRecordWithMemo.memo) },
+    nextSessionSequence: history.records.length + 1,
+  };
+}
+
 /**
- * 동의 3종 수정·철회 (D44). 세 값을 항상 함께 보낸다 — 서버가 현재 상태 전체를 한 번에
- * 기록하기 때문이다(부분 갱신이 아니다). 권한(담당 실무자·기관 관리자)은 서버가 판정한다.
+ * 동의 수정·철회 (D44). 구 PUT /consent 는 사라졌다 — 신계약은 영역별 이벤트를
+ * POST /support-cases/:id/consent-events 로 한 건씩 쌓는다(append-only 원장).
+ * decisions 에 없는 영역은 이벤트를 보내지 않아 현재 상태가 유지된다.
+ * 각 결정은 사용자에게 실제로 보여 준 고지 스냅샷을 함께 실어야 한다 — 이벤트가
+ * 그 스냅샷의 문안 해시에 묶이므로 제출 시점에 새 고지를 발급해 덮어쓰면 읽은 문안과
+ * 기록된 문안이 갈라진다. 권한(담당 실무자·기관 관리자)은 서버가 판정한다.
  */
 export async function updateParticipantConsent(
   supportCaseId: string,
-  consent: ParticipantConsent,
+  decisions: ReadonlyArray<{
+    domain: ConsentDomain;
+    decision: 'grant' | 'decline';
+    snapshot: ConsentDisclosureSnapshot;
+  }>,
 ): Promise<ParticipantConsent> {
-  const payload = await jsonRequest<unknown>(
-    `/support-cases/${encodeURIComponent(supportCaseId)}/consent`,
-    'PUT',
-    consent,
-  );
-  return decodeParticipantConsent(payload);
+  const states = await getSupportCaseConsent(supportCaseId);
+  const stateByDomain = new Map(states.map((entry) => [entry.domain, entry]));
+  const recordedAt = new Date().toISOString();
+  for (const { domain, decision, snapshot } of decisions) {
+    const event = consentUpdateEvent(
+      stateByDomain.get(domain),
+      decision,
+      snapshot,
+      recordedAt,
+      crypto.randomUUID(),
+    );
+    await jsonRequest<unknown>(
+      `/support-cases/${encodeURIComponent(supportCaseId)}/consent-events`,
+      'POST',
+      event,
+    );
+  }
+  return foldCurrentConsent(await getSupportCaseConsent(supportCaseId));
 }
 
 /** 전체 목표 그 자리 입력·수정 (D45 · CCC-41). null·빈 문자열은 "설정 전"으로 되돌린다. */
@@ -1874,9 +2018,15 @@ export async function getIntakeRecordContext(supportCaseId: string): Promise<Int
     `/support-cases/${encodeURIComponent(supportCaseId)}/records/intake`,
   ));
   const participant = responseObject(responseProperty(record, 'participant'));
+  const writeSchemaVersion = responseInteger(record, 'writeSchemaVersion');
+  if (writeSchemaVersion !== INTAKE_WRITE_SCHEMA_VERSION) contractViolation();
+  const moduleSnapshot = decodeIntakeModuleSnapshot(responseProperty(record, 'moduleSnapshot'));
   return {
     beneficiaryId: responseString(record, 'beneficiaryId'),
     supportCaseId: responseString(record, 'supportCaseId'),
+    canWrite: responseBoolean(record, 'canWrite'),
+    writeSchemaVersion,
+    moduleSnapshot,
     participant: {
       name: responseNullableString(participant, 'name'),
       phone: responseNullableString(participant, 'phone'),
@@ -1885,113 +2035,169 @@ export async function getIntakeRecordContext(supportCaseId: string): Promise<Int
     sessionSequence: responseInteger(record, 'sessionSequence'),
     hasIntake: responseBoolean(record, 'hasIntake'),
     extendedPii: decodeIntakeExtendedPii(responseProperty(record, 'extendedPii')),
-    consent: (() => {
-      const consent = responseObject(responseProperty(record, 'consent'));
-      return {
-        privacy: responseBoolean(consent, 'privacy'),
-        recordingAi: responseBoolean(consent, 'recordingAi'),
-      };
-    })(),
-    // 배포 2단위(web·api)가 순차로 구르는 짧은 시차에 구 API 응답(saved 없음)을 만나도
-    // 화면이 죽지 않게 없으면 null 로 낮춘다 — 새 API 는 항상 싣는다.
-    saved: 'saved' in record ? decodeIntakeSavedRecord(record.saved) : null,
-    // 전체 목표(D62 · CCC-68). saved 와 같은 이유로 없으면 null 로 낮춘다 — 그때는
-    // 프리필 없이 빈 칸으로 뜰 뿐 작성은 그대로 된다.
-    overallGoal: 'overallGoal' in record ? responseNullableString(record, 'overallGoal') : null,
-    // 다음 예정 일정(CCC-57). saved 와 같은 이유로 없으면 null 로 낮춘다. 구 API 를 만나면
-    // 완료 조작 칸이 안 뜰 뿐 인테이크 작성은 그대로 된다.
-    schedule: record.schedule === null || record.schedule === undefined
+    // 서버는 6영역 동의 원장(CurrentConsentState[])을 준다 — 화면 표기 2종으로 접는다.
+    consent: foldCurrentConsent(decodeCurrentConsentStates({ consent: responseProperty(record, 'consent') })),
+    saved: decodeIntakeSavedRecord(responseProperty(record, 'saved')),
+    overallGoal: responseNullableString(record, 'overallGoal'),
+    schedule: responseProperty(record, 'schedule') === null
       ? null
-      : decodeCounselingSchedule(record.schedule),
+      : decodeCounselingSchedule(responseProperty(record, 'schedule')),
   };
 }
 
-/** 저장된 인테이크 내용 해독(2026-08-08). 표 행은 문자열 칸만 살린다 — 파손 JSON 방어. */
-function decodeIntakeSavedRecord(value: unknown): IntakeSavedRecord | null {
-  if (value === null || value === undefined) return null;
+/** IntakeModuleSnapshot 해독. */
+function decodeIntakeModuleSnapshot(value: unknown): IntakeModuleSnapshot {
   const record = responseObject(value);
-  const stringRows = (raw: unknown): Array<Record<string, string>> => (
-    Array.isArray(raw)
-      ? raw.map((row) => Object.fromEntries(
-        Object.entries(responseObject(row)).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
-      ))
-      : []
-  );
-  const rawAnswers = responseProperty(record, 'answers');
-  const answers: IntakeAnswerInput[] = !Array.isArray(rawAnswers) ? [] : rawAnswers.flatMap((entry) => {
-    const answer = responseObject(entry);
-    const key = answer.key;
-    const response = answer.response;
-    if (typeof key !== 'string' || !(intakeAnswerKeys as readonly string[]).includes(key)) return [];
-    if (typeof response !== 'string' || !(intakeAnswerResponses as readonly string[]).includes(response)) return [];
-    return [{
-      key: key as IntakeAnswerKey,
-      response: response as IntakeAnswerResponse,
-      ...(typeof answer.text === 'string' ? { text: answer.text } : {}),
-    }];
-  });
   return {
+    programId: responseString(record, 'programId'),
+    programVersion: responseInteger(record, 'programVersion'),
+    financialSupportEnabled: responseBoolean(record, 'financialSupportEnabled'),
+  };
+}
+
+/** 저장된 인테이크 내용 해독. 원본 schemaVersion 1/2와 lifecycle을 그대로 보존한다. */
+function decodeIntakeSavedRecord(value: unknown): IntakeSavedRecord | null {
+  if (value === null) return null;
+  const record = responseObject(value);
+  const schemaVersion = responseInteger(record, 'schemaVersion');
+  if (schemaVersion !== 1 && schemaVersion !== 2) contractViolation();
+  const common = {
     sessionId: responseString(record, 'sessionId'),
     heldAt: responseString(record, 'heldAt'),
     channel: responseEnum(responseProperty(record, 'channel'), recordChannels),
-    answers,
-    debts: stringRows(responseProperty(record, 'debts')),
-    linkedOrgs: stringRows(responseProperty(record, 'linkedOrgs')),
-    additionalItems: stringRows(responseProperty(record, 'additionalItems')),
-    managerOpinion: responseNullableString(record, 'managerOpinion'),
+    revision: responseInteger(record, 'revision'),
+    history: decodeIntakeRevisionHistory(responseProperty(record, 'history')),
+    questionLifecycle: decodeIntakeQuestionLifecycle(responseProperty(record, 'questionLifecycle')),
+  };
+  if (schemaVersion === 1) {
+    const legacyDetailsJson = responseNullableString(record, 'legacyDetailsJson');
+    if (responseProperty(record, 'questionnaire') !== null) contractViolation();
+    return {
+      ...common,
+      schemaVersion: 1,
+      questionnaire: null,
+      legacyDetailsJson,
+      answers: [],
+      debts: [],
+      linkedOrgs: [],
+      additionalItems: [],
+      managerOpinion: null,
+    };
+  }
+  if (responseProperty(record, 'legacyDetailsJson') !== null) contractViolation();
+  const questionnaire = decodeIntakeQuestionnaire(responseProperty(record, 'questionnaire'));
+  const managerOpinion = questionnaire.answers.find((answer) => answer.key === 'managerOpinion');
+  return {
+    ...common,
+    schemaVersion: 2,
+    questionnaire,
+    legacyDetailsJson: null,
+    answers: questionnaire.answers.flatMap((answer): IntakeAnswerInput[] => {
+      if (!(intakeAnswerKeys as readonly string[]).includes(answer.key) || answer.key === 'managerOpinion') return [];
+      if (answer.response !== 'answered') return [{ key: answer.key as IntakeAnswerKey, response: answer.response }];
+      const text = 'text' in answer
+        ? answer.text
+        : 'choices' in answer ? answer.choices.join(', ') : String(answer.amount);
+      return [{ key: answer.key as IntakeAnswerKey, response: 'answered', text }];
+    }),
+    debts: questionnaire.debts?.response === 'answered'
+      ? questionnaire.debts.rows.map((row) => ({ ...row } as Record<string, string>))
+      : [],
+    linkedOrgs: questionnaire.linkedOrgs.response === 'answered'
+      ? questionnaire.linkedOrgs.rows.map((row) => ({ ...row } as Record<string, string>))
+      : [],
+    additionalItems: questionnaire.additionalItems.response === 'answered'
+      ? questionnaire.additionalItems.rows.map((row) => ({ ...row } as Record<string, string>))
+      : [],
+    managerOpinion: managerOpinion?.response === 'answered' && 'text' in managerOpinion ? managerOpinion.text : null,
   };
 }
 
-/** 인테이크 수정 입력(2026-08-08 Q "확인/수정") — 위저드 소유분만. */
-export interface UpdateIntakeRecordInput {
-  heldAt: string;
-  channel: SupportCaseRecord['channel'];
-  answers?: IntakeAnswerInput[];
-  additionalItems?: IntakeAdditionalItemInput[];
-  debts?: IntakeDebtEntryInput[];
-  linkedOrgs?: IntakeLinkedOrgInput[];
-  managerOpinion?: string;
+function decodeIntakeQuestionLifecycle(value: unknown): IntakeQuestionLifecycle | null {
+  if (value === null) return null;
+  try {
+    return parseIntakeQuestionLifecycle(value);
+  } catch {
+    contractViolation();
+  }
 }
 
-export async function updateIntakeRecord(
-  supportCaseId: string,
-  input: UpdateIntakeRecordInput,
-): Promise<{ record: CreatedIntakeRecord }> {
-  const result = responseObject(await jsonRequest<unknown>(
-    `/support-cases/${encodeURIComponent(supportCaseId)}/records/intake`,
-    'PUT',
-    input,
-  ));
+function decodeIntakeRevisionHistory(value: unknown): IntakeRevision[] {
+  if (!Array.isArray(value)) contractViolation();
+  return value.map((entry) => {
+    const record = responseObject(entry);
+    const schemaVersion = responseInteger(record, 'schemaVersion');
+    if (schemaVersion !== 1 && schemaVersion !== 2) contractViolation();
+    return {
+      revision: responseInteger(record, 'revision'),
+      schemaVersion,
+      heldAt: responseString(record, 'heldAt'),
+      channel: responseEnum(responseProperty(record, 'channel'), recordChannels),
+      actorId: responseNullableString(record, 'actorId'),
+      recordedAt: responseString(record, 'recordedAt'),
+      convertedFromRevision: responseProperty(record, 'convertedFromRevision') === null
+        ? null
+        : responseInteger(record, 'convertedFromRevision'),
+      detailsJson: responseNullableString(record, 'detailsJson'),
+      questionLifecycle: decodeIntakeQuestionLifecycle(responseProperty(record, 'questionLifecycle')),
+    };
+  });
+}
+
+function decodeIntakeQuestionnaire(value: unknown): IntakeQuestionnaire {
+  try {
+    return parseIntakeQuestionnaire(value);
+  } catch {
+    contractViolation();
+  }
+}
+
+function decodeIntakeMutationResponse(value: unknown): IntakeMutationResponse {
+  const result = responseObject(value);
+  if (responseInteger(result, 'schemaVersion') !== INTAKE_WRITE_SCHEMA_VERSION) contractViolation();
+  const revision = responseInteger(result, 'revision');
+  if (revision < 1) contractViolation();
   const record = responseObject(responseProperty(result, 'record'));
   return {
+    schemaVersion: INTAKE_WRITE_SCHEMA_VERSION,
+    revision,
     record: {
       id: responseString(record, 'id'),
       heldAt: responseString(record, 'heldAt'),
       channel: responseEnum(responseProperty(record, 'channel'), recordChannels),
-      kind: responseEnum(responseProperty(record, 'kind'), sessionKinds),
+      kind: responseEnum(responseProperty(record, 'kind'), ['intake'] as const),
     },
+    replayed: responseBoolean(result, 'replayed'),
   };
+}
+
+export type {
+  IntakeAdditionalItemRef,
+  IntakeQuestionLifecycle,
+  IntakeQuestionWithdrawalInput,
+  IntakeQuestionnaire,
+};
+
+export async function updateIntakeRecord(
+  supportCaseId: string,
+  input: UpdateIntakeRecordInput,
+): Promise<IntakeMutationResponse> {
+  return decodeIntakeMutationResponse(await jsonRequest<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/records/intake`,
+    'PUT',
+    input,
+  ));
 }
 
 export async function createIntakeRecord(
   supportCaseId: string,
   input: CreateIntakeRecordInput,
 ): Promise<CreateIntakeRecordResult> {
-  const result = responseObject(await jsonRequest<unknown>(
+  return decodeIntakeMutationResponse(await jsonRequest<unknown>(
     `/support-cases/${encodeURIComponent(supportCaseId)}/records/intake`,
     'POST',
     input,
   ));
-  const record = responseObject(responseProperty(result, 'record'));
-  return {
-    record: {
-      id: responseString(record, 'id'),
-      heldAt: responseString(record, 'heldAt'),
-      channel: responseEnum(responseProperty(record, 'channel'), recordChannels),
-      kind: responseEnum(responseProperty(record, 'kind'), sessionKinds),
-    },
-    replayed: responseBoolean(result, 'replayed'),
-  };
 }
 
 export async function createCounselingSchedule(
@@ -2493,8 +2699,8 @@ export interface PublicSignupInput {
   name: string;
   phone?: string;
   email?: string;
-  // 동의 2종(D49) — 자기 가입은 등록이므로 등록 화면과 같은 2체크를 보낸다.
-  consent: { privacy: boolean; recordingAi: boolean };
+  /** 6영역 동의 이벤트 — 공개 가입도 등록과 같은 원장 계약이다(서버가 정확히 6건 요구). */
+  consentEvents: AppendConsentEventInput[];
 }
 
 export interface PublicSignupResult {

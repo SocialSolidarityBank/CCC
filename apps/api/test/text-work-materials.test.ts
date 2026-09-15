@@ -13,6 +13,8 @@ import { Miniflare } from 'miniflare';
 import { createD1Database } from '@ccc/db-d1';
 import worker from './support/local-worker';
 import { SQLITE_MIGRATIONS_PATH, seedHistoricalParticipant, seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
+import { seedLegacyIntake } from './support/intake';
+import { seedLegacyManualRecord } from './support/manual-record';
 import {
   activateAiProviderConfiguration,
   approveGeneratedAiDraft,
@@ -23,22 +25,26 @@ import {
   createCounselingSchedule,
   createGeneratedAiDraft,
   createGoal,
-  createIntakeRecord,
   enqueueTextWorkForGoalChange,
   enqueueTextWorkItem,
   getActiveAiProviderRuntimeMetadataForService,
   claimAgentJobs,
   getAgentJobSource,
+  getManualRecordContext,
+  getSupportCaseReport,
+  loadAiCallMaterialsForService,
   listSupportCasesForBeneficiary,
-  recordMaskedSourceSnapshot,
   registerAiProviderConfiguration,
   setSupportCaseOverallGoal,
   updateParticipantPii,
 } from '@ccc/core/gateway';
 import {
+  agentManifestEnv,
   claimRequest,
+  runAgentTextJobs,
   seedCanonicalSttConsent,
   seedNerQualification,
+  testMaskingPipelineRegistry,
   TEXT_ONLY_RUNTIME,
 } from './support/agent-jobs';
 import { registrationInput } from './support/registration';
@@ -72,10 +78,10 @@ beforeEach(async () => {
 
 async function fixtureCase(): Promise<{ caseId: string; supportCaseId: string }> {
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
-    sttMode: 'local',
+    sttMode: 'azure',
     llmMode: 'openai',
   });
-  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_STT_MODE = 'azure';
   t.env.CCC_LLM_MODE = 'openai';
   const caseRecord = await createCase(t.env, counselor, await registrationInput(t.env, counselor, { programId: testProgramId(counselor.orgId) }));
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, caseRecord.id);
@@ -92,34 +98,23 @@ async function saveRecord(
   supportCaseId: string,
   memo: string,
   options?: {
-    details?: { sessionGoalNote?: string };
     heldAt?: string;
     schedule?: { id: string; version: number };
   },
 ): Promise<string> {
-  const result = await createCounselingRecord(t.env, counselor, supportCaseId, {
-    submissionId: crypto.randomUUID(),
-    heldAt: options?.heldAt ?? '2026-07-08T10:00:00.000Z',
-    channel: 'in_person',
-    memo,
-    gasScores: [],
-    actionItems: [],
-    flags: [],
-    ...(options?.details === undefined ? {} : { details: options.details }),
-    ...(options?.schedule === undefined
-      ? {}
-      : { scheduleId: options.schedule.id, expectedScheduleVersion: options.schedule.version }),
-  });
+  const result = await createCounselingRecord(t.env, counselor, supportCaseId, { schemaVersion: 2, submissionId: crypto.randomUUID(),
+  heldAt: options?.heldAt ?? '2026-07-08T10:00:00.000Z',
+  channel: 'in_person',
+  memo,
+  gasScores: [],
+  actionItems: [],
+  flags: [],
+  ...(options?.schedule === undefined
+    ? {}
+    : { scheduleId: options.schedule.id, expectedScheduleVersion: options.schedule.version }), });
   return result.record.id;
 }
 
-async function sha256Hex(value: string): Promise<string> {
-  const encoded = new TextEncoder().encode(value);
-  const bytes = new Uint8Array(encoded.byteLength);
-  bytes.set(encoded);
-  const digest = await crypto.subtle.digest('SHA-256', bytes.buffer);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
 
 /**
  * 이 회차에 승인된 AI 정리를 만든다. approved_ai_briefing_v1 은 뷰라서 직접 넣을 수 없고,
@@ -136,29 +131,33 @@ async function approveBriefingFor(caseId: string, sessionId: string): Promise<vo
   await activateAiProviderConfiguration(t.env, admin, config.id);
 
   const evidenceQuote = 'MASKED_EVIDENCE_FOR_APPROVAL';
-  const snapshotHash = await sha256Hex(evidenceQuote);
-  const snapshot = await recordMaskedSourceSnapshot(t.env, service, sessionId, {
-    maskedText: evidenceQuote,
-    sha256: snapshotHash,
-    maskingPipelineVersion: 'ner-mask-v1',
-    evidence: [{
-      id: `approved-evidence-${sessionId}`,
-      sourceRef: 'memo:approved-source',
-      sourceSha256: snapshotHash,
-      evidenceQuote,
-      sourceStart: 0,
-      sourceEnd: evidenceQuote.length,
-    }],
-  });
-  if (snapshot.caseId !== caseId) throw new Error('masked source snapshot case mismatch');
+  await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
+  const agentEnv = await agentManifestEnv(t.env, { stt: 'off' });
+  t.env.MEMORY_MASKING_PIPELINES = await testMaskingPipelineRegistry();
+  expect(await runAgentTextJobs(agentEnv, t.db, { mask: () => evidenceQuote })).toBeGreaterThan(0);
+  const snapshot = await t.db.prepare(
+    `SELECT snapshot.id,snapshot.sha256,COALESCE(sc.legacy_case_id,sc.id) AS case_id
+     FROM ai_masked_source_snapshots snapshot
+     JOIN support_cases sc ON sc.id=snapshot.support_case_id AND sc.org_id=snapshot.org_id
+     WHERE snapshot.session_id=? ORDER BY snapshot.created_at DESC,snapshot.id DESC LIMIT 1`,
+  ).bind(sessionId).first<{ id: string; sha256: string; case_id: string }>();
+  if (snapshot === null) throw new Error('expected proof-backed source snapshot');
+  if (snapshot.case_id !== caseId) throw new Error('masked source snapshot case mismatch');
+  const sourceEvidence = await t.db.prepare(
+    `SELECT id,source_ref,evidence_quote,source_start,source_end
+     FROM ai_masked_source_evidence_items WHERE snapshot_id=? ORDER BY source_start,id LIMIT 1`,
+  ).bind(snapshot.id).first<{
+    id: string; source_ref: string; evidence_quote: string; source_start: number; source_end: number;
+  }>();
+  if (sourceEvidence === null) throw new Error('expected proof-backed source evidence');
 
   const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, sessionId);
   const link = {
-    sourceEvidenceItemId: `approved-evidence-${sessionId}`,
-    evidenceQuote,
-    sourceRef: 'memo:approved-source',
-    sourceStart: 0,
-    sourceEnd: evidenceQuote.length,
+    sourceEvidenceItemId: sourceEvidence.id,
+    evidenceQuote: sourceEvidence.evidence_quote,
+    sourceRef: sourceEvidence.source_ref,
+    sourceStart: sourceEvidence.source_start,
+    sourceEnd: sourceEvidence.source_end,
   };
   const draft = await createGeneratedAiDraft(t.env, service, sessionId, {
     summaryText: 'APPROVED_AI_SUMMARY',
@@ -195,7 +194,7 @@ async function approveBriefingFor(caseId: string, sessionId: string): Promise<vo
 /** 큐에 쌓인 행을 사유·상태까지 그대로 읽는다(테스트 전용 직접 조회). */
 async function queueRows(): Promise<Array<{ session_id: string; reason: string; status: string }>> {
   const result = await t.db.prepare(
-    'SELECT session_id, reason, status FROM ai_text_work_queue ORDER BY enqueued_at, id',
+    "SELECT session_id, reason, status FROM ai_text_work_queue WHERE status IN ('pending','processing') ORDER BY enqueued_at, id",
   ).all<{ session_id: string; reason: string; status: string }>();
   return result.results;
 }
@@ -215,7 +214,7 @@ describe('getAgentJobSource — AI 재료 배선 (CCC-73 · D62 §7)', () => {
   it('전체 목표를 으뜸으로, 인테이크 선택값을 기본으로 깔고 회차 텍스트를 잇는다', async () => {
     const { supportCaseId } = await fixtureCase();
     await setSupportCaseOverallGoal(t.env, counselor, supportCaseId, '전세 보증금을 마련한다');
-    await createIntakeRecord(t.env, counselor, supportCaseId, {
+    await seedLegacyIntake(t.env, counselor, supportCaseId, {
       submissionId: crypto.randomUUID(),
       heldAt: '2026-07-01T10:00:00.000Z',
       channel: 'in_person',
@@ -226,11 +225,12 @@ describe('getAgentJobSource — AI 재료 배선 (CCC-73 · D62 §7)', () => {
         { key: 'summary_direction', response: 'answered', text: '긴급 주거비 지원 연계' },
       ],
     });
-    const sessionId = await saveRecord(
-      supportCaseId,
-      '보증금 마련 계획을 함께 세웠다',
-      { details: { sessionGoalNote: '대출 서류 준비 여부 확인' } },
-    );
+    const legacy = await seedLegacyManualRecord(t.env, counselor, supportCaseId, {
+      heldAt: '2026-07-08T10:00:00.000Z', channel: 'in_person',
+      memo: '보증금 마련 계획을 함께 세웠다',
+      details: { sessionGoalNote: '대출 서류 준비 여부 확인' },
+    });
+    const sessionId = legacy.record.id;
 
     const text = await sourceForSession(sessionId);
     const lines = text.split('\n');
@@ -243,12 +243,12 @@ describe('getAgentJobSource — AI 재료 배선 (CCC-73 · D62 §7)', () => {
     expect(text).not.toContain('지원욕구 2순위');
   });
 
-  it('컨텍스트가 비어 있으면 회차 텍스트만 나간다(빈 라벨 없음)', async () => {
+  it('케이스 맥락이 비어 있어도 회차 메모와 수기 방식은 보낸다', async () => {
     const { supportCaseId } = await fixtureCase();
     const sessionId = await saveRecord(supportCaseId, '오늘 상담 내용을 수기로 남긴다');
 
     const text = await sourceForSession(sessionId);
-    expect(text).toBe('오늘 상담 내용을 수기로 남긴다');
+    expect(text).toBe('오늘 상담 내용을 수기로 남긴다\n[상담 방식] in_person');
   });
 
   it('전체 목표의 이전 문구(이력)는 재료에 싣지 않는다', async () => {
@@ -282,6 +282,103 @@ describe('getAgentJobSource — AI 재료 배선 (CCC-73 · D62 §7)', () => {
     const text = await sourceForSession(sessionId);
     expect(text).toContain('[전체 목표]');
     expect(text).not.toContain('홍길동');
+  });
+
+  it('orders approved summary after manual facts without appending raw fields to provider materials', async () => {
+    const { caseId, supportCaseId } = await fixtureCase();
+    const record = await createCounselingRecord(t.env, counselor, supportCaseId, {
+      schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-07-01T10:00:00.000Z',
+      channel: 'visit', memo: 'RAW_OFFICIAL_MEMO', counselorOpinion: 'RAW_OFFICIAL_OPINION',
+    });
+    await approveBriefingFor(caseId, record.record.id);
+    let sourceText = '';
+    await enqueueTextWorkItem(t.env, counselor, record.record.id, 'manual_record');
+    const agentEnv = await agentManifestEnv(t.env, { stt: 'off' });
+    expect(await runAgentTextJobs(agentEnv, t.db, {
+      mask: (text) => {
+        sourceText = text;
+        return 'MASKED_EVIDENCE_FOR_APPROVAL';
+      },
+    })).toBeGreaterThan(0);
+    expect(sourceText).toBe(
+      'RAW_OFFICIAL_MEMO\n[상담 방식] visit\n[이 회차 실무자 의견] RAW_OFFICIAL_OPINION\nAPPROVED_AI_SUMMARY',
+    );
+    const snapshot = await t.db.prepare(
+      'SELECT id FROM ai_masked_source_snapshots WHERE session_id=? ORDER BY created_at DESC,id DESC LIMIT 1',
+    ).bind(record.record.id).first<{ id: string }>();
+    if (snapshot === null) throw new Error('expected current proof-backed source snapshot');
+    const material = await loadAiCallMaterialsForService(t.env, service, record.record.id, snapshot.id);
+    expect(material.materials.map(item => ({ kind: item.kind, text: item.snapshot.maskedText }))).toEqual([
+      { kind: 'text_context', text: 'MASKED_EVIDENCE_FOR_APPROVAL' },
+    ]);
+    expect(JSON.stringify(material)).not.toContain('RAW_OFFICIAL');
+  });
+
+  it('includes every manual v2 field and immutable action/question outcome before masking', async () => {
+    const { caseId, supportCaseId } = await fixtureCase();
+    await updateParticipantPii(t.env, counselor, caseId, { supportCaseContextId: supportCaseId, expectedVersion: 1, name: '홍길동' });
+    const first = await createCounselingRecord(t.env, counselor, supportCaseId, {
+      schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-07-01T10:00:00.000Z',
+      channel: 'visit', memo: 'FIRST_MANUAL_MEMO',
+      nextQuestions: ['DUPLICATE_QUESTION 홍길동', 'DUPLICATE_QUESTION 홍길동'],
+      actionItems: [
+        { description: 'DONE_ACTION', owner: 'beneficiary' },
+        { description: 'STOP_ACTION', owner: 'counselor' },
+        { description: 'OMITTED_ACTION', owner: 'org' },
+      ],
+    });
+    const context = await getManualRecordContext(t.env, counselor, supportCaseId);
+    const done = context.actions.find(action => action.description === 'DONE_ACTION')!;
+    const stop = context.actions.find(action => action.description === 'STOP_ACTION')!;
+    const omitted = context.actions.find(action => action.description === 'OMITTED_ACTION')!;
+    const chosen = context.questions[1]!, unanswered = context.questions[0]!;
+    const second = await createCounselingRecord(t.env, counselor, supportCaseId, {
+      schemaVersion: 2, submissionId: crypto.randomUUID(), heldAt: '2026-07-02T10:00:00.000Z',
+      channel: 'visit', reason: 'urgent', urgency: 'caution', memo: 'SECOND_MANUAL_MEMO',
+      changes: [{ area: 'physical_health', text: 'HUMAN_HEALTH_CHANGE 홍길동' }, { area: 'housing', text: 'HUMAN_HOUSING_CHANGE 홍길동' }],
+      counselorOpinion: 'SESSION_SCOPED_OPINION 홍길동', nextQuestions: ['NEXT_QUESTION 홍길동'],
+      actionItems: [{ description: 'NEXT_ACTION 홍길동', owner: 'org', dueDate: '2026-07-20' }],
+      actionOutcomes: [
+        { actionItemId: done.id, expectedRevision: done.revision, outcome: 'done', update: { description: 'UPDATED_ACTION 홍길동', dueDate: '2026-07-19' } },
+        { actionItemId: stop.id, expectedRevision: stop.revision, outcome: 'not_done', continuation: 'stop', reason: 'HUMAN_STOP_REASON 홍길동' },
+      ],
+      questionAnswers: [{ kind: chosen.kind, questionId: chosen.id, sourceId: first.record.id, expectedRevision: chosen.sourceRevision, answer: 'CONFIRMED_ANSWER 홍길동' }],
+    });
+    const text = await sourceForSession(second.record.id);
+    expect(text.split('\n').slice(0, 11)).toEqual([
+      'SECOND_MANUAL_MEMO', '[상담 방식] visit', '[상담 사유] urgent', '[긴급도] caution',
+      expect.stringContaining('[영역 변화 physical_health] HUMAN_HEALTH_CHANGE'),
+      expect.stringContaining('[영역 변화 housing] HUMAN_HOUSING_CHANGE'),
+      expect.stringContaining('[이 회차 실무자 의견] SESSION_SCOPED_OPINION'),
+      expect.stringContaining('[다음 질문] NEXT_QUESTION'),
+      expect.stringContaining('[액션] NEXT_ACTION'), '[액션 담당] org', '[액션 기한] 2026-07-20',
+    ]);
+    expect(text.split('\n').filter(line => line.startsWith('[액션 결과]'))).toEqual(
+      [done, stop, omitted].sort((a, b) => a.id.localeCompare(b.id))
+        .map(action => expect.stringContaining(`[액션 결과] ${action.id === done.id ? 'UPDATED_ACTION' : action.description}`)),
+    );
+    for (const value of [
+      'SECOND_MANUAL_MEMO', 'visit', 'urgent', 'caution', 'physical_health', 'HUMAN_HEALTH_CHANGE',
+      'housing', 'HUMAN_HOUSING_CHANGE', 'SESSION_SCOPED_OPINION', 'NEXT_QUESTION',
+      'NEXT_ACTION', 'org', '2026-07-20', 'done', 'not_done', 'unconfirmed', 'HUMAN_STOP_REASON',
+      'DUPLICATE_QUESTION', 'CONFIRMED_ANSWER', 'UPDATED_ACTION', 'OMITTED_ACTION',
+    ]) expect(text).toContain(value);
+    expect(text).not.toContain('FIRST_MANUAL_MEMO');
+    expect(text).not.toContain('홍길동');
+    for (const id of [done.id, stop.id, omitted.id, chosen.id, unanswered.id, first.record.id, second.record.id, counselor.userId]) {
+      expect(text).not.toContain(id);
+    }
+    expect(text).not.toMatch(/sourceRevision|revision|sourceId|questionId/u);
+    const projected = await getSupportCaseReport(t.env, counselor, supportCaseId);
+    expect(projected.sessions.find(session => session.sessionId === second.record.id)?.counselorOpinion?.text)
+      .toBe('SESSION_SCOPED_OPINION 홍길동');
+    expect(projected.sections.situationChanges?.entries.map(entry => ({ area: entry.area, text: entry.text }))).toEqual([
+      { area: 'physical_health', text: 'HUMAN_HEALTH_CHANGE 홍길동' }, { area: 'housing', text: 'HUMAN_HOUSING_CHANGE 홍길동' },
+    ]);
+    const after = await getManualRecordContext(t.env, counselor, supportCaseId);
+    expect(after.questions.map(question => question.id)).toContain(unanswered.id);
+    expect(after.confirmedQuestions.map(question => question.id)).toContain(chosen.id);
+    expect(after.actions.find(action => action.id === omitted.id)?.state).toBe('open');
   });
 });
 
@@ -321,6 +418,7 @@ describe('getAgentJobSource: 목표 3층 재료 (CCC-103 · D69 · ADR-0036)', (
       '[회기 목표] 저축 통장 개설 확인',
       '지출 항목 정리',
       '통장을 개설하고 지출을 정리했다',
+      '[상담 방식] in_person',
     ]);
     expect(text).not.toContain('CLOSED_GOAL_PHRASE');
   });
@@ -338,7 +436,7 @@ describe('getAgentJobSource: 목표 3층 재료 (CCC-103 · D69 · ADR-0036)', (
     const sessionId = await saveRecord(supportCaseId, '일정 없이 들른 상담을 적었다');
 
     const text = await sourceForSession(sessionId);
-    expect(text).toBe('일정 없이 들른 상담을 적었다');
+    expect(text).toBe('일정 없이 들른 상담을 적었다\n[상담 방식] in_person');
     expect(text).not.toContain('회기 목표');
     expect(text).not.toContain('UNLINKED_SESSION_GOAL_PHRASE');
   });
@@ -353,7 +451,7 @@ describe('텍스트 일감 큐: 녹음 회차와 목표 수정 (CCC-103 · D69)'
     await t.db.prepare('UPDATE sessions SET audio_r2_key = ?, ai_status = ? WHERE id = ?')
       .bind(`audio/${sessionId}/fixture`, 'uploaded', sessionId).run();
 
-    expect(await sourceForSession(sessionId)).toBe('녹음과 함께 수기 메모도 남겼다');
+    expect(await sourceForSession(sessionId)).toBe('녹음과 함께 수기 메모도 남겼다\n[상담 방식] in_person');
   });
 
   it('목표 수정은 미승인 공식 텍스트 회차만 goal_revised 로 올린다', async () => {

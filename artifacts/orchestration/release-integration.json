@@ -1,0 +1,155 @@
+{
+  "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/release-16",
+  "branch": "release/0916",
+  "baseTips": {
+    "integrate/ccc291-parity": "faec5d919af6c7a95dbba342b85f9307bb004c28",
+    "client/relayer-domain-beta": "a67e00fd7a292ce3ba5bf3930b3ffa6ecb85d0a7",
+    "mini core/relayer-domain-beta (ssh mini, /Users/barq/DEVELOPER/PROJECTS/CCC)": "af2bf330a30cb2153645e0ef230f29b2a22e81ca"
+  },
+  "coreMerge": {
+    "fetch": "git fetch \"mini:/Users/barq/DEVELOPER/PROJECTS/CCC\" \"core/relayer-domain-beta:refs/heads/core/relayer-domain-beta\" — 로컬 브랜치로 가져왔고 FETCH_HEAD 병합은 쓰지 않았다. 가져온 tip af2bf330a30cb2153645e0ef230f29b2a22e81ca 가 ssh mini 로 읽은 tip 과 동일함을 해시로 대조했다.",
+    "mergeCommand": "git merge --no-ff core/relayer-domain-beta",
+    "mergeCommit": "6e36c511",
+    "strategy": "ort, 충돌 0건",
+    "tipBefore": "faec5d919af6c7a95dbba342b85f9307bb004c28",
+    "tipAfter": "6e36c511 (merge), 이후 클라이언트 병합까지 포함한 최종 tip 은 a83d0c36",
+    "commitInTree": "git log --oneline 에 af2bf330 '릴리스 제외 서버 경로를 닫다' 가 보인다."
+  },
+  "clientMerge": {
+    "mergeCommand": "git merge --no-ff client/relayer-domain-beta",
+    "mergeCommit": "a83d0c36",
+    "strategy": "ort, 충돌 0건",
+    "tipBefore": "6e36c511",
+    "tipAfter": "a83d0c36",
+    "commitInTree": "git log --oneline 에 a67e00fd 'feat(client): 회차 녹음 원음 업로드 진입을 기록 화면에 연다' 가 보인다."
+  },
+  "conflicts": [],
+  "contentChecks": {
+    "audioUploadEntryAndApi": {
+      "present": true,
+      "evidence": [
+        "apps/client/src/screens/records.tsx:553 — session.records.uploadAudio(sessionId, file, delivery) 호출, 573-576 파일 입력, 585-589 완료·삭제 안내",
+        "apps/client/src/business/records.ts:377 — uploadAudio(sessionId, file, delivery) 정의, 387 audio-upload-target POST, 394 complete POST",
+        "apps/client/src/business/transport.ts:155 — putFile(PUT /sessions/:id/audio) Local 경로"
+      ]
+    },
+    "csvExportGet": {
+      "present": true,
+      "evidence": [
+        "packages/http-api/src/request-handler.ts:2940 — request.method === 'GET' && parts[2] === 'export.csv' 분기",
+        "apps/client/src/business/report.ts:195-197 — exportCsv 가 transport.download 호출",
+        "apps/client/src/business/transport.ts:136-140 — download 는 exchange(path, 'GET', …, 'text/csv')"
+      ]
+    },
+    "exclusionServerAndCronBlock": {
+      "present": true,
+      "evidence": [
+        "packages/http-api/src/request-handler.ts:2652 — /settings/counseling-memory 404",
+        "packages/http-api/src/request-handler.ts:2960-2961 — support-cases/:id/memory/trial 404",
+        "packages/http-api/src/request-handler.ts:3483-3484 — pipeline/memory 404",
+        "apps/api/src/cron-schedule.ts:6-8 — MEMORY_CRON 제거, AUDIO_EXPIRY·WATCHDOG·PURGE 만 남음",
+        "apps/api/src/index.ts:41-45 — CRON_JOBS 에서 counseling_memory 매핑 제거",
+        "packages/core/src/scheduled-job-runner.ts:98-99 — counseling_memory 는 unsupported_scheduled_job",
+        "apps/api/wrangler.toml:20,61 — crons 에서 */2 메모리 주기 제거"
+      ]
+    },
+    "exclusionMenuHidden": {
+      "present": true,
+      "evidence": [
+        "apps/client/src/business/navigation.ts:51 — FIRST_RELEASE_HIDDEN 에 'memory' 포함, visibleDestinations(61-63)가 메뉴에서 걸러냄",
+        "apps/client/src/business/navigation.ts:28 — '기관 상담 기억' 목적지는 정의만 남고 메뉴 미노출"
+      ]
+    },
+    "docs": {
+      "present": true,
+      "evidence": [
+        "docs/manual/external-institution-guide.md — 존재(5388 bytes)",
+        "docs/ops/supabase-backup-restore-drill.md — 존재(3829 bytes)"
+      ]
+    }
+  },
+  "targetedChecks": [
+    {
+      "name": "타입 검사 — 병합이 건든 패키지만",
+      "commands": [
+        "pnpm --filter @ccc/api run typecheck (tsc --noEmit --project apps/api/tsconfig.json) — 통과, 오류 0",
+        "pnpm --filter @ccc/client run typecheck (tsc --noEmit) — 통과, 오류 0"
+      ]
+    },
+    {
+      "name": "클라이언트 단위 테스트",
+      "commands": [
+        "pnpm --filter @ccc/client run test (vitest run) — Test Files 21 passed (21), Tests 246 passed (246)"
+      ]
+    },
+    {
+      "name": "동의·감사·권한 경계 계약 테스트",
+      "commands": [
+        "pnpm --workspace-root exec vitest run --config apps/api/vitest.config.ts --maxWorkers=4 consent-privacy-gate consent-registry-install participant-consent preregistration-consent text-ai-consent-withdrawal audit-log.routes audit-monthly-summary support-case-access-deny-audit — Test Files 8 passed (8), Tests 77 passed (77)"
+      ]
+    },
+    {
+      "name": "CSV 반출 계약 테스트",
+      "commands": [
+        "pnpm --workspace-root exec vitest run --config apps/api/vitest.config.ts --maxWorkers=4 support-case-csv-export — Test Files 1 passed (1), Tests 2 passed (2)"
+      ]
+    },
+    {
+      "name": "SQLite/PostgreSQL parity 검사",
+      "commands": [
+        "node scripts/test-suite.mjs db-parity — Test Files 1 passed (1), Tests 1 passed (1)",
+        "node scripts/test-suite.mjs migration-parity — Test Files 1 passed (1), Tests 1 passed (1)"
+      ]
+    }
+  ],
+  "targetedChecksNote": "검사 파일·기준·assertion·baseline 을 수정하지 않았다. 실패 0건이라 재실행도 없었다.",
+  "bundleInputs": {
+    "cliFlags": [
+      "--component-root (필수) — Edge 구성 요소 루트. functions/, templates/, migrations/ 세 최상위 디렉터리만 허용(edge-component-manifest.mjs:23-27). functions/ccc-storage-signer/index.js 정확히 1개 function 필수(build-bundle.mjs:522-525). 호출자가 apps/community-cloud/dist/storage-signer.js 를 그 자리에 복사해 둔다(주석 520-521).",
+      "--out-dir (필수) — 출력 디렉터리. 없으면 만들고 심볼릭 링크는 거부(requireOutputDirectory, 459-463).",
+      "--version (필수) — 채널 접미 포함 필수. version.includes(`-${channel}`) 검사(124).",
+      "--sequence (필수) — 양의 정수 문자열, uint64 상한 검사(116-121).",
+      "--channel (필수) — 'dev' 또는 'beta' 만(115)."
+    ],
+    "envVars": [
+      "CCC_RELEASE_TRUST_STORE (필수) — 신뢰 저장소 값, loadReleaseTrustStore 입력(143-145).",
+      "CCC_RELEASE_SIGNING_PRIVATE_KEY (필수) — ed25519 릴리스 서명 개인키. trustStore 에서 role=release·공개키 일치·keyId 가 edge manifest signingKeyId 와 같은 키 정확히 1개 요구(146-152).",
+      "CCC_RELEASE_ROOT_SIGNING_PRIVATE_KEY (필수) — ed25519 루트 서명 개인키. role=root 매치 정확히 1개 요구(154-160)."
+    ],
+    "implicitInputs": [
+      "packages/contracts/src/ 전체 — contractsSha256 으로 묶음 protocol 해시(173-190).",
+      "scripts/supabase/bootstrap.mjs — 설치자 진입점, 모듈 클로저로 패키징(INSTALLER_ENTRY, 46).",
+      "migrations/postgres/, migrations/parity.yaml, apps/community-cloud/package.json — cli 런타임에 복사(420-431).",
+      "node_modules 의 postgres·tar 패키지 — 클로저가 외부 의존으로 잡으면 함께 복사(432-450).",
+      "플랫폼 — macOS arm64/x64 또는 Linux x64 만 허용(releaseTarget, 104-112).",
+      "시스템 tar — /usr/bin/tar 고정(48)."
+    ],
+    "distBuilt": "pnpm --filter @ccc/community-cloud run build 완료. dist/ 에 index.js, install-consent-registry.js, install-manifest-verifier.js, storage-signer.js 생성됨."
+  },
+  "publishExplained": "게시는 build-bundle.mjs 가 만드는 네 파일(community-cloud-cli-community-cloud-<version>-<platform>-<arch>.tar.gz, 그 .manifest.json, release-bundle.json, release-floor.json)을 고정 출처 https://ccc-releases.account-855.workers.dev 에 올리는 일이다. 그 출처는 apps/release-origin Cloudflare Worker 가 정적 자산으로 서빙하며 GET/HEAD 만 받고 허용 경로는 /.well-known/ccc/release-bundle.json, /manifests/<name>.manifest.json, /artifacts/<name>.tar.gz 세 가족뿐이다(apps/release-origin/src/index.mjs:3). 즉 artifact 는 /artifacts/ 아래, manifest 는 /manifests/ 아래에 올리고 release-bundle.json 은 /.well-known/ccc/ 의 정본을 갱신한다. 번들 안 artifactUrl·manifestUrl 은 이 출처로 고정 기록된다(build-bundle.mjs:564-565).",
+  "nextVersion": {
+    "currentPublished": "0.9.0-dev.2 (sequence 2, channel dev, publishedAt 2026-09-11T18:50:34.752Z, expiresAt 2026-09-18T18:50:34.752Z — 출처 정본에서 GET으로 확인)",
+    "rule": "버전은 dev 채널 접미를 유지하며 마지막 세그먼트를 올리고(0.9.0-dev.2 → 0.9.0-dev.3), sequence 는 family/mode/platform/arch 단조 카운터로 직전 게시본 2 다음인 3을 쓴다. sequenceFloor 가 minimumSequence=sequence 로 기록되므로(build-bundle.mjs:596-602) 되돌릴 수 없다.",
+    "next": "version=0.9.0-dev.3, sequence=3, channel=dev"
+  },
+  "otherWorktreesUntouched": {
+    "parity-291": "git status --short — 미추적 artifacts/orchestration/*.json·md 10건만 보임(선행 작업의 산출물). 이번 작업이 만든 변경 0건, Git 조작 0건.",
+    ".worktrees/frontend": "git status --short — 미추적 artifacts/orchestration/ 만 보임. 이번 작업이 만든 변경 0건.",
+    "mini BACKEND": "ssh mini git status --short — 미추적 artifacts/orchestration/ccc292-* 결과 파일들만 보임. 이번 작업이 만든 변경 0건."
+  },
+  "mutations": {
+    "push": 0,
+    "publish": 0,
+    "apply": 0,
+    "bundleBuilt": 0,
+    "secretValuesPrinted": 0,
+    "gitMutations": "release-16 워크트리 생성, release/0916 브랜치 생성, core/relayer-domain-beta 로컬 브랜치 fetch, 병합 커밋 2건(6e36c511, a83d0c36), 이 보고 파일 커밋 — 모두 새 브랜치 안에서만."
+  },
+  "gitStatus": {
+    "release-16": "보고 커밋 전 git status --short — 깨끗함(병합 커밋 외 미커밋 변경 없음). dist/ 는 gitignore 대상.",
+    "parity-291": "미추적 artifacts 10건(선행 작업 것)",
+    "frontend": "미추적 artifacts/orchestration/ 1건",
+    "mini BACKEND": "미추적 artifacts/orchestration/ccc292-* 다수(선행 작업 것)"
+  },
+  "blocked": null
+}

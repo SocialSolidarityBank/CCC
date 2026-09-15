@@ -117,7 +117,7 @@ describe('SessionPlanEditor 화면 골격 (CCC-75)', () => {
 
     const header = container.querySelector('.page-header');
     expect(header).not.toBeNull();
-    expect(header?.querySelector('h1')?.textContent).toBe('세션 목표 수정');
+    expect(header?.querySelector('h1')?.textContent).toBe('상담 계획');
 
     const button = header?.querySelector('.page-actions button[type="submit"]') as HTMLButtonElement;
     expect(button.textContent).toContain('저장');

@@ -1,15 +1,18 @@
+import {
+  DisclosureChevron,
+  Icon,
+  WireBadge,
+  WireButton,
+  WireCard,
+  WireCardSection,
+  WireEmpty,
+  WireItem,
+  WireSourceQuotes,
+} from '@ccc/wire';
 import Link from 'next/link';
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
-import { Icon } from '../../../../../components/wire/wire-icon';
 import { ConsultationTypeBadge } from '../../../../../components/wire/consultation-type-badge';
-import { WireBadge } from '../../../../../components/wire/wire-badge';
-import { WireButton } from '../../../../../components/wire/wire-button';
-import { WireCard } from '../../../../../components/wire/wire-card';
-import { WireSourceQuotes } from '../../../../../components/wire/wire-callout';
-import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
-import { WireEmpty } from '../../../../../components/wire/wire-state';
-import { DisclosureChevron } from '../../../../../components/wire/chevron';
 import { lifeAreaOrder, lifeAreaStatusLabels } from '../../../../../lib/life-area-labels';
 import type { FlagType, LifeAreaKey, SupportCaseRecord } from '../../../../../lib/api';
 
@@ -124,6 +127,7 @@ export function RecordCard({
   const oneLiner = record.aiOneLiner ?? record.memoExcerpt;
   const confirmedFlags = record.flags.filter((flag) => flag.reviewStatus === 'confirmed');
   const hasConfirmedFlag = confirmedFlags.length > 0;
+  const visibleDiscrepancies = record.discrepancies.filter((item) => item.kind !== 'cross_session');
 
   return <details className="surface-card" id={`record-${record.id}`} open={defaultOpen}>
     {/* 회차 앞 꺽쇠는 2026-08-06 Q 로 폐지했었다(닫힘 오른쪽 꺽쇠가 세로선으로 읽혔다).
@@ -220,7 +224,7 @@ export function RecordCard({
       </section>}
 
       <WireCardSection title="이 회차에서 나온 것" tone="mint">
-        {record.aiOneLiner === null && confirmedFlags.length === 0 && record.discrepancies.length === 0
+        {record.aiOneLiner === null && confirmedFlags.length === 0 && visibleDiscrepancies.length === 0
           ? <WireEmpty>이 회차에 연결된 승인 산출물이 없습니다.</WireEmpty>
           : <ul className="briefing-suggestions">
               {record.aiOneLiner !== null && <li className="wire-repeat-card">
@@ -243,7 +247,7 @@ export function RecordCard({
                   <WireSourceQuotes quotes={[flag.quote]} sourceHref={`#record-${record.id}`} />
                 )}
               </li>)}
-              {record.discrepancies.map((discrepancy) => <li key={discrepancy.id} className="wire-repeat-card">
+              {visibleDiscrepancies.map((discrepancy) => <li key={discrepancy.id} className="wire-repeat-card">
                 <WireItem
                   title={discrepancyKindLabels[discrepancy.kind]}
                   status={<WireBadge tone={discrepancy.resolutionStatus === null ? 'lavender' : 'neutral'}>

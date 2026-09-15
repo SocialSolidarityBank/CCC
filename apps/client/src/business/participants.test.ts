@@ -76,7 +76,7 @@ describe('여섯 영역 동의 컷오버', () => {
     const transport = {
       request: async (path: string, _method?: string, body?: unknown) => {
         sent.push({ path, body });
-        return { beneficiaryId: 'otter-011', supportCaseId: CASE_ID, assignmentRole: 'primary', replayed: false };
+        return { beneficiaryId: 'otter-011', supportCaseId: CASE_ID, assignmentRole: 'primary', replayed: false, canWriteIntake: true };
       },
     };
     const api = new ParticipantsApi(transport as never);
@@ -123,5 +123,20 @@ describe('여섯 영역 동의 컷오버', () => {
     }, 'swallow-003');
     expect(hub.programs[0]).not.toHaveProperty('consent');
     expect(hub.programs[0]).not.toHaveProperty('consentRecordedAt');
+  });
+});
+
+describe('authoritative registration write permission', () => {
+  const input = { programId: 'program-1', idempotencyKey: 'submission-1', consentEvents: [] };
+  const response = { beneficiaryId: 'swallow-003', supportCaseId: CASE_ID, assignmentRole: 'primary', replayed: true };
+
+  it('keeps read-only replay results rather than inferring write permission from assignmentRole', async () => {
+    const api = new ParticipantsApi({ request: async () => ({ ...response, canWriteIntake: false }) } as never);
+    expect((await api.register(input)).canWriteIntake).toBe(false);
+  });
+
+  it.each([undefined, null, 'true', 1])('rejects invalid canWriteIntake %s', async (canWriteIntake) => {
+    const api = new ParticipantsApi({ request: async () => ({ ...response, canWriteIntake }) } as never);
+    await expect(api.register(input)).rejects.toMatchObject({ code: 'invalid_response' });
   });
 });

@@ -1,8 +1,5 @@
 'use client';
-
-import { Icon } from './wire-icon';
-import { WireButton } from './wire-button';
-
+import { Icon, WireButton } from '@ccc/wire';
 // 반복 칸의 추가·삭제 세트 (2026-08-09 Q "추가하기 삭제하기 버튼은 세트로 만들어서 하나의
 // 컴포넌트화 해. '+', '-' 로 해도 돼").
 //

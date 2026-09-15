@@ -1,18 +1,26 @@
 'use client';
 
+import {
+  Chevron,
+  DisclosureChevron,
+  ParticipantHeroCard,
+  WireBadge,
+  WireBullets,
+  WireButton,
+  WireCard,
+  WireCardDetails,
+  WireCardSection,
+  WireEmpty,
+  WireItem,
+  WireQuote,
+  WireSourceQuotes,
+  type ParticipantHeroDetail,
+} from '@ccc/wire';
 import Link from 'next/link';
 import { useRef, useState, type ReactNode } from 'react';
-import { WireBullets, WireCard, WireCardDetails } from '../../../../../components/wire/wire-card';
-import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
-import { WireEmpty } from '../../../../../components/wire/wire-state';
-import { WireQuote, WireSourceQuotes } from '../../../../../components/wire/wire-callout';
-import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../components/wire/participant-hero-card';
-import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
-import { Chevron, DisclosureChevron } from '../../../../../components/wire/chevron';
 import { ConsultationTypeBadge, consultationTypeLabel } from '../../../../../components/wire/consultation-type-badge';
 import { TimeAxisBadge } from '../../../../../components/wire/time-axis-badge';
-import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { RiskBanner, type RiskBannerFlag } from './risk-banner';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
 import type { BriefingUpcomingSchedule, ParticipantBriefingSection } from '../../../../../lib/api';
@@ -339,9 +347,10 @@ export function BriefingCards({
     }]),
   ];
 
-  // 처리된 항목은 접힌 이력으로 내려간다(ADR-0018) — 목록에서 사라지지도, 지워지지도 않는다.
-  const unresolvedDiscrepancies = discrepancies.filter((item) => item.resolution === null);
-  const resolvedDiscrepancies = discrepancies.filter((item) => item.resolution !== null);
+  // 첫 출고에서는 같은 회차 안 모순만 보이고 회차 간 AI 대조는 서버 차단 대상으로 남긴다.
+  const visibleDiscrepancies = discrepancies.filter((item) => item.kind !== 'cross_session');
+  const unresolvedDiscrepancies = visibleDiscrepancies.filter((item) => item.resolution === null);
+  const resolvedDiscrepancies = visibleDiscrepancies.filter((item) => item.resolution !== null);
 
   const sessionGoals = upcomingSchedule?.sessionGoals ?? [];
   const customQuestions = upcomingSchedule?.customQuestions ?? [];
@@ -361,12 +370,11 @@ export function BriefingCards({
         beneficiaryId={beneficiaryId}
         details={heroDetails}
         actions={<>
-          {/* '전체 상담 기록'은 2026-08-06 Q 로 페이지 맨 아래(구 '자세한 상담 기록 보기')에서
-              여기로 올라왔다 — D38 의 행동 2개 상한은 이 화면에 한해 3개로 넓힌다.
-              HERO 행동 줄은 전부 40 이다(2026-08-26 Q "상담 기록만 크다" — 구 보조 32 폐지). */}
+          {/* 상담 기록 확인하기는 2026-08-06 Q 결정으로 페이지 맨 아래에서 여기로 올라왔다.
+              D38의 행동 2개 상한은 이 화면에 한해 3개로 넓힌다. */}
           <WireButton href={participantHref} variant="secondary">당사자 정보</WireButton>
-          <WireButton className="briefing-more" href={recordsHref} variant="secondary">상담 기록 확인</WireButton>
-          <WireButton href={recordNewHref} variant="primary">상담 기록</WireButton>
+          <WireButton className="briefing-more" href={recordsHref} variant="secondary">상담 기록 확인하기</WireButton>
+          <WireButton href={recordNewHref} variant="primary">상담 기록하기</WireButton>
         </>}
       />
 
@@ -497,10 +505,8 @@ export function BriefingCards({
           title="상담 내용 회차별 정리"
           badge={pendingApprovalCount > 0 ? <WireBadge tone="lavender">승인 대기 {pendingApprovalCount}건</WireBadge> : null}
         >
-          {/* 이 문은 이제 프리뷰 fixture 만이 아니라 실제 생성 초안도 담는다(D69 · ADR-0036
-              · CCC-100 — 검토 화면이 "AI 초안 검토"로 넓어진 뒤 문구도 그 성격을 따라간다.
-              구획 카드(.briefing-memo-item)는 2026-08-30 Q "div 컴포넌트화" — 영역 ① 과
-              같은 반복 행 카드다. */}
+          {/* 이 문은 프리뷰 fixture와 실제 생성 초안을 함께 담는다(D69, ADR-0036, CCC-100).
+              목적지는 AI 정리 검토이고, 구획 카드는 영역 ①과 같은 반복 행 카드다. */}
           {pendingReviewRows.length > 0 && (
             <div className="briefing-memo-item wire-repeat-card">
             <WireCardSection
@@ -518,9 +524,9 @@ export function BriefingCards({
                     action={(
                       <Link
                         href={`${recordsHref}/${encodeURIComponent(row.sessionId)}/review`}
-                        aria-label={`${row.heldAtLabel} ${row.kindLabel} AI 초안 검토`}
+                        aria-label={`${row.heldAtLabel} ${row.kindLabel} AI 정리 검토`}
                       >
-                        AI 초안 검토
+                        AI 정리 검토
                       </Link>
                     )}
                   />

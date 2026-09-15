@@ -36,3 +36,41 @@ describe('AI 검토 계약', () => {
     }]);
   });
 });
+
+describe('canonical comparison DTO boundary', () => {
+  const finding = { description: '고지서 확인', materialKind: 'transcript', quote: '고지서를 못 봤어요' };
+
+  it('accepts canonical axes and preserves unavailable states without inventing findings', () => {
+    const draft = decodeAiDraft({ ...base, contrast: [
+      { axis: 'missing_from_memo', status: 'applied', findings: [finding] },
+      { axis: 'missing_from_transcript', status: 'no_text', findings: [] },
+      { axis: 'undiscussed_session_goal', status: 'no_session_goal', findings: [] },
+    ] });
+    expect(draft.contrast.map((entry) => [entry.axis, entry.status, entry.findings.length])).toEqual([
+      ['missing_from_memo', 'applied', 1], ['missing_from_transcript', 'no_text', 0],
+      ['undiscussed_session_goal', 'no_session_goal', 0],
+    ]);
+    expect(decodeAiDraft({ ...base, contrast: [
+      { axis: 'missing_from_memo', status: 'no_transcript', findings: [] },
+    ] }).contrast[0]?.status).toBe('no_transcript');
+  });
+
+  it.each(['missing_in_memo', 'missing_in_audio', 'undiscussed_goals'])('rejects legacy axis %s', (axis) => {
+    expect(() => decodeAiDraft({ ...base, contrast: [{ axis, status: 'applied', findings: [] }] })).toThrow();
+  });
+
+  it('rejects unknown states and findings on an unavailable axis', () => {
+    expect(() => decodeAiDraft({ ...base, contrast: [
+      { axis: 'missing_from_memo', status: 'no_material', findings: [] },
+    ] })).toThrow();
+    expect(() => decodeAiDraft({ ...base, contrast: [
+      { axis: 'missing_from_memo', status: 'no_transcript', findings: [finding] },
+    ] })).toThrow();
+  });
+
+  it.each([{ description: undefined }, { materialKind: 'memo' }, { quote: null }])('rejects malformed evidence %j', (patch) => {
+    expect(() => decodeAiDraft({ ...base, contrast: [
+      { axis: 'missing_from_memo', status: 'applied', findings: [{ ...finding, ...patch }] },
+    ] })).toThrow();
+  });
+});

@@ -31,8 +31,8 @@ const { counselor, service } = testActors;
 const SCHEDULER_SECRET = 'scheduler-shared-secret-0123456789abcdef';
 const CLOUD_RUNTIME: AgentRuntime = {
   route: 'community-cloud-agent',
-  sttEngine: 'local',
-  sttEngineId: 'qwen3-asr',
+  sttEngine: 'azure',
+  sttEngineId: 'azure-speech-koreacentral',
   audioDelivery: 'protected-get',
 };
 const t = setupD1();
@@ -73,11 +73,11 @@ async function post(
 beforeEach(async () => {
   await t.reset();
   innerCalls = 0;
-  env = await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'local' });
+  env = await agentManifestEnv(t.env, { mode: 'community-cloud', stt: 'azure' });
   env.secretStore = createEnvironmentSecretStore({ PII_ENC_KEY: TEST_PII_KEY });
   await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
     deploymentMode: 'community-cloud',
-    sttMode: 'local',
+    sttMode: 'azure',
     llmMode: 'off',
   });
 });
@@ -94,12 +94,12 @@ function freezeUtc(iso: string): void {
 describe('dueScheduledJobKinds', () => {
   it('matches the Workers cron cadence on the UTC minute', () => {
     expect(dueScheduledJobKinds('2026-09-12T03:00:00.000Z'))
-      .toEqual(['audio_expiry', 'counseling_memory', 'pipeline_watchdog', 'pii_retention']);
+      .toEqual(['audio_expiry', 'pipeline_watchdog', 'pii_retention']);
     expect(dueScheduledJobKinds('2026-09-12T03:01:00.000Z')).toEqual([]);
     expect(dueScheduledJobKinds('2026-09-12T11:05:30.000Z')).toEqual(['audio_expiry']);
     expect(dueScheduledJobKinds('2026-09-12T11:30:00.000Z'))
-      .toEqual(['audio_expiry', 'counseling_memory', 'pipeline_watchdog']);
-    expect(dueScheduledJobKinds('2026-09-12T11:02:00.000Z')).toEqual(['counseling_memory']);
+      .toEqual(['audio_expiry', 'pipeline_watchdog']);
+    expect(dueScheduledJobKinds('2026-09-12T11:02:00.000Z')).toEqual([]);
     // 03:00 은 UTC 기준이다. 같은 분이라도 다른 시각이면 보존 작업은 due 가 아니다.
     expect(dueScheduledJobKinds('2026-09-12T04:00:00.000Z')).not.toContain('pii_retention');
     expect(() => dueScheduledJobKinds('not-a-time')).toThrow();
@@ -119,10 +119,10 @@ describe('scheduler shared secret identity', () => {
     expect(innerCalls).toBe(0);
   });
 
-  it('runs the memory drain on its own even-minute cadence', async () => {
+  it('does not run the release-excluded memory drain on even minutes', async () => {
     freezeUtc('2026-09-12T11:02:00.000Z');
     const body = await (await post('/internal/scheduler/run')).json() as { jobs: JobReport[] };
-    expect(body.jobs.map((job) => job.kind)).toEqual(['counseling_memory']);
+    expect(body.jobs).toEqual([]);
   });
 
   it('delegates a mismatched bearer and an installation without the secret', async () => {
@@ -187,7 +187,7 @@ describe('scheduler shared secret identity', () => {
     if (scope === null) throw new Error('missing support case fixture');
     await seedCanonicalSttConsent(env, counselor, scope.support_case_id);
     await recordSttReadiness(env, service, {
-      schemaVersion: 1, sttMode: 'local', sttEngineId: 'qwen3-asr', state: 'ready', capacity: 1,
+      schemaVersion: 1, sttMode: 'azure', sttEngineId: 'azure-speech-koreacentral', state: 'ready', capacity: 1,
     });
     const admission = await admitRecordingUpload(env, counselor, session.id, CLOUD_RUNTIME);
     await beginRecordingUploadIntent(env, counselor, session.id, admission, 'protected-get', {

@@ -49,7 +49,13 @@ const SEED_TABLES = [
   'counseling_schedules',
   'schedule_session_goals',
   'schedule_custom_questions',
-  'participant_consent_records',
+  'consent_events',
+  'consent_disclosure_snapshots',
+  'consent_audit_events',
+  'consent_provider_registry_snapshots',
+  'programs',
+  'program_staff',
+  'program_admission_policies',
   'users',
 ] as const;
 
@@ -88,8 +94,21 @@ function multisetEqual(a: string[], b: string[]): { equal: boolean; detail?: str
   return { equal: true };
 }
 
+/**
+ * batchId 단위 원자성은 유지하되, 연속된 단일 문장 그룹은 하나의 batch 로 묶어
+ * Miniflare 왕복을 줄인다. 순서는 보존되고, 재생은 검증 전용이라 어느 문장이든
+ * 실패하면 전체가 실패로 끝나면 된다(부분 적용은 diff 가 잡는다).
+ */
+const REPLAY_CHUNK = 200;
+
 async function replayEmitted(replayDb: D1Database, emitted: readonly EmittedStatement[]): Promise<void> {
   let index = 0;
+  let pending: EmittedStatement[] = [];
+  const flush = async (): Promise<void> => {
+    if (pending.length === 0) return;
+    await replayDb.batch(pending.map((statement) => replayDb.prepare(statement.inlinedSql)));
+    pending = [];
+  };
   while (index < emitted.length) {
     const batchId = emitted[index]!.batchId;
     const group: EmittedStatement[] = [];
@@ -98,11 +117,14 @@ async function replayEmitted(replayDb: D1Database, emitted: readonly EmittedStat
       index += 1;
     }
     if (group.length === 1) {
-      await replayDb.prepare(group[0]!.inlinedSql).run();
+      pending.push(group[0]!);
+      if (pending.length >= REPLAY_CHUNK) await flush();
     } else {
+      await flush();
       await replayDb.batch(group.map((statement) => replayDb.prepare(statement.inlinedSql)));
     }
   }
+  await flush();
 }
 
 async function importAesKey(base64Key: string): Promise<CryptoKey> {
@@ -207,15 +229,25 @@ async function assertInvariants(replayDb: D1Database, checks: string[]): Promise
   }
   checks.push(`per-session score count in [1,3] and goal belongs to case (${perSession.length} sessions)`);
 
-  // 모든 완료 사례에 동의 레코드가 하나씩 있다.
+  // 모든 사례에 6개 동의 도메인 이벤트가 하나씩 있다(현행 동의 계약은
+  // consent_events 이다 — participant_consent_records 는 레거시라 시드가 쓰지 않는다).
   const consentRow = await replayDb
-    .prepare('SELECT COUNT(*) AS n FROM participant_consent_records')
-    .first<{ n: number }>();
+    .prepare(`SELECT COUNT(*) AS n,
+                     COUNT(DISTINCT beneficiary_id) AS beneficiaries,
+                     COUNT(DISTINCT domain) AS domains
+              FROM consent_events`)
+    .first<{ n: number; beneficiaries: number; domains: number }>();
   const consent = Number(consentRow?.n ?? 0);
-  if (consent !== PARTICIPANTS.length) {
-    throw new Error(`[seed] 불변식 위반: 동의 레코드 ${consent} != ${PARTICIPANTS.length}`);
+  const expectedConsent = PARTICIPANTS.length * 6;
+  if (consent !== expectedConsent
+    || Number(consentRow?.beneficiaries) !== PARTICIPANTS.length
+    || Number(consentRow?.domains) !== 6) {
+    throw new Error(
+      `[seed] 불변식 위반: 동의 이벤트 ${consent} != ${expectedConsent} `
+      + `(당사자 ${Number(consentRow?.beneficiaries)}, 도메인 ${Number(consentRow?.domains)})`,
+    );
   }
-  checks.push(`consent records == ${consent}`);
+  checks.push(`consent events == ${consent} (${PARTICIPANTS.length}명 × 6 도메인)`);
 
   // vault는 사례당 1행이고 모두 key_version=2, enc_name NOT NULL이다.
   const vaultRow = await replayDb
