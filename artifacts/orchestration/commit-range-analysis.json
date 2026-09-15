@@ -1,0 +1,5087 @@
+{
+  "mainTip": "ad218e8eafa646a524674fe4ef8cf9c20c0b68bb",
+  "branchTip": "9df84b44b3a6520db1675f0e2a658941c412ca1e",
+  "commitCount": 117,
+  "symptomFixes": [
+    {
+      "id": "S1",
+      "symptom": "당사자 등록이 검증 거부로 중단되고 입력이 초기화된다.",
+      "surface": "apps/web /participants/new",
+      "status": "no_fix_found",
+      "fixCommits": [],
+      "relatedCommits": [
+        "6053b7d0f3836f0d6de9369d82b6024aa701c2f4",
+        "91b7859b78285093e26dbbe18048e1f5c78637e1",
+        "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db"
+      ],
+      "verdict": "Next 등록 요청의 구 계약과 오류 뒤 redirect가 그대로다. 새 클라이언트의 등록 후 이동이나 시드 계약 교정은 이 폼의 수정이 아니다.",
+      "evidence": [
+        {
+          "path": "apps/web/app/actions.ts",
+          "lineStart": 938,
+          "lineEnd": 955,
+          "observation": "programType과 두 consent boolean을 보내며 programId, idempotencyKey, consentEvents가 없다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 505,
+          "lineEnd": 548,
+          "observation": "등록 파서는 consentEvents, idempotencyKey, programId를 요구하고 구 키를 허용하지 않는다."
+        },
+        {
+          "path": "apps/web/app/actions.ts",
+          "lineStart": 958,
+          "lineEnd": 963,
+          "observation": "오류가 나면 입력값 없이 /participants/new?error=...로 redirect한다."
+        },
+        {
+          "path": "apps/web/app/participants/new/register-form.tsx",
+          "lineStart": 105,
+          "lineEnd": 138,
+          "observation": "이름과 연락처 등의 폼 입력을 새 화면에 복원할 계약이 없다."
+        },
+        {
+          "path": "apps/web/app/participants/new/page.tsx",
+          "lineStart": 15,
+          "lineEnd": 26,
+          "observation": "invalid_request 및 validation_error가 사용자 보고 문구에 매핑된다."
+        }
+      ],
+      "absenceEvidence": "main과 tip의 등록 action 및 HTTP 등록 파서 계약이 같고, RegisterForm의 범위 변경은 Wire import 이동뿐이다.",
+      "inference": "현재 소스의 정상 요청 경로만으로도 이 계약 불일치와 입력 보존 부재를 확인했다. 당시 운영 요청이나 실제 예외 로그를 읽은 것은 아니다.",
+      "runtimeVerified": false
+    },
+    {
+      "id": "S2",
+      "symptom": "당사자 상세, 상담 기록 작성, 상담 기록 확인, 인테이크 상세가 서버 다이제스트로 실패한다.",
+      "surface": "apps/web",
+      "status": "no_fix_found",
+      "fixCommits": [],
+      "relatedCommits": [
+        "6053b7d0f3836f0d6de9369d82b6024aa701c2f4",
+        "dbde609fc9c4015b019a64c6cf3f1dcef91754f1",
+        "3f47763534a4ed835461e51d083456dd9500864e",
+        "a6b2fc473597abd844b1d72f51245c804d8670e9"
+      ],
+      "verdict": "네 화면의 서버 예외를 해소한 변경은 확인하지 못했다. 공통 사업 응답의 consent 누락과 인테이크 consent 배열/객체 불일치가 남아 있다. 인테이크 버전 연결 변경은 있지만 완전한 소비자 전환은 아니다.",
+      "pages": [
+        {
+          "screen": "당사자 상세",
+          "path": "/participants/{beneficiaryId}",
+          "status": "no_fix_found",
+          "reason": "허브의 programs 항목도 consent가 없는 사업 응답을 사용하지만 Next 공통 디코더는 consent를 필수로 읽는다.",
+          "evidence": [
+            {
+              "path": "packages/http-api/src/request-handler.ts",
+              "lineStart": 870,
+              "lineEnd": 895,
+              "observation": "사업 응답에는 consent 키가 없다."
+            },
+            {
+              "path": "apps/web/app/lib/api.ts",
+              "lineStart": 992,
+              "lineEnd": 1010,
+              "observation": "decodeParticipantProgram은 consent 키를 필수로 요구한다."
+            },
+            {
+              "path": "apps/web/app/lib/api.ts",
+              "lineStart": 930,
+              "lineEnd": 941,
+              "observation": "누락 필드와 배열/객체 불일치는 일반 Error를 던진다."
+            },
+            {
+              "path": "packages/http-api/src/request-handler.ts",
+              "lineStart": 912,
+              "lineEnd": 921,
+              "observation": "담당 사업은 participantProgramResponse를 펼치고 비담당 사업은 식별정보만 내보낸다."
+            },
+            {
+              "path": "apps/web/app/lib/api.ts",
+              "lineStart": 1539,
+              "lineEnd": 1552,
+              "observation": "허브 programs도 decodeParticipantProgram으로 해독한다."
+            },
+            {
+              "path": "apps/web/app/participants/[beneficiaryId]/page.tsx",
+              "lineStart": 489,
+              "lineEnd": 493,
+              "observation": "일반 Error를 다시 던져 서버 예외 경로로 보낸다."
+            }
+          ]
+        },
+        {
+          "screen": "상담 기록 작성",
+          "path": "/participants/{beneficiaryId}/programs/{supportCaseId}/records/new",
+          "status": "no_fix_found",
+          "reason": "페이지가 getParticipantDetail을 읽으므로 같은 consent 누락 디코더 오류가 남아 있다. 페이지 읽기와 별개로 제출은 수기 v2 요청 미전환 문제도 새로 생겼다.",
+          "evidence": [
+            {
+              "path": "packages/http-api/src/request-handler.ts",
+              "lineStart": 870,
+              "lineEnd": 895,
+              "observation": "사업 응답에는 consent 키가 없다."
+            },
+            {
+              "path": "apps/web/app/lib/api.ts",
+              "lineStart": 992,
+              "lineEnd": 1010,
+              "observation": "decodeParticipantProgram은 consent 키를 필수로 요구한다."
+            },
+            {
+              "path": "apps/web/app/lib/api.ts",
+              "lineStart": 930,
+              "lineEnd": 941,
+              "observation": "누락 필드와 배열/객체 불일치는 일반 Error를 던진다."
+            },
+            {
+              "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx",
+              "lineStart": 420,
+              "lineEnd": 425,
+              "observation": "당사자 정보를 읽는다."
+            },
+            {
+              "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx",
+              "lineStart": 107,
+              "lineEnd": 122,
+              "observation": "일반 Error는 처리하지 않고 다시 던진다."
+            },
+            {
+              "path": "apps/web/app/actions.ts",
+              "lineStart": 1501,
+              "lineEnd": 1515,
+              "observation": "schemaVersion 없는 구 수기 봉투를 보낸다."
+            },
+            {
+              "path": "packages/contracts/src/manual-record.ts",
+              "lineStart": 167,
+              "lineEnd": 172,
+              "observation": "schemaVersion 2만 받는다."
+            }
+          ]
+        },
+        {
+          "screen": "상담 기록 확인",
+          "path": "/participants/{beneficiaryId}/programs/{supportCaseId}/records",
+          "status": "no_fix_found",
+          "reason": "기록 목록 응답의 변경과 무관하게 getParticipantDetail의 공통 사업 디코더에서 consent 누락을 만날 수 있다.",
+          "evidence": [
+            {
+              "path": "packages/http-api/src/request-handler.ts",
+              "lineStart": 870,
+              "lineEnd": 895,
+              "observation": "사업 응답에는 consent 키가 없다."
+            },
+            {
+              "path": "apps/web/app/lib/api.ts",
+              "lineStart": 992,
+              "lineEnd": 1010,
+              "observation": "decodeParticipantProgram은 consent 키를 필수로 요구한다."
+            },
+            {
+              "path": "apps/web/app/lib/api.ts",
+              "lineStart": 930,
+              "lineEnd": 941,
+              "observation": "누락 필드와 배열/객체 불일치는 일반 Error를 던진다."
+            },
+            {
+              "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx",
+              "lineStart": 153,
+              "lineEnd": 158,
+              "observation": "기록 화면도 당사자 정보를 읽는다."
+            },
+            {
+              "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx",
+              "lineStart": 103,
+              "lineEnd": 110,
+              "observation": "알려진 ApiError가 아닌 오류를 다시 던진다."
+            }
+          ]
+        },
+        {
+          "screen": "인테이크 상세",
+          "path": "/participants/{beneficiaryId}/programs/{supportCaseId}/records/intake",
+          "status": "related_change_but_unfixed",
+          "reason": "인테이크 봉투와 저장본 버전 소비는 3f477635에서 바뀌었다. 그러나 코어의 consent는 배열이고 HTTP는 이를 그대로 보내는데 Next 디코더는 구 privacy/recordingAi 객체로 읽는다. API와 웹을 같은 tip으로 맞춰도 이 불일치는 남는다.",
+          "commits": [
+            "3f47763534a4ed835461e51d083456dd9500864e",
+            "97a240f3cb87d1de9ad48e48ce3ab1d48b52c4a5",
+            "4a2070e6cf04bb04bd3a734a92150168932dd406"
+          ],
+          "evidence": [
+            {
+              "path": "packages/core/src/gateway.ts",
+              "lineStart": 22048,
+              "lineEnd": 22053,
+              "observation": "IntakeRecordContext.consent의 타입은 CurrentConsentState[]다."
+            },
+            {
+              "path": "packages/core/src/gateway.ts",
+              "lineStart": 22259,
+              "lineEnd": 22261,
+              "observation": "실제 값은 currentConsentStates에서 읽는다."
+            },
+            {
+              "path": "packages/http-api/src/request-handler.ts",
+              "lineStart": 1152,
+              "lineEnd": 1169,
+              "observation": "consent 배열을 변환 없이 직렬화한다."
+            },
+            {
+              "path": "apps/web/app/lib/api.ts",
+              "lineStart": 1892,
+              "lineEnd": 1898,
+              "observation": "Next는 consent를 객체로 바꾸고 두 boolean을 읽는다."
+            },
+            {
+              "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx",
+              "lineStart": 24,
+              "lineEnd": 39,
+              "observation": "계약 불일치의 일반 Error를 다시 던진다."
+            }
+          ]
+        }
+      ],
+      "inference": "정적 코드에서 예외가 가능한 조건과 지속된 계약 불일치를 확인했다. 실제 리허설 다이제스트와 원본 서버 예외를 연결한 런타임 증거는 없으므로 당시 장애 원인의 최종 확정은 아니다.",
+      "runtimeVerified": false
+    },
+    {
+      "id": "S3",
+      "symptom": "상담 일정 시각이 아홉 시간 뒤로 표시된다.",
+      "surface": "apps/web 일정 등록 및 보기",
+      "status": "no_fix_found",
+      "fixCommits": [],
+      "relatedCommits": [
+        "6053b7d0f3836f0d6de9369d82b6024aa701c2f4",
+        "d9b46c6ce9572596e7c74cdff1fb7e3179b86884",
+        "dbde609fc9c4015b019a64c6cf3f1dcef91754f1"
+      ],
+      "verdict": "범위 안에 시간대 변환을 고친 커밋이 없다. 관련 파일 변경은 부품 import와 문구 변경이며, 서버에서 시간대 없는 입력을 해석하는 경로가 그대로 남아 있다.",
+      "evidence": [
+        {
+          "path": "apps/web/app/components/wire/date-picker-control.tsx",
+          "lineStart": 225,
+          "lineEnd": 232,
+          "observation": "입력값을 날짜T시각으로 합치며 시간대 오프셋을 붙이지 않는다."
+        },
+        {
+          "path": "apps/web/app/schedules/new/schedule-wizard.tsx",
+          "lineStart": 242,
+          "lineEnd": 252,
+          "observation": "위 값을 scheduledAt 그대로 서버 액션에 전달한다."
+        },
+        {
+          "path": "apps/web/app/actions.ts",
+          "lineStart": 1264,
+          "lineEnd": 1291,
+          "observation": "서버에서 new Date(input.scheduledAt)으로 해석한 뒤 toISOString()으로 전송한다."
+        },
+        {
+          "path": "apps/web/app/lib/format-korean-date.ts",
+          "lineStart": 13,
+          "lineEnd": 20,
+          "observation": "표시 기본 시간대는 Asia/Seoul이다."
+        },
+        {
+          "path": "apps/web/app/lib/format-korean-date.ts",
+          "lineStart": 45,
+          "lineEnd": 63,
+          "observation": "시간 및 일시 표시는 지정한 시간대로 변환한다."
+        }
+      ],
+      "inference": "추정: 서버가 UTC로 시간대 없는 14:00을 해석하면 14:00Z로 저장 요청을 보내고 서울 표시에서는 23:00이 된다. 실제 배포 런타임 시간대와 당시 요청 본문은 조회하지 않았다.",
+      "runtimeVerified": false,
+      "absenceEvidence": "gitStatus.unchangedBoundaryEvidence에 날짜 입력 및 표시 파일의 base/tip 동일 blob을 기록했다. actions.ts의 범위 diff는 인테이크 계약 부분이며 위 일정 변환은 바뀌지 않았다."
+    },
+    {
+      "id": "S4",
+      "symptom": "관리자 지정 코드가 거절된다.",
+      "surface": "apps/web /preview/admin을 우선 해석하며 apps/client /auth/invite와 구분한다.",
+      "status": "no_fix_found",
+      "fixCommits": [],
+      "relatedCommits": [
+        "8bfe49d6c05aaa3c23062b6a9ec3c80cd4251747",
+        "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d"
+      ],
+      "verdict": "preview 관리자 지정 코드 검증은 이 범위에서 바뀌지 않았다. 관리자 초대 6자리 코드 화면의 신규 구현은 있지만 별도 Supabase 경로이므로 preview 코드 거절의 수정으로 볼 수 없다.",
+      "evidence": [
+        {
+          "path": "apps/web/app/preview/admin/page.tsx",
+          "lineStart": 8,
+          "lineEnd": 17,
+          "observation": "관리자용 preview 폼을 렌더한다."
+        },
+        {
+          "path": "packages/http-api/src/preview-gate.ts",
+          "lineStart": 95,
+          "lineEnd": 106,
+          "observation": "지정 코드 비교와 관리자 코드 및 관리자 신원 설정 여부를 검사한다."
+        },
+        {
+          "path": "packages/http-api/src/preview-gate.ts",
+          "lineStart": 157,
+          "lineEnd": 166,
+          "observation": "실무자, 관리자, E2E 코드 후보를 각기 비교한다."
+        },
+        {
+          "path": "apps/client/src/business/auth.ts",
+          "lineStart": 302,
+          "lineEnd": 310,
+          "observation": "신규 관리자 초대는 Supabase verifyOtp(type=invite)로 검증한다."
+        }
+      ],
+      "alternativeInterpretation": {
+        "screen": "관리자 초대",
+        "path": "/auth/invite",
+        "status": "implementation_present_fix_unproven",
+        "commits": [
+          "8bfe49d6c05aaa3c23062b6a9ec3c80cd4251747"
+        ],
+        "explanation": "6자리 초대 코드와 새 비밀번호를 처리하는 구현은 있다. 실제 거절된 코드의 종류, 만료 및 발급 조건을 확인하지 않았으므로 이 구현이 해당 거절을 해결한다고 판정하지 않는다."
+      },
+      "inference": "추정: preview의 관리자 설정 누락, 코드 불일치 또는 잘못된 코드 종류가 원인일 수 있다. 실제 설정과 코드값은 조사하지 않았으므로 어느 원인도 확정하지 않는다.",
+      "runtimeVerified": false,
+      "absenceEvidence": "preview-gate.ts, preview/admin/page.tsx, preview/unlock/route.ts의 base/tip Git blob이 모두 같다."
+    }
+  ],
+  "unfixedSymptoms": [
+    {
+      "symptomId": "S1",
+      "symptom": "당사자 등록이 검증 거부로 중단되고 입력이 초기화된다.",
+      "status": "no_fix_found",
+      "reason": "Next 등록 요청의 구 계약과 오류 뒤 redirect가 그대로다. 새 클라이언트의 등록 후 이동이나 시드 계약 교정은 이 폼의 수정이 아니다."
+    },
+    {
+      "symptomId": "S2",
+      "symptom": "당사자 상세, 상담 기록 작성, 상담 기록 확인, 인테이크 상세가 서버 다이제스트로 실패한다.",
+      "status": "no_fix_found",
+      "reason": "네 화면의 서버 예외를 해소한 변경은 확인하지 못했다. 공통 사업 응답의 consent 누락과 인테이크 consent 배열/객체 불일치가 남아 있다. 인테이크 버전 연결 변경은 있지만 완전한 소비자 전환은 아니다."
+    },
+    {
+      "symptomId": "S3",
+      "symptom": "상담 일정 시각이 아홉 시간 뒤로 표시된다.",
+      "status": "no_fix_found",
+      "reason": "범위 안에 시간대 변환을 고친 커밋이 없다. 관련 파일 변경은 부품 import와 문구 변경이며, 서버에서 시간대 없는 입력을 해석하는 경로가 그대로 남아 있다."
+    },
+    {
+      "symptomId": "S4",
+      "symptom": "관리자 지정 코드가 거절된다.",
+      "status": "no_fix_found",
+      "reason": "preview 관리자 지정 코드 검증은 이 범위에서 바뀌지 않았다. 관리자 초대 6자리 코드 화면의 신규 구현은 있지만 별도 Supabase 경로이므로 preview 코드 거절의 수정으로 볼 수 없다."
+    }
+  ],
+  "contractChanges": [
+    {
+      "id": "UI01",
+      "title": "Wire UI 패키지 추출과 공개 API 정리",
+      "commits": [
+        "e29aa4097aaeed2b1e3b52905e34a13341f76015",
+        "815099a95cadb216ef32d74c580895579d6981eb",
+        "4e34a6b4eb453d2c7ac3632785d06d774f0295a1",
+        "7e7dd81b0f485e5fdc08a96d58c4fe44afb881ff",
+        "a2c8db248e72f045fab4fe9a502561a784f5653d",
+        "730355747ca876d1c9a6321868802a46d423ba09",
+        "05c9abc2f2beb629f2e3653269a5a658b081160f",
+        "6053b7d0f3836f0d6de9369d82b6024aa701c2f4",
+        "0a65ae8050bd8940be29e8941094f8c92e63700f",
+        "9dcba13624807e1b991657e8ad5c9fadcacc65ab"
+      ],
+      "surface": "apps/web + apps/client",
+      "kind": "rendering",
+      "evidence": [
+        {
+          "path": "apps/web/app/components/wire/client-surface.ts",
+          "lineStart": 16,
+          "lineEnd": 89,
+          "observation": "기존 공개 진입점이 @ccc/wire를 다시 내보낸다."
+        },
+        {
+          "path": "packages/wire/src/index.ts",
+          "lineStart": 1,
+          "lineEnd": 70,
+          "observation": "공유 부품의 실제 공개 export 진입점이다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "공유 패키지의 서버/클라이언트 경계와 Next 렌더는 빌드 성공만으로 확인되지 않는다. 증상 네 화면을 직접 열어야 한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI02",
+      "title": "등록 완료 뒤 첫 상담 진입과 서버 쓰기 권한 결속",
+      "commits": [
+        "d9b46c6ce9572596e7c74cdff1fb7e3179b86884",
+        "91b7859b78285093e26dbbe18048e1f5c78637e1"
+      ],
+      "surface": "apps/client",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "apps/client/src/business/participants.ts",
+          "lineStart": 241,
+          "lineEnd": 252,
+          "observation": "등록 응답에서 canWriteIntake boolean을 필수로 검사한다."
+        },
+        {
+          "path": "apps/client/src/screens/participants.tsx",
+          "lineStart": 147,
+          "lineEnd": 165,
+          "observation": "권한이 있을 때만 첫 상담 기록 시작 버튼을 표시한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "새 클라이언트와 구 API를 섞으면 등록은 서버에서 됐어도 응답 해독이 실패할 수 있다. Next 등록 화면의 수정은 아니다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI03",
+      "title": "기관과 사업 설정의 금전 지원 모듈 필드 소비",
+      "commits": [
+        "9b5b5c6e1457240225acb2f3859771bc22f82919",
+        "69db251a9d992f15cb52f6fcfd4f9e210d60ac5e"
+      ],
+      "surface": "apps/client",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "apps/client/src/business/institution.ts",
+          "lineStart": 57,
+          "lineEnd": 74,
+          "observation": "사업 목록에서 financialSupportEnabled를 필수로 읽는다."
+        },
+        {
+          "path": "apps/client/src/business/institution.ts",
+          "lineStart": 114,
+          "lineEnd": 141,
+          "observation": "기관 초기 설정과 새 사업 요청에도 해당 boolean을 보낸다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "구 API 응답에 필드가 없으면 사업 목록이나 초기 설정이 invalid_response로 닫힌다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI04",
+      "title": "첫 상담 버전 계약과 질문 유지 및 철회 UI",
+      "commits": [
+        "9b5b5c6e1457240225acb2f3859771bc22f82919",
+        "3f47763534a4ed835461e51d083456dd9500864e",
+        "0f78c9b3925ff780347729e529b6f35a26075d60",
+        "f7194dc88064455f3eb6be02abb5aae836981612"
+      ],
+      "surface": "apps/web + apps/client",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "apps/client/src/business/intake.ts",
+          "lineStart": 74,
+          "lineEnd": 103,
+          "observation": "writeSchemaVersion, moduleSnapshot, consent 배열, 저장본 버전을 검사한다."
+        },
+        {
+          "path": "apps/web/app/lib/api.ts",
+          "lineStart": 1870,
+          "lineEnd": 1920,
+          "observation": "Next 인테이크도 새 봉투의 필수 응답 필드를 읽는다."
+        },
+        {
+          "path": "packages/contracts/src/intake.ts",
+          "lineStart": 140,
+          "lineEnd": 160,
+          "observation": "작성 봉투는 schemaVersion 3이고 질문 참조와 철회 목록이 필요하다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "DB와 API보다 화면을 먼저 배포하면 읽기부터 거부된다. 구 인테이크 수정의 명시적 전환과 충돌 처리도 확인해야 한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI05",
+      "title": "수기 기록 v2와 다음 회차 질문 확인 소비",
+      "commits": [
+        "331f2fdbe1a2bf7d236bc68a8aee829dc45ff5da"
+      ],
+      "surface": "apps/client",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "apps/client/src/business/records.ts",
+          "lineStart": 214,
+          "lineEnd": 238,
+          "observation": "쓰기 컨텍스트와 질문 상태별 배열을 필수로 읽는다."
+        },
+        {
+          "path": "apps/client/src/business/records.ts",
+          "lineStart": 310,
+          "lineEnd": 367,
+          "observation": "records/context를 읽고 schemaVersion 2, actionItems, questionAnswers로 제출한다."
+        },
+        {
+          "path": "apps/client/src/screens/records.tsx",
+          "lineStart": 404,
+          "lineEnd": 430,
+          "observation": "canWrite가 참일 때만 폼을 연다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "신규 응답 필드가 없는 API나 구 화면의 요청 봉투와 함께 배포하면 조회 또는 저장이 막힌다. Next 일반 상담 폼과는 별도 소비자다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI06",
+      "title": "경과 리포트 v2와 CSV 내려받기 소비",
+      "commits": [
+        "0cefde1e339d2d4af09ad813aeb1bc1bd28eb103",
+        "b87f50e4defe8c792365d83dc456253624b14550"
+      ],
+      "surface": "apps/client",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "apps/client/src/business/report.ts",
+          "lineStart": 81,
+          "lineEnd": 89,
+          "observation": "리포트 schemaVersion 2만 받는다."
+        },
+        {
+          "path": "apps/client/src/business/report.ts",
+          "lineStart": 155,
+          "lineEnd": 168,
+          "observation": "다음 확인 항목에서 questionRef와 근거를 읽는다."
+        },
+        {
+          "path": "apps/client/src/business/report.ts",
+          "lineStart": 191,
+          "lineEnd": 198,
+          "observation": "CSV는 GET /support-cases/:id/export.csv로 받는다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "보고서 버전 불일치와 내보내기 권한 거부가 배포 후 처음 드러날 수 있다. CSV 버튼은 권한별 숨김 없이 서버 응답에 의존한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI07",
+      "title": "브라우저 오류 코드 보존과 수기 경로 안내",
+      "commits": [
+        "0eef9ec0e175d356143016fcdd1073d37e8c400e"
+      ],
+      "surface": "apps/client",
+      "kind": "error_handling",
+      "evidence": [
+        {
+          "path": "apps/client/src/business/errors.ts",
+          "lineStart": 60,
+          "lineEnd": 102,
+          "observation": "404, AI 거부 및 준비 오류를 구분한다."
+        },
+        {
+          "path": "apps/client/src/screens/records.tsx",
+          "lineStart": 684,
+          "lineEnd": 708,
+          "observation": "일부 AI 오류에는 무의미한 재시도 대신 수기 기록 경로를 남긴다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": false,
+        "severity": "none",
+        "assessment": "새 필수 입력이나 API 거부 조건은 확인하지 못했다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI08",
+      "title": "설치 신뢰 설정을 공개 키 목록에서 불변 trust 객체로 전환",
+      "commits": [
+        "d49449dab92e5e7691c008b21fb65ecfa4dd5c78"
+      ],
+      "surface": "apps/client",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 72,
+          "lineEnd": 79,
+          "observation": "VITE_CCC_INSTALL_TRUST를 읽어 설치를 로드한다."
+        },
+        {
+          "path": "apps/client/src/business/installation.ts",
+          "lineStart": 18,
+          "lineEnd": 58,
+          "observation": "publicKeys, revokedKeyIds, minSequence, expectedInstallationId 네 필드를 검증한다."
+        },
+        {
+          "path": "apps/client/tools/build-release.mjs",
+          "lineStart": 52,
+          "lineEnd": 75,
+          "observation": "release config.trust를 검증하고 서명 문서와 대조한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "critical",
+        "assessment": "구 VITE_CCC_INSTALL_SIGNING_KEYS만 둔 빌드는 trust_missing으로 업무 화면에 진입하지 못한다. 새 환경변수는 빌드 시 주입해야 한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI09",
+      "title": "검증한 정적 클라이언트의 Deno 이미지 배포 경로 추가",
+      "commits": [
+        "189560feb146b94973becb0b182d16a00e32505a"
+      ],
+      "surface": "apps/client",
+      "kind": "packaging",
+      "evidence": [
+        {
+          "path": "apps/client/tools/serve-release.mjs",
+          "lineStart": 25,
+          "lineEnd": 26,
+          "observation": "헤더 파일과 릴리스 검증 실패는 static_release_invalid로 닫힌다."
+        },
+        {
+          "path": "apps/client/tools/serve-release.mjs",
+          "lineStart": 143,
+          "lineEnd": 147,
+          "observation": "PORT가 유효한 숫자여야 하고 배포 디렉터리를 읽는다."
+        },
+        {
+          "path": "apps/client/tools/build-release.mjs",
+          "lineStart": 97,
+          "lineEnd": 133,
+          "observation": "공개 설치 문서 둘과 배포 헤더 파일을 생성한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "이 배포 경로는 기존 preview의 Next 배포와 다르다. 정적 문서, CSP, deep-link fallback이 포함된 산출물을 배포해야 한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI10",
+      "title": "첫 출고 제외 기능의 메뉴와 일부 표시 숨김",
+      "commits": [
+        "866f2475846519fdff5f3eca24e6c7f1fca71a67",
+        "4b07ca1b8a5d45c49eef64ccfad0b3fa6a3a2800"
+      ],
+      "surface": "apps/web + apps/client",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "apps/client/src/business/navigation.ts",
+          "lineStart": 50,
+          "lineEnd": 63,
+          "observation": "당사자 초대, 실무자 초대, 상담 기억 메뉴를 숨긴다."
+        },
+        {
+          "path": "apps/client/src/screens/settings.tsx",
+          "lineStart": 230,
+          "lineEnd": 241,
+          "observation": "실무 책임자 지정과 감독 팀 표시를 숨긴다."
+        },
+        {
+          "path": "apps/client/src/screens/records.tsx",
+          "lineStart": 714,
+          "lineEnd": 721,
+          "observation": "AI 요약 항목은 회기 목표별 논의만 보인다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "기존 북마크는 메뉴 숨김만으로 차단되지 않으므로 서버의 첫 출고 차단 응답과 구 화면 진입을 함께 확인해야 한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI11",
+      "title": "상담 화면 이름과 링크 라벨 정리",
+      "commits": [
+        "d9b46c6ce9572596e7c74cdff1fb7e3179b86884",
+        "dbde609fc9c4015b019a64c6cf3f1dcef91754f1"
+      ],
+      "surface": "apps/web + apps/client",
+      "kind": "terminology",
+      "evidence": [
+        {
+          "path": "apps/client/src/business/navigation.ts",
+          "lineStart": 78,
+          "lineEnd": 91,
+          "observation": "상담 전 톺아보기, 경과 리포트, 오늘 상담 기록, 첫 상담 기록 라벨로 바뀐다."
+        },
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 283,
+          "lineEnd": 297,
+          "observation": "당사자와 기록 및 일정의 실제 URL 경로는 유지한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": false,
+        "severity": "none",
+        "assessment": "새 필수 입력이나 API 거부 조건은 확인하지 못했다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI12",
+      "title": "회차 녹음 업로드 UI와 세 단계 전송 추가",
+      "commits": [
+        "a67e00fd7a292ce3ba5bf3930b3ffa6ecb85d0a7"
+      ],
+      "surface": "apps/client",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "apps/client/src/business/records.ts",
+          "lineStart": 377,
+          "lineEnd": 395,
+          "observation": "200MB 이하 파일을 검사하고 업로드 대상 발급, 파일 전송, 완료 등록을 수행한다."
+        },
+        {
+          "path": "apps/client/src/business/transport.ts",
+          "lineStart": 168,
+          "lineEnd": 181,
+          "observation": "서명 URL의 origin이 설치 API와 같아야 한다."
+        },
+        {
+          "path": "apps/client/src/screens/records.tsx",
+          "lineStart": 684,
+          "lineEnd": 704,
+          "observation": "초안이 없고 STT mode가 local 또는 azure일 때 업로드 구획을 연다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "코드 추가는 STT 활성화 승인이 아니다. 엔진, Agent, 동의, 사업 확인, Storage 권한이 충족되지 않으면 업로드는 거부되어야 한다. 기존 Next preview에는 이 UI가 추가되지 않았다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI13",
+      "title": "배포 차단 위험: Next 일반 상담 요청이 수기 v2로 전환되지 않음",
+      "commits": [
+        "a6b2fc473597abd844b1d72f51245c804d8670e9"
+      ],
+      "surface": "apps/web + API",
+      "kind": "unmigrated_consumer",
+      "evidence": [
+        {
+          "path": "apps/web/app/actions.ts",
+          "lineStart": 1484,
+          "lineEnd": 1515,
+          "observation": "기존 action은 schemaVersion 없이 actions, actionResolutions, lifeAreas, details를 전송한다."
+        },
+        {
+          "path": "packages/contracts/src/manual-record.ts",
+          "lineStart": 167,
+          "lineEnd": 172,
+          "observation": "신규 파서는 구 키를 허용하지 않고 schemaVersion 2를 요구한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "critical",
+        "assessment": "새 API와 현재 Next 웹을 함께 배포해도 일반 상담 저장 요청은 계약에 맞지 않는다. 정적 코드에서 확인한 불일치이며, 리허설에서 발생한 과거 서버 다이제스트의 원인과는 별개다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI14",
+      "title": "관리자 6자리 초대 코드와 비밀번호 설정 흐름 추가",
+      "commits": [
+        "8bfe49d6c05aaa3c23062b6a9ec3c80cd4251747"
+      ],
+      "surface": "apps/client",
+      "kind": "auth_flow",
+      "evidence": [
+        {
+          "path": "apps/client/src/business/auth.ts",
+          "lineStart": 30,
+          "lineEnd": 46,
+          "observation": "쿼리와 fragment가 없는 최초 /auth/invite 로드를 요구한다."
+        },
+        {
+          "path": "apps/client/src/screens/invites.tsx",
+          "lineStart": 270,
+          "lineEnd": 294,
+          "observation": "정확한 숫자 여섯 자리와 이메일 및 비밀번호 형식을 검사한다."
+        },
+        {
+          "path": "apps/client/src/business/auth.ts",
+          "lineStart": 289,
+          "lineEnd": 310,
+          "observation": "기존 세션이 있으면 거부하고 Supabase 초대 OTP를 검증한다."
+        },
+        {
+          "path": "apps/client/src/screens/invites.tsx",
+          "lineStart": 252,
+          "lineEnd": 258,
+          "observation": "비밀번호 설정 완료 뒤에도 설치 담당자의 업무 계정 연결 완료를 기다리도록 안내한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "기존 토큰 링크나 쿼리/fragment가 붙은 링크를 새 화면에 보내면 거부된다. 이는 명시된 입력 계약이며 유효한 신규 초대의 결함으로 확인한 것은 아니다. 비밀번호 설정만 끝난 상태를 업무 로그인 성공으로 오인하면 안 된다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI15",
+      "title": "AI 대조 및 브리핑 맞춤형 질문의 실제 DTO 소비",
+      "commits": [
+        "91b7859b78285093e26dbbe18048e1f5c78637e1"
+      ],
+      "surface": "apps/client",
+      "kind": "response_contract",
+      "evidence": [
+        {
+          "path": "apps/client/src/business/ai-review.ts",
+          "lineStart": 14,
+          "lineEnd": 17,
+          "observation": "대조 축과 상태를 정본 식별자로 제한한다."
+        },
+        {
+          "path": "apps/client/src/business/ai-review.ts",
+          "lineStart": 83,
+          "lineEnd": 104,
+          "observation": "적용되지 않은 축에는 findings가 없어야 하며 인용을 문자열로 받는다."
+        },
+        {
+          "path": "apps/client/src/business/schedules.ts",
+          "lineStart": 263,
+          "lineEnd": 289,
+          "observation": "브리핑의 맞춤형 질문을 문자열 배열로 해독한다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 1098,
+          "lineEnd": 1110,
+          "observation": "서버 브리핑은 맞춤형 질문 본문만 배열로 내보낸다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "medium",
+        "assessment": "정본 API와 맞춘 소비자 교정이다. 구 응답 형태 또는 캐시된 클라이언트와 조합하면 해독 실패가 날 수 있으므로 승인 검토와 브리핑을 따로 확인한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "UI16",
+      "title": "인테이크 배포 시차 위험과 남은 Next 동의 형식 불일치",
+      "commits": [
+        "3f47763534a4ed835461e51d083456dd9500864e",
+        "97a240f3cb87d1de9ad48e48ce3ab1d48b52c4a5",
+        "4a2070e6cf04bb04bd3a734a92150168932dd406"
+      ],
+      "surface": "apps/web + API",
+      "kind": "unmigrated_consumer",
+      "evidence": [
+        {
+          "path": "apps/web/app/lib/api.ts",
+          "lineStart": 1870,
+          "lineEnd": 1904,
+          "observation": "새 필수 응답 키를 읽고 예전 saved/overallGoal/schedule 누락 허용을 없앴다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 1152,
+          "lineEnd": 1169,
+          "observation": "서버는 새 키와 consent 배열을 보낸다."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lineStart": 22048,
+          "lineEnd": 22053,
+          "observation": "동의 타입은 배열이다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "critical",
+        "assessment": "신구 버전 혼합 때 신규 키 또는 저장본 형태 때문에 실패할 수 있다. 동일 tip에서도 Next의 consent 객체 가정이 남아 있으므로 순서만 맞춘 배포는 해결책이 아니다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE01",
+      "title": "인테이크 저장본 v2와 작성 봉투 v3 및 질문 이력",
+      "commits": [
+        "97a240f3cb87d1de9ad48e48ce3ab1d48b52c4a5",
+        "a1afc7a770daed0f2e3b994cdf145f3dbe181eae",
+        "4a2070e6cf04bb04bd3a734a92150168932dd406"
+      ],
+      "surface": "API + database",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "packages/contracts/src/intake.ts",
+          "lineStart": 3,
+          "lineEnd": 6,
+          "observation": "저장본 버전 2, 작성 봉투 버전 3, 질문 수명주기 버전 1이다."
+        },
+        {
+          "path": "packages/contracts/src/intake.ts",
+          "lineStart": 140,
+          "lineEnd": 159,
+          "observation": "질문 참조 및 철회 목록과 수정 expectedRevision이 계약에 들어간다."
+        },
+        {
+          "path": "migrations/sqlite/0062_intake_versions.sql",
+          "lineStart": 2,
+          "lineEnd": 10,
+          "observation": "사업 모듈과 인테이크 버전 및 수정 이력을 저장한다."
+        },
+        {
+          "path": "migrations/sqlite/0064_intake_question_lifecycle.sql",
+          "lineStart": 1,
+          "lineEnd": 6,
+          "observation": "질문 수명주기를 저장본과 이력에 추가한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "화면, API, DB를 함께 맞춰야 한다. 구 봉투를 보내거나 수정 revision이 없으면 거부된다. 금융 모듈 변경 뒤 오래된 스냅샷도 충돌할 수 있다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE02",
+      "title": "수기 기록 v2와 리포트 v2 생산자",
+      "commits": [
+        "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "46e32f8a85bf9142d76063b86f65bc96ded72a7f"
+      ],
+      "surface": "API + database",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "packages/contracts/src/manual-record.ts",
+          "lineStart": 167,
+          "lineEnd": 204,
+          "observation": "구 요청 키를 받지 않고 v2, 시각 및 질문 source revision을 검증한다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 3117,
+          "lineEnd": 3120,
+          "observation": "새 records/context 경로를 제공한다."
+        },
+        {
+          "path": "packages/contracts/src/report.ts",
+          "lineStart": 20,
+          "lineEnd": 52,
+          "observation": "리포트 v2, 방문 채널과 질문 참조 및 회차별 실무자 의견을 정의한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "critical",
+        "assessment": "Next 일반 상담 action은 전환되지 않아 새 API에서 거부된다. 기존 기록은 이력을 보존하는 스키마로 조회하되 새 DTO를 소비해야 한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE03",
+      "title": "기관 월간 감사 집계 API 추가",
+      "commits": [
+        "1caa2a4e165c4a9a73a09a401983fcfb73cdaccf"
+      ],
+      "surface": "API",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 2640,
+          "lineEnd": 2643,
+          "observation": "GET /audit-log/monthly-summary?month 경로다."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lineStart": 13467,
+          "lineEnd": 13488,
+          "observation": "기관 관리자 권한과 기관 시간대를 요구한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "medium",
+        "assessment": "기관 시간대가 비었거나 잘못되면 집계를 거부한다. 새 화면을 추가했다고 볼 근거는 없으므로 API 전용 변경으로 분류한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE04",
+      "title": "팀 감독 접근 제거와 첫 출고 업무 역할 축소",
+      "commits": [
+        "5ef5a0b3e5c6459208239c0096b056b6ab70deaa"
+      ],
+      "surface": "API authorization",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "packages/core/src/access-policy.ts",
+          "lineStart": 16,
+          "lineEnd": 40,
+          "observation": "접근 근거에서 team_supervision을 제거한다."
+        },
+        {
+          "path": "packages/http-api/src/identity.ts",
+          "lineStart": 81,
+          "lineEnd": 90,
+          "observation": "supervisor-only는 counselor로 바꾸지 않고 업무 역할 없음으로 거부한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "기존 실무 책임자 단독 역할로 로그인하던 계정은 업무 접근이 거부될 수 있다. worker나 institution-admin과의 겸임 여부를 승인된 시험 계정에서 구분해야 한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE05",
+      "title": "사례 CSV 내보내기 추가와 최종 GET 통일",
+      "commits": [
+        "a42c15e30aa34b7de3715c8bee78528cb2a57194",
+        "34513485230673a5a5d2e07cedf61f20f6523514"
+      ],
+      "surface": "API export",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 2940,
+          "lineEnd": 2954,
+          "observation": "CSV는 GET이며 기존 JSON export의 POST는 별도 경로로 남는다."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lineStart": 13676,
+          "lineEnd": 13688,
+          "observation": "선택 사례 접근 검사를 통과해야 하고 미승인 AI, 원음 및 전사를 재료에서 제외한다."
+        },
+        {
+          "path": "packages/core/src/support-case-csv.ts",
+          "lineStart": 169,
+          "lineEnd": 174,
+          "observation": "UTF-8 BOM과 CSV 행을 생성한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "중간 구현의 POST export.csv 소비자는 최종 tip에서 동작하지 않는다. 읽기 권한과 내보내기 자료 범위를 실제 승인 계정으로 확인해야 한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE06",
+      "title": "실무자 초대 수락에 검증된 신원 필수화",
+      "commits": [
+        "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d"
+      ],
+      "surface": "API auth",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 2439,
+          "lineEnd": 2462,
+          "observation": "Authorization, 검증 함수, subject와 이메일 대조가 없으면 404다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "구 초대 수락 클라이언트가 인증 없이 요청하면 거부된다. /auth/invite의 Supabase OTP와 /preview/admin 지정 코드 검증은 서로 다르다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE07",
+      "title": "Community Cloud CORS 계약 교정",
+      "commits": [
+        "6ff75d272ca0ca7c81f8161a9ec118dd1807d67b"
+      ],
+      "surface": "Community Cloud runtime",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "apps/community-cloud/src/runtime.ts",
+          "lineStart": 26,
+          "lineEnd": 31,
+          "observation": "OPTIONS와 If-Match를 허용 목록에 넣는다."
+        },
+        {
+          "path": "apps/community-cloud/src/runtime.ts",
+          "lineStart": 94,
+          "lineEnd": 130,
+          "observation": "신뢰 origin과 요청 메서드 및 헤더를 검사하고 적합한 preflight에 204를 반환한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "medium",
+        "assessment": "허용되지 않은 origin 또는 헤더로 보내면 브라우저 요청이 차단된다. 서버 단독 호출 성공만으로 브라우저 연결이 검증되지 않는다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE08",
+      "title": "텍스트 처리 원천 버전과 검사 구간 결속",
+      "commits": [
+        "e8208cf887eeed8203aaa2f41fb0b278538a6b92",
+        "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"
+      ],
+      "surface": "Agent API",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "packages/contracts/src/agent-jobs.ts",
+          "lineStart": 238,
+          "lineEnd": 250,
+          "observation": "텍스트 결과의 checkedSource가 원천 revision, hash, 검사 구간을 나타낸다."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lineStart": 11844,
+          "lineEnd": 11856,
+          "observation": "일반 텍스트 결과에서 checkedSource가 없거나 현재 원천과 다르면 거부한다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 3287,
+          "lineEnd": 3294,
+          "observation": "회차 처리 상태 GET과 명시적 재처리 POST를 제공한다."
+        },
+        {
+          "path": "migrations/sqlite/0065_agent_text_source_fence.sql",
+          "lineStart": 3,
+          "lineEnd": 10,
+          "observation": "원천 세대와 hash 및 실제 검사 범위를 저장한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "구 Agent 결과나 원문 수정 전에 받은 일감은 그대로 수락되지 않는다. 재처리를 자동 성공으로 처리하지 않고 상태와 stale_claim을 확인해야 한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE09",
+      "title": "암호화 사례 대응표와 개체 등록의 원천 및 임대 결속",
+      "commits": [
+        "9a09f9443a87f569c691f86c2c26046324076204",
+        "6f6e334cb4e5e693f7aede38240f9ca0b8443562",
+        "33cd1940f7e9af6078142214f70725728c573e21"
+      ],
+      "surface": "Agent API + database",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "migrations/sqlite/0066_case_entity_mapping.sql",
+          "lineStart": 1,
+          "lineEnd": 8,
+          "observation": "사례 대응표와 revision 및 key version을 암호문으로 저장한다."
+        },
+        {
+          "path": "packages/contracts/src/entity-registration.ts",
+          "lineStart": 17,
+          "lineEnd": 27,
+          "observation": "개체 등록은 일감, claimToken, attempt, sourceBundleRevision 및 expectedMapRevision을 갖는다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 3477,
+          "lineEnd": 3483,
+          "observation": "개체 등록은 service 전용 POST다."
+        },
+        {
+          "path": "migrations/sqlite/0067_entity_registration_binding.sql",
+          "lineStart": 1,
+          "lineEnd": 10,
+          "observation": "사례별 임대와 원천 binding 필드를 추가한다."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lineStart": 10066,
+          "lineEnd": 10077,
+          "observation": "상담 시각과 기관 시간대를 원천 날짜 증거에 결속한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "새 마이그레이션과 Agent 계약을 함께 적용해야 한다. 낡은 임대 및 대응표 revision은 stale_claim 등으로 거부된다. 사용자용 신규 화면은 아니다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE10",
+      "title": "가림 결과 증명의 원자 저장과 외부 호출 전 재검증",
+      "commits": [
+        "4c5fe47bb990fdaedaff7f42f818d7ab4d06784e",
+        "533966888221833b1d8c1fab0edd9a4c35f96b67",
+        "0b8e649036388c254b153285cdde68cb2a49fc59"
+      ],
+      "surface": "AI/Agent API",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "migrations/sqlite/0069_masked_source_proof.sql",
+          "lineStart": 1,
+          "lineEnd": 10,
+          "observation": "가림 스냅샷의 proof_json과 entity_source_binding을 한 쌍으로 저장한다."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lineStart": 11844,
+          "lineEnd": 11866,
+          "observation": "결과 무결성, 원천 binding 및 외부 전사 호출 증거를 재검증한다."
+        },
+        {
+          "path": "migrations/sqlite/0070_openai_egress.sql",
+          "lineStart": 1,
+          "lineEnd": 15,
+          "observation": "외부 호출 원장을 새 구조로 옮긴다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "증명 없는 기존 결과 또는 어긋난 원천은 외부 호출로 진행하지 않는다. 데이터 스키마만 맞췄다는 사실을 AI 처리 성공으로 간주하지 않는다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE11",
+      "title": "상담 기억 입력 범위 축소와 원천 증명 재검증",
+      "commits": [
+        "335284ab685f503041db73e6cda3d2718dafc593",
+        "d9c60f9f5b1511335a838898189fda707ca60f85"
+      ],
+      "surface": "AI/Agent API",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lineStart": 25550,
+          "lineEnd": 25565,
+          "observation": "기억 재료도 원천 revision, 전체 구간 및 hash를 재검증한다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 2652,
+          "lineEnd": 2654,
+          "observation": "최종 첫 출고에서는 상담 기억 설정 경로가 404로 닫힌다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "medium",
+        "assessment": "초기 커밋의 상담 기억 변경을 현재 사용 가능한 기능으로 읽으면 안 된다. 최종 release gate가 일부 진입을 닫으므로 해당 화면을 핵심 성공 스모크로 삼지 않는다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE12",
+      "title": "개인정보 파기 증명 원장과 소유 그래프 정리",
+      "commits": [
+        "5d43bbefe1a3b5a635cb9710f6546c92317732f5",
+        "9a68af962b23c2d3fb52db837b1a8ad7f644ae81",
+        "ff505aae35c917516a80719cc6d7eeeffaee0046",
+        "ca86fe0e4cb97037b68cf8145add604a59ae7a94",
+        "e85d5ffc0f3f1e6a1863d746631bb230a28266f7"
+      ],
+      "surface": "database + retention API",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "migrations/sqlite/0071_privacy_purge_events.sql",
+          "lineStart": 1,
+          "lineEnd": 13,
+          "observation": "파기 intent와 complete를 위한 원장을 추가한다."
+        },
+        {
+          "path": "migrations/sqlite/0072_privacy_purge_owned_graph.sql",
+          "lineStart": 1,
+          "lineEnd": 9,
+          "observation": "완료되지 않은 파기 범위를 뷰로 추적한다."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lineStart": 19817,
+          "lineEnd": 19821,
+          "observation": "파기는 승인된 intent 범위가 있어야 진행한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "high",
+        "assessment": "파기와 복구 절차에 새 표 및 뷰가 필요하다. 기존 PII_PURGE_ENABLED 잠금은 새 기본 활성화가 아니며 이 리허설에서는 파기를 실행하지 않는다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE13",
+      "title": "가림 명세 registry 형식과 hash 검증 단일화",
+      "commits": [
+        "21265854715837b8701e4d518a032b801b40fbc0"
+      ],
+      "surface": "AI/Agent API + environment",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "packages/contracts/src/masking-pipeline.ts",
+          "lineStart": 238,
+          "lineEnd": 266,
+          "observation": "registry는 schemaVersion 1, activeMaskingPipelineVersion, pipelines를 요구한다."
+        },
+        {
+          "path": "packages/contracts/src/masking-pipeline.ts",
+          "lineStart": 226,
+          "lineEnd": 233,
+          "observation": "라벨 목록 hash와 명세 JCS hash를 검증한다."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lineStart": 11634,
+          "lineEnd": 11647,
+          "observation": "MEMORY_MASKING_PIPELINES와 NER 증거가 일치하지 않으면 결과를 거부한다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "critical",
+        "assessment": "같은 환경변수 이름의 구 단순 map 형식을 유지하면 결과 수락에서 masking_pipeline_version_mismatch로 닫힐 수 있다. Agent와 코어의 명세를 함께 맞춰야 한다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false
+    },
+    {
+      "id": "BE14",
+      "title": "첫 출고 서버 경로와 배포 모드 제한",
+      "commits": [
+        "af2bf330a30cb2153645e0ef230f29b2a22e81ca"
+      ],
+      "surface": "API runtime",
+      "kind": "contract",
+      "evidence": [
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 2382,
+          "lineEnd": 2387,
+          "observation": "local-single 및 local-office가 지정된 업무 요청을 거부한다."
+        },
+        {
+          "path": "packages/http-api/src/capabilities.ts",
+          "lineStart": 42,
+          "lineEnd": 54,
+          "observation": "서명 manifest도 community-cloud만 허용한다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 1591,
+          "lineEnd": 1595,
+          "observation": "local STT 요청 경로를 거부한다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 2652,
+          "lineEnd": 2654,
+          "observation": "상담 기억 설정은 404다."
+        },
+        {
+          "path": "apps/api/src/index.ts",
+          "lineStart": 40,
+          "lineEnd": 46,
+          "observation": "상담 기억 cron 매핑을 제거한다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 1768,
+          "lineEnd": 1784,
+          "observation": "provider 결과에서 cross_session 항목을 제외한 뒤 검증한다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 3483,
+          "lineEnd": 3486,
+          "observation": "기억 전용 Agent 경로를 404로 닫는다."
+        }
+      ],
+      "deploymentRisk": {
+        "present": true,
+        "severity": "critical",
+        "assessment": "기존 Local 설치나 Local STT를 이 릴리스로 계속 운영할 수 있다고 가정하면 안 된다. 서버 차단이 생겼으며 메뉴 숨김과 별개로 검증해야 한다. D1 binding 변경이나 원음 cron 주기 변경은 이 범위 diff에서 확인하지 못했다.",
+        "status": "static_analysis"
+      },
+      "runtimeVerified": false,
+      "finalReleaseBehavior": "상담 기억 설정과 trial 및 전용 Agent 경로를 닫고, 회차 간 불일치는 신규 결과에서 제외한다. 모든 초대 API를 일괄 폐쇄한 변경은 아니다."
+    }
+  ],
+  "newRequirements": [
+    {
+      "id": "REQ-STACK",
+      "category": "deployment_surface",
+      "new": false,
+      "requirement": "배포 대상을 먼저 구분해야 한다. 기존 preview와 운영 workflow는 apps/web 및 apps/api를 배포하고 apps/client를 배포하지 않는다.",
+      "risk": "새 클라이언트의 등록, 수기 v2, 리포트 및 녹음 변경을 Next 리허설 증상의 수정으로 오인할 수 있다.",
+      "status": "confirmed_from_repository",
+      "evidence": [
+        {
+          "path": ".github/workflows/deploy-preview.yml",
+          "lineStart": 57,
+          "lineEnd": 65,
+          "observation": "Next 웹과 API만 배포한다."
+        },
+        {
+          "path": ".github/workflows/deploy-production.yml",
+          "lineStart": 150,
+          "lineEnd": 158,
+          "observation": "운영 workflow도 같은 Next 웹과 API를 배포한다."
+        }
+      ],
+      "commits": []
+    },
+    {
+      "id": "REQ-TRUST",
+      "category": "build_environment",
+      "new": true,
+      "requirement": "apps/client는 VITE_CCC_INSTALL_TRUST를 빌드 시 받아야 한다. publicKeys, revokedKeyIds, minSequence, expectedInstallationId 네 필드를 갖춘 설치기 소유 객체여야 한다.",
+      "risk": "구 키 목록 환경변수만 유지하면 trust_missing으로 초기 진입이 막힌다. 시크릿 값이 아니라 공개 신뢰 설정이며 이 조사에서 값을 조회하지 않았다.",
+      "status": "confirmed_from_repository",
+      "commits": [
+        "d49449dab92e5e7691c008b21fb65ecfa4dd5c78"
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/business/installation.ts",
+          "lineStart": 18,
+          "lineEnd": 58,
+          "observation": "필수 구조와 형식을 검사한다."
+        },
+        {
+          "path": "apps/client/tools/build-release.mjs",
+          "lineStart": 89,
+          "lineEnd": 94,
+          "observation": "Vite 빌드 환경에 새 변수를 넣는다."
+        }
+      ]
+    },
+    {
+      "id": "REQ-CLIENT-DTO",
+      "category": "response_contract",
+      "new": true,
+      "requirement": "새 클라이언트에는 등록 응답 canWriteIntake, 사업 financialSupportEnabled, 인테이크 writeSchemaVersion 3, 수기 manual 투영 및 records/context, 리포트 schemaVersion 2가 필요하다.",
+      "risk": "부분 배포 또는 구 캐시와 새 API의 조합은 저장 후 invalid_response 또는 읽기 거부를 일으킬 수 있다.",
+      "status": "confirmed_from_repository",
+      "commits": [
+        "91b7859b78285093e26dbbe18048e1f5c78637e1",
+        "9b5b5c6e1457240225acb2f3859771bc22f82919",
+        "331f2fdbe1a2bf7d236bc68a8aee829dc45ff5da",
+        "0cefde1e339d2d4af09ad813aeb1bc1bd28eb103"
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/business/participants.ts",
+          "lineStart": 241,
+          "lineEnd": 252,
+          "observation": "등록 응답 필수 키를 제한한다."
+        },
+        {
+          "path": "apps/client/src/business/records.ts",
+          "lineStart": 214,
+          "lineEnd": 238,
+          "observation": "새 컨텍스트를 엄격히 검사한다."
+        },
+        {
+          "path": "apps/client/src/business/report.ts",
+          "lineStart": 81,
+          "lineEnd": 89,
+          "observation": "v2 응답만 받는다."
+        }
+      ]
+    },
+    {
+      "id": "REQ-STATIC-RELEASE",
+      "category": "release_artifact",
+      "new": true,
+      "requirement": "Deno 정적 경로를 쓸 때 index 및 assets뿐 아니라 ccc-install-manifest.json, ccc-bootstrap.json, ccc-deploy-headers.json이 일관된 산출물이어야 한다.",
+      "risk": "파일 또는 보안 헤더가 없거나 설치 신뢰가 틀리면 서버 시작이나 브라우저 API 호출이 막힌다.",
+      "status": "confirmed_from_repository",
+      "commits": [
+        "189560feb146b94973becb0b182d16a00e32505a",
+        "d49449dab92e5e7691c008b21fb65ecfa4dd5c78"
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/tools/build-release.mjs",
+          "lineStart": 97,
+          "lineEnd": 133,
+          "observation": "공개 문서와 헤더를 생성한다."
+        },
+        {
+          "path": "apps/client/tools/serve-release.mjs",
+          "lineStart": 25,
+          "lineEnd": 26,
+          "observation": "검증 실패를 허용하지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "REQ-AUDIO",
+      "category": "existing_gate_new_entry",
+      "new": false,
+      "requirement": "새 녹음 버튼을 사용해도 승인 엔진, 건강한 Agent, 경로별 동의, 사업 도입 확인 및 원음 저장 경계는 그대로 필요하다.",
+      "risk": "버튼이 생겼다는 사실은 제품 활성화나 외부 전송 허가가 아니다. 이 조사에서는 자격 및 실제 설치 상태를 검증하지 않았다.",
+      "status": "confirmed_entry_with_unverified_runtime",
+      "commits": [
+        "a67e00fd7a292ce3ba5bf3930b3ffa6ecb85d0a7"
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/screens/records.tsx",
+          "lineStart": 514,
+          "lineEnd": 547,
+          "observation": "엔진, 동의, 사업 및 권한 거부 안내를 구분한다."
+        },
+        {
+          "path": "apps/client/src/business/records.ts",
+          "lineStart": 377,
+          "lineEnd": 395,
+          "observation": "파일 제한과 전송 완료 순서를 따른다."
+        }
+      ]
+    },
+    {
+      "id": "REQ-ADMIN-INVITE",
+      "category": "new_entry_contract",
+      "new": true,
+      "requirement": "/auth/invite는 쿼리 및 fragment 없는 최초 진입, 초대 이메일, 6자리 숫자, 새 비밀번호와 확인 입력을 요구한다. preview 지정 코드를 넣는 자리가 아니다.",
+      "risk": "구 토큰 링크, 다른 종류의 코드 및 남아 있는 세션은 거부된다. 비밀번호 설정 뒤 업무 계정 연결은 별도 단계다.",
+      "status": "confirmed_from_repository",
+      "commits": [
+        "8bfe49d6c05aaa3c23062b6a9ec3c80cd4251747"
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/business/auth.ts",
+          "lineStart": 30,
+          "lineEnd": 46,
+          "observation": "최초 진입을 확인한다."
+        },
+        {
+          "path": "apps/client/src/screens/invites.tsx",
+          "lineStart": 252,
+          "lineEnd": 294,
+          "observation": "업무 계정 연결 대기와 새 코드 입력 계약을 표시한다."
+        }
+      ]
+    },
+    {
+      "id": "REQ-NEXT-CONSUMERS",
+      "category": "unresolved_compatibility",
+      "new": false,
+      "requirement": "기존 Next 배포 경로를 계속 사용할 경우 등록, 공통 사업 응답의 consent, 인테이크 consent 및 수기 v2 요청의 소비자 불일치가 해결되어야 한다.",
+      "risk": "미수정 상태로 이 커밋 범위만 배포해도 같은 오류 또는 신규 일반 상담 저장 거부가 남는다. 이 조사에서는 수정하지 않았다.",
+      "status": "confirmed_from_repository",
+      "commits": [
+        "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "3f47763534a4ed835461e51d083456dd9500864e"
+      ],
+      "evidence": [
+        {
+          "path": "apps/web/app/actions.ts",
+          "lineStart": 938,
+          "lineEnd": 955,
+          "observation": "구 등록 봉투다."
+        },
+        {
+          "path": "apps/web/app/lib/api.ts",
+          "lineStart": 1008,
+          "lineEnd": 1009,
+          "observation": "사업 응답에 없는 consent를 필수로 읽는다."
+        },
+        {
+          "path": "apps/web/app/lib/api.ts",
+          "lineStart": 1892,
+          "lineEnd": 1898,
+          "observation": "인테이크 consent 배열을 객체로 가정한다."
+        },
+        {
+          "path": "apps/web/app/actions.ts",
+          "lineStart": 1501,
+          "lineEnd": 1515,
+          "observation": "일반 상담도 구 봉투다."
+        }
+      ]
+    },
+    {
+      "id": "REQ-MIGRATIONS",
+      "category": "database_schema",
+      "new": true,
+      "requirement": "선택한 저장소의 새 마이그레이션을 코드보다 먼저 적용해야 한다. 이 보고서는 적용 명령을 실행하지 않았다.",
+      "migrations": [
+        "migrations/postgres/0018_intake_versions.sql",
+        "migrations/postgres/0019_manual_record_lifecycle.sql",
+        "migrations/postgres/0020_intake_question_lifecycle.sql",
+        "migrations/postgres/0021_agent_text_source_fence.sql",
+        "migrations/postgres/0022_case_entity_mapping.sql",
+        "migrations/postgres/0023_entity_registration_binding.sql",
+        "migrations/postgres/0024_entity_source_invalidation.sql",
+        "migrations/postgres/0025_masked_source_proof.sql",
+        "migrations/postgres/0026_openai_egress.sql",
+        "migrations/postgres/0027_privacy_purge_events.sql",
+        "migrations/postgres/0028_privacy_purge_owned_graph.sql",
+        "migrations/sqlite/0062_intake_versions.sql",
+        "migrations/sqlite/0063_manual_record_lifecycle.sql",
+        "migrations/sqlite/0064_intake_question_lifecycle.sql",
+        "migrations/sqlite/0065_agent_text_source_fence.sql",
+        "migrations/sqlite/0066_case_entity_mapping.sql",
+        "migrations/sqlite/0067_entity_registration_binding.sql",
+        "migrations/sqlite/0068_entity_source_invalidation.sql",
+        "migrations/sqlite/0069_masked_source_proof.sql",
+        "migrations/sqlite/0070_openai_egress.sql",
+        "migrations/sqlite/0071_privacy_purge_events.sql",
+        "migrations/sqlite/0072_privacy_purge_owned_graph.sql"
+      ],
+      "risk": "인테이크 및 수기 이력, 원천 버전, 대응표, 증명 원장과 파기 뷰가 없으면 새 코드의 조회 또는 저장이 실패한다. 순차 배포 시 구 웹과 새 API의 DTO 불일치도 별도로 남는다.",
+      "status": "confirmed_files_runtime_application_unknown",
+      "commits": [
+        "97a240f3cb87d1de9ad48e48ce3ab1d48b52c4a5",
+        "a1afc7a770daed0f2e3b994cdf145f3dbe181eae",
+        "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "4a2070e6cf04bb04bd3a734a92150168932dd406",
+        "e8208cf887eeed8203aaa2f41fb0b278538a6b92",
+        "9a09f9443a87f569c691f86c2c26046324076204",
+        "6f6e334cb4e5e693f7aede38240f9ca0b8443562",
+        "33cd1940f7e9af6078142214f70725728c573e21",
+        "4c5fe47bb990fdaedaff7f42f818d7ab4d06784e",
+        "533966888221833b1d8c1fab0edd9a4c35f96b67",
+        "5d43bbefe1a3b5a635cb9710f6546c92317732f5",
+        "ca86fe0e4cb97037b68cf8145add604a59ae7a94"
+      ],
+      "evidence": [
+        {
+          "path": "migrations/sqlite/0062_intake_versions.sql",
+          "lineStart": 2,
+          "lineEnd": 10,
+          "observation": "새 인테이크 필드와 표를 추가한다."
+        },
+        {
+          "path": "migrations/sqlite/0063_manual_record_lifecycle.sql",
+          "lineStart": 2,
+          "lineEnd": 10,
+          "observation": "수기 버전과 이력을 추가한다."
+        },
+        {
+          "path": "migrations/sqlite/0065_agent_text_source_fence.sql",
+          "lineStart": 3,
+          "lineEnd": 10,
+          "observation": "원천 추적 열을 추가한다."
+        }
+      ]
+    },
+    {
+      "id": "REQ-MASKING-REGISTRY",
+      "category": "environment_format",
+      "new": true,
+      "requirement": "MEMORY_MASKING_PIPELINES에는 schemaVersion:1, activeMaskingPipelineVersion, pipelines를 갖춘 registry JSON이 필요하다. 개별 명세의 라벨 및 JCS hash도 검증한다.",
+      "risk": "이름은 같아도 구 값 구조로는 새 검증을 통과하지 못한다. 실제 환경값은 읽지 않았고 정상 구성 여부는 미확인이다.",
+      "status": "confirmed_from_repository",
+      "commits": [
+        "21265854715837b8701e4d518a032b801b40fbc0"
+      ],
+      "evidence": [
+        {
+          "path": "packages/contracts/src/masking-pipeline.ts",
+          "lineStart": 238,
+          "lineEnd": 266,
+          "observation": "정확한 registry 구조를 요구한다."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lineStart": 11634,
+          "lineEnd": 11647,
+          "observation": "등록 명세와 NER 증거가 어긋나면 결과를 거부한다."
+        }
+      ]
+    },
+    {
+      "id": "REQ-AGENT-SOURCE",
+      "category": "agent_request",
+      "new": true,
+      "requirement": "일반 텍스트 결과에는 현재 원천의 checkedSource가 있어야 하고, 개체 등록은 sourceBundleRevision과 expectedMapRevision 및 claim/attempt가 일치해야 한다.",
+      "risk": "구 Agent와 새 API 조합 또는 원문 수정 뒤의 낡은 결과는 결과 형식 오류나 stale_claim으로 거부된다.",
+      "status": "confirmed_from_repository",
+      "commits": [
+        "e8208cf887eeed8203aaa2f41fb0b278538a6b92",
+        "6f6e334cb4e5e693f7aede38240f9ca0b8443562",
+        "33cd1940f7e9af6078142214f70725728c573e21"
+      ],
+      "evidence": [
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lineStart": 11844,
+          "lineEnd": 11856,
+          "observation": "검사 구간과 원천 revision/hash를 확인한다."
+        },
+        {
+          "path": "packages/contracts/src/entity-registration.ts",
+          "lineStart": 17,
+          "lineEnd": 27,
+          "observation": "등록 요청의 고정 필드를 선언한다."
+        }
+      ]
+    },
+    {
+      "id": "REQ-RELEASE-MODE",
+      "category": "runtime_mode",
+      "new": true,
+      "requirement": "최종 첫 출고 API는 Community Cloud manifest만 허용하고 Local 배포 및 Local STT 경로는 닫는다.",
+      "risk": "기존 Local 설정으로 그대로 배포하면 업무 API나 capabilities가 503으로 거부될 수 있다. 기존 supervisor-only 권한도 업무 역할로 인정하지 않는다.",
+      "status": "confirmed_from_repository",
+      "commits": [
+        "af2bf330a30cb2153645e0ef230f29b2a22e81ca",
+        "5ef5a0b3e5c6459208239c0096b056b6ab70deaa"
+      ],
+      "evidence": [
+        {
+          "path": "packages/http-api/src/capabilities.ts",
+          "lineStart": 42,
+          "lineEnd": 54,
+          "observation": "community-cloud 외 모드는 거부한다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 2382,
+          "lineEnd": 2387,
+          "observation": "명시된 Local mode 요청을 차단한다."
+        },
+        {
+          "path": "packages/http-api/src/identity.ts",
+          "lineStart": 81,
+          "lineEnd": 90,
+          "observation": "worker 또는 기관 관리자 등의 인정된 업무 역할을 요구한다."
+        }
+      ]
+    }
+  ],
+  "postDeploySmokeOrder": [
+    {
+      "order": 1,
+      "screen": "미리보기 지정 코드",
+      "path": "/preview",
+      "surface": "apps/web preview",
+      "priority": "P0",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "빌드 도장이 배포 대상 SHA와 일치한다.",
+        "승인된 실무자용 지정 코드로 잠금이 풀리고 업무 화면에 진입한다. 잘못된 코드는 잠금을 유지한다. 코드값은 보고하거나 캡처하지 않는다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/web/app/preview/page.tsx",
+          "lineStart": 14,
+          "lineEnd": 22,
+          "observation": "실무자용 preview 게이트다."
+        },
+        {
+          "path": ".github/workflows/deploy-preview.yml",
+          "lineStart": 57,
+          "lineEnd": 65,
+          "observation": "API와 Next 웹을 순서대로 배포하고 도장을 넣는다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 2,
+      "screen": "기관 관리자 미리보기",
+      "path": "/preview/admin",
+      "surface": "apps/web preview",
+      "priority": "P0",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "관리자용 지정 코드로 관리자 세션에 진입한다.",
+        "실무자 코드와 혼용하지 않고 실패 시 사용자 입력 오류와 설정 미준비를 구분한다. 코드값은 기록하지 않는다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/web/app/preview/admin/page.tsx",
+          "lineStart": 8,
+          "lineEnd": 17,
+          "observation": "mode=admin으로 같은 게이트를 연다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 3,
+      "screen": "내 정보 및 연결 상태",
+      "path": "/settings?module=system",
+      "surface": "apps/client",
+      "priority": "P0",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "새로 배포한 클라이언트에서 trust_missing 또는 installation_invalid 없이 로그인한다.",
+        "기관 ID와 준비 상태가 올바르고 API 응답이 CORS 또는 CSP로 차단되지 않는다.",
+        "STT가 미승인 또는 꺼짐이면 해당 상태를 사실대로 보이며 수기 경로가 열린다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/business/navigation.ts",
+          "lineStart": 23,
+          "lineEnd": 24,
+          "observation": "기관 준비와 연결 상태 경로가 존재한다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 4,
+      "screen": "기관 준비와 사업 설정",
+      "path": "/onboarding",
+      "surface": "apps/client",
+      "priority": "P1",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "설정이 필요한 합성 기관에서 이름과 첫 사업 및 금전 지원 여부를 저장한다.",
+        "기존 준비된 기관에서는 불필요하게 재설정하지 않고 사업 목록과 financialSupportEnabled 표시만 확인한다.",
+        "미확인 사업은 잠기고 확인이 끝난 사업만 등록 대상으로 열린다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 281,
+          "lineEnd": 297,
+          "observation": "나열한 당사자, 기록, 인테이크와 일정 경로가 실제 라우트로 존재한다. apps/web 경로는 해당 app 디렉터리에서 별도로 확인했다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 5,
+      "screen": "당사자 등록",
+      "path": "/participants/new",
+      "surface": "apps/web 우선, apps/client 배포 시 별도 반복",
+      "priority": "P0",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "적법한 동의와 필수 사업 및 담당 정보를 넣어 한 번 등록하면 새 당사자와 사례로 연결된다.",
+        "검증 거부를 한 번 유도했을 때 입력한 비민감 값이 유지되고 어느 입력을 고쳐야 하는지 알 수 있다. 입력 초기화가 재현되면 실패다.",
+        "재제출 결과를 확인해 중복 등록이 없는지 화면에서 확인한다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/web/app/participants/new/page.tsx",
+          "lineStart": 65,
+          "lineEnd": 81,
+          "observation": "실제 등록 폼과 서버 액션을 렌더한다."
+        },
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 283,
+          "lineEnd": 284,
+          "observation": "클라이언트에도 별도의 등록 화면이 있다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 6,
+      "screen": "당사자 정보",
+      "path": "/participants/{beneficiaryId}",
+      "surface": "apps/web 우선, apps/client 배포 시 별도 반복",
+      "priority": "P0",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "방금 만든 당사자와 기존 합성 당사자 모두 상세가 열린다.",
+        "당사자 기본 정보, 참여 사업, 담당이 맞고 Next 서버 다이제스트 또는 invalid_response가 없어야 한다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 281,
+          "lineEnd": 297,
+          "observation": "나열한 당사자, 기록, 인테이크와 일정 경로가 실제 라우트로 존재한다. apps/web 경로는 해당 app 디렉터리에서 별도로 확인했다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 7,
+      "screen": "상담 기록하기 또는 오늘 상담 기록",
+      "path": "/participants/{beneficiaryId}/programs/{supportCaseId}/records/new",
+      "surface": "apps/web 우선, apps/client 배포 시 별도 반복",
+      "priority": "P0",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "담당 배정된 진행 사례에서 작성 화면이 서버 예외 없이 열린다.",
+        "상담 일시와 수기 메모를 저장하면 공식 회차가 한 번만 생성된다.",
+        "구 Next 요청이 새 v2 API에서 거부되는지 최우선으로 본다. 거부되면 이후 쓰기 리허설을 중단한다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 281,
+          "lineEnd": 297,
+          "observation": "나열한 당사자, 기록, 인테이크와 일정 경로가 실제 라우트로 존재한다. apps/web 경로는 해당 app 디렉터리에서 별도로 확인했다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 8,
+      "screen": "상담 기록 확인하기 또는 상담 기록",
+      "path": "/participants/{beneficiaryId}/programs/{supportCaseId}/records",
+      "surface": "apps/web 우선, apps/client 배포 시 별도 반복",
+      "priority": "P0",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "기존 회차와 방금 저장한 수기 회차가 모두 보인다.",
+        "원문, 상담일, 할 일이 실제 입력과 맞고 미승인 AI 초안이 공식 기록으로 보이지 않는다.",
+        "서버 다이제스트, 빈 전체 화면, invalid_response가 없다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 281,
+          "lineEnd": 297,
+          "observation": "나열한 당사자, 기록, 인테이크와 일정 경로가 실제 라우트로 존재한다. apps/web 경로는 해당 app 디렉터리에서 별도로 확인했다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 9,
+      "screen": "인테이크 기록 또는 첫 상담 기록",
+      "path": "/participants/{beneficiaryId}/programs/{supportCaseId}/records/intake",
+      "surface": "apps/web 우선, apps/client 배포 시 별도 반복",
+      "priority": "P0",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "기존 v1 기록의 조회와 새 인테이크 작성이 모두 열린다.",
+        "해당 사업 모듈에 맞는 응답을 넣고 저장한 뒤 같은 주소에서 조회와 ?edit=1 수정이 된다.",
+        "클라이언트는 기존 기록 전환을 요구할 경우 명시적 확인 후 수정하며, 새 버전과 기존 이력이 보존된다.",
+        "새 질문 유지 및 철회 뒤 중복 질문이 생기지 않고, 오래된 revision의 수정은 충돌로 안내한다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx",
+          "lineStart": 90,
+          "lineEnd": 107,
+          "observation": "기본은 조회이고 ?edit=1만 수정 모드다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 10,
+      "screen": "상담 일정 등록 또는 상담 등록",
+      "path": "/schedules/new",
+      "surface": "apps/web 우선, apps/client 배포 시 별도 반복",
+      "priority": "P0",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "합성 당사자로 오늘 10:30과 자정에 가까운 시각의 예약을 각각 만든다.",
+        "입력 시각과 시간대 기준을 기록하고 아래 일정 조회에서 아홉 시간 이동이나 날짜 이동이 없어야 한다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 281,
+          "lineEnd": 297,
+          "observation": "나열한 당사자, 기록, 인테이크와 일정 경로가 실제 라우트로 존재한다. apps/web 경로는 해당 app 디렉터리에서 별도로 확인했다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 11,
+      "screen": "상담 일정 보기",
+      "path": "/programs/{programType}/schedule",
+      "surface": "apps/web",
+      "priority": "P0",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "앞 단계의 10:30 예약이 기관 시간대 기준 10:30으로 보인다.",
+        "일간, 주간, 월간 보기와 예약 수정 후에도 시각과 날짜가 그대로다."
+      ],
+      "evidence": [
+        {
+          "path": ".github/workflows/deploy-preview.yml",
+          "lineStart": 60,
+          "lineEnd": 65,
+          "observation": "기존 preview의 배포 대상은 Next 웹이다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 12,
+      "screen": "일정 및 상담 계획",
+      "path": "/schedule",
+      "surface": "apps/client",
+      "priority": "P0",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "클라이언트가 실제로 별도 배포된 경우에만 수행한다.",
+        "예약 시각과 날짜가 입력한 기기 시간대 기준과 맞으며 /schedules/{scheduleId}/plan으로 진입한다.",
+        "계획 수정 이후 이전 version의 저장은 충돌로 처리되고 다른 사례에 기록이 붙지 않는다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 295,
+          "lineEnd": 297,
+          "observation": "일정, 등록, 계획 세 경로를 선언한다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 13,
+      "screen": "15초 페이지 또는 상담 전 톺아보기",
+      "path": "/participants/{beneficiaryId}/programs/{supportCaseId}/briefing",
+      "surface": "apps/web + apps/client",
+      "priority": "P1",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "같은 합성 사례의 공식 수기 기록과 승인된 AI 자료만 표시된다.",
+        "다음 일정의 맞춤형 질문이 객체 문자열이나 빈 값으로 보이지 않는다.",
+        "다른 사례의 자료가 섞이지 않고 근거 회차 링크가 상담 기록의 해당 회차로 연결된다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 287,
+          "lineEnd": 294,
+          "observation": "사례별 브리핑과 기록이 서로 다른 경로다."
+        },
+        {
+          "path": "apps/client/src/business/schedules.ts",
+          "lineStart": 278,
+          "lineEnd": 289,
+          "observation": "다음 일정의 질문을 문자열 배열로 읽는다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 14,
+      "screen": "경과 리포트",
+      "path": "/participants/{beneficiaryId}/programs/{supportCaseId}/report",
+      "surface": "apps/client",
+      "priority": "P1",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "수기 회차와 첫 상담의 근거가 schemaVersion 2 응답으로 렌더된다.",
+        "기록하지 않은 내용을 만들어 보이지 않고 근거 회차 링크가 실제 회차로 이동한다.",
+        "CSV 내려받기는 승인된 내보내기 권한 계정에서 성공하고 권한 없는 계정에서는 서버가 거부한다. 파일에는 합성 자료만 있어야 한다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 290,
+          "lineEnd": 294,
+          "observation": "리포트는 클라이언트 라우트이며 Next 리포트라고 가정하지 않는다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 15,
+      "screen": "AI 정리 검토 및 녹음 올리기",
+      "path": "/participants/{beneficiaryId}/programs/{supportCaseId}/records/{sessionId}/review",
+      "surface": "apps/client",
+      "priority": "P1",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "STT off에서는 녹음 올리기 진입점이 없고 수기 기록으로 돌아갈 수 있다.",
+        "STT mode가 켜져도 승인 엔진, Agent, 동의 또는 사업 확인이 없으면 업로드 거부 이유가 보이며 업로드 완료로 표시하지 않는다.",
+        "모든 승인과 준비가 별도로 충족된 시험 설치에서만 비민감 합성 원음의 대상 발급, 전송, 완료 등록을 확인한다. 외부 호출 승인 없이 성공 경로를 실행하지 않는다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/screens/records.tsx",
+          "lineStart": 684,
+          "lineEnd": 704,
+          "observation": "초안이 없을 때 조건부 업로드 구획을 렌더한다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    },
+    {
+      "order": 16,
+      "screen": "초대 및 상담 기억의 제외 화면",
+      "path": "/participants/invite",
+      "surface": "apps/web + apps/client",
+      "priority": "P1",
+      "precondition": "승인된 리허설 계정과 합성 자료만 사용한다. 이 보고서는 실행 계획이며 실제 실행 결과가 아니다.",
+      "successCriteria": [
+        "첫 출고 메뉴에는 당사자 초대, 실무자 초대 및 상담 기억 진입점이 나타나지 않는다.",
+        "직접 /settings?module=memory로 접근하면 해당 API GET /settings/counseling-memory가 404로 닫혀 있어야 한다. 메뉴 숨김만으로 판정하지 않는다.",
+        "초대 경로는 기존 PUBLIC_SIGNUP_ENABLED 및 권한 계약에 따라 판정한다. 숨긴 메뉴의 모든 API가 무조건 404라고 가정하지 않는다. 초대 생성이나 발송은 별도 승인이 없으면 실행하지 않는다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/business/navigation.ts",
+          "lineStart": 50,
+          "lineEnd": 63,
+          "observation": "초대와 상담 기억 메뉴를 숨긴다."
+        },
+        {
+          "path": "packages/http-api/src/request-handler.ts",
+          "lineStart": 2652,
+          "lineEnd": 2654,
+          "observation": "상담 기억 설정 API는 명시적으로 404다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다.",
+      "relatedPaths": [
+        "/participants/invite",
+        "/staff-invites",
+        "/settings?module=memory"
+      ]
+    },
+    {
+      "order": 17,
+      "screen": "관리자 초대",
+      "path": "/auth/invite",
+      "surface": "apps/client",
+      "priority": "P1",
+      "precondition": "해당 배포가 신규 관리자 초대 흐름을 포함하고 시험 초대 사용이 별도로 승인된 경우에만 수행한다. 기존 preview 관리자 코드 점검을 대체하지 않는다.",
+      "successCriteria": [
+        "별도 승인된 아직 유효한 합성 시험 초대가 있을 때만 실행하며 초대 발급이나 이메일 발송은 이 스모크에 포함하지 않는다.",
+        "쿼리와 fragment 없는 주소를 새로 열면 입력 폼이 보인다. 올바른 초대의 이메일 및 6자리 코드와 비밀번호로 설정을 마친다.",
+        "비밀번호 설정 완료와 업무 계정 연결 완료를 구분한다. 만료, 잘못된 코드, 기존 세션은 허용하지 않는다. 비밀번호나 코드값은 기록하지 않는다."
+      ],
+      "evidence": [
+        {
+          "path": "apps/client/src/app.tsx",
+          "lineStart": 272,
+          "lineEnd": 274,
+          "observation": "/auth/invite가 실제 관리자 초대 경로다."
+        }
+      ],
+      "executionStatus": "not_run",
+      "applicability": "표시한 surface가 실제 배포된 경우에만 적용한다. 미배포 surface는 not_applicable로 기록한다.",
+      "resultRule": "blocked.smokeExecutionRules를 적용하며 관측 근거 없는 성공 판정은 금지한다."
+    }
+  ],
+  "mutations": {
+    "sourceCodeChanged": false,
+    "reportPath": "artifacts/orchestration/commit-range-analysis.json",
+    "allowedTrackedPaths": [
+      "artifacts/orchestration/commit-range-analysis.json"
+    ],
+    "reportOnlyCommitRequested": true,
+    "merge": false,
+    "push": false,
+    "branchSwitch": false,
+    "deployment": false,
+    "productionDatabaseRead": false,
+    "secretValuesReadOrPrinted": false,
+    "temporaryEvidence": "고정 Git 객체의 목록과 diff를 시스템 임시 디렉터리에 내보내 읽기 전용 조사에 사용했다. 저장소 소스는 변경하지 않았다.",
+    "applicationTestsOrBuildsRun": false,
+    "commitHooks": "기본 pre-commit을 우회하지 않는다. 저장소의 정적 guard 및 guard:hierarchy:test 결과는 커밋 실행 출력이 근거이며 제품 동작 검증을 대신하지 않는다.",
+    "scope": "모든 변경 여부는 이 조사 작업이 수행한 행위를 뜻한다. 다른 작업의 소스 수정은 gitStatus에 따로 기록했다."
+  },
+  "gitStatus": {
+    "branch": "release/0916",
+    "capturePhase": "보고 커밋 전의 분석 기준을 고정했다. branchTip은 이 보고서 자신의 커밋을 포함하지 않는다.",
+    "initialStatus": [
+      "?? artifacts/prod-migration-2026-09-16/",
+      "?? artifacts/release/"
+    ],
+    "analysisTip": "9df84b44b3a6520db1675f0e2a658941c412ca1e",
+    "range": "ad218e8eafa646a524674fe4ef8cf9c20c0b68bb..9df84b44b3a6520db1675f0e2a658941c412ca1e",
+    "comparisonMethod": "지정한 main tip이 조상임을 merge-base로 확인하고 rev-list, log, diff, 고정 객체의 git show를 조사했다. 운영 재현이나 DB 조회는 하지 않았다.",
+    "countDifference": {
+      "userReportedCount": 114,
+      "observedCount": 117,
+      "matching114Boundary": "4388f62ad48f05f0adecd0a3e6a894e9c9d46817",
+      "boundaryStatus": "추정: tip~3의 범위가 114커밋이라는 것은 확인했다. 사용자가 지칭한 tip 자체는 제공되지 않았으므로 동일 tip이었다고 단정하지 않는다.",
+      "additionalCommits": [
+        {
+          "hash": "838bc4056dbf822b3b5449a49b5d680dcf5f30b1",
+          "subject": "docs: 웹 원음 업로드 디자인 인계 작성",
+          "merge": false,
+          "in114Boundary": false
+        },
+        {
+          "hash": "9a3912a91a1a4c29b7602b21493647528c4ce98b",
+          "subject": "docs: 처리 장비 일일 운영과 자격 복구 절차 정리",
+          "merge": false,
+          "in114Boundary": false
+        },
+        {
+          "hash": "9df84b44b3a6520db1675f0e2a658941c412ca1e",
+          "subject": "fix: NER 파이프라인 BIOES 라벨을 BIO로 정규화해 엔티티 조각 마스킹 해소",
+          "merge": false,
+          "in114Boundary": false
+        }
+      ],
+      "additionalScopeSummary": "추가 세 커밋은 웹 원음 업로드 인계 문서, Agent 운영 문서, NER 라벨 정규화다. NER 변경은 확인했지만 네 리허설 증상의 수정은 아니며 품질 자격 통과를 의미하지 않는다.",
+      "additionalEvidence": [
+        {
+          "path": "apps/pipeline/ccc_pipeline/masking.py",
+          "lineStart": 98,
+          "lineEnd": 130,
+          "observation": "추가 tip 커밋은 인식기 라벨의 BIOES/BILOU 접두사를 BIO로 바꾼다. 고정 Git 객체만 읽었다."
+        }
+      ]
+    },
+    "mergeCommitCount": 26,
+    "netChangedFileCount": 331,
+    "commitInventory": [
+      {
+        "hash": "e29aa4097aaeed2b1e3b52905e34a13341f76015",
+        "subject": "feat(wire): WireItem, Icon, WireRadioGroup를 @ccc/web/wire로 공개",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "6deae840dd299e2435cb36532eb77774fd7082fa",
+        "subject": "docs(design): business.css 정적 감사 결과와 FRONTEND 소비 계약 추가",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "7e6a97e622c3d4aba8d81e2f784fbbccbda20dce",
+        "subject": "docs(design): business.css 감사 교정 3건",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "815099a95cadb216ef32d74c580895579d6981eb",
+        "subject": "feat(wire): 공유 월간 격자, 툴바 필드, HERO 4열, radius-control 수정",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "4e34a6b4eb453d2c7ac3632785d06d774f0295a1",
+        "subject": "fix(wire): .wire-button 알약 복원 (2026-08-25 Q 현행 규칙)",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "7e7dd81b0f485e5fdc08a96d58c4fe44afb881ff",
+        "subject": "fix(wire): WireMonthCalendar 의미론·이벤트·빌더 수정",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "a2c8db248e72f045fab4fe9a502561a784f5653d",
+        "subject": "fix(wire): WireMonthCalendarEventColor client-surface export 누락 추가",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "730355747ca876d1c9a6321868802a46d423ba09",
+        "subject": "P9: 브라우저 중립 Wire UI를 @ccc/wire 패키지로 추출",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "05c9abc2f2beb629f2e3653269a5a658b081160f",
+        "subject": "P9 수정: @ccc/wire 패키지 경계 정리",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "12f8623c3854a37e037d83773aeb97c11d7752bc",
+        "subject": "chore(secrets): RELAYER 프로젝트 참조로 전환",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "6053b7d0f3836f0d6de9369d82b6024aa701c2f4",
+        "subject": "P9: Extract shared wire UI into @ccc/wire package",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "72647c9cb4a205a5f23c938c3925e94fe5eadf39",
+        "subject": "P9 correction: revert out-of-scope changes, un-stage prototypes",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "d35dbaab947fdcd74b5ac341f6a73030eeab9eac",
+        "subject": "P9: Add test execution wiring for packages/wire",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "d9b46c6ce9572596e7c74cdff1fb7e3179b86884",
+        "subject": "client: 릴레이어 용어 라벨과 등록 뒤 첫 상담 기록 진입 (W02·W04 1차)",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "335284ab685f503041db73e6cda3d2718dafc593",
+        "subject": "core: 상담 기억 그림자 입력 차단과 G2 불일치 기준 (W05·W08 1차)",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "91b7859b78285093e26dbbe18048e1f5c78637e1",
+        "subject": "fix(client): bind intake permissions and canonical comparison DTOs",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "189560feb146b94973becb0b182d16a00e32505a",
+        "subject": "feat(client): package verified static releases in a nonroot Deno image",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "97a240f3cb87d1de9ad48e48ce3ab1d48b52c4a5",
+        "subject": "chore: local integration checkpoint; PG verification pending",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "a1afc7a770daed0f2e3b994cdf145f3dbe181eae",
+        "subject": "fix: local checkpoint for bigint parity correction",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "9b5b5c6e1457240225acb2f3859771bc22f82919",
+        "subject": "feat(client): consume versioned intake contract from core a1afc7a7",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "e74b79d7b6452304d1561caf3b6a6fbd4873c7b7",
+        "subject": "Merge core checkpoint a1afc7a7 into design/w03-intake-v2",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "0a65ae8050bd8940be29e8941094f8c92e63700f",
+        "subject": "W03: WireButton ariaExpanded/ariaControls 공개 prop 추가, 중복 파일 제거",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "69db251a9d992f15cb52f6fcfd4f9e210d60ac5e",
+        "subject": "fix(client): InstitutionReadiness.firstProgram에 financialSupportEnabled 추가",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "a33f810c4bb962c26dc9e627322e5e526d114a5d",
+        "subject": "Merge commit 'a1afc7a770daed0f2e3b994cdf145f3dbe181eae' into client/relayer-domain-beta",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "9dcba13624807e1b991657e8ad5c9fadcacc65ab",
+        "subject": "W03: WireButton ariaExpanded/ariaControls 공개 prop 추가, 중복 파일 제거",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "f7194dc88064455f3eb6be02abb5aae836981612",
+        "subject": "fix(client): restore accessible intake area collapsing",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "subject": "feat: 수기 기록 v2 생명주기 연결",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "6ff75d272ca0ca7c81f8161a9ec118dd1807d67b",
+        "subject": "fix: Community Cloud CORS 계약 정합성 반영",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "0eef9ec0e175d356143016fcdd1073d37e8c400e",
+        "subject": "fix(client): preserve actionable browser errors for CCC-212",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+        "subject": "fix: 검증된 신원으로만 직원 초대 수락",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "d49449dab92e5e7691c008b21fb65ecfa4dd5c78",
+        "subject": "fix(client): bind installation loading to immutable trust for CCC-212",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+        "subject": "feat(core): 인테이크 질문 수명주기 계약 구현",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db",
+        "subject": "fix(seed): 현재 등록 계약과 검증된 parity 반영",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "ae8604435745ad4c042da70f175318402ecfbe37",
+        "subject": "fix(seed): preview 하니스에 설치 정책과 모드 초기화",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "b429d93dc45365cf2550de8d3b1b5268a808a94d",
+        "subject": "fix(seed): 합성 registry 설치를 하니스 경계로 이동",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "8bfe49d6c05aaa3c23062b6a9ec3c80cd4251747",
+        "subject": "feat(client): 관리자 수동 인증 코드 초대 구현",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "d79e62ad019d2b5e47c085969311431dcb69f96b",
+        "subject": "병합: 인테이크 생산자 계약 반영",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "c9174727069281af8f66e7d555f5a60b5323d57a",
+        "subject": "Merge commit 'b429d93dc45365cf2550de8d3b1b5268a808a94d' into design/w03-intake-v2",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "3f47763534a4ed835461e51d083456dd9500864e",
+        "subject": "feat: 인테이크 v2 계약에 연결한다",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "0f78c9b3925ff780347729e529b6f35a26075d60",
+        "subject": "feat(client): 첫 상담 질문 수명주기 계약 반영",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "46e32f8a85bf9142d76063b86f65bc96ded72a7f",
+        "subject": "fix: 수기 기록을 리포트와 AI 재료에 연결",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "85334c7ebfa415107db0a75e23b21f8cb0b75eaf",
+        "subject": "병합: CCC-289 수기 기록 코어 반영",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "1caa2a4e165c4a9a73a09a401983fcfb73cdaccf",
+        "subject": "feat: 기관 월간 감사 사건 집계 추가",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "331f2fdbe1a2bf7d236bc68a8aee829dc45ff5da",
+        "subject": "feat(client): 수기 질문 확인 흐름 연결",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "e8208cf887eeed8203aaa2f41fb0b278538a6b92",
+        "subject": "CCC-291 원문 버전과 실제 검사 범위 경계 추가",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "b486a8eebb8d63966d0f68e26a7aa12efe9c9f47",
+        "subject": "테스트: 원문 변경 증명 픽스처에 임대 정보 추가",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+        "subject": "수정: 원문 변경으로 큐 재설정 시 임대 정보 초기화",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "53150b9151c3f2665e1eac188a11d47dc605faad",
+        "subject": "chore: 원문 경계 검사 checkpoint 를 parity manifest 에 반영",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "0cefde1e339d2d4af09ad813aeb1bc1bd28eb103",
+        "subject": "fix(client): 리포트 v2 계약 반영",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "31fa22fef2dc21e18eefd933297947bc527c3af8",
+        "subject": "Merge branch 'client/relayer-domain-beta' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "6441f2949d67d073fab73df1e9c49ac61aedc058",
+        "subject": "Merge branch 'design/w03-intake-v2' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "9a09f9443a87f569c691f86c2c26046324076204",
+        "subject": "feat: 사례별 식별 대응표를 암호화해 저장",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "16cbce2e795dfcdfc7d7068f721f3f04fa7ba612",
+        "subject": "Merge commit '9a09f9443a87f569c691f86c2c26046324076204' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "fc5c9ed4a76e023e222dde784fba816f64d952a3",
+        "subject": "chore: 사례 대응표 checkpoint 를 parity manifest 에 반영",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "6f6e334cb4e5e693f7aede38240f9ca0b8443562",
+        "subject": "개체 등록 F2를 마감하고 F3 부분 진행을 보존",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "76cb4d125bc395289df9ad5eb282f47b16aeff51",
+        "subject": "Merge commit '6f6e334cb4e5e693f7aede38240f9ca0b8443562' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "c86cc5bcc76b4328da0e6829e5b616699af606a2",
+        "subject": "chore: 개체 등록 결합 checkpoint 를 parity manifest 에 반영",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "33cd1940f7e9af6078142214f70725728c573e21",
+        "subject": "상담일과 원천 좌표를 결속하고 오래된 작업의 큐를 재개",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "ed57787efc4b7b048a38b18cd59a86cf89de12ea",
+        "subject": "엔터티 등록의 오래된 임대 오류 응답 기대값을 수정",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "3990ce371f7162312d730718db6cef901536de73",
+        "subject": "Merge commit 'ed57787efc4b7b048a38b18cd59a86cf89de12ea' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "4924569cfd4a4f138597f37085fb2b8e258dcd8d",
+        "subject": "원천 무효화 마이그레이션의 패리티 체크포인트를 등록",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "f215f79f7dbb433877435b2724880975e9672851",
+        "subject": "Merge commit '4924569cfd4a4f138597f37085fb2b8e258dcd8d' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "fc4b2ef4afe5c7febaa4bc3ac77ad8c5632dc4f0",
+        "subject": "원천 무효화 checkpoint 를 parity manifest 에 반영",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "4c5fe47bb990fdaedaff7f42f818d7ab4d06784e",
+        "subject": "fix: F4 결과 증명과 원천 결속의 원자 저장",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "936053a66df9467f106598abfd0e146493bdecc7",
+        "subject": "Merge commit '4c5fe47bb990fdaedaff7f42f818d7ab4d06784e' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "512c908df27f982bded1ce69baf9d7c178ac4b8b",
+        "subject": "가림 원천 증명 checkpoint 를 parity manifest 에 반영",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "dbde609fc9c4015b019a64c6cf3f1dcef91754f1",
+        "subject": "refactor: 화면 목적지 이름을 통일한다",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "533966888221833b1d8c1fab0edd9a4c35f96b67",
+        "subject": "fix: 결과 증명 재검증과 외부 호출 경계 복원",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "3604cb318151a9d3d80609c4683c6ddd4cb7c3c2",
+        "subject": "Merge commit '533966888221833b1d8c1fab0edd9a4c35f96b67' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "72d3f7cc684add552b2037a40926f1d086a2eeb1",
+        "subject": "Merge branch 'design/w03-intake-v2' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "d9c60f9f5b1511335a838898189fda707ca60f85",
+        "subject": "메모리 자료 증명 재검증 강화",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "0b8e649036388c254b153285cdde68cb2a49fc59",
+        "subject": "PostgreSQL provider 값 영역 검사 복원",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "766803a427b126bcb6282d431839f61ca35628dd",
+        "subject": "Merge commit '0b8e649036388c254b153285cdde68cb2a49fc59' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "89f932f61ed894d9bcbd013ae9ed3f02088dc835",
+        "subject": "외부 호출 원장 checkpoint 를 parity manifest 에 반영",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "5d43bbefe1a3b5a635cb9710f6546c92317732f5",
+        "subject": "개인정보 파기 증명 원장을 추가한다",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "2726f970e8eeb2f80056a40819927cdde98785a7",
+        "subject": "Merge commit '5d43bbefe1a3b5a635cb9710f6546c92317732f5' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "9a68af962b23c2d3fb52db837b1a8ad7f644ae81",
+        "subject": "파기 가드의 괄호 문법을 바로잡는다",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "f354b563769ad68de93444dd1ace829a1841178c",
+        "subject": "Merge commit '9a68af962b23c2d3fb52db837b1a8ad7f644ae81' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "ff505aae35c917516a80719cc6d7eeeffaee0046",
+        "subject": "PostgreSQL 파기 이벤트 키 표지를 바로잡는다",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "ca86fe0e4cb97037b68cf8145add604a59ae7a94",
+        "subject": "소유가 확인된 사례 그래프를 파기한다",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "4d78a22b8acd8e423a5821391084fe82790d5ddf",
+        "subject": "Merge commit 'ca86fe0e4cb97037b68cf8145add604a59ae7a94' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "e85d5ffc0f3f1e6a1863d746631bb230a28266f7",
+        "subject": "PostgreSQL 파기 범위 뷰를 맞춘다",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "db848daa4897d647c67e7d57890ca40e5e1bffbe",
+        "subject": "Merge commit 'e85d5ffc0f3f1e6a1863d746631bb230a28266f7' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "19ee7f7b9511171821f0c53ab55ec87509f3f21a",
+        "subject": "파기 증명과 소유 그래프 checkpoint 를 parity manifest 에 반영",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "21265854715837b8701e4d518a032b801b40fbc0",
+        "subject": "feat: 마스킹 명세 생산자만 단일화",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "6adc14634c5413f958b49694b98613dfa13b6995",
+        "subject": "Merge commit '21265854715837b8701e4d518a032b801b40fbc0' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "7780debcbb882d82547987abc2bb1a4b7df58af8",
+        "subject": "test: 처리 Agent 명세 원천 참조 복구",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "5ef5a0b3e5c6459208239c0096b056b6ab70deaa",
+        "subject": "feat: 내부 운영 역할과 관리자 내보내기 경계 확정",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "4e477a0c90e24c89cf7875e0d11c2e39aa2ed27d",
+        "subject": "Merge commit '5ef5a0b3e5c6459208239c0096b056b6ab70deaa' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "a42c15e30aa34b7de3715c8bee78528cb2a57194",
+        "subject": "feat: 사례 전체 CSV 내보내기 생산자 추가",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "b87f50e4defe8c792365d83dc456253624b14550",
+        "subject": "feat(client): 경과 리포트 CSV 내려받기",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "34513485230673a5a5d2e07cedf61f20f6523514",
+        "subject": "fix: CSV 내려받기를 GET 방식으로 통일",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "866f2475846519fdff5f3eca24e6c7f1fca71a67",
+        "subject": "fix: 첫 출고 제외 기능 진입점을 숨긴다",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "c65ba714ce2c11c81d12d017d2f93cee5b4d2c06",
+        "subject": "test: AI 초안 픽스처 증명 스냅샷 복구",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "4b07ca1b8a5d45c49eef64ccfad0b3fa6a3a2800",
+        "subject": "fix(client): 첫 출고 제외 기능 진입점을 숨긴다",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "d80a09c0ba4c5f79dab2189333ebc64c142d3783",
+        "subject": "Merge commit 'c65ba714ce2c11c81d12d017d2f93cee5b4d2c06' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "1da52aead92ae086094c5345b0761baee580556d",
+        "subject": "Merge branch 'client/relayer-domain-beta' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "3ababe78e534e28a2592890ea99983f012cac1f1",
+        "subject": "Merge branch 'design/w03-intake-v2' into integrate/ccc291-parity",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "af2bf330a30cb2153645e0ef230f29b2a22e81ca",
+        "subject": "릴리스 제외 서버 경로를 닫다",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "e50e70dab2c4186ff493a2fc3e8b478c1ff5bbff",
+        "subject": "docs: 외부 기관 안내와 Supabase 백업 복구 연습 절차 추가",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "a67e00fd7a292ce3ba5bf3930b3ffa6ecb85d0a7",
+        "subject": "feat(client): 회차 녹음 원음 업로드 진입을 기록 화면에 연다",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "e8025a067de46bcffb15983954d26049f261558f",
+        "subject": "chore(install): stage-env.sh 주입 절차와 시크릿 스테이징 판정 보고",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "d0007cf9c91014a9cc1c0e1595c94b49fd7bb737",
+        "subject": "chore(install): 대상 프로젝트용 설치 문서 재서명 절차와 주입 경로",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "ac9cf09930ad80fa99b494443eb4e63a1c5a8d5c",
+        "subject": "chore(install): 베타 trust·baseline 재생산 주입 경로와 차단 보고",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "4740da835d115925a3800077d8daf5a8d9fb8391",
+        "subject": "install: /current 정본으로 approvedSttEngineIds 만 채운 재서명 절차",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "125093789d8d39969a4a989545102e7415d8dbc6",
+        "subject": "install: sequence 2 갱신 문서 생산과 journal·baseline 차단 실측 보고",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "4938d455fe808c84050bc2ed64a1d9619876ceb8",
+        "subject": "chore(install): Infisical 폴더 대문자 통일에 맞춘 주입 경로 갱신",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "faec5d919af6c7a95dbba342b85f9307bb004c28",
+        "subject": "install: 새 프로젝트 qlzwas 첫 설치 문서 생산과 plan 차단 보고",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "6e36c5118a3ed9826354527393c4f4a9c38c41da",
+        "subject": "merge: core/relayer-domain-beta (CSV 반출 GET 통일, 제외 기능 서버 차단)",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "a83d0c368035c83ce78746261eefd034c781f1d4",
+        "subject": "merge: client/relayer-domain-beta (원음 업로드 화면)",
+        "merge": true,
+        "in114Boundary": true
+      },
+      {
+        "hash": "bce602650bf29c8b21d723199629c42470d10a2d",
+        "subject": "report: release/0916 통합 검증과 번들 부자리 보고",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "8fa83d03bfcdc9c2490a2491b562f4af1177a08b",
+        "subject": "measure: E5-4 NER release qualification: failed, no receipt issued",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "2fe65c71906b7cd9ac6b1b136fb694c530f9fcc1",
+        "subject": "chore(release): 0.9.0-dev.3 번들 게시와 qlzwas 재서명 보고",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "4388f62ad48f05f0adecd0a3e6a894e9c9d46817",
+        "subject": "verify: E5-4 NER 실패 원인 확정: 제품 경로 재측정 동일, 모델 한계",
+        "merge": false,
+        "in114Boundary": true
+      },
+      {
+        "hash": "838bc4056dbf822b3b5449a49b5d680dcf5f30b1",
+        "subject": "docs: 웹 원음 업로드 디자인 인계 작성",
+        "merge": false,
+        "in114Boundary": false
+      },
+      {
+        "hash": "9a3912a91a1a4c29b7602b21493647528c4ce98b",
+        "subject": "docs: 처리 장비 일일 운영과 자격 복구 절차 정리",
+        "merge": false,
+        "in114Boundary": false
+      },
+      {
+        "hash": "9df84b44b3a6520db1675f0e2a658941c412ca1e",
+        "subject": "fix: NER 파이프라인 BIOES 라벨을 BIO로 정규화해 엔티티 조각 마스킹 해소",
+        "merge": false,
+        "in114Boundary": false
+      }
+    ],
+    "changedFiles": [
+      {
+        "status": "M",
+        "path": "CONTEXT.md"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/src/cron-schedule.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/src/index.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/access-jwt.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/access-policy.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/agent-job-contract.modes.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/agent-job-contract.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/agent-source-fence.contract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/ai-contrast-materials.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/ai-quality-v4.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/audit-monthly-summary.contract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/capabilities.contract.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/case-entity-mapping.contract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/community-cloud-runtime.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/counseling-memory-provider.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/counseling-memory-trial.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/counseling-memory.races.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/counseling-memory.routes.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/discrepancies.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/entity-memory-proof.contract.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/entity-provider-proof.contract.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/entity-registration.contract.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/entity-registration.routes.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/entity-result-proof.contract.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/entity-source-binding.contract.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/entity-source-invalidation.contract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/gateway-domain.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/gateway-intake.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/gateway-record-onepage.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/invite-identity-binding.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/manual-record.contract.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/masking-pipeline-manifest.contract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/migration-parity.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/new-signup-badge.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/participant-goal-tree.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/participant-p3.contract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/postgres-rls.security.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/preregistration-consent.contract.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/privacy-purge-events.contract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/recording-result.e2e.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/retention-lifecycle.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/routes.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/scheduler-run.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/staff-invites.contract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/support-case-access-deny-audit.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/support-case-csv-export.contract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/support-case-report.contract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/support/agent-jobs.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/support/intake.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/api/test/support/manual-record.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/support/migration-parity.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/text-ai-consent-withdrawal.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/test/text-work-materials.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/tsconfig.json"
+      },
+      {
+        "status": "M",
+        "path": "apps/api/wrangler.toml"
+      },
+      {
+        "status": "A",
+        "path": "apps/client/.dockerignore"
+      },
+      {
+        "status": "A",
+        "path": "apps/client/Dockerfile"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/release.config.example.json"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/app.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/ai-review.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/ai-review.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/api.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/auth.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/auth.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/boundary.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/errors.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/errors.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/installation.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/institution.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/institution.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/intake-form.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/client/src/business/intake.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/intake.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/invites.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/navigation.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/navigation.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/participants.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/participants.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/records.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/records.ts"
+      },
+      {
+        "status": "A",
+        "path": "apps/client/src/business/report.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/report.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/schedules.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/schedules.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/session.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/test-support.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/business/transport.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/main.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/screens/institution.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/screens/intake.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/screens/invites.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/screens/invites.tsx"
+      },
+      {
+        "status": "A",
+        "path": "apps/client/src/screens/participants.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/screens/participants.tsx"
+      },
+      {
+        "status": "A",
+        "path": "apps/client/src/screens/records.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/screens/records.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/screens/report.tsx"
+      },
+      {
+        "status": "A",
+        "path": "apps/client/src/screens/schedules.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/screens/schedules.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/screens/settings.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/src/vite-env.d.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/tools/build-release.mjs"
+      },
+      {
+        "status": "A",
+        "path": "apps/client/tools/serve-release.mjs"
+      },
+      {
+        "status": "A",
+        "path": "apps/client/tools/serve-release.test.mjs"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/tools/synthetic-api.mjs"
+      },
+      {
+        "status": "M",
+        "path": "apps/client/tools/synthetic-preview.mjs"
+      },
+      {
+        "status": "M",
+        "path": "apps/community-cloud/src/runtime.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/pipeline/README.md"
+      },
+      {
+        "status": "M",
+        "path": "apps/pipeline/ccc_pipeline/api_client.py"
+      },
+      {
+        "status": "M",
+        "path": "apps/pipeline/ccc_pipeline/config.py"
+      },
+      {
+        "status": "M",
+        "path": "apps/pipeline/ccc_pipeline/masking.py"
+      },
+      {
+        "status": "A",
+        "path": "apps/pipeline/ccc_pipeline/masking_manifest.py"
+      },
+      {
+        "status": "M",
+        "path": "apps/pipeline/ccc_pipeline/worker.py"
+      },
+      {
+        "status": "M",
+        "path": "apps/pipeline/tests/test_api_client_worker.py"
+      },
+      {
+        "status": "M",
+        "path": "apps/pipeline/tests/test_masking.py"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/actions.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/admin/ai-provider/ai-provider-control.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/admin/ai-provider/page.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/admin/ai-provider/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/admin/ai-provider/stt-status.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/admin/assign/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/admin/invite/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/admin/invite/worker-invite-issue.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/admin/layout.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/admin/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/admin/users/[id]/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/admin/users/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/draft/draft-notice.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/admin-sidebar.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/app-sidebar.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/app-sidebar.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/back-link.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/chevron.test.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/chevron.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/client-surface.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/consultation-type-badge.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/grid-container.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/list-row.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/next-link-provider.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/next-link-provider.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/org-switcher.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/page-error.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/page-error.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/page-loading.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/page-title.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/participant-card.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/participant-hero-card.test.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/participant-hero-card.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/participant-name.test.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/participant-name.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/program-switcher.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/search-input.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/time-axis-badge.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/wire-badge-palette.test.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-badge.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-button.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-callout.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-card.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-data-rows.test.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-data-rows.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-form-field.test.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-form-field.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-icon.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-month-calendar.test.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-month-calendar.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-radio-group.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-radio-layout.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/components/wire/wire-repeat-actions.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-section.test.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-section.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-state.test.tsx"
+      },
+      {
+        "status": "D",
+        "path": "apps/web/app/components/wire/wire-state.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/join/participant/[token]/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/join/participant/[token]/signup-form.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/join/worker/[token]/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/join/worker/[token]/signup-form.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/kit/align-harness.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/kit/hierarchy-harness.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/kit/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/layout.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/lib/api.ts"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/onboarding/onboarding-wizard.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/onboarding/onboarding-wizard.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/onboarding/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/edit/basic-info-form.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/edit/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/error-state.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/goal-tree.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/intake-saved-notice.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/risk-banner.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/close/close-cards.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/close/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/fixture-draft-view.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/fixture-draft-view.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/page.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-draft.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/action-item-fields.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/goal-section.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/life-area-fields.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/open-action-resolutions.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/record-accordion-toggle.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/record-onepage.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/record-list.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/record-list.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/invite/invite-issue.tsx"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/app/participants/invite/page.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/invite/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/new/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/new/register-form.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/participants/participant-filter.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/preview/preview-gate-form.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/programs/[programType]/schedule/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/programs/[programType]/schedule/schedule-view-select.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/programs/[programType]/schedule/schedule-view.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/schedules/[scheduleId]/plan/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/schedules/[scheduleId]/plan/session-plan-editor.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/schedules/[scheduleId]/plan/session-plan-editor.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/schedules/new/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/schedules/new/schedule-wizard.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/settings/memory-settings.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/settings/page.test.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/settings/page.tsx"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/app/welcome/page.tsx"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/install/.gitignore"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/ner-release/corpus.jsonl"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/ner-release/measurement.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/.ccc291-smoke.ts"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/beta-trust-regen.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/bundle-publish.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/ccc289-core-result.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/ccc291-core-result.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/ccc291-fixture-result.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/ccc291-trigger-result.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/ccc292-impl-f1-result.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/ccc292-impl-f2f3-result.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/ccc292-technical-freeze-result.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/ccc301-core-result.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/infisical-folder-case.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/install-renew.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/install-resign.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/install-secret-staging.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/install-sign-current.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/masking-bioes-fix.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/ner-measurement-verify.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/ner-release-measurement.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/new-project-install-plan.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/release-docs-pair.json"
+      },
+      {
+        "status": "A",
+        "path": "artifacts/orchestration/release-integration.json"
+      },
+      {
+        "status": "A",
+        "path": "docs/manual/external-institution-guide.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/ops.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/ops/agent-daily-operation.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/ops/supabase-backup-restore-drill.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/superpowers/plans/2026-09-15-web-audio-upload-design-handoff.md"
+      },
+      {
+        "status": "M",
+        "path": "migrations/parity.yaml"
+      },
+      {
+        "status": "A",
+        "path": "migrations/postgres/0018_intake_versions.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/postgres/0019_manual_record_lifecycle.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/postgres/0020_intake_question_lifecycle.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/postgres/0021_agent_text_source_fence.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/postgres/0022_case_entity_mapping.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/postgres/0023_entity_registration_binding.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/postgres/0024_entity_source_invalidation.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/postgres/0025_masked_source_proof.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/postgres/0026_openai_egress.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/postgres/0027_privacy_purge_events.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/postgres/0028_privacy_purge_owned_graph.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/sqlite/0062_intake_versions.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/sqlite/0063_manual_record_lifecycle.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/sqlite/0064_intake_question_lifecycle.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/sqlite/0065_agent_text_source_fence.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/sqlite/0066_case_entity_mapping.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/sqlite/0067_entity_registration_binding.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/sqlite/0068_entity_source_invalidation.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/sqlite/0069_masked_source_proof.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/sqlite/0070_openai_egress.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/sqlite/0071_privacy_purge_events.sql"
+      },
+      {
+        "status": "A",
+        "path": "migrations/sqlite/0072_privacy_purge_owned_graph.sql"
+      },
+      {
+        "status": "M",
+        "path": "package.json"
+      },
+      {
+        "status": "M",
+        "path": "packages/ai-runtime/src/ai-provider.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/contracts/package.json"
+      },
+      {
+        "status": "M",
+        "path": "packages/contracts/src/agent-jobs.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/contracts/src/capabilities.ts"
+      },
+      {
+        "status": "A",
+        "path": "packages/contracts/src/entity-registration.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/contracts/src/institution.ts"
+      },
+      {
+        "status": "A",
+        "path": "packages/contracts/src/intake.ts"
+      },
+      {
+        "status": "A",
+        "path": "packages/contracts/src/manual-record.ts"
+      },
+      {
+        "status": "A",
+        "path": "packages/contracts/src/masking-pipeline.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/contracts/src/program-admission.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/contracts/src/report.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/core/src/access-policy.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/core/src/gateway.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/core/src/scheduled-job-runner.ts"
+      },
+      {
+        "status": "A",
+        "path": "packages/core/src/support-case-csv.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/http-api/src/capabilities.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/http-api/src/counseling-memory-runner.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/http-api/src/identity.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/http-api/src/request-handler.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/wire/package.json"
+      },
+      {
+        "status": "M",
+        "path": "packages/wire/src/index.ts"
+      },
+      {
+        "status": "M",
+        "path": "packages/wire/src/wire-button.tsx"
+      },
+      {
+        "status": "A",
+        "path": "packages/wire/test/setup-dom.ts"
+      },
+      {
+        "status": "A",
+        "path": "packages/wire/tsconfig.json"
+      },
+      {
+        "status": "A",
+        "path": "packages/wire/vitest.config.ts"
+      },
+      {
+        "status": "M",
+        "path": "pnpm-lock.yaml"
+      },
+      {
+        "status": "M",
+        "path": "scripts/design/token-audit.mjs"
+      },
+      {
+        "status": "A",
+        "path": "scripts/install/compare-install-manifests.mjs"
+      },
+      {
+        "status": "A",
+        "path": "scripts/install/diff-runtime-config.mjs"
+      },
+      {
+        "status": "A",
+        "path": "scripts/install/inspect-current-manifest.mjs"
+      },
+      {
+        "status": "A",
+        "path": "scripts/install/probe-journal.mjs"
+      },
+      {
+        "status": "A",
+        "path": "scripts/install/regen-baseline-capture.mjs"
+      },
+      {
+        "status": "A",
+        "path": "scripts/install/regen-provider-baseline.sh"
+      },
+      {
+        "status": "A",
+        "path": "scripts/install/sign-install-documents.mjs"
+      },
+      {
+        "status": "A",
+        "path": "scripts/install/stage-env.sh"
+      },
+      {
+        "status": "A",
+        "path": "scripts/ner-release/gen_corpus.py"
+      },
+      {
+        "status": "A",
+        "path": "scripts/ner-release/measure.py"
+      },
+      {
+        "status": "A",
+        "path": "scripts/ner-release/rerun_production_path.py"
+      },
+      {
+        "status": "M",
+        "path": "scripts/seed/harness.ts"
+      },
+      {
+        "status": "M",
+        "path": "scripts/seed/preload-data.ts"
+      },
+      {
+        "status": "M",
+        "path": "scripts/seed/scenario.ts"
+      }
+    ],
+    "businessApiCommitSelection": {
+      "method": "병합 커밋은 원래 변경 커밋과 중복되므로 별도 표시했다. 업무 화면 및 API, 공통 계약, 마이그레이션의 소스를 건드린 비병합 커밋을 경로로 추린 전체 목록이다. 실제 의미와 위험은 contractChanges가 판정한다. 테스트 전용 변경은 제외한다.",
+      "count": 55,
+      "commits": [
+        {
+          "hash": "e29aa4097aaeed2b1e3b52905e34a13341f76015",
+          "subject": "feat(wire): WireItem, Icon, WireRadioGroup를 @ccc/web/wire로 공개",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/components/wire/client-surface.ts"
+          ]
+        },
+        {
+          "hash": "815099a95cadb216ef32d74c580895579d6981eb",
+          "subject": "feat(wire): 공유 월간 격자, 툴바 필드, HERO 4열, radius-control 수정",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/components/wire/client-surface.ts",
+            "apps/web/app/components/wire/wire-button.tsx",
+            "apps/web/app/components/wire/wire-month-calendar.tsx",
+            "apps/web/app/components/wire/wire-styles.ts"
+          ]
+        },
+        {
+          "hash": "4e34a6b4eb453d2c7ac3632785d06d774f0295a1",
+          "subject": "fix(wire): .wire-button 알약 복원 (2026-08-25 Q 현행 규칙)",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/components/wire/wire-button.tsx",
+            "apps/web/app/components/wire/wire-styles.ts"
+          ]
+        },
+        {
+          "hash": "7e7dd81b0f485e5fdc08a96d58c4fe44afb881ff",
+          "subject": "fix(wire): WireMonthCalendar 의미론·이벤트·빌더 수정",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/components/wire/wire-month-calendar.tsx",
+            "apps/web/app/components/wire/wire-styles.ts"
+          ]
+        },
+        {
+          "hash": "a2c8db248e72f045fab4fe9a502561a784f5653d",
+          "subject": "fix(wire): WireMonthCalendarEventColor client-surface export 누락 추가",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/components/wire/client-surface.ts"
+          ]
+        },
+        {
+          "hash": "730355747ca876d1c9a6321868802a46d423ba09",
+          "subject": "P9: 브라우저 중립 Wire UI를 @ccc/wire 패키지로 추출",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/components/wire/client-surface.ts",
+            "apps/web/app/components/wire/wire-styles.ts",
+            "packages/wire/src/chevron.tsx",
+            "packages/wire/src/grid-container.tsx",
+            "packages/wire/src/index.ts",
+            "packages/wire/src/page-title.tsx",
+            "packages/wire/src/participant-hero-card.tsx",
+            "packages/wire/src/participant-name.tsx",
+            "packages/wire/src/wire-badge.tsx",
+            "packages/wire/src/wire-button.tsx",
+            "packages/wire/src/wire-callout.tsx",
+            "packages/wire/src/wire-card.tsx",
+            "packages/wire/src/wire-data-rows.tsx",
+            "packages/wire/src/wire-form-field.tsx",
+            "packages/wire/src/wire-icon.tsx",
+            "packages/wire/src/wire-month-calendar.tsx",
+            "packages/wire/src/wire-radio-group.tsx",
+            "packages/wire/src/wire-radio-layout.ts",
+            "packages/wire/src/wire-section.tsx",
+            "packages/wire/src/wire-state.tsx",
+            "packages/wire/src/wire-styles.ts"
+          ]
+        },
+        {
+          "hash": "6053b7d0f3836f0d6de9369d82b6024aa701c2f4",
+          "subject": "P9: Extract shared wire UI into @ccc/wire package",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/admin/ai-provider/ai-provider-control.tsx",
+            "apps/web/app/admin/ai-provider/page.tsx",
+            "apps/web/app/admin/ai-provider/stt-status.tsx",
+            "apps/web/app/admin/assign/page.tsx",
+            "apps/web/app/admin/invite/page.tsx",
+            "apps/web/app/admin/invite/worker-invite-issue.tsx",
+            "apps/web/app/admin/layout.tsx",
+            "apps/web/app/admin/page.tsx",
+            "apps/web/app/admin/users/[id]/page.tsx",
+            "apps/web/app/admin/users/page.tsx",
+            "apps/web/app/components/draft/draft-notice.tsx",
+            "apps/web/app/components/wire/app-sidebar.tsx",
+            "apps/web/app/components/wire/back-link.tsx",
+            "apps/web/app/components/wire/chevron.tsx",
+            "apps/web/app/components/wire/client-surface.ts",
+            "apps/web/app/components/wire/consultation-type-badge.tsx",
+            "apps/web/app/components/wire/grid-container.tsx",
+            "apps/web/app/components/wire/list-row.tsx",
+            "apps/web/app/components/wire/next-link-provider.tsx",
+            "apps/web/app/components/wire/org-switcher.tsx",
+            "apps/web/app/components/wire/page-error.tsx",
+            "apps/web/app/components/wire/page-loading.tsx",
+            "apps/web/app/components/wire/page-title.tsx",
+            "apps/web/app/components/wire/participant-card.tsx",
+            "apps/web/app/components/wire/participant-hero-card.tsx",
+            "apps/web/app/components/wire/participant-name.tsx",
+            "apps/web/app/components/wire/program-switcher.tsx",
+            "apps/web/app/components/wire/search-input.tsx",
+            "apps/web/app/components/wire/time-axis-badge.tsx",
+            "apps/web/app/components/wire/wire-badge.tsx",
+            "apps/web/app/components/wire/wire-button.tsx",
+            "apps/web/app/components/wire/wire-callout.tsx",
+            "apps/web/app/components/wire/wire-card.tsx",
+            "apps/web/app/components/wire/wire-data-rows.tsx",
+            "apps/web/app/components/wire/wire-form-field.tsx",
+            "apps/web/app/components/wire/wire-icon.tsx",
+            "apps/web/app/components/wire/wire-month-calendar.tsx",
+            "apps/web/app/components/wire/wire-radio-group.tsx",
+            "apps/web/app/components/wire/wire-radio-layout.ts",
+            "apps/web/app/components/wire/wire-repeat-actions.tsx",
+            "apps/web/app/components/wire/wire-section.tsx",
+            "apps/web/app/components/wire/wire-state.tsx",
+            "apps/web/app/join/participant/[token]/page.tsx",
+            "apps/web/app/join/participant/[token]/signup-form.tsx",
+            "apps/web/app/join/worker/[token]/page.tsx",
+            "apps/web/app/join/worker/[token]/signup-form.tsx",
+            "apps/web/app/kit/page.tsx",
+            "apps/web/app/onboarding/onboarding-wizard.tsx",
+            "apps/web/app/onboarding/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/edit/basic-info-form.tsx",
+            "apps/web/app/participants/[beneficiaryId]/edit/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/error-state.tsx",
+            "apps/web/app/participants/[beneficiaryId]/goal-tree.tsx",
+            "apps/web/app/participants/[beneficiaryId]/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/intake-saved-notice.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/risk-banner.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/close/close-cards.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/close/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/fixture-draft-view.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/action-item-fields.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/goal-section.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/life-area-fields.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/open-action-resolutions.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/record-accordion-toggle.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/record-onepage.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/record-list.tsx",
+            "apps/web/app/participants/invite/invite-issue.tsx",
+            "apps/web/app/participants/invite/page.tsx",
+            "apps/web/app/participants/new/page.tsx",
+            "apps/web/app/participants/new/register-form.tsx",
+            "apps/web/app/participants/page.tsx",
+            "apps/web/app/participants/participant-filter.tsx",
+            "apps/web/app/preview/preview-gate-form.tsx",
+            "apps/web/app/programs/[programType]/schedule/page.tsx",
+            "apps/web/app/programs/[programType]/schedule/schedule-view-select.tsx",
+            "apps/web/app/programs/[programType]/schedule/schedule-view.tsx",
+            "apps/web/app/schedules/[scheduleId]/plan/page.tsx",
+            "apps/web/app/schedules/[scheduleId]/plan/session-plan-editor.tsx",
+            "apps/web/app/schedules/new/page.tsx",
+            "apps/web/app/schedules/new/schedule-wizard.tsx",
+            "apps/web/app/settings/memory-settings.tsx",
+            "apps/web/app/settings/page.tsx",
+            "apps/web/app/welcome/page.tsx",
+            "packages/wire/src/index.ts"
+          ]
+        },
+        {
+          "hash": "d9b46c6ce9572596e7c74cdff1fb7e3179b86884",
+          "subject": "client: 릴레이어 용어 라벨과 등록 뒤 첫 상담 기록 진입 (W02·W04 1차)",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/business/ai-review.ts",
+            "apps/client/src/business/intake-form.ts",
+            "apps/client/src/business/intake.ts",
+            "apps/client/src/business/navigation.ts",
+            "apps/client/src/business/records.ts",
+            "apps/client/src/business/report.ts",
+            "apps/client/src/screens/institution.tsx",
+            "apps/client/src/screens/intake.tsx",
+            "apps/client/src/screens/participants.tsx",
+            "apps/client/src/screens/records.tsx",
+            "apps/client/src/screens/report.tsx",
+            "apps/client/src/screens/schedules.tsx",
+            "apps/client/src/screens/settings.tsx"
+          ]
+        },
+        {
+          "hash": "335284ab685f503041db73e6cda3d2718dafc593",
+          "subject": "core: 상담 기억 그림자 입력 차단과 G2 불일치 기준 (W05·W08 1차)",
+          "changedBusinessOrApiFiles": [
+            "packages/ai-runtime/src/ai-provider.ts",
+            "packages/http-api/src/request-handler.ts"
+          ]
+        },
+        {
+          "hash": "91b7859b78285093e26dbbe18048e1f5c78637e1",
+          "subject": "fix(client): bind intake permissions and canonical comparison DTOs",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/business/ai-review.ts",
+            "apps/client/src/business/intake.ts",
+            "apps/client/src/business/participants.ts",
+            "apps/client/src/business/schedules.ts",
+            "apps/client/src/screens/intake.tsx",
+            "apps/client/src/screens/participants.tsx",
+            "apps/client/src/screens/records.tsx"
+          ]
+        },
+        {
+          "hash": "189560feb146b94973becb0b182d16a00e32505a",
+          "subject": "feat(client): package verified static releases in a nonroot Deno image",
+          "changedBusinessOrApiFiles": [
+            "apps/client/Dockerfile",
+            "apps/client/tools/serve-release.mjs"
+          ]
+        },
+        {
+          "hash": "97a240f3cb87d1de9ad48e48ce3ab1d48b52c4a5",
+          "subject": "chore: local integration checkpoint; PG verification pending",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0018_intake_versions.sql",
+            "migrations/sqlite/0062_intake_versions.sql",
+            "packages/contracts/src/institution.ts",
+            "packages/contracts/src/intake.ts",
+            "packages/contracts/src/program-admission.ts",
+            "packages/contracts/src/report.ts",
+            "packages/core/src/gateway.ts",
+            "packages/http-api/src/request-handler.ts"
+          ]
+        },
+        {
+          "hash": "a1afc7a770daed0f2e3b994cdf145f3dbe181eae",
+          "subject": "fix: local checkpoint for bigint parity correction",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0018_intake_versions.sql"
+          ]
+        },
+        {
+          "hash": "9b5b5c6e1457240225acb2f3859771bc22f82919",
+          "subject": "feat(client): consume versioned intake contract from core a1afc7a7",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/business/api.ts",
+            "apps/client/src/business/institution.ts",
+            "apps/client/src/business/intake-form.ts",
+            "apps/client/src/business/intake.ts",
+            "apps/client/src/business/report.ts",
+            "apps/client/src/screens/institution.tsx",
+            "apps/client/src/screens/intake.tsx"
+          ]
+        },
+        {
+          "hash": "0a65ae8050bd8940be29e8941094f8c92e63700f",
+          "subject": "W03: WireButton ariaExpanded/ariaControls 공개 prop 추가, 중복 파일 제거",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/components/wire/wire-month-calendar.tsx",
+            "packages/wire/src/wire-button.tsx"
+          ]
+        },
+        {
+          "hash": "69db251a9d992f15cb52f6fcfd4f9e210d60ac5e",
+          "subject": "fix(client): InstitutionReadiness.firstProgram에 financialSupportEnabled 추가",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/business/api.ts"
+          ]
+        },
+        {
+          "hash": "9dcba13624807e1b991657e8ad5c9fadcacc65ab",
+          "subject": "W03: WireButton ariaExpanded/ariaControls 공개 prop 추가, 중복 파일 제거",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/components/wire/wire-month-calendar.tsx",
+            "packages/wire/src/wire-button.tsx"
+          ]
+        },
+        {
+          "hash": "f7194dc88064455f3eb6be02abb5aae836981612",
+          "subject": "fix(client): restore accessible intake area collapsing",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/screens/intake.tsx"
+          ]
+        },
+        {
+          "hash": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+          "subject": "feat: 수기 기록 v2 생명주기 연결",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0019_manual_record_lifecycle.sql",
+            "migrations/sqlite/0063_manual_record_lifecycle.sql",
+            "packages/contracts/src/manual-record.ts",
+            "packages/core/src/gateway.ts",
+            "packages/http-api/src/request-handler.ts"
+          ]
+        },
+        {
+          "hash": "6ff75d272ca0ca7c81f8161a9ec118dd1807d67b",
+          "subject": "fix: Community Cloud CORS 계약 정합성 반영",
+          "changedBusinessOrApiFiles": [
+            "apps/community-cloud/src/runtime.ts"
+          ]
+        },
+        {
+          "hash": "0eef9ec0e175d356143016fcdd1073d37e8c400e",
+          "subject": "fix(client): preserve actionable browser errors for CCC-212",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/business/errors.ts",
+            "apps/client/src/screens/records.tsx"
+          ]
+        },
+        {
+          "hash": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+          "subject": "fix: 검증된 신원으로만 직원 초대 수락",
+          "changedBusinessOrApiFiles": [
+            "packages/core/src/gateway.ts",
+            "packages/http-api/src/request-handler.ts"
+          ]
+        },
+        {
+          "hash": "d49449dab92e5e7691c008b21fb65ecfa4dd5c78",
+          "subject": "fix(client): bind installation loading to immutable trust for CCC-212",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/app.tsx",
+            "apps/client/src/business/installation.ts",
+            "apps/client/src/vite-env.d.ts",
+            "apps/client/tools/build-release.mjs"
+          ]
+        },
+        {
+          "hash": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+          "subject": "feat(core): 인테이크 질문 수명주기 계약 구현",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0020_intake_question_lifecycle.sql",
+            "migrations/sqlite/0064_intake_question_lifecycle.sql",
+            "packages/contracts/src/intake.ts",
+            "packages/contracts/src/manual-record.ts",
+            "packages/core/src/gateway.ts"
+          ]
+        },
+        {
+          "hash": "8bfe49d6c05aaa3c23062b6a9ec3c80cd4251747",
+          "subject": "feat(client): 관리자 수동 인증 코드 초대 구현",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/app.tsx",
+            "apps/client/src/business/auth.ts",
+            "apps/client/src/business/invites.ts",
+            "apps/client/src/business/session.ts",
+            "apps/client/src/business/transport.ts",
+            "apps/client/src/main.tsx",
+            "apps/client/src/screens/invites.tsx"
+          ]
+        },
+        {
+          "hash": "3f47763534a4ed835461e51d083456dd9500864e",
+          "subject": "feat: 인테이크 v2 계약에 연결한다",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/actions.ts",
+            "apps/web/app/lib/api.ts",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx"
+          ]
+        },
+        {
+          "hash": "0f78c9b3925ff780347729e529b6f35a26075d60",
+          "subject": "feat(client): 첫 상담 질문 수명주기 계약 반영",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/business/intake-form.ts",
+            "apps/client/src/business/intake.ts",
+            "apps/client/src/screens/intake.tsx"
+          ]
+        },
+        {
+          "hash": "46e32f8a85bf9142d76063b86f65bc96ded72a7f",
+          "subject": "fix: 수기 기록을 리포트와 AI 재료에 연결",
+          "changedBusinessOrApiFiles": [
+            "packages/contracts/src/report.ts",
+            "packages/core/src/gateway.ts"
+          ]
+        },
+        {
+          "hash": "1caa2a4e165c4a9a73a09a401983fcfb73cdaccf",
+          "subject": "feat: 기관 월간 감사 사건 집계 추가",
+          "changedBusinessOrApiFiles": [
+            "packages/core/src/gateway.ts",
+            "packages/http-api/src/request-handler.ts"
+          ]
+        },
+        {
+          "hash": "331f2fdbe1a2bf7d236bc68a8aee829dc45ff5da",
+          "subject": "feat(client): 수기 질문 확인 흐름 연결",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/business/records.ts",
+            "apps/client/src/screens/records.tsx"
+          ]
+        },
+        {
+          "hash": "e8208cf887eeed8203aaa2f41fb0b278538a6b92",
+          "subject": "CCC-291 원문 버전과 실제 검사 범위 경계 추가",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0021_agent_text_source_fence.sql",
+            "migrations/sqlite/0065_agent_text_source_fence.sql",
+            "packages/contracts/src/agent-jobs.ts",
+            "packages/core/src/gateway.ts",
+            "packages/http-api/src/request-handler.ts"
+          ]
+        },
+        {
+          "hash": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+          "subject": "수정: 원문 변경으로 큐 재설정 시 임대 정보 초기화",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0021_agent_text_source_fence.sql",
+            "migrations/sqlite/0065_agent_text_source_fence.sql"
+          ]
+        },
+        {
+          "hash": "0cefde1e339d2d4af09ad813aeb1bc1bd28eb103",
+          "subject": "fix(client): 리포트 v2 계약 반영",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/business/report.ts",
+            "apps/client/src/screens/report.tsx"
+          ]
+        },
+        {
+          "hash": "9a09f9443a87f569c691f86c2c26046324076204",
+          "subject": "feat: 사례별 식별 대응표를 암호화해 저장",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0022_case_entity_mapping.sql",
+            "migrations/sqlite/0066_case_entity_mapping.sql",
+            "packages/core/src/gateway.ts"
+          ]
+        },
+        {
+          "hash": "6f6e334cb4e5e693f7aede38240f9ca0b8443562",
+          "subject": "개체 등록 F2를 마감하고 F3 부분 진행을 보존",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0023_entity_registration_binding.sql",
+            "migrations/sqlite/0067_entity_registration_binding.sql",
+            "packages/contracts/src/agent-jobs.ts",
+            "packages/contracts/src/entity-registration.ts",
+            "packages/core/src/gateway.ts",
+            "packages/http-api/src/request-handler.ts"
+          ]
+        },
+        {
+          "hash": "33cd1940f7e9af6078142214f70725728c573e21",
+          "subject": "상담일과 원천 좌표를 결속하고 오래된 작업의 큐를 재개",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0024_entity_source_invalidation.sql",
+            "migrations/sqlite/0068_entity_source_invalidation.sql",
+            "packages/core/src/gateway.ts"
+          ]
+        },
+        {
+          "hash": "4c5fe47bb990fdaedaff7f42f818d7ab4d06784e",
+          "subject": "fix: F4 결과 증명과 원천 결속의 원자 저장",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0025_masked_source_proof.sql",
+            "migrations/sqlite/0069_masked_source_proof.sql",
+            "packages/core/src/gateway.ts"
+          ]
+        },
+        {
+          "hash": "dbde609fc9c4015b019a64c6cf3f1dcef91754f1",
+          "subject": "refactor: 화면 목적지 이름을 통일한다",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/components/wire/app-sidebar.tsx",
+            "apps/web/app/layout.tsx",
+            "apps/web/app/onboarding/onboarding-wizard.tsx",
+            "apps/web/app/onboarding/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/fixture-draft-view.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx",
+            "apps/web/app/schedules/[scheduleId]/plan/page.tsx",
+            "apps/web/app/schedules/[scheduleId]/plan/session-plan-editor.tsx"
+          ]
+        },
+        {
+          "hash": "533966888221833b1d8c1fab0edd9a4c35f96b67",
+          "subject": "fix: 결과 증명 재검증과 외부 호출 경계 복원",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0026_openai_egress.sql",
+            "migrations/sqlite/0070_openai_egress.sql",
+            "packages/contracts/src/agent-jobs.ts",
+            "packages/core/src/gateway.ts",
+            "packages/http-api/src/request-handler.ts"
+          ]
+        },
+        {
+          "hash": "d9c60f9f5b1511335a838898189fda707ca60f85",
+          "subject": "메모리 자료 증명 재검증 강화",
+          "changedBusinessOrApiFiles": [
+            "packages/core/src/gateway.ts",
+            "packages/http-api/src/counseling-memory-runner.ts"
+          ]
+        },
+        {
+          "hash": "0b8e649036388c254b153285cdde68cb2a49fc59",
+          "subject": "PostgreSQL provider 값 영역 검사 복원",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0026_openai_egress.sql"
+          ]
+        },
+        {
+          "hash": "5d43bbefe1a3b5a635cb9710f6546c92317732f5",
+          "subject": "개인정보 파기 증명 원장을 추가한다",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0027_privacy_purge_events.sql",
+            "migrations/sqlite/0071_privacy_purge_events.sql",
+            "packages/core/src/gateway.ts"
+          ]
+        },
+        {
+          "hash": "9a68af962b23c2d3fb52db837b1a8ad7f644ae81",
+          "subject": "파기 가드의 괄호 문법을 바로잡는다",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0027_privacy_purge_events.sql"
+          ]
+        },
+        {
+          "hash": "ff505aae35c917516a80719cc6d7eeeffaee0046",
+          "subject": "PostgreSQL 파기 이벤트 키 표지를 바로잡는다",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0027_privacy_purge_events.sql"
+          ]
+        },
+        {
+          "hash": "ca86fe0e4cb97037b68cf8145add604a59ae7a94",
+          "subject": "소유가 확인된 사례 그래프를 파기한다",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0028_privacy_purge_owned_graph.sql",
+            "migrations/sqlite/0072_privacy_purge_owned_graph.sql",
+            "packages/core/src/gateway.ts"
+          ]
+        },
+        {
+          "hash": "e85d5ffc0f3f1e6a1863d746631bb230a28266f7",
+          "subject": "PostgreSQL 파기 범위 뷰를 맞춘다",
+          "changedBusinessOrApiFiles": [
+            "migrations/postgres/0028_privacy_purge_owned_graph.sql"
+          ]
+        },
+        {
+          "hash": "21265854715837b8701e4d518a032b801b40fbc0",
+          "subject": "feat: 마스킹 명세 생산자만 단일화",
+          "changedBusinessOrApiFiles": [
+            "packages/contracts/src/agent-jobs.ts",
+            "packages/contracts/src/masking-pipeline.ts",
+            "packages/core/src/gateway.ts"
+          ]
+        },
+        {
+          "hash": "5ef5a0b3e5c6459208239c0096b056b6ab70deaa",
+          "subject": "feat: 내부 운영 역할과 관리자 내보내기 경계 확정",
+          "changedBusinessOrApiFiles": [
+            "packages/core/src/access-policy.ts",
+            "packages/core/src/gateway.ts",
+            "packages/http-api/src/identity.ts"
+          ]
+        },
+        {
+          "hash": "a42c15e30aa34b7de3715c8bee78528cb2a57194",
+          "subject": "feat: 사례 전체 CSV 내보내기 생산자 추가",
+          "changedBusinessOrApiFiles": [
+            "packages/core/src/gateway.ts",
+            "packages/core/src/support-case-csv.ts",
+            "packages/http-api/src/request-handler.ts"
+          ]
+        },
+        {
+          "hash": "b87f50e4defe8c792365d83dc456253624b14550",
+          "subject": "feat(client): 경과 리포트 CSV 내려받기",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/business/report.ts",
+            "apps/client/src/business/transport.ts",
+            "apps/client/src/screens/report.tsx"
+          ]
+        },
+        {
+          "hash": "34513485230673a5a5d2e07cedf61f20f6523514",
+          "subject": "fix: CSV 내려받기를 GET 방식으로 통일",
+          "changedBusinessOrApiFiles": [
+            "packages/http-api/src/request-handler.ts"
+          ]
+        },
+        {
+          "hash": "866f2475846519fdff5f3eca24e6c7f1fca71a67",
+          "subject": "fix: 첫 출고 제외 기능 진입점을 숨긴다",
+          "changedBusinessOrApiFiles": [
+            "apps/web/app/admin/ai-provider/stt-status.tsx",
+            "apps/web/app/components/wire/app-sidebar.tsx",
+            "apps/web/app/layout.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/fixture-draft-view.tsx",
+            "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/record-list.tsx",
+            "apps/web/app/participants/invite/page.tsx",
+            "apps/web/app/settings/page.tsx"
+          ]
+        },
+        {
+          "hash": "4b07ca1b8a5d45c49eef64ccfad0b3fa6a3a2800",
+          "subject": "fix(client): 첫 출고 제외 기능 진입점을 숨긴다",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/business/navigation.ts",
+            "apps/client/src/screens/records.tsx",
+            "apps/client/src/screens/schedules.tsx",
+            "apps/client/src/screens/settings.tsx"
+          ]
+        },
+        {
+          "hash": "af2bf330a30cb2153645e0ef230f29b2a22e81ca",
+          "subject": "릴리스 제외 서버 경로를 닫다",
+          "changedBusinessOrApiFiles": [
+            "apps/api/src/cron-schedule.ts",
+            "apps/api/src/index.ts",
+            "packages/contracts/src/capabilities.ts",
+            "packages/core/src/gateway.ts",
+            "packages/core/src/scheduled-job-runner.ts",
+            "packages/http-api/src/capabilities.ts",
+            "packages/http-api/src/request-handler.ts"
+          ]
+        },
+        {
+          "hash": "a67e00fd7a292ce3ba5bf3930b3ffa6ecb85d0a7",
+          "subject": "feat(client): 회차 녹음 원음 업로드 진입을 기록 화면에 연다",
+          "changedBusinessOrApiFiles": [
+            "apps/client/src/business/errors.ts",
+            "apps/client/src/business/records.ts",
+            "apps/client/src/business/transport.ts",
+            "apps/client/src/screens/records.tsx"
+          ]
+        }
+      ]
+    },
+    "unchangedBoundaryEvidence": [
+      {
+        "path": "packages/http-api/src/preview-gate.ts",
+        "baseBlob": "3c84c7bec89b35f8204c2e8da723e282a869b1c5",
+        "tipBlob": "3c84c7bec89b35f8204c2e8da723e282a869b1c5",
+        "unchanged": true
+      },
+      {
+        "path": "apps/web/app/preview/admin/page.tsx",
+        "baseBlob": "d64f6a9b581232502824b61275121a40a25e604f",
+        "tipBlob": "d64f6a9b581232502824b61275121a40a25e604f",
+        "unchanged": true
+      },
+      {
+        "path": "apps/web/app/preview/unlock/route.ts",
+        "baseBlob": "dbeab2ecbb16280f0b8a7b3e54630858f70ccbde",
+        "tipBlob": "dbeab2ecbb16280f0b8a7b3e54630858f70ccbde",
+        "unchanged": true
+      },
+      {
+        "path": "apps/web/app/lib/format-korean-date.ts",
+        "baseBlob": "e79ac934979d244faea86406a63d8bc96fdbcfc7",
+        "tipBlob": "e79ac934979d244faea86406a63d8bc96fdbcfc7",
+        "unchanged": true
+      },
+      {
+        "path": "apps/web/app/components/wire/date-picker-control.tsx",
+        "baseBlob": "7f79d77ecd161fbdc8416a604c6f0217ddcf55e4",
+        "tipBlob": "7f79d77ecd161fbdc8416a604c6f0217ddcf55e4",
+        "unchanged": true
+      }
+    ],
+    "preReportHead": "9ed06f21f65d2952573ad3308be9a545dfc83ca1",
+    "preReportStatus": [
+      " M apps/web/app/actions.ts",
+      "?? apps/web/app/schedule-datetime-action.test.ts",
+      "?? artifacts/prod-migration-2026-09-16/",
+      "?? artifacts/release/"
+    ],
+    "concurrentChangeNotice": "조사 중 다른 작업이 HEAD 및 작업 파일을 변경했다. branchTip과 commitCount는 최초 고정한 범위이며 이후 커밋과 actions.ts 등의 미커밋 수정은 이 판정에 포함하지 않는다. 최신 배포 후보의 미수정 여부를 이 보고서만으로 단정하지 않는다.",
+    "verification": {
+      "productRuntimeExecuted": false,
+      "reportValidation": "JSON 키, 네 증상, 실제 화면 경로, 전체 커밋 및 변경 파일 수, 모든 근거의 고정 Git 객체와 줄 범위를 검사한다.",
+      "reviewCorrections": [
+        "코어와 HTTP 응답의 동의 배열을 Next가 객체로 읽는 불일치를 추가로 확인했다.",
+        "파기되지 않은 flag_type CHECK가 있어 미지원 플래그가 저장되어 목록을 오염시킨다는 가설은 채택하지 않았다.",
+        "D1 binding 변경, 원음 cron 주기 변경, supervisor의 counselor 전환이라는 서브조사 주장은 실제 diff와 맞지 않아 제외했다."
+      ],
+      "skillChecks": {
+        "sip": "고정 소스 대조와 한국어 문장 검사 및 독립 문서 판독을 수행한다.",
+        "factchk": "외부 세계에 대한 신규 사실 주장은 없으며 저장소 사실은 고정 Git 객체로 검증한다. 운영 상태 추정은 별도 표기한다.",
+        "ssotize": "이 보고서는 스펙 정본이 아니라 특정 Git 범위의 읽기 전용 판정이다. 기존 문서나 코드를 통합하거나 수정하지 않는다.",
+        "re0": "중복된 주장을 계약별로 묶고 증상 판정과 신규 위험을 분리한다.",
+        "detool": "특정 저장소와 배포 경로의 조사이므로 이식성 주장은 하지 않는다."
+      },
+      "independentContentReview": {
+        "method": "프로젝트 맥락을 전달하지 않은 별도 단발 모델에 보고서 전체 JSON 내용을 전달했다.",
+        "verdict": "고정 범위 조사로 사용할 수 있지만 최신 배포 후보 승인에는 부족하다.",
+        "applied": [
+          "분석 SHA에서만 유효함을 명시했다.",
+          "surface별 적용 여부와 미실행 상태를 각 스모크에 적었다.",
+          "합성 fixture, 선행 실패, 시간대 기대값과 pass 증거 규칙을 추가했다.",
+          "메뉴 숨김과 서버 API 차단을 구분하고 초대 경로의 일괄 404 가정을 제거했다."
+        ]
+      }
+    }
+  },
+  "blocked": {
+    "investigationBlocked": false,
+    "deploymentClearance": "분석 tip에 대해서는 수정되지 않은 리허설 경로 및 계약 불일치가 있어 배포 후 정상 동작을 보증할 수 없다. 최신 HEAD 및 병행 수정의 채택 판정은 이 보고서 범위 밖이다.",
+    "limitations": [
+      "리허설 증상은 사용자 관측 사실로 받아들였다. 운영에서 다시 재현하지 않았다.",
+      "Next 다이제스트에 대응하는 원본 예외와 요청 응답은 제공되지 않았다. 특정 원인이 당시 장애를 일으켰다는 런타임 확정은 하지 않는다.",
+      "운영 배포 SHA, 마이그레이션 적용 여부, 실제 설치 신뢰 및 시크릿, DB 내용은 조회하지 않았다.",
+      "병행 작업의 미커밋 수정이나 분석 tip 이후 커밋은 판정 근거로 사용하지 않는다.",
+      "소스에 계약 변경이 있다는 판정과 배포 뒤 실제 정상 동작한다는 판정은 다르다. 후자는 postDeploySmokeOrder를 실행한 증거가 있어야 한다."
+    ],
+    "scopeNotice": "판정은 9df84b44b3a6520db1675f0e2a658941c412ca1e에서만 유효하다. 이후 HEAD와 병행 수정은 미평가이며, 최신 후보의 배포 허용 또는 수정 완료 판정으로 사용하지 않는다.",
+    "smokeExecutionRules": {
+      "candidatePin": "실행자가 웹, API, 별도 클라이언트 및 Agent 각각의 배포 SHA와 산출물 식별자를 먼저 기록한다. 서로 다른 앱의 배포를 하나의 SHA라고 가정하지 않는다.",
+      "surfaceSelection": "apps/web preview에는 1, 2 및 apps/web 표시 단계를 적용한다. 별도 apps/client 배포가 없으면 해당 전용 단계는 not_applicable로 적고 통과 수에 넣지 않는다.",
+      "fixtures": "미리 존재하는 승인된 합성 당사자 두 명과 서로 다른 사례의 실제 ID, 기대 회차 수 및 메모를 기록한다. 기존 v1 인테이크, 인테이크 없는 사례, 수기 회차, 승인/미승인 AI 자료가 준비된 항목만 실행한다. 비어 있는 목록만 보고 정상이라고 판정하지 않는다.",
+      "observations": "각 단계에 대상 SHA, 화면 URL, HTTP 상태 또는 화면 결과, 저장 후 재조회한 ID 및 기대값 대비 결과를 남긴다. 원음, 시크릿, 인증 토큰과 코드값은 기록하지 않는다. DB 직접 조회는 이 순서에 포함하지 않는다.",
+      "dependencyFailure": "새 당사자 등록이나 기록 저장이 실패하면 그 결과 ID가 필요한 후속 단계는 blocked다. 이미 준비된 합성 fixture로 독립 조회를 실행한 경우에는 그 경로와 ID를 구분해 기록한다.",
+      "timeExpectation": "입력한 벽시계 시각과 기관 시간대 및 기기 시간대를 함께 기록한다. 예를 들어 Asia/Seoul 10:30에 대응하는 UTC는 01:30Z다. 화면에는 해당 화면이 약속한 시간대의 10:30이 보여야 하며, 시간대가 다른 기기에서는 같은 순간의 기대 표시값을 따로 정한다.",
+      "resultStates": [
+        "pass",
+        "fail",
+        "blocked",
+        "not_run",
+        "not_applicable"
+      ],
+      "passRule": "성공 기준의 관측 증거가 모두 있어야 pass다. 실행하지 않았거나 fixture가 없거나 UI만 숨겨져 있다는 이유로 pass를 주지 않는다.",
+      "migrationGate": "실행 담당자가 선택 저장소의 새 마이그레이션 적용 계획, 구 코드와의 호환성, 복구 절차를 확인해야 한다. 이 보고서는 적용 상태나 복구 가능성을 검증하지 않았다."
+    }
+  }
+}
