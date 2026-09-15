@@ -17,6 +17,13 @@ import {
   type IntakeRevision,
   type IntakeUpdateRequest,
 } from '@ccc/contracts/intake';
+import {
+  CONSENT_DOMAINS,
+  type AppendConsentEventInput,
+  type ConsentDisclosureSnapshot,
+  type ConsentDomain,
+  type CurrentConsentState,
+} from '@ccc/contracts/consent';
 
 export type ApiErrorCode =
   | 'authentication_required'
@@ -313,7 +320,8 @@ export interface ParticipantProgram {
   authorized: boolean;
   /** 활성 담당 실무자 표시 이름. 비담당 사업에서 "누구에게 물어보나"를 답한다. */
   assigneeNames: string[];
-  /** 동의 2종의 현재 상태(D44 · 항목 수는 D49). 등록 시 받고 당사자 정보 페이지에서 고친다. */
+  /** 동의 2종의 현재 상태(D44 · 항목 수는 D49). 서버는 6영역 이벤트 원장을 쓰고
+   *  이 필드는 화면 표기용으로 접은 값이다 — foldCurrentConsent 참조. */
   consent: ParticipantConsent;
   /** 마지막으로 동의 상태를 기록한 시각. 한 번도 없으면 null(최초 동의일이 아니다). */
   consentRecordedAt: string | null;
@@ -633,15 +641,18 @@ export interface NewRecordContext {
 }
 
 export interface CreateInitialParticipantProgramInput {
-  programType: ParticipantProgramType;
+  /** 신계약은 사업을 programId 로 지목한다 — programType 문자열은 받지 않는다. */
+  programId: string;
+  /** 등록 트랜잭션 멱등 키(서버 필수). */
+  idempotencyKey: string;
   // intakeAt 은 없다(CCC-56): 등록은 인테이크가 아니다. 인테이크 완료 시각은 인테이크
   // 기록 저장이 채우고, 그 전까지 위저드는 이 당사자를 '인테이크 전'으로 본다.
   initialAssigneeUserId?: string;
-  // 항목별 동의 2종(D49·D23·D44). ② 는 기본 미동의이고 미동의여도 등록은 진행된다.
-  // ① consentPrivacy 만은 **하드 게이트**다(G1) — 없으면 emergencyReason 이 있어야 통과한다.
-  consentPrivacy?: boolean;
-  consentRecordingAi?: boolean;
-  /** 긴급 등록 사유 (G1 예외). ① 미체크로 등록해야 하는 급박한 위기 개입에만 쓴다. */
+  /** 6영역 동의 이벤트 — 서버가 정확히 6건(영역당 1건)을 요구한다.
+   *  personal_data_collection_use 의 grant 만은 **하드 게이트**다(G1) — 없으면
+   *  emergencyReason 이 있어야 통과한다. */
+  consentEvents: AppendConsentEventInput[];
+  /** 긴급 등록 사유 (G1 예외). ① 미동의로 등록해야 하는 급박한 위기 개입에만 쓴다. */
   emergencyReason?: string;
   // 등록 시 받은 이름·연락처·이메일(선택). pii_vault enc_* 로 저장된다(D3 · D24 · #32·#37).
   // JSON 직렬화가 undefined 를 지우므로 미입력은 바디에서 자연히 빠진다.
@@ -672,14 +683,13 @@ export interface ScheduleCandidate {
 export interface CreateSubsequentParticipantProgramInput {
   schemaVersion: 1;
   submissionId: string;
-  programType: ParticipantProgramType;
+  /** 신계약은 사업을 programId 로 지목한다 — programType 문자열은 받지 않는다. */
+  programId: string;
   // intakeAt 은 없다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
   sourceSupportCaseId?: string;
   initialAssigneeUserId?: string;
-  /** ① 개인정보 동의 (G1). 두 번째 참여 사업도 동의 2종이 미체크로 시작하므로 여기서 다시 받는다(D44). */
-  consentPrivacy: boolean;
-  /** ② AI를 활용한 녹취기록 동의 (D49). 선택 — 보내지 않으면 미동의로 시작한다. */
-  consentRecordingAi?: boolean;
+  /** 6영역 동의 이벤트 — 서버가 정확히 6건(영역당 1건)을 요구한다. */
+  consentEvents: AppendConsentEventInput[];
   /** 긴급 등록 사유 (G1 예외). */
   emergencyReason?: string;
 }
@@ -988,9 +998,29 @@ function decodeSourceSupportCase(value: unknown): SourceSupportCase {
     status: responseEnum(responseProperty(record, 'status'), caseStatuses),
   };
 }
-
 function decodeParticipantProgram(value: unknown): ParticipantProgram {
   const record = responseObject(value);
+  const authorized = responseBoolean(record, 'authorized');
+  // 비담당 사업은 허브 응답이 식별 필드만 싣는다(D36) — 본문 필드를 요구하면 목록 전체가 죽는다.
+  if (!authorized) {
+    return {
+      id: responseString(record, 'id'),
+      beneficiaryId: responseString(record, 'beneficiaryId'),
+      programType: responseEnum(responseProperty(record, 'programType'), participantProgramTypes),
+      status: responseEnum(responseProperty(record, 'status'), caseStatuses),
+      intakeAt: null,
+      creationKind: 'initial',
+      sourceSupportCase: null,
+      authorized,
+      assigneeNames: responseArray(record, 'assigneeNames').map((name) => {
+        if (typeof name !== 'string') contractViolation();
+        return name;
+      }),
+      consent: { privacy: false, recordingAi: false },
+      consentRecordedAt: null,
+      upcomingSchedule: null,
+    };
+  }
   const sourceSupportCase = responseProperty(record, 'sourceSupportCase');
   return {
     id: responseString(record, 'id'),
@@ -1000,15 +1030,119 @@ function decodeParticipantProgram(value: unknown): ParticipantProgram {
     intakeAt: responseNullableString(record, 'intakeAt'),
     creationKind: responseEnum(responseProperty(record, 'creationKind'), creationKinds),
     sourceSupportCase: sourceSupportCase === null ? null : decodeSourceSupportCase(sourceSupportCase),
-    authorized: responseBoolean(record, 'authorized'),
+    authorized,
     assigneeNames: responseArray(record, 'assigneeNames').map((name) => {
       if (typeof name !== 'string') contractViolation();
       return name;
     }),
-    consent: decodeParticipantConsent(responseProperty(record, 'consent')),
+    // 동의 상태는 사업 응답에 없다 — 6영역 원장을 GET consent 으로 따로 읽어 접는다.
+    consent: { privacy: false, recordingAi: false },
     consentRecordedAt: responseNullableString(record, 'consentRecordedAt'),
     upcomingSchedule: decodeProgramUpcomingSchedule(responseProperty(record, 'upcomingSchedule')),
   };
+}
+
+// 서버의 6영역 동의 원장(consent_events fold)을 화면의 2종 표기로 접는다.
+// ① 개인정보 수집·이용 = personal_data_collection_use + sensitive_information_processing
+// ② AI 녹취기록 = counseling_recording + external_stt_processing
+//   + external_llm_cross_border_processing + voice_original_retention_period
+// 접은 표기는 "모두 grant 일 때만 체크"다 — 하나라도 미동의면 빈 칸으로 보여 과대 표시를 막는다.
+const PRIVACY_CONSENT_DOMAINS: readonly ConsentDomain[] = [
+  'personal_data_collection_use',
+  'sensitive_information_processing',
+];
+const RECORDING_AI_CONSENT_DOMAINS: readonly ConsentDomain[] = [
+  'counseling_recording',
+  'external_stt_processing',
+  'external_llm_cross_border_processing',
+  'voice_original_retention_period',
+];
+
+function decodeCurrentConsentStates(value: unknown): CurrentConsentState[] {
+  return responseArray(responseObject(value), 'consent').map((entry) => {
+    const record = responseObject(entry);
+    const domain = responseString(record, 'domain') as ConsentDomain;
+    if (!CONSENT_DOMAINS.includes(domain)) contractViolation();
+    const state = responseString(record, 'state');
+    if (state !== 'unconfirmed' && state !== 'granted' && state !== 'not_granted') contractViolation();
+    return { domain, state } as CurrentConsentState;
+  });
+}
+
+function foldCurrentConsent(states: CurrentConsentState[]): ParticipantConsent {
+  const granted = (domains: readonly ConsentDomain[]) =>
+    domains.every((domain) => states.find((entry) => entry.domain === domain)?.state === 'granted');
+  return { privacy: granted(PRIVACY_CONSENT_DOMAINS), recordingAi: granted(RECORDING_AI_CONSENT_DOMAINS) };
+}
+
+/** 사업 1건의 6영역 동의 현재 상태. GET /support-cases/:id/consent */
+export async function getSupportCaseConsent(supportCaseId: string): Promise<CurrentConsentState[]> {
+  return decodeCurrentConsentStates(await requestJson<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/consent`,
+  ));
+}
+
+function decodeConsentDisclosures(value: unknown): ConsentDisclosureSnapshot[] {
+  return responseArray(responseObject(value), 'disclosures').map((entry) => {
+    const record = responseObject(entry);
+    const domain = responseString(record, 'domain') as ConsentDomain;
+    if (!CONSENT_DOMAINS.includes(domain)) contractViolation();
+    return record as unknown as ConsentDisclosureSnapshot;
+  });
+}
+
+/** 사업 1건의 6영역 동의 고지 스냅샷 발급. GET /support-cases/:id/consent/disclosures */
+export async function issueSupportCaseConsentDisclosures(supportCaseId: string): Promise<ConsentDisclosureSnapshot[]> {
+  return decodeConsentDisclosures(await requestJson<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/consent/disclosures`,
+  ));
+}
+
+/** 등록 전 6영역 동의 고지 스냅샷 발급(케이스 없이 org·program·issuer 에 묶인다). */
+export async function issueRegistrationConsentDisclosures(programId: string): Promise<ConsentDisclosureSnapshot[]> {
+  return decodeConsentDisclosures(await requestJson<unknown>(
+    `/programs/${encodeURIComponent(programId)}/consent/disclosures`,
+  ));
+}
+
+export interface ProgramOption {
+  id: string;
+  displayName: string | null;
+  programType: ParticipantProgramType;
+}
+
+/** 등록 가능한 활성 사업 목록 — 신계약 등록이 요구하는 programId 해석에 쓴다. */
+export async function listProgramOptions(): Promise<ProgramOption[]> {
+  const payload = responseObject(await requestJson<unknown>('/program-options'));
+  return responseArray(payload, 'programs').map((entry) => {
+    const record = responseObject(entry);
+    return {
+      id: responseString(record, 'id'),
+      displayName: responseNullableString(record, 'displayName'),
+      programType: responseEnum(responseProperty(record, 'programType'), participantProgramTypes),
+    };
+  });
+}
+
+// 사업 목록 응답에는 동의가 없으므로 담당 사업마다 GET consent 을 붙여 접은 값을 채운다.
+
+/** 당사자 자기 가입 링크의 6영역 동의 고지(공개 경로, Access 불필요). */
+export async function getParticipantInviteConsentDisclosures(token: string): Promise<ConsentDisclosureSnapshot[]> {
+  const response = await fetchApi(endpoint(`/invites/participant/${encodeURIComponent(token)}/consent/disclosures`), {
+    headers: { accept: 'application/json' },
+    cache: 'no-store',
+    redirect: 'manual',
+  });
+  const payload: unknown = await response.json().catch(() => null);
+  if (!response.ok) throw new ApiError(errorCode(response.status, payload));
+  return decodeConsentDisclosures(payload);
+}
+// 비담당 사업은 동의를 읽을 권한이 없어 호출하지 않는다(화면도 그리지 않는다).
+async function withFoldedConsent(programs: ParticipantProgram[]): Promise<ParticipantProgram[]> {
+  return Promise.all(programs.map(async (program) => {
+    if (!program.authorized) return program;
+    return { ...program, consent: foldCurrentConsent(await getSupportCaseConsent(program.id)) };
+  }));
 }
 
 function decodeProgramUpcomingSchedule(value: unknown): ParticipantProgram['upcomingSchedule'] {
@@ -1506,7 +1640,6 @@ export async function listScheduleCandidates(): Promise<ScheduleCandidate[]> {
   const payload = await requestJson<{ candidates: ScheduleCandidate[] }>('/schedules/candidates');
   return payload.candidates;
 }
-
 export async function listParticipantPrograms(beneficiaryId: string): Promise<ParticipantProgram[]> {
   const payload = await requestJson<unknown>(
     `/participants/${encodeURIComponent(beneficiaryId)}/support-cases`,
@@ -1514,7 +1647,7 @@ export async function listParticipantPrograms(beneficiaryId: string): Promise<Pa
   if (!Array.isArray(payload)) contractViolation();
   const programs = payload.map(decodeParticipantProgram);
   if (programs.some((program) => program.beneficiaryId !== beneficiaryId)) contractViolation();
-  return programs;
+  return withFoldedConsent(programs);
 }
 
 /** 일반 기록 화면이 쓰는 당사자 실명·연락처와 참여 사업. 이메일은 이 응답에 없다. */
@@ -1531,7 +1664,7 @@ export async function getParticipantDetail(beneficiaryId: string): Promise<Parti
     beneficiaryId,
     name: contact === null ? null : responseNullableString(contact, 'participantName'),
     phone: contact === null ? null : responseNullableString(contact, 'participantPhone'),
-    programs,
+    programs: await withFoldedConsent(programs),
   };
 }
 
@@ -1548,7 +1681,7 @@ export async function getParticipantHubDetail(beneficiaryId: string): Promise<Pa
     name: responseNullableString(record, 'participantName'),
     phone: responseNullableString(record, 'participantPhone'),
     email: responseNullableString(record, 'participantEmail'),
-    programs,
+    programs: await withFoldedConsent(programs),
   };
 }
 
@@ -1655,6 +1788,34 @@ export async function listSupportCaseRecords(
   return records;
 }
 
+function firstLine(memo: string): string {
+  const line = memo.split('\n').map((part) => part.trim()).find((part) => part.length > 0) ?? '';
+  return line.length > 80 ? `${line.slice(0, 80)}…` : line;
+}
+
+async function loadScheduleSessionPlan(
+  scheduleId: string,
+): Promise<{ sessionGoals: RecordSessionGoal[]; customQuestions: string[] }> {
+  try {
+    const plan = responseObject(await requestJson<unknown>(`/schedules/${encodeURIComponent(scheduleId)}/plan`));
+    return {
+      sessionGoals: responseArray(plan, 'sessionGoals').map((value) => {
+        const goal = responseObject(value);
+        return { body: responseString(goal, 'body'), caseGoalTitle: responseNullableString(goal, 'caseGoalTitle') };
+      }),
+      customQuestions: responseArray(plan, 'customQuestions').map((value) => responseString(responseObject(value), 'body')),
+    };
+  } catch {
+    return { sessionGoals: [], customQuestions: [] };
+  }
+}
+
+export async function createInitialParticipantProgram(
+  input: CreateInitialParticipantProgramInput,
+): Promise<ParticipantProgramCreation> {
+  return jsonRequest<ParticipantProgramCreation>('/participants', 'POST', input);
+}
+
 export async function getNewRecordContext(
   beneficiaryId: string,
   supportCaseId: string,
@@ -1696,52 +1857,72 @@ export async function getNewRecordContext(
   };
 }
 
-function firstLine(memo: string): string {
-  const line = memo.split('\n').map((part) => part.trim()).find((part) => part.length > 0) ?? '';
-  return line.length > 80 ? `${line.slice(0, 80)}…` : line;
-}
-
 /**
- * 다가오는 일정의 세션 목표·맞춤형 질문(D28). 기록지의 참고 표시용이라 실패해도 폼을 막지
- * 않는다 — 조회가 어떤 이유로든 실패하면 빈 목록으로 낮춰 "수기 메모만으로 저장" 경로를 지킨다.
- */
-async function loadScheduleSessionPlan(
-  scheduleId: string,
-): Promise<{ sessionGoals: RecordSessionGoal[]; customQuestions: string[] }> {
-  try {
-    const plan = responseObject(await requestJson<unknown>(`/schedules/${encodeURIComponent(scheduleId)}/plan`));
-    return {
-      sessionGoals: responseArray(plan, 'sessionGoals').map((value) => {
-        const goal = responseObject(value);
-        return { body: responseString(goal, 'body'), caseGoalTitle: responseNullableString(goal, 'caseGoalTitle') };
-      }),
-      customQuestions: responseArray(plan, 'customQuestions').map((value) => responseString(responseObject(value), 'body')),
-    };
-  } catch {
-    return { sessionGoals: [], customQuestions: [] };
-  }
-}
-
-export async function createInitialParticipantProgram(
-  input: CreateInitialParticipantProgramInput,
-): Promise<ParticipantProgramCreation> {
-  return jsonRequest<ParticipantProgramCreation>('/participants', 'POST', input);
-}
-
-/**
- * 동의 3종 수정·철회 (D44). 세 값을 항상 함께 보낸다 — 서버가 현재 상태 전체를 한 번에
- * 기록하기 때문이다(부분 갱신이 아니다). 권한(담당 실무자·기관 관리자)은 서버가 판정한다.
+ * 동의 수정·철회 (D44). 구 PUT /consent 는 사라졌다 — 신계약은 영역별 이벤트를
+ * POST /support-cases/:id/consent-events 로 한 건씩 쌓는다(append-only 원장).
+ * decisions 에 없는 영역은 이벤트를 보내지 않아 현재 상태가 유지된다.
+ * 각 결정은 사용자에게 실제로 보여 준 고지 스냅샷을 함께 실어야 한다 — 이벤트가
+ * 그 스냅샷의 문안 해시에 묶이므로 제출 시점에 새 고지를 발급해 덮어쓰면 읽은 문안과
+ * 기록된 문안이 갈라진다. 권한(담당 실무자·기관 관리자)은 서버가 판정한다.
  */
 export async function updateParticipantConsent(
   supportCaseId: string,
-  consent: ParticipantConsent,
+  decisions: ReadonlyArray<{
+    domain: ConsentDomain;
+    decision: 'grant' | 'decline';
+    snapshot: ConsentDisclosureSnapshot;
+  }>,
 ): Promise<ParticipantConsent> {
-  const payload = await jsonRequest<unknown>(
-    `/support-cases/${encodeURIComponent(supportCaseId)}/consent`,
-    'PUT',
-    consent,
-  );
-  return decodeParticipantConsent(payload);
+  const states = await getSupportCaseConsent(supportCaseId);
+  const stateByDomain = new Map(states.map((entry) => [entry.domain, entry]));
+  const recordedAt = new Date().toISOString();
+  for (const { domain, decision, snapshot } of decisions) {
+    const current = stateByDomain.get(domain);
+    // 철회는 유효한 grant 가 있을 때만 의미가 있다 — grant 가 있으면 withdraw,
+    // 없으면 decline 으로 기록한다(원장이 withdraw 의 대상 grant 를 요구한다).
+    const effective = decision === 'grant' ? 'grant'
+      : current?.state === 'granted' ? 'withdraw' : 'decline';
+    // withdraw 는 대상 grant 의 사업자 범위를 그대로 따라야 한다 — 고지 스냅샷이 아니라
+    // 현재 상태의 provider 필드를 실어 provider_scope_mismatch 를 피한다.
+    const scope: Pick<AppendConsentEventInput, 'provider' | 'providerLegalRecipient' | 'providerCountry' | 'purpose' | 'retentionDuration'> =
+      effective === 'decline'
+        ? { provider: null, providerLegalRecipient: null, providerCountry: null, purpose: null, retentionDuration: null }
+        : effective === 'withdraw'
+          ? {
+              provider: current!.provider,
+              providerLegalRecipient: current!.providerLegalRecipient,
+              providerCountry: current!.providerCountry,
+              purpose: current!.purpose,
+              retentionDuration: current!.retentionDuration,
+            }
+          : {
+              provider: snapshot.provider,
+              providerLegalRecipient: snapshot.providerLegalRecipient,
+              providerCountry: snapshot.country,
+              purpose: snapshot.purpose,
+              // 게이트웨이는 retentionDuration 을 voice_original_retention_period 에만
+              // 허용한다 — 다른 영역에 싣으면 provider_scope_mismatch 로 거부된다.
+              retentionDuration: domain === 'voice_original_retention_period' ? snapshot.retentionDuration : null,
+            };
+    const event: AppendConsentEventInput = {
+      domain,
+      decision: effective,
+      ...scope,
+      copyVersion: snapshot.copyVersion,
+      copyHash: snapshot.copyHash,
+      disclosureSnapshotId: snapshot.snapshotId,
+      effectiveAt: recordedAt,
+      idempotencyKey: crypto.randomUUID(),
+      correctionOfEventId: null,
+      expectedRevision: null,
+    };
+    await jsonRequest<unknown>(
+      `/support-cases/${encodeURIComponent(supportCaseId)}/consent-events`,
+      'POST',
+      event,
+    );
+  }
+  return foldCurrentConsent(await getSupportCaseConsent(supportCaseId));
 }
 
 /** 전체 목표 그 자리 입력·수정 (D45 · CCC-41). null·빈 문자열은 "설정 전"으로 되돌린다. */
@@ -1889,13 +2070,8 @@ export async function getIntakeRecordContext(supportCaseId: string): Promise<Int
     sessionSequence: responseInteger(record, 'sessionSequence'),
     hasIntake: responseBoolean(record, 'hasIntake'),
     extendedPii: decodeIntakeExtendedPii(responseProperty(record, 'extendedPii')),
-    consent: (() => {
-      const consent = responseObject(responseProperty(record, 'consent'));
-      return {
-        privacy: responseBoolean(consent, 'privacy'),
-        recordingAi: responseBoolean(consent, 'recordingAi'),
-      };
-    })(),
+    // 서버는 6영역 동의 원장(CurrentConsentState[])을 준다 — 화면 표기 2종으로 접는다.
+    consent: foldCurrentConsent(decodeCurrentConsentStates({ consent: responseProperty(record, 'consent') })),
     saved: decodeIntakeSavedRecord(responseProperty(record, 'saved')),
     overallGoal: responseNullableString(record, 'overallGoal'),
     schedule: responseProperty(record, 'schedule') === null
@@ -2558,8 +2734,8 @@ export interface PublicSignupInput {
   name: string;
   phone?: string;
   email?: string;
-  // 동의 2종(D49) — 자기 가입은 등록이므로 등록 화면과 같은 2체크를 보낸다.
-  consent: { privacy: boolean; recordingAi: boolean };
+  /** 6영역 동의 이벤트 — 공개 가입도 등록과 같은 원장 계약이다(서버가 정확히 6건 요구). */
+  consentEvents: AppendConsentEventInput[];
 }
 
 export interface PublicSignupResult {

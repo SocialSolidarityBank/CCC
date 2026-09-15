@@ -23,6 +23,9 @@ import {
   createInitialParticipantProgram,
   createParticipantInvite,
   getPublicInviteInfo,
+  issueRegistrationConsentDisclosures,
+  listProgramOptions,
+  getParticipantInviteConsentDisclosures,
   signupParticipant,
   createWorkerInvite,
   signupWorker,
@@ -67,6 +70,12 @@ import {
   type IntakeQuestionWithdrawalInput,
   type IntakeUpdateRequest,
 } from '@ccc/contracts/intake';
+import {
+  CONSENT_DOMAINS,
+  type AppendConsentEventInput,
+  type ConsentDisclosureSnapshot,
+  type ConsentDomain,
+} from '@ccc/contracts/consent';
 
 export async function setCounselingMemorySettingsAction(input: MemorySettingsInput) {
   try {
@@ -187,9 +196,44 @@ function optionalOpaqueId(formData: FormData, name: string): string | undefined 
   return input;
 }
 
+// 화면의 날짜·시각 칸(DateTimePickerControl)은 오프셋 없는 `YYYY-MM-DDTHH:mm` 을 보낸다.
+// 그 값은 **기관 벽시계**로 읽어야 한다 — 표시 계약이 쓰는 시간대와 같은 Asia/Seoul
+// (format-korean-date.ts 의 DEFAULT_TIME_ZONE). Workers 런타임은 UTC 라 `new Date(naive)`
+// 가 그대로 UTC 로 읽혀 저장이 9시간 당겨지고, 표시에서 다시 +9시간 되어 하루가 밀렸다
+// (2026-09-16 preview 리허설: 16:30 입력 → 다음날 01:30 표시). 오프셋·Z 가 붙은 값은
+// 브라우저가 준 절대 시각이므로 그대로 파싱한다.
+const ORG_WALL_TIME_ZONE = 'Asia/Seoul';
+
+function orgWallTimeOffsetMinutes(at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: ORG_WALL_TIME_ZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(at);
+  const field = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  const asUtc = Date.UTC(field('year'), field('month') - 1, field('day'), field('hour'), field('minute'), field('second'));
+  return (asUtc - at.getTime()) / 60000;
+}
+
+// naive `YYYY-MM-DDTHH:mm[:ss]` 를 기관 벽시계로 해석한 Date 를 돌려준다.
+// UTC 로 읽은 추정값에서 그 시각의 기관 오프셋을 빼면 벽시계의 절대 시각이다.
+// 오프셋 경계(DST 전환)에서 한 번 더 보정한다 — Asia/Seoul 은 DST 가 없지만 계산은 일반적이다.
+function parseOrgWallDateTime(input: string): Date {
+  const trimmed = input.trim();
+  const naive = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2}))?$/.exec(trimmed);
+  if (naive === null) return new Date(trimmed);
+  const utcGuess = new Date(`${naive[1]}T${naive[2]}:${naive[3] ?? '00'}.000Z`);
+  if (Number.isNaN(utcGuess.valueOf())) return utcGuess;
+  const offset = orgWallTimeOffsetMinutes(utcGuess);
+  const resolved = new Date(utcGuess.getTime() - offset * 60000);
+  const refined = orgWallTimeOffsetMinutes(resolved);
+  return refined === offset ? resolved : new Date(utcGuess.getTime() - refined * 60000);
+}
+
 function canonicalUtcDateTime(formData: FormData, name: string): string {
   const input = requiredValue(formData, name);
-  const parsed = new Date(input);
+  const parsed = parseOrgWallDateTime(input);
   if (Number.isNaN(parsed.valueOf())) throw new FormInputError();
   return parsed.toISOString();
 }
@@ -223,6 +267,89 @@ function submissionId(formData: FormData): string {
     throw new FormInputError();
   }
   return input;
+}
+
+// ── 동의 6영역 이벤트 배선 (신계약, 2026-09-16 계약 드리프트 수정) ──────────────
+// 서버는 등록·가입·동의 수정 모두에서 영역별 AppendConsentEventInput 을 요구한다.
+// 동의 기록의 존재 이유는 "무엇에 동의했는지"를 증명하는 것이다 — 이벤트는 사용자가
+// 실제로 본 고지 스냅샷에 묶여야 한다. 그래서 폼은 영역마다 두 필드를 보낸다:
+//   consentDecision_<domain>  'grant' | 'decline'
+//   consentSnapshot_<domain>  화면이 고지를 렌더할 때 서버가 발급한 스냅샷의 JSON
+//     (snapshotId·copyVersion·copyHash·provider·providerLegalRecipient·country·
+//      purpose·retentionDuration — 발급 응답 그대로)
+// 제출 시점에 새 스냅샷을 발급해 덮어쓰면 읽은 문안과 기록된 문안이 갈라져 증명이
+// 성립하지 않는다. 서버가 snapshotId 로 저장된 스냅샷을 찾아 copyVersion·copyHash·
+// 사업자 범위를 대조하므로 여기서 위조해도 통과하지 않는다. 필드가 없는 영역은 이벤트를
+// 만들지 않는다 — 받지 않은 동의를 받은 것처럼 싣지 않는다. 등록·가입처럼 서버가
+// 정확히 6건을 요구하는 경로는 requireAll 로 빠진 영역을 거부한다.
+
+interface ConsentFormDecision {
+  domain: ConsentDomain;
+  decision: 'grant' | 'decline';
+  snapshot: ConsentDisclosureSnapshot;
+}
+
+function consentDecisionsFromForm(formData: FormData, requireAll: boolean): ConsentFormDecision[] {
+  const decisions: ConsentFormDecision[] = [];
+  for (const domain of CONSENT_DOMAINS) {
+    const raw = value(formData, `consentDecision_${domain}`).trim();
+    const snapshotJson = value(formData, `consentSnapshot_${domain}`).trim();
+    if (raw.length === 0 || snapshotJson.length === 0) {
+      if (requireAll) throw new FormInputError();
+      continue;
+    }
+    if (raw !== 'grant' && raw !== 'decline') throw new FormInputError();
+    let snapshot: ConsentDisclosureSnapshot;
+    try {
+      const parsed: unknown = JSON.parse(snapshotJson);
+      const record = recordObject(parsed);
+      // 스냅샷의 영역이 결정의 영역과 같아야 한다 — 다른 영역의 고지를 끼워 넣는 것을 막는다.
+      if (record.domain !== domain) throw new FormInputError();
+      snapshot = parsed as ConsentDisclosureSnapshot;
+    } catch (error) {
+      if (error instanceof FormInputError) throw error;
+      throw new FormInputError();
+    }
+    decisions.push({ domain, decision: raw, snapshot });
+  }
+  return decisions;
+}
+
+// 폼이 실어 보낸 고지 스냅샷을 이벤트에 묶는다. decline 은 사업자 범위를 null 로 둔다
+// (게이트웨이가 decline 의 provider 필드를 null 로 요구한다). grant 는 스냅샷의 사업자
+// 범위를 그대로 싣고 서버가 저장된 스냅샷과 대조한다.
+function consentEventsFromDecisions(
+  decisions: ReadonlyArray<ConsentFormDecision>,
+  idempotencySeed: string,
+): AppendConsentEventInput[] {
+  const effectiveAt = new Date().toISOString();
+  return decisions.map(({ domain, decision, snapshot }) => ({
+    domain,
+    decision,
+    provider: decision === 'decline' ? null : snapshot.provider,
+    providerLegalRecipient: decision === 'decline' ? null : snapshot.providerLegalRecipient,
+    providerCountry: decision === 'decline' ? null : snapshot.country,
+    purpose: decision === 'decline' ? null : snapshot.purpose,
+    // 게이트웨이는 retentionDuration 을 voice_original_retention_period 에만 허용한다.
+    retentionDuration: decision === 'decline' || domain !== 'voice_original_retention_period' ? null : snapshot.retentionDuration,
+    copyVersion: snapshot.copyVersion,
+    copyHash: snapshot.copyHash,
+    disclosureSnapshotId: snapshot.snapshotId,
+    effectiveAt,
+    idempotencyKey: `${idempotencySeed}-${domain}`,
+    correctionOfEventId: null,
+    expectedRevision: null,
+  }));
+}
+
+// 등록이 지목할 사업을 고른다. 폼은 아직 사업 선택 칸이 없어 programType 이
+// financial_support_v1 인 활성 사업이 정확히 하나일 때만 자동 해석한다 — 둘 이상이면
+// 임의 선택이 다른 사업에 등록하는 사고라 FormInputError 로 멈춘다(폼에 선택 칸 필요).
+async function resolveRegistrationProgramId(): Promise<string> {
+  const options = await listProgramOptions();
+  const matches = options.filter((option) => option.programType === 'financial_support_v1');
+  if (matches.length !== 1) throw new FormInputError();
+  return matches[0]!.id;
 }
 
 function jsonArray(formData: FormData, name: string): unknown[] {
@@ -689,10 +816,10 @@ export async function updateParticipantConsentAction(formData: FormData): Promis
   try {
     beneficiaryId = participantId(formData, 'beneficiaryId');
     const supportCaseId = requiredValue(formData, 'supportCaseId');
-    await updateParticipantConsent(supportCaseId, {
-      privacy: checkbox(formData, 'consentPrivacy'),
-      recordingAi: checkbox(formData, 'consentRecordingAi'),
-    });
+    // 신계약은 영역별 결정을 받는다 — 폼이 consentDecision_<domain> 으로 보낸 값만 이벤트가
+    // 된다. 구 2체크박스(consentPrivacy·consentRecordingAi)는 6영역을 대표할 수 없어 읽지
+    // 않는다: 받지 않은 동의를 받은 것처럼 싣는 것은 동의 게이트 우회다.
+    await updateParticipantConsent(supportCaseId, consentDecisionsFromForm(formData, false));
     revalidateParticipantProgram(beneficiaryId, supportCaseId);
   } catch (error) {
     const fallback = beneficiaryId === undefined ? '/participants' : participantPath(beneficiaryId);
@@ -935,17 +1062,23 @@ export async function createInitialParticipantProgramAction(formData: FormData):
     const emergencyReason = checkbox(formData, 'emergencyRegistration')
       ? (optionalTrimmedText(formData, 'emergencyReason', 500) ?? '')
       : undefined;
+    // 신계약 등록: 사업은 programId 로 지목하고 동의는 6영역 이벤트로 보낸다.
+    // 폼이 영역별 결정(consentDecision_<domain>)과 사용자에게 보여 준 고지 스냅샷
+    // (consentSnapshot_<domain>)을 모두 보내야 한다 — 하나라도 빠지면 FormInputError 로
+    // 멈춘다. 받지 않은 동의를 지어내 싣지 않는다(동의 게이트 우회 금지).
+    const programId = await resolveRegistrationProgramId();
+    const idempotencyKey = crypto.randomUUID();
+    const decisions = consentDecisionsFromForm(formData, true);
     const created = await createInitialParticipantProgram({
-      programType: 'financial_support_v1',
+      programId,
+      idempotencyKey,
       // intakeAt 을 싣지 않는다(CCC-56): 등록 시각을 인테이크 완료로 기록하던 오염을 중단.
       // 인테이크 완료 시각은 인테이크 기록 저장이 채운다.
-      // 항목별 동의 2종(D49·D23·D44): ② 는 기본 미체크이고 미동의여도 등록은 진행된다.
-      // ① 은 하드 게이트다(G1) — 미체크면 긴급 등록 사유가 있어야 서버가 받아 준다.
-      consentPrivacy: checkbox(formData, 'consentPrivacy'),
-      consentRecordingAi: checkbox(formData, 'consentRecordingAi'),
+      // ① personal_data_collection_use 의 grant 는 하드 게이트다(G1) — 미동의면
+      // 긴급 등록 사유가 있어야 서버가 받아 준다.
+      consentEvents: consentEventsFromDecisions(decisions, idempotencyKey),
       ...(emergencyReason === undefined ? {} : { emergencyReason }),
       ...(identity.role === 'admin' ? { initialAssigneeUserId: identity.id } : {}),
-      // 등록 폼의 이름·연락처·이메일을 금고에 저장한다(#37 보완, 계좌만 이후 updateParticipantPii).
       ...(name === undefined ? {} : { name }),
       ...(phone === undefined ? {} : { phone }),
       ...(email === undefined ? {} : { email }),
@@ -982,15 +1115,17 @@ export async function createSubsequentParticipantProgramAction(formData: FormDat
     const emergencyReason = checkbox(formData, 'emergencyRegistration')
       ? (optionalTrimmedText(formData, 'emergencyReason', 500) ?? '')
       : undefined;
+    const submission = submissionId(formData);
+    // 신계약: programId 지목 + 6영역 동의 이벤트. 폼이 영역별 결정을 모두 보내야 한다.
+    const programId = await resolveRegistrationProgramId();
+    const decisions = consentDecisionsFromForm(formData, true);
     const created = await createSubsequentParticipantProgram(beneficiaryId, {
       schemaVersion: 1,
-      submissionId: submissionId(formData),
-      programType: 'financial_support_v1',
+      submissionId: submission,
+      programId,
       // intakeAt 을 싣지 않는다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
       sourceSupportCaseId: opaqueId(formData, 'sourceSupportCaseId'),
-      // D49: 두 번째 참여 사업도 2종을 여기서 받는다 — 전에는 ② 를 보낼 경로가 없었다.
-      consentPrivacy: checkbox(formData, 'consentPrivacy'),
-      consentRecordingAi: checkbox(formData, 'consentRecordingAi'),
+      consentEvents: consentEventsFromDecisions(decisions, submission),
       ...(emergencyReason === undefined ? {} : { emergencyReason }),
     });
     supportCaseId = created.supportCaseId;
@@ -1164,20 +1299,18 @@ export async function signupParticipantAction(formData: FormData): Promise<Parti
   const name = requiredValue(formData, 'name');
   const phone = formData.get('phone');
   const email = formData.get('email');
-  // 항목별 동의 2종(D49): 등록 화면과 같은 체크박스 이름·순서. ① 은 하드 게이트라
-  // 미체크면 서버가 privacy_consent_required 로 되돌린다(G1 — 자기 가입에는 긴급 예외가 없다).
-  // ② 는 기본 미체크이고 미동의여도 가입은 진행된다(D15).
-  const consent = {
-    privacy: checkbox(formData, 'consentPrivacy'),
-    recordingAi: checkbox(formData, 'consentRecordingAi'),
-  };
   try {
+    // 신계약: 6영역 동의 이벤트. 폼이 영역별 결정(consentDecision_<domain>)과 사용자에게
+    // 보여 준 고지 스냅샷(consentSnapshot_<domain>, 공개 초대 경로로 발급된 것)을 모두
+    // 보내야 한다 — 받지 않은 동의를 지어내 싣지 않는다. ① personal_data_collection_use
+    // 의 grant 는 하드 게이트다(G1 — 자기 가입에는 긴급 예외가 없다).
+    const decisions = consentDecisionsFromForm(formData, true);
     const result = await signupParticipant({
       token,
       name,
       ...(typeof phone === 'string' && phone.trim().length > 0 ? { phone: phone.trim() } : {}),
       ...(typeof email === 'string' && email.trim().length > 0 ? { email: email.trim() } : {}),
-      consent,
+      consentEvents: consentEventsFromDecisions(decisions, token),
     });
     return { status: 'created', beneficiaryId: result.beneficiaryId, supportCaseId: result.supportCaseId };
   } catch (error) {
@@ -1262,7 +1395,7 @@ export async function createSchedulePlanAction(
 ): Promise<CreateSchedulePlanResult> {
   try {
     assertScheduleTargetScope(input.beneficiaryId, input.supportCaseId);
-    const scheduledAt = new Date(input.scheduledAt);
+    const scheduledAt = parseOrgWallDateTime(input.scheduledAt);
     if (Number.isNaN(scheduledAt.valueOf())) throw new FormInputError();
     const customQuestions = input.customQuestions
       .map((question) => question.trim())
@@ -1369,7 +1502,7 @@ const INTAKE_SUBMISSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab]
 
 function assertIntakeActionInput(input: CreateIntakeRecordActionInput): Date {
   if (input.schemaVersion !== INTAKE_WRITE_SCHEMA_VERSION) throw new FormInputError();
-  const heldAt = new Date(input.heldAt);
+  const heldAt = parseOrgWallDateTime(input.heldAt);
   if (Number.isNaN(heldAt.valueOf())) throw new FormInputError();
   if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
     throw new FormInputError();
