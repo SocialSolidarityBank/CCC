@@ -65,7 +65,7 @@ if [ "${1:-}" = "--stage-inner" ]; then
     *sign-install-documents.mjs*)
       unset CCC_BETA_ROOT_SIGNING_PRIVATE_KEY CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY \
             CCC_RELEASE_ROOT_SIGNING_PRIVATE_KEY CCC_RELEASE_SIGNING_PRIVATE_KEY ;;
-    *provider-baseline-generate.mjs*)
+    *provider-baseline-generate.mjs*|*regen-baseline-capture.mjs*)
       unset CCC_INSTALL_SIGNING_PRIVATE_KEY CCC_RELEASE_ROOT_SIGNING_PRIVATE_KEY \
             CCC_RELEASE_SIGNING_PRIVATE_KEY
       # 로컬에 재서명 문서가 있으면 Infisical 의 JSON 본문보다 파일 경로가 이긴다.

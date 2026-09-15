@@ -9,8 +9,12 @@
  * 규칙:
  *   - 새 키, 새 서명 방식, 새 신뢰 뿌리를 만들지 않는다. 서명은
  *     packages/contracts/src/install-manifest.ts 의 signInstallManifest 를 그대로 호출한다.
- *   - installationId, sequence, supabaseProjectRef, publishedAt, expiresAt 을 포함해
- *     approvedSttEngineIds 와 서명을 뺀 모든 키를 기존 문서 그대로 보존한다.
+ *   - installationId, supabaseProjectRef, publishedAt, expiresAt 을 포함해
+ *     approvedSttEngineIds·sequence·서명을 뺀 모든 키를 기존 문서 그대로 보존한다.
+ *   - --renew 를 주면 sequence 를 기존 값 +1 로 올린다. journal 의 현재
+ *     runtime_sequence 는 이 스크립트가 읽지 않으므로 실행 전에 읽기 전용
+ *     probe 로 확인하고, renewal 은 next.sequence > journal.sequence 만 요구한다
+ *     (manifest-preflight.mjs:252-254).
  *   - 시크릿 값, 서명, 연결 문자열, 프로젝트 참조 원본을 출력하지 않는다.
  *   - 쓰기는 artifacts/install/current/ 두 파일뿐이고 권한은 600 이다.
  *   - 네트워크를 호출하지 않는다.
@@ -97,14 +101,18 @@ if (Number.isNaN(Date.parse(oldApproval.expiresAt)) || Date.parse(oldApproval.ex
   fail('기존 approval expiresAt 이 미래가 아니다.');
 }
 
-// --- 3. 새 manifest: 바뀌는 것은 approvedSttEngineIds 와 서명뿐. 나머지 16키는 그대로 ---
+// --- 3. 새 manifest: 바뀌는 것은 approvedSttEngineIds·(--renew 시)sequence·서명뿐 ---
 // publishedAt 을 그대로 둬도 되는 근거: verifier 는 미래의 publishedAt 만 거부한다
 // (install-manifest-verifier.js 의 verifySignedInstallManifest2). expiresAt 은 기존 값이
 // release trust·baseline·approval 의 공통 상한 2026-10-10T16:50:18.708Z 라서 그대로 둔다.
+// renewal 도 expiresAt 변경을 요구하지 않는다(assertAuthorizationMatches 의 stable 비교에
+// expiresAt 은 없고 artifactsMatch·renewalAdvances 에도 없다: manifest-preflight.mjs:236-254).
+const renew = process.argv.includes('--renew');
 const { ed25519Signature: _oldSig, ...unsignedBase } = oldManifest;
 const signedManifest = await signInstallManifest({
   ...unsignedBase,
   approvedSttEngineIds: [{ id: 'azure-speech-koreacentral', mode: 'azure' }],
+  ...(renew ? { sequence: unsignedBase.sequence + 1 } : {}),
 }, privateKey);
 
 // --- 4. 소유권 승인서: 서명된 manifest 전체의 sha256Jcs 와 짝을 맞춘다 ---
