@@ -213,14 +213,16 @@ export default async function ProgramSchedulePage({
     return key <= board.todayKey || schedule.status === 'scheduled';
   });
 
-  if (visible.length === 0) {
+  if (visible.length === 0 && board.view !== 'month') {
     const { title, description } = emptyStateFor(board.view, board.anchor);
     return frame(board.view, board.anchor, <EmptyState title={title} description={description} />);
   }
 
   return frame(board.view, board.anchor, (
     <ScheduleBody
+      basePath={basePath}
       view={board.view}
+      anchor={board.anchor}
       schedules={visible}
       timeZone={board.timeZone}
       todayKey={board.todayKey}
