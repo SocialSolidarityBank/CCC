@@ -294,10 +294,11 @@ function consentDecisionsFromForm(formData: FormData, requireAll: boolean): Cons
   for (const domain of CONSENT_DOMAINS) {
     const raw = value(formData, `consentDecision_${domain}`).trim();
     const snapshotJson = value(formData, `consentSnapshot_${domain}`).trim();
-    if (raw.length === 0 || snapshotJson.length === 0) {
+    if (raw.length === 0 && snapshotJson.length === 0) {
       if (requireAll) throw new FormInputError();
       continue;
     }
+    if (raw.length === 0 || snapshotJson.length === 0) throw new FormInputError();
     if (raw !== 'grant' && raw !== 'decline') throw new FormInputError();
     let snapshot: ConsentDisclosureSnapshot;
     try {
@@ -816,10 +817,12 @@ export async function updateParticipantConsentAction(formData: FormData): Promis
   try {
     beneficiaryId = participantId(formData, 'beneficiaryId');
     const supportCaseId = requiredValue(formData, 'supportCaseId');
-    // 신계약은 영역별 결정을 받는다 — 폼이 consentDecision_<domain> 으로 보낸 값만 이벤트가
-    // 된다. 구 2체크박스(consentPrivacy·consentRecordingAi)는 6영역을 대표할 수 없어 읽지
-    // 않는다: 받지 않은 동의를 받은 것처럼 싣는 것은 동의 게이트 우회다.
-    await updateParticipantConsent(supportCaseId, consentDecisionsFromForm(formData, false));
+    // 신계약은 영역별 결정을 받는다. 폼이 consentDecision_<domain>으로 보낸 값만 이벤트가
+    // 된다. 결정과 고지 snapshot 중 하나만 오거나 바뀐 영역이 하나도 없으면 fail-closed로
+    // 멈춘다. 구 2체크박스는 여섯 영역을 대표할 수 없어 읽지 않는다.
+    const decisions = consentDecisionsFromForm(formData, false);
+    if (decisions.length === 0) throw new FormInputError();
+    await updateParticipantConsent(supportCaseId, decisions);
     revalidateParticipantProgram(beneficiaryId, supportCaseId);
   } catch (error) {
     const fallback = beneficiaryId === undefined ? '/participants' : participantPath(beneficiaryId);

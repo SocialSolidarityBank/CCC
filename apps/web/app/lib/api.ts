@@ -24,6 +24,7 @@ import {
   type ConsentDomain,
   type CurrentConsentState,
 } from '@ccc/contracts/consent';
+import { consentUpdateEvent, decodeCurrentConsentStates } from './consent-contract';
 
 export type ApiErrorCode =
   | 'authentication_required'
@@ -1058,16 +1059,6 @@ const RECORDING_AI_CONSENT_DOMAINS: readonly ConsentDomain[] = [
   'voice_original_retention_period',
 ];
 
-function decodeCurrentConsentStates(value: unknown): CurrentConsentState[] {
-  return responseArray(responseObject(value), 'consent').map((entry) => {
-    const record = responseObject(entry);
-    const domain = responseString(record, 'domain') as ConsentDomain;
-    if (!CONSENT_DOMAINS.includes(domain)) contractViolation();
-    const state = responseString(record, 'state');
-    if (state !== 'unconfirmed' && state !== 'granted' && state !== 'not_granted') contractViolation();
-    return { domain, state } as CurrentConsentState;
-  });
-}
 
 function foldCurrentConsent(states: CurrentConsentState[]): ParticipantConsent {
   const granted = (domains: readonly ConsentDomain[]) =>
@@ -1877,45 +1868,13 @@ export async function updateParticipantConsent(
   const stateByDomain = new Map(states.map((entry) => [entry.domain, entry]));
   const recordedAt = new Date().toISOString();
   for (const { domain, decision, snapshot } of decisions) {
-    const current = stateByDomain.get(domain);
-    // 철회는 유효한 grant 가 있을 때만 의미가 있다 — grant 가 있으면 withdraw,
-    // 없으면 decline 으로 기록한다(원장이 withdraw 의 대상 grant 를 요구한다).
-    const effective = decision === 'grant' ? 'grant'
-      : current?.state === 'granted' ? 'withdraw' : 'decline';
-    // withdraw 는 대상 grant 의 사업자 범위를 그대로 따라야 한다 — 고지 스냅샷이 아니라
-    // 현재 상태의 provider 필드를 실어 provider_scope_mismatch 를 피한다.
-    const scope: Pick<AppendConsentEventInput, 'provider' | 'providerLegalRecipient' | 'providerCountry' | 'purpose' | 'retentionDuration'> =
-      effective === 'decline'
-        ? { provider: null, providerLegalRecipient: null, providerCountry: null, purpose: null, retentionDuration: null }
-        : effective === 'withdraw'
-          ? {
-              provider: current!.provider,
-              providerLegalRecipient: current!.providerLegalRecipient,
-              providerCountry: current!.providerCountry,
-              purpose: current!.purpose,
-              retentionDuration: current!.retentionDuration,
-            }
-          : {
-              provider: snapshot.provider,
-              providerLegalRecipient: snapshot.providerLegalRecipient,
-              providerCountry: snapshot.country,
-              purpose: snapshot.purpose,
-              // 게이트웨이는 retentionDuration 을 voice_original_retention_period 에만
-              // 허용한다 — 다른 영역에 싣으면 provider_scope_mismatch 로 거부된다.
-              retentionDuration: domain === 'voice_original_retention_period' ? snapshot.retentionDuration : null,
-            };
-    const event: AppendConsentEventInput = {
-      domain,
-      decision: effective,
-      ...scope,
-      copyVersion: snapshot.copyVersion,
-      copyHash: snapshot.copyHash,
-      disclosureSnapshotId: snapshot.snapshotId,
-      effectiveAt: recordedAt,
-      idempotencyKey: crypto.randomUUID(),
-      correctionOfEventId: null,
-      expectedRevision: null,
-    };
+    const event = consentUpdateEvent(
+      stateByDomain.get(domain),
+      decision,
+      snapshot,
+      recordedAt,
+      crypto.randomUUID(),
+    );
     await jsonRequest<unknown>(
       `/support-cases/${encodeURIComponent(supportCaseId)}/consent-events`,
       'POST',

@@ -6,75 +6,82 @@
     "traceable": "digest → 서버 로그 역추적 불가. 대신 응답 스키마 비교로 원인 확정: API 는 consent 를 CurrentConsentState[] 로 주는데 웹 디코더는 {privacy, recordingAi} 객체를 요구했다."
   },
   "reproduction": {
-    "method": "preview-rehearsal.json 의 관측을 코드 계약 비교로 확정했다. Aside 재실행은 하지 않았다 — 원인이 코드 계약 불일치로 확정됐고 재현은 배선 수정 후 폼(DESIGN 레인)이 갖춰져야 의미가 있다.",
-    "registration": "폼 제출 시 서버 액션 POST 가 나가고 API 가 400 invalid_request 를 돌린다 — requireOnlyKeys 가 programType·consentPrivacy·consentRecordingAi 를 거부한다. 화면은 notice 'validation_error' 로 '입력한 정보를 다시 확인하세요.'를 띄우고 폼을 초기화한다.",
+    "method": "preview-rehearsal.json 의 관측을 코드 계약 비교로 확정했다. Aside 재실행은 하지 않았다: 원인이 코드 계약 불일치로 확정됐고 재현은 배선 수정 후 폼(DESIGN 레인)이 갖춰져야 의미가 있다.",
+    "registration": "폼 제출 시 서버 액션 POST 가 나가고 API 가 400 invalid_request 를 돌린다: requireOnlyKeys 가 programType·consentPrivacy·consentRecordingAi 를 거부한다. 화면은 notice 'validation_error' 로 '입력한 정보를 다시 확인하세요.'를 띄우고 폼을 초기화한다.",
     "participantDetail": "GET /participants/:id/hub 는 200 이지만 decodeParticipantProgram 이 consent 필드를 요구해 contractViolation → ERROR digest.",
     "recordWriting": "GET /support-cases/:id/records 컨텍스트 경로의 프로그램 디코드가 같은 지점에서 죽는다 → ERROR digest.",
     "recordConfirmAndIntake": "GET /support-cases/:id/records/intake 의 consent 가 배열인데 디코더가 객체를 요구 → ERROR digest. preview 는 추가로 saved 가 구 평면 모양이고 writeSchemaVersion·moduleSnapshot 이 없어 이중으로 죽는다(preview API 지연).",
-    "adminCode": "PREVIEW_ADMIN_ACCESS_CODE 가 preview 게이트에서 거절됨 — preview 전용 잠금.",
-    "scheduleTimezone": "2026-09-16T16:30 입력이 2026-09-17 01:30 으로 표시 — 정확히 +9h."
+    "adminCode": "PREVIEW_ADMIN_ACCESS_CODE 가 preview 게이트에서 거절됨: preview 전용 잠금.",
+    "scheduleTimezone": "2026-09-16T16:30 입력이 2026-09-17 01:30 으로 표시: 정확히 +9h."
   },
   "networkEvidence": {
-    "registration": "POST /participants → 400 invalid_request (requireOnlyKeys 가 구 키 거부). 리허설 기록은 '네트워크 요청 없음'이라 적었지만 서버 액션은 항상 POST 한다 — 실제로는 POST 가 나가고 400 이 돌아온 것으로 판정한다 [추정: 리허설이 서버 액션 POST 를 놓쳤거나 클라이언트 측 조기 중단].",
+    "registration": "POST /participants → 400 invalid_request (requireOnlyKeys 가 구 키 거부). 리허설 기록은 '네트워크 요청 없음'이라 적었지만 서버 액션은 항상 POST 한다: 실제로는 POST 가 나가고 400 이 돌아온 것으로 판정한다 [추정: 리허설이 서버 액션 POST 를 놓쳤거나 클라이언트 측 조기 중단].",
     "detailPages": "GET /participants/:id/hub, GET /support-cases/:id/records*, GET /support-cases/:id/records/intake → 전부 200, 본문은 신계약. 죽는 것은 응답이 아니라 웹 디코더다.",
     "adminGate": "POST /preview/unlock (mode=admin) → 코드 불일치로 error redirect. PREVIEW_ACCESS_CODE 는 통과하나 역할이 실무자로 남는다.",
     "capabilities": "GET /capabilities → 503 (CCC_INSTALL_MANIFEST 부재, 의도된 fail-closed)."
   },
   "classification": {
-    "registration": "진짜 결함 — 계약 드리프트(쓰기 측). release/0916 에서 재현된다.",
-    "participantDetail": "진짜 결함 — 계약 드리프트(읽기 측). release/0916 에서 재현된다.",
-    "recordWriting": "진짜 결함 — 계약 드리프트(읽기 측).",
-    "recordConfirmAndIntake": "진짜 결함(consent 배열) + preview 전용 추가 요인(saved 구 모양·writeSchemaVersion/moduleSnapshot 부재 — preview API 가 release 코드보다 뒤처진 ad218e8 빌드).",
-    "adminCode": "preview 환경 문제 — PREVIEW_ADMIN_ACCESS_CODE 시크릿 부재/불일치 [추정]. 운영은 Cloudflare Access 라 이 잠금이 없다.",
-    "scheduleTimezone": "진짜 결함 — naive datetime-local 을 UTC 로 파싱하는 경계.",
-    "capabilities503": "의도된 fail-closed — manifest 부재."
+    "registration": "진짜 결함: 계약 드리프트(쓰기 측). release/0916 에서 재현된다.",
+    "participantDetail": "진짜 결함: 계약 드리프트(읽기 측). release/0916 에서 재현된다.",
+    "recordWriting": "진짜 결함: 계약 드리프트(읽기 측).",
+    "recordConfirmAndIntake": "진짜 결함(consent 배열) + preview 전용 추가 요인(saved 구 모양·writeSchemaVersion/moduleSnapshot 부재: preview API 가 release 코드보다 뒤처진 ad218e8 빌드).",
+    "adminCode": "preview 환경 문제: PREVIEW_ADMIN_ACCESS_CODE 시크릿 부재/불일치 [추정]. 운영은 Cloudflare Access 라 이 잠금이 없다.",
+    "scheduleTimezone": "진짜 결함: naive datetime-local 을 UTC 로 파싱하는 경계.",
+    "capabilities503": "의도된 fail-closed: manifest 부재."
   },
   "productionImpact": {
-    "registration": "운영에서도 400 으로 죽는다 — API 가 같은 신계약이다.",
-    "detailAndRecords": "운영에서도 ERROR digest 로 죽는다 — release API 응답에 consent 필드가 없다.",
+    "registration": "운영에서도 400 으로 죽는다: API 가 같은 신계약이다.",
+    "detailAndRecords": "운영에서도 ERROR digest 로 죽는다: release API 응답에 consent 필드가 없다.",
     "intake": "운영에서도 consent 배열 디코드에서 죽는다. preview 의 saved·writeSchemaVersion 부재는 preview API 지연분이라 운영(release API 배포 후)에는 해당 없다.",
-    "adminCode": "운영 무관 — preview 전용 잠금.",
-    "timezone": "운영에서도 +9h 밀림 — Workers 런타임이 UTC 라 동일하게 재현된다.",
-    "capabilities": "운영도 manifest 가 없으면 admin AI 탭만 503 — 업무 한 바퀴와 무관."
+    "adminCode": "운영 무관: preview 전용 잠금.",
+    "timezone": "운영에서도 +9h 밀림: Workers 런타임이 UTC 라 동일하게 재현된다.",
+    "capabilities": "운영도 manifest 가 없으면 admin AI 탭만 503: 업무 한 바퀴와 무관."
   },
   "timezoneBoundary": {
     "boundary": "apps/web/app/actions.ts 의 서버 액션 파싱 경계. 화면(DateTimePickerControl)은 오프셋 없는 'YYYY-MM-DDTHH:mm' 을 보내고, 액션이 new Date(input) 로 파싱했다. Workers 는 UTC 라 naive 값이 UTC 로 읽혀 저장됐고, 표시(format-korean-date.ts, Asia/Seoul)가 +9h 를 더해 16:30 입력이 다음날 01:30 으로 보였다.",
     "lines": "구 canonicalUtcDateTime(구 190-195), createSchedulePlanAction 의 new Date(input.scheduledAt)(구 1300), assertIntakeActionInput 의 new Date(input.heldAt)(구 1407) 세 자리가 모두 같은 결함이었다.",
-    "doubleOrMissing": "오프셋이 한 번도 적용되지 않은 채 저장되고 표시에서 한 번 적용됐다 — 두 번 적용이 아니라 해석 층 누락이다."
+    "doubleOrMissing": "오프셋이 한 번도 적용되지 않은 채 저장되고 표시에서 한 번 적용됐다: 두 번 적용이 아니라 해석 층 누락이다."
   },
   "timezoneFix": {
-    "what": "parseOrgWallDateTime 을 추가해 naive 'YYYY-MM-DDTHH:mm[:ss]' 를 기관 벽시계(Asia/Seoul — 표시 계약의 DEFAULT_TIME_ZONE 와 동일)로 해석한다. Intl.DateTimeFormat 으로 그 시각의 오프셋을 구해 UTC 추정값에서 빼고 DST 경계를 한 번 더 보정한다. 오프셋·Z 가 붙은 절대 시각 입력은 그대로 통과시킨다.",
+    "what": "parseOrgWallDateTime 을 추가해 naive 'YYYY-MM-DDTHH:mm[:ss]' 를 기관 벽시계(Asia/Seoul: 표시 계약의 DEFAULT_TIME_ZONE 와 동일)로 해석한다. Intl.DateTimeFormat 으로 그 시각의 오프셋을 구해 UTC 추정값에서 빼고 DST 경계를 한 번 더 보정한다. 오프셋·Z 가 붙은 절대 시각 입력은 그대로 통과시킨다.",
     "where": "apps/web/app/actions.ts:190-230 (헬퍼), canonicalUtcDateTime·createSchedulePlanAction·assertIntakeActionInput 세 호출부.",
-    "notScreenOffset": "화면에서 ±9h 를 더하거나 빼지 않았다 — 저장 경계의 해석을 바로잡았다."
+    "notScreenOffset": "화면에서 ±9h 를 더하거나 빼지 않았다: 저장 경계의 해석을 바로잡았다."
   },
-  "timezoneBlastRadius": "저장값이 9h 당겨지면 상담 일자가 하루 밀린다 — 일정 목록 표시, 브리핑의 지나가는 일정 판정(focusUpcomingSchedule), 영업일 계산이 모두 stored UTC 를 읽으므로 같은 만큼 어긋난다. 기록의 heldAt 도 같은 결함이었다(함께 수정). 수정은 저장 경계 하나라 하류 전부가 바로잡힌다.",
+  "timezoneBlastRadius": "저장값이 9h 당겨지면 상담 일자가 하루 밀린다: 일정 목록 표시, 브리핑의 지나가는 일정 판정(focusUpcomingSchedule), 영업일 계산이 모두 stored UTC 를 읽으므로 같은 만큼 어긋난다. 기록의 heldAt 도 같은 결함이었다(함께 수정). 수정은 저장 경계 하나라 하류 전부가 바로잡힌다.",
   "fixesApplied": [
-    "apps/web/app/actions.ts — parseOrgWallDateTime/orgWallTimeOffsetMinutes 추가, naive 파싱 세 경계를 기관 벽시계 해석으로 교체",
-    "apps/web/app/lib/api.ts — decodeParticipantProgram 이 consent 를 요구하지 않게 하고 비담당(식별 전용) 항목을 관대하게 디코드, CurrentConsentState[] 를 화면 2종으로 접는 foldCurrentConsent 추가, getSupportCaseConsent/issueSupportCaseConsentDisclosures/issueRegistrationConsentDisclosures/getParticipantInviteConsentDisclosures/listProgramOptions 추가, 세 fetcher 에 withFoldedConsent 병합, getIntakeRecordContext 의 consent 를 배열 fold 로 교체",
-    "apps/web/app/lib/api.ts — CreateInitial/SubsequentParticipantProgramInput 을 programId+idempotencyKey+consentEvents 로, PublicSignupInput 을 consentEvents 로, updateParticipantConsent 를 POST consent-events(영역별, withdraw/decline 을 현재 상태로 구분, decline 은 provider 범위 null, retentionDuration 은 voice_original_retention_period 만)로 전환",
-    "apps/web/app/actions.ts — consentDecisionsFromForm/consentEventsFromDecisions/resolveRegistrationProgramId 추가. 폼은 영역별 consentDecision_<domain>('grant'|'decline')과 사용자에게 보여 준 고지 스냅샷 JSON consentSnapshot_<domain> 을 보낸다. 제출 시점에 새 고지를 발급해 덮어쓰지 않는다 — 읽은 문안과 기록 문안의 일치가 동의 증거의 존재 이유다. 등록·추가사업·자기가입·동의수정 네 액션을 이 배선으로 전환",
-    "apps/web/app/schedule-datetime-action.test.ts — 신규 회귀 테스트"
+    "apps/web/app/actions.ts: parseOrgWallDateTime/orgWallTimeOffsetMinutes 추가, naive 파싱 세 경계를 기관 벽시계 해석으로 교체",
+    "apps/web/app/lib/api.ts: decodeParticipantProgram 이 consent 를 요구하지 않게 하고 비담당(식별 전용) 항목을 관대하게 디코드, CurrentConsentState[] 를 화면 2종으로 접는 foldCurrentConsent 추가, getSupportCaseConsent/issueSupportCaseConsentDisclosures/issueRegistrationConsentDisclosures/getParticipantInviteConsentDisclosures/listProgramOptions 추가, 세 fetcher 에 withFoldedConsent 병합, getIntakeRecordContext 의 consent 를 배열 fold 로 교체",
+    "apps/web/app/lib/api.ts: CreateInitial/SubsequentParticipantProgramInput 을 programId+idempotencyKey+consentEvents 로, PublicSignupInput 을 consentEvents 로, updateParticipantConsent 를 POST consent-events(영역별, withdraw/decline 을 현재 상태로 구분, decline 은 provider 범위 null, retentionDuration 은 voice_original_retention_period 만)로 전환",
+    "apps/web/app/lib/consent-contract.ts:34-69: CurrentConsentState 응답의 provider 범위, effectiveAt, eventId, revision, eventSequence 를 버리지 않고 여섯 영역 전체를 fail-closed 해독",
+    "apps/web/app/lib/consent-contract.ts:71-111, apps/web/app/lib/api.ts:1859-1885: withdraw 이벤트에 대상 grant 의 provider 범위와 최신 expectedRevision 을 실어 core 의 낙관적 동시성 검사를 유지",
+    "apps/web/app/actions.ts:292-316,820-825: 동의 수정에서 결정과 snapshot 중 한쪽만 있거나 바뀐 영역이 하나도 없으면 FormInputError 로 중단",
+    "apps/web/app/actions.ts: consentDecisionsFromForm/consentEventsFromDecisions/resolveRegistrationProgramId 추가. 폼은 영역별 consentDecision_<domain>('grant'|'decline')과 사용자에게 보여 준 고지 스냅샷 JSON consentSnapshot_<domain> 을 보낸다. 제출 시점에 새 고지를 발급해 덮어쓰지 않는다: 읽은 문안과 기록 문안의 일치가 동의 증거의 존재 이유다. 등록·추가사업·자기가입·동의수정 네 액션을 이 배선으로 전환",
+    "apps/web/app/schedule-datetime-action.test.ts, apps/web/app/consent-action.test.ts, apps/web/app/lib/consent-api.test.ts: 회귀 테스트",
+    "docs/superpowers/plans/2026-09-16-consent-contract-design-handoff.md: 여섯 영역 화면의 필드, API, 고지 snapshot, 오류와 남은 DESIGN 조건 인계"
   ],
   "testsAdded": {
     "file": "apps/web/app/schedule-datetime-action.test.ts",
     "what": "naive '2026-09-16T16:30' 이 '2026-09-16T07:30:00.000Z' 로 API 에 나가는지, 오프셋 입력은 그대로 통과하는지를 고정한다. TZ=UTC 로 고정해 Workers 환경을 재현한다(맥은 KST 라 우연히 맞아 떨어진다).",
-    "redGreen": "git stash 로 actions.ts 를 pre-fix 로 되돌려 TZ=UTC 에서 실패를 확인하고 pop 으로 복원했다 — 버그 재발 시 실패하는 테스트다. LandContractDriftFix 가 임시 사본으로 독립 재현도 완료했다."
+    "redGreen": "git stash 로 actions.ts 를 pre-fix 로 되돌려 TZ=UTC 에서 실패를 확인하고 pop 으로 복원했다: 버그 재발 시 실패하는 테스트다. LandContractDriftFix 가 임시 사본으로 독립 재현도 완료했다.",
+    "consentFiles": ["apps/web/app/consent-action.test.ts", "apps/web/app/lib/consent-api.test.ts"],
+    "consentWhat": "반쪽 consentDecision/consentSnapshot pair 와 빈 신계약 제출이 API 전에 invalid_request 로 멈추는지 2건, grant 철회가 서버 current state 의 provider 범위와 revision 7 을 expectedRevision 으로 싣는지 1건을 고정한다.",
+    "consentRedGreen": "수정 전 action 테스트 2건은 updateParticipantConsent가 빈 배열로 호출돼 실패했다. 반쪽 pair 테스트는 완전한 다른 영역 pair를 함께 넣고 pre-fix 임시 형제 사본에서 유효 이벤트 1건이 호출되는 실패를 다시 확인해 length guard가 결함을 가리지 않게 했다. API 테스트는 server-only 표시만 제거한 임시 형제 사본으로 실행해 provider 범위가 body에서 빠지고 expectedRevision이 null이라 실패했다. 수정 후 영구 테스트 3건이 통과했고 임시 사본은 삭제했다."
   },
   "capabilitiesGateEffect": {
-    "closed": "apps/web/app/admin/ai-provider/*(page.tsx·stt-status.tsx)만 /capabilities 를 읽는다 — 관리자 AI 사업자 탭이 503 으로 닫힌다.",
-    "open": "당사자 등록·목록·상세·상담 일정·기록 작성·인테이크·CSV 경로는 /capabilities 를 읽지 않는다 — manifest 부재와 무관하게 돈다."
+    "closed": "apps/web/app/admin/ai-provider/*(page.tsx·stt-status.tsx)만 /capabilities 를 읽는다: 관리자 AI 사업자 탭이 503 으로 닫힌다.",
+    "open": "당사자 등록·목록·상세·상담 일정·기록 작성·인테이크·CSV 경로는 /capabilities 를 읽지 않는다: manifest 부재와 무관하게 돈다."
   },
   "manifestRequiredForFlow": "16일 업무 한 바퀴(등록→배정→일정→기록→인테이크→CSV)에 manifest 는 필수가 아니다. 필요한 것은 관리자 AI 사업자 화면뿐이다. 다만 동의 폼(아래 cannotFix)이 갖춰져야 한 바퀴가 돈다.",
   "cannotFix": [
     {
       "what": "등록 폼·추가 사업 폼·자기 가입 폼·허브 동의 편집기가 영역별 결정과 고지 스냅샷을 보내야 한다",
-      "fields": "영역마다 consentDecision_<domain>('grant'|'decline') + consentSnapshot_<domain>(화면이 렌더한 서버 발급 스냅샷 JSON). 고지는 issueRegistrationConsentDisclosures(programId)/issueSupportCaseConsentDisclosures(supportCaseId)/getParticipantInviteConsentDisclosures(token) 로 발급받아 보여 주고 그 스냅샷을 그대로 실어야 한다 — 제출 시 재발급 금지.",
-      "owner": "DESIGN 레인 w1G:p1 (화면 구조 소유). 배선은 actions.ts 에 완비돼 있다 — 필드가 없으면 FormInputError 로 멈춘다(의도된 fail-closed).",
+      "fields": "영역마다 consentDecision_<domain>('grant'|'decline') + consentSnapshot_<domain>(화면이 렌더한 서버 발급 스냅샷 JSON). 고지는 issueRegistrationConsentDisclosures(programId)/issueSupportCaseConsentDisclosures(supportCaseId)/getParticipantInviteConsentDisclosures(token) 로 발급받아 보여 주고 그 스냅샷을 그대로 실어야 한다: 제출 시 재발급 금지.",
+      "owner": "DESIGN 레인 w1G:p1 (화면 구조 소유). 배선은 actions.ts 에 완비돼 있다: 필드가 없으면 FormInputError 로 멈춘다(의도된 fail-closed).",
       "note": "구 2체크박스는 6영역을 대표할 수 없다. 특히 sensitive_information_processing 은 구 UI 에 대응 항목이 없어 매핑하면 동의를 지어내는 것이다."
     },
     {
       "what": "등록 폼에 사업 선택이 필요할 수 있다",
-      "fields": "활성 financial_support_v1 사업이 둘 이상이면 resolveRegistrationProgramId 가 fail-closed 로 멈춘다 — 폼에 사업 선택 칸이 필요하다.",
+      "fields": "활성 financial_support_v1 사업이 둘 이상이면 resolveRegistrationProgramId 가 fail-closed 로 멈춘다: 폼에 사업 선택 칸이 필요하다.",
       "owner": "DESIGN 레인"
     },
     {
@@ -96,9 +103,16 @@
     "productionImpact": "현재 release의 API와 web을 함께 배포하면 이 드리프트는 운영에 없다. web만 배포하고 API가 ad218e8 수준이면 인테이크 작성과 수정은 계속 막힌다. preview 재검증에는 ccc-api-preview를 현재 release 코드로 맞추는 배포가 선행돼야 한다.",
     "proof": "기존 intake-wizard.test.tsx의 'schema 3 봉투와 추가 확인사항 행 결합을 만들어 보낸다'는 schemaVersion=3을 확인하고 parseIntakeQuestionnaire로 questionnaire 안 moduleSnapshot까지 검증한다."
   },
+  "consentIntegrityFollowup": {
+    "decoderFix": "apps/web/app/lib/consent-contract.ts:34-69이 CurrentConsentState 여섯 영역과 provider, providerLegalRecipient, providerCountry, purpose, retentionDuration, effectiveAt, eventId, revision, eventSequence를 모두 보존한다.",
+    "withdrawFix": "consent-contract.ts:71-111이 기존 grant 철회에 현재 provider 범위와 최신 revision을 싣는다. packages/core/src/gateway.ts:8713-8748의 provider scope와 optimistic concurrency 검사는 변경하지 않았다.",
+    "partialPairFix": "apps/web/app/actions.ts:292-316,820-825가 반쪽 pair와 빈 수정 제출을 invalid_request로 막아 조용한 성공을 없앴다.",
+    "remainingScreenWork": "apps/web/app/participants/[beneficiaryId]/page.tsx:496-507이 action의 ?error= 코드를 아직 읽지 않는다. 화면 수정은 w1G:p1 DESIGN 소유라 코드 변경 없이 인계 문서에 적었다.",
+    "handoff": "docs/superpowers/plans/2026-09-16-consent-contract-design-handoff.md"
+  },
   "mutations": {
     "codeModified": true,
-    "files": ["apps/web/app/actions.ts", "apps/web/app/lib/api.ts", "apps/web/app/schedule-datetime-action.test.ts"],
+    "files": ["apps/web/app/actions.ts", "apps/web/app/lib/api.ts", "apps/web/app/lib/consent-contract.ts", "apps/web/app/schedule-datetime-action.test.ts", "apps/web/app/consent-action.test.ts", "apps/web/app/lib/consent-api.test.ts", "artifacts/orchestration/rehearsal-triage.json", "docs/superpowers/plans/2026-09-16-consent-contract-design-handoff.md"],
     "deploymentPerformed": false,
     "previewRedeployed": false,
     "productionDatabaseRead": false,
@@ -107,10 +121,10 @@
     "secretValueRecorded": false,
     "apiTestTouched": false,
     "pipelineTouched": false,
-    "gatewayTsNote": "packages/core/src/gateway.ts 의 CAS 카운트 수정(results[2])은 이 드리프트와 무관한 다른 레인의 작업이다 — 형제 커밋 43849e75 가 함께 착지했다. 내 커밋에는 담지 않았다."
+    "gatewayTsNote": "packages/core/src/gateway.ts 의 CAS 카운트 수정(results[2])은 이 드리프트와 무관한 다른 레인의 작업이다: 형제 커밋 43849e75 가 함께 착지했다. 내 커밋에는 담지 않았다."
   },
   "gitStatus": "커밋 f9807fbb 에 actions.ts·api.ts·schedule-datetime-action.test.ts·이 보고서만 담았다. apps/api/test·apps/pipeline·gateway.ts 는 담지 않았다.",
   "commit": "f9807fbb",
-  "blocked": "없음 — 데이터 계층 수정 완료, 화면 필드는 DESIGN 인계로 남겼다.",
-  "asideSessionDeleted": "이번 트리아지는 Aside 세션을 새로 열지 않았다 — 삭제할 세션 없음(리허설 세션은 preview-rehearsal.json 에서 이미 삭제 확인)."
+  "blocked": "데이터 계층 무결성 수정 완료. 여섯 영역 화면과 participant hub 오류 query 렌더는 DESIGN 인계로 남겼다.",
+  "asideSessionDeleted": "이번 트리아지는 Aside 세션을 새로 열지 않았다: 삭제할 세션 없음(리허설 세션은 preview-rehearsal.json 에서 이미 삭제 확인)."
 }
