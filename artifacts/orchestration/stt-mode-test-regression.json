@@ -1,32 +1,282 @@
 {
-  "failuresReproduced": "pnpm --filter @ccc/api test 부분 실행(300s 타임아웃)으로 확인: routes.test.ts 47/85, entity-memory-proof 9/9, audio-signer.e2e 6/6, case-entity-mapping 3/5, gateway-foundation 1/14, agent-pairing 1/7, postgres-rls 2/22, institution-journey 1/9, access-jwt 1/27, entity-result-proof 3/9, agent-source-fence 2/7 외. 보고된 ~200건/20파일과 부합.",
-  "causeBreakdown": {
-    "stt_local_503": "af2bf330 이 resolveAgentRuntime 에서 CCC_STT_MODE='local' 을 503 으로 차단. 테스트들이 local 로 claim/업로드를 돌려 깨짐.",
-    "manifest_mode": "verifiedInstallManifest 가 community-cloud 가 아닌 manifest mode 를 503 으로 거부. agentManifestEnv 기본이 local-single 이라 모든 claim 이 막혔음.",
-    "masking_registry_shape": "다수 테스트가 MEMORY_MASKING_PIPELINES 를 옛 map 형태 {'ver':'hash'} 로 심어 decodeMaskingPipelineRegistry(schemaVersion 1 registry) 가 거부 → masking_pipeline_version_mismatch / masking_snapshot_missing.",
-    "entity_map_cas_bug": "제품 버그. appendCaseEntityMapping 이 results[1].meta.changes!==1 로 CAS 를 보는데 D1 meta.changes 는 트리거 쓰기까지 세므로(0067 superseded 트리거가 counseling_memory_cases 를 org 전체 갱신) 항상 ConflictError.",
-    "purge_legacy_id": "5d43bbef 가 파기 시 legacy_case_id=NULL 로 지워 revealPii(created.id=beneficiaryId) 가 케이스를 못 풀어 gateway-foundation 실패.",
-    "python_worker_attrs": "entity-memory-proof 가 patch('ccc_pipeline.worker.masking_pipeline_version') 하는데 worker 가 config 필드로 바뀜.",
-    "missing_object_close": "제품 버그. protected-get 에서 객체 행이 종결 상태면 releaseAgentJob 의 audio CAS 가 영원히 0 이라 audio_object_missing 으로 못 닫고 stale_claim(409) 만 낸다.",
-    "put_upload_dead": "PUT /sessions/:id/audio 는 audioDelivery='protected-get' 고정으로 도달 불가 — upload-target 흐름으로 이전. 전사 트랙 인계 사항: PUT 라우트 자체가 현재 dead code."
+  "failuresReproduced": {
+    "ciBaseline": {
+      "failedFiles": 15,
+      "passedFiles": 99,
+      "failedTests": 136,
+      "passedTests": 1152,
+      "totalTests": 1288
+    },
+    "localEquivalentAfterPreliminaryFixes": {
+      "command": "pnpm --filter @ccc/api test",
+      "failedFiles": 14,
+      "passedFiles": 100,
+      "failedTests": 124,
+      "passedTests": 1165,
+      "totalTests": 1289,
+      "comparison": "CI와의 12건 차이는 CI 이후 counseling-memory.races 11건과 discrepancies 1건을 먼저 고친 결과와 정확히 일치했다. CI 고유 환경이나 파일 간 모듈 공유가 주원인은 아니었다."
+    },
+    "observedHead": "a2eaac34"
   },
-  "testIntents": "claim 계약/경쟁(agent-job-contract), 오디오 전달·감사(audio, audio-signer), 마스킹 재료 증명(entity-*, counseling-memory), 파기 후 vault 보존(gateway-foundation), 엔티티 맵 CAS(case-entity-mapping).",
-  "classification": "대부분 엔진 무관 계약 → azure 구성으로 이전. local STT 자체를 지키는 테스트: agent-job-contract.modes.test.ts, capabilities.contract.test.ts, program-admission.routes.test.ts — local 차단(503/404)을 검증하므로 그대로 둠(삭제·수정 없음). PUT 업로드 경로는 제품에서 도달 불가가 되어 upload-target 흐름으로 이전.",
-  "sharedHelperFix": "apps/api/test/support/agent-jobs.ts: agentManifestEnv 에 stt:'azure' 옵션 추가(SYNTHETIC_AZURE_REGISTRY 사용)와 community-cloud 기본 manifest, testMaskingPipelineRegistry() 신규 export(schemaVersion 1 registry), AZURE_CLOUD_RUNTIME 신규, registerFixtureRecording 기본 runtime 을 AZURE_CLOUD_RUNTIME 로.",
-  "movedTests": "agent-job-contract, watchdog-purge, text-work-materials, text-ai-consent-withdrawal, scheduler-run, agent-pairing, storage-signer-authorization, ai-contrast-materials, recording-result.e2e, audio-signer.e2e, audio.test, gateway-domain, routes.test, entity-source-binding 을 local→azure 구성으로 이전. audio.test.ts 는 putAudio 를 mint→store.put→complete 흐름으로, relay 를 signed-get 응답+저장소 바이트 대조로 재작성(바이트 보존·감사·거부 표 계약 유지).",
-  "localOnlyTests": "agent-job-contract.modes.test.ts, capabilities.contract.test.ts, program-admission.routes.test.ts — local 차단 자체를 검증. 변경 없음.",
-  "maskingSnapshotFix": "옛 map 형태 MEMORY_MASKING_PIPELINES 쓰기 7개 파일을 testMaskingPipelineRegistry() 로 교체. entity-memory-proof 의 파이썬 패치를 config 필드(masking_pipeline_version/hash=9203ac33…)로 교체.",
-  "productionCodeChanges": [
-    {"file": "packages/core/src/gateway.ts", "line": 1709, "why": "meta.changes 가 트리거 쓰기를 포함해 CAS 가 항상 실패 — post-state 게이트된 감사 insert(results[2])로 판정. case-entity-mapping 5/5 통과로 검증."},
-    {"file": "packages/core/src/gateway.ts", "line": 10041, "why": "audio_object_missing 종결 시 객체 행이 이미 종결 상태면 CAS 가 못 맞아 작업이 열린 채 남는 버그 — permanent+audio_object_missing 에 한해 작업 행을 직접 닫는 경로 추가. audio.test 19/19 통과로 검증."}
+  "causeBreakdown": [
+    {
+      "name": "canonical masking registry drift",
+      "reducedFailures": 44,
+      "commit": "e5defdcc",
+      "fix": "routes와 공통 지원 코드가 지어낸 version/hash 대신 testMaskingPipelinePair와 서버 발급 checkedSource를 사용하게 했다."
+    },
+    {
+      "name": "program admission seed mismatch",
+      "reducedFailures": 28,
+      "commit": "5096f6b7",
+      "fix": "community-cloud 설치, Azure 엔진, 사업 storage/processing 선택과 관리자 확인 seed를 같은 구성으로 맞췄다."
+    },
+    {
+      "name": "legacy api-stream audio consumers",
+      "reducedFailures": 14,
+      "commit": "09b6ee04",
+      "fix": "오디오 소비 픽스처와 실제 Python ApiClient를 protected-get의 signed target, 별도 storage GET, Azure egress authorize/in-flight 흐름으로 옮겼다."
+    },
+    {
+      "name": "removed local server surfaces",
+      "reducedFailures": 16,
+      "commit": "c08ef386",
+      "fix": "local 서버 경로를 다시 열지 않고 일반 계약은 community-cloud와 gateway/runner 경계로 옮겼으며, local 자체 계약은 getInstitutionReadiness 코어 경계에 남겼다."
+    },
+    {
+      "name": "proofless masked snapshots",
+      "reducedFailures": 12,
+      "commit": "9f9e21ab",
+      "fix": "text-work와 ai-contrast가 snapshot을 직접 삽입하지 않고 enqueue, claim, server source, result 경로로 proof와 entity binding을 만들게 했다."
+    },
+    {
+      "name": "memory race ordering and proof renewal",
+      "reducedFailures": 4,
+      "commit": "7693e623",
+      "fix": "오래된 claim 재사용을 없애고 재료를 끝까지 drain했으며, 갱신 가능한 세 proof 오류만 CAS로 pending 전환해 재증명하게 했다."
+    },
+    {
+      "name": "security and consent boundary regressions",
+      "reducedFailures": 6,
+      "commits": ["853181c5", "a2eaac34"],
+      "fix": "PostgreSQL view owner, text source fence fixture, D86/D74 역할 전제, local 전용 consent fixture, consent race 오류 우선순위와 최종 파일 순서 격리를 각각 판정해 고쳤다."
+    }
   ],
-  "selfCheck": "case-entity-mapping 5/5, gateway-foundation 14/14, audio.test 19/19 통과 확인. 거부 계약(403/409/404/401)은 이전 후에도 동일 코드로 검증됨.",
-  "beforeAfterCounts": "수정 전 확인된 실패 다수 → 수정 후 확인된 것: audio.test 19/19, case-entity-mapping 5/5, gateway-foundation 14/14. 전수 재실행 대기.",
-  "noWeakening": "삭제 0, skip 0, 503 기대값 변경 0. assertion 은 계약 이동(예: api-stream→signed-get)만 반영했고 거부 표·바이트 동등·감사 카운트는 유지.",
-  "finalTestRun": "전수 재실행 결과는 아래 finalTestRun 후속 기록 참조.",
-  "verifyEquivalent": "ci.yml verify 잡 = pnpm install → typecheck → test → guard:* 계열. 로컬에서는 vitest 실행.",
-  "mutations": "apps/api/test/** 다수, apps/api/test/support/agent-jobs.ts, packages/core/src/gateway.ts 2곳. apps/pipeline/** 0건.",
-  "gitStatus": "release/0916 에 커밋 bfbaf268→43849e75(재커밋). push 없음.",
-  "commit": "43849e75",
+  "testIntents": {
+    "agentJobContract": "claim 중복 방지, runtime metadata, 동의 영수증별 오디오 취소",
+    "audioAndSigner": "protected-get 업로드와 다운로드, 바이트 hash, storage authorize, egress CAS",
+    "maskingAndProvider": "등록 pipeline pair, proof-backed snapshot, provider 호출 전후 무결성",
+    "counselingMemory": "재료 drain, 경쟁 조건, stale proof 제외와 재증명, 수정 보호",
+    "permissionsAndRls": "D86/D74 읽기와 쓰기 경계, PostgreSQL tenant RLS와 schema owner 2차 방어",
+    "institutionLocalOnly": "local 설치에서 creator link가 not_applicable인 코어 계약"
+  },
+  "classification": {
+    "engineAgnosticMoved": "claim, 오디오 전달, AI 재료, 기억 경쟁, storage signer 테스트는 지원되는 community-cloud와 Azure 승인 구성으로 이동했다.",
+    "localPathPreserved": "local STT 차단 자체를 검증하는 agent-job-contract.modes.test.ts, capabilities.contract.test.ts, program-admission.routes.test.ts는 변경하지 않았다.",
+    "removedProductSurface": "POST /pipeline/memory/*와 memory trial의 제거된 서버 표면은 다시 열지 않았다. 여전히 유효한 계약은 gateway, runner 또는 기관 readiness 코어 경계에서 검증한다."
+  },
+  "sharedHelperFix": {
+    "file": "apps/api/test/support/agent-jobs.ts",
+    "changes": [
+      "agentManifestEnv가 manifest mode와 installationMode를 일치시키고 off, local, azure registry를 정확히 만든다.",
+      "testMaskingPipelineRegistry와 testMaskingPipelinePair가 canonical schemaVersion 1 registry의 단일 테스트 정본이다.",
+      "testProtectedAudioEnv와 readTestProtectedAudio가 signed target을 실제 저장소 바이트로 해소한다.",
+      "runAgentTextJobs가 서버 발급 checkedSource를 결과에 포함한다."
+    ]
+  },
+  "movedTests": {
+    "sttConfiguration": [
+      "agent-job-contract.test.ts",
+      "agent-pairing.test.ts",
+      "audio-signer.e2e.test.ts",
+      "audio.test.ts",
+      "gateway-domain.test.ts",
+      "recording-result.e2e.test.ts",
+      "routes.test.ts",
+      "scheduler-run.test.ts",
+      "storage-signer-authorization.test.ts"
+    ],
+    "proofAndMemory": [
+      "ai-contrast-materials.test.ts",
+      "counseling-memory.races.test.ts",
+      "entity-provider-proof.contract.test.ts",
+      "text-work-materials.test.ts"
+    ],
+    "preservedContract": "권한 거부, 동의 gate, 바이트 동일성, evidence hash, claim 소유권과 경쟁 결과는 이전과 같은 정확한 계약으로 남았다."
+  },
+  "localOnlyTests": {
+    "files": [
+      "apps/api/test/agent-job-contract.modes.test.ts",
+      "apps/api/test/capabilities.contract.test.ts",
+      "apps/api/test/program-admission.routes.test.ts"
+    ],
+    "handling": "local 차단을 검증하므로 삭제, skip, Azure 이전을 하지 않았다. institution local readiness는 제거된 HTTP가 아니라 getInstitutionReadiness로 같은 not_applicable 계약을 검증한다."
+  },
+  "maskingSnapshotFix": {
+    "registry": "옛 map과 임의 hash를 canonical signed test manifest pair로 교체했다.",
+    "checkedSource": "sourceRevision, sourceSha256, sourceStart, sourceEnd는 getAgentJobSource 또는 getCounselingMemorySource가 발급한 bundle에서 만든다.",
+    "proof": "직접 recordMaskedSourceSnapshot으로 만든 proof 없는 fixture를 실제 Agent 결과 경로로 교체했다.",
+    "failClosed": "masking_pipeline_version_mismatch, masking_snapshot_missing, evidence_hash_mismatch 검사를 끄거나 넓히지 않았다."
+  },
+  "productionCodeChanges": [
+    {
+      "bug": "entity map CAS false conflict",
+      "function": "appendCaseEntityMapping",
+      "file": "packages/core/src/gateway.ts",
+      "introducedBy": "9a09f944",
+      "fixedBy": "43849e75",
+      "mainStatus": "release-only",
+      "failureInUse": "D1 meta.changes가 trigger 쓰기까지 세어 정상 mapping CAS도 항상 conflict가 됐다.",
+      "fix": "post-state gate가 확인된 canonical audit insert 결과로 CAS 성공을 판정한다."
+    },
+    {
+      "bug": "missing audio object could not close its job",
+      "function": "releaseAgentJob",
+      "file": "packages/core/src/gateway.ts",
+      "introducedBy": "37132109",
+      "fixedBy": "43849e75",
+      "mainStatus": "release-only",
+      "failureInUse": "protected-get에서 객체가 이미 없거나 종결되면 audio CAS가 영원히 0이라 작업이 stale_claim으로 열린 채 남았다.",
+      "fix": "permanent audio_object_missing에 한해 정확한 live claim tuple의 job을 직접 종결한다."
+    },
+    {
+      "bug": "successful generic result retained the case lease",
+      "function": "acceptAgentJobResult transition",
+      "file": "packages/core/src/gateway.ts",
+      "introducedBy": "6f6e334c",
+      "fixedBy": "ffed1772",
+      "mainStatus": "release-only",
+      "failureInUse": "한 상담 처리 뒤 같은 사례의 후속 text 또는 memory 작업이 15분 동안 막혔다.",
+      "fix": "support case id, org id, generic family, job id, attempt가 모두 일치할 때만 lease tuple을 해제한다."
+    },
+    {
+      "bug": "proof hardening removed automatic renewal",
+      "function": "memoryMaterialReady and verifiedMemoryMaterials",
+      "file": "packages/core/src/gateway.ts",
+      "introducedBy": "d9c60f9f",
+      "fixedBy": "7693e623",
+      "mainStatus": "release-only",
+      "failureInUse": "NER이 한 번 일시 실패하거나 registry가 바뀌면 이후 상담의 기억 context가 계속 실패하고 스스로 회복하지 못했다.",
+      "fix": "강화 검증은 유지하고 local_ner_unavailable, masking_pipeline_version_mismatch, masking_snapshot_missing 세 코드만 snapshot/payload CAS로 pending 재설정한다. 다른 오류는 계속 throw한다."
+    },
+    {
+      "bug": "PostgreSQL purge view owner missing",
+      "function": "privacy_purge_open_support_cases migration",
+      "file": "migrations/postgres/0028_privacy_purge_owned_graph.sql",
+      "introducedBy": "ca86fe0e",
+      "fixedBy": "853181c5",
+      "mainStatus": "release-only",
+      "failureInUse": "underlying RLS는 동작하지만 ccc_schema_owner 소유권 2차 방어가 한 겹 빠졌다.",
+      "fix": "ALTER VIEW OWNER TO ccc_schema_owner를 추가하고 parity manifest를 재생성했다. 0028은 2026-09-15 release-only이며 PostgreSQL은 서비스되지 않았고 repo에는 disposable parity 적용 기록만 있어 기존 파일을 바로잡았다. 전체 PostgreSQL view 생성부를 감사했으며 추가 누락은 없었다."
+    },
+    {
+      "bug": "consent race was classified before stale selection",
+      "function": "createGeneratedAiDraft",
+      "file": "packages/core/src/gateway.ts",
+      "introducedBy": "53396688",
+      "fixedBy": "853181c5",
+      "mainStatus": "release-only",
+      "failureInUse": "provider 실행 중 consent tuple이 바뀌면 optimistic concurrency 409보다 old proof 403이 먼저 나와 race 계약이 가려졌다.",
+      "fix": "selection tuple stale 검사를 material proof 재검증 앞에 두었다. 실제 in-flight race는 409이고 current selection의 stale proof는 여전히 403이다."
+    }
+  ],
+  "selfCheck": {
+    "contractPreservation": [
+      "성공한 generic text 결과 직후 같은 사례 memory claim 가능: 수정 전 0건, 수정 후 회귀 테스트 통과",
+      "proof renewal 세 코드 각각 ready에서 pending 전환 후 재증명 통과",
+      "evidence_hash_mismatch는 재queue하지 않고 계속 throw",
+      "in-flight consent race 409와 current selection stale proof 403 양방향 통과",
+      "PostgreSQL RLS 파일 22/22 통과",
+      "실제 Python ApiClient protected-get 왕복 통과"
+    ],
+    "productCorrectJudgments": [
+      "participant supervisor-only 403은 D86 이후 정당하다. D74 후속 계약에 따라 active institution_admin은 기관 전체를 읽기 전용으로 보고 쓰기는 담당 배정에만 허용된다.",
+      "D87 program admission은 설치 mode와 DB STT/LLM policy를 config hash로 묶고, 사업 storage/processing 선택과 관리자 confirmation을 대조한 뒤 runtime engine을 다시 확인하므로 제품 결합은 정상이다."
+    ]
+  },
+  "beforeAfterCounts": {
+    "before": {
+      "failedTests": 136,
+      "passedTests": 1152,
+      "totalTests": 1288
+    },
+    "after": {
+      "failedTests": 0,
+      "passedTests": 1293,
+      "totalTests": 1293,
+      "passedFiles": 114,
+      "totalFiles": 114
+    },
+    "addedRegressionTests": 5,
+    "deletedTests": 0
+  },
+  "noWeakening": {
+    "deletedTests": 0,
+    "skipAdditions": 0,
+    "expectationsChangedTo503": 0,
+    "expectationsChangedToFailureToPass": 0,
+    "assertionWeakening": 0,
+    "inspection": "43849e75의 부모부터 a2eaac34까지 test diff의 삭제 파일은 0이고 추가된 .skip, skip(), toBe(503), service_unavailable 기대는 0이다.",
+    "assertionChanges": "api-stream을 protected-get으로 옮긴 곳은 signed-get 응답, storage content type, 원음 바이트와 SHA-256, Azure egress CAS를 더 구체적으로 확인했다. 제거된 HTTP 표면은 같은 gateway/runner/core 계약으로 옮겼다."
+  },
+  "finalTestRun": {
+    "command": "pnpm --filter @ccc/api test",
+    "result": "passed",
+    "testFiles": "114 passed (114)",
+    "tests": "1293 passed (1293)",
+    "durationSeconds": 604.14,
+    "observedHead": "a2eaac34"
+  },
+  "verifyEquivalent": {
+    "workflow": ".github/workflows/ci.yml verify",
+    "steps": [
+      "pnpm install --frozen-lockfile",
+      "pnpm typecheck",
+      "pnpm test",
+      "pnpm guard:sql-dialect",
+      "pnpm guard:db",
+      "pnpm test:scripts",
+      "pnpm guard:core-imports",
+      "pnpm guard:doc-numbers",
+      "pnpm guard:consent-copy",
+      "pnpm guard:tokens",
+      "pnpm guard:align",
+      "pnpm guard:hierarchy:test",
+      "pnpm guard:hierarchy",
+      "pnpm guard:deploy-verdict",
+      "pnpm guard:deploy-gates"
+    ],
+    "localEvidence": "API typecheck 통과, API 전수 114파일 1293테스트 통과, migration parity 생성 1/1 통과, PostgreSQL RLS 22/22 통과. 동일 전체 verify는 ProductionRelease CI가 실행 중이므로 이 보고는 관측하지 않은 결과를 주장하지 않는다."
+  },
+  "mutations": {
+    "appsPipelineChanges": 0,
+    "requestHandlerLocalBlockReverted": false,
+    "productionDbReads": 0,
+    "productionDbWrites": 0,
+    "deployments": 0,
+    "gitMerges": 0,
+    "gitPushes": 0,
+    "handoff": "PUT /sessions/:id/audio는 audioDelivery가 protected-get으로 고정된 제품에서 도달 불가다. 전사 트랙은 upload-target mint, storage PUT, complete로만 이어야 하며 legacy PUT route의 제거 여부를 후속 판단해야 한다."
+  },
+  "gitStatus": {
+    "branch": "release/0916",
+    "observedHead": "a2eaac34",
+    "beforeReportCommit": ["?? artifacts/release/"],
+    "unrelatedWorkPreserved": true,
+    "pushPerformed": false
+  },
+  "commit": [
+    "43849e75",
+    "efd2b855",
+    "ffed1772",
+    "e5defdcc",
+    "5096f6b7",
+    "09b6ee04",
+    "c08ef386",
+    "9f9e21ab",
+    "7693e623",
+    "853181c5",
+    "a2eaac34"
+  ],
   "blocked": null
 }
