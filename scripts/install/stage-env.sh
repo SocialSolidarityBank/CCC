@@ -58,16 +58,18 @@ pair RELAYER_SUPABASE_SECRET_KEY        SUPABASE_SERVICE_ROLE_KEY
 pair RELAYER_API_DATABASE_PASSWORD      CCC_API_DATABASE_PASSWORD
 
 # 설치기가 읽지 않는 주입 잔여물(미사용 이름)은 자식 env 에서 제거한다.
-unset RELAYER_BETA_ROOT_SIGNING_PRIVATE_KEY RELAYER_BETA_RELEASE_SIGNING_PRIVATE_KEY \
-      RELAYER_RELEASE_ROOT_SIGNING_PRIVATE_KEY RELAYER_RELEASE_SIGNING_PRIVATE_KEY \
+unset RELAYER_RELEASE_ROOT_SIGNING_PRIVATE_KEY RELAYER_RELEASE_SIGNING_PRIVATE_KEY \
       RELAYER_PII_ENC_KEY
 
-# 서명 개인키는 재서명 절차에만 CCC_INSTALL_SIGNING_PRIVATE_KEY 로 넘긴다.
+# 서명 개인키는 각 생산 절차에만 필요한 이름으로 넘긴다.
 # 그 외 명령(설치기·런타임)에는 금지 바인딩이므로 버린다.
 case " $* " in
   *sign-install-documents.mjs*)
-    pair RELAYER_INSTALL_SIGNING_PRIVATE_KEY CCC_INSTALL_SIGNING_PRIVATE_KEY ;;
-  *)
+    pair RELAYER_INSTALL_SIGNING_PRIVATE_KEY CCC_INSTALL_SIGNING_PRIVATE_KEY
+    unset RELAYER_BETA_ROOT_SIGNING_PRIVATE_KEY RELAYER_BETA_RELEASE_SIGNING_PRIVATE_KEY ;;
+  *provider-baseline-generate.mjs*)
+    pair RELAYER_BETA_ROOT_SIGNING_PRIVATE_KEY CCC_BETA_ROOT_SIGNING_PRIVATE_KEY
+    pair RELAYER_BETA_RELEASE_SIGNING_PRIVATE_KEY CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY
     unset RELAYER_INSTALL_SIGNING_PRIVATE_KEY
     # 로컬에 재서명 문서가 있으면 Infisical 의 JSON 본문보다 파일 경로가 이긴다.
     # CCC_INSTALL_MANIFEST → install-manifest.json, CCC_INSTALL_APPROVAL → install-approval.json
@@ -77,6 +79,25 @@ case " $* " in
     fi
     if [ -f "$CCC_STAGE_REPO_ROOT/artifacts/install/wtbdqy/install-approval.json" ]; then
       CCC_INSTALL_APPROVAL="$CCC_STAGE_REPO_ROOT/artifacts/install/wtbdqy/install-approval.json"
+    fi ;;
+  *)
+    unset RELAYER_INSTALL_SIGNING_PRIVATE_KEY \
+          RELAYER_BETA_ROOT_SIGNING_PRIVATE_KEY RELAYER_BETA_RELEASE_SIGNING_PRIVATE_KEY
+    # 로컬에 재서명 문서가 있으면 Infisical 의 JSON 본문보다 파일 경로가 이긴다.
+    # CCC_INSTALL_MANIFEST → install-manifest.json, CCC_INSTALL_APPROVAL → install-approval.json
+    # (readStrictJsonDocument 가 파일 경로를 받는다: manifest-preflight.mjs:113-137)
+    if [ -f "$CCC_STAGE_REPO_ROOT/artifacts/install/wtbdqy/install-manifest.json" ]; then
+      CCC_INSTALL_MANIFEST="$CCC_STAGE_REPO_ROOT/artifacts/install/wtbdqy/install-manifest.json"
+    fi
+    if [ -f "$CCC_STAGE_REPO_ROOT/artifacts/install/wtbdqy/install-approval.json" ]; then
+      CCC_INSTALL_APPROVAL="$CCC_STAGE_REPO_ROOT/artifacts/install/wtbdqy/install-approval.json"
+    fi
+    # 재생산된 trust·baseline 도 파일이 있으면 Infisical 본문보다 파일 경로가 이긴다.
+    if [ -f "$CCC_STAGE_REPO_ROOT/artifacts/install/wtbdqy/release-trust.json" ]; then
+      CCC_BETA_RELEASE_TRUST="$CCC_STAGE_REPO_ROOT/artifacts/install/wtbdqy/release-trust.json"
+    fi
+    if [ -f "$CCC_STAGE_REPO_ROOT/artifacts/install/wtbdqy/provider-baseline.json" ]; then
+      CCC_PROVIDER_BASELINE="$CCC_STAGE_REPO_ROOT/artifacts/install/wtbdqy/provider-baseline.json"
     fi ;;
 esac
 
