@@ -1,0 +1,122 @@
+{
+  "observationHead": "ffed177248ca3b8ed00561067cf6ddcd48cd9032",
+  "observedAt": "2026-09-16",
+  "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/release-16",
+  "method": {
+    "sourceReads": "최종 판정에 쓴 모든 read와 grep은 release-16 절대 경로로 다시 수행했다.",
+    "runtime": {
+      "api": "apps/api에서 pnpm exec wrangler dev --port 8876",
+      "web": "apps/web에서 CCC_API_ORIGIN=http://127.0.0.1:8876 CCC_LOCAL_PREVIEW=true pnpm dev --port 3106"
+    },
+    "identity": "LOCAL_DEV_ACTOR_EMAIL로 로컬 users 디렉터리의 기관 관리자 신원을 사용했다.",
+    "syntheticInput": {
+      "name": "가상등록시험",
+      "email": "local-write-smoke@example.test",
+      "phone": "010-0000-9090"
+    }
+  },
+  "preexistingChanges": [
+    "M apps/api/test/counseling-memory.races.test.ts",
+    "M apps/api/test/routes.test.ts",
+    "M apps/api/test/support/agent-jobs.ts",
+    "?? artifacts/release/"
+  ],
+  "localEnvironment": {
+    "initialBlocker": {
+      "status": "blocked_before_form_contract",
+      "screen": "당사자 등록 제출 뒤 /participants/new?error=conflict, 화면 문구 '이미 처리된 요청입니다. 다시 확인하세요.'",
+      "api": "GET /program-options returned HTTP 409 with {error: program_admission_required, reason: installation_unavailable}",
+      "serverStack": null,
+      "stackReason": "ProgramAdmissionRequiredError는 HTTP 409 응답으로 정상 변환되어 uncaught stack을 출력하지 않았다.",
+      "sourceTraceAtHead": [
+        "apps/web/app/actions.ts createInitialParticipantProgramAction -> resolveRegistrationProgramId",
+        "apps/web/app/lib/api.ts listProgramOptions at lines 1106-1107",
+        "packages/http-api/src/request-handler.ts GET /program-options at lines 2603-2605",
+        "packages/core/src/gateway.ts programAdmissionContext at lines 15900-15903: env.installationMode가 없으면 installation_unavailable",
+        "apps/web/app/lib/api.ts errorCode at lines 1403-1415: 알려지지 않은 program_admission_required를 HTTP 409 기준 conflict로 정규화"
+      ]
+    },
+    "fix": {
+      "scope": "gitignored apps/api/.dev.vars only",
+      "action": "로컬 스모크 전용 Ed25519 키를 메모리에서 생성하고, @ccc/contracts/install-manifest의 signInstallManifest로 365일 유효한 합성 community-cloud manifest를 서명했다. CCC_INSTALL_MANIFEST와 공개키만 담은 CCC_INSTALL_SIGNING_KEYS를 .dev.vars에 저장했다. 개인키는 저장하거나 출력하지 않았다.",
+      "whyCommunityCloud": "현재 Worker의 verifiedInstallManifest는 community-cloud만 받아 installationMode로 투영한다. local-office manifest는 이 경계에서 service_unavailable로 닫힌다. 합성 값은 로컬 disposable D1 스모크에만 썼고 preview와 운영에는 넣지 않았다.",
+      "verification": "API 재기동 뒤 GET /me 200, GET /program-options 200, 활성 사업 1건과 admissionState ready를 확인했다.",
+      "trackedMutation": false,
+      "secretExposure": false
+    },
+    "documentationDrift": {
+      "status": "confirmed",
+      "documentedPath": "docs/ops.md의 GET /capabilities 절은 로컬에서 local-office manifest를 서명해 두 변수를 넣으라고 안내한다.",
+      "currentCode": "observationHead 기준 packages/http-api/src/capabilities.ts verifiedInstallManifest lines 36-55는 community-cloud가 아닌 manifest를 installation mode unavailable로 거부한다. packages/http-api/src/request-handler.ts lines 2382-2387은 직접 들어온 local-single과 local-office mode도 거부하고, 검증된 manifest에서만 mode를 투영한다.",
+      "impact": "문서의 local-office 절차로는 현재 로컬 API가 503으로 닫힌다. 이번 스모크는 합성 community-cloud manifest로만 진행할 수 있었다.",
+      "mutation": "조사 배정이므로 docs/ops.md는 고치지 않았다."
+    }
+  },
+  "stages": [
+    {
+      "order": 1,
+      "name": "당사자 등록",
+      "status": "guard_enforced_ui_flow_blocked",
+      "scenarioIntent": "현재 화면에 보이는 필드를 정상 입력해 신규 당사자를 만드는 양성 흐름을 시도했다. 성공이 기대되는 사용자 흐름이지만, 신계약 입력을 아직 렌더하지 않는 화면 때문에 생성은 실패했다. 빠진 동의를 지어내지 않고 차단한 서버 액션의 fail-closed 동작은 정확하지만, 등록 UI 흐름 자체는 미완료다.",
+      "screen": "POST /participants/new 303 뒤 /participants/new?error=invalid_request. 화면 alert는 '입력한 정보를 다시 확인하세요.'였다.",
+      "requestEvidence": "API에는 GET /program-options 200만 기록되고 POST /participants는 없었다. 따라서 당사자 생성 API 호출 전에 멈췄다.",
+      "databaseEvidence": "실패 뒤 beneficiaries 102, support_cases 100, consent_events 600이었다. 이는 artifacts/orchestration/local-seed-fix.json의 적용 직후 기준값과 같아 신규 당사자와 케이스와 동의 이벤트가 생성되지 않았음을 확인한다.",
+      "rootCause": "release-16의 RegisterForm은 consentPrivacy와 consentRecordingAi 두 체크만 제출한다. createInitialParticipantProgramAction은 CONSENT_DOMAINS 여섯 영역 각각의 consentDecision_<domain>과 consentSnapshot_<domain>을 요구한다. 첫 영역에서 두 값이 모두 비어 FormInputError가 발생했다.",
+      "sourceTraceAtHead": [
+        "apps/web/app/participants/new/register-form.tsx RegisterForm at lines 174-195: consentPrivacy와 consentRecordingAi만 존재",
+        "apps/web/app/actions.ts consentDecisionsFromForm at lines 292-316: 여섯 영역 순회, requireAll일 때 누락 즉시 FormInputError",
+        "apps/web/app/actions.ts createInitialParticipantProgramAction at lines 1047-1095: resolveRegistrationProgramId 성공 뒤 consentDecisionsFromForm(formData, true)에서 중단",
+        "apps/web/app/actions.ts noticeFor at lines 520-549: FormInputError를 invalid_request로 변환",
+        "apps/web/app/actions.ts createInitialParticipantProgramAction at lines 1094-1095: 오류를 잡아 error=invalid_request로 redirect"
+      ],
+      "serverStack": null,
+      "stackReason": "FormInputError는 서버 액션 내부에서 잡혀 303 redirect로 변환됐다. seed-web과 seed-api 로그에서 Error, exception, 500을 검색했으나 출력이 0건이라 기록할 실제 stack 전문이 없다. 소스 추적을 runtime stack으로 가장하지 않았다."
+    },
+    {
+      "order": 2,
+      "name": "동의 입력",
+      "status": "not_reached",
+      "reason": "같은 흐름의 당사자와 supportCaseId가 생성되지 않았다. 이 단계는 등록 때 필요한 최초 여섯 영역 동의와 별개로, 생성된 당사자의 /participants/<beneficiaryId> 화면에서 updateParticipantConsentAction으로 이후 결정을 갱신하는 단계다. 기존 시드 동의 행이나 직접 DB 삽입으로 등록을 건너뛰지 않았다."
+    },
+    {
+      "order": 3,
+      "name": "인테이크 기록",
+      "status": "not_reached",
+      "reason": "등록 단계가 막혀 새 supportCaseId가 없다."
+    },
+    {
+      "order": 4,
+      "name": "상담 일정 등록",
+      "status": "not_reached",
+      "reason": "등록 단계가 막혀 새 supportCaseId가 없다."
+    },
+    {
+      "order": 5,
+      "name": "상담 기록 작성",
+      "status": "not_reached",
+      "reason": "등록과 일정 단계가 진행되지 않아 새 sessionId가 없다."
+    },
+    {
+      "order": 6,
+      "name": "15초 페이지 결과 확인",
+      "status": "not_reached",
+      "reason": "이 쓰기 흐름에서 생성된 결과가 없다. 확인 목적지는 /participants/<beneficiaryId>/programs/<supportCaseId>/briefing이며, '15초'는 대기 시간이 아니라 페이지 이름이다. 앞 단계에서 새로 저장한 인테이크, 상담 기록, 목표, 액션과 일정이 해당 페이지에 반영되는지가 성공 기준이다. 기존 시드의 읽기 화면 성공을 새 쓰기 성공으로 대체하지 않았다."
+    }
+  ],
+  "serverExceptions": [],
+  "serverExceptionSearch": {
+    "api": "seed-api 로그에서 ERROR|Error|exception|500 검색 결과 0건",
+    "web": "seed-web 로그에서 ERROR|Error|exception|500 검색 결과 0건",
+    "interpretation": "관측된 두 실패는 각각 HTTP 오류 응답과 잡힌 FormInputError redirect라 uncaught server exception이 아니다."
+  },
+  "noConsentBypass": true,
+  "noDirectSeedOrDbMutation": true,
+  "noProductionAccess": true,
+  "noPush": true,
+  "noDeploy": true,
+  "mutations": [
+    "gitignored apps/api/.dev.vars에 로컬 스모크용 합성 signed manifest와 공개키를 추가",
+    "artifacts/orchestration/local-write-flow.json 생성"
+  ],
+  "conclusion": "로컬 설치 문맥을 보완한 뒤 정상 등록을 시도했으나, 쓰기 흐름은 당사자 등록 화면과 여섯 영역 동의 계약의 불일치에서 멈췄다. 누락 입력을 거부한 fail-closed 게이트는 동작했지만 사용자 쓰기 흐름은 성공하지 않았다. 동의 게이트를 우회하지 않아 이후 다섯 단계는 실행하지 않았다."
+}
