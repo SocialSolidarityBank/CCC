@@ -21,8 +21,9 @@ if (!evidencePath || !outDir) {
   process.exit(64);
 }
 
-const manifestDoc = JSON.parse(await readFile(
-  resolve(here, '../../artifacts/install/current/install-manifest.json'), 'utf8'));
+// stage-env 가 파일 우선 주입한 CCC_INSTALL_MANIFEST 를 읽는다. 없으면 /current 정본.
+const manifestDoc = await readStrictJsonDocument(
+  env.CCC_INSTALL_MANIFEST ?? resolve(here, '../../artifacts/install/current/install-manifest.json'));
 const projectRef = manifestDoc.supabaseProjectRef;
 
 const authorize = (current = new Date()) => requireSignedOwnerPreflight({

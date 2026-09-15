@@ -15,10 +15,18 @@
  *     runtime_sequence 는 이 스크립트가 읽지 않으므로 실행 전에 읽기 전용
  *     probe 로 확인하고, renewal 은 next.sequence > journal.sequence 만 요구한다
  *     (manifest-preflight.mjs:252-254).
+ *   - --new-install 을 주면 같은 프로젝트 갱신이 아니라 새 Supabase 프로젝트의 첫 설치
+ *     문서를 만든다. 새 프로젝트에 묶이는 키(installationId, sequence, publishedAt,
+ *     expiresAt, supabaseProjectRef, supabaseAuthOrigin, supabasePublishableKey)는
+ *     artifacts/install/qlzwas/inputs.json 에서 읽고, 나머지 키는 기존 문서를 이어받는다.
+ *     승인서도 projectRef·installationId·expiresAt·runtimeManifestSha256 만 바꾼다.
+ *     쓰기는 artifacts/install/qlzwas/ 이다. baseline 문서가 같은 디렉터리에 있으면
+ *     그 파일로 requireProviderBaseline·assertProviderBaselineCurrent 까지 확인한다.
  *   - 시크릿 값, 서명, 연결 문자열, 프로젝트 참조 원본을 출력하지 않는다.
- *   - 쓰기는 artifacts/install/current/ 두 파일뿐이고 권한은 600 이다.
+ *   - 쓰기는 artifacts/install/ 아래 대상 디렉터리 두 파일뿐이고 권한은 600 이다.
  *   - 네트워크를 호출하지 않는다.
  */
+import { existsSync } from 'node:fs';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,25 +109,56 @@ if (Number.isNaN(Date.parse(oldApproval.expiresAt)) || Date.parse(oldApproval.ex
   fail('기존 approval expiresAt 이 미래가 아니다.');
 }
 
-// --- 3. 새 manifest: 바뀌는 것은 approvedSttEngineIds·(--renew 시)sequence·서명뿐 ---
-// publishedAt 을 그대로 둬도 되는 근거: verifier 는 미래의 publishedAt 만 거부한다
-// (install-manifest-verifier.js 의 verifySignedInstallManifest2). expiresAt 은 기존 값이
-// release trust·baseline·approval 의 공통 상한 2026-10-10T16:50:18.708Z 라서 그대로 둔다.
-// renewal 도 expiresAt 변경을 요구하지 않는다(assertAuthorizationMatches 의 stable 비교에
-// expiresAt 은 없고 artifactsMatch·renewalAdvances 에도 없다: manifest-preflight.mjs:236-254).
 const renew = process.argv.includes('--renew');
+const newInstall = process.argv.includes('--new-install');
+if (renew && newInstall) fail('--renew 와 --new-install 은 같이 쓸 수 없다.');
 const { ed25519Signature: _oldSig, ...unsignedBase } = oldManifest;
+
+// 새 설치 모드: 프로젝트에 묶이는 키만 inputs.json 에서 읽는다. 나머지는 기존 문서 그대로.
+const NEW_INSTALL_INPUT_KEYS = [
+  'installationId', 'sequence', 'publishedAt', 'expiresAt',
+  'supabaseProjectRef', 'supabaseAuthOrigin', 'supabasePublishableKey',
+].sort();
+let newInputs = null;
+const newOutDir = resolve(here, '../../artifacts/install/qlzwas');
+if (newInstall) {
+  const inputsPath = resolve(newOutDir, 'inputs.json');
+  const parsed = await readStrictJsonDocument(inputsPath)
+    .catch(() => fail('inputs.json 읽기 실패'));
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)
+    || Object.keys(parsed).sort().join('') !== NEW_INSTALL_INPUT_KEYS.join('')) {
+    fail(`inputs.json 은 정확히 ${NEW_INSTALL_INPUT_KEYS.length}키여야 한다.`);
+  }
+  newInputs = parsed;
+}
+
 const signedManifest = await signInstallManifest({
   ...unsignedBase,
   approvedSttEngineIds: [{ id: 'azure-speech-koreacentral', mode: 'azure' }],
   ...(renew ? { sequence: unsignedBase.sequence + 1 } : {}),
+  ...(newInstall ? {
+    installationId: newInputs.installationId,
+    sequence: newInputs.sequence,
+    publishedAt: newInputs.publishedAt,
+    expiresAt: newInputs.expiresAt,
+    supabaseProjectRef: newInputs.supabaseProjectRef,
+    supabaseAuthOrigin: newInputs.supabaseAuthOrigin,
+    supabasePublishableKey: newInputs.supabasePublishableKey,
+  } : {}),
 }, privateKey);
 
 // --- 4. 소유권 승인서: 서명된 manifest 전체의 sha256Jcs 와 짝을 맞춘다 ---
 //        바뀌는 것은 runtimeManifestSha256 과 서명뿐. 나머지 키는 기존 approval 그대로.
+//        --new-install 에서는 projectRef·installationId·expiresAt 도 새 설치 값으로 바꾼다.
 const runtimeManifestSha256 = await verifier.sha256Jcs(signedManifest);
 const { ed25519Signature: _oldApprovalSig, ...unsignedApproval } = oldApproval;
 unsignedApproval.runtimeManifestSha256 = runtimeManifestSha256;
+if (newInstall) {
+  unsignedApproval.projectRef = signedManifest.supabaseProjectRef;
+  unsignedApproval.installationId = signedManifest.installationId;
+  unsignedApproval.expiresAt = signedManifest.expiresAt;
+}
+
 const approvalSignature = await crypto.subtle.sign(
   ED25519, privateKey, encoder.encode(verifier.canonicalizeJcs(unsignedApproval)),
 );
@@ -129,7 +168,7 @@ const signedApproval = {
 };
 
 // --- 5. 쓰기(600) ---
-const outDir = resolve(here, '../../artifacts/install/current');
+const outDir = newInstall ? newOutDir : resolve(here, '../../artifacts/install/current');
 await mkdir(outDir, { recursive: true });
 const manifestPath = resolve(outDir, 'install-manifest.json');
 const approvalPath = resolve(outDir, 'install-approval.json');
@@ -154,19 +193,30 @@ if (authorization.installationId !== signedManifest.installationId
   fail('자가 확인 불일치');
 }
 
-// /CURRENT 의 trust·baseline 과 새 authorization 조합이 plan 의 게이트를 그대로 통과하는지 확인한다.
-const providerBaseline = await requireProviderBaseline({
-  releaseTrust: required('CCC_BETA_RELEASE_TRUST'),
-  providerBaseline: required('CCC_PROVIDER_BASELINE'),
-  rootKeys: JSON.parse(required('CCC_BETA_TRUST_ROOT_KEYS')),
-  revokedRootKeyIds: JSON.parse(process.env.CCC_BETA_REVOKED_ROOT_KEY_IDS ?? '[]'),
-  authorization,
-  manifestExpiresAt: authorization.expiresAt,
-}).catch((error) => fail(`requireProviderBaseline 실패: ${error?.code ?? error?.message}`));
-try {
-  assertProviderBaselineCurrent(providerBaseline, authorization);
-} catch (error) {
-  fail(`assertProviderBaselineCurrent 실패: ${error?.code ?? error?.message}`);
+// trust·baseline 과 새 authorization 조합이 plan 의 게이트를 그대로 통과하는지 확인한다.
+// --new-install 에서는 같은 디렉터리의 baseline 문서가 있을 때만 그 파일로 검사한다.
+// 없으면 생산 순서상 아직 없는 것이므로 건너뛰고, 생산 뒤 같은 명령을 다시 돌려 확인한다.
+// (Ed25519 는 결정적이라 같은 입력의 재서명은 같은 바이트를 만든다.)
+const baselinePath = resolve(outDir, 'provider-baseline.json');
+const releaseTrustPath = resolve(outDir, 'release-trust.json');
+const newBaselineReady = newInstall && existsSync(baselinePath) && existsSync(releaseTrustPath);
+let baselineNote = 'requireProviderBaseline + assertProviderBaselineCurrent 통과';
+if (newInstall && !newBaselineReady) {
+  baselineNote = 'baseline 문서 없음. 생산 뒤 같은 명령으로 세 검사를 다시 돌린다.';
+} else {
+  const providerBaseline = await requireProviderBaseline({
+    releaseTrust: newBaselineReady ? releaseTrustPath : required('CCC_BETA_RELEASE_TRUST'),
+    providerBaseline: newBaselineReady ? baselinePath : required('CCC_PROVIDER_BASELINE'),
+    rootKeys: JSON.parse(required('CCC_BETA_TRUST_ROOT_KEYS')),
+    revokedRootKeyIds: JSON.parse(process.env.CCC_BETA_REVOKED_ROOT_KEY_IDS ?? '[]'),
+    authorization,
+    manifestExpiresAt: authorization.expiresAt,
+  }).catch((error) => fail(`requireProviderBaseline 실패: ${error?.code ?? error?.message}`));
+  try {
+    assertProviderBaselineCurrent(providerBaseline, authorization);
+  } catch (error) {
+    fail(`assertProviderBaselineCurrent 실패: ${error?.code ?? error?.message}`);
+  }
 }
 
 console.log(JSON.stringify({
@@ -183,5 +233,5 @@ console.log(JSON.stringify({
   expiresAt: signedManifest.expiresAt,
   approvedSttEngineIds: signedManifest.approvedSttEngineIds,
   preflight: 'requireSignedOwnerPreflight 통과',
-  baseline: 'requireProviderBaseline + assertProviderBaselineCurrent 통과',
+  baseline: baselineNote,
 }));

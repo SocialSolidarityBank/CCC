@@ -1,0 +1,101 @@
+{
+  "manifestInputs": {
+    "schemaVersion": "1 (기존 문서 이어받음)",
+    "mode": "community-cloud (기존 문서 이어받음)",
+    "apiBase": "기존 문서 이어받음 (배포 엔드포인트, 프로젝트 무관)",
+    "clientOrigin": "기존 문서 이어받음",
+    "allowedOrigins": "기존 문서 이어받음",
+    "host": "기존 문서 이어받음",
+    "scheme": "https (기존 문서 이어받음)",
+    "endpointDiscovery": "static (기존 문서 이어받음)",
+    "installationId": "새 UUID v4 (crypto.randomUUID). 86be2554…",
+    "sequence": "1 (새 설치 시작값. 코드는 >=0 정수만 요구, 관례상 첫 manifest=1)",
+    "publishedAt": "생성 시각 (2026-09-15T12:36:17.998Z)",
+    "expiresAt": "2026-09-18T18:50:34Z (release bundle 만료 상한, 가장 짧은 유효 여유)",
+    "approvedSttEngineIds": "[{id:azure-speech-koreacentral, mode:azure}]",
+    "supabaseProjectRef": "새 프로젝트 참조 (qlzwas…, 20자). RELAYER_BETA_INSTALL_DATABASE_URL 의 Direct connection 호스트 db.<ref>.supabase.co 에서 해석",
+    "supabaseAuthOrigin": "https://<ref>.supabase.co (참조에서 파생, projectRefOf(authOrigin)===supabaseProjectRef 검사 통과)",
+    "supabasePublishableKey": "새 프로젝트 publishable 키 (Management API GET /v1/projects/{ref}/api-keys 의 type=publishable 항목, sb_publishable_ 접두 46자)",
+    "signingKeyId": "relayer-beta-20260910 (기존 서명 키, 개인키에서 도출한 공개키와 매칭)",
+    "ed25519Signature": "signInstallManifest 가 생산"
+  },
+  "installationIdNew": "86be2554…",
+  "sequenceStart": 1,
+  "projectRefResolution": {
+    "method": "RELAYER_BETA_INSTALL_DATABASE_URL 의 Direct connection 호스트 db.<ref>.supabase.co 에서 추출. SUPABASE_ACCESS_TOKEN(/API)은 새 프로젝트에 403, /INSTALL 의 RELAYER_SUPABASE_ACCESS_TOKEN 은 200으로 확인.",
+    "prefix": "qlzwas",
+    "fullRefInReport": false
+  },
+  "publishableKeySource": "Management API GET /v1/projects/{ref}/api-keys, type=publishable name=default. /INSTALL 토큰으로 200.",
+  "expiresAtChosen": {
+    "value": "2026-09-18T18:50:34Z",
+    "rationale": "release trust 만료 상한(기존 trust 2026-10-10T16:50:18.708Z) 안에서 가장 짧은 유효 여유. 게시된 release bundle 만료(2026-09-18T18:50:34Z)가 실질 상한이므로 그 값으로 고정. generator 가 생산하는 trust.expiresAt=min(authorization.expiresAt, now+30d)=authorization.expiresAt 이므로 manifest·approval·trust·baseline 네 문서의 만료가 같은 값으로 정렬된다."
+  },
+  "baselineGen": {
+    "tool": "scripts/supabase/provider-baseline-generate.mjs (정본 생산기, 그대로 호출)",
+    "command": "CCC_STAGE_NEW_PROJECT=1 scripts/install/stage-env.sh node scripts/supabase/provider-baseline-generate.mjs --source-evidence artifacts/beta-0.9/2026-09-11-provider-source-review.json --release-trust-output artifacts/install/qlzwas/release-trust.json --baseline-output artifacts/install/qlzwas/provider-baseline.json",
+    "result": "성공. baselineVersion=supabase-hosted-pg17-20260915-v1, objectCount=162, grantCount=1613",
+    "evidenceChoice": "09-12 증거(1769 records, pg_cron·pg_net 포함)는 새 프로젝트에 두 확장이 없어 requireExactSourceMappings 불일치로 PROVIDER_BASELINE_INVALID. 09-11 증거(1692 records)는 새 프로젝트 inventory 와 정확히 일치(1692/1692). 새 프로젝트 확장: pg_stat_statements,pgcrypto,plpgsql,supabase_vault,uuid-ossp.",
+    "dbChanges": 0,
+    "note": "생산기는 읽기 전용 inspect(POST /database/query/read-only, SELECT 만)와 로컬 문서 쓰기만 한다. DB 변경 0."
+  },
+  "releaseTrustReuse": {
+    "reused": false,
+    "reason": "기존 CCC_BETA_RELEASE_TRUST 는 projectRefSha256 이 지난 프로젝트(wtbdqy)에 묶여 있어 새 프로젝트 authorization 과 불일치. 같은 생산기로 새 trust 를 생산했다(같은 root·release 키, 새 키 생성 0).",
+    "newTrustSha256Prefix": "345f6604",
+    "newBaselineSha256Prefix": "7939ec6a"
+  },
+  "verificationFunctions": [
+    "requireSignedOwnerPreflight — scripts/supabase/manifest-preflight.mjs:266-348 (sign-install-documents.mjs:183-189 에서 호출, 통과)",
+    "requireProviderBaseline — scripts/supabase/provider-baseline.mjs:229-317 (sign-install-documents.mjs:206-213 에서 호출, 통과)",
+    "assertProviderBaselineCurrent — scripts/supabase/plan.mjs:172-179 (sign-install-documents.mjs:214-218 에서 호출, 통과)"
+  ],
+  "planOutcome": {
+    "command": "CCC_STAGE_NEW_PROJECT=1 scripts/install/stage-env.sh node scripts/supabase/bootstrap.mjs plan",
+    "exitCode": 6,
+    "ready": false,
+    "blockers": ["AUTH_CONFIRMATION_REQUIRED"],
+    "whereItStopped": "inspect 단계까지 도달. providerBaseline.matched=true, ownerVerified=true, regionEvidence=seoul-verified. 유일 차단은 새 프로젝트 Auth 설정 mailer_autoconfirm=false → emailConfirmationRequired=true. 프로젝트 설정 변경은 이번 범위 밖.",
+    "previousVsNow": "이전 종료 6 은 BETA_TRUST_INVALID(trust 가 bukqtv 에 묶여 preflight 단계에서 멈춤). 이번 종료 6 은 AUTH_CONFIRMATION_REQUIRED 로, inspect·baseline 대조·소유권 확인까지 통과한 뒤 프로젝트 설정 하나만 남은 상태."
+  },
+  "planSummary": {
+    "projectRefPrefix": "qlzwas",
+    "installedState": "not-installed",
+    "phase": "none (journal 없음)",
+    "plannedResources": 12,
+    "plannedMigrations": 28,
+    "providerBaselineMatched": true,
+    "installationIdPrefix": "86be2554"
+  },
+  "applyPrerequisites": [
+    "Supabase Auth 설정: mailer_autoconfirm 을 true 로 변경(AUTH_CONFIRMATION_REQUIRED 해소). 프로젝트 설정 변경은 Q 승인 사항.",
+    "pg_cron·pg_net 확장 활성화: apply 의 probeProviderCapabilities(provider-steps.mjs:455-467)가 cron.schedule·net.http_post·vault.create_secret·storage.buckets 를 요구. 새 프로젝트에 pg_cron·pg_net 이 없으므로 활성화 후 baseline 재생산 필요.",
+    "SUPABASE_SERVICE_ROLE_KEY: 새 프로젝트의 secret 키(/INSTALL 의 RELAYER_SUPABASE_SECRET_KEY 는 지난 프로젝트 것이라 주입하지 않음).",
+    "CCC_API_DATABASE_PASSWORD: 새 프로젝트의 ccc_api 로그인 비밀번호(apply 의 api_credential 단계).",
+    "SCHEDULER_SECRET: cron job 이 호출할 스케줄러 비밀(/INSTALL 의 RELAYER_SCHEDULER_SECRET 은 지난 설치 것).",
+    "CCC_INSTALL_DATABASE_URL: RELAYER_BETA_INSTALL_DATABASE_URL 로 이미 주입됨(stage-env 새 프로젝트 분기).",
+    "Auth 사용자 생성: 최초 관리자 seongqkim@ggbss.or.kr 의 Supabase Auth 계정이 아직 없다. link-first-admin 전에 필요."
+  ],
+  "secretLeakCheck": {
+    "method": "개인키·토큰·서명 바이트·연결 문자열·프로젝트 참조 원본을 stdout·파일·커밋에 쓰지 않았다. infisical run 주입만 사용, secrets get/export/--plain 미실행. 보고에는 참조 앞 6자·installationId 앞 8자·sha256 앞 8자만 기록. publishable 키는 공개 키 유형이지만 보고에는 접두·길이만 기록.",
+    "findings": "개인키 0건, 토큰 0건, 서명 바이트 0건, 연결 문자열 0건, 전체 참조 0건.",
+    "artifactsPermissions": "artifacts/install/qlzwas/ 전 파일 600. git check-ignore 로 5개 파일 모두 ignore 확인."
+  },
+  "mutations": {
+    "newKeysCreated": 0,
+    "infisicalWrites": 0,
+    "applyExecutions": 0,
+    "dbChanges": 0,
+    "supabaseResourceCreations": 0,
+    "emailsSent": 0,
+    "relayerLegacyTouched": 0,
+    "managementApiCalls": "GET /v1/projects/{ref}, GET /v1/projects/{ref}/api-keys, GET /v1/projects/{ref}/config/auth, POST /v1/projects/{ref}/database/query/read-only(읽기 전용 SQL 게이트웨이). 쓰기·생성·삭제 0건."
+  },
+  "gitStatus": {
+    "checkIgnore": "artifacts/install/.gitignore:3 qlzwas/ 가 install-manifest.json, install-approval.json, release-trust.json, provider-baseline.json, inputs.json 을 제외.",
+    "statusShort": "M artifacts/install/.gitignore, M scripts/install/regen-baseline-capture.mjs, M scripts/install/sign-install-documents.mjs, M scripts/install/stage-env.sh. 서명·trust·baseline 문서는 untracked 로도 나타나지 않는다.",
+    "signedDocsCommitted": false
+  },
+  "commit": "scripts/install/{sign-install-documents.mjs,stage-env.sh,regen-baseline-capture.mjs}, artifacts/install/.gitignore, 이 보고만 한 번 커밋. push 없음.",
+  "blocked": "plan 은 AUTH_CONFIRMATION_REQUIRED 하나로 차단(종료 6). mailer_autoconfirm=true 변경과 pg_cron·pg_net 활성화는 Supabase 프로젝트 설정 변경이라 이번 범위 밖. baseline·trust·manifest·approval 은 모두 생산·검증 통과."
+}

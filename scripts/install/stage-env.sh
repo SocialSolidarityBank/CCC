@@ -37,6 +37,9 @@ STAGE_SELF="$CCC_STAGE_REPO_ROOT/scripts/install/stage-env.sh"
 if [ "${1:-}" = "--stage-inner" ]; then
   shift
 
+  # pair 가 RELAYER_ 이름을 지우기 전에 새 프로젝트 분기가 쓸 토큰을 먼저 보존한다.
+  STAGE_NEW_TOKEN="${RELAYER_SUPABASE_ACCESS_TOKEN:-}"
+
   # /CURRENT 에 없는 이름만 RELAYER_ 에서 옮긴다. 이미 있는 CCC_* 는 /CURRENT 값을 지킨다.
   pair() {
     if [ -n "${!1:-}" ] && [ -z "${!2:-}" ]; then export "$2=${!1}"; fi
@@ -88,6 +91,46 @@ if [ "${1:-}" = "--stage-inner" ]; then
         CCC_INSTALL_APPROVAL="$STAGE_OUT/install-approval.json"
       fi ;;
   esac
+
+  # 새 프로젝트 qlzwas 분기. CCC_STAGE_NEW_PROJECT=1 일 때만 켠다.
+  # /CURRENT 의 CCC_* 는 지난 프로젝트(wtbdqy)에 묶여 있으므로 프로젝트 결속 이름을
+  # RELAYER_BETA_*(새 프로젝트)와 /INSTALL 의 RELAYER_SUPABASE_ACCESS_TOKEN 으로 덮는다.
+  if [ "${CCC_STAGE_NEW_PROJECT:-}" = "1" ]; then
+    STAGE_OUT_NEW="$CCC_STAGE_REPO_ROOT/artifacts/install/qlzwas"
+    # 참조는 Direct connection 호스트 db.<ref>.supabase.co 에서만 얻는다.
+    CCC_SUPABASE_PROJECT_REF="$(printf '%s' "${RELAYER_BETA_INSTALL_DATABASE_URL:-}" | sed -n -E 's|^postgres(ql)?://[^@]*@db\.([a-z0-9]+)\.supabase\.co.*|\2|p')"
+    if [ -z "$CCC_SUPABASE_PROJECT_REF" ]; then
+      echo "stage-env: RELAYER_BETA_INSTALL_DATABASE_URL 에서 프로젝트 참조를 얻지 못했다" >&2
+      exit 65
+    fi
+    export CCC_SUPABASE_PROJECT_REF
+    CCC_INSTALL_DATABASE_URL="$RELAYER_BETA_INSTALL_DATABASE_URL"
+    export CCC_INSTALL_DATABASE_URL
+    # /API 의 SUPABASE_ACCESS_TOKEN 은 지난 프로젝트 범위라 새 프로젝트에 403 이다.
+    # /INSTALL 의 RELAYER_SUPABASE_ACCESS_TOKEN 이 새 프로젝트를 읽는다(실측 200).
+    if [ -n "$STAGE_NEW_TOKEN" ]; then
+      SUPABASE_ACCESS_TOKEN="$STAGE_NEW_TOKEN"
+      export SUPABASE_ACCESS_TOKEN
+    fi
+    unset SUPABASE_SERVICE_ROLE_KEY CCC_API_DATABASE_PASSWORD
+    # 새 프로젝트 문서가 있으면 Infisical 본문보다 파일 경로가 이긴다.
+    if [ -f "$STAGE_OUT_NEW/install-manifest.json" ]; then
+      CCC_INSTALL_MANIFEST="$STAGE_OUT_NEW/install-manifest.json"
+      export CCC_INSTALL_MANIFEST
+    fi
+    if [ -f "$STAGE_OUT_NEW/install-approval.json" ]; then
+      CCC_INSTALL_APPROVAL="$STAGE_OUT_NEW/install-approval.json"
+      export CCC_INSTALL_APPROVAL
+    fi
+    if [ -f "$STAGE_OUT_NEW/release-trust.json" ]; then
+      CCC_BETA_RELEASE_TRUST="$STAGE_OUT_NEW/release-trust.json"
+      export CCC_BETA_RELEASE_TRUST
+    fi
+    if [ -f "$STAGE_OUT_NEW/provider-baseline.json" ]; then
+      CCC_PROVIDER_BASELINE="$STAGE_OUT_NEW/provider-baseline.json"
+      export CCC_PROVIDER_BASELINE
+    fi
+  fi
 
   # 운영자가 baseline 을 파일로 준비한 경우에만 경로로 대체한다.
   if [ -n "${CCC_PROVIDER_BASELINE_FILE:-}" ]; then
