@@ -367,7 +367,9 @@ describe('IntakeWizard', () => {
     expect(consent.querySelectorAll('input, select, textarea').length).toBe(0);
     const sections = [...consent.querySelectorAll('.wire-card-section')];
     expect(sections.map((section) => section.querySelector('h3')?.textContent)).toEqual(
-      CONSENT_DOMAINS.map((domain) => CONSENT_COPY[domain].label),
+      CONSENT_DOMAINS.map((domain) => (
+        `${CONSENT_COPY[domain].label}${domain === 'external_stt_processing' ? '미기록' : '동의함'}`
+      )),
     );
     for (const domain of CONSENT_DOMAINS) {
       expect(consent.textContent).toContain(CONSENT_COPY[domain].copy);

@@ -7,12 +7,15 @@ import {
   WireCard,
   WireCardSection,
   WireChoice,
+  WireError,
+  WireRequiredMarker,
 } from '@ccc/wire';
 import {
   CONSENT_COPY,
-  CONSENT_COPY_VERSION,
   CONSENT_DOMAINS,
+  type ConsentDisclosureSnapshot,
   type ConsentDomain,
+  type CurrentConsentState,
 } from '@ccc/contracts/consent';
 import { useState } from 'react';
 import { SearchInput } from '../../components/wire/search-input';
@@ -28,6 +31,23 @@ const GENDER_OPTIONS = [
 ];
 
 type ConsentDecisions = Partial<Record<ConsentDomain, 'grant' | 'decline'>>;
+
+function consentDisclosuresInOrder(
+  disclosures: readonly ConsentDisclosureSnapshot[],
+  supportCaseId: string | null,
+): ConsentDisclosureSnapshot[] | null {
+  if (disclosures.length !== CONSENT_DOMAINS.length) return null;
+  const byDomain = new Map(disclosures.map((snapshot) => [snapshot.domain, snapshot]));
+  if (byDomain.size !== CONSENT_DOMAINS.length) return null;
+  const programIds = new Set(disclosures.map((snapshot) => snapshot.scopeBinding.programId));
+  if (
+    programIds.size !== 1
+    || disclosures.some((snapshot) => snapshot.scopeBinding.supportCaseId !== supportCaseId)
+  ) {
+    return null;
+  }
+  return CONSENT_DOMAINS.map((domain) => byDomain.get(domain)!);
+}
 
 export interface RegisterFormProps {
   /**
@@ -45,13 +65,15 @@ export interface RegisterFormProps {
    * 생략하면 labels.ts 폴백 — 단위 테스트가 서버 fetch 없이 렌더할 수 있다.
    */
   programLabel?: string;
+  /** 서버가 이 등록 대상 사업에 발급한 고지 6건. 전문 표시와 hidden JSON이 같은 객체를 쓴다. */
+  disclosures: readonly ConsentDisclosureSnapshot[];
 }
 
 /**
- * 당사자 등록 폼(재개편 T7 · #37 · Figma 1:95). 카드 안에 입력 6칸(이름·이메일·연락처·성별·
- * 생년월일·주소) + 항목별 동의 3종(D23·D44 — 개인정보·녹음·텍스트 AI) + "등록하기".
+ * 당사자 등록 폼(재개편 T7, #37, Figma 1:95). 카드 안에 기본정보 입력 6칸과
+ * 서버가 발급한 여섯 영역 동의 고지와 결정 입력, 등록 행동을 둔다.
  *
- * D44: 동의는 **여기서 받고 당사자 정보 페이지에서 고친다**. 인테이크는 읽기만 한다.
+ * 동의는 여기서 받고 당사자 정보 페이지에서 고친다. 인테이크는 읽기만 한다(D44).
  *
  * 저장하는 PII 는 이름·이메일·연락처와 생년월일·주소(거주지역)·성별이다 — 전부 금고에
  * 암호화 저장된다(D3). 인테이크 1단계(1-1 기본정보)는 이 값을 읽어 표시만 하므로,
@@ -67,12 +89,21 @@ export function RegisterForm({
   currentUser,
   action,
   programLabel = PROGRAM_LABELS.financial_support_v1,
+  disclosures,
 }: RegisterFormProps) {
   const [consentDecisions, setConsentDecisions] = useState<ConsentDecisions>({});
   const [emergency, setEmergency] = useState(false);
   const allConsentDecided = CONSENT_DOMAINS.every((domain) => consentDecisions[domain] !== undefined);
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState<string>();
+  const orderedDisclosures = consentDisclosuresInOrder(disclosures, null);
+  if (orderedDisclosures === null) {
+    return (
+      <WireCard className="register-card">
+        <WireError>지금 동의 내용을 불러올 수 없습니다. 페이지를 새로 고침해 주세요.</WireError>
+      </WireCard>
+    );
+  }
   return (
     /* Y6: 등록 화면만 폼이 배경 위에 놓여 다른 화면의 카드 언어와 달랐다. 카드 안으로 넣는다. */
     <WireCard className="register-card">
@@ -164,40 +195,56 @@ export function RegisterForm({
             허브와 공유하는 규칙이라 덮으면 손대지 않은 화면 2개가 함께 바뀐다. */}
         <fieldset className="consent-fieldset register-consent">
           <legend>동의</legend>
-          <input type="hidden" name="consentCopyVersion" value={CONSENT_COPY_VERSION} />
           <div className="register-consent-block wire-repeat-card">
-            {CONSENT_DOMAINS.map((domain) => (
-              <WireCardSection key={domain} title={CONSENT_COPY[domain].label}>
-                <p className="schedule-form-hint">{CONSENT_COPY[domain].copy}</p>
-                <div
-                  className="wizard-choice-row"
-                  role="radiogroup"
-                  aria-label={CONSENT_COPY[domain].label}
+            {orderedDisclosures.map((disclosure) => {
+              const domain = disclosure.domain;
+              return (
+                <WireCardSection
+                  key={domain}
+                  title={(
+                    <span className="wire-title-with-badge">
+                      <span>{CONSENT_COPY[domain].label}</span>
+                      <WireRequiredMarker />
+                    </span>
+                  )}
                 >
-                  <WireChoice
-                    type="radio"
-                    name={`consent-${domain}`}
-                    value="grant"
-                    label="동의함"
-                    checked={consentDecisions[domain] === 'grant'}
-                    onChange={() => {
-                      setConsentDecisions((current) => ({ ...current, [domain]: 'grant' }));
-                      if (domain === 'personal_data_collection_use') setEmergency(false);
-                    }}
+                  <p className="schedule-form-hint">{disclosure.fullKoreanCopy}</p>
+                  <input
+                    type="hidden"
+                    name={`consentSnapshot_${domain}`}
+                    value={JSON.stringify(disclosure)}
                   />
-                  <WireChoice
-                    type="radio"
-                    name={`consent-${domain}`}
-                    value="decline"
-                    label="동의하지 않음"
-                    checked={consentDecisions[domain] === 'decline'}
-                    onChange={() => {
-                      setConsentDecisions((current) => ({ ...current, [domain]: 'decline' }));
-                    }}
-                  />
-                </div>
-              </WireCardSection>
-            ))}
+                  <div
+                    className="wizard-choice-row"
+                    role="radiogroup"
+                    aria-label={CONSENT_COPY[domain].label}
+                    aria-required="true"
+                  >
+                    <WireChoice
+                      type="radio"
+                      name={`consentDecision_${domain}`}
+                      value="grant"
+                      label="동의함"
+                      checked={consentDecisions[domain] === 'grant'}
+                      onChange={() => {
+                        setConsentDecisions((current) => ({ ...current, [domain]: 'grant' }));
+                        if (domain === 'personal_data_collection_use') setEmergency(false);
+                      }}
+                    />
+                    <WireChoice
+                      type="radio"
+                      name={`consentDecision_${domain}`}
+                      value="decline"
+                      label="동의하지 않음"
+                      checked={consentDecisions[domain] === 'decline'}
+                      onChange={() => {
+                        setConsentDecisions((current) => ({ ...current, [domain]: 'decline' }));
+                      }}
+                    />
+                  </div>
+                </WireCardSection>
+              );
+            })}
           </div>
 
           {/* 2026-07-30 Q: 자필 서명·스캔 파일로 받은 동의서를 올릴 **자리만** 만든다.
@@ -272,5 +319,96 @@ export function RegisterForm({
         </WireButton>
       </form>
     </WireCard>
+  );
+}
+
+export interface ConsentEditorProps {
+  beneficiaryId: string;
+  supportCaseId: string;
+  formId: string;
+  recordedAtLabel: string;
+  currentStates: readonly CurrentConsentState[];
+  disclosures: readonly ConsentDisclosureSnapshot[];
+  action: (formData: FormData) => void | Promise<void>;
+}
+
+function consentStatePresentation(state: CurrentConsentState['state'] | undefined): {
+  label: string;
+  tone: 'mint' | 'lavender' | 'neutral';
+} {
+  if (state === 'granted') return { label: '동의함', tone: 'mint' };
+  if (state === 'not_granted') return { label: '동의하지 않음', tone: 'neutral' };
+  return { label: '미기록', tone: 'lavender' };
+}
+
+export function ConsentEditor({
+  beneficiaryId,
+  supportCaseId,
+  formId,
+  recordedAtLabel,
+  currentStates,
+  disclosures,
+  action,
+}: ConsentEditorProps) {
+  const [decisions, setDecisions] = useState<ConsentDecisions>({});
+  const orderedDisclosures = consentDisclosuresInOrder(disclosures, supportCaseId);
+  if (orderedDisclosures === null) {
+    return <WireError>지금 동의 내용을 불러올 수 없습니다. 페이지를 새로 고침해 주세요.</WireError>;
+  }
+  const stateByDomain = new Map(currentStates.map((state) => [state.domain, state]));
+
+  return (
+    <form id={formId} className="participant-program-consent" action={action}>
+      <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
+      <input type="hidden" name="supportCaseId" value={supportCaseId} />
+      <fieldset className="consent-fieldset" aria-label="동의">
+        {orderedDisclosures.map((disclosure) => {
+          const domain = disclosure.domain;
+          const presentation = consentStatePresentation(stateByDomain.get(domain)?.state);
+          const decision = decisions[domain];
+          return (
+            <WireCardSection
+              key={domain}
+              title={(
+                <span className="wire-title-with-badge">
+                  <span>{CONSENT_COPY[domain].label}</span>
+                  <WireBadge tone={presentation.tone}>{presentation.label}</WireBadge>
+                </span>
+              )}
+            >
+              <div className="consent-detail-section">
+                <p className="consent-detail-paragraph">{disclosure.fullKoreanCopy}</p>
+              </div>
+              {decision === undefined ? null : (
+                <input
+                  type="hidden"
+                  name={`consentSnapshot_${domain}`}
+                  value={JSON.stringify(disclosure)}
+                />
+              )}
+              <div className="wizard-choice-row" role="radiogroup" aria-label={CONSENT_COPY[domain].label}>
+                <WireChoice
+                  type="radio"
+                  name={`consentDecision_${domain}`}
+                  value="grant"
+                  label="동의함"
+                  checked={decision === 'grant'}
+                  onChange={() => setDecisions((current) => ({ ...current, [domain]: 'grant' }))}
+                />
+                <WireChoice
+                  type="radio"
+                  name={`consentDecision_${domain}`}
+                  value="decline"
+                  label="동의하지 않음"
+                  checked={decision === 'decline'}
+                  onChange={() => setDecisions((current) => ({ ...current, [domain]: 'decline' }))}
+                />
+              </div>
+            </WireCardSection>
+          );
+        })}
+        <p className="participant-program-consent-meta">마지막 기록 {recordedAtLabel}</p>
+      </fieldset>
+    </form>
   );
 }

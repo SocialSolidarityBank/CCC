@@ -27,6 +27,7 @@ import type { ComponentProps, ReactElement } from 'react';
 import {
   CONSENT_COPY,
   CONSENT_DOMAINS,
+  type ConsentDisclosureSnapshot,
   type CurrentConsentState,
 } from '@ccc/contracts/consent';
 
@@ -71,6 +72,22 @@ const CONSENT_STATES: CurrentConsentState[] = CONSENT_DOMAINS.map((domain) => ({
   eventId: null,
   revision: null,
   eventSequence: null,
+}));
+const REGISTRATION_DISCLOSURES: ConsentDisclosureSnapshot[] = CONSENT_DOMAINS.map((domain, index) => ({
+  snapshotId: `registration-snapshot-${index + 1}`,
+  scopeBinding: { orgId: 'org-1', programId: 'program-1', issuerId: 'user-1', supportCaseId: null },
+  domain,
+  fullKoreanCopy: `${CONSENT_COPY[domain].label} 서버 고지 전문입니다.`,
+  provider: CONSENT_COPY[domain].provider,
+  providerLegalRecipient: '사회연대은행',
+  country: 'KR',
+  purpose: CONSENT_COPY[domain].purpose,
+  retentionProfile: 'default_temporary_d85',
+  retentionDuration: 'default_temporary_d85',
+  copyVersion: 'server-copy-v1',
+  copyHash: `copy-hash-${index + 1}`,
+  issuedAt: '2026-09-16T00:00:00.000Z',
+  expiresAt: '2026-09-16T00:30:00.000Z',
 }));
 const noop = async () => ({ status: 'saved' as const });
 
@@ -389,7 +406,7 @@ const SCREENS: Screen[] = [
   {
     id: 'register',
     label: '당사자 등록',
-    node: <RegisterForm currentUser={{ name: '이지은', email: 'staff@example.test' } as never} action={noop as never} />,
+    node: <RegisterForm currentUser={{ name: '이지은', email: 'staff@example.test' } as never} action={noop as never} disclosures={REGISTRATION_DISCLOSURES} />,
   },
   { id: 'review', label: 'AI 정리 검토', node: <DraftReviewView {...reviewProps} /> },
 ];

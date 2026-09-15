@@ -116,9 +116,11 @@ describe('IntakeReadView (CCC-58)', () => {
     renderView();
     const card = screen.getByTestId('intake-read-consent');
     const sections = [...card.querySelectorAll('.wire-card-section')];
-    expect(sections.map((section) => section.querySelector('h3')?.textContent)).toEqual(
-      CONSENT_DOMAINS.map((domain) => CONSENT_COPY[domain].label),
-    );
+    expect(sections.map((section) => section.querySelector('h3')?.textContent)).toEqual([
+      `${CONSENT_COPY.personal_data_collection_use.label}동의함`,
+      `${CONSENT_COPY.sensitive_information_processing.label}동의하지 않음`,
+      ...CONSENT_DOMAINS.slice(2).map((domain) => `${CONSENT_COPY[domain].label}미기록`),
+    ]);
     for (const domain of CONSENT_DOMAINS) {
       expect(card.textContent).toContain(CONSENT_COPY[domain].copy);
     }

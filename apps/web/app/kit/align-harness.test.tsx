@@ -15,6 +15,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import {
   CONSENT_COPY,
   CONSENT_DOMAINS,
+  type ConsentDisclosureSnapshot,
   type CurrentConsentState,
 } from '@ccc/contracts/consent';
 import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
@@ -22,11 +23,10 @@ import { wireStyles } from '../components/wire/wire-styles';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
 import { OpenActionItemsCard } from '../participants/[beneficiaryId]/programs/[supportCaseId]/close/close-cards';
 import { OpenActionResolutions } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/open-action-resolutions';
-import { RegisterForm } from '../participants/new/register-form';
+import { ConsentEditor, RegisterForm } from '../participants/new/register-form';
 import { PROGRAM_LABELS } from '../lib/labels';
-import { ConsentEditor } from '../participants/[beneficiaryId]/page';
 import { GoalTreeCard } from '../participants/[beneficiaryId]/goal-tree';
-import type { ParticipantGoalTreeCase, ParticipantProgram, TodaySchedule } from '../lib/api';
+import type { ParticipantGoalTreeCase, TodaySchedule } from '../lib/api';
 import { ScheduleWizard, type ScheduleWizardCandidate } from '../schedules/new/schedule-wizard';
 import { ScheduleBody, ScheduleNav } from '../programs/[programType]/schedule/schedule-view';
 import { AppSidebar } from '../components/wire/app-sidebar';
@@ -81,20 +81,28 @@ const CONSENT_STATES: CurrentConsentState[] = CONSENT_DOMAINS.map((domain) => ({
   eventSequence: null,
 }));
 
-const hubProgram: ParticipantProgram = {
-  id: CASE_ID,
-  beneficiaryId: 'swallow-003',
-  programType: 'financial_support_v1',
-  status: 'active',
-  intakeAt: '2026-07-01T00:00:00.000Z',
-  creationKind: 'initial',
-  sourceSupportCase: null,
-  authorized: true,
-  assigneeNames: ['홍길동'],
-  consent: CONSENT_STATES as never,
-  consentRecordedAt: '2026-07-01T00:00:00.000Z',
-  upcomingSchedule: null,
-};
+function consentDisclosures(supportCaseId: string | null): ConsentDisclosureSnapshot[] {
+  return CONSENT_DOMAINS.map((domain, index) => ({
+    snapshotId: `snapshot-${supportCaseId ?? 'registration'}-${index + 1}`,
+    scopeBinding: { orgId: 'org-1', programId: 'program-1', issuerId: 'user-1', supportCaseId },
+    domain,
+    fullKoreanCopy: `${CONSENT_COPY[domain].label} 서버 고지 전문입니다.`,
+    provider: CONSENT_COPY[domain].provider,
+    providerLegalRecipient: '사회연대은행',
+    country: 'KR',
+    purpose: CONSENT_COPY[domain].purpose,
+    retentionProfile: 'default_temporary_d85',
+    retentionDuration: 'default_temporary_d85',
+    copyVersion: 'server-copy-v1',
+    copyHash: `copy-hash-${index + 1}`,
+    issuedAt: '2026-09-16T00:00:00.000Z',
+    expiresAt: '2026-09-16T00:30:00.000Z',
+  }));
+}
+
+const REGISTRATION_DISCLOSURES = consentDisclosures(null);
+const HUB_DISCLOSURES = consentDisclosures(CASE_ID);
+
 
 const goalTreeCases: ParticipantGoalTreeCase[] = [{
   sourceSupportCase: { id: CASE_ID, programType: 'financial_support_v1', status: 'active' },
@@ -264,11 +272,20 @@ describe('정렬 하니스 생성기', () => {
         currentUser={{ name: '홍길동', email: 'worker@example.test' }}
         action={() => {}}
         programLabel={PROGRAM_LABELS.financial_support_v1}
+        disclosures={REGISTRATION_DISCLOSURES}
       />,
     );
     const hubConsent = renderToStaticMarkup(
       <div className="participant-consent-block wire-repeat-card">
-        <ConsentEditor beneficiaryId="swallow-003" program={hubProgram} />
+        <ConsentEditor
+          beneficiaryId="swallow-003"
+          supportCaseId={CASE_ID}
+          formId="consent-form"
+          recordedAtLabel="2026년 7월 1일 오전 9시"
+          currentStates={CONSENT_STATES}
+          disclosures={HUB_DISCLOSURES}
+          action={() => {}}
+        />
       </div>,
     );
     const sidebar = renderToStaticMarkup(

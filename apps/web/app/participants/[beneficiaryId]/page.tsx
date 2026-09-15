@@ -7,8 +7,7 @@ import {
   WireBadge,
   WireButton,
   WireCard,
-  WireCardSection,
-  WireChoice,
+  WireError,
   type ParticipantHeroDetail,
 } from '@ccc/wire';
 import { Suspense } from 'react';
@@ -17,6 +16,8 @@ import {
   ApiError,
   getParticipantHubDetail,
   getParticipantGoalTree,
+  getSupportCaseConsent,
+  issueSupportCaseConsentDisclosures,
   type ParticipantHubDetail,
   type ParticipantGoalTreeCase,
   type ParticipantProgram,
@@ -24,9 +25,7 @@ import {
 } from '../../lib/api';
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import {
-  CONSENT_COPY,
-  CONSENT_COPY_VERSION,
-  CONSENT_DOMAINS,
+  type ConsentDisclosureSnapshot,
   type CurrentConsentState,
 } from '@ccc/contracts/consent';
 import { PageLoading } from '../../components/wire/page-loading';
@@ -37,6 +36,7 @@ import { formatKoreanDateTime } from '../../lib/format-korean-date';
 import { updateParticipantConsentAction } from '../../actions';
 import { ErrorState, type ErrorKind } from './error-state';
 import { GoalTreeCard } from './goal-tree';
+import { ConsentEditor } from '../new/register-form';
 
 // 당사자 정보 — **허브** (D35 · ADR-0014 §3, D36). 사람은 사업보다 크므로 이 페이지는
 // 사업 워크스페이스 범위를 벗어난다: 그 당사자의 **기관 내 전 참여 사업**이 보인다.
@@ -116,12 +116,6 @@ function AssigneeLine({ names }: { names: string[] }) {
   );
 }
 
-const CONSENT_ITEMS = CONSENT_DOMAINS.map((domain) => ({
-  domain,
-  name: `consent-${domain}`,
-  label: CONSENT_COPY[domain].label,
-  copy: CONSENT_COPY[domain].copy,
-}));
 
 /** 마지막으로 동의 상태를 기록한 시각. 최초 동의일이 아니다 — 저장할 때마다 갱신된다. */
 function formatConsentRecordedAt(value: string | null): string {
@@ -134,51 +128,24 @@ function consentFormId(supportCaseId: string): string {
   return `consent-form-${supportCaseId}`;
 }
 
-// 테스트에서 직접 렌더한다. 여섯 영역의 name과 현재 상태가 서버 액션 계약과 같아야 한다.
-export function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: string; program: ParticipantProgram }) {
-  const states = Array.isArray(program.consent)
-    ? program.consent as CurrentConsentState[]
-    : [];
-  const stateByDomain = new Map(states.map((state) => [state.domain, state]));
-  return (
-    <form id={consentFormId(program.id)} className="participant-program-consent" action={updateParticipantConsentAction}>
-      <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
-      <input type="hidden" name="supportCaseId" value={program.id} />
-      <input type="hidden" name="consentCopyVersion" value={CONSENT_COPY_VERSION} />
-      <fieldset className="consent-fieldset" aria-label="동의">
-        {CONSENT_ITEMS.map((item) => {
-          const state = stateByDomain.get(item.domain);
-          const current = state?.state ?? 'unconfirmed';
-          const negativeDecision = current === 'granted' ? 'withdraw' : 'decline';
-          return (
-            <WireCardSection key={item.domain} title={item.label}>
-              <p className="consent-detail-paragraph">{item.copy}</p>
-              <div className="wizard-choice-row" role="radiogroup" aria-label={item.label}>
-                <WireChoice
-                  type="radio"
-                  name={item.name}
-                  value="grant"
-                  label="동의함"
-                  defaultChecked={current === 'granted'}
-                />
-                <WireChoice
-                  type="radio"
-                  name={item.name}
-                  value={negativeDecision}
-                  label="동의하지 않음"
-                  defaultChecked={current === 'not_granted'}
-                />
-              </div>
-            </WireCardSection>
-          );
-        })}
-        <p className="participant-program-consent-meta">
-          마지막 기록 {formatConsentRecordedAt(program.consentRecordedAt)}
-        </p>
-      </fieldset>
-    </form>
-  );
+interface ConsentContext {
+  currentStates: CurrentConsentState[];
+  disclosures: ConsentDisclosureSnapshot[];
 }
+
+const CONSENT_ERROR_MESSAGES: Record<string, string> = {
+  invalid_request: '동의 변경 내용을 다시 확인해 주세요.',
+  forbidden: '동의 내용을 변경할 권한이 없습니다.',
+  access_denied: '동의 내용을 변경할 권한이 없습니다.',
+  conflict: '동의 내용을 저장하지 못했습니다. 현재 고지를 확인하고 변경할 영역을 다시 선택해 주세요.',
+  service_unavailable: '지금 동의 내용을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+};
+
+function consentErrorMessage(errorCode: string | undefined): string | undefined {
+  if (errorCode === undefined) return undefined;
+  return CONSENT_ERROR_MESSAGES[errorCode] ?? '동의 내용을 저장하지 못했습니다.';
+}
+
 
 /** 참여중인 사업 카드의 한 행(2026-08-06 Q — 구 사업별 낱개 카드 대체). 동의서는 여기서
  *  뺐다 — 페이지 맨 아래 동의서 카드로 옮겼다(같은 날 Q 지시). 행 하나가 낱개 카드다
@@ -296,13 +263,15 @@ export function participantHeroDetails(detail: ParticipantHubDetail): Participan
 }
 
 
-async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
+async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice, errorCode, consentContexts }: {
   detail: ParticipantHubDetail;
   /** 목표 트리(D62 §8 · CCC-69) — 담당 케이스만 온다(게이트웨이가 D36 범위를 강제). */
   goalTree: ParticipantGoalTreeCase[];
   /** 목표 조회만 실패했다 — 목표 카드 자리에 오류 한 줄을 남긴다(허브는 그대로 선다). */
   goalTreeFailed: boolean;
   notice?: string;
+  errorCode?: string;
+  consentContexts: Readonly<Record<string, ConsentContext | null>>;
 }) {
   const { programLabels } = await getDisplayLabels();
   // 진행 중을 먼저, 그 안에서는 사업명 순. 내 담당을 위로 올리지 않는다 — 사람 단위로
@@ -325,7 +294,11 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
   const consentPrograms = programs.filter((program) => program.authorized);
 
   const noticeText = notice === undefined ? undefined : NOTICES[notice];
+  const consentErrorText = consentErrorMessage(errorCode);
   const heroDetails = participantHeroDetails(detail);
+  const singleConsentContext = consentPrograms.length === 1
+    ? consentContexts[consentPrograms[0]!.id]
+    : undefined;
 
 
   return (
@@ -336,6 +309,7 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
         {noticeText !== undefined && (
           <WireBadge role="status" aria-live="polite">{noticeText}</WireBadge>
         )}
+        {consentErrorText !== undefined && <WireError>{consentErrorText}</WireError>}
         {/* ParticipantHeroCard (D38, 2026-09-02 Q A안): 허브는 케이스가 교차하는 화면이라
             단일 상태 태그를 생략한다. 이름 아래 정보 격자는 ID·연락처·이메일을 세 칸에 두고,
             값이 없으면 그 항목을 접는다. 항목이 늘면 다음 줄, 모바일에서는 80px 라벨 행으로 흐른다. */}
@@ -397,24 +371,44 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
                   consentPrograms.length === 1 ? (
                     <div className="wire-card-head">
                       <span>동의서</span>
-                      <WireButton type="submit" form={consentFormId(consentPrograms[0]!.id)} icon={<Icon name="check" />}>저장</WireButton>
+                      {singleConsentContext === undefined || singleConsentContext === null ? null : (
+                        <WireButton type="submit" form={consentFormId(consentPrograms[0]!.id)} icon={<Icon name="check" />}>저장</WireButton>
+                      )}
                     </div>
                   ) : (
                     '동의서'
                   )
                 }
               >
-                {consentPrograms.map((program) => (
-                  <div key={program.id} className="participant-consent-block wire-repeat-card">
-                    {consentPrograms.length > 1 && (
-                      <div className="participant-program-head">
-                        <h3 className="participant-consent-program">{programName(programLabels, program.programType)}</h3>
-                        <WireButton type="submit" form={consentFormId(program.id)} icon={<Icon name="check" />}>저장</WireButton>
-                      </div>
-                    )}
-                    <ConsentEditor beneficiaryId={detail.beneficiaryId} program={program} />
-                  </div>
-                ))}
+                {consentPrograms.map((program) => {
+                  const context = consentContexts[program.id];
+                  return (
+                    <div key={program.id} className="participant-consent-block wire-repeat-card">
+                      {consentPrograms.length > 1 && (
+                        <div className="participant-program-head">
+                          <h3 className="participant-consent-program">{programName(programLabels, program.programType)}</h3>
+                          {context === undefined || context === null ? null : (
+                            <WireButton type="submit" form={consentFormId(program.id)} icon={<Icon name="check" />}>저장</WireButton>
+                          )}
+                        </div>
+                      )}
+                      {context === undefined || context === null ? (
+                        <WireError>지금 동의 내용을 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.</WireError>
+                      ) : (
+                        <ConsentEditor
+                          key={context.disclosures.map((snapshot) => snapshot.snapshotId).join(':')}
+                          beneficiaryId={detail.beneficiaryId}
+                          supportCaseId={program.id}
+                          formId={consentFormId(program.id)}
+                          recordedAtLabel={formatConsentRecordedAt(program.consentRecordedAt)}
+                          currentStates={context.currentStates}
+                          disclosures={context.disclosures}
+                          action={updateParticipantConsentAction}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </WireCard>
             )}
           </>
@@ -426,7 +420,11 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
   );
 }
 
-async function ParticipantContent({ beneficiaryId, notice }: { beneficiaryId: string; notice?: string }) {
+async function ParticipantContent({ beneficiaryId, notice, errorCode }: {
+  beneficiaryId: string;
+  notice?: string;
+  errorCode?: string;
+}) {
   if (!isBeneficiaryId(beneficiaryId)) return <ErrorState kind="access_or_not_found" />;
 
   try {
@@ -450,12 +448,31 @@ async function ParticipantContent({ beneficiaryId, notice }: { beneficiaryId: st
     if (detail.beneficiaryId !== beneficiaryId) {
       throw new Error('Participant detail response did not match the requested participant.');
     }
+    const consentContextEntries = await Promise.all(
+      detail.programs.filter((program) => program.authorized).map(async (program) => {
+        try {
+          const [currentStates, disclosures] = await Promise.all([
+            getSupportCaseConsent(program.id),
+            issueSupportCaseConsentDisclosures(program.id),
+          ]);
+          return [program.id, { currentStates, disclosures }] as const;
+        } catch (error) {
+          if (error instanceof ApiError) return [program.id, null] as const;
+          throw error;
+        }
+      }),
+    );
+    const consentContexts: Readonly<Record<string, ConsentContext | null>> = Object.fromEntries(
+      consentContextEntries,
+    );
     return (
       <ParticipantHub
         detail={detail}
         goalTree={goalTreeResult.cases}
         goalTreeFailed={goalTreeResult.failed}
+        consentContexts={consentContexts}
         {...(notice === undefined ? {} : { notice })}
+        {...(errorCode === undefined ? {} : { errorCode })}
       />
     );
   } catch (error) {
@@ -473,9 +490,15 @@ export default async function ParticipantPage({ params, searchParams }: {
   const query = await searchParams;
   const noticeValue = query.notice;
   const notice = typeof noticeValue === 'string' ? noticeValue : undefined;
+  const errorValue = query.error;
+  const errorCode = typeof errorValue === 'string' ? errorValue : undefined;
   return (
     <Suspense fallback={<LoadingState />}>
-      <ParticipantContent beneficiaryId={beneficiaryId} {...(notice === undefined ? {} : { notice })} />
+      <ParticipantContent
+        beneficiaryId={beneficiaryId}
+        {...(notice === undefined ? {} : { notice })}
+        {...(errorCode === undefined ? {} : { errorCode })}
+      />
     </Suspense>
   );
 }

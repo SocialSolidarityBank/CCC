@@ -316,11 +316,13 @@ export function IntakeReadView(props: IntakeReadViewProps) {
         {consentRows.map(({ domain, state }) => (
           <WireCardSection
             key={domain}
-            title={CONSENT_COPY[domain].label}
-            action={(
-              <WireBadge tone={state === 'granted' ? 'mint' : state === 'unconfirmed' ? 'lavender' : 'neutral'}>
-                {state === 'granted' ? '동의함' : state === 'not_granted' ? '동의하지 않음' : '미기록'}
-              </WireBadge>
+            title={(
+              <span className="wire-title-with-badge">
+                <span>{CONSENT_COPY[domain].label}</span>
+                <WireBadge tone={state === 'granted' ? 'mint' : state === 'unconfirmed' ? 'lavender' : 'neutral'}>
+                  {state === 'granted' ? '동의함' : state === 'not_granted' ? '동의하지 않음' : '미기록'}
+                </WireBadge>
+              </span>
             )}
           >
             <p className="panel-meta">{CONSENT_COPY[domain].copy}</p>
