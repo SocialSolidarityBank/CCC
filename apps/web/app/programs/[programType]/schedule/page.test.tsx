@@ -211,62 +211,27 @@ describe('다중 뷰 일정 화면 (CCC-133), 일간', () => {
 });
 
 describe('다중 뷰 일정 화면 (CCC-133), 월간', () => {
-  it('오늘이 최상단이고 미래·지난 순으로 이어지며 오늘만 펼쳐 둔다 (2026-08-28 Q)', async () => {
+  it('공용 7열 격자에 일정 세 건과 넘침 일간 링크를 표시한다', async () => {
     getMonthSchedules.mockResolvedValue(board('2026-02-01', [
-      schedule({ id: 'past', scheduledAt: '2026-02-03T01:00:00.000Z', status: 'completed', completedSessionId: 'sess-3', participantName: '지난사람' }),
-      schedule({ id: 'today', participantName: '오늘사람' }),
-      schedule({ id: 'future', scheduledAt: '2026-02-20T01:00:00.000Z', participantName: '미래사람' }),
+      schedule({ id: 'm1', participantName: '한사람' }),
+      schedule({ id: 'm2', participantName: '두사람' }),
+      schedule({ id: 'm3', participantName: '세사람' }),
+      schedule({ id: 'm4', participantName: '네사람' }),
+      schedule({ id: 'm5', participantName: '다섯사람' }),
     ]));
 
     const { container } = await renderPage({ view: 'month', month: '2026-02' });
 
-    expect(getMonthSchedules).toHaveBeenCalledWith('2026-02');
-    const rows = Array.from(container.querySelectorAll<HTMLDetailsElement>('details'));
-    expect(rows).toHaveLength(3);
-    // 예약이 많은 달에서 오늘이 시간순에 묻히지 않는다 — D75 '오늘 최상단' 계약의 월간 적용.
-    expect(rows.map((row) => row.open)).toEqual([true, false, false]);
-    expect(dayHeadings(container)).toEqual([
-      expect.stringContaining('2월 15일'),
-      expect.stringContaining('2월 20일'),
-      expect.stringContaining('2월 3일'),
-    ]);
-    expect(container.querySelector('.schedule-week-title')).toBeNull();
+    const calendar = container.querySelector('table.month-calendar');
+    expect(calendar).not.toBeNull();
+    expect(calendar?.querySelectorAll('thead th')).toHaveLength(7);
+    expect(calendar?.querySelectorAll('.month-cell').length).toBeGreaterThanOrEqual(28);
+    expect(calendar?.querySelectorAll('.calendar-event')).toHaveLength(3);
+    const overflow = calendar?.querySelector<HTMLAnchorElement>('.month-overflow-link');
+    expect(overflow?.textContent).toBe('+2건');
+    expect(overflow?.getAttribute('href')).toBe(`${basePath}?view=day&date=2026-02-15`);
   });
 
-  it('오늘이 없는 달은 전부 닫힌 채로 연다', async () => {
-    getMonthSchedules.mockResolvedValue(board('2026-03-01', [
-      schedule({ id: 'a', scheduledAt: '2026-03-03T01:00:00.000Z' }),
-      schedule({ id: 'b', scheduledAt: '2026-03-10T01:00:00.000Z' }),
-    ]));
-
-    const { container } = await renderPage({ view: 'month', month: '2026-03' });
-
-    expect(Array.from(container.querySelectorAll<HTMLDetailsElement>('details')).map((row) => row.open))
-      .toEqual([false, false]);
-  });
-
-  it('펼친 오늘 줄은 조회일 뿐이라 선택 표면을 입지 않는다', async () => {
-    getMonthSchedules.mockResolvedValue(board('2026-02-01', [schedule({ id: 'today' })]));
-
-    const { container } = await renderPage({ view: 'month', month: '2026-02' });
-
-    const openRow = container.querySelector<HTMLDetailsElement>('details[open]');
-    expect(openRow?.className).toContain('schedule-day-accordion');
-    // 2026-08-28 채움 전면 적용 후에도 지난 날짜 흐림(.schedule-past-day)과는 갈려야 한다.
-    expect(openRow?.className).not.toContain('schedule-past-day');
-  });
-
-  it('지난 줄만 흐려지고 미래 줄은 흐려지지 않는다', async () => {
-    getMonthSchedules.mockResolvedValue(board('2026-02-01', [
-      schedule({ id: 'past', scheduledAt: '2026-02-03T01:00:00.000Z' }),
-      schedule({ id: 'future', scheduledAt: '2026-02-20T01:00:00.000Z' }),
-    ]));
-
-    const { container } = await renderPage({ view: 'month', month: '2026-02' });
-
-    expect(container.querySelectorAll('.schedule-past-day')).toHaveLength(1);
-    expect(container.querySelectorAll('.schedule-day-accordion')).toHaveLength(1);
-  });
 
   it('완료된 회차는 그 회차가 펼쳐진 상담 기록으로, 나머지는 브리핑으로 보낸다', async () => {
     getMonthSchedules.mockResolvedValue(board('2026-02-01', [
@@ -276,7 +241,7 @@ describe('다중 뷰 일정 화면 (CCC-133), 월간', () => {
 
     const { container } = await renderPage({ view: 'month', month: '2026-02' });
 
-    const hrefs = Array.from(container.querySelectorAll('.card-grid a')).map((a) => a.getAttribute('href'));
+    const hrefs = Array.from(container.querySelectorAll('.calendar-event')).map((a) => a.getAttribute('href'));
     expect(hrefs).toContain('/participants/swallow-003/programs/case-1/records#record-sess-9');
     expect(hrefs).toContain('/participants/swallow-003/programs/case-1/briefing');
   });
@@ -291,12 +256,15 @@ describe('다중 뷰 일정 화면 (CCC-133), 월간', () => {
       .toBe('month');
   });
 
-  it('그 달에 상담이 없으면 달을 적은 빈 상태를 보여 준다', async () => {
+  it('그 달에 상담이 없어도 월 전체 격자를 보여 준다', async () => {
     getMonthSchedules.mockResolvedValue(board('2026-02-01', []));
 
     const { container } = await renderPage({ view: 'month', month: '2026-02' });
 
-    expect(container.querySelector('.wire-empty-title')?.textContent).toBe('2026년 2월에는 상담이 없습니다');
+    expect(container.querySelector('table.month-calendar')).not.toBeNull();
+    expect(container.querySelectorAll('.month-cell').length).toBeGreaterThanOrEqual(28);
+    expect(container.querySelectorAll('.calendar-event')).toHaveLength(0);
+    expect(container.querySelector('.wire-empty-title')).toBeNull();
   });
 });
 
@@ -418,7 +386,9 @@ describe('다중 뷰 일정 화면 (CCC-133), 공통', () => {
 
     const { container } = await renderPage({ view: 'month', month: '2026-02' });
 
-    expect(dayHeadings(container)[0]).toContain('2월 16일');
+    const event = Array.from(container.querySelectorAll('.calendar-event-title'))
+      .find((element) => element.textContent === '김철수');
+    expect(event?.closest('.month-cell')?.querySelector('.month-date')?.textContent).toBe('16');
   });
 
   it('불러오지 못하면 내비는 남기고 안내만 바꾼다', async () => {

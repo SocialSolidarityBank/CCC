@@ -1,7 +1,12 @@
+'use client';
+
 import {
   Chevron,
   WireButton,
   WireCardDetails,
+  WireMonthCalendar,
+  buildMonthWeeks,
+  type WireMonthCalendarEvent,
 } from '@ccc/wire';
 import Link from 'next/link';
 import { formatKoreanDate, formatKoreanTime } from '../../../lib/format-korean-date';
@@ -127,12 +132,16 @@ function GroupedDay({ day, timeZone, open }: {
 }
 
 export function ScheduleBody({
+  basePath,
   view,
+  anchor,
   schedules,
   timeZone,
   todayKey,
 }: {
+  readonly basePath: string;
   readonly view: ScheduleView;
+  readonly anchor: string;
   readonly schedules: readonly TodaySchedule[];
   readonly timeZone: string;
   readonly todayKey: string;
@@ -145,22 +154,32 @@ export function ScheduleBody({
       </div>
     );
   }
-  /* 월간은 오늘을 최상단에 꽂는다(2026-08-28 Q): 예약이 많은 달은 시간순만으로는 오늘이
-     화면 밖으로 밀린다. 오늘 → 미래(가까운 순) → 지난(달력 순)이고, D75 의 '오늘 최상단,
-     미래 다음, 지난 마지막' 계약을 월간 본문에 적용한 것이다. 주간은 한 주 7일이라
-     시간순이 곧 훑는 순서다. */
-  const ordered = view === 'month'
-    ? (['today', 'future', 'past'] as const).flatMap((slot) => days.filter((day) => day.temporal === slot))
-    : days;
+  if (view === 'month') {
+    const eventsByDate = new Map<string, WireMonthCalendarEvent[]>();
+    for (const day of days) {
+      eventsByDate.set(day.key, day.schedules.map((schedule) => ({
+        id: schedule.id,
+        label: schedule.participantName ?? schedule.beneficiaryId,
+        href: rowHref(schedule),
+      })));
+    }
+    const weeks = buildMonthWeeks(
+      anchor,
+      eventsByDate,
+      todayKey,
+      3,
+      (dateKey) => schedulePeriodHref(basePath, 'day', dateKey),
+    );
+    return <WireMonthCalendar month={anchor} weeks={weeks} />;
+  }
   return (
     <div className="schedule-day-list">
-      {ordered.map((day) => (
+      {days.map((day) => (
         <GroupedDay
           key={day.key}
           day={day}
           timeZone={timeZone}
-          /* 주간은 오늘·미래 펼침(D75), 월간은 밀도가 높아 오늘만 펼친다. */
-          open={view === 'month' ? day.temporal === 'today' : day.temporal !== 'past'}
+          open={day.temporal !== 'past'}
         />
       ))}
     </div>
