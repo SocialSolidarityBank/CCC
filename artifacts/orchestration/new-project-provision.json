@@ -1,0 +1,130 @@
+{
+  "generatedAt": "2026-09-15",
+  "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+  "authSettings": {
+    "project": "Relayer (ref qlzwasqwkmenudtfmuql, ap-northeast-2, org SocialSolidaritybank). 다른 프로젝트는 열지도 않았다. Relayer_legacy·relayer2 조작 0건.",
+    "confirmEmailToggle": {
+      "label": "Confirm email (Authentication > Sign In / Providers > Email)",
+      "finalState": "OFF",
+      "meaning": "토글 OFF = 가입 시 이메일 확인 불요 = plan 의 mailer_autoconfirm=true 요구에 해당. 토스트 'Successfully updated settings', 재로드 후 aria-checked=false 유지 확인.",
+      "resolvesBlocker": "AUTH_CONFIRMATION_REQUIRED 해소 방향으로 설정됨. 최종 확인은 5단계 plan 재실행에서 해야 했으나 Main 지시로 plan 미실행(아래 blocked 참조)."
+    }
+  },
+  "extensions": {
+    "pg_cron": "Disabled → Enabled (v1.6.4, schema pg_catalog). 토스트 'Extension \"pg_cron\" is now enabled'.",
+    "pg_net": "Disabled → Enabled (v0.20.4, schema extensions). 토스트 'Extension \"pg_net\" is now enabled'.",
+    "othersUntouched": "pgcrypto, uuid-ossp, pg_stat_statements, plpgsql 등 기존 확장 변경 0건."
+  },
+  "authUser": {
+    "email": "seongqkim@ggbss.or.kr",
+    "method": "Add user → Create new user (Send invitation 아님). 'Auto confirm user?' 체크 유지. 초대 메일 발송 0건.",
+    "confirmedAt": "2026-09-15 22:10 (대시보드 표기)",
+    "uuidPrefix8": "98c0bb32",
+    "password": "28자 무작위 생성, 보고·기록 어디에도 없음."
+  },
+  "newSecretNames": {
+    "folder": "Infisical RELAYER / Production / CURRENT (대문자 폴더)",
+    "created": [
+      "RELAYER_BETA_SUPABASE_SECRET_KEY — Supabase 대시보드 Settings > API Keys 의 new-style secret 키(name default, sb_secret_ 접두)를 Copy 버튼으로 복사해 Add Secret 에 Cmd+V. 41자, sb_secret_ 접두, JWT 아님.",
+      "RELAYER_BETA_API_DATABASE_PASSWORD — 페이지 내 crypto.getRandomValues(32B)→btoa 생성, in-page JS 주입으로 저장.",
+      "RELAYER_BETA_SCHEDULER_SECRET — 동일 방식.",
+      "RELAYER_BETA_PII_ENC_KEY — 동일 방식."
+    ],
+    "countChange": "CURRENT 폴더 18 → 22 (infisical run 주입 env 이름 목록으로 RELAYER_BETA_ 6개 확인: 기존 DB_PASSWORD·INSTALL_DATABASE_URL + 새 4개).",
+    "noOverwrite": "기존 이름 덮기 0건. 루트 PII_ENC_KEY·SCHEDULER_SECRET 은 그대로 둠. 이름이 가리키는 대상: RELAYER_BETA_* 는 새 프로젝트(qlzwas) 전용, 무접두 루트 이름은 지난 프로젝트(wtbdqy) 결속이라 헷갈림 없음."
+  },
+  "piiKeyFormat": {
+    "check": "생성 값이 base64 44자·끝 '='·[A-Za-z0-9+/] 만 포함인지 저장 전 페이지 내에서 검사.",
+    "result": "len=44, ends with '=': yes (세 생성 값 모두 동일 검사 통과, 서로 다른 값 확인).",
+    "evidence": "adapters/secrets-env/src/index.ts:29-46 의 /^[A-Za-z0-9+/]{43}=$/ 요구와 일치."
+  },
+  "rotations": {
+    "CLOUDFLARE_WORKERS_API_TOKEN": {
+      "target": "사용자 API 토큰 'Cloudflare Workers' (계정.Workers 에이전트 구성 등 14 권한, account@bss.or.kr). 다른 토큰 'ccc-access-setup'·계정 레벨 토큰·Global API Key 미조작.",
+      "rolled": true,
+      "oldInvalidated": "검증됨 — 새 토큰 GET /client/v4/user/tokens/verify 200, 예 토큰 401 code 1000 Invalid API Token.",
+      "infisicalUpdated": "RELAYER/Production/root CLOUDFLARE_WORKERS_API_TOKEN 갱신, 토스트 'Successfully updated secret', 저장값 53자 일치 확인."
+    },
+    "CCC_LINEAR_API_KEY": {
+      "newKey": "label 'ccc-ops-2026-09', Full access, team RELAYER. 생성 직후 Linear API 읽기 200 확인.",
+      "infisicalUpdated": "루트 CCC_LINEAR_API_KEY 갱신, 토스트 'Successfully updated secret', 재로드 후 저장값 48자 일치 확인.",
+      "oldRevoked": "예 키는 'CCC_LINEAR_API_KEY' 라벨로 식별(Last used 갱신 관측) 후 폐기. 폐기 후 API 401 'Authentication required'. 목록 3→2. 'ccc-agent-mini' 는 별도 자격이라 미조작."
+    },
+    "AZURE_SPEECH_KEY": {
+      "resource": "ccc-stt-koreacentral (rg ccc-stt, Korea Central). KEY 1 재생성, KEY 2 미조작.",
+      "newKeyValidated": "POST koreacentral.api.cognitive.microsoft.com/sts/v1.0/issueToken → 200.",
+      "infisicalUpdated": "UI 저장이 불확실해 infisical secrets set(CLI, --silent, 값은 pbpaste 경유·stdout 미출력)으로 갱신 exit 0. 이후 Infisical 행 copy → Azure KEY 1 copy → 로컬 cmp 일치 확인(MATCH).",
+      "oldInvalidated": "KEY 1 재생성으로 예 값은 Azure 측에서 즉시 무효."
+    }
+  },
+  "baselineRegen": {
+    "executed": false,
+    "reason": "Main 지시로 중단. 구조적 충돌: provider-baseline-generate.mjs:454 EMPTY_BUSINESS_KEYS 가 authUserCount===0 을 요구하는데 1단계에서 auth 사용자를 이미 생성(authUserCount=1). 같은 프로젝트에서 '확장 활성화 후 baseline 재생산'과 'auth 사용자 선생성'은 양립 불가. 추가로 Main 이 밝힌 구조 문제: 새 프로젝트에는 업무 API 실행 환경이 없어(D89/ADR-0048) 설치 health 가 manifest apiBase 의 /readyz 를 요구하므로 baseline 을 맞춰도 apply 가 health 에서 막힌다.",
+    "correctOrder": "baseline 재생산(빈 프로젝트 요구) → apply → auth 사용자 생성 → link-first-admin. 근거: EMPTY_BUSINESS_KEYS(provider-baseline-generate.mjs:58-59,454)는 빈 프로젝트만 허용하고, auth 사용자는 apply 가 아니라 link-first-admin(first-admin.mjs:63-73)의 선행 조건이다."
+  },
+  "resign": {
+    "executed": false,
+    "reason": "baseline 재생산 중단에 따라 문서 짝이 깨지지 않았으므로 재서명 불필요. 기존 artifacts/install/qlzwas/ 문서(manifest·approval·release-trust·provider-baseline)는 그대로 유효.",
+    "howToResign": "scripts/install/stage-env.sh bun scripts/install/sign-install-documents.mjs --new-install (인자 없이 플래그만). 만료만 바꿔 다시 서명하려면 artifacts/install/qlzwas/inputs.json 의 expiresAt 하나만 고치고 같은 명령을 다시 실행하면 된다(Ed25519 결정적 서명, installationId·projectRef 는 inputs.json 이 보존).",
+    "expiryConstraint": "재서명 시에도 expiresAt 은 release bundle 만료(현재 2026-09-18T18:50:34Z, 재빌드 시 갱신 예정)를 넘기지 않는다."
+  },
+  "planOutcome": {
+    "executed": false,
+    "reason": "Main 지시로 4·5단계 중단. baseline 이 확장 활성화 상태를 반영하지 못한 채이고 authUserCount=1 이라 재생산도 불가한 상태에서 plan 재실행은 의미가 없다고 판단.",
+    "authConfirmationResolved": "화면 설정은 mailer_autoconfirm=true 방향으로 변경 완료. plan 재실행으로 AUTH_CONFIRMATION_REQUIRED 소거를 확인하는 절차는 미실행."
+  },
+  "planSummary": {
+    "previousRun": "적용 예정 자원 12, 마이그레이션 28, providerBaselineMatched=true, ready=false, 차단 AUTH_CONFIRMATION_REQUIRED (new-project-install-plan.json).",
+    "currentRun": "미실행."
+  },
+  "applyInjectionMap": {
+    "note": "apply 실행 전 stage-env.sh 의 CCC_STAGE_NEW_PROJECT=1 분기가 주입하는 대응. 이번에 RELAYER_BETA_* 매핑을 추가했다.",
+    "map": {
+      "SUPABASE_ACCESS_TOKEN": "Infisical /INSTALL RELAYER_SUPABASE_ACCESS_TOKEN (조직 범위, 새 프로젝트 읽기 200 실측)",
+      "SUPABASE_SERVICE_ROLE_KEY": "Infisical /CURRENT RELAYER_BETA_SUPABASE_SECRET_KEY (새 프로젝트 secret 키)",
+      "CCC_API_DATABASE_PASSWORD": "Infisical /CURRENT RELAYER_BETA_API_DATABASE_PASSWORD",
+      "SCHEDULER_SECRET": "Infisical /CURRENT RELAYER_BETA_SCHEDULER_SECRET",
+      "PII_ENC_KEY": "Infisical /CURRENT RELAYER_BETA_PII_ENC_KEY",
+      "CCC_INSTALL_DATABASE_URL": "Infisical /CURRENT RELAYER_BETA_INSTALL_DATABASE_URL",
+      "CCC_SUPABASE_PROJECT_REF": "RELAYER_BETA_INSTALL_DATABASE_URL 의 db.<ref>.supabase.co 호스트에서 파생",
+      "CCC_INSTALL_MANIFEST": "artifacts/install/qlzwas/install-manifest.json (파일 우선)",
+      "CCC_INSTALL_APPROVAL": "artifacts/install/qlzwas/install-approval.json (파일 우선)",
+      "CCC_BETA_RELEASE_TRUST": "artifacts/install/qlzwas/release-trust.json (파일 우선)",
+      "CCC_PROVIDER_BASELINE": "artifacts/install/qlzwas/provider-baseline.json (파일 우선)",
+      "CCC_ORGANIZATION_ID·CCC_INSTALL_SIGNING_KEYS·CCC_INSTALL_REVOKED_KEY_IDS·CCC_BETA_TRUST_ROOT_KEYS·CCC_BETA_REVOKED_ROOT_KEY_IDS·CCC_RELEASE_TRUST_STORE": "Infisical /CURRENT CCC_* 정본 그대로 (프로젝트 비결속)"
+    },
+    "stageEnvChange": "scripts/install/stage-env.sh CCC_STAGE_NEW_PROJECT 분기에 RELAYER_BETA_SUPABASE_SECRET_KEY→SUPABASE_SERVICE_ROLE_KEY, RELAYER_BETA_API_DATABASE_PASSWORD→CCC_API_DATABASE_PASSWORD, RELAYER_BETA_SCHEDULER_SECRET→SCHEDULER_SECRET, RELAYER_BETA_PII_ENC_KEY→PII_ENC_KEY 매핑 추가(기존 unset 만 있던 자리). bash -n 통과."
+  },
+  "asideSessionsDeleted": {
+    "deleted": ["VggVG2EpzN5oOWse (Cloudflare 롤, 토큰 값이 전사에 남음)", "j46EysarWTysVv6w (Linear 로테이션)", "6rlNYmwz0zG8p3tz (Azure 로테이션, KEY 1 이 전사에 남음)", "gwRb1CwLDs32ZNSD (Supabase secret 키 이동)", "MWYpWVIznYELUprY (생성 값 3개)", "krcDcy2xTPosQy5r (Supabase 설정, 값 미노출이지만 함께 삭제)"],
+    "diskDirsRemoved": "/Users/seongqkim/.aside/u/0/sessions/ 아래 해당 6개 디렉터리 rm -rf 완료. aside session list 에 0건 남음.",
+    "note": "session delete 는 6rlNY… 만 'ok' 반환, 나머지는 'Session not found'(이미 종료·미등록). 디스크 디렉터리는 6개 모두 제거 확인."
+  },
+  "secretLeakCheck": {
+    "infisicalSecretsCmdExecuted": 0,
+    "method": "infisical secrets/secrets get/export/--plain 을 한 번도 실행하지 않았다. 읽기는 infisical run 주입 + compgen -e 이름 목록만. 쓰기는 브라우저 클립보드·in-page JS 주입과 infisical secrets set 1회(값은 pbpaste 경유, --silent, stdout 에 값 없음).",
+    "incidents": [
+      "Aside 세션 전사에 Cloudflare 신·구 토큰과 Azure KEY 1 이 스냅숏/DOM 덤프로 남았다(에이전트가 스스로 보고). 해당 세션 3개와 디스크 디렉터리를 삭제해 봉인했다.",
+      "infisical run --path=/CURRENT -- env 출력에서 /CURRENT 에 '-----END PRIVATE KEY-----'·'MC4CAQAw…' 로 시작하는 깨진 env 이름 2건이 관측됐다. 개인키 본문 일부가 env 이름으로 저장된 기존 오염으로 보이며 내가 만든 것이 아니다. 값 재출력 없이 이름만 관측."
+    ],
+    "reportValues": "이 보고에는 시크릿 값·토큰·개인키·연결 문자열 0건. uuid 앞 8자·길이·접두 유형만 기록."
+  },
+  "mutations": {
+    "applyExecutions": 0,
+    "createInstitutionRuns": 0,
+    "linkFirstAdminRuns": 0,
+    "relayerLegacyTouched": 0,
+    "newSigningKeys": 0,
+    "supabaseWrites": "Confirm email OFF, pg_cron·pg_net 활성화, auth 사용자 1 생성 — 모두 qlzwas 프로젝트에만.",
+    "infisicalWrites": "CURRENT 에 RELAYER_BETA_ 4개 생성, 루트 CLOUDFLARE_WORKERS_API_TOKEN·CCC_LINEAR_API_KEY·AZURE_SPEECH_KEY 갱신.",
+    "externalRotations": "Cloudflare 토큰 롤 1, Linear 키 생성 1·폐기 1, Azure KEY 1 재생성 1.",
+    "clipboard": "작업 종료 시 무해 문자열로 덮어씀."
+  },
+  "gitStatus": {
+    "changed": "scripts/install/stage-env.sh (+7/-1, RELAYER_BETA_ 매핑 추가) 와 이 보고 파일.",
+    "signedDocsCommitted": false,
+    "untrackedOthers": "다른 artifacts/orchestration/*.json 은 선행 작업 산출물이라 이번 커밋 범위 밖."
+  },
+  "commit": "stage-env.sh 와 이 보고만 커밋 1회. push 없음.",
+  "blocked": "4·5단계는 Main 지시로 미실행. 사유: (1) authUserCount=1 이라 baseline 재생산 불가(EMPTY_BUSINESS_KEYS), (2) 업무 API 실행 환경 부재로 apply 의 /readyz health 가 어차피 막힘 — Q 가 실행 환경 결정 중. 올바른 순서는 baseline 재생산 → apply → auth 사용자 생성 → link-first-admin."
+}

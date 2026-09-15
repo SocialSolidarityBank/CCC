@@ -112,7 +112,13 @@ if [ "${1:-}" = "--stage-inner" ]; then
       SUPABASE_ACCESS_TOKEN="$STAGE_NEW_TOKEN"
       export SUPABASE_ACCESS_TOKEN
     fi
-    unset SUPABASE_SERVICE_ROLE_KEY CCC_API_DATABASE_PASSWORD
+    # 새 프로젝트 자격을 코드 이름으로 매핑한다. /CURRENT 의 CCC_*·루트의 무접두 이름은
+    # 지난 프로젝트(wtbdqy)에 묶여 있으므로 RELAYER_BETA_* 가 이긴다.
+    unset SUPABASE_SERVICE_ROLE_KEY CCC_API_DATABASE_PASSWORD SCHEDULER_SECRET PII_ENC_KEY
+    [ -n "${RELAYER_BETA_SUPABASE_SECRET_KEY:-}" ] && { SUPABASE_SERVICE_ROLE_KEY="$RELAYER_BETA_SUPABASE_SECRET_KEY"; export SUPABASE_SERVICE_ROLE_KEY; }
+    [ -n "${RELAYER_BETA_API_DATABASE_PASSWORD:-}" ] && { CCC_API_DATABASE_PASSWORD="$RELAYER_BETA_API_DATABASE_PASSWORD"; export CCC_API_DATABASE_PASSWORD; }
+    [ -n "${RELAYER_BETA_SCHEDULER_SECRET:-}" ] && { SCHEDULER_SECRET="$RELAYER_BETA_SCHEDULER_SECRET"; export SCHEDULER_SECRET; }
+    [ -n "${RELAYER_BETA_PII_ENC_KEY:-}" ] && { PII_ENC_KEY="$RELAYER_BETA_PII_ENC_KEY"; export PII_ENC_KEY; }
     # 새 프로젝트 문서가 있으면 Infisical 본문보다 파일 경로가 이긴다.
     if [ -f "$STAGE_OUT_NEW/install-manifest.json" ]; then
       CCC_INSTALL_MANIFEST="$STAGE_OUT_NEW/install-manifest.json"
