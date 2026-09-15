@@ -70,7 +70,7 @@ export function testProtectedAudioEnv<T extends ApiEnv>(env: T, origin = 'https:
 export async function readTestProtectedAudio(
   env: ApiEnv,
   response: Response,
-): Promise<{ bytes: Uint8Array; contentType: string }> {
+): Promise<{ bytes: Uint8Array<ArrayBuffer>; contentType: string }> {
   const delivery = await response.json() as { delivery: string; url: string };
   expect(delivery.delivery).toBe('signed-get');
   const marker = delivery.url.indexOf(TEST_PROTECTED_AUDIO_PATH);

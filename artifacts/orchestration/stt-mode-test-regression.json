@@ -246,7 +246,7 @@
       "pnpm guard:deploy-verdict",
       "pnpm guard:deploy-gates"
     ],
-    "localEvidence": "API typecheck 통과, API 전수 114파일 1293테스트 통과, migration parity 생성 1/1 통과, PostgreSQL RLS 22/22 통과. 동일 전체 verify는 ProductionRelease CI가 실행 중이므로 이 보고는 관측하지 않은 결과를 주장하지 않는다."
+    "localEvidence": "통합 pnpm typecheck가 API, web, client, community-cloud, wire 전부 통과했다. API 전수 114파일 1293테스트 통과, migration parity 생성 1/1 통과, PostgreSQL RLS 22/22 통과. 동일 전체 verify는 ProductionRelease CI가 실행 중이므로 이 보고는 관측하지 않은 결과를 주장하지 않는다."
   },
   "mutations": {
     "appsPipelineChanges": 0,
