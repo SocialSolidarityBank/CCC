@@ -1,0 +1,286 @@
+{
+  "generatedAt": "2026-09-16",
+  "scope": "운영 스택(ccc-api + ccc 웹 워커 + D1 ccc + Cloudflare Access)에 사람 계정 5개를 세우는 절차 확정. 조사만 수행, 쓰기 0건.",
+  "accessPolicy": {
+    "method": "Aside CLI 로 사용자 브라우저의 Cloudflare Zero Trust 대시보드(one.dash.cloudflare.com)를 읽기 전용으로 열람. Cloudflare API 는 주입된 CLOUDFLARE_WORKERS_API_TOKEN 이 무효(401/9109/10000)라 사용 불가였다.",
+    "teamDomain": "socialsolidaritybank.cloudflareaccess.com",
+    "applications": [
+      {
+        "name": "ccc",
+        "domain": "ccc.account-855.workers.dev",
+        "policies": [
+          { "name": "관리자", "action": "Allow", "include": ["account@bss.or.kr"], "kind": "개별 이메일" },
+          { "name": "CCC 파일럿 상담사", "action": "Allow", "include": ["heeureka@bss.or.kr", "seongqkim@bss.or.kr", "loveoofy@bss.or.kr", "jiin@bss.or.kr", "kimi@bss.or.kr", "ai00@ggbss.or.kr"], "kind": "개별 이메일" }
+        ]
+      },
+      {
+        "name": "CCC API",
+        "domain": "ccc-api.account-855.workers.dev",
+        "policies": [
+          { "name": "관리자", "action": "Allow", "include": ["account@bss.or.kr"], "kind": "개별 이메일" },
+          { "name": "Pipeline service token", "action": "Service Auth", "include": ["ccc-pipeline-laptop"], "kind": "서비스 토큰" }
+        ]
+      }
+    ],
+    "policyKind": "도메인 단위 허용(emails ending in)은 0건. 전부 개별 이메일 주소 지정이다. bss.or.kr 과 ggbss.or.kr 은 도메인으로 묶이지 않고 명시된 주소만 통과한다.",
+    "apiPolicyNote": "사람이 ccc-api 를 직접 칠 일은 없다. 웹 워커(ccc)가 service binding(CCC_API)으로 API 를 부르며 Access JWT 를 x-ccc-access-jwt 헤더로 전달한다(apps/web/app/lib/api.ts:1237-1299, wrangler.jsonc services). 그래서 사람에게 필요한 것은 ccc 앱 통과뿐이다. CCC API 앱의 좁은 정책은 정상 설계다.",
+    "serviceTokens": ["ccc-pipeline-laptop (enabled, 만료 2036-07-25, 유일한 토큰)"]
+  },
+  "emailVerdicts": {
+    "seongqkim@bss.or.kr": {
+      "accessPolicyPass": true,
+      "via": "ccc 앱 'CCC 파일럿 상담사' 정책",
+      "idpPass": true,
+      "note": "Cloudflare 계정 멤버 2명 중 하나라 IdP '계정 멤버로 제한' 도 통과한다. 유일하게 지금 로그인 가능한 사람."
+    },
+    "heeureka@bss.or.kr": {
+      "accessPolicyPass": true,
+      "via": "ccc 앱 'CCC 파일럿 상담사' 정책",
+      "idpPass": false,
+      "note": "정책은 통과하지만 Cloudflare IdP 가 '계정 멤버로 제한' 이고 멤버가 아니라 로그인 단계에서 막힌다. One-time PIN 도 꺼져 있다."
+    },
+    "kimi@bss.or.kr": {
+      "accessPolicyPass": true,
+      "via": "ccc 앱 'CCC 파일럿 상담사' 정책",
+      "idpPass": false,
+      "note": "heeureka 와 동일."
+    },
+    "jiin@bss.or.kr": {
+      "accessPolicyPass": true,
+      "via": "ccc 앱 'CCC 파일럿 상담사' 정책",
+      "idpPass": false,
+      "note": "heeureka 와 동일."
+    },
+    "ccc2@ggbss.or.kr": {
+      "accessPolicyPass": false,
+      "via": "없음 — 어느 정책에도 없다",
+      "idpPass": false,
+      "note": "정책 미등재 + 계정 멤버 아님, 이중으로 막힌다. ggbss.or.kr 로 허용된 주소는 ai00@ggbss.or.kr 하나뿐이다."
+    }
+  },
+  "identityProvider": {
+    "providers": ["Cloudflare (type: cloudflare, 활성, '계정 멤버로 제한' 켜짐)"],
+    "accountMembers": ["account@bss.or.kr", "seongqkim@bss.or.kr"],
+    "oneTimePin": "비활성 — IdP 목록에 없고 실제 로그인 화면에 'Sign in with: Cloudflare' 버튼만 노출된다(Aside 실측).",
+    "implication": "heeureka/kimi/jiin/ccc2 넷은 Access 정책을 고쳐도(또는 멤버로 추가해도) 로그인하려면 Cloudflare 계정 멤버 추가 또는 다른 로그인 방법(One-time PIN 등) 활성화가 필요하다. 둘 다 Access 설정 변경이라 별도 승인 사항이다."
+  },
+  "bootstrapPaths": [
+    {
+      "path": "POST /users (request-handler.ts:3750-3763 → gateway.ts:14890 upsertUser)",
+      "verdict": "정당한 업무 경로지만 지금은 불가",
+      "reason": "assertAdmin(gateway.ts:1230-1233, 14895)이 필요하고, 로그인 가능한 admin 이 없다. admin@bss.or.kr 행은 존재하지 않는 주소라 Access JWT 가 발급될 수 없어 사실상 죽은 행이다.",
+      "bypass": false
+    },
+    {
+      "path": "Access 서비스 계정(ccc-pipeline-laptop)으로 POST /users 호출",
+      "verdict": "불가",
+      "reason": "서비스 토큰은 common_name 으로 users 행(role='service')에 해석되고 resolveDirectoryActorByKey 가 kind='agent', roles=['service'] 를 만든다(gateway.ts:14525-14533). gatewayActorFromIdentity 는 이를 role='service' 로 투영하고(identity.ts:85) assertAdmin 이 거부한다. service 행을 admin 으로 바꾸는 것은 권한 검사 우회다.",
+      "bypass": "우회가 되므로 채택 불가"
+    },
+    {
+      "path": "POST /staff-invites/token/{token}/accept (request-handler.ts:2439-2463 → gateway.ts:24886 acceptStaffInvite)",
+      "verdict": "불가",
+      "reason": "env.verifyIdentityLinkClaims 가 필요한데 운영 워커(apps/api/src/index.ts:66-69)는 이 포트를 설정하지 않는다 — community-cloud(Supabase) 런타임만 설정한다(apps/community-cloud/src/runtime.ts:73). 없으면 라우트가 404 로 닫힌다(request-handler.ts:2447-2448). 게다가 초대 발급 자체가 관리자 권한을 요구한다(gateway.ts:24792-24796).",
+      "bypass": false
+    },
+    {
+      "path": "scripts/supabase/first-admin.mjs (link-first-admin)",
+      "verdict": "불가 — 다른 스택",
+      "reason": "PostgreSQL/Supabase community-cloud 설치 전용이다(ALTER TABLE ... FORCE ROW LEVEL SECURITY 등 Postgres 전용 SQL). 운영은 D1(SQLite) 이라 실행할 수 없다.",
+      "bypass": false
+    },
+    {
+      "path": "CCC_ACCESS_SETUP_API_KEY 를 쓰는 설치 경로",
+      "verdict": "존재하지 않음",
+      "reason": "레포 전체(scripts/, apps/api, packages/core 포함)에 이 이름을 참조하는 코드가 0건이다. Infisical prod 의 /, /CCC, /RELAYER2, /ggbss-web 과 staging/dev 에서도 이 토큰이 주입되지 않는다(이름 목록만 확인, 값 미출력). 이름만 남은 미배선 시크릿이다.",
+      "bypass": false
+    },
+    {
+      "path": "마이그레이션/시드로 관리자 심기",
+      "verdict": "불가/부적합",
+      "reason": "scripts/seed/preload-data.ts 는 미리보기 전용 fixture 다(파일 상단 주석: '운영 상태를 미러하지 않는다. 생성된 preload.sql 은 빈 disposable DB 에만 적용'). 운영에 시드를 심는 경로는 없고, 마이그레이션에 사용자 INSERT 도 없다.",
+      "bypass": false
+    },
+    {
+      "path": "D1 직접 UPDATE 로 죽은 행 이메일 교정 (UPDATE users SET email='seongqkim@bss.or.kr' WHERE email='admin@bss.or.kr')",
+      "verdict": "유일하게 실행 가능한 정당한 운영 절차",
+      "reason": "email 은 신원 키다(0002_users.sql 주석: 'email은 전역 UNIQUE... 신원 해석은 이메일만으로 일어난다'). 존재하지 않는 주소를 실제 주소로 바로잡는 것은 디렉터리 교정이지 권한 우회가 아니다. users 의 UPDATE 트리거는 role·active 컬럼에만 걸려 있어(0040:194-195, 245-246) email UPDATE 에는 아무 트리거도 발동하지 않는다. 행의 id·role·user_role_assignments 가 그대로 보존된다. 단 audit_log 에는 기록이 남지 않으므로 운영 로그(artifacts)로 대체 기록한다.",
+      "bypass": false,
+      "chosen": true
+    }
+  ],
+  "chosenPath": {
+    "summary": "죽은 admin 행의 이메일을 seongqkim@bss.or.kr 로 교정(D1 UPDATE 1건) → seongqkim 이 ccc 앱으로 로그인 → POST /users 로 팀원 4명 생성 → PATCH /settings/accounts/{id}/roles 로 역할 조정. 이후 모든 사용자 변경은 감사가 남는 업무 경로로만 간다.",
+    "whyNotInsert": "새 admin 행을 INSERT 하면 죽은 admin@bss.or.kr 행이 영구히 남고, email 전역 UNIQUE 라 나중에 그 주소가 생겨도 재사용이 막힌다. UPDATE 가 행 수를 보존하고 되돌리기도 같다.",
+    "prerequisite": "organization_settings 행이 있어야 PATCH /settings/accounts/*/roles 가 동작한다(ACCOUNT_MUTATION_GUARD_SQL, gateway.ts:26201). 행이 없으면 D1 INSERT 가 추가로 필요하다 — createOrganizationSettings(gateway.ts:16338)는 HTTP 경로가 없고 completeOrganizationOnboarding(16571)은 settings 행이 이미 있어야 한다(16586). 현재 존재 여부는 D1 토큰 무효로 미확인이다."
+  },
+  "roleAssignment": {
+    "actorRoleValues": ["institution-admin", "technical-admin", "supervisor", "worker", "service"],
+    "source": "packages/contracts/src/runtime.ts:140",
+    "mapping": "users.role → user_role_assignments 는 INSERT 트리거가 심는다(0040:150-191): admin → institution_admin + institution_technical_admin, counselor → practitioner. ActorRole 로는 institution-admin/technical-admin/worker 로 해석된다(DIRECTORY_ROLE_MAP, gateway.ts:14429-14433).",
+    "assignments": [
+      {
+        "email": "seongqkim@bss.or.kr",
+        "usersRole": "admin (기존 행 유지)",
+        "actorRoles": ["institution-admin", "technical-admin", "worker"],
+        "reason": "기관 관리자 + 상담 기록 쓰기 겸임. 상담 기록 쓰기는 resolveSupportCaseWriteAccess(gateway.ts:15584-15593)가 assertPractitioner(1276-1282, practitioner 부여 필요)와 assertActiveAssignment(15485-15500, 활성 배정 필요)를 둘 다 요구한다. institution-admin 은 읽기·배정·반출에는 충분하지만(15536, 15636) 쓰기에는 부족하므로 worker 겸임이 필요하다. PATCH /settings/accounts/{id}/roles 로 worker 를 더한다."
+      },
+      {
+        "email": "heeureka@bss.or.kr",
+        "usersRole": "counselor",
+        "actorRoles": ["worker"],
+        "reason": "상담 진행. POST /users role='counselor' 로 만들면 트리거가 practitioner 를 심는다. 케이스별 활성 배정이 추가로 필요하다."
+      },
+      {
+        "email": "kimi@bss.or.kr",
+        "usersRole": "counselor",
+        "actorRoles": ["worker"],
+        "reason": "동일."
+      },
+      {
+        "email": "jiin@bss.or.kr",
+        "usersRole": "counselor",
+        "actorRoles": ["worker"],
+        "reason": "동일."
+      },
+      {
+        "email": "ccc2@ggbss.or.kr",
+        "usersRole": "counselor",
+        "actorRoles": ["worker"],
+        "reason": "동일. 단 Access 정책 미등재라 로그인 전에 정책 추가가 필요하다."
+      }
+    ],
+    "recordWriteCondition": "상담 기록 쓰기 = 활성 practitioner 역할(user_role_assignments) + 해당 케이스의 활성 담당 배정(support_case_assignees, status='active', unassigned_at IS NULL). 관리자라도 배정 없이는 못 쓴다(gateway.ts:15584-15593).",
+    "assignmentFlow": "관리자가 POST /cases/{supportCaseId}/assignees {userId, role} 로 배정 요청(request-handler.ts:3032-3046 → requestSupportCaseAssignment, gateway.ts:23638, assertInstitutionAdmin). status='requested' 로 들어가고 실무자 본인이 POST /cases/{id}/assignees/{assignmentId}/accept 로 수락해야 'active' 가 된다(request-handler.ts:3047-3057). 화면은 /admin/assign 이다. 1인 기관 자기 배정만 즉시 수락된다(gateway.ts:23664-23668)."
+  },
+  "deadRowHandling": {
+    "row": "admin@bss.or.kr (users, role='admin', active=1, created 2026-07-10)",
+    "options": [
+      {
+        "option": "이메일 교정 (UPDATE users SET email='seongqkim@bss.or.kr')",
+        "auditImpact": "audit_log 에 기록이 남지 않는다(직접 SQL). 대신 이 보고와 실행 로그가 증거다. 행의 id·role·user_role_assignments·auth_revocations 연결이 전부 보존된다.",
+        "recommendation": "채택"
+      },
+      {
+        "option": "비활성화 (active=0)",
+        "auditImpact": "users_last_required_roles_guard 트리거(0040:245-291, 0045:1131 재생성)가 마지막 institution_admin/institution_technical_admin 보유자의 비활성화를 RAISE(ABORT) 한다. 이 행이 0040 백필로 두 역할을 갖고 있다면 [추정] 새 admin 을 먼저 만들기 전에는 비활성화 자체가 거부된다. 새 admin 생성 후 비활성화하면 죽은 행이 디렉터리에 영구 잔존한다.",
+        "recommendation": "부적합 — 죽은 행을 남긴다"
+      },
+      {
+        "option": "삭제 (DELETE)",
+        "auditImpact": "0002_users.sql 공통 규약 '행 삭제는 쓰지 않는다' 위반. user_role_assignments·audit_log 등 FK 참조가 남아 고아 기록이 된다.",
+        "recommendation": "금지"
+      }
+    ]
+  },
+  "lastAdminProtection": {
+    "present": true,
+    "evidence": [
+      "assertNotLastActiveAdmin (gateway.ts:14404-14412): 기관에 다른 활성 admin 이 없으면 강등·비활성화 거부. upsertUser(14909-14910)와 deactivateUser(14947-14949)가 호출한다.",
+      "users_last_required_roles_guard 트리거 (0040:245-291, 0045:1131-1174, 0046:1814, 0047:911 재생성): users.active 1→0 UPDATE 시 마지막 institution_admin/institution_technical_admin 이면 RAISE(ABORT, 'last_required_institution_role').",
+      "user_role_assignments_revoke_guard (0040:119-148): 마지막 institution_admin/institution_technical_admin 역할 부여의 revoked_at 설정을 거부.",
+      "ACCOUNT_MUTATION_GUARD_SQL (gateway.ts:26199-26221): PATCH roles 배치가 마지막 관리자 제거를 원자적으로 차단.",
+      "deactivateUser 자기 비활성 금지 (gateway.ts:14944-14946), updateDirectoryRoles 자기 institution-admin 제거 금지 (26262)."
+    ]
+  },
+  "procedure": [
+    {
+      "step": 0,
+      "who": "Q (Infisical/Cloudflare 계정 소유자)",
+      "action": "CLOUDFLARE_WORKERS_API_TOKEN 복구. 현재 Infisical prod / 의 값이 Cloudflare 에서 'Invalid API Token'(9109)으로 거부된다 — 오늘 새벽 마이그레이션 이후 무효화된 것으로 보인다 [추정]. 토큰 재발급 또는 Infisical 값 갱신이 필요하다. 이것 없이는 아래 모든 D1 단계가 멈춘다.",
+      "change": "시크릿 갱신(코드·정책 변경 아님)",
+      "rollback": "해당 없음"
+    },
+    {
+      "step": 1,
+      "who": "운영자 (Infisical 주입 셸)",
+      "action": "D1 Time Travel 북마크 기록: cd apps/api && pnpm exec wrangler d1 time-travel info ccc --env production. 그리고 현재 users·organization_settings·user_role_assignments 행 확인(읽기): SELECT id,email,role,active FROM users / SELECT org_id,version FROM organization_settings / SELECT user_id,role,revoked_at FROM user_role_assignments.",
+      "change": "없음(읽기)",
+      "rollback": "해당 없음"
+    },
+    {
+      "step": 2,
+      "who": "운영자",
+      "action": "죽은 행 교정: wrangler d1 execute ccc --env production --remote --command \"UPDATE users SET email='seongqkim@bss.or.kr' WHERE email='admin@bss.or.kr' AND role='admin' AND active=1\". 실행 전후로 SELECT 로 1행 변경을 확인한다.",
+      "change": "users 1행 email 변경. audit_log 미기록 — 이 보고가 증거.",
+      "rollback": "UPDATE users SET email='admin@bss.or.kr' WHERE email='seongqkim@bss.or.kr' AND id=<같은 id>. Time Travel 북마크 복구도 가능."
+    },
+    {
+      "step": 3,
+      "who": "운영자",
+      "action": "organization_settings 행이 없으면(1단계 확인) D1 INSERT: INSERT INTO organization_settings (org_id,time_zone,pii_purge_grace_days,version,created_at,updated_at) VALUES ('bss','Asia/Seoul',365,1,datetime('now'),datetime('now')) 와 INSERT INTO program_admission_policies (org_id,version,stt_mode,llm_mode,created_at,updated_at) VALUES ('bss',1,'off','off',datetime('now'),datetime('now')). org_id 는 1단계에서 실제 users.org_id 로 확인해 쓴다(시드 기본값 'bss' [추정]).",
+      "change": "organization_settings·program_admission_policies 각 1행 (없을 때만)",
+      "rollback": "DELETE FROM organization_settings WHERE org_id='bss' AND version=1 AND org_name IS NULL (동일 policies). Time Travel 복구도 가능."
+    },
+    {
+      "step": 4,
+      "who": "seongqkim 본인",
+      "action": "https://ccc.account-855.workers.dev 로그인(Cloudflare 계정 멤버라 통과). GET /me 로 roles 에 institution-admin 이 보이는지 확인.",
+      "change": "없음",
+      "rollback": "해당 없음"
+    },
+    {
+      "step": 5,
+      "who": "seongqkim (관리자 화면 /admin/users 또는 API)",
+      "action": "POST /users 로 팀원 4명 생성: {email:'heeureka@bss.or.kr',role:'counselor',name:'…'}, kimi@bss.or.kr, jiin@bss.or.kr, ccc2@ggbss.or.kr. 각 생성은 audit_log 'create' 가 남고 트리거가 practitioner 를 심는다.",
+      "change": "users 4행 + user_role_assignments 4행 + audit_log 4건",
+      "rollback": "POST /users/{id}/deactivate 로 각각 비활성화(행은 남고 active=0)."
+    },
+    {
+      "step": 6,
+      "who": "seongqkim",
+      "action": "PATCH /settings/accounts/{자기 id}/roles {roles:['institution-admin','technical-admin','worker'], expectedRoles:['institution-admin','technical-admin']} 로 본인에게 worker 겸임 부여. expectedRoles 는 GET /settings/accounts 에서 읽은 현재값.",
+      "change": "user_role_assignments 에 practitioner 1행(manual) + audit_log",
+      "rollback": "같은 PATCH 로 roles 에서 worker 제거."
+    },
+    {
+      "step": 7,
+      "who": "Q (Cloudflare 대시보드, 별도 승인 사항)",
+      "action": "팀원 4명이 로그인할 수 있게 Access 설정 조정: (a) ccc 앱 'CCC 파일럿 상담사' 정책에 ccc2@ggbss.or.kr 추가, (b) Cloudflare IdP '계정 멤버로 제한' 해제 또는 4명을 계정 멤버로 추가 또는 One-time PIN 활성화. 이 단계 없이는 4명이 로그인 자체를 못 한다.",
+      "change": "Access 정책/멤버십 — 본 작업 범위 밖, Q 승인 필요",
+      "rollback": "정책에서 주소 제거 / 멤버 제거."
+    },
+    {
+      "step": 8,
+      "who": "seongqkim",
+      "action": "케이스가 생기면 POST /cases/{supportCaseId}/assignees 로 각 실무자에게 배정 요청 → 실무자가 로그인해 accept. 배정이 active 된 뒤부터 상담 기록 쓰기가 열린다.",
+      "change": "support_case_assignees 행들 + audit_log",
+      "rollback": "unassign/force-transfer 경로."
+    }
+  ],
+  "secretLeakCheck": {
+    "secretsPrinted": 0,
+    "method": "infisical run 주입만 사용. 이름 목록은 env | sed -n 's/^\\([A-Z][A-Z0-9_]*\\)=.*/\\1/p' 패턴으로만 추출(다중행 값 누출 방지). 토큰 지문은 len/sha256 앞 10자만. CLOUDFLARE_WORKERS_API_TOKEN len=53 sha=2d9d5257bb.",
+    "note": "CCC_ACCESS_SETUP_API_KEY 는 어느 env/path 에서도 주입되지 않았다(존재 자체 미확인 — RUN 토큰 권한 밖일 수 있다)."
+  },
+  "mutations": {
+    "userCreations": 0,
+    "d1Writes": 0,
+    "accessPolicyChanges": 0,
+    "deploys": 0,
+    "note": "D1 읽기 시도 2회는 토큰 무효로 실패(쓰기 아님). Access 대시보드는 읽기 전용 열람만."
+  },
+  "gitStatus": {
+    "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+    "branch": "orchestrate/beta-0.9",
+    "releaseWorktreeReadOnly": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/release-16 (release/0916) — 읽기만 했다",
+    "commit": "이 보고 파일 하나만 커밋. push 없음."
+  },
+  "blocked": [
+    {
+      "item": "CLOUDFLARE_WORKERS_API_TOKEN 무효",
+      "detail": "wrangler whoami → 9109 Invalid access token, d1 execute → 10000 Authentication error, tokens/verify → 1000 Invalid API Token. 오늘 적용된 마이그레이션(0054~0072)은 같은 경로로 성공했으므로 이후 무효화로 보인다 [추정]. 토큰 복구 없이는 절차 1~3단계 실행 불가.",
+      "needs": "Q가 Cloudflare API 토큰 재발급 또는 Infisical 값 갱신"
+    },
+    {
+      "item": "팀원 4명 로그인 불가",
+      "detail": "Cloudflare IdP '계정 멤버로 제한' + 멤버 2명(account@, seongqkim@)뿐. ccc2@ggbss.or.kr 은 정책 미등재까지 겹침. One-time PIN 비활성.",
+      "needs": "Access 설정 변경 승인(정책 추가 + 로그인 방법 확보) — 절차 7단계"
+    },
+    {
+      "item": "organization_settings 존재 여부 미확인",
+      "detail": "D1 읽기가 토큰 무효로 불가. 행이 없으면 절차 3단계 INSERT 가 추가로 필요하다.",
+      "needs": "토큰 복구 후 1단계에서 확인"
+    }
+  ]
+}
