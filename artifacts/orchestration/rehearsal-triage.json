@@ -83,9 +83,19 @@
     },
     {
       "what": "preview API 지연",
-      "detail": "preview API(ad218e8)는 saved 구 평면 모양·writeSchemaVersion/moduleSnapshot 부재로 release 코드보다 뒤처진다. preview API 재배포가 필요하다 — 내 범위 밖(배포 금지)."
+      "detail": "preview API(ad218e8)는 writeSchemaVersion과 moduleSnapshot을 도입한 97a240f3보다 오래됐다. 현재 release 서버는 두 필드를 직렬화하지만 배포된 preview API는 구 응답을 내므로 현재 web의 fail-closed 디코더가 중단한다. preview API 재배포가 필요하지만 이 작업은 배포 금지 범위 밖이다."
     }
   ],
+  "intakeContextContract": {
+    "verdict": "현재 release/0916 코드에서는 두 필드가 끊기지 않는다. 끊긴 경계는 배포된 preview API 버전이다. preview 빌드 ad218e8(2026-09-12)은 서버 필드를 도입한 97a240f3(2026-09-13)과 web 소비자를 연결한 3f477635(2026-09-14)보다 오래됐다.",
+    "serverShape": "packages/contracts/src/intake.ts:3-5,86-93이 write schema 3과 moduleSnapshot을 필수로 정한다. packages/core/src/gateway.ts:22056-22069,22301-22307이 현재 사업 id, version, financialSupportEnabled를 읽어 컨텍스트에 넣고 packages/http-api/src/request-handler.ts:1152-1170이 그대로 직렬화한다.",
+    "webDecoder": "apps/web/app/lib/api.ts:747-749,2051-2089이 writeSchemaVersion===3을 요구하고 moduleSnapshot 세 필드를 필수 해석한다. 누락과 구 버전은 contractViolation으로 중단하며 기본값을 만들지 않는다.",
+    "consumers": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx:90-177이 작성과 수정 IntakeWizard에 두 값을 전달한다. intake-wizard.tsx:944-950은 누락 또는 구 버전을 저장 전에 막고 962-976은 schemaVersion을 쓰기 봉투에, moduleSnapshot을 questionnaire에 넣는다. apps/web/app/actions.ts:1479-1543,1577-1608은 schema 3을 다시 검증하고 questionnaire를 그대로 POST 또는 PUT 한다.",
+    "writeGuard": "packages/core/src/gateway.ts:22323-22345,22366-22381은 제출 snapshot을 현재 support case와 program의 id, version, financialSupportEnabled, active 상태, 담당 권한과 대조한다. 값이 바뀌면 conflict 또는 forbidden으로 막는다. 이 검사는 수정하거나 약화하지 않았다.",
+    "fix": "코드 변경 없음. 현재 web 디코더와 소비자는 이미 신계약에 맞고 fail-closed다. 누락을 허용하거나 값을 지어내는 변경은 오히려 CAS를 우회하므로 하지 않았다.",
+    "productionImpact": "현재 release의 API와 web을 함께 배포하면 이 드리프트는 운영에 없다. web만 배포하고 API가 ad218e8 수준이면 인테이크 작성과 수정은 계속 막힌다. preview 재검증에는 ccc-api-preview를 현재 release 코드로 맞추는 배포가 선행돼야 한다.",
+    "proof": "기존 intake-wizard.test.tsx의 'schema 3 봉투와 추가 확인사항 행 결합을 만들어 보낸다'는 schemaVersion=3을 확인하고 parseIntakeQuestionnaire로 questionnaire 안 moduleSnapshot까지 검증한다."
+  },
   "mutations": {
     "codeModified": true,
     "files": ["apps/web/app/actions.ts", "apps/web/app/lib/api.ts", "apps/web/app/schedule-datetime-action.test.ts"],
