@@ -10,6 +10,7 @@ import {
   type ManualRecordContext as ContractManualRecordContext, type ManualRecordDetails, type ManualRecordProjection,
   type ManualRecordRevision,
 } from '@ccc/contracts/manual-record';
+import { AUDIO_CONTENT_TYPES, type AudioContentType } from '@ccc/contracts/runtime';
 import { isNullableString, isOpaqueIdentifier, record } from './api';
 import { BusinessError } from './errors';
 import type { BusinessTransport } from './transport';
@@ -367,7 +368,65 @@ export class RecordsApi {
     }
     return { id: saved.id, replayed: response.replayed };
   }
+
+  /**
+   * 회차 녹음 원음을 올린다. 배포 방식이 경로를 가른다: community-cloud 는 서버가 발급한
+   * 업로드 대상으로 파일을 보낸 뒤 완료를 알리고, 그 밖은 API 로 본문을 그대로 올린다.
+   * 거부 코드는 서버 것을 그대로 화면에 넘긴다.
+   */
+  async uploadAudio(sessionId: string, file: File, delivery: AudioDelivery): Promise<AudioUploadResult> {
+    if (!isOpaqueIdentifier(sessionId)) throw new BusinessError('invalid_request', 400);
+    const contentType = audioContentType(file);
+    if (contentType === null || file.size < 1 || file.size > 209_715_200) {
+      throw new BusinessError('invalid_request', 400);
+    }
+    const base = `/sessions/${encodeURIComponent(sessionId)}`;
+    if (delivery === 'api-stream') {
+      return decodeAudioUploadResult(await this.transport.putFile(`${base}/audio`, file, contentType), sessionId);
+    }
+    const minted = record(await this.transport.request(`${base}/audio-upload-target`, 'POST', {
+      contentLength: file.size, contentType, clientAssertedSha256: null,
+    }));
+    if (!isOpaqueIdentifier(minted.audioObjectId) || typeof minted.url !== 'string'
+      || !utcInstant(minted.expiresAt)) throw new BusinessError('invalid_response');
+    await this.transport.putSigned(minted.url, file, contentType);
+    return decodeAudioUploadResult(await this.transport.request(
+      `${base}/audio-upload-target/${encodeURIComponent(minted.audioObjectId)}/complete`, 'POST', {},
+    ), sessionId);
+  }
 }
+
+/** 서버 허용 목록(AUDIO_CONTENT_TYPES)과 같은 여섯 MIME 만 통과시킨다. */
+export const AUDIO_ACCEPT = Object.keys(AUDIO_CONTENT_TYPES).join(',');
+const AUDIO_EXTENSION_TYPES: Record<string, AudioContentType> = {
+  m4a: 'audio/x-m4a', mp4: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', webm: 'audio/webm',
+};
+
+/**
+ * 브라우저가 MIME 을 비워 두거나 octet-stream 으로만 주는 파일은 확장자로 한 번만 추정한다.
+ * 그래도 목록 밖이면 서버에 보내지 않고 거른다.
+ */
+export function audioContentType(file: File): AudioContentType | null {
+  const declared = file.type.split(';')[0]?.trim().toLowerCase() ?? '';
+  if (Object.prototype.hasOwnProperty.call(AUDIO_CONTENT_TYPES, declared)) return declared as AudioContentType;
+  if (declared !== '' && declared !== 'application/octet-stream') return null;
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  return AUDIO_EXTENSION_TYPES[extension] ?? null;
+}
+
+export interface AudioUploadResult {
+  sessionId: string;
+  aiStatus: 'uploaded';
+}
+
+/** 등록 응답은 세션 형태다. 화면이 필요로 하는 것은 회차 ID 와 'uploaded' 전이 뿐이다. */
+function decodeAudioUploadResult(value: unknown, sessionId: string): AudioUploadResult {
+  const row = record(value);
+  if (row.id !== sessionId || row.aiStatus !== 'uploaded') throw new BusinessError('invalid_response');
+  return { sessionId: row.id, aiStatus: 'uploaded' };
+}
+
+export type AudioDelivery = 'protected-get' | 'api-stream';
 
 export const GOAL_CLOSE_REASONS = ['achieved', 'stopped', 'reset'] as const;
 export type GoalCloseReason = (typeof GOAL_CLOSE_REASONS)[number];

@@ -64,15 +64,23 @@ export class BusinessTransport {
     return token;
   }
 
-  private async exchange(path: string, method: 'GET' | 'PATCH' | 'PUT' | 'POST', body: unknown, token: string, accept = 'application/json') {
+  private async exchange(
+    path: string,
+    method: 'GET' | 'PATCH' | 'PUT' | 'POST',
+    body: unknown,
+    token: string,
+    accept = 'application/json',
+    raw?: { body: File; contentType: string; timeoutMs?: number },
+  ) {
     const target = this.target(path);
     try {
       const response = await this.fetcher(target, {
         method, credentials: 'omit', cache: 'no-store', redirect: 'error',
-        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(30_000)]),
+        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(raw?.timeoutMs ?? 30_000)]),
         headers: { Accept: accept, Authorization: `Bearer ${token}`,
-          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          ...(raw !== undefined ? { 'Content-Type': raw.contentType }
+            : body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+        ...(raw !== undefined ? { body: raw.body } : body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (this.lifetime.signal.aborted || this.token() !== token) throw new BusinessError('session_changed');
       if (response.redirected) throw new BusinessError('invalid_response');
@@ -138,6 +146,43 @@ export class BusinessTransport {
     try { filename = encoded !== undefined ? decodeURIComponent(encoded) : plain ?? null; }
     catch { filename = plain ?? null; }
     return { blob: value, filename };
+  }
+
+  /**
+   * 녹음 원음을 본문 그대로 올리는 Local 경로(PUT /sessions/:id/audio). JSON 계열과 달리
+   * 파일을 스트리밍하고 서버가 돌려주는 세션 응답을 그대로 넘긴다.
+   */
+  async putFile(path: string, file: File, contentType: string): Promise<unknown> {
+    this.target(path);
+    const token = this.currentToken();
+    if (this.capabilityToken !== token) throw new BusinessError('capabilities_required');
+    const { value } = await this.exchange(path, 'PUT', undefined, token, 'application/json',
+      { body: file, contentType, timeoutMs: 300_000 });
+    return value;
+  }
+
+  /**
+   * 서버가 발급한 업로드 대상(Supabase signed URL)으로만 본다. Bearer 를 붙이지 않고,
+   * 대상은 설치가 서명한 API 와 같은 origin 이어야 한다.
+   */
+  async putSigned(url: string, file: File, contentType: string): Promise<void> {
+    let target: URL;
+    try { target = new URL(url); } catch { throw new BusinessError('invalid_response'); }
+    if (target.origin !== new URL(this.installation.apiBase).origin) throw new BusinessError('invalid_response');
+    try {
+      const response = await this.fetcher(target.href, {
+        method: 'PUT', credentials: 'omit', cache: 'no-store', redirect: 'error',
+        signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(300_000)]),
+        headers: { 'Content-Type': contentType },
+        body: file,
+      });
+      if (this.lifetime.signal.aborted) throw new BusinessError('session_changed');
+      if (response.redirected || !response.ok) throw new BusinessError('unavailable', response.status);
+      await response.arrayBuffer().catch(() => undefined);
+    } catch (error) {
+      if (this.lifetime.signal.aborted) throw new BusinessError('session_changed');
+      throw safeError(error);
+    }
   }
 }
 
