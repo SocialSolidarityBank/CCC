@@ -89,6 +89,43 @@ def normalize_event_date(
 # 태깅 접두(BIO·BIOES·BILOU). 라벨 대조 전에 떼어 낸다.
 _TAG_PREFIXES = ("B-", "I-", "E-", "S-", "L-", "U-")
 
+# transformers 4.53.3 의 get_tag(token_classification.py:609)는 "B-"/"I-" 만 떼고
+# 나머지는 "I-" 로 취급한다 — E-/S-/L-/U- 가 group_entities 에서 같은 태그로 인식되지
+# 않아 BIOES 모델(korean-pii-e5-base)의 한 엔티티가 조각난다. 파이프라인을 만든 뒤
+# id2label 을 BIO 로 정규화해 라이브러리의 묶음이 의도대로 동작하게 한다. 토큰 점수와
+# 탐지 범위는 그대로다 — 같은 문자 구간이 더 적은 스팬으로 모일 뿐이다.
+_BIO_NORMALIZE = {"E-": "I-", "S-": "B-", "L-": "I-", "U-": "B-"}
+
+
+def _normalize_bio_labels(recognizer) -> None:  # noqa: ANN001 — transformers pipeline
+    """파이프라인 모델의 BIOES·BILOU 라벨을 BIO 로 바꾼다 (in-place)."""
+    config = getattr(getattr(recognizer, "model", None), "config", None)
+    id2label = getattr(config, "id2label", None)
+    if not isinstance(id2label, dict):
+        return
+    config.id2label = {
+        index: _BIO_NORMALIZE[str(label)[:2]] + str(label)[2:]
+        if str(label)[:2] in _BIO_NORMALIZE
+        else str(label)
+        for index, label in id2label.items()
+    }
+    config.label2id = {label: index for index, label in config.id2label.items()}
+
+
+def _build_recognizer(spec):  # noqa: ANN001, ANN202 — 반환은 transformers pipeline
+    """revision 고정 토큰 분류 파이프라인. 라벨은 BIO 정규화본으로 돌린다."""
+    from transformers import pipeline  # noqa: PLC0415
+
+    recognizer = pipeline(
+        "token-classification",
+        model=spec.name,
+        revision=spec.revision,
+        aggregation_strategy="simple",
+    )
+    _normalize_bio_labels(recognizer)
+    return recognizer
+
+
 # 태깅 라벨 접두 기본값. 독립 도구와 명시적 함수 호출의 기본값이며, 업무 Agent는
 # canonical masking manifest가 지정한 모델별 라벨만 전달한다. 모델과 라벨이 어긋나면
 # 로드 단계에서 죽으므로(_assert_labels_exist) 조용히 0건 마스킹한 채 진행하지 않는다.
@@ -304,18 +341,11 @@ def _span_fn(recognizer, label_prefixes: tuple[str, ...]):  # noqa: ANN001, ANN2
 
 def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: ANN202 — 반환은 NerFn
     """transformers NER 파이프라인을 manifest revision으로 고정한다."""
-    from transformers import pipeline  # noqa: PLC0415
-
     try:
         spec = model_spec(model_id)
     except ModelRegistryError as error:
         raise MaskingConfigError("NER model is not declared in model manifest") from error
-    recognizer = pipeline(
-        "token-classification",
-        model=spec.name,
-        revision=spec.revision,
-        aggregation_strategy="simple",
-    )
+    recognizer = _build_recognizer(spec)
     _assert_labels_exist(recognizer, model_id, label_prefixes)
     return _span_fn(recognizer, label_prefixes)
 
@@ -339,18 +369,11 @@ def build_person_and_address_ner(  # noqa: ANN201 — 반환은 (NerFn, NerFn | 
     `address_prefixes` 가 비면 주소 계층 없이 인명만 돌린다 — 주소를 안 잡는 모델로
     갈아탈 때의 경로다. 비어 있지 **않은데** 모델이 그 라벨을 선언하지 않으면 뜨지 않는다.
     """
-
-    from transformers import pipeline  # noqa: PLC0415
     try:
         spec = model_spec(model_id)
     except ModelRegistryError as error:
         raise MaskingConfigError("NER model is not declared in model manifest") from error
-    recognizer = pipeline(
-        "token-classification",
-        model=spec.name,
-        revision=spec.revision,
-        aggregation_strategy="simple",
-    )
+    recognizer = _build_recognizer(spec)
     _assert_labels_exist(recognizer, model_id, person_prefixes)
     person = _span_fn(recognizer, person_prefixes)
     if not address_prefixes:

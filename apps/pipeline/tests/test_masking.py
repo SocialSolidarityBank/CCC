@@ -428,3 +428,71 @@ class ShortGoalSentenceMaskingTest(unittest.TestCase):
         # 문장 전체가 이름 하나인 극단: 전부 토큰 하나로 덮여야 한다.
         masked = masking.mask_text("김철수", lambda _t: [(0, 3)])
         self.assertEqual(masked, masking.PERSON_TOKEN)
+
+
+class BioesGroupingTest(unittest.TestCase):
+    """BIOES 태그가 엔티티 경계를 조각내지 않는다 (E5-4 재측정 게이트).
+
+    transformers 4.53.3 의 get_tag 는 "B-"/"I-" 만 떼므로 채택 모델의 E-/S- 토큰이
+    group_entities 에서 분리돼 이름 하나가 여러 스팬으로 찍혔다. 이 테스트는
+    `transformers.pipeline` 을 가짜로 세우되 **라이브러리의 진짜 group_entities** 를
+    그대로 돌려, 파이프라인의 id2label 이 BIO 로 정규화됐을 때 이름 둘이 정확히
+    두 스팬으로 모이는지 고정한다. transformers 가 없는 환경에서는 건너뛴다 —
+    이 검사는 라이브러리 동작에 대한 것이라 대체 구현으로는 의미가 없다.
+    """
+
+    def test_bioes_tokens_group_into_two_person_spans(self):
+        try:
+            import transformers
+        except ImportError:
+            raise unittest.SkipTest("transformers not installed")
+        from unittest import mock
+
+        text = "김철수 님이 박영희 씨에게 부탁했다"
+        # 모델이 내는 BIOES 토큰 스트림: 이름 둘, 둘째는 B-I-E 로 끝난다.
+        tokens = [
+            {"entity": "B-private_person", "word": "김철수", "start": 0, "end": 3, "score": 0.9},
+            {"entity": "O", "word": " 님이", "start": 3, "end": 6, "score": 0.9},
+            {"entity": "B-private_person", "word": "박", "start": 7, "end": 8, "score": 0.9},
+            {"entity": "I-private_person", "word": "영", "start": 8, "end": 9, "score": 0.9},
+            {"entity": "E-private_person", "word": "희", "start": 9, "end": 10, "score": 0.9},
+            {"entity": "O", "word": " 씨에게 부탁했다", "start": 10, "end": 20, "score": 0.9},
+        ]
+
+        class _StubConfig:
+            def __init__(self):
+                self.id2label = {
+                    0: "O",
+                    1: "B-private_person",
+                    2: "I-private_person",
+                    3: "E-private_person",
+                    4: "S-private_person",
+                }
+
+        class _StubTokenizer:
+            @staticmethod
+            def convert_tokens_to_string(pieces):
+                return "".join(pieces)
+
+        class _FakePipeline(transformers.TokenClassificationPipeline):
+            def __init__(self):
+                self.model = type("M", (), {"config": _StubConfig()})()
+                self.tokenizer = _StubTokenizer()
+
+            def __call__(self, _text):
+                # 진짜 라이브러리 묶음 로직 — config.id2label 로 토큰 라벨을 다시 쓴다.
+                remapped = [
+                    {**token, "entity": self.model.config.id2label[
+                        {"O": 0, "B": 1, "I": 2, "E": 3, "S": 4}[token["entity"].split("-", 1)[0]]
+                    ]}
+                    for token in tokens
+                ]
+                return self.group_entities(remapped)
+
+        with mock.patch("transformers.pipeline", return_value=_FakePipeline()):
+            person, _address = masking.build_person_and_address_ner(
+                "FrameByFrame/korean-pii-e5-base", ("PRIVATE_PERSON",), ()
+            )
+
+        spans = person(text)
+        self.assertEqual(spans, [(0, 3), (7, 10)])
