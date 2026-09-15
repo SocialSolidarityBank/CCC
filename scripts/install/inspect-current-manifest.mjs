@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// inspect-current-manifest.mjs — Infisical /current 의 CCC_INSTALL_MANIFEST 원문에서
+// inspect-current-manifest.mjs — Infisical /CURRENT 의 CCC_INSTALL_MANIFEST 원문에서
 // engines·sequence·installationId·config sha 만 읽는다. 파일 우선 주입 전 원본을 본다.
 import { createHash } from 'node:crypto';
 

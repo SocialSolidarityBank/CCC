@@ -8,7 +8,7 @@ import {
 } from '../supabase/manifest-preflight.mjs';
 
 const env = process.env;
-// CCC_SUPABASE_PROJECT_REF 는 /install 의 stale 값이 올 수 있으므로
+// CCC_SUPABASE_PROJECT_REF 는 /INSTALL 의 stale 값이 올 수 있으므로
 // 서명된 manifest 가 들고 있는 ref 를 정본으로 쓴다.
 const manifestDoc = JSON.parse(
   env.CCC_INSTALL_MANIFEST.trim().startsWith('{')

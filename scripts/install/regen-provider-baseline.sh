@@ -5,7 +5,7 @@
 # 사용: scripts/install/regen-provider-baseline.sh <source-evidence.json> <out-dir>
 #   out-dir 에 baseline.json 과 release-trust.json 을 쓴다(생산기가 pathMustNotExist 를 강제).
 #
-# /install 의 RELAYER_SUPABASE_PROJECT_REF 는 stale 하므로 CCC_SUPABASE_PROJECT_REF 를
+# /INSTALL 의 RELAYER_SUPABASE_PROJECT_REF 는 stale 하므로 CCC_SUPABASE_PROJECT_REF 를
 # 서명된 manifest 가 들고 있는 ref 로 덮어 주입한다. 시크릿 값은 출력하지 않는다.
 set -eu
 

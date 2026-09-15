@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// diff-runtime-config.mjs — /current 정본 manifest 와 로컬 재서명 manifest 의
+// diff-runtime-config.mjs — /CURRENT 정본 manifest 와 로컬 재서명 manifest 의
 // runtimeConfiguration 필드(서명·시각·sequence 제외 13키) 차이만 보고한다.
 // 값 자체는 출력하지 않고 필드 이름과 sha256 앞 12자리만 낸다.
 import { createHash } from 'node:crypto';

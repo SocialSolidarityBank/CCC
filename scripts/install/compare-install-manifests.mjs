@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// compare-install-manifests.mjs — /install(stale)·/current 정본·로컬 재서명 manifest 의
+// compare-install-manifests.mjs — /INSTALL(stale)·/CURRENT 정본·로컬 재서명 manifest 의
 // sha256Jcs 를 journal 의 runtimeManifestSha256·runtimeConfigurationSha256 와 대조한다.
 // 값은 출력하지 않고 지문 앞 16자리와 일치 여부만 낸다.
 import { createHash } from 'node:crypto';

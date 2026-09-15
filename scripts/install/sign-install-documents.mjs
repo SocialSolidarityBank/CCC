@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * sign-install-documents.mjs — Infisical /current 정본 manifest 를 재료로
+ * sign-install-documents.mjs — Infisical /CURRENT 정본 manifest 를 재료로
  * approvedSttEngineIds 만 채운 새 manifest 와 짝맞는 소유권 승인서를 기존 설치 서명 키로 다시 만든다.
  *
  * 실행: scripts/install/stage-env.sh bun scripts/install/sign-install-documents.mjs
@@ -53,7 +53,7 @@ const verifier = await import(new URL(
   import.meta.url,
 ).href).catch(() => fail('install-manifest-verifier.js 빌드가 없다.'));
 
-// --- 1. 주입된 기존 서명 자원(/current 정본) ---
+// --- 1. 주입된 기존 서명 자원(/CURRENT 정본) ---
 const organizationId = required('CCC_ORGANIZATION_ID');
 const trust = configuredInstallTrust({
   organizationId,
@@ -154,7 +154,7 @@ if (authorization.installationId !== signedManifest.installationId
   fail('자가 확인 불일치');
 }
 
-// /current 의 trust·baseline 과 새 authorization 조합이 plan 의 게이트를 그대로 통과하는지 확인한다.
+// /CURRENT 의 trust·baseline 과 새 authorization 조합이 plan 의 게이트를 그대로 통과하는지 확인한다.
 const providerBaseline = await requireProviderBaseline({
   releaseTrust: required('CCC_BETA_RELEASE_TRUST'),
   providerBaseline: required('CCC_PROVIDER_BASELINE'),

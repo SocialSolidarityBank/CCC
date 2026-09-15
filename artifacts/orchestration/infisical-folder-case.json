@@ -1,0 +1,88 @@
+{
+  "renamed": {
+    "method": "Infisical UI 의 Edit folder(rename) 기능. move 방식은 사용하지 않았다. rename 후 'Successfully renamed folder across environments' 토스트와 새로고침 뒤 유지를 확인했다.",
+    "results": {
+      "install": "INSTALL (성공)",
+      "api": "API (성공)",
+      "onboarding": "ONBOARDING (성공)",
+      "preview": "PREVIEW (성공)",
+      "unused": "UNUSED (성공)",
+      "current": "CURRENT (성공)"
+    },
+    "untouched": ["AZURE", "OPENAI"],
+    "note": "작업 도중 Infisical 탭이 한 번 닫혀 같은 URL 로 새 탭을 열어 이어서 진행했다. 루트에 소문자 폴더는 남아 있지 않다."
+  },
+  "itemCounts": {
+    "expected": { "INSTALL": 21, "API": 2, "ONBOARDING": 4, "PREVIEW": 4, "UNUSED": 4, "CURRENT": "16 또는 새 두 항목 포함 18" },
+    "actual": { "INSTALL": 21, "API": 2, "ONBOARDING": 4, "PREVIEW": 4, "UNUSED": 4, "CURRENT": 18 },
+    "match": true,
+    "note": "여섯 폴더 모두 하위 폴더 0개. 개수는 시크릿 항목 수다."
+  },
+  "newSecretsPresent": {
+    "RELAYER_BETA_DB_PASSWORD": true,
+    "RELAYER_BETA_INSTALL_DATABASE_URL": true,
+    "note": "두 항목 모두 대문자 CURRENT 폴더 안에 그대로 있다. 지우거나 옮기지 않았다."
+  },
+  "injectionChecks": {
+    "command": "infisical run --projectId=78d6f149-5ef7-43f2-b20c-4c89c3dc473c --env=prod --path=/<FOLDER> -- node /tmp/check-env-names.mjs (이름=값길이만 출력, 값 미출력, 임시 파일은 삭제함)",
+    "INSTALL": { "ok": true, "injectedCount": 21, "names": "RELAYER_* 20개 + SUPABASE_ACCESS_TOKEN, UI 의 21개와 일치" },
+    "API": { "ok": true, "injectedCount": 2, "names": "RELAYER_PII_ENC_KEY, RELAYER_SCHEDULER_SECRET" },
+    "CURRENT": { "ok": true, "injectedCount": 18, "names": "CCC_* 16개 + RELAYER_BETA_DB_PASSWORD, RELAYER_BETA_INSTALL_DATABASE_URL. UI 의 18개와 일치" }
+  },
+  "scriptsUpdated": {
+    "scripts/install/stage-env.sh": "--path=/install -> /INSTALL, --path=/api -> /API, --path=/current -> /CURRENT (3곳) 및 주석의 Infisical 경로 표기를 대문자로 통일",
+    "scripts/install/compare-install-manifests.mjs": "주석의 /install, /current 표기를 대문자로",
+    "scripts/install/diff-runtime-config.mjs": "주석의 /current 표기를 대문자로",
+    "scripts/install/inspect-current-manifest.mjs": "주석의 /current 표기를 대문자로",
+    "scripts/install/probe-journal.mjs": "주석의 /install 표기를 대문자로",
+    "scripts/install/regen-provider-baseline.sh": "주석의 /install 표기를 대문자로",
+    "scripts/install/sign-install-documents.mjs": "주석의 /current 표기를 대문자로",
+    "note": "artifacts/install/current/ 로컬 디렉터리 경로는 Infisical 폴더가 아니므로 그대로 뒀다. artifacts/orchestration/ 의 지난 보고 JSON 은 관측 기록이므로 고치지 않았다."
+  },
+  "grepAfter": {
+    "command": "grep -rn 'path=/install\\|path=/api\\|path=/current' scripts/install/",
+    "result": "0건 (exit=1, 출력 없음)"
+  },
+  "stageEnvCheck": {
+    "command": "scripts/install/stage-env.sh node /tmp/check-env-names.mjs (이름=값길이만 출력)",
+    "requiredEnvNamesPresent": {
+      "CCC_ORGANIZATION_ID": true,
+      "CCC_SUPABASE_PROJECT_REF": true,
+      "CCC_INSTALL_MANIFEST": "present (로컬 재서명 파일 경로로 대체됨, artifacts/install/current/install-manifest.json 존재·600)",
+      "CCC_INSTALL_APPROVAL": "present (로컬 재서명 파일 경로로 대체됨, artifacts/install/current/install-approval.json 존재·600)",
+      "CCC_INSTALL_SIGNING_KEYS": true,
+      "CCC_INSTALL_REVOKED_KEY_IDS": true,
+      "CCC_BETA_RELEASE_TRUST": true,
+      "CCC_PROVIDER_BASELINE": true,
+      "CCC_BETA_TRUST_ROOT_KEYS": true,
+      "CCC_BETA_REVOKED_ROOT_KEY_IDS": true,
+      "SUPABASE_ACCESS_TOKEN": true,
+      "CCC_INSTALL_DATABASE_URL": true,
+      "CCC_RELEASE_TRUST_STORE": true,
+      "SCHEDULER_SECRET": true,
+      "SUPABASE_SERVICE_ROLE_KEY": true,
+      "CCC_API_DATABASE_PASSWORD": true,
+      "CCC_DATABASE_CA_FILE": "선택 항목, 미설정 (정상)"
+    },
+    "allRequiredPresent": true,
+    "note": "RELAYER_* -> CCC_* 매핑과 개인키 unset 이 새 대문자 경로로 그대로 동작했다. 서명 개인키는 명령이 sign-install-documents.mjs 가 아니므로 규칙대로 제거됐다."
+  },
+  "secretLeakCheck": {
+    "valuesRead": 0,
+    "valuesPrinted": 0,
+    "revealOrCopyButtonClicks": 0,
+    "note": "이름과 값 길이만 확인했다. infisical secrets get/export/--plain 을 실행하지 않았다."
+  },
+  "mutations": {
+    "secretsDeleted": 0,
+    "secretsCreated": 0,
+    "secretNamesRenamed": 0,
+    "foldersRenamed": 6,
+    "installRuns": 0,
+    "dbChanges": 0,
+    "supabaseResourceChanges": 0
+  },
+  "gitStatus": "scripts/install/ 6개 파일 수정 + artifacts/orchestration/infisical-folder-case.json 신규. 다른 세션의 untracked 파일(artifacts/orchestration/*.json, scripts/install/variant-sha.mjs)은 커밋하지 않는다.",
+  "commit": "HEAD (integrate/ccc291-parity): chore(install): Infisical 폴더 대문자 통일에 맞춘 주입 경로 갱신 (8 files, push 안 함)",
+  "blocked": null
+}
