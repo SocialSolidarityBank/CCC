@@ -213,6 +213,19 @@ pnpm seed:apply:local
 
 `LOCAL_DEV_ACTOR_EMAIL`을 상담사 계정(예: ai00@ggbss.or.kr)으로 바꾸면 상담사 시점으로 볼 수 있다.
 
+시드가 들어간 로컬에서 업무 읽기 한 바퀴를 밟는 순서다(2026-09-16 실측). 각 화면이
+시드 당사자로 렌더되고 API 로그에 5xx 가 없으면 통과다.
+
+1. `/participants`: 당사자 목록에 시드 100명이 뜬다.
+2. `/participants/<id>`(예: `deer-001`): 당사자 정보·참여 사업·목표·동의 체크가 채워진다.
+3. `/participants/<id>/programs/<caseId>/records`: 회차별 기록과 수기 메모가 보인다.
+4. `/participants/<id>/programs/<caseId>/briefing`: 15초 페이지. 상담일·세부 목표·
+   확인된 리스크·회차별 정리가 시드 내용으로 렌더된다.
+
+`seed:generate:local` 은 100명 시나리오를 Miniflare D1 왕복으로 순차 실행해 실측
+약 5~6분이 걸린다. `scripts/seed/vitest.config.ts` 의 testTimeout 600초는 이 실측의
+약 1.6배 여유다.
+
 #### 원격(테일넷)에서 로컬 프리뷰 열기 (2026-09-07)
 
 다른 기기에서 SSH 로 붙어 작업하면 `localhost` 가 안 보인다. 그때는 웹 서버만 테일넷에 연다(API 는

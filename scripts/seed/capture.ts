@@ -25,6 +25,8 @@ export interface WriteEntry {
   batchId: number;
   participantId: string;
   step: number;
+  /** 실행 결과 meta.changes — 0 인 DELETE 는 재생에서 생략해도 상태가 같다. */
+  changes: number;
 }
 
 export interface ReadEntry {
@@ -89,7 +91,10 @@ export class D1Capture {
       async run<T = Record<string, unknown>>() {
         const result = await real.run<T>();
         const batchId = capture.nextOpId();
-        capture.writes.push({ sql, params, via: 'run', batchId, ...capture.context });
+        capture.writes.push({
+          sql, params, via: 'run', batchId, ...capture.context,
+          changes: Number(result.meta?.changes ?? 0),
+        });
         return result;
       },
       async first<T = unknown>(...args: unknown[]) {
@@ -128,9 +133,12 @@ export class D1Capture {
         });
         const results = await realDb.batch<T>(metas.map((entry) => entry.real));
         const batchId = capture.nextOpId();
-        for (const entry of metas) {
-          capture.writes.push({ sql: entry.sql, params: entry.params, via: 'batch', batchId, ...capture.context });
-        }
+        metas.forEach((entry, index) => {
+          capture.writes.push({
+            sql: entry.sql, params: entry.params, via: 'batch', batchId, ...capture.context,
+            changes: Number(results[index]?.meta?.changes ?? 0),
+          });
+        });
         return results;
       },
       exec(): never {
