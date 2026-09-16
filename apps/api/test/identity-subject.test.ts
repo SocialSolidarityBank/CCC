@@ -6,7 +6,8 @@ import {
   revokeIdentitySession,
 } from '@ccc/core/gateway';
 import type { Actor } from '@ccc/contracts/runtime';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
+import { seedProviderRegistry } from './support/registration';
 
 const t = setupD1();
 const subject = 'e34cb320-9d2b-4ce4-8bb5-48d78ba72678';
@@ -78,5 +79,51 @@ describe('verified Supabase subjects and directory authorization', () => {
     }), t.env, async () => actor);
     expect(denied.status).toBe(403);
     expect(await denied.json()).toEqual({ error: 'forbidden' });
+  });
+
+  it('uses canonical role assignments when the legacy directory role differs', async () => {
+    await t.reset();
+    await bindSubject();
+    await t.db.batch([
+      t.db.prepare(
+        `INSERT INTO user_role_assignments (id, org_id, user_id, role, source, granted_by)
+         VALUES ('prod-like-admin', 'org_demo', ?, 'institution_admin', 'manual', ?)`,
+      ).bind(testActors.counselor.userId, testActors.admin.userId),
+      t.db.prepare(
+        `INSERT INTO user_role_assignments (id, org_id, user_id, role, source, granted_by)
+         VALUES ('prod-like-technical-admin', 'org_demo', ?, 'institution_technical_admin', 'manual', ?)`,
+      ).bind(testActors.counselor.userId, testActors.admin.userId),
+    ]);
+    await seedProviderRegistry(t.env.DB, testActors.counselor.orgId);
+    const actor = await resolve();
+    if (actor === null) throw new Error('expected an active production-like identity');
+    expect(actor.roles).toEqual(['institution-admin', 'technical-admin', 'worker']);
+
+    const paths = [
+      '/participants',
+      '/program-options',
+      `/programs/${testProgramId(testActors.counselor.orgId)}/consent/disclosures`,
+      '/assignment-requests',
+    ];
+    for (const path of paths) {
+      const response = await handleRequest(new Request(`https://api.example.invalid${path}`), t.env, async () => actor);
+      expect(response.status, `${path}: ${await response.clone().text()}`).toBe(200);
+    }
+  });
+
+  it('keeps business routes closed when canonical business roles are absent', async () => {
+    await t.reset();
+    await bindSubject();
+    await t.db.prepare('UPDATE user_role_assignments SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL')
+      .bind(new Date().toISOString(), testActors.counselor.userId).run();
+    const actor = await resolve();
+    if (actor === null) throw new Error('expected an active role-waiting identity');
+    expect(actor.roles).toEqual([]);
+
+    for (const path of ['/participants', '/program-options', '/assignment-requests']) {
+      const response = await handleRequest(new Request(`https://api.example.invalid${path}`), t.env, async () => actor);
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: 'forbidden' });
+    }
   });
 });
