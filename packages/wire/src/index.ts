@@ -45,6 +45,7 @@ export {
   useWireLink,
 } from './wire-button';
 export { WireBadge, type WireBadgeProps, type WireBadgeTone } from './wire-badge';
+export { WireMarker, type WireMarkerProps, type WireMarkerTone } from './wire-marker';
 export {
   WireCallout,
   type WireCalloutProps,

@@ -3,6 +3,7 @@ import {
   PageTitle,
   ParticipantHeroCard,
   WireBadge,
+  WireMarker,
   WireButton,
   WireCallout,
   WireCard,
@@ -149,7 +150,7 @@ function ContrastAxisSection({ axis, data, sourceHref }: {
                     <WireItem
                       tone="lavender"
                       title={finding.description}
-                        status={<WireBadge>{materialKindLabels[finding.materialKind]}</WireBadge>}
+                        status={<WireMarker tone="lavender">{materialKindLabels[finding.materialKind]}</WireMarker>}
                     />
                     <WireSourceQuotes quotes={[finding.quote]} sourceHref={sourceHref} />
                   </li>

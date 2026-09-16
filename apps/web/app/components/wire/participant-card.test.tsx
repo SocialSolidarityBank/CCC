@@ -27,7 +27,7 @@ describe('ParticipantCard', () => {
     expect(header?.textContent).toContain('김민서');
     expect(header?.querySelector('.participant-card-id')?.textContent).toBe('swallow-003');
     expect(header?.textContent).toContain('기본상담');
-    expect(header?.querySelector('.wire-badge')?.getAttribute('data-tone')).toBe('mint');
+    expect(header?.querySelector('.wire-marker')?.getAttribute('data-tone')).toBe('mint');
     expect(fields?.textContent).toContain('상담 일시8월 27일 (목) 14:00');
     expect(fields?.textContent).toContain('연락처010-0000-1234');
     expect(fields?.textContent).not.toContain('가명 ID');
@@ -58,7 +58,7 @@ describe('ParticipantCard', () => {
       />,
     );
 
-    const badge = container.querySelector('.participant-card-header .wire-badge');
+    const badge = container.querySelector('.participant-card-header .wire-marker');
     expect(badge?.textContent).toBe('인테이크');
     expect(badge?.getAttribute('data-tone')).toBe('lavender');
   });

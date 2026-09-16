@@ -721,7 +721,7 @@ const briefingStyles = `
 /* 브리핑 회차 줄과 같은 값으로 맞춘다(2026-08-10 CCC-87, 구 16 + 굵기 미선언). 여기는 이미
    --sub 였고 크기만 갈렸다. 굵기를 안 적어 두면 검사가 조합을 확정하지 못한다(§2-1). */
 .record-held-at{flex:none;width:136px;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
-/* 유형 칩은 ConsultationTypeBadge가 기본 상담=mint, 인테이크=lavender로 고정한다
+/* 유형 칩은 ConsultationTypeMark가 기본 상담=mint, 인테이크=lavender로 고정한다
    (2026-08-24 CCC-132 후속 개정, 구 lime/amber 대체). 접힌 줄 안에서 줄어들지 않게만 잡는다. */
 .record-summary>.wire-badge{flex:none}
 /* 핵심 한 줄. 승인 전 폴백(수기 메모 발췌)은 --sub 로 낮춘다(D5). 넘침은 공용

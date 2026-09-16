@@ -23,7 +23,7 @@ import { WireTab } from '../../apps/web/app/components/wire/wire-tabs';
 import { SearchInput } from '../../apps/web/app/components/wire/search-input';
 import { TimeAxisBadge } from '../../apps/web/app/components/wire/time-axis-badge';
 import { NavIcon } from '../../apps/web/app/components/wire/shell-icons';
-import { ConsultationTypeBadge } from '../../apps/web/app/components/wire/consultation-type-badge';
+import { ConsultationTypeMark } from '../../apps/web/app/components/wire/consultation-type-mark';
 import { DateTimePickerControl } from '../../apps/web/app/components/wire/date-picker-control';
 import { formatKoreanDate, formatKoreanDateTime, formatKoreanTime } from '../../apps/web/app/lib/format-korean-date';
 
@@ -392,7 +392,7 @@ function InfoTab() {
       {LIFE_CASE.schedules.map((schedule) => <a key={schedule.id} className="participant-next-schedule-link wire-repeat-card" href="#prototype-only">
         <span className="participant-next-schedule-main">
           <span className="participant-next-schedule-date">{formatKoreanDateTime(schedule.scheduledAt)}</span>
-          <ConsultationTypeBadge kind={schedule.kind} />
+          <ConsultationTypeMark kind={schedule.kind} />
           <span className="participant-next-schedule-program">{LIFE_CASE.label}</span>
         </span>
         <Chevron dir="right" />

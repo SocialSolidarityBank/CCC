@@ -5,6 +5,7 @@ import {
   DisclosureChevron,
   ParticipantHeroCard,
   WireBadge,
+  WireMarker,
   WireBullets,
   WireButton,
   WireCard,
@@ -19,7 +20,7 @@ import {
 import Link from 'next/link';
 import { useRef, useState, type ReactNode } from 'react';
 import { MetaRow } from '../../../../../components/wire/meta-row';
-import { ConsultationTypeBadge, consultationTypeLabel } from '../../../../../components/wire/consultation-type-badge';
+import { ConsultationTypeMark, consultationTypeLabel } from '../../../../../components/wire/consultation-type-mark';
 import { TimeAxisBadge } from '../../../../../components/wire/time-axis-badge';
 import { RiskBanner, type RiskBannerFlag } from './risk-banner';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
@@ -553,11 +554,11 @@ export function BriefingCards({
                     <Link className="briefing-session-row" href={`${recordsHref}#record-${row.sessionId}`}>
                       <span className="briefing-session-date">{formatKoreanDate(row.heldAt)}</span>
                       <span className="briefing-session-kind">
-                        <ConsultationTypeBadge kind={row.kind} />
+                        <ConsultationTypeMark kind={row.kind} />
                       </span>
                       <span className="briefing-session-memo">
                         {row.aiOneLiner === null && row.memoExcerpt !== null && (
-                          <WireBadge>수기</WireBadge>
+                          <WireMarker tone="mint">수기</WireMarker>
                         )}
                       </span>
                       <span className="briefing-session-text wire-fade-clip">

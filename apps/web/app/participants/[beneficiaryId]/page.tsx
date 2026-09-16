@@ -29,7 +29,7 @@ import {
   type CurrentConsentState,
 } from '@ccc/contracts/consent';
 import { PageLoading } from '../../components/wire/page-loading';
-import { ConsultationTypeBadge } from '../../components/wire/consultation-type-badge';
+import { ConsultationTypeMark } from '../../components/wire/consultation-type-mark';
 import { NavIcon } from '../../components/wire/shell-icons';
 import { getDisplayLabels } from '../../lib/display-labels';
 import { formatKoreanDateTime } from '../../lib/format-korean-date';
@@ -231,7 +231,7 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels, recordsTarge
               <span className="participant-next-schedule-date">
                 {formatKoreanDateTime(candidate.upcomingSchedule!.scheduledAt)}
               </span>
-              <ConsultationTypeBadge kind={candidate.upcomingSchedule!.sessionKind} />
+              <ConsultationTypeMark kind={candidate.upcomingSchedule!.sessionKind} />
               <span className="participant-next-schedule-program">{programName(programLabels, candidate.programType)}</span>
             </span>
             <Chevron dir="right" />

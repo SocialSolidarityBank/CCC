@@ -15,10 +15,12 @@
  * 실행: pnpm --filter @ccc/web test   (이 파일이 돌면 harness.html 이 다시 쓰인다)
  */
 import {
+  GridContainer,
   WireButton,
 } from '@ccc/wire';
 import { describe, it, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { prerender } from 'react-dom/static';
 import { render, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -46,13 +48,148 @@ import { ScheduleWizard, type ScheduleWizardCandidate } from '../schedules/new/s
 import { SessionPlanEditor } from '../schedules/[scheduleId]/plan/session-plan-editor';
 import { RegisterForm } from '../participants/new/register-form';
 import { PROGRAM_LABELS } from '../lib/labels';
+import AdminUsersPage from '../admin/users/page';
+import AdminAssignPage from '../admin/assign/page';
+import AdminLayout from '../admin/layout';
+import ParticipantPage from '../participants/[beneficiaryId]/page';
+import { InstitutionScreen } from '../../../client/src/screens/institution';
+import { ParticipantHubScreen, ParticipantListScreen } from '../../../client/src/screens/participants';
+import { SettingsScreen } from '../../../client/src/screens/settings';
+
+// apps/client owns react-router. Load that exact installed instance at runtime so its hooks and the
+// harness provider share one context without making @ccc/web depend on the client router.
+const clientRouterModuleUrl = pathToFileURL(join(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../../client/node_modules/react-router/dist/development/index.js',
+)).href;
+const { MemoryRouter, Outlet, Route, Routes } = await import(/* @vite-ignore */ clientRouterModuleUrl);
 
 // 라우터 훅은 정적 렌더에서도 본문이 돌기 때문에 막아 둔다. 실제 경로가 필요한 곳은
 // 킷의 AdminSidebar 뿐이고, 어느 탭이 활성인지는 위계와 무관하다.
 vi.mock('next/navigation', () => ({
+  notFound: () => { throw new Error('notFound'); },
   useRouter: () => ({ push: () => {}, replace: () => {}, refresh: () => {} }),
   usePathname: () => '/admin',
   useSearchParams: () => new URLSearchParams(),
+}));
+
+vi.mock('../lib/api', () => ({
+  ApiError: class ApiError extends Error {
+    constructor(readonly code: string) {
+      super(code);
+    }
+  },
+  getMyIdentity: async () => ({
+    id: 'harness-admin',
+    orgId: 'harness-org',
+    email: 'admin@example.test',
+    name: '가상 관리자',
+    active: true,
+    roles: ['institution-admin'],
+  }),
+  listDirectoryAccounts: async () => ({
+    accounts: [{
+      id: 'harness-worker',
+      email: 'worker@example.test',
+      name: '가상 실무자',
+      active: true,
+      roles: ['worker'],
+    }],
+    permissions: { canManageRoles: true },
+  }),
+  listCounselorAssignments: async () => ({
+    userId: 'harness-worker',
+    participants: [{
+      beneficiaryId: 'swallow-003',
+      supportCaseId: '11111111-1111-4111-8111-111111111111',
+      programType: 'financial_support_v1',
+      status: 'active',
+      assignmentRole: 'primary',
+      participantName: '가상 당사자',
+      participantPhone: '010-0000-0000',
+    }],
+  }),
+  listScheduleCandidates: async () => [{
+    beneficiaryId: 'swallow-003',
+    supportCaseId: '11111111-1111-4111-8111-111111111111',
+    programType: 'financial_support_v1',
+    participantName: '가상 당사자',
+    participantPhone: '010-0000-0000',
+    participantEmail: 'participant@example.test',
+    intakeAt: '2026-09-01T00:00:00.000Z',
+  }],
+  listOrgUsers: async () => [{
+    id: 'harness-worker',
+    orgId: 'harness-org',
+    email: 'worker@example.test',
+    role: 'counselor',
+    active: true,
+    name: '가상 실무자',
+  }],
+  listSupportCaseAssignees: async () => [{
+    id: 'harness-assignee',
+    supportCaseId: '11111111-1111-4111-8111-111111111111',
+    userId: 'harness-worker',
+    role: 'primary',
+    status: 'active',
+    assignedAt: '2026-09-01T00:00:00.000Z',
+  }],
+  getOrganizationProfile: async () => ({
+    orgId: 'harness-org',
+    orgName: '가상 기관',
+    programDisplayName: '함께온기금 울타리대출 장기생활안정 연계지원사업',
+  }),
+  getParticipantHubDetail: async () => ({
+    beneficiaryId: 'swallow-003',
+    name: '가상 당사자',
+    phone: '010-0000-0000',
+    email: 'participant@example.test',
+    programs: [{
+      id: '11111111-1111-4111-8111-111111111111',
+      beneficiaryId: 'swallow-003',
+      programType: 'financial_support_v1',
+      status: 'active',
+      intakeAt: '2026-09-01T00:00:00.000Z',
+      creationKind: 'initial',
+      sourceSupportCase: null,
+      authorized: true,
+      assigneeNames: ['가상 실무자'],
+      consent: { privacy: true, recordingAi: true },
+      consentRecordedAt: '2026-09-01T00:00:00.000Z',
+      upcomingSchedule: {
+        id: 'harness-schedule',
+        scheduledAt: '2026-09-20T02:00:00.000Z',
+        sessionKind: 'regular',
+      },
+    }],
+  }),
+  getParticipantGoalTree: async () => [{
+    sourceSupportCase: {
+      id: '11111111-1111-4111-8111-111111111111',
+      programType: 'financial_support_v1',
+      status: 'active',
+    },
+    overallGoal: '생활 기반을 안정적으로 유지한다',
+    overallGoalRevisions: [],
+    goals: [{
+      id: 'harness-goal',
+      title: '매달 상환 일정을 확인하고 생활비 계획을 지킨다',
+      status: 'active',
+      closedReason: null,
+      closedAt: null,
+      revisions: [],
+      sessionGoals: [],
+      linkedSessions: [],
+    }],
+  }],
+  getSupportCaseConsent: async () => [],
+  issueSupportCaseConsentDisclosures: async () => [],
+}));
+
+vi.mock('../actions', () => ({
+  updateAccountRolesAction: async () => ({ status: 'updated' }),
+  addSupportCaseAssigneeAction: async () => undefined,
+  updateParticipantConsentAction: async () => ({ status: 'saved' }),
 }));
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
@@ -90,6 +227,145 @@ const REGISTRATION_DISCLOSURES: ConsentDisclosureSnapshot[] = CONSENT_DOMAINS.ma
   expiresAt: '2026-09-16T00:30:00.000Z',
 }));
 const noop = async () => ({ status: 'saved' as const });
+
+const clientSession = {
+  auth: { signOut: async () => {}, recheck: () => {} },
+  me: {
+    id: 'harness-admin',
+    orgId: 'harness-org',
+    email: 'admin@example.test',
+    name: '가상 관리자',
+    active: true,
+    roles: ['institution-admin'],
+    institution: {
+      orgId: 'harness-org',
+      orgName: '가상 기관',
+      settingsState: 'present',
+      creatorLinkState: 'linked',
+      initialSetupState: 'complete',
+      firstProgramAdmissionState: 'admitted',
+      firstProgram: {
+        id: 'harness-program',
+        programType: 'financial_support_v1',
+        displayName: '함께온기금 울타리대출 장기생활안정 연계지원사업',
+        admissionState: 'ready',
+        status: 'active',
+        version: 1,
+        financialSupportEnabled: true,
+      },
+      installationState: 'available',
+      retentionPolicyStatus: 'configured',
+      consentCopy: {
+        version: 'server-copy-v1',
+        status: 'available',
+        domains: CONSENT_DOMAINS.map((domain) => ({ domain, disclosureAvailable: true })),
+      },
+    },
+  },
+  capabilities: {
+    mode: 'community-cloud',
+    sttMode: 'azure',
+    sttEngine: 'azure',
+    llmMode: 'openai',
+    agentStatus: 'ready',
+    features: { public_signup: true },
+  },
+  participants: {
+    list: async () => [{
+      beneficiaryId: 'swallow-003',
+      status: 'active',
+      programCount: 1,
+      name: '가상 당사자',
+      phone: '010-0000-0000',
+      email: 'participant@example.test',
+      programNames: ['함께온기금 울타리대출 장기생활안정 연계지원사업'],
+      newSignup: false,
+    }],
+    hub: async () => ({
+      beneficiaryId: 'swallow-003',
+      restricted: false,
+      participantName: '가상 당사자',
+      participantPhone: '010-0000-0000',
+      participantEmail: 'participant@example.test',
+      participantBirthDate: '2000-01-01',
+      status: 'active',
+      closedAt: null,
+      sessionCount: 1,
+      lastSessionAt: '2026-09-01T00:00:00.000Z',
+      programs: [{
+        id: CASE_ID,
+        beneficiaryId: 'swallow-003',
+        programId: 'harness-program',
+        programName: '함께온기금 울타리대출 장기생활안정 연계지원사업',
+        programType: 'financial_support_v1',
+        status: 'active',
+        intakeAt: '2026-09-01T00:00:00.000Z',
+        creationKind: 'initial',
+        participantName: '가상 당사자',
+        participantPhone: '010-0000-0000',
+        closedAt: null,
+        authorized: true,
+        assigneeNames: ['가상 실무자'],
+        upcomingSchedule: {
+          id: 'harness-schedule',
+          scheduledAt: '2026-09-20T02:00:00.000Z',
+          sessionKind: 'regular',
+        },
+      }],
+    }),
+    reviewAssignmentRequest: async () => undefined,
+  },
+  consent: {
+    states: async () => CONSENT_STATES,
+    disclosures: async () => REGISTRATION_DISCLOSURES,
+    decide: async () => undefined,
+  },
+  institution: {
+    listPrograms: async () => ({
+      programs: [{
+        id: 'harness-program',
+        displayName: '함께온기금 울타리대출 장기생활안정 연계지원사업',
+        status: 'active',
+        storageMode: 'supabase_seoul',
+        processingMode: 'external_allowed',
+        version: 1,
+        admissionState: 'ready',
+        confirmedAt: '2026-09-01T00:00:00.000Z',
+        financialSupportEnabled: true,
+      }],
+      admissionCopy: {
+        version: 'server-copy-v1',
+        hash: 'harness-copy-hash',
+        matchesDisplayedCopy: true,
+      },
+      installation: {
+        deploymentMode: 'community-cloud',
+        sttMode: 'azure',
+        llmMode: 'openai',
+        policyVersion: 1,
+        configHash: 'harness-config-hash',
+      },
+    }),
+    completeInitialSetup: async () => undefined,
+    confirmProgram: async () => undefined,
+  },
+  api: {
+    getAssignmentCases: async () => ({
+      items: [{
+        supportCaseId: CASE_ID,
+        beneficiaryId: 'swallow-003',
+        name: '가상 당사자',
+        phone: '010-0000-0000',
+        programName: '함께온기금 울타리대출 장기생활안정 연계지원사업',
+        status: 'active',
+        intakeAt: '2026-09-01T00:00:00.000Z',
+      }],
+      nextCursor: null,
+    }),
+    getCaseAssignees: async () => [],
+  },
+  reloadIdentity: () => {},
+} as never;
 
 // ---------------------------------------------------------------------------
 // 화면 픽스처. 각 화면의 기존 테스트가 쓰는 값과 같은 모양이다.
@@ -267,6 +543,43 @@ const scheduleCandidates: ScheduleWizardCandidate[] = [{
   intakeAt: '2026-07-01T00:00:00.000Z',
 }];
 
+async function prerenderScreen(node: ReactElement): Promise<string> {
+  const { prelude } = await prerender(node);
+  return new Response(prelude).text();
+}
+
+async function renderClientScreen(
+  node: ReactElement,
+  {
+    pathname,
+    search = '',
+    routePath = '*',
+    readyText,
+  }: {
+    pathname: string;
+    search?: string;
+    routePath?: string;
+    readyText: string;
+  },
+): Promise<string> {
+  const path = `${pathname}${search}`;
+  const view = render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route element={<Outlet context={clientSession} />}>
+          <Route path={routePath} element={<GridContainer as="main" className="page-content">{node}</GridContainer>} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
+  try {
+    await waitFor(() => expect(view.container.textContent).toContain(readyText));
+    return view.container.innerHTML;
+  } finally {
+    cleanup();
+  }
+}
+
 /**
  * 재는 화면. 이름은 사람이 읽는 이름이고, 실측 보고서가 이 이름으로 나온다.
  *
@@ -299,6 +612,68 @@ const SCREENS: Screen[] = [
   // 로딩은 줄이 둘뿐이라 위계로 걸릴 것이 없지만, 한 줄이 카드를 통째로 채우는 유일한 화면이라
   // 세로 중앙 정렬이 여기서만 눈에 띈다(2026-08-10 Q 지적). 재는 자리에 두어야 다시 어긋날 때 걸린다.
   { id: 'loading', label: '로딩 화면', node: <PageLoading title="15초 페이지" />, minLines: 2 },
+  {
+    id: 'admin-users',
+    label: '관리자 사용자·역할',
+    walk: async () => {
+      const page = await AdminUsersPage({
+        searchParams: Promise.resolve({ selected: 'harness-worker' }),
+      });
+      return prerenderScreen(await AdminLayout({ children: page }));
+    },
+  },
+  {
+    id: 'admin-assign',
+    label: '관리자 배정',
+    walk: async () => {
+      const page = await AdminAssignPage({
+        searchParams: Promise.resolve({ supportCaseId: CASE_ID }),
+      });
+      return prerenderScreen(await AdminLayout({ children: page }));
+    },
+  },
+  {
+    id: 'participant-hub',
+    label: '당사자 정보 허브',
+    walk: async () => prerenderScreen(await ParticipantPage({
+      params: Promise.resolve({ beneficiaryId: 'swallow-003' }),
+      searchParams: Promise.resolve({}),
+    })),
+  },
+  {
+    id: 'client-participants',
+    label: 'Relayer 당사자 목록',
+    walk: () => renderClientScreen(<ParticipantListScreen />, {
+      pathname: '/participants',
+      readyText: '함께온기금 울타리대출 장기생활안정 연계지원사업',
+    }),
+  },
+  {
+    id: 'client-participant-hub',
+    label: 'Relayer 당사자 정보',
+    walk: () => renderClientScreen(<ParticipantHubScreen />, {
+      pathname: '/participants/swallow-003',
+      routePath: '/participants/:beneficiaryId',
+      readyText: '서버 고지 전문입니다.',
+    }),
+  },
+  {
+    id: 'client-institution',
+    label: 'Relayer 기관 준비',
+    walk: () => renderClientScreen(<InstitutionScreen />, {
+      pathname: '/onboarding',
+      readyText: '함께온기금 울타리대출 장기생활안정 연계지원사업',
+    }),
+  },
+  {
+    id: 'client-assignments',
+    label: 'Relayer 담당 배정 요청',
+    walk: () => renderClientScreen(<SettingsScreen />, {
+      pathname: '/settings',
+      search: '?module=assignments',
+      readyText: '함께온기금 울타리대출 장기생활안정 연계지원사업',
+    }),
+  },
   { id: 'record-new', label: '상담 기록 작성', node: <main className="page-content"><RecordOnepage {...recordProps} /></main> },
   {
     id: 'intake',
@@ -419,6 +794,7 @@ async function buildHarness(): Promise<{ html: string; markup: Map<string, strin
   const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
   // 실제 RootLayout의 shellStyles 식과 같은 순서로 조립한다. 순서가 다르면 캐스케이드 실측이 거짓이다.
   const runtimeCss = composeRuntimeCss(join(repoRoot, 'apps/web/app/layout.tsx'), wireStyles);
+  const clientCss = readFileSync(join(repoRoot, 'apps/client/src/business/business.css'), 'utf8');
   const pretendardCssUrl = pathToFileURL(join(
     process.cwd(),
     'node_modules/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css',
@@ -449,7 +825,7 @@ async function buildHarness(): Promise<{ html: string; markup: Map<string, strin
 <html lang="ko"><head><meta charset="utf-8"><title>위계 하니스</title>
 <link rel="stylesheet" href="${pretendardCssUrl}">
 <style>${tokens}</style>
-<style>${runtimeCss}</style>
+<style>${runtimeCss}\n${clientCss}</style>
 <style>.harness-screen{background:var(--canvas)}</style>
 </head><body>${sections}</body></html>`;
   return { html, markup };
