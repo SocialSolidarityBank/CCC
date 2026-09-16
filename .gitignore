@@ -4,6 +4,7 @@
 .omo/
 .gjc/
 .cockpit/
+/.superpowers/
 
 # 의존성·빌드 산출물 (추후 Next.js/Workers 셋업 대비)
 node_modules/
