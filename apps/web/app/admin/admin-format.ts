@@ -1,4 +1,5 @@
 import type { AdminAssignmentParticipant, MyRole } from '../lib/api';
+import type { ShellIconName } from '../components/wire/shell-icons';
 
 // 사업 표시 라벨은 CCC-32 부터 정적 상수가 아니다 — 각 페이지가 getDisplayLabels()
 // (온보딩 저장값 우선, labels.ts 폴백)로 요청 시점에 읽는다.
@@ -24,15 +25,20 @@ export interface AdminMenuItem {
   href: string;
   /** 이 탭을 여는 역할. 하나라도 가지면 보인다(ADR-0044 결정 7, 역할 합). */
   roles: readonly MyRole[];
+  /** 셸 사이드바 '관리' 묶음이 쓰는 아이콘. 탭줄(AdminSidebar)은 아이콘을 그리지 않는다. */
+  icon: ShellIconName;
 }
 // 전체 목록. 화면에 그릴 때는 adminMenuFor(roles) 로 걸러 쓴다. 실무 책임자·실무자에게는 탭이 없다.
 // 탭 이름은 2026-09-06 배치표(화면 5)대로 사용자·역할, AI·STT·연결이다.
+// 아이콘은 셸 사이드바 입구용이다. 같은 목적지는 같은 아이콘(§3 버튼 아이콘 규칙과 같은
+// 어휘) — 실무자 초대는 'invite', 사용자·역할은 사람('participants'), 배정은 사람에게
+// 더하기('participant-add'), 기관은 'org', AI·STT·연결은 설정 슬라이더('settings').
 export const adminMenu: AdminMenuItem[] = [
-  { label: '기관', href: '/admin', roles: ['institution-admin'] },
-  { label: '배정', href: '/admin/assign', roles: ['institution-admin'] },
-  { label: '사용자·역할', href: '/admin/users', roles: ['institution-admin', 'technical-admin'] },
-  { label: '실무자 초대', href: '/admin/invite', roles: ['institution-admin', 'technical-admin'] },
-  { label: 'AI·STT·연결', href: '/admin/ai-provider', roles: ['technical-admin'] },
+  { label: '기관', href: '/admin', roles: ['institution-admin'], icon: 'org' },
+  { label: '배정', href: '/admin/assign', roles: ['institution-admin'], icon: 'participant-add' },
+  { label: '사용자·역할', href: '/admin/users', roles: ['institution-admin', 'technical-admin'], icon: 'participants' },
+  { label: '실무자 초대', href: '/admin/invite', roles: ['institution-admin', 'technical-admin'], icon: 'invite' },
+  { label: 'AI·STT·연결', href: '/admin/ai-provider', roles: ['technical-admin'], icon: 'settings' },
 ];
 
 /** 내 역할의 합만큼만 남긴 탭. 비어 있으면 어드민 영역 자체가 없다(/admin 404). */
@@ -46,6 +52,22 @@ export function adminMenuFor(roles: readonly MyRole[]): AdminMenuItem[] {
  */
 export function userLabel(user: { name: string | null; email: string }): string {
   return user.name ?? user.email;
+}
+
+/** D74 역할 합의 화면 라벨(CONTEXT.md 용어집). supervisor(실무 책임자)는 팀 감독 부여의 파생 역할이다. */
+export const accountRoleLabel: Record<MyRole, string> = {
+  'institution-admin': '기관 관리자',
+  'technical-admin': '기관 기술 관리자',
+  supervisor: '실무 책임자',
+  worker: '실무자',
+};
+
+/**
+ * 계정 디렉터리 한 줄 표기 — 이름 → 이메일 → id 폴백. 역할 대기 계정은 이메일이
+ * null 일 수 있어(초대 수락 전 신원만 있는 상태) 마지막 폴백이 필요하다.
+ */
+export function accountLabel(account: { name: string | null; email: string | null; id: string }): string {
+  return account.name ?? account.email ?? account.id;
 }
 
 /**

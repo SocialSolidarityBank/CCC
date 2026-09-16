@@ -2782,14 +2782,17 @@ export interface StaffInviteIssue {
 
 /**
  * 실무자 초대 발급(POST /staff-invites). 관리자 전용 — 권한·감사는 API 게이트웨이가
- * 강제한다(R1·D14). 이 화면은 실무자 초대만 다루므로 역할은 practitioner 로 고정한다 —
- * 기관 관리자는 업무 역할을 반드시 골라야 한다는 서버 규칙(D86 결정 3)과 맞물린다.
+ * 강제한다(R1·D14). roles 는 서버 저장 이름(institution_admin·institution_technical_admin·
+ * practitioner)이다. D86 결정 3: 기관 관리자는 업무 역할을 반드시 하나 이상 골라야 하고,
+ * 기술 관리자만 있는 사람은 빈 roles(역할 대기 초대)만 만들 수 있다 — 화면이 자기가
+ * 줄 수 있는 역할만 보여 주는 것은 이 규칙의 안내이고 강제는 서버 몫이다.
  * 당사자 공개 가입 스위치(PUBLIC_SIGNUP_ENABLED)와 무관하게 열린다.
  */
-export async function createStaffInvite(email: string): Promise<StaffInviteIssue> {
+export type StaffInviteRole = 'institution_admin' | 'institution_technical_admin' | 'practitioner';
+export async function createStaffInvite(email: string, roles: StaffInviteRole[]): Promise<StaffInviteIssue> {
   const raw = await jsonRequest<Record<string, unknown>>('/staff-invites', 'POST', {
     email,
-    roles: ['practitioner'],
+    roles,
   });
   if (typeof raw.token !== 'string') throw new ApiError('invalid_request');
   const invite = responseObject(responseProperty(raw, 'invite'));
@@ -2798,6 +2801,63 @@ export async function createStaffInvite(email: string): Promise<StaffInviteIssue
     email: responseString(invite, 'email'),
     expiresAt: responseString(invite, 'expiresAt'),
   };
+}
+
+/** PATCH /settings/accounts/:id/roles 가 받는 공개 역할 이름. supervisor 는 팀 감독 부여의 파생이라 직접 부여 대상이 아니다. */
+export type AssignableRole = 'institution-admin' | 'technical-admin' | 'worker';
+
+/** 기관 계정 디렉터리 항목(GET /settings/accounts). roles 는 D74 역할 합 — 비어 있으면 역할 대기. */
+export interface DirectoryAccount {
+  id: string;
+  email: string | null;
+  name: string | null;
+  active: boolean;
+  roles: MyRole[];
+}
+
+export interface DirectoryAccounts {
+  accounts: DirectoryAccount[];
+  /** canManageRoles 는 기관 관리자만 true — 기술 관리자는 목록을 읽지만 역할은 못 바꾼다. */
+  permissions: { canManageRoles: boolean };
+}
+
+function decodeDirectoryAccount(value: unknown): DirectoryAccount {
+  const record = responseObject(value);
+  return {
+    id: responseString(record, 'id'),
+    email: responseNullableString(record, 'email'),
+    name: responseNullableString(record, 'name'),
+    active: responseBoolean(record, 'active'),
+    roles: responseArray(record, 'roles').map((role) => responseEnum(role, myRoles)),
+  };
+}
+
+/**
+ * 기관 계정 디렉터리(GET /settings/accounts). 기관 관리자·기술 관리자만 읽는다.
+ * 구 GET /users 와 달리 역할 대기(역할 없음) 계정도 내려온다 — 역할을 주는 화면이
+ * 그 사람들을 봐야 하기 때문이다.
+ */
+export async function listDirectoryAccounts(): Promise<DirectoryAccounts> {
+  const record = responseObject(await requestJson<unknown>('/settings/accounts'));
+  const permissions = responseObject(responseProperty(record, 'permissions'));
+  return {
+    accounts: responseArray(record, 'accounts').map(decodeDirectoryAccount),
+    permissions: { canManageRoles: responseBoolean(permissions, 'canManageRoles') },
+  };
+}
+
+/**
+ * 계정 역할 변경(PATCH /settings/accounts/:id/roles). expectedRoles 는 낙관적 동시성 —
+ * 화면이 읽어 둔 현재 역할을 그대로 실어, 사이에 다른 곳에서 바뀌었으면 서버가 409 로
+ * 거절하게 한다. supervisor 는 파생 역할이라 expectedRoles 에서도 뺀다.
+ */
+export async function updateAccountRoles(
+  userId: string,
+  input: { roles: AssignableRole[]; expectedRoles: AssignableRole[] },
+): Promise<DirectoryAccount> {
+  return decodeDirectoryAccount(
+    await jsonRequest<unknown>(`/settings/accounts/${encodeURIComponent(userId)}/roles`, 'PATCH', input),
+  );
 }
 
 /** 공개 실무자 초대 정보(D86). 토큰이 유효할 때 기관 표시 이름·역할·만료 시각. 인증 불필요. */

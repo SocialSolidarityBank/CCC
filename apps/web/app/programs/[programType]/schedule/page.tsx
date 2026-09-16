@@ -183,7 +183,9 @@ export default async function ProgramSchedulePage({
     <main className="page-content">
       <GridContainer>
         <div className="page-header">
-          <PageTitle>일정</PageTitle>
+          {/* 사이드바 메뉴와 같은 화면 표시명을 쓴다(CONTEXT.md 표시명 표 — 2026-09-16 Q 가
+              메뉴 이름을 '상담 일정 보기'로 바꿨다). 경로·식별자는 그대로다. */}
+          <PageTitle>상담 일정 보기</PageTitle>
         </div>
         <ScheduleNav basePath={basePath} view={view} anchor={anchor} />
         {body}

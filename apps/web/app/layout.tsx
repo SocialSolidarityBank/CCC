@@ -13,7 +13,8 @@ import { AppSidebar } from './components/wire/app-sidebar';
 import { BackLink } from './components/wire/back-link';
 import { NextLinkProvider } from './components/wire/next-link-provider';
 import { getDisplayLabels } from './lib/display-labels';
-import { getNewSignupCount } from './lib/api';
+import { ApiError, getMyIdentity, getNewSignupCount } from './lib/api';
+import { adminMenuFor } from './admin/admin-format';
 import { THEME_COOKIE_NAME, parseTheme } from './lib/theme-cookie';
 import { wireStyles } from './components/wire/wire-styles';
 
@@ -1300,6 +1301,15 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // 공개 가입 capability가 꺼진 출고에서는 요청 링크 유입 배지도 조회하지 않는다.
   const publicSignupEnabled = process.env.PUBLIC_SIGNUP_ENABLED === '1';
   const newSignupCount = publicSignupEnabled ? await getNewSignupCount().catch(() => 0) : 0;
+  // 사이드바 '관리' 묶음은 내 역할이 여는 관리자 화면이 있을 때만 선다 — adminMenuFor 가
+  // 비면 /admin 자체가 404 다. 신원 조회가 실패하면 묶음만 빼고 화면은 그린다(메뉴는
+  // 안내이지 방어가 아니다 — 각 관리자 화면과 API 가 권한을 다시 강제한다).
+  const adminItems = await getMyIdentity()
+    .then((me) => adminMenuFor(me.roles))
+    .catch((error) => {
+      if (error instanceof ApiError) return [];
+      throw error;
+    });
   // 본문 열을 div로 한 번 감싼다. 뒤로가기 줄이 본문과 같은 1440 컨테이너와 좌우 32 패딩을
   // 써야 제목과 왼쪽 끝이 맞기 때문이다. 감싸지 않고 셸의 형제로 두면 그리드 다음 행,
   // 즉 사이드바 아래로 떨어진다.
@@ -1321,6 +1331,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               theme={theme}
               newSignupCount={newSignupCount}
               publicSignupEnabled={publicSignupEnabled}
+              adminItems={adminItems}
             />
             <div className="content-column">
               {/* nav 로 감싼다 — 화면에 보이는 유일한 출구인데 바깥에 두면 스크린 리더의

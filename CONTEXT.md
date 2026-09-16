@@ -14,7 +14,7 @@
 
 | 화면 표시명 | 화면이 다루는 개념 | 기존 식별자 예시 |
 | --- | --- | --- |
-| 일정 | 상담 일정의 일간·주간·월간 조회 | `/schedule`, `/programs/:programType/schedule` |
+| 상담 일정 보기 | 상담 일정의 일간·주간·월간 조회 | `/schedule`, `/programs/:programType/schedule` |
 | 상담 계획 | 일정에 연결된 세션 목표 확인·수정 | `/schedules/:scheduleId/plan` |
 | 상담 기록 확인하기 | 한 참여 사업의 쌓인 상담 기록 조회 | `/participants/:beneficiaryId/programs/:supportCaseId/records` |
 | 상담 기록하기 | 기본 상담 기록 작성 | `/participants/:beneficiaryId/programs/:supportCaseId/records/new` |
