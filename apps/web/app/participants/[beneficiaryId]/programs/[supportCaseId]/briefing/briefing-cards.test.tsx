@@ -179,7 +179,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(rows[1]).toContain('2026년 7월 1일');
     expect(rows[1]).toContain('인테이크');
     expect(rows[1]).toContain('채무 현황과 정서적 어려움 확인');
-    const typeBadges = [...card.querySelectorAll('.briefing-session-kind .wire-badge')];
+    const typeBadges = [...card.querySelectorAll('.briefing-session-kind .wire-marker')];
     expect(typeBadges.map((badge) => badge.getAttribute('data-tone'))).toEqual(['mint', 'lavender']);
   });
 

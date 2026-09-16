@@ -5,6 +5,7 @@ import {
   Icon,
   PageTitle,
   WireBadge,
+  WireMarker,
   WireBullets,
   WireButton,
   WireCallout,
@@ -464,8 +465,8 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                       : <WireBullets items={[
                         <span key="briefing" className="schedule-briefing-item">
                           {context.lastBriefing.source === 'ai'
-                            ? <WireBadge tone="lavender">승인 요약</WireBadge>
-                            : <WireBadge>수기</WireBadge>}
+                            ? <WireMarker tone="lavender">승인 요약</WireMarker>
+                            : <WireMarker tone="mint">수기</WireMarker>}
                           {' '}{context.lastBriefing.text}
                         </span>,
                       ]} />}

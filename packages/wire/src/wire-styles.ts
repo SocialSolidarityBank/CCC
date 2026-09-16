@@ -133,6 +133,10 @@ details.surface-card[open]>.record-summary>.record-ordinal,
 details.surface-card[open]>.record-summary>.record-held-at,
 details.surface-card[open]>.record-summary>.record-one-liner,
 details.surface-card[open]>.record-summary .record-flag{color:var(--on-action)}
+/* 채운 제목 줄에서는 값 앞 표시도 면 위 글자다(§4-9 채움 계약 · §4-10). 계열 deep 글자를
+   그대로 두면 밝은 파스텔 면에 얹혀 읽히지 않는다. */
+details.surface-card[open]>.record-summary .wire-marker,
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-marker{color:var(--on-action)}
 /* 펼친 제목 줄의 배지는 그라데이션과 계열 외곽선이 겹치지 않게 외곽선을 없앤다.
    외곽선이 차지하던 사방 1px은 패널 면으로 바꾸고 높이는 위아래 1px씩 늘린다.
    접힌 배지는 아래 공용 계열 규칙을 그대로 쓴다(2026-09-05 Q). */
@@ -617,7 +621,11 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    선은 카드 전폭이다(2026-08-30 Q "가로선은 div 너비만큼, 양쪽 끊김 금지" — 구 안쪽 선
    대체). 카드 패딩을 --card-pad 로 되읽어 음수 마진으로 아웃라인까지 닿고, 안쪽 여백은
    패딩으로 되돌린다. 색은 카드 아웃라인과 같은 --line 하나다. */
-.wire-card-section+.wire-card-section{margin-inline:calc(var(--card-pad,var(--space-6)) * -1);padding-top:var(--space-4);padding-inline:var(--card-pad,var(--space-6));border-top:1px solid var(--line)}
+/* 풀블리드 구분선은 **카드 안에서만** 낸다(2026-09-17 실측). 구 선택자는 카드 밖에서도
+   --card-pad 폴백 24 만큼 좌우로 밀어, 관리자 2열(.wire-admin-cols)의 구획이 767·390 에서
+   컨테이너를 8px 넘겼다(하니스 실측). 카드 조상이 있을 때만 음수 마진이 성립한다. */
+.wire-card .wire-card-section+.wire-card-section{margin-inline:calc(var(--card-pad,var(--space-6)) * -1);padding-inline:var(--card-pad,var(--space-6))}
+.wire-card-section+.wire-card-section{padding-top:var(--space-4);border-top:1px solid var(--line)}
 .wire-card-section>h3,.wire-card-section-head>h3{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .wire-card-section-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
 .wire-card-section-action{display:flex;align-items:center;justify-content:flex-end;flex:1 1 auto;min-width:0;margin-left:auto}
@@ -1059,6 +1067,14 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    이 규칙 한 곳에서만 바꾼다. */
 .wire-badge{--wire-outline-color:var(--line);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-badge);font-weight:400;color:var(--ink);white-space:nowrap}
 .wire-badge-label{display:inline-flex;align-items:center;justify-content:center;line-height:normal}
+/* 값 앞 표시(2026-09-17 Q · §4-9): 면도 테두리도 없는 계열색 글자 한 조각이다. 배지가
+   값 앞을 막아 문장 시작선을 밀던 자리를 대신한다. 높이는 배지 줄과 같은 22를 예약해
+   같은 행에 배지와 섞여도 여백이 흔들리지 않는다(§7 '배지와 버튼은 여백을 바꾸지 않는다'). */
+/* 세 축(크기·굵기·색)을 한 규칙에서 정한다 — 색을 tone 선택자에만 두면 정적 판정이
+   열린 채로 남는다(guard:hierarchy '안 적힌 축'). 기본 계열은 민트이고 tone 이 덮는다. */
+.wire-marker{display:inline-flex;align-items:center;flex:none;min-height:var(--badge-height);line-height:var(--leading-normal);font-size:var(--text-sm);font-weight:600;color:var(--mint-deep);white-space:nowrap}
+.wire-marker[data-tone="lavender"]{color:var(--lavender-deep)}
+.wire-marker[data-tone="blue"]{color:var(--blue-deep)}
 /* 계열 배지: 민트=진행·상태·담당, 라벤더=AI·승인 대기, 블루=시간 축(TimeAxisBadge 전용).
    코랄·시안·라이트마젠타·앰버·라임은 여러 형제 배지의 구분 variation이다(기본 배정 순서는
    mint → lavender → coral → cyan → light-magenta, lime·amber 최후순위 — 2026-08-24 Q 결정).

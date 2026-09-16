@@ -2,6 +2,7 @@ import {
   DisclosureChevron,
   Icon,
   WireBadge,
+  WireMarker,
   WireButton,
   WireCard,
   WireCardSection,
@@ -12,7 +13,7 @@ import {
 import Link from 'next/link';
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
-import { ConsultationTypeBadge } from '../../../../../components/wire/consultation-type-badge';
+import { ConsultationTypeMark } from '../../../../../components/wire/consultation-type-mark';
 import { lifeAreaOrder, lifeAreaStatusLabels } from '../../../../../lib/life-area-labels';
 import type { FlagType, LifeAreaKey, SupportCaseRecord } from '../../../../../lib/api';
 
@@ -138,7 +139,7 @@ export function RecordCard({
     <summary className="record-summary">
       <span className="record-ordinal">{ordinal}회차</span>
       <span className="record-held-at">{formatKoreanDate(record.heldAt)}</span>
-      <ConsultationTypeBadge kind={record.kind} />
+      <ConsultationTypeMark kind={record.kind} />
       <span className={record.aiOneLiner === null ? 'record-one-liner wire-fade-clip is-memo' : 'record-one-liner wire-fade-clip'}>
         {/* 일괄 검토 A9 (2026-08-08): 인테이크는 메모가 없어 항상 빈말이 나오던 자리다. */}
         {oneLiner ?? (record.kind === 'intake' ? '인테이크 질문지 작성 회차' : '핵심 한 줄이 아직 없습니다')}
@@ -147,7 +148,7 @@ export function RecordCard({
         {/* 리스크 배너는 두지 않는다(D47 §5) — 대신 어느 회차에서 나왔는지를 이 표시가
             알린다. 리스크는 수기 왼쪽이다(2026-08-30 Q "리스크는 수기 좌측으로"). */}
         {hasConfirmedFlag && <span className="record-flag" data-confirmed="true"><Icon name="warning" size={14} /> 리스크</span>}
-        {record.aiOneLiner === null && record.memoExcerpt !== null && <WireBadge>수기</WireBadge>}
+        {record.aiOneLiner === null && record.memoExcerpt !== null && <WireMarker tone="mint">수기</WireMarker>}
         <DisclosureChevron />
       </span>
     </summary>

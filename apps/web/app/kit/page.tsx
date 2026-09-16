@@ -22,7 +22,7 @@ import { AdminSidebar } from '../components/wire/admin-sidebar';
 import { RiskBanner } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/risk-banner';
 import { ListRow } from '../components/wire/list-row';
 import { SearchInput } from '../components/wire/search-input';
-import { ConsultationTypeBadge } from '../components/wire/consultation-type-badge';
+import { ConsultationTypeMark } from '../components/wire/consultation-type-mark';
 import { TimeAxisBadge } from '../components/wire/time-axis-badge';
 import { PROGRAM_LABELS } from '../lib/labels';
 
@@ -374,7 +374,7 @@ export default function KitPage() {
               <summary className="record-summary">
                 <span className="record-ordinal">3회차</span>
                 <span className="record-held-at">3월 12일</span>
-                <ConsultationTypeBadge kind="regular" />
+                <ConsultationTypeMark kind="regular" />
                 <span className="record-one-liner">상환 계획을 다시 짰고 다음 달 임대료 납부일을 확인했다.</span>
               </summary>
               <div className="record-body">

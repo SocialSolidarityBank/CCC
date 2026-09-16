@@ -93,7 +93,7 @@ describe('RecordList', () => {
     const ordinals = Array.from(container.querySelectorAll('.record-ordinal')).map((node) => node.textContent);
     expect(ordinals).toEqual(['3회차', '2회차', '1회차']);
     const kinds = Array.from(container.querySelectorAll('.record-summary')).map((summary) => {
-      const badge = summary.querySelector('.wire-badge');
+      const badge = summary.querySelector('.wire-marker');
       return [badge?.textContent, badge?.getAttribute('data-tone')];
     });
     expect(kinds).toEqual([
@@ -109,8 +109,9 @@ describe('RecordList', () => {
     const line = container.querySelector('.record-one-liner');
     expect(line?.textContent).toBe('주거 계약 연장이 확인됐다');
     expect(line?.className).not.toContain('is-memo');
-    // 배지만 본다 — 본문에는 '수기 메모' 소제목이 언제나 있으므로 전체 텍스트로 재면 안 된다.
-    expect(container.querySelector('.record-summary .wire-badge:not([data-tone])')).toBeNull();
+    // 출처 표시만 본다 — 본문에는 '수기 메모' 소제목이 언제나 있으므로 전체 텍스트로 재면
+    // 안 된다. 유형 표시도 같은 계열 글자라 오른쪽 조각으로 범위를 좁힌다(§4-10).
+    expect(container.querySelector('.record-summary-right .wire-marker')).toBeNull();
   });
 
   it('승인 전이면 수기 발췌로 낮추고 수기 배지를 단다 (D5 폴백 · §4)', () => {
@@ -119,7 +120,7 @@ describe('RecordList', () => {
     const line = container.querySelector('.record-one-liner');
     expect(line?.textContent).toBe('집을 알아봐야 한다');
     expect(line?.className).toContain('is-memo');
-    expect(container.querySelector('.record-summary .wire-badge:not([data-tone])')?.textContent).toBe('수기');
+    expect(container.querySelector('.record-summary-right .wire-marker')?.textContent).toBe('수기');
   });
 
   it('세션 목표가 있으면 GAS 가 있던 자리에 그린다 (§2)', () => {
