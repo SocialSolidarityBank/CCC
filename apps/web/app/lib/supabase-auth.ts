@@ -123,6 +123,26 @@ export async function signUpWithPassword(email: string, password: string): Promi
   return session === null ? { status: 'confirm_email' } : { status: 'ok', session };
 }
 
+export type PasswordResetResult =
+  | { status: 'ok' }
+  | { status: 'unavailable' };
+
+/**
+ * 비밀번호 재설정 메일 요청. Supabase 는 계정 열거 방지로 등록 여부와 무관하게 200 을
+ * 돌려주므로 4xx 도 ok 로 뭉친다 — 응답이 갈라지면 계정 존재 여부가 샌다. 네트워크
+ * 실패와 5xx·429 만 unavailable 이다(메일이 실제로 안 갔을 수 있는 경우만 실패로 본다).
+ * redirectTo 는 메일 링크가 검증 뒤 착지할 우리 화면 주소다 — Supabase allow-list 에
+ * 없으면 site_url 로 떨어진다.
+ */
+export async function requestPasswordReset(email: string, redirectTo: string): Promise<PasswordResetResult> {
+  const config = supabaseConfig();
+  if (config === null) return { status: 'unavailable' };
+  const response = await authPost(config, `/recover?redirect_to=${encodeURIComponent(redirectTo)}`, { email });
+  if (response === null) return { status: 'unavailable' };
+  if (response.status === 429 || response.status >= 500) return { status: 'unavailable' };
+  return { status: 'ok' };
+}
+
 /**
  * 초대 수락용 세션 확보. 기존 계정부터 로그인하고, 자격이 없는 경우에만 가입한다.
  * Supabase 는 계정 열거 방지를 위해 기존 이메일의 가입도 성공+무세션으로 응답할 수 있으므로

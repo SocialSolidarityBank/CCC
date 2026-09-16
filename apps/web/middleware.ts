@@ -43,10 +43,13 @@ export function middleware(request: NextRequest): NextResponse {
   // 직접 로그인 화면(/login)과 그 POST 수신 경로(/login/unlock)도 셸을 뺀다 — 신원을
   // 아직 모르는 화면이라 /preview·/welcome 과 같은 판단이다. 수신 경로를 비공개로 두면
   // 아래 세션 게이트가 POST 를 /login GET 으로 바꿔 로그인 자체가 실행되지 않는다.
-  const isLoginEntry = pathname === '/login' || pathname === '/login/unlock';
+  const isLoginEntry = pathname === '/login' || pathname === '/login/unlock' || pathname === '/login/reset';
+  // 비밀번호 설정 화면(/password)도 셸을 뺀다 — Supabase 메일 링크가 착지하는 곳이라
+  // 신원을 아직 모르는 화면이고, 자격은 URL fragment 로 와서 이 게이트가 볼 수 없다.
+  const isPasswordEntry = pathname === '/password';
   const isPublic =
     pathname === '/join' || pathname.startsWith('/join/') || isPreviewEntry || pathname === '/welcome'
-    || isLoginEntry;
+    || isLoginEntry || isPasswordEntry;
   const requestHeaders = new Headers(request.headers);
   if (isPublic) requestHeaders.set('x-ccc-public', '1');
   else requestHeaders.delete('x-ccc-public');
