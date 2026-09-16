@@ -11,18 +11,11 @@ import { SearchInput } from '../../../components/wire/search-input';
 import {
   ApiError,
   listCounselorAssignments,
-  listOrgUsers,
+  listDirectoryAccounts,
   type CounselorAssignments,
-  type DirectoryRole,
-  type DirectoryUser,
+  type DirectoryAccount,
 } from '../../../lib/api';
-import { assignmentStatusLabel, assignmentSummaryItems } from '../../admin-format';
-
-const roleLabel: Record<DirectoryRole, string> = {
-  admin: '기관 관리자',
-  counselor: '담당 실무자',
-  service: '서비스 계정',
-};
+import { accountRoleLabel, assignmentStatusLabel, assignmentSummaryItems } from '../../admin-format';
 
 // 관리자 영역 실무자 상세(재개편 T8, #38 · Figma 7:876). 이메일·역할·기관을 읽기 전용으로
 // 보여주고, 담당 당사자 목록과 배정 화면으로 잇는 '배정하기' 버튼을 둔다.
@@ -31,10 +24,12 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
   const { id } = await params;
   const userId = decodeURIComponent(id);
 
-  let user: DirectoryUser | undefined;
+  let user: DirectoryAccount | undefined;
   let directoryError: string | null = null;
   try {
-    user = (await listOrgUsers()).find((candidate) => candidate.id === userId);
+    // 디렉터리(역할 합)로 읽는다 — 구 /users 의 legacy role 은 역할 대기 계정을
+    // '담당 실무자'로 잘못 표시한다.
+    user = (await listDirectoryAccounts()).accounts.find((candidate) => candidate.id === userId);
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     directoryError = '실무자 정보를 지금 불러올 수 없습니다. 접근 권한을 확인하세요.';
@@ -74,9 +69,12 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
 
       <div className="wire-admin-form">
         <SearchInput label="이름" name="name" value={user.name ?? '미입력'} />
-        <SearchInput label="이메일" name="email" value={user.email} />
-        <SearchInput label="역할" name="role" value={roleLabel[user.role]} />
-        <SearchInput label="기관" name="org" value={user.orgId} />
+        <SearchInput label="이메일" name="email" value={user.email ?? '미입력'} />
+        <SearchInput
+          label="역할"
+          name="role"
+          value={user.roles.length === 0 ? '역할 대기' : user.roles.map((role) => accountRoleLabel[role]).join(', ')}
+        />
       </div>
 
       <section className="wire-admin-section" aria-label="담당 당사자">

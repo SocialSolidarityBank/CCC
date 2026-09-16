@@ -7,6 +7,7 @@ import {
 } from '@ccc/wire';
 import { SearchInput } from '../../components/wire/search-input';
 import { registerCounselorAction } from '../../actions';
+import { ApiError, getMyIdentity } from '../../lib/api';
 import { WorkerInviteIssue } from './worker-invite-issue';
 
 const noticeMessages: Record<string, string> = {
@@ -37,6 +38,17 @@ export default async function AdminInvitePage({ searchParams }: { searchParams: 
   const notice = queryValue(query, 'notice');
   const errorCode = queryValue(query, 'error');
 
+  // 초대에 담을 수 있는 역할은 발급자의 역할 합이 정한다(D86 결정 3) — 기관 관리자는
+  // 업무 역할을 골라 동봉하고, 기술 관리자만 있으면 역할 대기 초대만 만든다. 신원 조회가
+  // 실패하면 역할 칸 없는 폼으로 조용히 내려가면 기관 관리자가 역할을 못 담으므로,
+  // 그 경우는 카드 자리에 오류를 보여 준다.
+  let canGrantRoles: boolean | null = null;
+  try {
+    canGrantRoles = (await getMyIdentity()).roles.includes('institution-admin');
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+  }
+
   return (
     <>
       <PageTitle>실무자 초대</PageTitle>
@@ -56,7 +68,13 @@ export default async function AdminInvitePage({ searchParams }: { searchParams: 
       {/* 초대 링크 발급(CCC-108) — 링크를 받은 사람이 스스로 이름·이메일을 입력해 가입한다.
           래퍼는 admin 영역 세로 스택 관례(.wire-admin-section margin-top 24)다 — 등록 폼
           행과 이 카드가 여백 0 으로 붙어 있었다(2026-08-29 결함 ⑦). */}
-      <div className="wire-admin-section"><WorkerInviteIssue /></div>
+      <div className="wire-admin-section">
+        {canGrantRoles === null ? (
+          <WireError>내 역할을 확인할 수 없어 초대 링크를 만들 수 없습니다. 잠시 후 다시 시도하세요.</WireError>
+        ) : (
+          <WorkerInviteIssue canGrantRoles={canGrantRoles} />
+        )}
+      </div>
 
       {/* 구 '실무자 초대' 폼(이메일 칸 + 영구 비활성 '초대 보내기')은 없앴다(CCC-63).
           지금 되는 길은 둘이다 — 위의 직접 등록과 초대 링크(D86). 메일 자동 발송만

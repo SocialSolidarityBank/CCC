@@ -33,6 +33,9 @@ import {
   signupParticipant,
   createStaffInvite,
   acceptStaffInvite,
+  updateAccountRoles,
+  type AssignableRole,
+  type StaffInviteRole,
   createSubsequentParticipantProgram,
   editAiDraft,
   generateAiDraft,
@@ -1275,15 +1278,52 @@ export type StaffInviteResult =
 // 실무자 초대 발급(D86 · POST /staff-invites). 링크 조립·복사는 화면 몫이고 여기는
 // 토큰과 만료만 받아 넘긴다. 관리자 검사·감사는 API 게이트웨이가 강제한다(R1·D14).
 // 토큰은 이 응답에만 온다 — 목록·재조회는 토큰을 주지 않으므로 화면은 발급 직후 한 번만 보여 준다.
+const staffInviteRoles = ['institution_admin', 'institution_technical_admin', 'practitioner'] as const;
+
+// 초대에 담는 역할은 발급자의 역할 합이 정한다(D86 결정 3) — 화면이 고른 값을 그대로 넘기고
+// 허용 범위(기관 관리자는 1개 이상 필수, 기술 관리자는 빈 것만)는 서버가 강제한다.
 export async function createStaffInviteAction(formData: FormData): Promise<StaffInviteResult> {
   try {
     const email = requiredValue(formData, 'email').trim();
     if (email.length === 0 || email.length > 254) throw new FormInputError();
-    const invite = await createStaffInvite(email);
+    const roles = formData.getAll('roles').map((role) => {
+      if (typeof role !== 'string' || !staffInviteRoles.includes(role as StaffInviteRole)) throw new FormInputError();
+      return role as StaffInviteRole;
+    });
+    const invite = await createStaffInvite(email, roles);
     return { status: 'created', token: invite.token, email: invite.email, expiresAt: invite.expiresAt };
   } catch (error) {
     return { status: noticeFor(error) };
   }
+}
+
+export type AccountRolesResult =
+  | { status: 'updated' }
+  | { status: Notice };
+
+const assignableRoles = ['institution-admin', 'technical-admin', 'worker'] as const;
+
+function formRoles(formData: FormData, name: string): AssignableRole[] {
+  return formData.getAll(name).map((role) => {
+    if (typeof role !== 'string' || !assignableRoles.includes(role as AssignableRole)) throw new FormInputError();
+    return role as AssignableRole;
+  });
+}
+
+// 계정 역할 변경(PATCH /settings/accounts/:id/roles). expectedRoles 는 화면이 읽어 둔
+// 현재 역할을 그대로 싣는다 — 낙관적 동시성 검사를 우회하지 않는다. 역할 부여 권한
+// (기관 관리자)·마지막 관리자 보호·본인 관리자 역할 회수 금지는 전부 서버가 강제한다.
+export async function updateAccountRolesAction(formData: FormData): Promise<AccountRolesResult> {
+  try {
+    const userId = opaqueId(formData, 'userId');
+    const roles = formRoles(formData, 'roles');
+    const expectedRoles = formRoles(formData, 'expectedRoles');
+    await updateAccountRoles(userId, { roles, expectedRoles });
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+  revalidatePath('/admin/users');
+  return { status: 'updated' };
 }
 
 export type StaffInviteAcceptResult =

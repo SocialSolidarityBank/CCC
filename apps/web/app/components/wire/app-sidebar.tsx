@@ -4,7 +4,8 @@ import { WireBadge } from '@ccc/wire';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { NavIcon } from './shell-icons';
+import { NavIcon, type ShellIconName } from './shell-icons';
+import type { AdminMenuItem } from '../../admin/admin-format';
 import { OrgSwitcher } from './org-switcher';
 import { ProgramSwitcher, resolveActiveProgram } from './program-switcher';
 import { logoutAction } from '../../logout-action';
@@ -31,12 +32,10 @@ import { ORG_LABEL, PROGRAM_LABELS } from '../../lib/labels';
 // 활성 항목 --blue-tint 배경 + --gradient-brand 테두리. 클래스는 layout.tsx 의
 // .sidebar / .navigation-link / .sidebar-head / .sidebar-actions 를 그대로 쓴다.
 
-type NavIconName = 'upcoming' | 'calendar' | 'participants' | 'participant-add' | 'invite';
-
 interface NavItem {
   label: string;
   href: string;
-  icon: NavIconName;
+  icon: ShellIconName;
 }
 
 /**
@@ -58,7 +57,11 @@ interface NavSection {
  * 2026-08-30 Q 3차: 묶음 머리('일정'·'당사자')는 제목이고, 그 아래가 전부 같은 한 계층이다.
  * 목적지 이름은 현재 CONTEXT.md의 화면 표시명 표를 따른다.
  */
-function programMenu(programType: ParticipantProgramType, publicSignupEnabled: boolean): NavSection[] {
+function programMenu(
+  programType: ParticipantProgramType,
+  publicSignupEnabled: boolean,
+  adminItems: readonly AdminMenuItem[],
+): NavSection[] {
   return [
     {
       title: '일정',
@@ -77,6 +80,12 @@ function programMenu(programType: ParticipantProgramType, publicSignupEnabled: b
           : []),
       ],
     },
+    // '관리' 묶음은 내 역할이 여는 관리자 화면이 있을 때만 선다 — adminMenuFor 가 비면
+    // /admin 자체가 404 라서, 없는 곳으로 보내는 링크를 보여주지 않는다. 항목은
+    // 관리자 탭줄과 같은 정의(adminMenu)를 그대로 쓴다 — 두 벌 두면 권한이 갈라진다.
+    ...(adminItems.length > 0
+      ? [{ title: '관리', items: adminItems.map((item) => ({ label: item.label, href: item.href, icon: item.icon })) }]
+      : []),
   ];
 }
 
@@ -103,6 +112,12 @@ export interface AppSidebarProps {
   /** 기존 공개 가입 capability가 켜진 설치에서만 당사자 요청 링크 입구를 보인다. */
   publicSignupEnabled?: boolean;
   /**
+   * 내 역할이 여는 관리자 화면 목록. 루트 레이아웃이 GET /me 의 역할 합을
+   * adminMenuFor 로 걸러 넣는다. 생략·빈 배열이면 '관리' 묶음을 그리지 않는다
+   * (역할 대기·실무자만 있는 사람에게 404 목적지를 보여주지 않는다).
+   */
+  adminItems?: readonly AdminMenuItem[];
+  /**
    * 현재 테마 (D56 · ADR-0026). 루트 레이아웃이 쿠키에서 읽어 넣는다 — 여기서 직접 읽지
    * 않는 이유는 이 컴포넌트가 클라이언트이고 쿠키 판정은 첫 페인트 전에 끝나 있어야 하기
    * 때문이다. 생략하면 라이트로 그린다(테스트·스토리 렌더가 지금까지처럼 동작한다).
@@ -123,6 +138,7 @@ export function AppSidebar({
   theme = 'light',
   newSignupCount = 0,
   publicSignupEnabled = false,
+  adminItems = [],
 }: AppSidebarProps) {
   const pathname = usePathname();
   const current = activePath ?? pathname;
@@ -155,7 +171,7 @@ export function AppSidebar({
   // 워크스페이스 판정은 헤더와 같은 헬퍼를 쓴다(program-switcher.tsx) — 두 부품이 다른
   // 사업을 가리키면 메뉴와 전환기가 어긋난다.
   const activeProgram = resolveActiveProgram(current, programType);
-  const menu = programMenu(activeProgram, publicSignupEnabled);
+  const menu = programMenu(activeProgram, publicSignupEnabled, adminItems);
 
   // 하위 경로(예: 당사자 상세)에서도 그 메뉴가 활성으로 남아야 "지금 어디인지"가 유지된다.
   // '/participants' 가 '/participants/new' 까지 먹지 않도록 정확 일치 + 경계(/) 만 보고,

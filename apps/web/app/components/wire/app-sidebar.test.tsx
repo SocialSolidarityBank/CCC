@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
 import { AppSidebar } from './app-sidebar';
+import { adminMenuFor } from '../../admin/admin-format';
 import { DEFAULT_PROGRAM_TYPE, ORG_LABEL, PROGRAM_LABELS } from '../../lib/labels';
 
 // vitest 전역(globals) 미설정이라 자동 언마운트가 걸리지 않는다. 정리하지 않으면 파일이 끝난 뒤
@@ -269,5 +270,43 @@ describe('AppSidebar — 테마 전환 (D56 · ADR-0026)', () => {
   it('theme 을 안 주면 라이트다 — 다크는 명시적으로 켠 사람만 본다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     expect(themeButton(container)?.getAttribute('aria-pressed')).toBe('false');
+  });
+});
+
+describe('AppSidebar — 관리 묶음 (관리자 입구)', () => {
+  // '관리' 묶음은 내 역할이 여는 관리자 화면이 있을 때만 선다 — adminMenuFor 가 비면
+  // /admin 자체가 404 라서, 없는 곳으로 보내는 링크를 보여주지 않는다.
+  it('adminItems 가 없으면 관리 묶음을 그리지 않는다', () => {
+    const { container } = render(<AppSidebar activePath="/participants" />);
+    expect(container.textContent).not.toContain('관리');
+    expect(sidebarLinks(container).map((link) => link.label))
+      .toEqual(['일정', '상담 일정 등록', '당사자 목록', '당사자 등록']);
+  });
+
+  it('역할이 여는 관리자 화면이 관리 묶음 항목으로 선다', () => {
+    const { container } = render(
+      <AppSidebar activePath="/participants" adminItems={adminMenuFor(['institution-admin'])} />,
+    );
+    const links = sidebarLinks(container);
+    expect(links.map((link) => link.label)).toEqual([
+      '일정', '상담 일정 등록', '당사자 목록', '당사자 등록',
+      '기관', '배정', '사용자·역할', '실무자 초대',
+    ]);
+    expect(links.find((link) => link.label === '실무자 초대')?.href).toBe('/admin/invite');
+    expect(links.find((link) => link.label === '사용자·역할')?.href).toBe('/admin/users');
+    // 기술 관리자 전용 탭(AI·STT·연결)은 기관 관리자에게 보이지 않는다.
+    expect(links.some((link) => link.label === 'AI·STT·연결')).toBe(false);
+  });
+
+  it('기술 관리자에게는 자기 역할이 여는 항목만 보인다', () => {
+    const { container } = render(
+      <AppSidebar activePath="/participants" adminItems={adminMenuFor(['technical-admin'])} />,
+    );
+    const labels = sidebarLinks(container).map((link) => link.label);
+    expect(labels).toContain('사용자·역할');
+    expect(labels).toContain('실무자 초대');
+    expect(labels).toContain('AI·STT·연결');
+    expect(labels).not.toContain('기관');
+    expect(labels).not.toContain('배정');
   });
 });
