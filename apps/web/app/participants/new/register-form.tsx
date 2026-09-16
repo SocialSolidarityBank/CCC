@@ -253,8 +253,12 @@ export function RegisterForm({
               (audio-store.ts 형태)·열람 감사(D14)·보존 전환(D32·D46)이 함께 와야 한다.
               그 묶음은 다음 세션 몫이다(artifacts/ui-revision-sweep-v1/lane-b-prep.md §9-2). */}
           <div className="consent-upload-slot" data-state="pending">
-            <span className="consent-upload-slot-label">서명 동의서 첨부</span>
-            <WireBadge tone="lavender">준비 중</WireBadge>
+            {/* 라벨과 상태 배지는 한 줄이다(2026-09-14 Q · §4-9) — 구 구조는 배지를 라벨 다음
+                행에 두어 배지만 자기 줄을 썼다. */}
+            <span className="wire-title-with-badge">
+              <span className="consent-upload-slot-label">서명 동의서 첨부</span>
+              <WireBadge tone="lavender">준비 중</WireBadge>
+            </span>
             <p className="schedule-form-hint">
               종이에 자필 서명을 받거나 이메일·스캔으로 받은 동의서를 올리는 자리입니다. 파일 첨부는 아직 동작하지 않습니다.
             </p>

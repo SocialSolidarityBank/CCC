@@ -76,3 +76,14 @@ artifacts/ia-shots/
 # S13 fixture audio is fetched from the GitHub Release asset and never committed.
 artifacts/pilot/fixtures/s13-v1/audio/
 artifacts/pilot/fixtures/s13-v1/*.tar.gz
+
+# 캡처 시안 산출물(2026-09-14) — 생성기에서 매번 다시 만들어지므로 커밋하지 않는다.
+# 하니스 산출물과 같은 이유다: 커밋하면 부품이 바뀐 뒤에도 옛 화면이 남는다.
+artifacts/2026-09-14-screen-captures/*.html
+artifacts/2026-09-14-screen-captures/*.json
+artifacts/2026-09-14-screen-captures/*.woff2
+artifacts/2026-09-14-screen-captures/qa/
+artifacts/2026-09-14-screen-captures.zip
+artifacts/2026-09-14-width-contract/*.html
+artifacts/2026-09-14-width-contract/*.png
+artifacts/2026-09-14-width-contract/*.woff2

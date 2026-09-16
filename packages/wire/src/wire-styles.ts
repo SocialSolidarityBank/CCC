@@ -645,7 +645,10 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-item[data-tone]{padding:var(--space-3) var(--space-4);border-radius:var(--radius-control)}
 .wire-item[data-tone="mint"]{background:var(--mint-tint)}
 .wire-item[data-tone="lavender"]{background:var(--lavender-tint)}
-.wire-item-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+/* 제목 줄 = 제목 + 상태 배지 한 줄(2026-09-14 Q, §4-9). 배지 유무와 무관하게 높이 22를
+   예약해 §7 '배지가 여백을 바꾸지 않는다'를 지킨다. 이름은 줄어들고 배지는 줄지 않는다. */
+.wire-item-head{display:flex;align-items:center;gap:var(--space-2);min-width:0;min-height:var(--badge-height)}
+.wire-item-title{margin:0;min-width:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-item-desc{margin:0;font-size:var(--text-sm);color:var(--sub)}
 /* 구획(WireCardSection) 안에 WireItem 없이 바로 오는 읽는 값(§2-2 위계 4단 ③ 16/400
    --ink). 구획은 자식 규칙을 갖지 않으므로(위 §2-2 안내 참고) 화면이 이 클래스로 직접
@@ -1278,8 +1281,8 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .consent-upload-slot{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6);border:1px dashed var(--line-control);border-radius:var(--radius-control);background:var(--panel)}
 .consent-upload-slot-label{color:var(--sub);font-size:var(--text-sm);font-weight:600}
 /* '준비 중' 은 상태 표시다. 라벤더 = 'AI·승인 대기' 축이라 대기 상태가 그 축에 든다(D34).
-   모양은 공용 배지(.wire-badge[data-tone="lavender"])가 갖고, 여기는 그리드 안 자리만 잡는다. */
-.consent-upload-slot>.wire-badge{justify-self:start}
+   자리는 공용 .wire-title-with-badge 한 줄이 잡는다(2026-09-14 Q, §4-9). 구
+   .consent-upload-slot 직계 배지 규칙은 배지를 라벨 다음 행에 세웠다. */
 /* ── 날짜 선택(D48 · ADR-0020) ──────────────────────────────────────────────
    새 색·새 반경·새 그림자를 만들지 않는다 — 전부 기존 토큰의 조합이다.
    팝오버는 모달과 같은 표면 계약(흰 면 · radius 12 · --shadow-soft)이고 쌓임은
