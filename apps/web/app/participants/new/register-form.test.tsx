@@ -87,6 +87,17 @@ describe('당사자 등록 고지 로드', () => {
     expect(pageApiMocks.issueRegistrationConsentDisclosures).not.toHaveBeenCalled();
   });
 
+  it('사업 도입 확인 잠금이면 관리자 화면에서 할 일을 안내한다', async () => {
+    const { ApiError } = await import('../../lib/api');
+    pageApiMocks.issueRegistrationConsentDisclosures.mockRejectedValueOnce(new ApiError('conflict'));
+
+    const view = render(await NewParticipantPage({ searchParams: Promise.resolve({}) }));
+
+    expect(view.getByRole('alert').textContent).toContain('관리 > 기관');
+    expect(view.getByRole('alert').textContent).toContain('저장 위치와 처리 경로');
+    expect(view.container.querySelector('form')).toBeNull();
+  });
+
   it('새 고지 snapshot이 오면 이전 결정을 지우고 다시 선택받는다', async () => {
     const firstPage = await NewParticipantPage({ searchParams: Promise.resolve({}) });
     const view = render(firstPage);

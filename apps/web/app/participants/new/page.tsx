@@ -78,11 +78,16 @@ export default async function NewParticipantPage({
     disclosures = await issueRegistrationConsentDisclosures(program.id);
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
+    const message = error.code === 'conflict'
+      ? '사업 도입 확인이 필요합니다. 기관 관리자가 관리 > 기관에서 저장 위치와 처리 경로를 확인해 주세요.'
+      : error.code === 'access_denied' || error.code === 'forbidden'
+        ? '지금 당사자 등록 화면을 열 수 없습니다. 접근 권한을 확인하세요.'
+        : '지금 당사자 등록 화면을 열 수 없습니다. 잠시 후 다시 시도하세요.';
     return (
       <main className="page-content">
         <GridContainer>
           <PageTitle>당사자 등록</PageTitle>
-          <WireError>지금 당사자 등록 화면을 열 수 없습니다. 접근 권한을 확인하세요.</WireError>
+          <WireError>{message}</WireError>
         </GridContainer>
       </main>
     );
