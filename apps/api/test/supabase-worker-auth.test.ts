@@ -144,9 +144,27 @@ describe('Supabase Bearer 사람 신원 레인', () => {
     await revokeIdentitySession(t.env, 'session-one', 'logout');
     expect((await worker.fetch(bearer('/me', await supabaseToken()), env)).status).toBe(403);
     // 계정 해지: 해지 시각 이전에 발급된 토큰은 다른 세션이어도 죽는다.
+    // 토큰을 해지 **전에** 발급해 iat < revoked_at 을 보장한다 — iat 는 초 단위라
+    // 해지 뒤 발급은 초 경계를 넘으면 iat > revoked_at 이 되어 설계상 정상 통과
+    // (재로그인)가 되고, 이 테스트가 시간에 따라 갈렸다.
+    const staleToken = await supabaseToken({ session_id: 'session-two' });
     await revokeActorSessions(t.env, testActors.counselor.userId, 'admin-disable');
-    expect((await worker.fetch(
-      bearer('/me', await supabaseToken({ session_id: 'session-two' })), env)).status).toBe(403);
+    expect((await worker.fetch(bearer('/me', staleToken), env)).status).toBe(403);
+  });
+
+  it('계정 해지 뒤 새로 발급된 토큰은 다시 통과한다 — 재로그인이 회수를 이긴다', async () => {
+    await t.reset();
+    await linkSubject(testActors.counselor.userId, WORKER_SUB);
+    const env = supabaseEnv();
+    await revokeActorSessions(t.env, testActors.counselor.userId, 'admin-disable');
+    // 해지 **뒤** 발급을 결정적으로 표현한다. iat 는 초 단위라 같은 초에 발급하면
+    // revoked_at(밀리초)보다 앞서 보이므로, 검증기의 60초 여유 안에서 iat 를
+    // 명시적으로 미래로 둔다.
+    const fresh = await supabaseToken({
+      session_id: 'session-two',
+      iat: Math.floor(Date.now() / 1000) + 2,
+    });
+    expect((await worker.fetch(bearer('/me', fresh), env)).status).toBe(200);
   });
 
   it('로그아웃이 Supabase 세션을 해지하고 이후 요청은 403 이다', async () => {
