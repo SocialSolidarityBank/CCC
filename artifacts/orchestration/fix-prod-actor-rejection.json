@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "date": "2026-09-16",
+  "rootCause": {
+    "file": "adapters/identity-supabase/src/verifier.ts",
+    "line": 77,
+    "what": "JWKS fetch 가 RequestInit.redirect:'error' 를 썼다. workerd 는 그 값을 구현하지 않아 fetch 호출 자체가 TypeError 를 던지고, catch 가 IdentityStoreUnavailableError 로 감싸 503 이 된다. 웹은 503 을 'service_unavailable' 로 읽어 모든 업무 화면이 '불러올 수 없습니다. 접근 권한을 확인하세요' 를 보였다.",
+    "evidence": [
+      "실제 Supabase 토큰(magiclink 발급)의 claim·서명이 verifier 의 모든 검사를 통과함을 Node 에서 실제 JWKS 로 확인 — 토큰·iss·aud·aal·is_anonymous·session_id·exp-iat=3600 전부 정상",
+      "같은 fetch init 을 miniflare(workerd)에서 실행하면 'TypeError: Invalid redirect value, must be one of \"follow\" or \"manual\"' — compat date·플래그와 무관",
+      "redirect:'manual' + cache:'no-store' 는 같은 workerd 에서 200 으로 JWKS 를 받아옴",
+      "운영 재현: 신선한 토큰을 Cookie: ccc_auth 로 실어 /participants·/settings 호출 → 오류 문구 재현. /settings 는 '잠시 후 다시 시도하세요'(service_unavailable=503)로 갈려 401/403 이 아님을 확정"
+    ]
+  },
+  "candidates": [
+    {
+      "name": "웹이 토큰을 싣지 않는다",
+      "verdict": "버림",
+      "evidence": "apps/web/app/lib/api.ts:1364-1407 authCookieValue 가 ccc_auth 를 읽어 Authorization: Bearer 로 싣는다. 쿠키 이름은 auth-cookie.ts 의 AUTH_COOKIE_NAME='ccc_auth' 로 로그인 경로(login/unlock/route.ts:48)와 동일. 운영에서 쿠키를 실어내면 페이지가 렌더되고(로그인 리다이렉트가 아님) API 오류 문구가 뜬다 — 쿠키는 도달했다."
+    },
+    {
+      "name": "웹 워커에 CCC_SUPABASE_AUTH_ORIGIN 이 없다",
+      "verdict": "버림",
+      "evidence": "apps/web/wrangler.jsonc vars 에 CCC_SUPABASE_AUTH_ORIGIN 이 있다. 그리고 Main 의 재현은 쿠키를 직접 실은 것이라 웹의 Supabase 클라이언트와 무관하다 — 이 후보로는 재현이 설명되지 않는다."
+    },
+    {
+      "name": "API 리졸버 순서가 Bearer 를 먼저 거부한다",
+      "verdict": "버림",
+      "evidence": "apps/api/src/index.ts:83-89 — agent-bearer 는 43자 opaque 정규식만 잡고 JWT(점 포함)는 inner 로 흘린다. inner 는 hasSupabaseBearerCredential 이면 supabase.resolve, 아니면 Access 레인. supabase.resolve 가 던진 오류는 다음 레인으로 넘기지 않지만, 그 자체가 의도된 fail-closed 이고 503 의 원인은 그 안의 JWKS fetch 였다."
+    },
+    {
+      "name": "토큰 검증(issuer·aud) 불일치",
+      "verdict": "버림 — 단 그 안의 fetch 가 원인",
+      "evidence": "issuer 는 supabase-identity.ts:35 가 origin 에 '/auth/v1' 를 더해 만들고 실제 토큰 iss 와 일치. aud='authenticated'·role·aal·is_anonymous·session_id·exp-iat=3600 모두 통과. 서명도 실제 JWKS 로 검증 통과. 다만 그 검증에 도달하기 전 JWKS fetch 자체가 workerd 에서 던졌다 — claim 검사가 아니라 fetch 옵션이 원인."
+    },
+    {
+      "name": "디렉터리 조회 조건",
+      "verdict": "버림",
+      "evidence": "resolveDirectoryActorByAuthSubject(gateway.ts:14485)는 auth_subject·active=1·미해지만 본다. 운영 users 행은 auth_subject 일치·active=1·org_id 있음·auth_revocations 0행. role=admin 은 service 가 아니라 kind='human' 으로 해석된다. 디렉터리까지 도달하지 못했다."
+    }
+  ],
+  "fix": {
+    "commits": [
+      {
+        "sha": "e1bca186",
+        "what": "verifier.ts redirect:'error'→'manual' + workerd 회귀 테스트(supabase-workerd.test.ts + 엔트리) + 포스트모텀"
+      },
+      {
+        "sha": "5a4520b9",
+        "what": "workerd 테스트의 번들러를 esbuild JS API 로 바꾸고 @ccc/api devDependencies 에 esbuild@0.28.1 선언(CI 에 .bin/esbuild 없어 ENOENT 났던 것)"
+      },
+      {
+        "sha": "a64a3012",
+        "what": "notify.ts 웹훅 fetch 도 같은 redirect:'error'→'manual' + notify-workerd.test.ts 회귀 시험 (Main 승인으로 범위에 추가 — 워치독 알림이 운영에서 한 번도 나가지 않던 조용한 실패)"
+      }
+    ],
+    "regressionTests": {
+      "supabase-workerd.test.ts": "실제 워커 배선(createWorkerSupabaseIdentity+adaptD1Environment)을 esbuild 로 묶어 miniflare 의 진짜 workerd 에서 돌린다. 수정 전 503(2/2 실패), 수정 후 연결된 subject 200·미연결 subject 403.",
+      "notify-workerd.test.ts": "workerd 안에서 notifyAdmins 를 호출해 웹훅 POST 가 실제로 나가고 본문에 알림이 담기는지 검사. 수정 전 웹훅 미도달(실패), 수정 후 통과.",
+      "identity-supabase.test.ts": "기존 fetch 스파이 단언을 redirect:'manual' 로 갱신 — '리다이렉트를 따르지 않는다'는 계약은 유지."
+    }
+  },
+  "otherLatentSameDefect": {
+    "fixed": ["packages/core/src/notify.ts:37 (workerd — 워치독 웹훅)"],
+    "unaffected_node_side": [
+      "adapters/audio-signer/src/index.ts:119",
+      "apps/community-cloud/src/storage-signer.ts:161,554",
+      "apps/api/eval/run-memory-trial.ts",
+      "apps/client/src/business/installation.ts:70, transport.ts:78,174,211, auth.ts:129"
+    ],
+    "unaffected_workerd": "apps/web 의 cache:'no-store' 는 compat date 2026-07-15 에서 지원됨 — 실측으로 확인"
+  },
+  "webhookSecret": "NOTIFY_WEBHOOK_URL 은 운영 ccc-api 시크릿에 설정돼 있다(wrangler secret list 로 이름만 확인, 값 미출력).",
+  "validation": {
+    "typecheck": "pnpm run typecheck 전체 통과",
+    "apiTests": "pnpm --filter @ccc/api run test — 116 파일 1308 테스트 전부 통과",
+    "guard:sql-dialect": "통과 (41 migrations)",
+    "guard:db": "통과",
+    "ci": "main a64a3012 CI run 35066916514 success. 이전 실행의 discrepancies.test.ts 타임아웃 2건은 99d8327d 에서도 같은 파일이 죽은 기존 플레이크 — backlog 에 덧붙였다."
+  },
+  "deploy": {
+    "workflowRun": "https://github.com/SocialSolidarityBank/CCC/actions/runs/35070213368",
+    "status": "verify 잡 진행 중 — 승인 게이트 도달 시 승인 주소를 Main 에 전달한다"
+  },
+  "constraints": {
+    "permissionWeakening": 0,
+    "prodDbChanges": 0,
+    "accessRemoval": 0,
+    "secretValuesPrinted": 0
+  },
+  "postmortem": "docs/postmortems/2026-09-16-workerd-fetch-redirect-error.md"
+}
