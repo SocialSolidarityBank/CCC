@@ -73,8 +73,12 @@ export function createVerifier(config: SupabaseIdentityConfig): (token: string) 
     lastAttempt = now();
     const attempt = (async () => {
       try {
+        // workerd 는 redirect:'error' 를 구현하지 않아 TypeError 를 던진다(2026-09-16 운영
+        // 503 원인). 'manual' 로 두면 3xx 가 그대로 돌아오고 아래 !response.ok 가 걸러낸다 —
+        // 리다이렉트 추종 금지 의미는 보존된다. cache:'no-store' 는 compat date 2026-07-06
+        // 이상에서 지원된다.
         const response = await fetcher(jwksUri, {
-          method: 'GET', redirect: 'error', credentials: 'omit', cache: 'no-store',
+          method: 'GET', redirect: 'manual', credentials: 'omit', cache: 'no-store',
           headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000),
         });
         if (!response.ok || response.redirected || (response.url !== '' && response.url !== jwksUri) || response.body === null) throw new Error();
