@@ -1,0 +1,2839 @@
+{
+  "generated": "2026-09-16",
+  "repo": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new",
+  "main": "26556f30",
+  "method": "path-restricted tip-vs-tip diff vs origin/main + ancestor check + merged-PR headRefOid match; squash merge means --merged/ahead-behind unusable",
+  "counts": {
+    "branches": 73,
+    "worktrees": 25,
+    "delete": 38,
+    "keep": 33,
+    "ambiguous": 2
+  },
+  "stash": [
+    "stash@{0}: autostash (untouched, owner unknown)"
+  ],
+  "root_worktree": {
+    "head": "4352d321 detached (on main, behind 26556f30)",
+    "untracked": [
+      ".pi/",
+      "inbox/"
+    ]
+  },
+  "worktrees": [
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new",
+      "branch": null,
+      "head": "4352d321",
+      "dirty": 2,
+      "tmp": false,
+      "protected": false
+    },
+    {
+      "path": "/private/tmp/ccc-b-int",
+      "branch": "integrate/staff-identity",
+      "head": "f163c435",
+      "dirty": 0,
+      "tmp": true,
+      "protected": false
+    },
+    {
+      "path": "/private/tmp/ccc-consent",
+      "branch": "client/consent-agree-all",
+      "head": "c04bbe8f",
+      "dirty": 0,
+      "tmp": true,
+      "protected": false
+    },
+    {
+      "path": "/private/tmp/ccc-deploy",
+      "branch": null,
+      "head": "ad218e8e",
+      "dirty": 0,
+      "tmp": true,
+      "protected": false
+    },
+    {
+      "path": "/private/tmp/ccc-join",
+      "branch": "auth/invite-binds-identity",
+      "head": "7fee1ca4",
+      "dirty": 0,
+      "tmp": true,
+      "protected": false
+    },
+    {
+      "path": "/private/tmp/ccc-mfa",
+      "branch": "auth/mfa-optional",
+      "head": "c0d9c4df",
+      "dirty": 0,
+      "tmp": true,
+      "protected": false
+    },
+    {
+      "path": "/private/tmp/ccc-roles",
+      "branch": "auth/invite-role-cap",
+      "head": "5d540f1e",
+      "dirty": 0,
+      "tmp": true,
+      "protected": false
+    },
+    {
+      "path": "/private/tmp/identity-link-api",
+      "branch": "api/identity-link",
+      "head": "939cd32d",
+      "dirty": 0,
+      "tmp": true,
+      "protected": false
+    },
+    {
+      "path": "/private/tmp/staff-join-credentials",
+      "branch": "client/staff-join-credentials",
+      "head": "0192c1e2",
+      "dirty": 0,
+      "tmp": true,
+      "protected": false
+    },
+    {
+      "path": "/tmp/ccc-shellfix",
+      "branch": "client/shell-update-banner",
+      "head": "f18bd240",
+      "dirty": 0,
+      "tmp": true,
+      "protected": false
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/API",
+      "branch": "release/s12-recovery",
+      "head": "7e195217",
+      "dirty": 0,
+      "tmp": false,
+      "protected": true
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/auth-direct",
+      "branch": "feat/direct-login",
+      "head": "e60fc644",
+      "dirty": 16,
+      "tmp": false,
+      "protected": true
+    },
+    {
+      "path": "/Users/seongqkim/developer/PROJECTS/CCC-new/.worktrees/backend",
+      "branch": "policy/stt-client-ownership",
+      "head": "5267931d",
+      "dirty": 1,
+      "tmp": false,
+      "protected": true
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+      "branch": "orchestrate/beta-0.9",
+      "head": "f080ee24",
+      "dirty": 107,
+      "tmp": false,
+      "protected": true
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity",
+      "branch": "integrate/relayer-domain-beta",
+      "head": "7c7b632d",
+      "dirty": 0,
+      "tmp": false,
+      "protected": true
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/DESIGN",
+      "branch": "design/web-month-calendar",
+      "head": "35d7f5b8",
+      "dirty": 108,
+      "tmp": false,
+      "protected": true
+    },
+    {
+      "path": "/Users/seongqkim/developer/PROJECTS/CCC-new/.worktrees/e2-1-screen-api-probe",
+      "branch": "e2-1-screen-api-probe",
+      "head": "ead49ecf",
+      "dirty": 4,
+      "tmp": false,
+      "protected": false
+    },
+    {
+      "path": "/Users/seongqkim/developer/PROJECTS/CCC-new/.worktrees/e5-4-privacy-generalization",
+      "branch": "e5-4-privacy-generalization",
+      "head": "99d7b41c",
+      "dirty": 16,
+      "tmp": false,
+      "protected": false
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+      "branch": "client/relayer-domain-beta",
+      "head": "a67e00fd",
+      "dirty": 1,
+      "tmp": false,
+      "protected": true
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/onboarding",
+      "branch": "feat/relayer-onboarding",
+      "head": "cda3c1ca",
+      "dirty": 4,
+      "tmp": false,
+      "protected": true
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+      "branch": "integrate/ccc291-parity",
+      "head": "84d721d9",
+      "dirty": 14,
+      "tmp": false,
+      "protected": false
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/PLANNER",
+      "branch": "docs/privacy-stt-prerequisites",
+      "head": "b843aee0",
+      "dirty": 1,
+      "tmp": false,
+      "protected": false
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/release-16",
+      "branch": "release/0916",
+      "head": "386d67dc",
+      "dirty": 2,
+      "tmp": false,
+      "protected": false
+    },
+    {
+      "path": "/Users/seongqkim/developer/PROJECTS/CCC-new/.worktrees/sg15-long-ai",
+      "branch": "sg15-long-ai",
+      "head": "09d6e01b",
+      "dirty": 1,
+      "tmp": false,
+      "protected": false
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/VALIDATION",
+      "branch": "verify/beta-backend",
+      "head": "1faffd23",
+      "dirty": 1,
+      "tmp": false,
+      "protected": false
+    }
+  ],
+  "branches": [
+    {
+      "name": "api/identity-link",
+      "sha": "939cd32d",
+      "date": "2026-09-12",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 2833,
+      "main_only_lines": 5001,
+      "files_missing_on_main": [
+        "apps/api/test/identity-link.test.ts"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[ahead 2, behind 15]",
+      "worktree": "/private/tmp/identity-link-api",
+      "dirty": 0,
+      "prs": [],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "ancestor-of integrate/staff-identity(#330)"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "archive/ccc237-input-a98b9f23642f",
+      "sha": "38254876",
+      "date": "2026-09-13",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 15801,
+      "main_only_lines": 15702,
+      "files_missing_on_main": [
+        "apps/pipeline/ccc_pipeline/secure_memory.py",
+        "apps/pipeline/tests/test_secure_memory.py",
+        "artifacts/relayer-prior-work/ccc237-source-inventory.json",
+        "docs/superpowers/plans/2026-09-06-CCC-237-privacy-generalization.md",
+        "scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json",
+        "scripts/privacy/fixtures/s6-release-ko-v1.json",
+        "scripts/privacy/qualify_ner.py",
+        "scripts/privacy/test_qualify_ner.py"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "archive/* 이름이 보존 의도",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "archive/frontend-wip-20260826",
+      "sha": "828e1409",
+      "date": "2026-08-26",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 4068,
+      "main_only_lines": 2429,
+      "files_missing_on_main": [
+        "apps/web/app/components/wire/participant-hero-card.test.tsx",
+        "apps/web/app/components/wire/participant-hero-card.tsx",
+        "apps/web/app/components/wire/participant-name.test.tsx",
+        "apps/web/app/components/wire/participant-name.tsx",
+        "apps/web/app/kit/card-boundary-prototype/card-boundary-prototype.module.css",
+        "apps/web/app/kit/card-boundary-prototype/card-boundary-prototype.tsx",
+        "apps/web/app/kit/card-boundary-prototype/page.tsx",
+        "apps/web/app/kit/participant-card-prototype/page.tsx",
+        "docs/superpowers/plans/2026-08-26-schedule-multi-view.md"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "archive/* 이름이 보존 의도",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "archive/main-pre-postmortem-20260730",
+      "sha": "01be50d1",
+      "date": "2026-07-30",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 63,
+      "main_only_lines": 108,
+      "files_missing_on_main": [
+        "STATUS.md"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "archive/* 이름이 보존 의도",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "archive/ooo-orch-712793-wip-20260830",
+      "sha": "f9a71860",
+      "date": "2026-08-30",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 2033,
+      "main_only_lines": 1164,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "archive/* 이름이 보존 의도",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "archive/ooo-orch-d83b44-wip-20260830",
+      "sha": "6d8edb28",
+      "date": "2026-08-30",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 33,
+      "main_only_lines": 103,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "archive/* 이름이 보존 의도",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "auth/invite-binds-identity",
+      "sha": "7fee1ca4",
+      "date": "2026-09-12",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 2812,
+      "main_only_lines": 5361,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": "/private/tmp/ccc-join",
+      "dirty": 0,
+      "prs": [
+        {
+          "number": 334,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #334"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "auth/invite-role-cap",
+      "sha": "5d540f1e",
+      "date": "2026-09-12",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 2576,
+      "main_only_lines": 4905,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": "/private/tmp/ccc-roles",
+      "dirty": 0,
+      "prs": [
+        {
+          "number": 335,
+          "state": "OPEN",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "KEEP",
+      "reason": "열린 PR #335",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "auth/mfa-optional",
+      "sha": "c0d9c4df",
+      "date": "2026-09-12",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 2041,
+      "main_only_lines": 5055,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": "/private/tmp/ccc-mfa",
+      "dirty": 0,
+      "prs": [
+        {
+          "number": 333,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #333"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "chore/design-canon-finalization",
+      "sha": "929d0390",
+      "date": "2026-09-02",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 281,
+      "main_only_lines": 854,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[gone]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 232,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #232"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "chore/hierarchy-font-verification",
+      "sha": "d6961ed0",
+      "date": "2026-09-02",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1416,
+      "main_only_lines": 213,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 234,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #234"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "chore/vitest-hook-timeout",
+      "sha": "02d812b9",
+      "date": "2026-09-04",
+      "verdict": "MERGED",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 264,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "path-diff-empty",
+        "tip==merged-PR-head #264"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "client/consent-agree-all",
+      "sha": "c04bbe8f",
+      "date": "2026-09-12",
+      "verdict": "MERGED",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": "/private/tmp/ccc-consent",
+      "dirty": 0,
+      "prs": [
+        {
+          "number": 331,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "path-diff-empty",
+        "tip==merged-PR-head #331"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "client/relayer-domain-beta",
+      "sha": "a67e00fd",
+      "date": "2026-09-15",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1288,
+      "main_only_lines": 32575,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+      "dirty": 1,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "살아 있는 레인 워크트리 frontend",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "client/shell-update-banner",
+      "sha": "f18bd240",
+      "date": "2026-09-12",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 8,
+      "main_only_lines": 9,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": "/tmp/ccc-shellfix",
+      "dirty": 0,
+      "prs": [
+        {
+          "number": 332,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #332"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "client/staff-join-credentials",
+      "sha": "0192c1e2",
+      "date": "2026-09-12",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 471,
+      "main_only_lines": 832,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[ahead 1, behind 15]",
+      "worktree": "/private/tmp/staff-join-credentials",
+      "dirty": 0,
+      "prs": [],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "ancestor-of integrate/staff-identity(#330)"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "core/relayer-domain-beta",
+      "sha": "af2bf330",
+      "date": "2026-09-15",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 493,
+      "main_only_lines": 28648,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "내용 main 에 없음 (원격 없음: 단일 사본)",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "deploy/v0.5.1",
+      "sha": "9eb685da",
+      "date": "2026-09-04",
+      "verdict": "MERGED-EMPTY",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": true,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 266,
+          "state": "MERGED",
+          "tip_is_pr_head": false,
+          "commits_after_pr": 6
+        },
+        {
+          "number": 236,
+          "state": "MERGED",
+          "tip_is_pr_head": false,
+          "commits_after_pr": 37
+        }
+      ],
+      "class": "DELETE",
+      "reason": "태그 v0.5.1 존재 + 내용 main 반영",
+      "proof": [
+        "ancestor-of-main",
+        "path-diff-empty"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "deploy/v0.7.0",
+      "sha": "b7e900d0",
+      "date": "2026-09-08",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 7,
+      "main_only_lines": 16,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 309,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "태그 v0.7.0 존재 + 내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #309"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "deploy/v0.9.0",
+      "sha": "1bcd2808",
+      "date": "2026-09-09",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 4,
+      "main_only_lines": 11,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[gone]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 324,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "태그 v0.9.0 존재 + 내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #324"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "design/session-2026-09-08-2",
+      "sha": "02750ffd",
+      "date": "2026-09-08",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1744,
+      "main_only_lines": 250,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 303,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #303"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "design/w03-intake-v2",
+      "sha": "55b8e9aa",
+      "date": "2026-09-16",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1652,
+      "main_only_lines": 33588,
+      "files_missing_on_main": [
+        "apps/web/app/join/worker/[token]/signup-form.tsx"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "내용 main 에 없음 (원격 없음: 단일 사본)",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "design/web-month-calendar",
+      "sha": "35d7f5b8",
+      "date": "2026-09-16",
+      "verdict": "MERGED",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/DESIGN",
+      "dirty": 108,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "살아 있는 레인 워크트리 DESIGN",
+      "proof": [
+        "path-diff-empty"
+      ],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "design/wire-link-boundary",
+      "sha": "9a627522",
+      "date": "2026-09-08",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 196,
+      "main_only_lines": 125,
+      "files_missing_on_main": [
+        "apps/web/app/components/wire/wire-button.tsx"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 304,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #304"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "design/work",
+      "sha": "d35dbaab",
+      "date": "2026-09-10",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 491,
+      "main_only_lines": 1839,
+      "files_missing_on_main": [
+        "apps/web/app/join/worker/[token]/signup-form.tsx"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[ahead 13, behind 18]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "AMBIGUOUS",
+      "reason": "main 에 없으나 design/w03-intake-v2 가 상위집합(ancestor). 그 브랜치가 살면 손실 0",
+      "proof": [],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "docs/privacy-stt-prerequisites",
+      "sha": "b843aee0",
+      "date": "2026-09-16",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 512,
+      "main_only_lines": 32,
+      "files_missing_on_main": [
+        "docs/superpowers/plans/2026-09-13-planner-handoff.md"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/PLANNER",
+      "dirty": 1,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "워크트리 PLANNER 미커밋 1건",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "docs/release-v0.4.0",
+      "sha": "b8189ef4",
+      "date": "2026-09-02",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1,
+      "main_only_lines": 8,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[gone]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 214,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "태그 v0.4.0 존재 + 내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #214"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "docs/release-v0.5.0",
+      "sha": "0a50041a",
+      "date": "2026-09-02",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1,
+      "main_only_lines": 7,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[gone]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 216,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "태그 v0.5.0 존재 + 내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #216"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "docs/release-v0.7.0",
+      "sha": "5a845280",
+      "date": "2026-09-08",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1,
+      "main_only_lines": 3,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 311,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "태그 v0.7.0 존재 + 내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #311"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "docs/release-v0.9.0",
+      "sha": "a2e26e96",
+      "date": "2026-09-09",
+      "verdict": "MERGED",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[gone]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 326,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "태그 v0.9.0 존재 + 내용 main 반영",
+      "proof": [
+        "path-diff-empty",
+        "tip==merged-PR-head #326"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "e2-1-screen-api-probe",
+      "sha": "ead49ecf",
+      "date": "2026-09-03",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 2745,
+      "main_only_lines": 0,
+      "files_missing_on_main": [
+        "docs/superpowers/plans/2026-09-03-E2-1-screen-api-probe.md",
+        "scripts/fixtures/e2-1-screen-api-fixture.json",
+        "scripts/verify-screen-api-map.mjs",
+        "scripts/verify-screen-api-map.test.mjs"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": "/Users/seongqkim/developer/PROJECTS/CCC-new/.worktrees/e2-1-screen-api-probe",
+      "dirty": 4,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "워크트리 e2-1-screen-api-probe 미커밋 4건",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "e3-1b-encrypted-sqlite",
+      "sha": "23886842",
+      "date": "2026-09-05",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 57,
+      "main_only_lines": 1098,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 273,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #273"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "e3-2-common-sql-subset",
+      "sha": "7b5f936c",
+      "date": "2026-09-05",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 3756,
+      "main_only_lines": 12824,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 275,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #275"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "e5-1a-agent-job-contract-v2",
+      "sha": "99fc707a",
+      "date": "2026-09-05",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 6025,
+      "main_only_lines": 19619,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 277,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #277"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "e5-2-local-stt-candidate",
+      "sha": "a8dfcc67",
+      "date": "2026-09-05",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 314,
+      "main_only_lines": 2412,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 280,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #280"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "e5-4-privacy-generalization",
+      "sha": "99d7b41c",
+      "date": "2026-09-05",
+      "verdict": "MERGED-EMPTY",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": true,
+      "remote": false,
+      "track": "",
+      "worktree": "/Users/seongqkim/developer/PROJECTS/CCC-new/.worktrees/e5-4-privacy-generalization",
+      "dirty": 16,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "워크트리 e5-4-privacy-generalization 미커밋 16건",
+      "proof": [
+        "ancestor-of-main",
+        "path-diff-empty"
+      ],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "e5-8-benchmark-watch",
+      "sha": "99d7b41c",
+      "date": "2026-09-05",
+      "verdict": "MERGED-EMPTY",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": true,
+      "remote": false,
+      "track": "[behind 58]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "ancestor-of-main",
+        "path-diff-empty"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "e5-8-stt-benchmark",
+      "sha": "471f7528",
+      "date": "2026-09-08",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 281,
+      "main_only_lines": 2292,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 296,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #296"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "feat/chevron-button-badge-alignment",
+      "sha": "e759cdd7",
+      "date": "2026-09-02",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 3099,
+      "main_only_lines": 2887,
+      "files_missing_on_main": [
+        "apps/web/app/components/wire/chevron.test.tsx",
+        "apps/web/app/components/wire/chevron.tsx",
+        "apps/web/app/components/wire/wire-badge.tsx",
+        "apps/web/app/components/wire/wire-callout.tsx"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[gone]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 212,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #212"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "feat/consent-g2",
+      "sha": "9d73fba7",
+      "date": "2026-07-30",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 15004,
+      "main_only_lines": 2785,
+      "files_missing_on_main": [
+        "STATUS.md",
+        "apps/api/src/request-handler.ts",
+        "db/gateway.ts",
+        "migrations/0029_pii_legal_hold_and_retention_cap.sql"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "내용 main 에 없음",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "feat/design-adjustments",
+      "sha": "bb636fb5",
+      "date": "2026-09-02",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 23332,
+      "main_only_lines": 3016,
+      "files_missing_on_main": [
+        "apps/api/src/request-handler.ts",
+        "apps/web/app/components/wire/participant-hero-card.test.tsx",
+        "apps/web/app/components/wire/participant-hero-card.tsx",
+        "apps/web/app/components/wire/wire-icon.tsx",
+        "db/gateway.ts"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[gone]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 215,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #215"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "feat/direct-login",
+      "sha": "e60fc644",
+      "date": "2026-09-16",
+      "verdict": "MERGED-EMPTY",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "[ahead 10]",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/auth-direct",
+      "dirty": 16,
+      "prs": [
+        {
+          "number": 337,
+          "state": "MERGED",
+          "tip_is_pr_head": false,
+          "commits_after_pr": 10
+        }
+      ],
+      "class": "KEEP",
+      "reason": "살아 있는 레인 워크트리 auth-direct",
+      "proof": [
+        "path-diff-empty"
+      ],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "feat/frontend-adjustments",
+      "sha": "77089620",
+      "date": "2026-09-02",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1,
+      "main_only_lines": 4,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[ahead 1, behind 111]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "AMBIGUOUS",
+      "reason": "main 에 없는 내용이 .gitignore 한 줄(/.superpowers/) 뿐",
+      "proof": [],
+      "needs_backup_ref": true,
+      "status": "held"
+    },
+    {
+      "name": "feat/relayer-onboarding",
+      "sha": "cda3c1ca",
+      "date": "2026-09-14",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 6100,
+      "main_only_lines": 108,
+      "files_missing_on_main": [
+        "docs/adr/0050-relayer-assisted-onboarding.md",
+        "docs/superpowers/plans/2026-09-13-relayer-onboarding-handoff.md",
+        "docs/superpowers/plans/2026-09-13-relayer-onboarding-implementation.md",
+        "docs/superpowers/plans/2026-09-14-relayer-auth-drift-reconciliation.md",
+        "docs/superpowers/specs/2026-09-13-relayer-onboarding-design.md",
+        "docs/superpowers/specs/2026-09-14-relayer-auth-drift-reconciliation-design.md",
+        "scripts/onboarding/cli.mjs",
+        "scripts/onboarding/cloud.mjs",
+        "scripts/onboarding/cloud.test.mjs",
+        "scripts/onboarding/first-admin.mjs",
+        "scripts/onboarding/first-admin.test.mjs",
+        "scripts/onboarding/flow.mjs",
+        "scripts/onboarding/flow.test.mjs",
+        "scripts/supabase/auth-config.mjs",
+        "scripts/supabase/auth-config.test.mjs"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/onboarding",
+      "dirty": 4,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "살아 있는 레인 워크트리 onboarding",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "feat/unified-chevron-system",
+      "sha": "d4468795",
+      "date": "2026-09-02",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 3177,
+      "main_only_lines": 3095,
+      "files_missing_on_main": [
+        "apps/web/app/components/wire/chevron.test.tsx",
+        "apps/web/app/components/wire/chevron.tsx",
+        "apps/web/app/components/wire/wire-callout.tsx",
+        "apps/web/app/components/wire/wire-card.tsx"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[gone]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 211,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #211"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "fix/participant-detail-alignment",
+      "sha": "fd171312",
+      "date": "2026-09-01",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 2302,
+      "main_only_lines": 2455,
+      "files_missing_on_main": [
+        "apps/web/app/components/wire/wire-callout.tsx"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 209,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #209"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "fix/participant-ui-alignment",
+      "sha": "8d6c7ed5",
+      "date": "2026-08-31",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 2371,
+      "main_only_lines": 2532,
+      "files_missing_on_main": [
+        "apps/web/app/components/wire/participant-hero-card.test.tsx"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 208,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #208"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "frontend/beta-0.9-client",
+      "sha": "7102564a",
+      "date": "2026-09-11",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 3636,
+      "main_only_lines": 8239,
+      "files_missing_on_main": [
+        "apps/web/app/components/wire/wire-button.tsx",
+        "apps/web/app/components/wire/wire-month-calendar.test.tsx",
+        "apps/web/app/components/wire/wire-month-calendar.tsx"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "[behind 4]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 329,
+          "state": "MERGED",
+          "tip_is_pr_head": false,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #329"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "frontend/main",
+      "sha": "e444805a",
+      "date": "2026-09-09",
+      "verdict": "MERGED-EMPTY",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": true,
+      "remote": false,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "ancestor-of-main",
+        "path-diff-empty"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "integrate/beta-0.9-api",
+      "sha": "cca7531c",
+      "date": "2026-09-11",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 5299,
+      "main_only_lines": 53915,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "[ahead 21]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 327,
+          "state": "MERGED",
+          "tip_is_pr_head": false,
+          "commits_after_pr": 21
+        }
+      ],
+      "class": "KEEP",
+      "reason": "내용 main 에 없음",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "integrate/ccc291-parity",
+      "sha": "84d721d9",
+      "date": "2026-09-16",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1848,
+      "main_only_lines": 2952,
+      "files_missing_on_main": [
+        "apps/web/app/join/worker/[token]/signup-form.tsx",
+        "artifacts/orchestration/new-project-provision.json"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+      "dirty": 14,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "워크트리 parity-291 미커밋 14건",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "integrate/relayer-domain-beta",
+      "sha": "7c7b632d",
+      "date": "2026-09-13",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1645,
+      "main_only_lines": 39077,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity",
+      "dirty": 0,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "살아 있는 레인 워크트리 beta-core-parity",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "integrate/staff-identity",
+      "sha": "f163c435",
+      "date": "2026-09-12",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 3304,
+      "main_only_lines": 5833,
+      "files_missing_on_main": [
+        "apps/api/test/identity-link.test.ts"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "[ahead 4, behind 15]",
+      "worktree": "/private/tmp/ccc-b-int",
+      "dirty": 0,
+      "prs": [
+        {
+          "number": 330,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #330"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "main",
+      "sha": "26556f30",
+      "date": "2026-09-16",
+      "verdict": "MERGED-EMPTY",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": true,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "main",
+      "proof": [
+        "ancestor-of-main",
+        "path-diff-empty"
+      ],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "orchestrate/beta-0.9",
+      "sha": "f080ee24",
+      "date": "2026-09-16",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 4577,
+      "main_only_lines": 207,
+      "files_missing_on_main": [
+        "artifacts/beta-0.9/2026-09-11-signed-plan.json",
+        "artifacts/beta-0.9/2026-09-11-windows-local-runtime.json",
+        "artifacts/beta/s9-windows-native-proof.json",
+        "artifacts/orchestration/operator-account-bootstrap.json",
+        "docs/adr/0048-independent-cloud-api-runtime.md",
+        "docs/adr/0049-relayer-card-contract-and-ai-module-criteria.md",
+        "docs/superpowers/plans/2026-09-09-beta-0.9-orchestration.md",
+        "docs/superpowers/plans/2026-09-10-cloud-beta-deploy-runbook.md",
+        "docs/superpowers/plans/2026-09-12-beta-0.9-mini-handoff.md",
+        "docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md",
+        "docs/superpowers/plans/2026-09-13-legacy-web-intake-v2-design-handoff.md",
+        "docs/superpowers/plans/2026-09-13-planner-handoff.md",
+        "docs/superpowers/plans/2026-09-14-prototype-design.md",
+        "docs/superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md",
+        "prototype/.gitignore",
+        "prototype/README.md",
+        "prototype/server/main.py",
+        "prototype/server/pipeline.py",
+        "prototype/server/run.sh",
+        "prototype/server/sheets.py",
+        "prototype/web/index.html",
+        "prototype/web/package.json",
+        "prototype/web/pnpm-lock.yaml",
+        "prototype/web/run.sh",
+        "prototype/web/src/lib/api.ts",
+        "prototype/web/src/main.tsx",
+        "prototype/web/src/pages/login.tsx",
+        "prototype/web/src/pages/participant.tsx",
+        "prototype/web/src/pages/participants.tsx",
+        "prototype/web/src/pages/record.tsx",
+        "prototype/web/src/pages/review.tsx",
+        "prototype/web/src/shims/next-headers.ts",
+        "prototype/web/src/shims/next-link.tsx",
+        "prototype/web/src/shims/next-navigation.ts",
+        "prototype/web/vite.config.ts"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "[ahead 10]",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+      "dirty": 107,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "살아 있는 레인 워크트리 beta-0.9-orchestrator",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "plan/batch-followup",
+      "sha": "ad218e8e",
+      "date": "2026-09-12",
+      "verdict": "MERGED-EMPTY",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": true,
+      "remote": false,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "ancestor-of-main",
+        "path-diff-empty"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "plan/ui-revision",
+      "sha": "67b0272d",
+      "date": "2026-07-30",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1825,
+      "main_only_lines": 32,
+      "files_missing_on_main": [
+        "STATUS.md",
+        "artifacts/ia-shots/rev-baseline/report.json",
+        "artifacts/ia-shots/rev-otter/report.json",
+        "artifacts/layout-measure/rev-baseline/measure.json",
+        "artifacts/ui-revision-sweep-v1/findings.md",
+        "artifacts/ui-revision-sweep-v1/work-design.md"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "내용 main 에 없음",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "policy/stt-client-ownership",
+      "sha": "5267931d",
+      "date": "2026-09-11",
+      "verdict": "MERGED-EMPTY",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "[ahead 24]",
+      "worktree": "/Users/seongqkim/developer/PROJECTS/CCC-new/.worktrees/backend",
+      "dirty": 1,
+      "prs": [
+        {
+          "number": 307,
+          "state": "MERGED",
+          "tip_is_pr_head": false,
+          "commits_after_pr": 24
+        }
+      ],
+      "class": "KEEP",
+      "reason": "살아 있는 레인 워크트리 backend",
+      "proof": [
+        "path-diff-empty"
+      ],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "prep/ai-provider-live",
+      "sha": "b99006f3",
+      "date": "2026-08-29",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 169,
+      "main_only_lines": 0,
+      "files_missing_on_main": [
+        "docs/superpowers/specs/2026-08-29-ai-provider-live-prep.md"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "내용 main 에 없음",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "prep/db-beta-scale",
+      "sha": "dcaf23bb",
+      "date": "2026-08-29",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 235,
+      "main_only_lines": 0,
+      "files_missing_on_main": [
+        "docs/superpowers/specs/2026-08-29-db-beta-scale-prep.md"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "내용 main 에 없음",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "prep/mobile-signup-signature",
+      "sha": "1938cd4c",
+      "date": "2026-08-29",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 144,
+      "main_only_lines": 0,
+      "files_missing_on_main": [
+        "docs/superpowers/specs/2026-08-29-mobile-signup-signature-prep.md"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "내용 main 에 없음",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "prep/oss-local-package",
+      "sha": "b831f6c6",
+      "date": "2026-08-29",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 246,
+      "main_only_lines": 0,
+      "files_missing_on_main": [
+        "docs/superpowers/specs/2026-08-29-oss-local-package-prep.md"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "내용 main 에 없음",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "prep/stt-engine",
+      "sha": "79065ffe",
+      "date": "2026-08-29",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 204,
+      "main_only_lines": 0,
+      "files_missing_on_main": [
+        "docs/superpowers/specs/2026-08-29-stt-engine-prep.md"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "내용 main 에 없음",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "release/0916",
+      "sha": "386d67dc",
+      "date": "2026-09-16",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 182,
+      "main_only_lines": 306,
+      "files_missing_on_main": [
+        "apps/web/app/join/worker/[token]/signup-form.tsx"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/release-16",
+      "dirty": 2,
+      "prs": [
+        {
+          "number": 336,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "KEEP",
+      "reason": "워크트리 release-16 미커밋 2건",
+      "proof": [
+        "tip==merged-PR-head #336"
+      ],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "release/s12-recovery",
+      "sha": "7e195217",
+      "date": "2026-09-12",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 2596,
+      "main_only_lines": 44034,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/API",
+      "dirty": 0,
+      "prs": [
+        {
+          "number": 328,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "KEEP",
+      "reason": "살아 있는 레인 워크트리 API",
+      "proof": [
+        "tip==merged-PR-head #328"
+      ],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "release/v0.4.0",
+      "sha": "66df53e6",
+      "date": "2026-09-02",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 7,
+      "main_only_lines": 64,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "[gone]",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 213,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "태그 v0.4.0 존재 + 내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #213"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "sg15-long-ai",
+      "sha": "09d6e01b",
+      "date": "2026-09-03",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 427,
+      "main_only_lines": 0,
+      "files_missing_on_main": [
+        "docs/specs/S15-long-ai-packet.md",
+        "docs/superpowers/plans/2026-09-02-SG15-long-ai.md"
+      ],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": "/Users/seongqkim/developer/PROJECTS/CCC-new/.worktrees/sg15-long-ai",
+      "dirty": 1,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "워크트리 sg15-long-ai 미커밋 1건",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "stt-client-release",
+      "sha": "d2c1725f",
+      "date": "2026-09-08",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 42,
+      "main_only_lines": 818,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 308,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #308"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "stt-internal-client",
+      "sha": "37332777",
+      "date": "2026-09-08",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 1889,
+      "main_only_lines": 370,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "내용 main 에 없음 (원격 없음: 단일 사본)",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    },
+    {
+      "name": "stt-internal-client-isolated",
+      "sha": "32f5d312",
+      "date": "2026-09-08",
+      "verdict": "MERGED-EMPTY",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": true,
+      "remote": false,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "ancestor-of-main",
+        "path-diff-empty"
+      ],
+      "needs_backup_ref": true,
+      "status": "deleted"
+    },
+    {
+      "name": "stt-internal-trial-api",
+      "sha": "0c412ec8",
+      "date": "2026-09-08",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 25,
+      "main_only_lines": 21,
+      "files_missing_on_main": [],
+      "ancestor_of_main": false,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 302,
+          "state": "MERGED",
+          "tip_is_pr_head": true,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "tip==merged-PR-head #302"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "task/ccc-225-secretstore-env",
+      "sha": "768b93a9",
+      "date": "2026-09-07",
+      "verdict": "MERGED-EMPTY",
+      "branch_only_lines": 0,
+      "main_only_lines": 0,
+      "files_missing_on_main": [],
+      "ancestor_of_main": true,
+      "remote": true,
+      "track": "",
+      "worktree": null,
+      "dirty": null,
+      "prs": [
+        {
+          "number": 293,
+          "state": "MERGED",
+          "tip_is_pr_head": false,
+          "commits_after_pr": 0
+        },
+        {
+          "number": 290,
+          "state": "MERGED",
+          "tip_is_pr_head": false,
+          "commits_after_pr": 0
+        }
+      ],
+      "class": "DELETE",
+      "reason": "내용 main 반영",
+      "proof": [
+        "ancestor-of-main",
+        "path-diff-empty",
+        "tip==merged-PR-head #293,290"
+      ],
+      "needs_backup_ref": false,
+      "status": "deleted"
+    },
+    {
+      "name": "verify/beta-backend",
+      "sha": "1faffd23",
+      "date": "2026-09-11",
+      "verdict": "UNMERGED",
+      "branch_only_lines": 30663,
+      "main_only_lines": 46417,
+      "files_missing_on_main": [
+        "adapters/audio-file/tsconfig.build.json",
+        "adapters/scheduler-node/tsconfig.build.json",
+        "adapters/secrets-dpapi/src/local-identity.ts",
+        "adapters/secrets-dpapi/test/build-preflight.test.mjs",
+        "apps/local-service/package.json",
+        "apps/local-service/src/bind-validation.ts",
+        "apps/local-service/src/http-transport.ts",
+        "apps/local-service/src/identity.ts",
+        "apps/local-service/src/main.ts",
+        "apps/local-service/src/office-identity.ts",
+        "apps/local-service/src/office-runtime.ts",
+        "apps/local-service/src/office-tls.ts",
+        "apps/local-service/src/runtime-resources.ts",
+        "apps/local-service/src/runtime.ts",
+        "apps/local-service/test/contract.test.ts",
+        "apps/local-service/test/office-contract.test.ts",
+        "apps/local-service/test/run-runtime-scenario.mjs",
+        "apps/local-service/test/runtime-scenario.mjs",
+        "apps/local-service/test/scenario-diagnostics.mjs",
+        "apps/local-service/test/source-loader.mjs",
+        "apps/local-service/test/synthetic-tls.mjs",
+        "apps/local-service/tsconfig.build.json",
+        "apps/local-service/tsconfig.json",
+        "apps/site/.env.example",
+        "apps/site/index.html",
+        "apps/site/package.json",
+        "apps/site/src/business-origin.test.ts",
+        "apps/site/src/business-origin.ts",
+        "apps/site/src/main.tsx",
+        "apps/site/src/vite-env.d.ts",
+        "apps/site/src/welcome-page.tsx",
+        "apps/site/tsconfig.json",
+        "apps/site/vite.config.ts",
+        "apps/site/welcome.html",
+        "apps/web/app/join/worker/[token]/signup-form.tsx",
+        "artifacts/beta-0.9/2026-09-11-signed-plan.json",
+        "artifacts/beta-0.9/2026-09-11-windows-local-runtime.json",
+        "artifacts/beta/s9-windows-native-proof.json",
+        "artifacts/e7-local-service-v17.tar.gz",
+        "artifacts/run-windows-proof.ps1",
+        "artifacts/s9-dpapi-source-b743a17.tar.gz",
+        "artifacts/s9-native-fix-77165d4.tar.gz",
+        "artifacts/s9-persist-source-bc015ac.tar.gz",
+        "docs/adr/0048-independent-cloud-api-runtime.md",
+        "docs/superpowers/plans/2026-09-09-beta-0.9-orchestration.md",
+        "docs/superpowers/plans/2026-09-10-cloud-beta-deploy-runbook.md",
+        "docs/superpowers/plans/2026-09-10-public-site-shared-style-handoff.md",
+        "migrations/postgres/0017_office_accounts.sql",
+        "migrations/postgres/0018_local_office_sessions.sql",
+        "migrations/sqlite/0061_office_accounts.sql",
+        "migrations/sqlite/0062_local_office_sessions.sql",
+        "packages/contracts/tsconfig.build.json",
+        "packages/wire/build/shared-styles.d.mts",
+        "packages/wire/build/shared-styles.mjs",
+        "packages/wire/src/shell-styles.ts",
+        "scripts/guard-esm-imports.mjs",
+        "supabase/functions/ccc-api/index.js"
+      ],
+      "ancestor_of_main": false,
+      "remote": false,
+      "track": "",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/VALIDATION",
+      "dirty": 1,
+      "prs": [],
+      "class": "KEEP",
+      "reason": "워크트리 VALIDATION 미커밋 1건",
+      "proof": [],
+      "needs_backup_ref": false,
+      "status": "kept"
+    }
+  ],
+  "approval": "APPROVED 2026-09-16 by Q (chat); feat/frontend-adjustments held pending Q decision on /.superpowers/ gitignore line",
+  "deleted": [
+    {
+      "name": "api/identity-link",
+      "sha": "939cd32d",
+      "recover": "refs/backup/api/identity-link"
+    },
+    {
+      "name": "auth/invite-binds-identity",
+      "sha": "7fee1ca4",
+      "recover": "origin/auth/invite-binds-identity"
+    },
+    {
+      "name": "auth/mfa-optional",
+      "sha": "c0d9c4df",
+      "recover": "origin/auth/mfa-optional"
+    },
+    {
+      "name": "chore/design-canon-finalization",
+      "sha": "929d0390",
+      "recover": "refs/backup/chore/design-canon-finalization"
+    },
+    {
+      "name": "chore/hierarchy-font-verification",
+      "sha": "d6961ed0",
+      "recover": "origin/chore/hierarchy-font-verification"
+    },
+    {
+      "name": "chore/vitest-hook-timeout",
+      "sha": "02d812b9",
+      "recover": "origin/chore/vitest-hook-timeout"
+    },
+    {
+      "name": "client/consent-agree-all",
+      "sha": "c04bbe8f",
+      "recover": "origin/client/consent-agree-all"
+    },
+    {
+      "name": "client/shell-update-banner",
+      "sha": "f18bd240",
+      "recover": "origin/client/shell-update-banner"
+    },
+    {
+      "name": "client/staff-join-credentials",
+      "sha": "0192c1e2",
+      "recover": "refs/backup/client/staff-join-credentials"
+    },
+    {
+      "name": "deploy/v0.5.1",
+      "sha": "9eb685da",
+      "recover": "origin/deploy/v0.5.1"
+    },
+    {
+      "name": "deploy/v0.7.0",
+      "sha": "b7e900d0",
+      "recover": "origin/deploy/v0.7.0"
+    },
+    {
+      "name": "deploy/v0.9.0",
+      "sha": "1bcd2808",
+      "recover": "refs/backup/deploy/v0.9.0"
+    },
+    {
+      "name": "design/session-2026-09-08-2",
+      "sha": "02750ffd",
+      "recover": "origin/design/session-2026-09-08-2"
+    },
+    {
+      "name": "design/wire-link-boundary",
+      "sha": "9a627522",
+      "recover": "origin/design/wire-link-boundary"
+    },
+    {
+      "name": "docs/release-v0.4.0",
+      "sha": "b8189ef4",
+      "recover": "refs/backup/docs/release-v0.4.0"
+    },
+    {
+      "name": "docs/release-v0.5.0",
+      "sha": "0a50041a",
+      "recover": "refs/backup/docs/release-v0.5.0"
+    },
+    {
+      "name": "docs/release-v0.7.0",
+      "sha": "5a845280",
+      "recover": "origin/docs/release-v0.7.0"
+    },
+    {
+      "name": "docs/release-v0.9.0",
+      "sha": "a2e26e96",
+      "recover": "refs/backup/docs/release-v0.9.0"
+    },
+    {
+      "name": "e3-1b-encrypted-sqlite",
+      "sha": "23886842",
+      "recover": "origin/e3-1b-encrypted-sqlite"
+    },
+    {
+      "name": "e3-2-common-sql-subset",
+      "sha": "7b5f936c",
+      "recover": "origin/e3-2-common-sql-subset"
+    },
+    {
+      "name": "e5-1a-agent-job-contract-v2",
+      "sha": "99fc707a",
+      "recover": "origin/e5-1a-agent-job-contract-v2"
+    },
+    {
+      "name": "e5-2-local-stt-candidate",
+      "sha": "a8dfcc67",
+      "recover": "origin/e5-2-local-stt-candidate"
+    },
+    {
+      "name": "e5-8-benchmark-watch",
+      "sha": "99d7b41c",
+      "recover": "refs/backup/e5-8-benchmark-watch"
+    },
+    {
+      "name": "e5-8-stt-benchmark",
+      "sha": "471f7528",
+      "recover": "origin/e5-8-stt-benchmark"
+    },
+    {
+      "name": "feat/chevron-button-badge-alignment",
+      "sha": "e759cdd7",
+      "recover": "refs/backup/feat/chevron-button-badge-alignment"
+    },
+    {
+      "name": "feat/design-adjustments",
+      "sha": "bb636fb5",
+      "recover": "refs/backup/feat/design-adjustments"
+    },
+    {
+      "name": "feat/unified-chevron-system",
+      "sha": "d4468795",
+      "recover": "refs/backup/feat/unified-chevron-system"
+    },
+    {
+      "name": "fix/participant-detail-alignment",
+      "sha": "fd171312",
+      "recover": "origin/fix/participant-detail-alignment"
+    },
+    {
+      "name": "fix/participant-ui-alignment",
+      "sha": "8d6c7ed5",
+      "recover": "origin/fix/participant-ui-alignment"
+    },
+    {
+      "name": "frontend/beta-0.9-client",
+      "sha": "7102564a",
+      "recover": "origin/frontend/beta-0.9-client"
+    },
+    {
+      "name": "frontend/main",
+      "sha": "e444805a",
+      "recover": "refs/backup/frontend/main"
+    },
+    {
+      "name": "integrate/staff-identity",
+      "sha": "f163c435",
+      "recover": "origin/integrate/staff-identity"
+    },
+    {
+      "name": "plan/batch-followup",
+      "sha": "ad218e8e",
+      "recover": "refs/backup/plan/batch-followup"
+    },
+    {
+      "name": "release/v0.4.0",
+      "sha": "66df53e6",
+      "recover": "refs/backup/release/v0.4.0"
+    },
+    {
+      "name": "stt-client-release",
+      "sha": "d2c1725f",
+      "recover": "origin/stt-client-release"
+    },
+    {
+      "name": "stt-internal-client-isolated",
+      "sha": "32f5d312",
+      "recover": "refs/backup/stt-internal-client-isolated"
+    },
+    {
+      "name": "stt-internal-trial-api",
+      "sha": "0c412ec8",
+      "recover": "origin/stt-internal-trial-api"
+    },
+    {
+      "name": "task/ccc-225-secretstore-env",
+      "sha": "768b93a9",
+      "recover": "origin/task/ccc-225-secretstore-env"
+    },
+    {
+      "name": "design/work",
+      "sha": "d35dbaab",
+      "recover": "refs/backup/design/work"
+    }
+  ],
+  "backup_refs_created": [
+    {
+      "ref": "refs/backup/api/identity-link",
+      "sha": "939cd32d60ff"
+    },
+    {
+      "ref": "refs/backup/chore/design-canon-finalization",
+      "sha": "929d039007c5"
+    },
+    {
+      "ref": "refs/backup/client/staff-join-credentials",
+      "sha": "0192c1e2b9f3"
+    },
+    {
+      "ref": "refs/backup/deploy/v0.9.0",
+      "sha": "1bcd28080bcf"
+    },
+    {
+      "ref": "refs/backup/design/work",
+      "sha": "d35dbaab947f"
+    },
+    {
+      "ref": "refs/backup/docs/release-v0.4.0",
+      "sha": "b8189ef48c08"
+    },
+    {
+      "ref": "refs/backup/docs/release-v0.5.0",
+      "sha": "0a50041a1233"
+    },
+    {
+      "ref": "refs/backup/docs/release-v0.9.0",
+      "sha": "a2e26e9616d9"
+    },
+    {
+      "ref": "refs/backup/e5-8-benchmark-watch",
+      "sha": "99d7b41cd717"
+    },
+    {
+      "ref": "refs/backup/feat/chevron-button-badge-alignment",
+      "sha": "e759cdd7500f"
+    },
+    {
+      "ref": "refs/backup/feat/design-adjustments",
+      "sha": "bb636fb5b274"
+    },
+    {
+      "ref": "refs/backup/feat/frontend-adjustments",
+      "sha": "770896201de7"
+    },
+    {
+      "ref": "refs/backup/feat/unified-chevron-system",
+      "sha": "d446879511de"
+    },
+    {
+      "ref": "refs/backup/frontend/main",
+      "sha": "e444805abab1"
+    },
+    {
+      "ref": "refs/backup/plan/batch-followup",
+      "sha": "ad218e8eafa6"
+    },
+    {
+      "ref": "refs/backup/release/v0.4.0",
+      "sha": "66df53e64261"
+    },
+    {
+      "ref": "refs/backup/stt-internal-client-isolated",
+      "sha": "32f5d3127d3d"
+    }
+  ],
+  "worktree_removal_candidates": [
+    "/private/tmp/ccc-b-int",
+    "/private/tmp/ccc-consent",
+    "/private/tmp/ccc-deploy",
+    "/private/tmp/ccc-join",
+    "/private/tmp/ccc-mfa",
+    "/private/tmp/identity-link-api",
+    "/private/tmp/staff-join-credentials",
+    "/tmp/ccc-shellfix"
+  ],
+  "worktrees_removed": [
+    "/private/tmp/ccc-b-int",
+    "/private/tmp/ccc-consent",
+    "/private/tmp/ccc-deploy",
+    "/private/tmp/ccc-join",
+    "/private/tmp/ccc-mfa",
+    "/private/tmp/identity-link-api",
+    "/private/tmp/staff-join-credentials",
+    "/tmp/ccc-shellfix"
+  ],
+  "worktrees_skipped": [],
+  "held": [
+    {
+      "name": "feat/frontend-adjustments",
+      "reason": "unique content = .gitignore '/.superpowers/' line; absent on main, covered on this machine only by ~/.config/git/ignore; Q to decide whether to add to main",
+      "backup": "refs/backup/feat/frontend-adjustments",
+      "decision": "Q 2026-09-16: add line to main, then backup+delete branch after push",
+      "main_commit": {
+        "sha": "60b8b58f",
+        "parent": "59d911e6 (#338)",
+        "pushed": false,
+        "note": "push held until other session's deploy finishes; Q decides timing"
+      }
+    }
+  ],
+  "after": {
+    "branches": 34,
+    "worktrees": 17,
+    "backup_refs": 17,
+    "remote_heads": 100,
+    "stash_untouched": "stash@{0}: autostash"
+  },
+  "next_cleanup_candidates": {
+    "count": 9,
+    "branches": [
+      "archive/ccc237-input-a98b9f23642f",
+      "archive/frontend-wip-20260826",
+      "archive/main-pre-postmortem-20260730",
+      "archive/ooo-orch-712793-wip-20260830",
+      "archive/ooo-orch-d83b44-wip-20260830",
+      "core/relayer-domain-beta",
+      "design/w03-intake-v2",
+      "feat/frontend-adjustments",
+      "stt-internal-client"
+    ],
+    "note": "local-only, no worktree; not deleted"
+  },
+  "round2": {
+    "status": "JUDGED 2026-09-17, Q approval PENDING (no worktree/branch touched yet)",
+    "judged_against": {
+      "origin_main": "59d911e6",
+      "local_main": "60b8b58f (gitignore commit, unpushed)"
+    },
+    "method": "round1 그대로: 경로 한정 tip 대조 + 머지된 PR headRefOid 대조(squash 머지라 --merged/ahead-behind 불가). 머지된 PR head==tip 이면 본문 포함으로 판정하고, 경로 대조 불일치는 병합 후 main 진화로 해석",
+    "criteria": "끝남 = main 포함 AND 열린 PR 없음 AND 추적 미커밋 0. 단 워크트리 제거는 untracked 를 지우므로 untracked 성격까지 확인",
+    "rows": [
+      {
+        "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new",
+        "lane": "ROOT",
+        "branch": "(detached 4352d321)",
+        "tracked_dirty": 0,
+        "untracked_files": 87,
+        "untracked_nature": "inbox/ 인계문서·브랜드 에셋 85, .pi/ 1, artifacts/orchestration/branch-cleanup.json 1. 전부 단일 사본",
+        "content_in_main": "-",
+        "open_pr": "-",
+        "verdict": "KEEP",
+        "reason": "메인 체크아웃. 2차 커밋을 위해 main 으로 전환함"
+      },
+      {
+        "worktree": "/private/tmp/ccc-roles",
+        "lane": "ccc-roles",
+        "branch": "auth/invite-role-cap",
+        "tracked_dirty": 0,
+        "untracked_files": 0,
+        "untracked_nature": "없음",
+        "content_in_main": false,
+        "open_pr": "#335 OPEN",
+        "verdict": "KEEP",
+        "reason": "PR #335 OPEN(head==tip 5d540f1e). 열려 있으므로 남김"
+      },
+      {
+        "worktree": ".worktrees/API",
+        "lane": "API",
+        "branch": "release/s12-recovery",
+        "tracked_dirty": 0,
+        "untracked_files": 0,
+        "untracked_nature": "없음",
+        "content_in_main": true,
+        "open_pr": null,
+        "verdict": "CLOSE",
+        "reason": "PR #328 머지(2026-09-12, head==tip 7e195217). 경로 대조 27 불일치는 병합 후 main 진화. 원격 존재→백업 참조 불필요, 원격 삭제 없음"
+      },
+      {
+        "worktree": ".worktrees/auth-direct",
+        "lane": "auth-direct",
+        "branch": "(detached 59d911e6)",
+        "tracked_dirty": 0,
+        "untracked_files": 8,
+        "untracked_nature": "배포·prod-auth-link 증거 8. 단일 사본",
+        "content_in_main": "-",
+        "open_pr": "-",
+        "verdict": "제외",
+        "reason": "배포 세션 진행 중(Q 지시 제외)"
+      },
+      {
+        "worktree": ".worktrees/backend",
+        "lane": "backend",
+        "branch": "policy/stt-client-ownership",
+        "tracked_dirty": 0,
+        "untracked_files": 1,
+        "untracked_nature": "docs/aside/CCC-STT-PC-권장사양-공식문서-조사-2026-09-07.md. main·원격 어디에도 없는 단일 사본",
+        "content_in_main": true,
+        "open_pr": null,
+        "verdict": "KEEP(조건부)",
+        "reason": "PR #307 머지 + tip==merge-base(diff 0)라 내용 조건 충족, 원격 있음. 그러나 untracked 조사 문서 1건이 워크트리 제거 시 소실. 문서 처치 확정 전까지 보존"
+      },
+      {
+        "worktree": ".worktrees/beta-0.9-orchestrator",
+        "lane": "beta-0.9-orchestrator",
+        "branch": "orchestrate/beta-0.9",
+        "tracked_dirty": 9,
+        "untracked_files": 239,
+        "untracked_nature": "artifacts/·docs/ 하위 다수(CCC-201·204·212·292·299 증거)",
+        "content_in_main": "-",
+        "open_pr": "-",
+        "verdict": "제외",
+        "reason": "Q·오케스트레이터 세션 사용 중(Q 지시 제외)"
+      },
+      {
+        "worktree": ".worktrees/beta-core-parity",
+        "lane": "beta-core-parity",
+        "branch": "integrate/relayer-domain-beta",
+        "tracked_dirty": 0,
+        "untracked_files": 0,
+        "untracked_nature": "없음",
+        "content_in_main": false,
+        "open_pr": null,
+        "verdict": "KEEP",
+        "reason": "main 에 없는 경로 44(커밋 16). 원격·백업 없음(단일 사본)"
+      },
+      {
+        "worktree": ".worktrees/DESIGN",
+        "lane": "DESIGN",
+        "branch": "design/work",
+        "tracked_dirty": 0,
+        "untracked_files": 398,
+        "untracked_nature": "artifacts/ 디자인 산출물 398(한글 파일명 포함)",
+        "content_in_main": "-",
+        "open_pr": "-",
+        "verdict": "제외",
+        "reason": "화면 디자인 레인(Q 규칙 보호). 참고: 붙은 브랜치는 design/work 이고 design/w03-intake-v2 는 워크트리 없는 로컬 브랜치"
+      },
+      {
+        "worktree": ".worktrees/e2-1-screen-api-probe",
+        "lane": "e2-1-screen-api-probe",
+        "branch": "e2-1-screen-api-probe",
+        "tracked_dirty": 4,
+        "untracked_files": 0,
+        "untracked_nature": "없음",
+        "content_in_main": false,
+        "open_pr": null,
+        "verdict": "KEEP",
+        "reason": "미커밋 4(plan·fixture·verify 스크립트) + main 에 없는 경로 4"
+      },
+      {
+        "worktree": ".worktrees/e5-4-privacy-generalization",
+        "lane": "e5-4-privacy-generalization",
+        "branch": "e5-4-privacy-generalization",
+        "tracked_dirty": 11,
+        "untracked_files": 185,
+        "untracked_nature": "ccc237-privacy 증거 179 + scripts/privacy·secure_memory.py 등 6. 로그류는 어디에도 없는 단일 사본(1차: 코드 blob 은 archive/ccc237-input 과 동일)",
+        "content_in_main": true,
+        "open_pr": null,
+        "verdict": "KEEP",
+        "reason": "미커밋 11 + 단일 사본 증거 185. 원격·PR 없음"
+      },
+      {
+        "worktree": ".worktrees/frontend",
+        "lane": "frontend",
+        "branch": "client/relayer-domain-beta",
+        "tracked_dirty": 0,
+        "untracked_files": 5,
+        "untracked_nature": "orchestration 클라이언트 결과 5. 단일 사본",
+        "content_in_main": false,
+        "open_pr": null,
+        "verdict": "KEEP",
+        "reason": "main 에 없는 경로 19(커밋 29). 원격·백업 없음(단일 사본)"
+      },
+      {
+        "worktree": ".worktrees/onboarding",
+        "lane": "onboarding",
+        "branch": "feat/relayer-onboarding",
+        "tracked_dirty": 4,
+        "untracked_files": 0,
+        "untracked_nature": "없음",
+        "content_in_main": false,
+        "open_pr": null,
+        "verdict": "KEEP",
+        "reason": "미커밋 4(onboarding·supabase 스크립트) + main 에 없는 경로 35(ADR-0050·온보딩 정본 포함). 원격·백업 없음(단일 사본)"
+      },
+      {
+        "worktree": ".worktrees/parity-291",
+        "lane": "parity-291",
+        "branch": "integrate/ccc291-parity",
+        "tracked_dirty": 0,
+        "untracked_files": 14,
+        "untracked_nature": "orchestration 산출물 13 + scripts/install/variant-sha.mjs. 단일 사본",
+        "content_in_main": false,
+        "open_pr": null,
+        "verdict": "KEEP",
+        "reason": "main 에 없는 경로 61(커밋 107). 원격·백업 없음(단일 사본)"
+      },
+      {
+        "worktree": ".worktrees/PLANNER",
+        "lane": "PLANNER",
+        "branch": "docs/privacy-stt-prerequisites",
+        "tracked_dirty": 1,
+        "untracked_files": 0,
+        "untracked_nature": "없음",
+        "content_in_main": false,
+        "open_pr": null,
+        "verdict": "KEEP",
+        "reason": "미커밋 1(planner-handoff.md +228줄) + main 에 없는 경로 6"
+      },
+      {
+        "worktree": ".worktrees/release-16",
+        "lane": "release-16",
+        "branch": "release/0916",
+        "tracked_dirty": 0,
+        "untracked_files": 6,
+        "untracked_nature": "production-release.json + 0.9.0-dev.3 번들·manifest·floor·signer index.js. 배포 증거 단일 사본",
+        "content_in_main": true,
+        "open_pr": null,
+        "verdict": "KEEP(조건부)",
+        "reason": "PR #336 머지(head==tip). 내용 조건 충족, 원격 있음. 그러나 배포 진행 중이고 untracked 배포 증거가 워크트리 제거 시 소실. 배포 종료 뒤 증거 처치 확정 전까지 보존"
+      },
+      {
+        "worktree": ".worktrees/sg15-long-ai",
+        "lane": "sg15-long-ai",
+        "branch": "sg15-long-ai",
+        "tracked_dirty": 1,
+        "untracked_files": 0,
+        "untracked_nature": "없음",
+        "content_in_main": false,
+        "open_pr": null,
+        "verdict": "KEEP",
+        "reason": "미커밋 1(S15 스펙 +19/-3) + main 에 없는 경로 2"
+      },
+      {
+        "worktree": ".worktrees/VALIDATION",
+        "lane": "VALIDATION",
+        "branch": "verify/beta-backend",
+        "tracked_dirty": 0,
+        "untracked_files": 1,
+        "untracked_nature": "apps/api/test/tools/real-backend-preview.mjs. 단일 사본",
+        "content_in_main": false,
+        "open_pr": null,
+        "verdict": "KEEP",
+        "reason": "main 에 없는 경로 182(apps/local-service 전체 등, 커밋 203). 원격·백업 없음(단일 사본)"
+      }
+    ],
+    "proposed_closures": [
+      {
+        "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/API",
+        "branch": "release/s12-recovery",
+        "backup_ref": "불필요(원격 origin/release/s12-recovery 가 백업)",
+        "remote_delete": 0
+      }
+    ],
+    "conditional_pending_Q": [
+      {
+        "lane": "backend",
+        "blocker": "untracked docs/aside 조사 문서 1건 처치(복사 보존 후 닫기 or 보존)",
+        "branch_deletable": "예(원격 백업 존재, 백업 참조 불필요)"
+      },
+      {
+        "lane": "release-16",
+        "blocker": "배포 종료 후 release 증거 6건 처치 판단"
+      }
+    ],
+    "excluded": [
+      "auth-direct(배포 세션)",
+      "beta-0.9-orchestrator(Q·오케스트레이터 세션)",
+      "DESIGN(디자인 레인 Q 규칙)"
+    ],
+    "count_after_approval": {
+      "worktrees": "17→16",
+      "branches": "34→33"
+    },
+    "gitignore_note": "1차 held 기록대로 로컬 main 커밋 60b8b58f(부모 59d911e6)에 /.superpowers/ 한 줄 이미 존재, 미push. 중복 생성하지 않음. feat/frontend-adjustments 는 push 후 backup+삭제 예정(1차 결정 유지)",
+    "fresh_counts_note": "2026-09-17 재실측: 워크트리 17, 브랜치 tip 전체 1차 때와 동일, origin/main 59d911e6 불변, PR #335 OPEN 지속. beta-0.9 추적 미커밋은 재실측 9건(Q 보고 22건과 차이, 세션 진행으로 변동 추정)"
+  }
+}
