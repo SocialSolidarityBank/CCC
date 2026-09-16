@@ -66,7 +66,9 @@ function programMenu(
     {
       title: '일정',
       items: [
-        { label: '일정', href: `/programs/${programType}/schedule`, icon: 'upcoming' },
+        // 2026-09-16 Q: 조회 항목 이름을 '일정'에서 '상담 일정 보기'로 — 등록 항목과
+        // 같은 '상담 일정' 어휘에서 보기/등록으로 갈라 읽힌다. 경로·식별자는 그대로다.
+        { label: '상담 일정 보기', href: `/programs/${programType}/schedule`, icon: 'upcoming' },
         { label: '상담 일정 등록', href: '/schedules/new', icon: 'calendar' },
       ],
     },
@@ -79,6 +81,12 @@ function programMenu(
           ? [{ label: '당사자 초대', href: '/participants/invite', icon: 'invite' as const }]
           : []),
       ],
+    },
+    // '계정' 묶음은 역할과 무관하게 전원에게 선다 — 설정 화면은 내 계정을 보는 자리라
+    // 역할이 없는 사람(역할 대기)도 간다. 관리 묶음만 역할로 갈린다(2026-09-16 Q).
+    {
+      title: '계정',
+      items: [{ label: '설정', href: '/settings', icon: 'settings' }],
     },
     // '관리' 묶음은 내 역할이 여는 관리자 화면이 있을 때만 선다 — adminMenuFor 가 비면
     // /admin 자체가 404 라서, 없는 곳으로 보내는 링크를 보여주지 않는다. 항목은

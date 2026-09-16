@@ -38,7 +38,7 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     // 첫 출고에서 당사자 직접 접점은 닫히고, 필수 업무 메뉴 네 개만 남는다.
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['일정', '상담 일정 등록', '당사자 목록', '당사자 등록']);
+      .toEqual(['상담 일정 보기', '상담 일정 등록', '당사자 목록', '당사자 등록', '설정']);
     // 드로어에는 기관명·사업 전환기가 없다 — 두 벌 두면 다시 갈라진다.
     expect(container.querySelector('.sidebar .program-switcher')).toBeNull();
     expect(container.querySelector('.sidebar .brand')).toBeNull();
@@ -79,23 +79,24 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     // 묶음 제목은 누를 수 없다 — 링크가 아니라 p 다.
     const titles = [...container.querySelectorAll('.sidebar .navigation-section-title')];
-    expect(titles.map((el) => el.textContent)).toEqual(['일정', '당사자']);
+    expect(titles.map((el) => el.textContent)).toEqual(['일정', '당사자', '계정']);
     for (const title of titles) {
       expect(title.tagName).toBe('P');
       expect(title.closest('a')).toBeNull();
     }
     // 제목이 자기 목록에 이름을 준다.
     const lists = [...container.querySelectorAll('.sidebar .navigation-list')];
-    expect(lists.length).toBe(2);
+    expect(lists.length).toBe(3);
     expect(lists.map((list) => list.getAttribute('aria-labelledby')))
       .toEqual(titles.map((title) => title.getAttribute('id')));
     // 항목은 전부 같은 계층이다 — 하위 목록이 없다.
     expect(container.querySelector('.sidebar .navigation-sublist')).toBeNull();
     expect(sidebarLinks(container).map((link) => [link.label, link.href])).toEqual([
-      ['일정', `/programs/${DEFAULT_PROGRAM_TYPE}/schedule`],
+      ['상담 일정 보기', `/programs/${DEFAULT_PROGRAM_TYPE}/schedule`],
       ['상담 일정 등록', '/schedules/new'],
       ['당사자 목록', '/participants'],
       ['당사자 등록', '/participants/new'],
+      ['설정', '/settings'],
     ]);
     // 항목은 전부 아이콘을 갖는다(2026-08-30 Q 2차).
     for (const link of container.querySelectorAll('.sidebar .navigation-link')) {
@@ -226,7 +227,7 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     expect(drawer.querySelector('.brand')).toBeNull();
     expect(drawer.querySelector('.program-switcher')).toBeNull();
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['일정', '상담 일정 등록', '당사자 목록', '당사자 등록']);
+      .toEqual(['상담 일정 보기', '상담 일정 등록', '당사자 목록', '당사자 등록', '설정']);
     // 계정 행동은 상단 줄의 원형 아이콘 버튼 3개다(웹 헤더와 같은 옷).
     expect(Array.from(drawer.querySelectorAll('.sidebar-actions .header-icon-button'))
       .map((el) => el.getAttribute('aria-label'))).toEqual(['설정', '다크 모드', '로그아웃']);
@@ -236,7 +237,7 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     const labels = Array.from(container.querySelectorAll('.sidebar .navigation-link'))
       .map((el) => el.querySelector('span:not(.wire-badge)')?.textContent?.trim());
-    expect(labels).toEqual(['일정', '상담 일정 등록', '당사자 목록', '당사자 등록']);
+    expect(labels).toEqual(['상담 일정 보기', '상담 일정 등록', '당사자 목록', '당사자 등록', '설정']);
   });
 });
 
@@ -280,7 +281,7 @@ describe('AppSidebar — 관리 묶음 (관리자 입구)', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     expect(container.textContent).not.toContain('관리');
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['일정', '상담 일정 등록', '당사자 목록', '당사자 등록']);
+      .toEqual(['상담 일정 보기', '상담 일정 등록', '당사자 목록', '당사자 등록', '설정']);
   });
 
   it('역할이 여는 관리자 화면이 관리 묶음 항목으로 선다', () => {
@@ -289,13 +290,25 @@ describe('AppSidebar — 관리 묶음 (관리자 입구)', () => {
     );
     const links = sidebarLinks(container);
     expect(links.map((link) => link.label)).toEqual([
-      '일정', '상담 일정 등록', '당사자 목록', '당사자 등록',
+      '상담 일정 보기', '상담 일정 등록', '당사자 목록', '당사자 등록', '설정',
       '기관', '배정', '사용자·역할', '실무자 초대',
     ]);
     expect(links.find((link) => link.label === '실무자 초대')?.href).toBe('/admin/invite');
     expect(links.find((link) => link.label === '사용자·역할')?.href).toBe('/admin/users');
     // 기술 관리자 전용 탭(AI·STT·연결)은 기관 관리자에게 보이지 않는다.
     expect(links.some((link) => link.label === 'AI·STT·연결')).toBe(false);
+  });
+
+  it('역할이 없어도 설정 항목은 보인다 — 관리 묶음만 역할로 갈린다 (2026-09-16 Q)', () => {
+    // 설정 화면은 내 계정을 보는 전원의 자리다. 역할 대기(adminItems=[]) 사람에게도
+    // '계정' 묶음의 '설정'은 서고 '관리' 묶음은 서지 않는다.
+    const { container } = render(<AppSidebar activePath="/participants" />);
+    const links = sidebarLinks(container);
+    expect(links.find((link) => link.label === '설정')?.href).toBe('/settings');
+    const titles = [...container.querySelectorAll('.sidebar .navigation-section-title')]
+      .map((el) => el.textContent);
+    expect(titles).toContain('계정');
+    expect(titles).not.toContain('관리');
   });
 
   it('기술 관리자에게는 자기 역할이 여는 항목만 보인다', () => {
