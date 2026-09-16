@@ -1,7 +1,7 @@
 // CCC-43 — 내용 불일치 검출·저장·표시 (D45 · ADR-0018)
 // ① 프로바이더 출력 검증(원문 인용 강제·판단 금지, R5) ② 게이트웨이 저장·불변·브리핑
 // ③ 라우트 훅(수기 저장 시 검출 실행, 실패해도 저장은 성공 — D8) 을 검증한다.
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   activateAiProviderConfiguration,
   registerAiProviderConfiguration,
@@ -48,7 +48,8 @@ import { registrationInput } from './support/registration';
 // 이 파일의 픽스처는 케이스·회차·동의·스냅샷을 매번 새로 만든다 — 전체 스위트를 병렬로
 // 돌리면 기본 5초 안에 끝나지 않아 내용과 무관하게 시간 초과로 떨어진다(브랜치 이전부터
 // 같은 증상). 단독 실행에서는 여유가 충분하고, 늘려도 실패는 여전히 실패로 잡힌다.
-vi.setConfig({ testTimeout: 30_000 });
+// 값은 이 파일에서 다시 정하지 않고 설정의 60초(apps/api/vitest.config.ts)를 그대로 쓴다 —
+// 구 30초 상한은 단독 16.4초인 ⑤가 CI의 --maxWorkers=4 에서 두 번 연속 넘겼다(PR #339).
 
 const { counselor, admin, service } = testActors;
 const t = setupD1();

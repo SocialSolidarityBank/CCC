@@ -97,6 +97,11 @@ export interface WireItemProps {
  * 15초 페이지의 옛 손 조립은 이유를 16/400 sub로, 링크를 제목과 같은 16/600 ink로
  * 그려 위계가 사라졌다. 이 부품은 현재 계약대로 이유를 14/400 sub로 낮추고 행동을
  * 14/600 계열색으로 분리한다. 개별 행동은 항목 텍스트 뒤에 둔다.
+ *
+ * **상태는 제목과 같은 줄이다**(2026-09-14 Q, §4-9). 구 구조는 상태를 설명 다음 행에 두어
+ * 한 항목이 세 줄을 썼고, 배지가 어느 항목의 상태인지 눈으로 다시 맞춰야 했다(실측: 배정,
+ * 사용자·역할, AI·STT·연결, 검토, 초대, 배정 요청 여섯 화면에서 17건). 제목 줄을 머리 행으로
+ * 묶으면 §1의 "배지는 제목 글자 바로 뒤" 계약이 부품 안에서 지켜진다.
  */
 export function WireItem({ title, description, status, action, tone = 'plain', testId }: WireItemProps) {
   return (
@@ -105,9 +110,11 @@ export function WireItem({ title, description, status, action, tone = 'plain', t
       data-tone={tone === 'plain' ? undefined : tone}
       {...(testId !== undefined ? { 'data-testid': testId } : {})}
     >
-      <p className="wire-item-title">{title}</p>
+      <div className="wire-item-head">
+        <p className="wire-item-title">{title}</p>
+        {status !== undefined && <span className="wire-item-status">{status}</span>}
+      </div>
       {description !== undefined && <p className="wire-item-desc">{description}</p>}
-      {status !== undefined && <span className="wire-item-status">{status}</span>}
       {action !== undefined && <span className="wire-item-action">{action}</span>}
     </div>
   );
