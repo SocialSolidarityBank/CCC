@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { PROGRAM_ADMISSION_COPY } from '@ccc/contracts/program-admission';
+import { PROGRAM_ADMISSION_COPY, type ProgramListResponse } from '@ccc/contracts/program-admission';
 
 // vitest 전역(globals) 미설정이라 자동 언마운트가 걸리지 않는다(admin-sidebar.test.tsx 와 같은 이유).
 afterEach(cleanup);
@@ -136,6 +136,37 @@ describe('관리자 기관 홈 (CCC-59)', () => {
     fireEvent.click(storage);
     fireEvent.click(processing);
     expect(screen.getByRole('checkbox', { name: PROGRAM_ADMISSION_COPY.confirmation })).not.toBeNull();
+  });
+
+  it('서버의 사업·문안·설치 컨텍스트가 바뀌면 이전 관리자 확인을 버린다', async () => {
+    const context = await listPrograms() as ProgramListResponse;
+    const view = render(await AdminOrganizationPage());
+    fireEvent.click(screen.getByRole('radio', { name: /기본형/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /외부 업체 처리 허용/ }));
+    const confirmation = screen.getByRole('checkbox', { name: PROGRAM_ADMISSION_COPY.confirmation }) as HTMLInputElement;
+    fireEvent.click(confirmation);
+    expect(confirmation.checked).toBe(true);
+
+    listPrograms.mockResolvedValue({
+      ...context,
+      programs: context.programs.map((program) => ({
+        ...program,
+        version: program.version + 1,
+        storageMode: 'supabase_seoul',
+        processingMode: 'external_allowed',
+        admissionState: 'settings_changed',
+      })),
+      installation: {
+        ...context.installation,
+        policyVersion: context.installation.policyVersion + 1,
+        configHash: 'c'.repeat(64),
+      },
+    });
+    view.rerender(await AdminOrganizationPage());
+
+    expect((screen.getByRole('checkbox', {
+      name: PROGRAM_ADMISSION_COPY.confirmation,
+    }) as HTMLInputElement).checked).toBe(false);
   });
   it('조회가 실패하면 빈 화면 대신 안내를 남긴다', async () => {
     const { ApiError } = await import('../lib/api') as unknown as { ApiError: new (code: string) => Error };
