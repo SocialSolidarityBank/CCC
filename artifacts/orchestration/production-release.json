@@ -1,0 +1,131 @@
+{
+  "pushResult": {
+    "branch": "release/0916",
+    "pushes": [
+      "4388f62a (초기 push, PR #336 생성)",
+      "62998c05 (운영 D1 적용 증거 문서)",
+      "efd2b855 (형제 세션 수정 4건)",
+      "1aa6f2e7 (PLANNER 문서 2건 cherry-pick)",
+      "69c00f9f (통합 typecheck 수정)",
+      "0bcfd607 (SQL dialect guard 수정)",
+      "386d67dc (DESIGN 화면 계약 3건 cherry-pick)"
+    ],
+    "pr": "https://github.com/SocialSolidarityBank/CCC/pull/336",
+    "ciFinal": "run 35034171092: verify pass 20m25s, pipeline-test, secret-scan, hierarchy-measure, design-sweep, electron44-windows-x64 전부 pass",
+    "ciHistory": "verify 4회 실패 뒤 초록. ① af2bf330 local STT 차단으로 API 테스트 136건 회귀 ② audio.test TS2322 ③ Uint8Array→BufferSource TS2345 2건 ④ guard:sql-dialect unresolved-sql 11건. 전부 소유자 세션이 고쳤고 배포 담당은 코드를 수정하지 않았다."
+  },
+  "mergeMethod": "squash (레포 기본 viewerDefaultMergeMethod=SQUASH, main 보호 필수 체크 verify·pipeline-test·secret-scan·hierarchy-measure·design-sweep). auto-merge 는 레포 설정상 불가라 CI 초록 확인 뒤 gh pr merge --squash 로 수동 머지. 머지 전 origin/main 에 다른 브랜치 유입 없음(ad218e8e 고정), 충돌 0.",
+  "mainTipBefore": "ad218e8eafa646a524674fe4ef8cf9c20c0b68bb",
+  "mainTipAfter": "b6daf62fc79586c73469d9159a2f6c00d2a93f91",
+  "mergedAt": "2026-09-15T23:29:30Z",
+  "squashSubject": "release: 실사용 출고 범위 통합과 운영 계약 복원 (#336)",
+  "bookmark": {
+    "value": "000012b2-00000000-000050e7-0c0fb6b7576e5026b8cd176c8d8beee8",
+    "takenAt": "2026-09-16T00:22 KST, 적용 직전",
+    "validUntil": "2026-10-16 (D1 Time Travel 30일)",
+    "restoreCommand": "pnpm exec wrangler d1 time-travel restore ccc --env production --bookmark=000012b2-00000000-000050e7-0c0fb6b7576e5026b8cd176c8d8beee8",
+    "recordedIn": "artifacts/prod-migration-2026-09-16/before.md (커밋 62998c05)",
+    "appliedWithoutBookmark": false
+  },
+  "pendingBefore": {
+    "count": 19,
+    "range": "0054_program_admission.sql ~ 0072_privacy_purge_owned_graph.sql",
+    "lastApplied": "0053",
+    "matchesInstruction": true,
+    "rowCountsBefore": { "support_cases": 0, "sessions": 0, "participant_pii_vault": 0, "audit_log": 0, "users": 2, "flags": 0, "counseling_schedules": 0, "d1_migrations": 52 },
+    "usersRows": "admin 1 (active, bss.or.kr, 2026-07-10), service 1 (active, Cloudflare Access 서비스 계정). 옛 시드 아님. 이메일 전체 미기록."
+  },
+  "applyResult": {
+    "command": "CI=true pnpm exec wrangler d1 migrations apply ccc --env production --remote (Infisical 주입 셸)",
+    "approval": "Main 승인 뒤 실행 (파괴적 DDL 검토는 업무 데이터 0행이라 생략 판단)",
+    "result": "19/19 성공, 실패 0",
+    "rollbackPerformed": false
+  },
+  "pendingAfter": {
+    "count": 0,
+    "output": "✅ No migrations to apply!",
+    "rowCountsAfter": { "support_cases": 0, "sessions": 0, "participant_pii_vault": 0, "audit_log": 0, "users": 2, "flags": 0, "counseling_schedules": 0, "d1_migrations": 71 },
+    "dataLoss": "없음 (업무 표 전부 0→0, users 2→2)"
+  },
+  "schemaSpotCheck": {
+    "newTablesPresent": [
+      "staff_invites (0058)",
+      "privacy_purge_events, privacy_purge_open_support_cases (0071·0072)",
+      "program_admission_policies, program_admission_guards, programs, program_staff (0054)",
+      "participant_registration_receipts, participant_consent_records",
+      "ai_masked_source_snapshots, ai_masked_source_evidence_items, ner_release_qualification_receipts (0069)",
+      "manual_record_revisions, manual_action_outcomes, manual_question_outcomes (0063·0064)",
+      "intake_record_revisions, schedule_question_revisions, schedule_custom_questions (0062·0064)",
+      "case_assignees, support_case_assignees, team_memberships, teams (0066·0067)"
+    ],
+    "roleAssignments": "user_role_assignments 표는 0040 에서 생성·백필됐고 어제 적용 전부터 운영에 있었다. 운영 admin 계정에 live 2행(institution_admin, institution_technical_admin). 로컬 D1 도 동일하게 백필돼 있다. 즉 설정·관리자 화면 미표시는 역할 행 부재가 원인이 아니다.",
+    "recordedIn": "artifacts/prod-migration-2026-09-16/after.md"
+  },
+  "deployResult": {
+    "executed": false,
+    "reason": "Main 지시로 보류. Q 가 로컬 화면에서 (1) 866f2475 가 숨긴 진입점 범위 (2) 월간 캘린더 격자 부재를 지적해 배포 전 Q 결정 필요.",
+    "preflightPrepared": "pnpm deploy:production 조건: HEAD===origin/main(b6daf62f 로 checkout 필요), 버전 3곳 일치, main 최신 CI 초록(머지 직후 CI 가 아직 돌면 preflight 가 막으니 초록 대기), 운영 D1 미적용 0(확인됨), 필수 시크릿 이름 존재(PII_ENC_KEY 있음). 로컬 스모크 ③ 크론 조회에 CLOUDFLARE_API_TOKEN 필요 → infisical run --env=prod --path=/CLOUDFLARE 로 CLOUDFLARE_WORKERS_API_TOKEN 을 매핑해 실행. GHA CLOUDFLARE_API_TOKEN 이 롤된 새 값인지는 워크플로 실행 결과로만 판정 가능.",
+    "humanApprovalGate": "deploy-production.yml 의 environment: production. 필수 리뷰어가 설정돼 있으면 사람 승인에서 멈추고 스크립트가 주소를 찍는다. 아직 실행 전이라 실제 잠금 여부 미확인.",
+    "hiddenEntrypoints866f2475": [
+      "당사자 요청 링크 사이드바 입구·유입 배지·/participants/invite: PUBLIC_SIGNUP_ENABLED==='1' (web/api wrangler preview 에만 있고 운영은 의도적으로 없음, CCC-112)",
+      "설정 화면 자동 상담 기억 설정(InstitutionMemorySettings): 조건 없이 제거",
+      "설정 실무자 목록·관리자 구역·/admin: institution-admin 역할 조건 (866f2475 이전부터 동일)",
+      "브리핑·기록 목록·리뷰: cross_session 모순 필터, other_topics·next_session_commitments 분류 숨김 (조건 없는 코드 필터)",
+      "관리자 AI 사업자 화면: local STT 옵션 숨김"
+    ],
+    "calendarFinding": "apps/web 일정 화면 /programs/[programType]/schedule 은 ?view=day|week|month, 기본 week. 월간 선택 시 GroupedDay 목록을 그리며 WireMonthCalendar 7열 격자는 apps/client(Electron) 에만 쓰이고 web 어느 라우트도 쓰지 않는다. web 에는 원래 격자 월간이 없었다 [추정: Q 기억은 client 화면]."
+  },
+  "smokeResults": {
+    "executed": false,
+    "planned": ["① 웹 GET / 200 또는 3xx", "② API 무인증 401/403 또는 cloudflareaccess.com 리다이렉트", "③ schedules API 에서 */5, */30, 0 3 * * * 크론 3종 재등록"],
+    "note": "배포 미실행이라 스모크 미실행"
+  },
+  "originStatus": {
+    "executed": false,
+    "note": "배포 미실행. 작업 시작 시점 확정 사실: ccc-api GET 302 Access 리다이렉트, 웹 ccc 302. 배포 후 재확인 필요."
+  },
+  "humanSteps": [
+    "1. 로그인 — Cloudflare Access 로그인 (운영 주소 https://ccc.account-855.workers.dev/, 302 → cloudflareaccess.com). 운영 admin 계정 1개가 institution_admin 역할을 갖는다.",
+    "2. 기관 초기 설정 — 설정 화면 /settings (AdminSection: 기관 이름·사업 표시 이름, 실무자 목록 DirectorySection). institution-admin 역할 계정만 보인다.",
+    "3. 실무자 초대·역할 — /admin 관리자 영역 (adminMenuFor 가 비면 404). 초대 수락 시 계정 결속(D90).",
+    "4. 당사자 등록 — /participants/new (RegisterForm). 페이지가 활성 financial_support_v1 사업 1개의 programId 로 6영역 고지 스냅샷을 발급해 폼에 싣고, 폼은 영역마다 consentDecision_<domain> 과 consentSnapshot_<domain> 을 제출한다. 여섯 영역 전부 결정해야 등록 버튼이 열리고, personal_data_collection_use 동의(grant)가 없으면 긴급 등록 사유 없이는 서버가 privacy_consent_required 로 거부한다. 등록자가 곧 담당 실무자로 자동 배정된다(admin 은 본인 배정, counselor 는 게이트웨이 자동 배정).",
+    "5. 담당 배정 확인 — /participants/[beneficiaryId] 당사자 상세 허브. 담당 실무자 배정이 없으면 기록을 쓸 수 없다(배정 없는 케이스는 기록 작성 진입이 막힌다).",
+    "6. 상담 일정 등록 — /schedules/new?target=<beneficiaryId>|<supportCaseId> (등록 완료 직후 자동 이동). 일정 시각은 기관 wall time 으로 입력하고 UTC 로 저장된다.",
+    "7. 일정 확인 — /programs/[programType]/schedule (기본 주간, ?view=month 로 월간 목록).",
+    "8. 인테이크 기록 — /participants/[beneficiaryId]/programs/[supportCaseId]/records/intake (intake-wizard, saved module context·revision 계약).",
+    "9. 첫 상담 기록 작성 — /participants/[beneficiaryId]/programs/[supportCaseId]/records/new (manual-record v2, expectedRevision 제출, 액션 처리 revision 포함).",
+    "10. 브리핑 확인 — /participants/[beneficiaryId]/programs/[supportCaseId]/briefing (회기 목표별 요약, 같은 회차 안 모순만 표시).",
+    "11. CSV 반출 — /admin 관리자 내보내기 (GET /support-cases CSV, 내부 운영 역할 경계). 전사(녹음 업로드·STT)는 이번 범위 밖이라 단계에 없다."
+  ],
+  "secretLeakCheck": {
+    "secretValuesPrinted": 0,
+    "commandsForbiddenNotRun": ["infisical secrets", "infisical get", "infisical export", "--plain"],
+    "injectionUsed": "infisical run 만 사용. 초기에는 --path=/ (21개 주입, 성공), 이후 Main 지시로 --path=/CLOUDFLARE (2개 주입).",
+    "argMaxNote": "Infisical 루트 주입은 현재 동작하지만 총량 544195B(최대 항목 534074B)로 ARG_MAX 한도 바로 아래다. 루트에 큰 값이 하나만 늘어도 다시 막힌다. 자격 주입은 좁은 --path=/CLOUDFLARE 가 안전하다.",
+    "piiInReport": 0
+  },
+  "mutations": {
+    "appsPipelineChanges": 0,
+    "designFileChanges": 0,
+    "filesWrittenByThisAgent": [
+      "artifacts/prod-migration-2026-09-16/before.md (커밋 62998c05)",
+      "artifacts/prod-migration-2026-09-16/after.md (커밋 62998c05)",
+      "artifacts/orchestration/production-release.json (이 보고)"
+    ],
+    "gitOperations": [
+      "push release/0916 7회",
+      "gh pr create #336",
+      "cherry-pick 74cf219f→26e6179c, b843aee0→1aa6f2e7 (PLANNER 문서, Main 승인)",
+      "cherry-pick fd626011→8dd18c9b, b57c684f→efa1df1c, 55b8e9aa→386d67dc (DESIGN, Main 승인, 충돌 0)",
+      "gh pr merge 336 --squash (Main 승인)",
+      "사고 1건: 첫 증거 커밋에 남의 staged 12파일이 딸려 들어감 → git reset --soft HEAD~1 로 즉시 복원, git commit --only 로 재커밋. 손실 0. (그 12파일은 뒤에 3주 전 autostash 로 판명돼 Main 이 되돌림)"
+    ],
+    "productionDbWrites": "migrations apply 1회 (19건). 그 외 읽기 전용 집계 쿼리만.",
+    "codeEditsByThisAgent": 0
+  },
+  "blocked": {
+    "deploy": "Main 보류. Q 결정 대기: 866f2475 숨김 범위 유지 여부, 월간 격자(client 전용) 를 web 에 요구할지, 로컬에서 설정 화면이 안 보인 계정의 역할 확인.",
+    "registrationE2E": "web 테스트는 폼이 필드를 내는 것까지 단언(register-form.test.tsx 601/601 초록). 서버 액션을 API 모킹으로 끝까지 통과시키는 등록 e2e 는 없다. 로컬 실제 실행 확인은 다른 세션 몫.",
+    "ghaTokenFreshness": "CLOUDFLARE_API_TOKEN 이 롤됐다. GHA 저장값이 새 값인지는 deploy-production 워크플로 실행 결과로만 판정된다. 실패 시 GHA 시크릿 갱신은 별도 승인."
+  }
+}
