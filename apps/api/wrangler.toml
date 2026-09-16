@@ -4,6 +4,7 @@ compatibility_date = "2026-07-06"
 
 [vars]
 LOCAL_ACTOR_HEADER_MODE = "true"
+INSTALLATION_MODE = "community-cloud"
 # D8 무폴링 판정 임계값(시간). 미설정이면 gateway 기본값 6시간.
 PIPELINE_STALE_HOURS = "6"
 # 공개 가입 표면 스위치(CCC-112). 정확히 "1"일 때만 공개 초대 조회·가입(과 초대 발급)이
@@ -47,6 +48,7 @@ workers_dev = true
 
 [env.production.vars]
 PIPELINE_STALE_HOURS = "6"
+INSTALLATION_MODE = "community-cloud"
 # PII 키 세대(D3): 2026-07-18 로테이션(v2). 이후 저장되는 vault 행은 key_version=2 로 찍힌다.
 # 로테이션 시점에 운영 금고의 암호문이 0건이라 재암호화 없이 키만 교체했다.
 PII_KEY_VERSION = "2"
@@ -90,6 +92,7 @@ workers_dev = true
 
 [env.preview.vars]
 PIPELINE_STALE_HOURS = "6"
+INSTALLATION_MODE = "community-cloud"
 # 시드 PII 는 key_version=2 로 스탬프되고 단일 PII_ENC_KEY 로 복호화된다(dev·prod 와 동일). 2 로 맞춘다.
 PII_KEY_VERSION = "2"
 # 코드 게이트 스위치. Access env 를 두지 않아 이중 잠금의 ②가 비어 코드 게이트가 열린다.

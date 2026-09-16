@@ -157,6 +157,33 @@ describe('Access JWT identity (production path)', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual([]);
   });
+  it('composes configured Community Cloud mode for admission routes', async () => {
+    await t.reset();
+    __setAccessJwksFetcherForTests(async () => jwks);
+    const token = await sign(mainKeys.privateKey, KID, humanPayload(testActors.admin.userId));
+    const { installationMode: _omitted, ...productionBindings } = accessEnv();
+
+    const response = await worker.fetch(jwtRequest('/programs', token), {
+      ...productionBindings,
+      INSTALLATION_MODE: 'community-cloud',
+    });
+
+    expect(response.status, await response.clone().text()).toBe(200);
+  });
+  it('keeps admission routes locked when deployment mode is not configured', async () => {
+    await t.reset();
+    __setAccessJwksFetcherForTests(async () => jwks);
+    const token = await sign(mainKeys.privateKey, KID, humanPayload(testActors.admin.userId));
+    const { installationMode: _omitted, ...productionBindings } = accessEnv();
+
+    const response = await worker.fetch(jwtRequest('/programs', token), productionBindings);
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: 'program_admission_required',
+      reason: 'installation_unavailable',
+    });
+  });
   it('accepts a valid Access JWT forwarded through the web service binding header', async () => {
     await t.reset();
     __setAccessJwksFetcherForTests(async () => jwks);

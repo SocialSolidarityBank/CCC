@@ -1,7 +1,7 @@
 import { adaptD1Environment } from '@ccc/db-d1';
 import { createR2AudioStore } from '@ccc/audio-r2';
 import { createEnvironmentSecretStore, SECRET_NAMES } from '@ccc/secrets-env';
-import type { SecretName, ScheduledJobKind } from '@ccc/contracts/runtime';
+import type { DeploymentMode, SecretName, ScheduledJobKind } from '@ccc/contracts/runtime';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import { localDevActorResolver } from './local-actor';
 import { handlePreviewUnlock, previewActorResolver } from '@ccc/http-api/preview-gate';
@@ -14,15 +14,23 @@ import { createWorkerSupabaseIdentity, hasSupabaseBearerCredential } from './sup
 import { AUDIO_EXPIRY_CRON, PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
 
 /** Raw provider bindings exist only at the Workers composition boundary. */
-type WorkerEnv = Omit<ApiEnv, 'secretStore'> & Partial<Record<SecretName, string>> & Pick<Partial<ApiEnv>, 'secretStore'>;
+type WorkerEnv = Omit<ApiEnv, 'secretStore'> & Partial<Record<SecretName, string>>
+  & Pick<Partial<ApiEnv>, 'secretStore'> & { INSTALLATION_MODE?: string };
 
 function adaptWorkerEnvironment(bindings: WorkerEnv): ApiEnv {
   // Strip descriptors without evaluating key getters; only SecretStore.get may read them.
   const descriptors = Object.getOwnPropertyDescriptors(bindings);
   for (const name of Object.keys(SECRET_NAMES)) delete descriptors[name];
-  const runtime = Object.defineProperties({}, descriptors) as Omit<WorkerEnv, SecretName>;
+  delete descriptors.INSTALLATION_MODE;
+  const runtime = Object.defineProperties({}, descriptors) as Omit<WorkerEnv, SecretName | 'INSTALLATION_MODE'>;
+  const configuredMode = bindings.INSTALLATION_MODE;
+  const installationMode: DeploymentMode | undefined = configuredMode === 'community-cloud'
+    || configuredMode === 'local-single' || configuredMode === 'local-office'
+    ? configuredMode
+    : undefined;
   const env: ApiEnv = {
     ...runtime,
+    ...(installationMode === undefined ? {} : { installationMode }),
     secretStore: runtime.secretStore ?? createEnvironmentSecretStore(bindings),
   };
   const environment = env.audioStore === undefined
