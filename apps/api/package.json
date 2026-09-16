@@ -17,7 +17,8 @@
   "devDependencies": {
     "@ccc/contracts": "workspace:*",
     "@ccc/db-postgres": "workspace:*",
-    "@ccc/db-sqlite": "workspace:*"
+    "@ccc/db-sqlite": "workspace:*",
+    "esbuild": "0.28.1"
   },
   "scripts": {
     "dev": "wrangler dev --config wrangler.toml",

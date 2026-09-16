@@ -8,7 +8,6 @@
  * esbuild 로 묶어 miniflare 안의 진짜 workerd 에서 돌린다. outbound fetch 는
  * miniflare fetchMock 이 가로채므로 네트워크는 나가지 않는다.
  */
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Miniflare, createFetchMock } from 'miniflare';
 import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
+import { build } from 'esbuild';
 import { SQLITE_MIGRATIONS_PATH } from './support/d1';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -58,9 +58,11 @@ beforeAll(async () => {
 
   persistDir = mkdtempSync(join(tmpdir(), 'ccc-workerd-d1-'));
   // scriptPath 는 workerd 경로 샌드박스에 걸려 저장소 밖 파일을 못 연다 — 번들을 문자열로 넣는다.
-  const script = execFileSync(join(REPO_ROOT, 'node_modules/.bin/esbuild'), [
-    ENTRY, '--bundle', '--format=esm', '--platform=neutral', '--target=es2022',
-  ], { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  const bundled = await build({
+    entryPoints: [ENTRY], bundle: true, format: 'esm', platform: 'neutral',
+    target: 'es2022', write: false, absWorkingDir: REPO_ROOT,
+  });
+  const script = bundled.outputFiles[0]!.text;
 
   const fetchMock = createFetchMock();
   fetchMock.disableNetConnect();
