@@ -31,17 +31,20 @@ compat date(2026-07-06 이상)에서는 지원돼 무관했다 — 실측으로 
   (`createWorkerSupabaseIdentity` + `adaptD1Environment`)을 esbuild 로 묶어 miniflare 안의
   진짜 workerd 에서 돌린다. JWKS 는 `fetchMock` 이 가로채 네트워크는 나가지 않는다.
   수정 전 503(두 테스트 모두 실패), 수정 후 200·403(연결된 subject 통과, 미연결 거부).
+- `notify.ts` 웹훅 fetch: 같은 `redirect: 'error'` → `'manual'`. 회귀 테스트
+  `apps/api/test/notify-workerd.test.ts` 가 workerd 안에서 웹훅 POST 가 실제로
+  나가는지 본문까지 검사한다.
 
-## 같은 결함이 잠든 자리 (이번 범위에서 고치지 않음 — 별도 판단)
+## 같은 결함이 잠든 자리
 
-| 파일 | 런타임 | 영향 |
-|---|---|---|
-| `packages/core/src/notify.ts:37` | **workerd** (ccc-api 크론 → scheduled-job-runner → notifyAdmins) | 워치독 웹훅 발송이 항상 TypeError → catch 되어 "network error" 로만 기록. 운영 알림이 조용히 죽어 있을 수 있다 |
-| `adapters/audio-signer/src/index.ts:119` | Node (community-cloud 의존) | 무관 |
-| `apps/community-cloud/src/storage-signer.ts:161,554` | Node | 무관 |
-| `apps/api/eval/run-memory-trial.ts` | Node (로컬 eval) | 무관 |
-| `apps/client/src/business/*.ts` | Node (데스크톱 클라이언트) | 무관 |
-| `apps/web/app/lib/api.ts` 등 `cache: 'no-store'` | workerd (웹 워커) | compat date 2026-07-15 에서 지원됨 — 무관 |
+| 파일 | 런타임 | 영향 | 처리 |
+|---|---|---|---|
+| `packages/core/src/notify.ts:37` | **workerd** (ccc-api 크론 → scheduled-job-runner → notifyAdmins) | 워치독 웹훅 발송이 항상 TypeError → catch 되어 "network error" 로만 기록. 운영 알림이 조용히 죽어 있었다 | **같은 배포에서 고쳤다** |
+| `adapters/audio-signer/src/index.ts:119` | Node (community-cloud 의존) | 무관 | 그대로 |
+| `apps/community-cloud/src/storage-signer.ts:161,554` | Node | 무관 | 그대로 |
+| `apps/api/eval/run-memory-trial.ts` | Node (로컬 eval) | 무관 | 그대로 |
+| `apps/client/src/business/*.ts` | Node (데스크톱 클라이언트) | 무관 | 그대로 |
+| `apps/web/app/lib/api.ts` 등 `cache: 'no-store'` | workerd (웹 워커) | compat date 2026-07-15 에서 지원됨 — 무관 | 그대로 |
 
 ## 교훈
 
