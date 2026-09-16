@@ -172,6 +172,9 @@ importers:
       '@ccc/identity-access':
         specifier: workspace:*
         version: link:../../adapters/identity-access
+      '@ccc/identity-supabase':
+        specifier: workspace:*
+        version: link:../../adapters/identity-supabase
       '@ccc/secrets-env':
         specifier: workspace:*
         version: link:../../adapters/secrets-env

@@ -7,10 +7,17 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv, NotifyEnv {
   /** Null means this runtime cannot handle original audio; no fallback adapter is supplied. */
   audioStore: AudioStore | null;
   /**
-   * 첫 로그인 신원 연결(D80) 전용 자격 검증 포트. 서명·claim 만 보고 MFA 관문도 디렉터리
-   * 조회도 하지 않는다. 없는 런타임에는 `POST /identity/link` 표면 자체가 없다(404).
+   * 검증된 신원 claim 을 공급하는 포트. 초대 수락(POST /staff-invites/token/:token/accept)이
+   * 요구한다 — 서명·claim 만 보고 MFA 관문도 디렉터리 조회도 하지 않는다. 없는 런타임에는
+   * 그 표면 자체가 없다(404). ccc-api 는 SUPABASE_AUTH_ORIGIN 이 있을 때 Supabase 어댑터로 채운다.
    */
   verifyIdentityLinkClaims?: (request: Request) => Promise<AuthenticatedIdentityClaims>;
+  /**
+   * 앱 직접 로그인(Supabase Auth) 레인의 신뢰 origin. issuer·JWKS 주소는 이 값에서만
+   * 파생한다(apps/api/src/supabase-identity.ts). 비밀이 아닌 공개 설정이다. 없으면
+   * Supabase 레인 자체가 없고 초대 수락(verifyIdentityLinkClaims 포트)도 404 로 닫힌다.
+   */
+  SUPABASE_AUTH_ORIGIN?: string;
   /**
    * Cloudflare Access adapter와 preview/local 이중 잠금이 읽는 공개 설정.
    * 검증 구현은 `adapters/identity-access`; http-api는 값만 전달한다.
