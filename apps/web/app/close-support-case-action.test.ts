@@ -50,6 +50,7 @@ vi.mock('./lib/api', () => ({
   registerCounselor: vi.fn(),
   reviewAiDraft: vi.fn(),
   updateParticipantConsent: vi.fn(),
+  updateProgramAdmission: vi.fn(),
   updateParticipantBasicInfo: vi.fn(),
   updateScheduleSessionGoals: vi.fn(),
   updateSupportCaseOverallGoal: vi.fn(),

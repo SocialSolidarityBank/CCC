@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { PROGRAM_ADMISSION_COPY } from '@ccc/contracts/program-admission';
 
 // vitest 전역(globals) 미설정이라 자동 언마운트가 걸리지 않는다(admin-sidebar.test.tsx 와 같은 이유).
 afterEach(cleanup);
@@ -7,12 +8,19 @@ afterEach(cleanup);
 const getOrganizationProfile = vi.fn();
 const listOrgUsers = vi.fn();
 const listAssignedParticipants = vi.fn();
+const listPrograms = vi.fn();
+const updateProgramAdmissionAction = vi.fn();
 
+
+vi.mock('../actions', () => ({
+  updateProgramAdmissionAction: (formData: FormData) => updateProgramAdmissionAction(formData),
+}));
 vi.mock('../lib/api', () => ({
   ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
   getOrganizationProfile: () => getOrganizationProfile(),
   listOrgUsers: () => listOrgUsers(),
   listAssignedParticipants: () => listAssignedParticipants(),
+  listPrograms: () => listPrograms(),
 }));
 
 const { default: AdminOrganizationPage } = await import('./page');
@@ -25,8 +33,39 @@ beforeEach(() => {
   getOrganizationProfile.mockReset();
   listOrgUsers.mockReset();
   listAssignedParticipants.mockReset();
+  listPrograms.mockReset();
+  updateProgramAdmissionAction.mockReset();
   getOrganizationProfile.mockResolvedValue({ orgId: 'org_demo', orgName: '사회연대은행', programDisplayName: '마이크로크레딧' });
   listOrgUsers.mockResolvedValue([]);
+  listPrograms.mockResolvedValue({
+    programs: [{
+      id: 'program-1',
+      orgId: 'org_demo',
+      displayName: '마이크로크레딧',
+      status: 'active',
+      programType: 'financial_support_v1',
+      storageMode: 'undecided',
+      processingMode: 'undecided',
+      version: 1,
+      financialSupportEnabled: true,
+      confirmation: null,
+      admissionState: 'undecided',
+      staff: [],
+    }],
+    staffOptions: [],
+    admissionCopy: {
+      version: 'D87-v1',
+      hash: 'a'.repeat(64),
+      copy: PROGRAM_ADMISSION_COPY,
+    },
+    installation: {
+      deploymentMode: 'community-cloud',
+      sttMode: 'off',
+      llmMode: 'off',
+      policyVersion: 1,
+      configHash: 'b'.repeat(64),
+    },
+  });
 });
 
 describe('관리자 기관 홈 (CCC-59)', () => {
@@ -78,6 +117,26 @@ describe('관리자 기관 홈 (CCC-59)', () => {
     expect(container.textContent).toContain('설정 전');
   });
 
+
+  it('미결정 사업은 기본 선택 없이 두고 두 축을 고른 뒤에만 관리자 확인을 연다', async () => {
+    const { container } = render(await AdminOrganizationPage());
+
+    expect(screen.getByRole('heading', { name: '사업 도입 확인' })).not.toBeNull();
+    const storage = screen.getByRole('radio', { name: /기본형/ }) as HTMLInputElement;
+    const naver = screen.getByRole('radio', { name: /네이버 클라우드 공공형/ }) as HTMLInputElement;
+    const processing = screen.getByRole('radio', { name: /기관 안에서만 처리/ }) as HTMLInputElement;
+    expect(storage.checked).toBe(false);
+    expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(true);
+    expect(naver.disabled).toBe(true);
+    expect(screen.queryByRole('checkbox', { name: PROGRAM_ADMISSION_COPY.confirmation })).toBeNull();
+    expect(screen.getAllByRole('link', { name: '확인하는 법' })).toHaveLength(2);
+    expect(container.textContent).toContain('AI 정리(OpenAI');
+    expect(container.textContent).toContain('음성 인식(Azure');
+
+    fireEvent.click(storage);
+    fireEvent.click(processing);
+    expect(screen.getByRole('checkbox', { name: PROGRAM_ADMISSION_COPY.confirmation })).not.toBeNull();
+  });
   it('조회가 실패하면 빈 화면 대신 안내를 남긴다', async () => {
     const { ApiError } = await import('../lib/api') as unknown as { ApiError: new (code: string) => Error };
     getOrganizationProfile.mockRejectedValue(new ApiError('service_unavailable'));

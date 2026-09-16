@@ -29,6 +29,7 @@ import {
   getPublicInviteInfo,
   issueRegistrationConsentDisclosures,
   listProgramOptions,
+  updateProgramAdmission,
   getParticipantInviteConsentDisclosures,
   signupParticipant,
   createStaffInvite,
@@ -82,6 +83,12 @@ import {
   type ManualActionOutcomeInput,
   type ManualNextAction,
 } from '@ccc/contracts/manual-record';
+import type {
+  ProgramConfirmationInput,
+  ProgramProcessingMode,
+  ProgramStorageMode,
+  UpdateProgramInput,
+} from '@ccc/contracts/program-admission';
 
 export async function setCounselingMemorySettingsAction(input: MemorySettingsInput) {
   try {
@@ -1065,8 +1072,8 @@ export async function createInitialParticipantProgramAction(formData: FormData):
   let beneficiaryId: string | undefined;
   let supportCaseId: string | undefined;
   try {
-    // 등록자=담당 실무자(D7): 폼에서 담당 실무자를 받지 않는다. admin 은 게이트웨이 계약상 담당 실무자 필수라
-    // 본인을 배정하고, counselor 는 전달하지 않아 게이트웨이 자동 본인 배정에 맡긴다.
+    // 등록자=담당 실무자(D7): 폼에서 담당 실무자를 받지 않는다. 기관 관리자 grant가 있으면
+    // 본인을 배정하고, 실무자만 있으면 전달하지 않아 게이트웨이 자동 본인 배정에 맡긴다.
     const identity = await getMyIdentity();
     const email = optionalEmail(formData, 'email');
     const name = optionalTrimmedText(formData, 'name', 100);
@@ -1098,7 +1105,7 @@ export async function createInitialParticipantProgramAction(formData: FormData):
       // 긴급 등록 사유가 있어야 서버가 받아 준다.
       consentEvents: consentEventsFromDecisions(decisions, idempotencyKey),
       ...(emergencyReason === undefined ? {} : { emergencyReason }),
-      ...(identity.role === 'admin' ? { initialAssigneeUserId: identity.id } : {}),
+      ...(identity.roles.includes('institution-admin') ? { initialAssigneeUserId: identity.id } : {}),
       ...(name === undefined ? {} : { name }),
       ...(phone === undefined ? {} : { phone }),
       ...(email === undefined ? {} : { email }),
@@ -1243,6 +1250,60 @@ export async function completeOrganizationOnboardingAction(formData: FormData): 
   }
   revalidatePath('/', 'layout');
   redirect(withNotice('/onboarding', 'notice', 'onboarding_saved'));
+}
+
+// D87 사업 도입 확인. 선택과 화면이 읽은 문안·설치 해시를 함께 보내고, API가 현재값과
+// 다시 대조한 뒤 관리자·시각·선택·문안 버전·해시를 programs와 audit_log에 원자적으로 남긴다.
+export async function updateProgramAdmissionAction(formData: FormData): Promise<void> {
+  try {
+    const programId = opaqueId(formData, 'programId');
+    const expectedVersion = positiveInteger(formData, 'expectedVersion');
+    const deploymentMode = requiredValue(formData, 'deploymentMode');
+    if (deploymentMode !== 'community-cloud' && deploymentMode !== 'local-single' && deploymentMode !== 'local-office') {
+      throw new FormInputError();
+    }
+
+    const storageInput = value(formData, 'storageMode');
+    if (storageInput !== '' && storageInput !== 'supabase_seoul' && storageInput !== 'undecided') {
+      throw new FormInputError();
+    }
+    const storageMode = storageInput === '' ? undefined : storageInput as ProgramStorageMode;
+    const processingInput = value(formData, 'processingMode');
+    if (processingInput !== '' && processingInput !== 'external_allowed'
+      && processingInput !== 'internal_only' && processingInput !== 'undecided') {
+      throw new FormInputError();
+    }
+    const processingMode = processingInput === '' ? undefined : processingInput as ProgramProcessingMode;
+
+    const choicesDecided = (deploymentMode !== 'community-cloud'
+      || (storageMode !== undefined && storageMode !== 'undecided'))
+      && processingMode !== undefined && processingMode !== 'undecided';
+    let confirmation: ProgramConfirmationInput | null = null;
+    if (choicesDecided) {
+      if (value(formData, 'confirmed') !== 'yes') throw new FormInputError();
+      confirmation = {
+        copyVersion: requiredValue(formData, 'copyVersion'),
+        copyHash: requiredValue(formData, 'copyHash'),
+        installationPolicyVersion: positiveInteger(formData, 'installationPolicyVersion'),
+        installationConfigHash: requiredValue(formData, 'installationConfigHash'),
+      };
+      if (!/^[a-f0-9]{64}$/.test(confirmation.copyHash)
+        || !/^[a-f0-9]{64}$/.test(confirmation.installationConfigHash)) {
+        throw new FormInputError();
+      }
+    }
+
+    const input: UpdateProgramInput = { expectedVersion, confirmation };
+    if (processingMode !== undefined) input.processingMode = processingMode;
+    if (deploymentMode === 'community-cloud' && storageMode !== undefined) input.storageMode = storageMode;
+
+    await updateProgramAdmission(programId, input);
+  } catch (error) {
+    redirect(withNotice('/admin', 'error', noticeFor(error)));
+  }
+  revalidatePath('/admin');
+  revalidatePath('/participants/new');
+  redirect(withNotice('/admin', 'notice', 'program_admission_saved'));
 }
 
 export async function registerCounselorAction(formData: FormData): Promise<void> {

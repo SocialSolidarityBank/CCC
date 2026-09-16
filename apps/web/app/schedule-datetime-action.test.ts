@@ -56,6 +56,7 @@ vi.mock('./lib/api', () => ({
   updateParticipantConsent: vi.fn(),
   updateParticipantBasicInfo: vi.fn(),
   updateScheduleSessionGoals: vi.fn(),
+  updateProgramAdmission: vi.fn(),
   updateSupportCaseOverallGoal: vi.fn(),
   resolveDiscrepancy: vi.fn(),
   actionItemResolutionStatuses: ['done', 'in_progress', 'not_done', 'hold'],

@@ -2,10 +2,19 @@ import {
   PageTitle,
   WireCallout,
   WireCard,
-  WireEmpty,
   WireError,
 } from '@ccc/wire';
-import { ApiError, getOrganizationProfile, listOrgUsers, type DirectoryUser, type OrganizationProfile } from '../lib/api';
+import {
+  ApiError,
+  getOrganizationProfile,
+  listOrgUsers,
+  listPrograms,
+  type DirectoryUser,
+  type OrganizationProfile,
+} from '../lib/api';
+import type { ProgramListResponse } from '@ccc/contracts/program-admission';
+import { updateProgramAdmissionAction } from '../actions';
+import { ProgramAdmissionForm } from './program-admission-form';
 
 // 관리자 영역 기관 화면(재개편 T8, #38 · Figma 5:350).
 //
@@ -16,7 +25,7 @@ import { ApiError, getOrganizationProfile, listOrgUsers, type DirectoryUser, typ
 // 당사자 전원의 이름·연락처를 복호화하고 read_participant_pii 감사를 한 행 남긴다. 이 화면을
 // 열 때마다 그 행이 쌓이면 "이 실무자가 이 당사자를 몇 번 열람했나"(D24 · ADR-0005)가 숫자
 // 하나 때문에 부풀어 못 쓰게 된다. 세기 전용 조회가 생기면 그때 넣는다.
-// 여기 실린 두 조회(기관 이름·계정 목록)에는 금고 값이 없다.
+// 이 화면의 조회(기관 이름·계정 목록·사업 도입 확인)에는 금고 값이 없다.
 
 interface UserCounts {
   admins: number;
@@ -43,16 +52,39 @@ function StatRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function AdminOrganizationPage() {
+type SearchParams = Record<string, string | string[] | undefined>;
+
+
+const admissionErrorMessages: Record<string, string> = {
+  invalid_request: '선택과 관리자 확인을 다시 확인하세요.',
+  access_denied: '사업 도입 확인은 기관 관리자만 저장할 수 있습니다.',
+  forbidden: '사업 도입 확인은 기관 관리자만 저장할 수 있습니다.',
+  conflict: '사업 설정이 바뀌었습니다. 화면을 새로 고친 뒤 다시 확인하세요.',
+  service_unavailable: '사업 설정을 지금 저장할 수 없습니다. 잠시 후 다시 시도하세요.',
+};
+
+export default async function AdminOrganizationPage({
+  searchParams,
+}: {
+  searchParams?: Promise<SearchParams>;
+} = {}) {
+  const query: SearchParams = searchParams === undefined ? {} : await searchParams;
+  const notice = typeof query.notice === 'string' ? query.notice : undefined;
+  const errorCode = typeof query.error === 'string' ? query.error : undefined;
   let profile: OrganizationProfile | null = null;
   let users: DirectoryUser[] | null = null;
+  let programContext: ProgramListResponse | null = null;
   try {
-    [profile, users] = await Promise.all([getOrganizationProfile(), listOrgUsers()]);
+    [profile, users, programContext] = await Promise.all([
+      getOrganizationProfile(),
+      listOrgUsers(),
+      listPrograms(),
+    ]);
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
   }
 
-  if (profile === null || users === null) {
+  if (profile === null || users === null || programContext === null) {
     return (
       <>
         <PageTitle>기관</PageTitle>
@@ -66,6 +98,14 @@ export default async function AdminOrganizationPage() {
   return (
     <>
       <PageTitle>기관</PageTitle>
+      {notice === 'program_admission_saved' ? (
+        <WireCallout title="사업 도입 확인을 저장했습니다" role="status">
+          확인된 사업은 당사자 등록을 시작할 수 있습니다.
+        </WireCallout>
+      ) : null}
+      {errorCode === undefined ? null : (
+        <WireError>{admissionErrorMessages[errorCode] ?? '사업 도입 확인을 저장하지 못했습니다.'}</WireError>
+      )}
 
       <WireCard as="section" className="settings-section" labelledBy="admin-org-heading" title={<h2 id="admin-org-heading">기관 정보</h2>}>
         <dl className="settings-account">
@@ -78,6 +118,18 @@ export default async function AdminOrganizationPage() {
           </WireCallout>
         ) : null}
       </WireCard>
+
+      {programContext.programs.length === 0 ? (
+        <WireError>확인할 사업이 없습니다.</WireError>
+      ) : programContext.programs.map((program) => (
+        <ProgramAdmissionForm
+          key={program.id}
+          program={program}
+          admissionCopy={programContext.admissionCopy}
+          installation={programContext.installation}
+          action={updateProgramAdmissionAction}
+        />
+      ))}
 
       <WireCard as="section" className="settings-section" labelledBy="admin-people-heading" title={<h2 id="admin-people-heading">계정</h2>}>
         <dl className="settings-account" data-testid="admin-user-counts">

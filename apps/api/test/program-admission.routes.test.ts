@@ -53,6 +53,23 @@ describe('program admission boundary', () => {
     expect(confirmedResponse.status).toBe(200);
     const confirmed = await confirmedResponse.json() as ProgramMutationResponse;
     expect(confirmed.program.admissionState).toBe('ready');
+    const audit = await t.db.prepare(
+      `SELECT actor_id, detail FROM audit_log
+       WHERE org_id = ? AND action = 'update' AND target_table = 'programs' AND target_id = ?
+       ORDER BY id DESC LIMIT 1`,
+    ).bind(admin.orgId, created.program.id).first<{ actor_id: string; detail: string }>();
+    expect(audit?.actor_id).toBe(admin.userId);
+    expect(JSON.parse(audit?.detail ?? '{}')).toMatchObject({
+      storageMode: 'supabase_seoul',
+      processingMode: 'external_allowed',
+      confirmation: {
+        by: admin.userId,
+        storageMode: 'supabase_seoul',
+        processingMode: 'external_allowed',
+        copyVersion: context.admissionCopy.version,
+        copyHash: context.admissionCopy.hash,
+      },
+    });
     const participant = await createCase(t.env, worker, await registrationInput(t.env, worker, {
       programId: created.program.id,
     }));

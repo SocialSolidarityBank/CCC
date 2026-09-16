@@ -48,6 +48,7 @@ vi.mock('./lib/api', () => ({
   reviewAiDraft: vi.fn(),
   updateParticipantConsent: vi.fn(),
   updateParticipantBasicInfo: vi.fn(),
+  updateProgramAdmission: vi.fn(),
   updateScheduleSessionGoals: vi.fn(),
   updateSupportCaseOverallGoal: vi.fn(),
   resolveDiscrepancy: vi.fn(),

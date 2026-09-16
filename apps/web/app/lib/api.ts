@@ -4,6 +4,11 @@ import { headers } from 'next/headers';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import type { MemorySettingsInput, MemorySettingsView } from '@ccc/contracts/counseling-memory';
 import { STT_MODES, type AgentStatus, type CapabilityDisabledReason, type SttMode } from '@ccc/contracts/runtime';
+import type {
+  ProgramListResponse,
+  ProgramMutationResponse,
+  UpdateProgramInput,
+} from '@ccc/contracts/program-admission';
 import {
   INTAKE_WRITE_SCHEMA_VERSION,
   parseIntakeQuestionLifecycle,
@@ -1115,6 +1120,24 @@ export async function listProgramOptions(): Promise<ProgramOption[]> {
       programType: responseEnum(responseProperty(record, 'programType'), participantProgramTypes),
     };
   });
+}
+
+/** 기관 관리자의 사업 도입 확인 화면 재료. 문안과 해시를 같은 응답에서 받아 확인 기록에 묶는다. */
+export async function listPrograms(): Promise<ProgramListResponse> {
+  return requestJson<ProgramListResponse>('/programs');
+}
+
+/** D87 선택과 관리자 확인을 저장한다. 권한·문안 해시·설치 설정 동시성은 API가 다시 검증한다. */
+export async function updateProgramAdmission(
+  programId: string,
+  input: UpdateProgramInput,
+): Promise<ProgramMutationResponse['program']> {
+  const response = await jsonRequest<ProgramMutationResponse>(
+    `/programs/${encodeURIComponent(programId)}`,
+    'PATCH',
+    input,
+  );
+  return response.program;
 }
 
 // 사업 목록 응답에는 동의가 없으므로 담당 사업마다 GET consent 을 붙여 접은 값을 채운다.
