@@ -1,0 +1,66 @@
+{
+  "agent": "DeployAndAccess",
+  "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/auth-direct",
+  "head": "29a033cd",
+  "scope": "웹 워커의 Cloudflare Access 어플리케이션을 걷어냈을 때 앱 자체 게이트만으로 보호 화면 본문이 새지 않는지 코드로 판정. 실행·변경 없음, 읽기만.",
+  "verdict": "웹 Access 제거는 안전하다. 보호 화면 본문은 전부 API 응답에서만 만들어지고, API 는 자체 resolveActor 가 무인증을 401/403 으로 닫는다. Access 는 이중 잠금일 뿐 유일한 방어선이 아니다.",
+  "webGate": {
+    "middleware": "apps/web/middleware.ts:80-91. 비공개 경로는 ccc_auth 쿠키·CF_Authorization 쿠키·cf-access-jwt-assertion 헤더 셋 중 하나의 존재만 본다. 없으면 /login?next=... 로 307. 존재만 보는 것은 의도다 — 위조 자격은 API 가 401 로 걸러 본문이 안 나온다.",
+    "publicPaths": [
+      "/join, /join/* (PUBLIC_SIGNUP_ENABLED==='1' 일 때만, 운영 vars 에 없음 → 404)",
+      "/join/worker/* (실무자 초대 수락, 스위치와 무관하게 공개 — 토큰이 자격)",
+      "/preview, /preview/admin, /preview/unlock (미리보기 진입)",
+      "/welcome (서비스 소개)",
+      "/login, /login/unlock (직접 로그인)"
+    ],
+    "shellLeak": "없다. 루트 레이아웃(app/layout.tsx:1287-1296)은 공개 경로에서 셸을 통째로 뺀다. 비공개 경로는 getDisplayLabels() 가 GET /organization/profile 을 부르고 ApiError 시 labels.ts 하드코딩 폴백('사회연대은행'·'마이크로크레딧 씬파일러 금융지원·멘토링')으로 떨어진다 — DB 의 실제 기관명은 나오지 않는다. 사이드바·헤더는 사용자 이름을 렌더하지 않는다. newSignupCount 는 PUBLIC_SIGNUP_ENABLED 가 꺼진 운영에서 조회 자체를 안 한다.",
+    "pageLeak": "없다. 확인한 보호 화면 전부(participants 목록·상세, programs/*/schedule, settings, admin/*, onboarding, schedules/new)가 본문 데이터를 API 에서만 가져오고, ApiError 시 정적 오류 문구나 빈 상태만 그린다. URL 파라미터(beneficiaryId 등)는 에러 화면에 에코되지 않는다. 위조 쿠키로 middleware 를 통과해도 나오는 것은 셸 골격 + 하드코딩 라벨 + '불러올 수 없습니다' 뿐이다.",
+    "residual": "위조 ccc_auth 쿠키 한 장으로 앱 셸(메뉴 구조·정적 라벨)이 렌더된다. 업무 데이터 0건이지만 화면 뼈대는 보인다. Access 를 걷어내면 이것이 새 노출면이다 — 판정상 허용 가능으로 본다(메뉴 이름은 공개 문서 수준 정보).",
+    "serverActions": "서버 액션 POST 도 같은 경로라 middleware 세션 게이트를 탄다. 쿠키 없는 POST 는 /login 리다이렉트로 바뀐다."
+  },
+  "apiPublicRoutes": {
+    "note": "resolveActor 호출(2477) 이전에 return 되는 경로 전수. 이 외 모든 경로는 Supabase Bearer 또는 Access JWT 검증을 통과해야 한다.",
+    "routes": [
+      {"route": "GET /health", "returns": "{status:'ok',service:'ccc-api'} — 정적 문자열만", "risk": "없음"},
+      {"route": "GET /invites/participant/:token", "returns": "토큰 유효 시 programType·orgName·expiresAt, used 시 발급 실무자 이름/이메일 + 안내 문구. 무효·만료·미존재는 전부 404", "risk": "낮음 — 운영은 PUBLIC_SIGNUP_ENABLED 미설정이라 스위치가 먼저 404 로 닫는다(2381). 켜져 있어도 토큰이 자격이다"},
+      {"route": "GET /invites/participant/:token/consent/disclosures", "returns": "동의 고지 스냅샷(정적 고지 문구)", "risk": "낮음 — 같은 스위치 아래"},
+      {"route": "POST /signup/participant", "returns": "토큰 소비 + 당사자 생성. 무효는 404", "risk": "낮음 — 같은 스위치 아래, 운영은 닫힘"},
+      {"route": "GET /staff-invites/token/:token", "returns": "토큰 유효 시 orgName·roles·expiresAt. 토큰은 sha256 해시 조회(24814), 형식 불일치·만료·소비·미존재 전부 같은 404 — 열거 불가", "risk": "낮음 — 스위치 밖이지만 토큰이 자격이고 토큰 없이는 아무것도 안 나온다. 목록 라우트 없음 확인"},
+      {"route": "POST /staff-invites/token/:token/accept", "returns": "검증된 Supabase subject + 이메일 대조 + 토큰 소비. 어느 단계 실패든 404", "risk": "낮음 — verifyIdentityLinkClaims 배선이 없으면 라우트 자체가 404(2447)"},
+      {"route": "POST /agents/pair, POST /agents/token", "returns": "pairingCode·refreshToken 자체가 자격인 교환. 실패는 401", "risk": "낮음 — 설계상 공개, 자격 없이는 아무것도 안 준다"},
+      {"route": "GET /invites/participant/:token/me, /invites/worker/*", "returns": "폐기된 경로. 인증 전에 404 로 닫아 토큰 유효성을 새지 않는다", "risk": "없음"}
+    ],
+    "apiAccessApp": "API 호스트네임의 Access 어플리케이션은 직접 외부 호출 앞의 이중 잠금이다. 제거해도 resolveActor 가 닫지만, 배정 금지대로 유지한다. 웹→API 는 서비스 바인딩(env.CCC_API.fetch, api.ts:1457)이라 Access 를 타지 않는다."
+  },
+  "findings": [
+    {
+      "id": "R1",
+      "severity": "info",
+      "what": "위조 ccc_auth 쿠키로 셸 골격(사이드바 메뉴·하드코딩 기관 라벨)이 렌더된다",
+      "safeToRemoveAccess": true,
+      "reason": "본문 데이터는 전부 API 의 resolveActor 뒤에 있다. 셸에 실리는 것은 정적 라벨뿐이고 labels.ts 폴백이 DB 기관명을 대신한다."
+    },
+    {
+      "id": "R2",
+      "severity": "info",
+      "what": "GET /staff-invites/token/:token 이 유효 토큰에 orgName·roles·expiresAt 을 준다",
+      "safeToRemoveAccess": true,
+      "reason": "토큰(64hex, sha256 해시 저장)이 곧 자격이라는 D86 설계다. 토큰 없이 목록·기관 정보가 나오는 경로는 없다."
+    },
+    {
+      "id": "R3",
+      "severity": "info",
+      "what": "당사자 공개 가입 표면 3종은 PUBLIC_SIGNUP_ENABLED==='1' 일 때만 열린다. 운영 wrangler vars 에 이 값이 없어 현재 404 다",
+      "safeToRemoveAccess": true,
+      "reason": "fail closed. 나중에 켜도 토큰 게이트가 그대로다."
+    },
+    {
+      "id": "R4",
+      "severity": "low",
+      "what": "middleware 는 자격의 존재만 본다 — /login 리다이렉트가 유일한 웹 측 방어다",
+      "safeToRemoveAccess": true,
+      "reason": "의도된 이중 구조다(주석: 위조분은 API 에서 401). 다만 Access 제거 후에는 이 존재 검사가 웹의 유일한 게이트가 되므로, 본문을 API 없이 그리는 화면이 새로 생기면 그때 다시 봐야 한다."
+    }
+  ],
+  "conclusion": "웹 Access 어플리케이션 제거 진행 가능. 미로그인 요청은 /login 리다이렉트, 위조 자격 요청은 셸 골격 + 오류 문구까지만 나오고 업무 데이터·실제 기관명·사용자 이름은 한 조각도 안 나온다. API 는 자체 인증이 닫고 Access 앱은 이중 잠금으로 유지. 선행 수정 필요 항목 없음."
+}
