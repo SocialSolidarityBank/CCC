@@ -15494,15 +15494,12 @@ async function assertActiveHumanUser(
   env: Env,
   orgId: string,
   userId: string,
-  expectedRole?: 'admin' | 'counselor',
 ): Promise<void> {
   const row = await env.DB.prepare(
     `SELECT id FROM users
      WHERE id = ? AND org_id = ? AND active = 1
-       AND role IN ('admin', 'counselor')${expectedRole === undefined ? '' : ' AND role = ?'}`,
-  ).bind(
-    ...(expectedRole === undefined ? [userId, orgId] : [userId, orgId, expectedRole]),
-  ).first<{ id: string }>();
+       AND role IN ('admin', 'counselor')`,
+  ).bind(userId, orgId).first<{ id: string }>();
   if (row === null) {
     throw new ForbiddenError('actor is unavailable');
   }
@@ -15510,12 +15507,9 @@ async function assertActiveHumanUser(
 
 async function assertCurrentHumanActor(env: Env, actor: Actor): Promise<void> {
   assertHuman(actor);
-  await assertActiveHumanUser(
-    env,
-    actor.orgId,
-    actor.userId,
-    actor.role === 'admin' ? 'admin' : 'counselor',
-  );
+  // D74 canonical grants authorize the projected actor. users.role is legacy audit metadata and
+  // may legitimately differ after an independent role grant (ADR-0038).
+  await assertActiveHumanUser(env, actor.orgId, actor.userId);
 }
 
 async function assertActiveAssignment(
