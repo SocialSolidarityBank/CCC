@@ -2592,7 +2592,7 @@
     "note": "local-only, no worktree; not deleted"
   },
   "round2": {
-    "status": "JUDGED 2026-09-17, Q approval PENDING (no worktree/branch touched yet)",
+    "status": "EXECUTED 2026-09-17. Q approved in chat (닫기 고고) for the proposed API closure only; conditional 2 remain pending",
     "judged_against": {
       "origin_main": "59d911e6",
       "local_main": "60b8b58f (gitignore commit, unpushed)"
@@ -2834,6 +2834,189 @@
       "branches": "34→33"
     },
     "gitignore_note": "1차 held 기록대로 로컬 main 커밋 60b8b58f(부모 59d911e6)에 /.superpowers/ 한 줄 이미 존재, 미push. 중복 생성하지 않음. feat/frontend-adjustments 는 push 후 backup+삭제 예정(1차 결정 유지)",
-    "fresh_counts_note": "2026-09-17 재실측: 워크트리 17, 브랜치 tip 전체 1차 때와 동일, origin/main 59d911e6 불변, PR #335 OPEN 지속. beta-0.9 추적 미커밋은 재실측 9건(Q 보고 22건과 차이, 세션 진행으로 변동 추정)"
+    "fresh_counts_note": "2026-09-17 재실측: 워크트리 17, 브랜치 tip 전체 1차 때와 동일, origin/main 59d911e6 불변, PR #335 OPEN 지속. beta-0.9 추적 미커밋은 재실측 9건(Q 보고 22건과 차이, 세션 진행으로 변동 추정)",
+    "executed": {
+      "worktree_removed": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/API",
+      "branch_deleted": "release/s12-recovery (was 7e195217)",
+      "backup_ref": "생성하지 않음. 원격 origin/release/s12-recovery(7e195217) 가 백업(Q 규칙), ls-remote 로 존재 재확인",
+      "remote_delete": 0,
+      "force_used": false,
+      "method_note": "git worktree remove(추적 미커밋 0·untracked 0이라 --force 불필요), git branch -D(squash 머지라 -d 는 거부됨)",
+      "counts_after": {
+        "branches": 33,
+        "worktrees": 16
+      },
+      "backend": {
+        "preserved": "docs/aside/CCC-STT-PC-권장사양-공식문서-조사-2026-09-07.md 를 main 에 커밋(9f74de6a). 배치 판단: docs/aside 는 main 에 같은 성격의 한국어 조사 문서 4건이 이미 살아 문서 배치 규칙에 부합. 커밋 전 sha256 c6f24050 로 원본과 복제본 일치 확인",
+        "worktree_removed": ".worktrees/backend",
+        "branch_deleted": "policy/stt-client-ownership (was 5267931d)",
+        "backup_ref": "불필요(원격 origin/policy/stt-client-ownership ad79e22f 존재, ls-remote 재확인)",
+        "remote_delete": 0
+      },
+      "release_16": {
+        "preserved": "artifacts/orchestration/production-release.json 를 main 에 커밋(cc694890). sha256 356cfcb5 일치 확인",
+        "regenerable_dropped": [
+          "community-cloud-cli-...-0.9.0-dev.3-macos-arm64.tar.gz: 소스(PR #336 squash)+scripts/release 파이프라인으로 재빌드 가능",
+          "tar.gz.manifest.json: ed25519 서명 산출물이나 서명 키(dev-release-e202566356de8759)와 파이프라인이 남아 재서명 가능하고, 게시 원본이 ccc-releases worker(artifactUrl/manifestUrl)에 존재",
+          "release-bundle.json: manifest·레지스트리에서 파생되는 조립 기록",
+          "release-floor.json: 게이트 프로세스 출력(sequence floor)",
+          "component-root/functions/ccc-storage-signer/index.js: apps/community-cloud/src/storage-signer-main.ts+packages/contracts 의 esbuild 번들 산출물. 재빌드 명령은 RUN.md 이 문서화, build-bundle.mjs:521 이 복사 규약 문서화"
+        ],
+        "non_regenerable": [],
+        "worktree_removed": ".worktrees/release-16",
+        "branch_deleted": "release/0916 (was 386d67dc)",
+        "backup_ref": "불필요(원격 origin/release/0916 386d67dc 존재, ls-remote 재확인)",
+        "remote_delete": 0
+      }
+    },
+    "still_pending": [
+      {
+        "lane": "backend",
+        "branch": "policy/stt-client-ownership",
+        "blocker": "untracked docs/aside 조사 문서 1건 처치 결정 대기"
+      },
+      {
+        "lane": "release-16",
+        "branch": "release/0916",
+        "blocker": "배포 종료 후 release 증거 6건 처치 결정 대기"
+      }
+    ],
+    "round3_targets": [
+      {
+        "lane": "frontend",
+        "branch": "client/relayer-domain-beta",
+        "preserve": "orchestration 결과 5건(단일 사본 보고)",
+        "regenerable": "없음",
+        "branch_alone": "단일 사본(경로 19·커밋 29, 원격 없음). push 또는 병합으로 보존"
+      },
+      {
+        "lane": "parity-291",
+        "branch": "integrate/ccc291-parity",
+        "preserve": "orchestration 감사 13건 + scripts/install/variant-sha.mjs",
+        "regenerable": "없음",
+        "branch_alone": "단일 사본(경로 61·커밋 107)"
+      },
+      {
+        "lane": "VALIDATION",
+        "branch": "verify/beta-backend",
+        "preserve": "apps/api/test/tools/real-backend-preview.mjs",
+        "regenerable": "없음",
+        "branch_alone": "단일 사본(경로 182, apps/local-service 전체)"
+      },
+      {
+        "lane": "e5-4-privacy-generalization",
+        "branch": "e5-4-privacy-generalization",
+        "preserve": "미커밋 11(레인 작업물), scripts/privacy·secure_memory.py·테스트·plan, artifacts/ccc237-privacy 중 결정·검증·freeze JSON",
+        "regenerable": "로그류(test_*.log·typecheck.log 등 재실행 산출). 1차 확인: 코드 일부는 archive/ccc237-input 과 blob 동일",
+        "branch_alone": "tip==구 main(고유 커밋 0), 원격 없음"
+      },
+      {
+        "lane": "PLANNER",
+        "branch": "docs/privacy-stt-prerequisites",
+        "preserve": "planner-handoff.md +228줄 미커밋",
+        "regenerable": "없음",
+        "branch_alone": "단일 사본(경로 6)"
+      },
+      {
+        "lane": "sg15-long-ai",
+        "branch": "sg15-long-ai",
+        "preserve": "S15 스펙 +19/-3 미커밋",
+        "regenerable": "없음",
+        "branch_alone": "원격 있음(원격이 백업)"
+      },
+      {
+        "lane": "e2-1-screen-api-probe",
+        "branch": "e2-1-screen-api-probe",
+        "preserve": "미커밋 4(plan·fixture·verify 스크립트)",
+        "regenerable": "없음",
+        "branch_alone": "원격 있음"
+      },
+      {
+        "lane": "onboarding",
+        "branch": "feat/relayer-onboarding",
+        "preserve": "미커밋 4(onboarding·supabase 스크립트+테스트)",
+        "regenerable": "없음",
+        "branch_alone": "단일 사본(경로 35, ADR-0050 포함)"
+      },
+      {
+        "lane": "beta-core-parity",
+        "branch": "integrate/relayer-domain-beta",
+        "preserve": "untracked 0",
+        "regenerable": "없음",
+        "branch_alone": "단일 사본(경로 44·커밋 16). 브랜치 push/병합이 유일 보존 경로"
+      }
+    ],
+    "round3_excluded_lanes_note": "DESIGN 398(디자인 레인 소유), beta-0.9-orchestrator 239(생존 세션), auth-direct 8(배포 세션), ROOT inbox 87(루트 상주 인계문서)은 정리 대상에서 제외. 참고 기록만",
+    "candidates_9_branches": [
+      {
+        "branch": "archive/ccc237-input-a98b9f23642f",
+        "last_commit": "2026-09-13",
+        "remote": "없음",
+        "backup_ref": "없음",
+        "note": "archive* 삭제 금지 규칙"
+      },
+      {
+        "branch": "archive/frontend-wip-20260826",
+        "last_commit": "2026-08-26",
+        "remote": "없음",
+        "backup_ref": "없음",
+        "note": "archive* 삭제 금지 규칙"
+      },
+      {
+        "branch": "archive/main-pre-postmortem-20260730",
+        "last_commit": "2026-07-30",
+        "remote": "없음",
+        "backup_ref": "없음",
+        "note": "archive* 삭제 금지 규칙"
+      },
+      {
+        "branch": "archive/ooo-orch-712793-wip-20260830",
+        "last_commit": "2026-08-30",
+        "remote": "없음",
+        "backup_ref": "없음",
+        "note": "archive* 삭제 금지 규칙"
+      },
+      {
+        "branch": "archive/ooo-orch-d83b44-wip-20260830",
+        "last_commit": "2026-08-30",
+        "remote": "없음",
+        "backup_ref": "없음",
+        "note": "archive* 삭제 금지 규칙"
+      },
+      {
+        "branch": "core/relayer-domain-beta",
+        "last_commit": "2026-09-15",
+        "remote": "없음",
+        "backup_ref": "없음",
+        "note": "tip af2bf330 은 main 에 없음(고유 내용, 최근 2026-09-15). 관련 레인 확인 필요"
+      },
+      {
+        "branch": "design/w03-intake-v2",
+        "last_commit": "2026-09-16",
+        "remote": "없음",
+        "backup_ref": "없음",
+        "note": "전일 커밋. DESIGN 레인 확인 필요"
+      },
+      {
+        "branch": "feat/frontend-adjustments",
+        "last_commit": "2026-09-02",
+        "remote": "없음",
+        "backup_ref": "refs/backup/feat/frontend-adjustments(77089620)",
+        "note": "1차 결정: main push 후 backup+삭제"
+      },
+      {
+        "branch": "stt-internal-client",
+        "last_commit": "2026-09-08",
+        "remote": "없음",
+        "backup_ref": "refs/backup/stt-internal-client-isolated(32f5d312) 는 tip 37332777 을 커버하지 않음(조상 아님, 2026-09-17 확인)",
+        "note": "tip 은 main 에 없음. 삭제하려면 먼저 자체 백업 참조 필요"
+      }
+    ],
+    "final_counts": {
+      "worktrees": 14,
+      "branches": 31,
+      "local_main_commits_unpushed": 4,
+      "pushed": false
+    }
   }
 }
