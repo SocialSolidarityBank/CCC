@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import sharedCss from 'virtual:proto-shared-css';
 import { api } from './lib/api';
+import { Shell } from './components/shell';
 import { LoginPage } from './pages/login';
 import { ParticipantsPage } from './pages/participants';
 import { ParticipantPage } from './pages/participant';
 import { RecordPage } from './pages/record';
+import { IntakePage } from './pages/intake';
 import { ReviewPage } from './pages/review';
 
 function useHashRoute() {
@@ -29,37 +31,28 @@ function App() {
 
   if (!ready) return null;
   if (!me) return <LoginPage onLogin={setMe} />;
-
   const recordMatch = route.match(/^\/participants\/([^/]+)\/record$/);
+  const intakeMatch = route.match(/^\/participants\/([^/]+)\/intake$/);
   const reviewMatch = route.match(/^\/sessions\/([^/]+)\/review$/);
+  const newMatch = route === '/participants/new';
   const participantMatch = route.match(/^\/participants\/([^/]+)$/);
 
   return (
-    <div className="memory-page-stack" style={{ maxWidth: 1120, margin: '0 auto', padding: 'var(--space-6)' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <a href="#/" style={{ fontWeight: 600, color: 'var(--ink)', textDecoration: 'none' }}>
-          CCC 프로토타입
-        </a>
-        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--sub)' }}>
-          {me.label}({me.id})
-          <button
-            style={{ marginLeft: 12 }}
-            onClick={() => api.logout().then(() => setMe(null))}
-          >
-            로그아웃
-          </button>
-        </span>
-      </header>
+    <Shell route={route} me={me} onLogout={() => setMe(null)}>
       {recordMatch ? (
         <RecordPage participantId={recordMatch[1]} me={me} />
+      ) : intakeMatch ? (
+        <IntakePage participantId={intakeMatch[1]} me={me} />
       ) : reviewMatch ? (
         <ReviewPage sessionId={reviewMatch[1]} me={me} />
+      ) : newMatch ? (
+        <ParticipantsPage me={me} register />
       ) : participantMatch ? (
         <ParticipantPage participantId={participantMatch[1]} me={me} />
       ) : (
         <ParticipantsPage me={me} />
       )}
-    </div>
+    </Shell>
   );
 }
 

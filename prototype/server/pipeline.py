@@ -1,7 +1,7 @@
 """처리 파이프라인: STT → 마스킹 → OpenAI 요약.
 
 apps/pipeline/ccc_pipeline 을 sys.path 로 직접 import 한다. 복사하지 않는다.
-원음·원문은 이 모듈 밖으로 나가지 않는다 — 반환값은 마스킹된 텍스트와 AI 결과뿐.
+원음과 원문은 이 모듈 밖으로 나가지 않는다. 반환값은 마스킹된 텍스트와 AI 결과뿐이다.
 """
 from __future__ import annotations
 
@@ -14,6 +14,15 @@ _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "apps" / "pipeline"))
 
 from ccc_pipeline import azure_stt, masking  # noqa: E402
+
+AI_FLAG_TYPES = (
+    "crisis_utterance",
+    "contact_loss_risk",
+    "housing_livelihood_shock",
+    "debt_deterioration",
+    "repeated_noncompliance",
+    "violence_exploitation",
+)
 
 
 def transcribe(audio_bytes: bytes, suffix: str) -> str:
@@ -83,10 +92,21 @@ def mask(text: str, participant: dict) -> str:
     ner = None
     if os.environ.get("PROTOTYPE_NER") == "1":
         ner, address_ner = masking.build_person_and_address_ner()
-        masked = masking.mask_text(masked, ner=ner, address_ner=address_ner)
+        masked, _report = masking.mask_text_with_report(masked, ner=ner, address_ner=address_ner)
     else:
         masked = masking.mask_text(masked)
     return masked
+
+
+def mask_structure(value: object, participant: dict) -> object:
+    """구조화 폼의 모든 문자열을 같은 마스킹 경로로 처리한다."""
+    if isinstance(value, str):
+        return mask(value, participant)
+    if isinstance(value, list):
+        return [mask_structure(item, participant) for item in value]
+    if isinstance(value, dict):
+        return {key: mask_structure(item, participant) for key, item in value.items()}
+    return value
 
 
 def summarize(masked_text: str, memo: str | None) -> dict:
@@ -108,11 +128,12 @@ def summarize(masked_text: str, memo: str | None) -> dict:
         input=(
             "아래 상담 자료를 정리해 JSON으로만 답하세요.\n"
             "- one_liner: 이 회차 핵심 한 줄(120자 이내, 개행 없음)\n"
-            "- claims: 목표 중심 정리 3구획 — goal_discussions(회기 목표별 논의), "
+            "- claims: 목표 중심 정리 3구획: goal_discussions(회기 목표별 논의), "
             "  other_topics(목표 밖 주요 내용, 시간순), promises(다음 회차까지 약속·할 일). 각 항목은 text 하나.\n"
-            "- questions: 다음 상담 전 확인할 것 최대 3개 — title(80자 이내), reason, evidence(자료 원문 인용)\n"
-            "- flag_suggestions: 위기 발언·연락 두절·주거생계건강 급변·부채 악화·약속 불이행·폭력착취 중 "
-            "  해당하는 것만 — flag_type, quote(자료 원문 인용 필수)\n\n"
+            "- questions: 다음 상담 전 확인할 것 최대 3개: title(80자 이내), reason, evidence(자료 원문 인용)\n"
+            "- flag_suggestions: 아래 여섯 식별자 중 해당하는 것만: crisis_utterance, contact_loss_risk, "
+            "housing_livelihood_shock, debt_deterioration, repeated_noncompliance, violence_exploitation. "
+            "flag_type에는 식별자만 넣고 quote에는 자료 원문 인용을 넣으세요.\n\n"
             f"{materials}"
         ),
         text={
@@ -157,7 +178,7 @@ def summarize(masked_text: str, memo: str | None) -> dict:
                                 "additionalProperties": False,
                                 "required": ["flag_type", "quote"],
                                 "properties": {
-                                    "flag_type": {"type": "string"},
+                                    "flag_type": {"type": "string", "enum": list(AI_FLAG_TYPES)},
                                     "quote": {"type": "string"},
                                 },
                             },

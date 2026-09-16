@@ -5,39 +5,40 @@ import { WireButton } from '../../../../apps/web/app/components/wire/wire-button
 import { WireFormField } from '../../../../apps/web/app/components/wire/wire-form-field';
 import { PageTitle } from '../../../../apps/web/app/components/wire/page-title';
 import { WireEmpty } from '../../../../apps/web/app/components/wire/wire-state';
+import { SearchInput } from '../../../../apps/web/app/components/wire/search-input';
 
-export function ParticipantsPage({ me }: { me: { id: string; role: string } }) {
+export function ParticipantsPage({ me, register = false }: { me: { id: string; role: string }; register?: boolean }) {
   const [list, setList] = useState<Participant[] | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [query, setQuery] = useState('');
   const [form, setForm] = useState({ name: '', phone: '', email: '', birth_date: '' });
   const [error, setError] = useState('');
 
-  const load = () => api.participants().then(setList).catch((e) => setError(e.message));
+  const load = () => { api.participants().then(setList).catch((e) => setError(e.message)); };
   useEffect(load, []);
-
-  return (
-    <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <PageTitle>당사자 목록</PageTitle>
-        <WireButton variant="primary" onClick={() => setShowForm((v) => !v)}>
-          당사자 등록
-        </WireButton>
-      </div>
-      {error && <WireCard tone="info">{error}</WireCard>}
-      {showForm && (
-        <WireCard title="당사자 등록">
+  if (register && me.role !== 'staff') {
+    return (
+      <>
+        <PageTitle>당사자 등록</PageTitle>
+        <WireCard tone="info">실무자만 당사자를 등록할 수 있습니다.</WireCard>
+      </>
+    );
+  }
+  if (register) {
+    return (
+      <>
+        <PageTitle>당사자 등록</PageTitle>
+        <WireCard>
+          <p className="record-writing-help">실제 당사자 정보가 아닌 테스트 데이터만 입력하세요.</p>
           <form
             className="memory-form"
             onSubmit={async (e) => {
               e.preventDefault();
               await api.createParticipant(form);
-              setShowForm(false);
-              setForm({ name: '', phone: '', email: '', birth_date: '' });
-              load();
+              location.hash = '#/participants';
             }}
           >
             <WireFormField label="이름" required>
-              <div className="wire-input-box"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+              <div className="wire-input-box"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
             </WireFormField>
             <WireFormField label="연락처">
               <div className="wire-input-box"><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="010-0000-0000" /></div>
@@ -51,12 +52,39 @@ export function ParticipantsPage({ me }: { me: { id: string; role: string } }) {
             <WireButton type="submit" variant="primary">등록</WireButton>
           </form>
         </WireCard>
-      )}
-      {list === null ? null : list.length === 0 ? (
-        <WireEmpty>등록된 당사자가 없습니다.</WireEmpty>
+      </>
+    );
+  }
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? (list ?? []).filter((p) =>
+        [p.name, p.phone, p.email, p.participant_id].some((v) => (v ?? '').toLowerCase().includes(q)),
+      )
+    : list ?? [];
+
+  return (
+    <>
+      <PageTitle>당사자 목록</PageTitle>
+      <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 240px', minWidth: 200 }}>
+          <SearchInput
+            label="검색"
+            value={query}
+            onChange={setQuery}
+            placeholder="이름, 연락처, 이메일, ID"
+          />
+        </div>
+        {me.role === 'staff' && (
+          <WireButton variant="primary" href="#/participants/new">당사자 등록</WireButton>
+        )}
+      </div>
+      {error && <WireCard tone="info">{error}</WireCard>}
+      {list === null ? null : filtered.length === 0 ? (
+        <WireEmpty>{q ? '검색 결과가 없습니다.' : '등록된 당사자가 없습니다.'}</WireEmpty>
       ) : (
-        <div style={{ display: 'grid', gap: 'var(--space-3)', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
-          {list.map((p) => (
+        <div style={{ display: 'grid', gap: 'var(--space-3)', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))' }}>
+          {filtered.map((p) => (
             <a key={p.participant_id} href={`#/participants/${p.participant_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
               <WireCard>
                 <strong style={{ fontSize: 'var(--text-lg)' }}>{p.name || p.participant_id}</strong>

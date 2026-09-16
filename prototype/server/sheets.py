@@ -22,6 +22,7 @@ PARTICIPANT_HEADERS = ["participant_id", "name", "phone", "email", "birth_date",
 SESSION_HEADERS = [
     "session_id", "participant_id", "occurred_at", "kind",
     "masked_text", "draft_json", "approved_at", "author", "created_at",
+    "form_json",
 ]
 
 
@@ -143,6 +144,7 @@ def create_session(participant_id: str, occurred_at: str, kind: str, author: str
         "approved_at": "",
         "author": author,
         "created_at": _now(),
+        "form_json": "",
     }
     _append("sessions", SESSION_HEADERS, rec)
     return rec
@@ -160,4 +162,8 @@ def update_session(session_id: str, **fields) -> dict:
 
 def draft_of(rec: dict) -> dict | None:
     raw = rec.get("draft_json", "")
+    return json.loads(raw) if raw else None
+
+def form_of(rec: dict) -> dict | None:
+    raw = rec.get("form_json", "")
     return json.loads(raw) if raw else None

@@ -50,10 +50,6 @@ def current_user(request: Request) -> dict:
     return sess
 
 
-def require_admin(user: dict = Depends(current_user)) -> dict:
-    if user["role"] != "admin":
-        raise HTTPException(403, "관리자만 사용할 수 있습니다")
-    return user
 
 
 @asynccontextmanager
@@ -70,8 +66,7 @@ app = FastAPI(lifespan=lifespan)
 
 @app.middleware("http")
 async def local_only(request: Request, call_next):
-    host = request.headers.get("host", "")
-    if not host.startswith(("127.0.0.1", "localhost")):
+    if request.url.hostname not in {"127.0.0.1", "localhost"}:
         return JSONResponse({"error": "host_not_allowed"}, status_code=403)
     return await call_next(request)
 
@@ -107,6 +102,8 @@ def participants(user: dict = Depends(current_user)):
 
 @app.post("/api/participants")
 def new_participant(body: dict, user: dict = Depends(current_user)):
+    if user["role"] != "staff":
+        raise HTTPException(403, "실무자만 당사자를 등록할 수 있습니다")
     return sheets.create_participant(
         body.get("name", ""), body.get("phone", ""), body.get("email", ""), body.get("birth_date", "")
     )
@@ -119,7 +116,7 @@ def participant(pid: str, user: dict = Depends(current_user)):
         raise HTTPException(404, "당사자를 찾을 수 없습니다")
     sessions = sheets.list_sessions(pid)
     return {**p, "sessions": [
-        {**s, "draft": sheets.draft_of(s)} for s in sessions
+        {**s, "draft": sheets.draft_of(s), "form": sheets.form_of(s)} for s in sessions
     ]}
 
 
@@ -138,7 +135,11 @@ async def process(
     user: dict = Depends(current_user),
     audio: UploadFile | None = File(None),
     memo: str = Form(""),
+    text: str = Form(""),
+    form: str = Form(""),
 ):
+    if user["role"] != "staff":
+        raise HTTPException(403, "실무자만 기록을 처리할 수 있습니다")
     found = sheets.get_session(sid)
     if not found:
         raise HTTPException(404, "회차를 찾을 수 없습니다")
@@ -158,14 +159,24 @@ async def process(
         finally:
             del data
 
+    # text: 폼 화면이 미리 평탄화한 기록 본문(인테이크 답변·기록지 칸). memo: 수기 메모 단축 경로.
     masked_transcript = pipeline.mask(transcript, participant) if transcript else ""
-    masked_memo = pipeline.mask(memo, participant) if memo.strip() else ""
-    masked_text = "\n\n".join(t for t in (masked_transcript, masked_memo) if t)
+    masked_body = pipeline.mask(text or memo, participant) if (text or memo).strip() else ""
+    masked_text = "\n\n".join(t for t in (masked_body, masked_transcript) if t)
 
-    sheets.update_session(sid, masked_text=masked_text)
+    update = {"masked_text": masked_text}
+    if form.strip():
+        try:
+            form_value = json.loads(form)
+            update["form_json"] = json.dumps(
+                pipeline.mask_structure(form_value, participant), ensure_ascii=False
+            )
+        except json.JSONDecodeError:
+            raise HTTPException(400, "form JSON 형식이 아닙니다")
+    sheets.update_session(sid, **update)
 
     try:
-        draft = pipeline.summarize(masked_transcript, masked_memo or None)
+        draft = pipeline.summarize(masked_transcript, masked_body or None)
     except Exception as e:
         return {"masked_text": masked_text, "draft": None, "ai_error": f"{type(e).__name__}"}
 
@@ -177,5 +188,11 @@ async def process(
 def approve(sid: str, user: dict = Depends(current_user)):
     if user["role"] != "staff":
         raise HTTPException(403, "실무자만 승인할 수 있습니다")
+    found = sheets.get_session(sid)
+    if not found:
+        raise HTTPException(404, "회차를 찾을 수 없습니다")
+    session, _ = found
+    if not session.get("draft_json"):
+        raise HTTPException(409, "승인할 AI 정리가 없습니다")
     rec = sheets.update_session(sid, approved_at=sheets._now())
     return {"approved_at": rec["approved_at"]}

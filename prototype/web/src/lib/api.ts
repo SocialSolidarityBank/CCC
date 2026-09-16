@@ -63,7 +63,9 @@ export interface Session {
   draft_json: string;
   approved_at: string;
   author: string;
+  form_json: string;
   draft?: Draft | null;
+  form?: Record<string, unknown> | null;
 }
 
 export interface Draft {

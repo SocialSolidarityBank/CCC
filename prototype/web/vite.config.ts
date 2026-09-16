@@ -35,7 +35,7 @@ export default defineConfig({
     port: 5199,
     fs: { allow: [repoRoot] },
     proxy: {
-      '/api': { target: 'http://127.0.0.1:8792', changeOrigin: true },
+      '/api': { target: 'http://127.0.0.1:8792' },
     },
   },
 });

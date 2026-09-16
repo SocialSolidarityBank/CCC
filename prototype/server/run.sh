@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 # OpenAI: Infisical RELAYER prod /OPENAI (Universal Auth로 토큰 발급)
 INFISICAL_TOKEN="$(curl -s -X POST https://app.infisical.com/api/v1/auth/universal-auth/login \
   -H 'content-type: application/json' \
-  -d "{\"clientId\":\"$(OP_BIOMETRIC_UNLOCK_ENABLED=false opsvc item get 'hermes-company-infisical' --vault BSS --fields label=hermes_client_id --reveal)\",\"clientSecret\":\"$(OP_BIOMETRIC_UNLOCK_ENABLED=false opsvc item get 'hermes-company-infisical' --vault BSS --fields label=hermes_client_secret --reveal)\"}" \
+  -d "{\"clientId\":\"$(OP_BIOMETRIC_UNLOCK_ENABLED=false "$HOME/.dotfiles/scripts/opsvc" item get 'hermes-company-infisical' --vault BSS --fields label=hermes_client_id --reveal)\",\"clientSecret\":\"$(OP_BIOMETRIC_UNLOCK_ENABLED=false "$HOME/.dotfiles/scripts/opsvc" item get 'hermes-company-infisical' --vault BSS --fields label=hermes_client_secret --reveal)\"}" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')"
 export INFISICAL_TOKEN
 

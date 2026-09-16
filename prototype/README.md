@@ -1,40 +1,74 @@
-# CCC 프로토타입 (내부 테스트용)
+# Relayer 프로토타입 (내부 테스트용)
 
 최종 완성본의 핵심 흐름(기록 → STT → 마스킹 → AI 정리 → 승인 → 브리핑)을 실제로 돌려보는 프로토타입.
 실DB 없이 Google Sheets에 저장하고, 외부 연결은 전부 테스트 계정만 쓴다.
 
+## 처음 한 번 준비
+
+CCC 저장소 루트에서 실행한다. Python 3.14와 pnpm 11에서 확인했다.
+
+```bash
+python3 -m venv prototype/server/.venv
+prototype/server/.venv/bin/pip install -r prototype/server/requirements.txt
+pnpm --dir prototype/web install
+```
+
+서버 실행 스크립트는 이 Mac에 준비된 테스트 자원만 사용한다.
+
+- OpenAI: Infisical `RELAYER` 프로젝트 `prod`의 `/OPENAI`
+- Azure STT: Azure CLI의 `ccc-stt-koreacentral`
+- Google Sheets: DWD 서비스 계정과 `seongqkim@ggbss.or.kr` 대리
+
+`~/.dotfiles/scripts/opsvc`, Infisical CLI, Azure CLI 로그인, Google 서비스 계정 파일이 준비되어 있어야 한다. 값은 화면이나 로그에 출력하지 않는다.
+
 ## 실행
 
 ```bash
-# 터미널 1: API 서버 (127.0.0.1:8792)
+# 터미널 1: API 서버
 ./prototype/server/run.sh
 
-# 터미널 2: 웹 (127.0.0.1:5199)
+# 터미널 2: 웹
 ./prototype/web/run.sh
 ```
-브라우저에서 `http://127.0.0.1:5199` 접속.
 
-## 계정
+API는 `127.0.0.1:8792`, 웹은 `127.0.0.1:5199`에만 열린다. 웹이 `/api` 요청을 API로 전달하므로 API를 먼저 켠 뒤 `http://127.0.0.1:5199`에 접속한다.
+
+## 테스트 계정
 
 | 역할 | ID | 비밀번호 |
 |---|---|---|
 | 관리자 | `admin` | `admin-test-2026` |
 | 실무자 | `staff` | `staff-test-2026` |
 
-`run.sh`의 `PROTOTYPE_*_PW` env로 바꿀 수 있다.
+관리자는 전체 관리자와 기술 관리자 권한을 합친 읽기 역할이다. 당사자 목록과 상세만 볼 수 있고 등록, 기록 작성, 처리, AI 정리 승인은 API에서도 거부된다. 실무자만 이 네 작업을 할 수 있다. `run.sh`의 `PROTOTYPE_*` 환경변수로 계정을 바꿀 수 있다.
+
+## 테스트 데이터 원칙
+
+- 실제 당사자, 실제 상담, 제3자 음성을 입력하지 않는다.
+- 당사자 탭의 이름, 연락처, 이메일, 생년월일은 테스트 Sheet에 평문으로 저장된다. 전부 가상 값만 입력한다.
+- 상담 원음과 마스킹 전 원문은 Sheet에 저장하지 않는다. 업로드 원음은 요청 처리 중 임시 파일로만 두고 STT가 끝나면 삭제한다. 구조화 폼과 상담 텍스트는 등록값 치환과 패턴 마스킹을 거친 뒤에만 Sheet에 저장된다.
+- Azure STT에는 업로드한 테스트 음성이 전송된다. OpenAI에는 마스킹된 텍스트만 전송되며 `store:false`를 사용한다.
 
 ## 저장소
 
-Google Sheet `1DiEr-VX9QgJok7294CWKX8WQ2IVnxIRbOqpRb4IUhbE` (탭: participants, sessions).
-원음·원문은 저장하지 않고 마스킹된 텍스트와 AI 결과만 간다.
+Google Sheet `1DiEr-VX9QgJok7294CWKX8WQ2IVnxIRbOqpRb4IUhbE`를 사용한다. `participants`와 `sessions` 탭 및 헤더는 이미 초기화되어 있다.
 
-## 외부 연결
+## 확인할 흐름
 
-- Azure STT: `ccc-stt-koreacentral` 리소스, `az` CLI로 키 주입
-- OpenAI: Infisical `RELAYER` 프로젝트 `prod`/`/OPENAI`의 `OPENAI_API_KEY` (서비스 계정 키)
-- Google Sheets: DWD 서비스 계정 (`oauth2service.json`, `seongqkim@ggbss.or.kr` 대리)
+1. 관리자(`admin`)로 로그인해 당사자 목록과 상세는 보이고 `당사자 등록` 메뉴와 쓰기 폼은 보이지 않는지 확인한 뒤 로그아웃한다.
+2. 실무자(`staff`)로 로그인한다.
+3. 사이드바 `당사자 등록`에서 가상 당사자를 등록하거나 `당사자 목록`에서 기존 테스트 당사자를 연다.
+4. 상담 직전 핵심을 모은 `15초 페이지`에서 `인테이크 기록`을 눌러 4단계 위저드로 인테이크를 1회 작성한다.
+5. `15초 페이지`에서 `상담 기록하기`를 눌러 첫 번째 상담 기록을 작성한다. 좌측 레일의 체크리스트로 필수 항목을 확인한다. 필요하면 합성 또는 본인 소유 비민감 테스트 음성을 올린다.
+6. 마스킹 결과와 AI 정리를 검토하고 `AI 정리 승인`을 누른다.
+7. 같은 당사자에서 `상담 기록하기`로 두 번째 상담 기록을 작성하고 승인한다.
+8. `15초 페이지`의 브리핑 영역에서 인테이크와 두 회차의 승인된 핵심 한 줄이 시간순으로 쌓였는지 확인한다. 인테이크에 전체 목표를 적었다면 `전체 목표` 카드에 표시되고, 승인된 AI 확인 질문은 `상담 전 꼭 봐야할 내용`에, 기록한 액션은 `미해결 액션`에 나온다.
+
+수기 메모는 실무자가 직접 입력한 상담 텍스트이며 저장 즉시 공식 기록이다. 승인 전 AI 정리는 검토 화면과 `15초 페이지`의 `승인 대기` 카드에만 보이고, 회차 요약에는 수기 기록이 표시된다.
 
 ## 알려진 제한
 
-- NER은 `PROTOTYPE_NER=1`로 켤 수 있으나 `transformers`+`torch` 설치가 필요하다.
-- 세션은 인메모리라 서버 재시작 시 로그아웃된다.
+- NER은 `PROTOTYPE_NER=1`로 켤 수 있지만 `transformers`와 `torch`를 별도로 설치해야 한다. 기본은 등록값 치환과 정규식 마스킹이다.
+- 세션은 메모리에만 있어 API 서버를 재시작하면 다시 로그인해야 한다.
+- 서버와 웹은 각 터미널에서 `Ctrl+C`로 멈춘다. 재로그인 상태만 초기화되며 Sheet의 테스트 행은 남는다.
+- Sheet는 내부 테스트 기록을 확인하기 위한 저장소다. 실제 운영 데이터베이스, 감사 로그, 동의 관리 기능을 대신하지 않는다.
