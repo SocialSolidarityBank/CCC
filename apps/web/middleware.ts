@@ -1,3 +1,4 @@
+import { AUTH_COOKIE_NAME } from './app/lib/auth-cookie';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { PREVIEW_COOKIE_NAME } from './app/lib/preview-cookie';
@@ -39,8 +40,13 @@ export function middleware(request: NextRequest): NextResponse {
   // 언제나 공개다.
   const isPreviewEntry =
     pathname === '/preview' || pathname === '/preview/admin' || pathname === '/preview/unlock';
+  // 직접 로그인 화면(/login)과 그 POST 수신 경로(/login/unlock)도 셸을 뺀다 — 신원을
+  // 아직 모르는 화면이라 /preview·/welcome 과 같은 판단이다. 수신 경로를 비공개로 두면
+  // 아래 세션 게이트가 POST 를 /login GET 으로 바꿔 로그인 자체가 실행되지 않는다.
+  const isLoginEntry = pathname === '/login' || pathname === '/login/unlock';
   const isPublic =
-    pathname === '/join' || pathname.startsWith('/join/') || isPreviewEntry || pathname === '/welcome';
+    pathname === '/join' || pathname.startsWith('/join/') || isPreviewEntry || pathname === '/welcome'
+    || isLoginEntry;
   const requestHeaders = new Headers(request.headers);
   if (isPublic) requestHeaders.set('x-ccc-public', '1');
   else requestHeaders.delete('x-ccc-public');
@@ -58,8 +64,30 @@ export function middleware(request: NextRequest): NextResponse {
     // /preview·/welcome(CCC-109) 같은 다른 공개 화면은 이 스위치와 무관하다 —
     // 매칭을 isPublic 이 아니라 /join 정확 일치 + '/join/' 접두로만 좁힌 이유다.
     const isJoinPath = pathname === '/join' || pathname.startsWith('/join/');
-    if (isJoinPath && process.env.PUBLIC_SIGNUP_ENABLED !== '1') {
+    // 실무자 초대 수락(/join/worker/*)은 이 스위치 밖이다 — D86 공개 경로는 당사자 공개
+    // 가입 스위치와 무관하다는 서버 계약(request-handler.ts)과 같은 판단이다. 토큰이
+    // 자격이고 무효·만료는 API 가 404 로 뭉친다.
+    const isWorkerJoinPath = pathname === '/join/worker' || pathname.startsWith('/join/worker/');
+    if (isJoinPath && !isWorkerJoinPath && process.env.PUBLIC_SIGNUP_ENABLED !== '1') {
       return new NextResponse('Not Found', { status: 404 });
+    }
+    // 세션 게이트: 공개 경로가 아니면 사람 자격이 있어야 본문이 렌더된다. 없으면
+    // /login 으로 보내 보호 본문이 한 조각도 나가지 않게 한다. 자격은 직접 로그인
+    // 쿠키(ccc_auth) 또는 Cloudflare Access 쿠키·JWT 헤더 셋 중 하나다 — 어느 것이든
+    // 실제 검증은 API 가 하고 여기는 존재만 본다(위조분은 API 에서 401).
+    // 로컬 프리뷰 이중 잠금(dev + CCC_LOCAL_PREVIEW='true')은 api.ts accessHeaders 와
+    // 같은 조건으로 예외다 — 신원은 API 쪽 local-actor 리졸버가 공급한다.
+    const hasCredential =
+      request.cookies.get(AUTH_COOKIE_NAME) !== undefined
+      || request.cookies.get('CF_Authorization') !== undefined
+      || (request.headers.get('cf-access-jwt-assertion') ?? '').length > 0;
+    const localPreview = process.env.NODE_ENV !== 'production' && process.env.CCC_LOCAL_PREVIEW === 'true';
+    if (!isPublic && !hasCredential && !localPreview) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/login';
+      redirectUrl.search = '';
+      redirectUrl.searchParams.set('next', pathname + request.nextUrl.search);
+      return NextResponse.redirect(redirectUrl);
     }
     return NextResponse.next(forward);
   }

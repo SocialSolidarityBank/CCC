@@ -44,14 +44,14 @@ export default function WelcomePage() {
         <WireButton variant="primary" href="/onboarding" className="preview-gate-submit">
           기관 등록 시작
         </WireButton>
-        <WireButton variant="secondary" href="/" className="preview-gate-submit">
+        <WireButton variant="secondary" href="/login" className="preview-gate-submit">
           실무자 로그인
         </WireButton>
-        {/* 로그인 화면이 따로 없는 이유를 입구에서 미리 알린다 — 버튼을 눌렀을 때
-            Cloudflare Access 화면이 뜨는 것이 고장이 아님을 알 수 있게. */}
+        {/* 로그인은 이 앱의 /login 화면에서 이메일·비밀번호로 한다 — 계정은 기관 관리자의
+            초대 링크로만 만들어진다. */}
         <p className="note-inline">
-          실무자 로그인은 Cloudflare Access 로 진행됩니다. 기관에 등록된 이메일로 인증하면
-          작업 화면으로 이동합니다.
+          실무자는 기관 관리자가 전달한 초대 링크로 계정을 만든 뒤, 이메일과 비밀번호로
+          로그인합니다.
         </p>
       </WireCard>
     </main>

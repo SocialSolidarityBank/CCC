@@ -13,12 +13,16 @@ import { middleware } from '../middleware';
  * 인증 우회가 된다. 그래서 값의 출처를 테스트로 고정한다.
  */
 
-function makeRequest(pathname: string, headers: Record<string, string> = {}): NextRequest {
+function makeRequest(
+  pathname: string,
+  headers: Record<string, string> = {},
+  cookies: Record<string, string> = {},
+): NextRequest {
   const url = new URL(`https://example.test${pathname}`);
   return {
     nextUrl: Object.assign(url, { clone: () => new URL(url.toString()) }),
     headers: new Headers(headers),
-    cookies: { get: () => undefined },
+    cookies: { get: (name: string) => (name in cookies ? { name, value: cookies[name] } : undefined) },
   } as unknown as NextRequest;
 }
 
@@ -57,13 +61,14 @@ describe('middleware · x-ccc-public 저작', () => {
   });
 
   it('비공개 경로에서 클라이언트가 보낸 헤더는 지워진다', () => {
-    const request = makeRequest('/participants/crane-001/briefing', { 'x-ccc-public': '1' });
+    // 세션 게이트를 지나려면 자격이 있어야 한다 — 쿠키를 싣고 헤더 저작만 본다.
+    const request = makeRequest('/participants/crane-001/briefing', { 'x-ccc-public': '1' }, { ccc_auth: 'token' });
     expect(effectiveHeader(middleware(request), request, 'x-ccc-public')).toBeNull();
   });
 
   it("'/join' 접두만 흉내 낸 경로는 공개가 아니다", () => {
     // startsWith('/join') 로 매칭하면 여기가 공개로 뚫린다.
-    const request = makeRequest('/joinx', { 'x-ccc-public': '1' });
+    const request = makeRequest('/joinx', { 'x-ccc-public': '1' }, { ccc_auth: 'token' });
     expect(effectiveHeader(middleware(request), request, 'x-ccc-public')).toBeNull();
   });
 
@@ -103,7 +108,7 @@ describe('middleware · x-ccc-public 저작', () => {
   });
 
   it("'/welcome' 접두만 흉내 낸 경로는 공개가 아니다", () => {
-    const request = makeRequest('/welcomex', { 'x-ccc-public': '1' });
+    const request = makeRequest('/welcomex', { 'x-ccc-public': '1' }, { ccc_auth: 'token' });
     expect(effectiveHeader(middleware(request), request, 'x-ccc-public')).toBeNull();
   });
 
@@ -167,5 +172,85 @@ describe('middleware · 공개 가입 스위치(CCC-112)', () => {
     const response = middleware(makeRequest('/join/participant/abc'));
     expect(response.status).not.toBe(404);
     expect(response.headers.get('location')).toContain('/preview');
+  });
+});
+
+/**
+ * 세션 게이트(직접 로그인 도입): 공개 경로가 아니면 사람 자격(ccc_auth 쿠키 또는
+ * Cloudflare Access 자격)이 있어야 본문이 렌더되고, 없으면 /login 으로 보낸다.
+ * 미들웨어는 존재만 보고 실제 검증은 API 가 한다 — 여기서 고정하는 것은 "자격 없는
+ * 요청에 보호 본문이 나가지 않는다"는 성질이다.
+ */
+describe('middleware · 세션 게이트(직접 로그인)', () => {
+  beforeEach(() => {
+    vi.stubEnv('CCC_PREVIEW', 'false');
+    vi.stubEnv('PUBLIC_SIGNUP_ENABLED', '1');
+    vi.stubEnv('CCC_LOCAL_PREVIEW', undefined);
+  });
+
+  it('자격 없는 보호 경로는 /login 으로 가고 next 에 원래 경로를 남긴다', () => {
+    const response = middleware(makeRequest('/participants/crane-001'));
+    expect(response.status).toBe(307);
+    const location = new URL(response.headers.get('location') ?? '');
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('next')).toBe('/participants/crane-001');
+  });
+
+  it('ccc_auth 쿠키가 있으면 보호 경로가 그대로 열린다', () => {
+    const request = makeRequest('/participants', {}, { ccc_auth: 'token-value' });
+    const response = middleware(request);
+    expect(response.headers.get('location')).toBeNull();
+    expect(effectiveHeader(response, request, 'x-ccc-public')).toBeNull();
+  });
+
+  it('Cloudflare Access 쿠키가 있으면 보호 경로가 그대로 열린다', () => {
+    const request = makeRequest('/participants', {}, { CF_Authorization: 'access-jwt' });
+    const response = middleware(request);
+    expect(response.headers.get('location')).toBeNull();
+  });
+
+  it('Access JWT 헤더가 있으면 보호 경로가 그대로 열린다', () => {
+    const request = makeRequest('/participants', { 'cf-access-jwt-assertion': 'jwt' });
+    const response = middleware(request);
+    expect(response.headers.get('location')).toBeNull();
+  });
+
+  it('/login 과 그 POST 수신 경로는 자격 없이 열리고 셸이 빠진다', () => {
+    for (const path of ['/login', '/login/unlock']) {
+      const request = makeRequest(path);
+      const response = middleware(request);
+      expect(response.headers.get('location')).toBeNull();
+      expect(effectiveHeader(response, request, 'x-ccc-public')).toBe('1');
+    }
+  });
+
+  it("'/login' 접두만 흉내 낸 경로는 공개가 아니다", () => {
+    const response = middleware(makeRequest('/logins'));
+    expect(response.headers.get('location')).toContain('/login');
+    expect(effectiveHeader(response, makeRequest('/logins'), 'x-ccc-public')).toBeNull();
+  });
+
+  it('공개 경로(/join·/welcome)는 자격 없이도 /login 으로 가지 않는다', () => {
+    for (const path of ['/join/participant/abc', '/join/worker/abc', '/welcome']) {
+      const response = middleware(makeRequest(path));
+      expect(response.headers.get('location')).toBeNull();
+    }
+  });
+
+  it('실무자 초대 수락(/join/worker/*)은 가입 스위치가 꺼져도 열린다', () => {
+    // D86 공개 경로는 PUBLIC_SIGNUP_ENABLED 와 무관하다는 서버 계약과 같은 판단이다.
+    vi.stubEnv('PUBLIC_SIGNUP_ENABLED', undefined);
+    const request = makeRequest('/join/worker/abc');
+    const response = middleware(request);
+    expect(response.status).not.toBe(404);
+    expect(effectiveHeader(response, request, 'x-ccc-public')).toBe('1');
+  });
+
+  it('로컬 프리뷰 이중 잠금(dev + CCC_LOCAL_PREVIEW)은 게이트를 지나지 않는다', () => {
+    // 신원은 API 쪽 local-actor 리졸버가 공급한다 — api.ts accessHeaders 와 같은 조건.
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('CCC_LOCAL_PREVIEW', 'true');
+    const response = middleware(makeRequest('/participants'));
+    expect(response.headers.get('location')).toBeNull();
   });
 });

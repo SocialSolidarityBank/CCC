@@ -32,8 +32,8 @@ vi.mock('./lib/api', () => ({
   createParticipantInvite: vi.fn(),
   getPublicInviteInfo: vi.fn(),
   signupParticipant: vi.fn(),
-  createWorkerInvite: vi.fn(),
-  signupWorker: vi.fn(),
+  createStaffInvite: vi.fn(),
+  acceptStaffInvite: vi.fn(),
   createSubsequentParticipantProgram: vi.fn(),
   editAiDraft: vi.fn(),
   generateAiDraft: vi.fn(),
@@ -55,6 +55,12 @@ vi.mock('./lib/api', () => ({
   lifeAreaKeys: ['economy', 'housing', 'employment', 'health', 'mental_health', 'family'],
   lifeAreaStatuses: ['okay', 'strained', 'crisis', 'not_applicable', 'declined'],
 }));
+vi.mock('./lib/supabase-auth', () => ({
+  signInWithPassword: vi.fn(),
+  signUpWithPassword: vi.fn(),
+  signInOrSignUpWithPassword: vi.fn(),
+}));
+
 vi.mock('next/cache', () => ({ revalidatePath: (path: string) => revalidatePath(path) }));
 vi.mock('next/headers', () => ({ cookies: vi.fn() }));
 vi.mock('next/navigation', () => ({ redirect: (destination: string) => redirect(destination) }));
