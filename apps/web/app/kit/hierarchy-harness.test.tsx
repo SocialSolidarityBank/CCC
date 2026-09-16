@@ -24,7 +24,6 @@ import { prerender } from 'react-dom/static';
 import { render, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { MemoryRouter, Outlet, Route, Routes } from '../../../client/node_modules/react-router';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ComponentProps, ReactElement } from 'react';
 import {
@@ -56,6 +55,14 @@ import ParticipantPage from '../participants/[beneficiaryId]/page';
 import { InstitutionScreen } from '../../../client/src/screens/institution';
 import { ParticipantHubScreen, ParticipantListScreen } from '../../../client/src/screens/participants';
 import { SettingsScreen } from '../../../client/src/screens/settings';
+
+// apps/client owns react-router. Load that exact installed instance at runtime so its hooks and the
+// harness provider share one context without making @ccc/web depend on the client router.
+const clientRouterModuleUrl = pathToFileURL(join(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../../client/node_modules/react-router/dist/development/index.js',
+)).href;
+const { MemoryRouter, Outlet, Route, Routes } = await import(/* @vite-ignore */ clientRouterModuleUrl);
 
 // 라우터 훅은 정적 렌더에서도 본문이 돌기 때문에 막아 둔다. 실제 경로가 필요한 곳은
 // 킷의 AdminSidebar 뿐이고, 어느 탭이 활성인지는 위계와 무관하다.
@@ -647,7 +654,7 @@ const SCREENS: Screen[] = [
     walk: () => renderClientScreen(<ParticipantHubScreen />, {
       pathname: '/participants/swallow-003',
       routePath: '/participants/:beneficiaryId',
-      readyText: '함께온기금 울타리대출 장기생활안정 연계지원사업',
+      readyText: '서버 고지 전문입니다.',
     }),
   },
   {
