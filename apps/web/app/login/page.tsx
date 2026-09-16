@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { WireButton, WireFormField } from '@ccc/wire';
 import { safeNextPath } from '../lib/safe-next';
+import { RecoveryFragmentForwarder } from './recovery-fragment-forwarder';
 
 export const metadata: Metadata = { title: 'CCC 사례관리 로그인' };
 
@@ -17,6 +18,13 @@ const errorMessages: Record<string, string> = {
   login_failed: '이메일 또는 비밀번호가 올바르지 않습니다.',
   confirm_email: '가입 확인 메일을 먼저 확인해 주세요. 메일의 링크를 누른 뒤 다시 로그인하세요.',
   service_unavailable: '지금 로그인할 수 없습니다. 잠시 후 다시 시도하세요.',
+  reset_unavailable: '지금 재설정 메일을 보낼 수 없습니다. 잠시 후 다시 시도하세요.',
+};
+
+const noticeMessages: Record<string, string> = {
+  // 계정 존재 여부를 가르지 않는다 — 어떤 이메일을 넣어도 같은 문구다.
+  reset_sent: '입력한 주소가 등록되어 있다면 재설정 메일이 도착합니다. 메일함을 확인하세요.',
+  password_set: '비밀번호를 설정했습니다. 새 비밀번호로 로그인하세요.',
 };
 
 
@@ -32,6 +40,7 @@ const errorMessages: Record<string, string> = {
 export default async function LoginPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const query = await searchParams;
   const errorCode = queryValue(query, 'error');
+  const noticeCode = queryValue(query, 'notice');
   const next = safeNextPath(queryValue(query, 'next'));
 
   return (
@@ -47,6 +56,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </p>
       ) : null}
 
+      {noticeCode !== undefined && noticeMessages[noticeCode] !== undefined ? (
+        <p className="note-inline">{noticeMessages[noticeCode]}</p>
+      ) : null}
+
       <form className="surface-card preview-gate-card" method="post" action="/login/unlock">
         <input type="hidden" name="next" value={next} />
         <WireFormField label="이메일" required htmlFor="login-email">
@@ -59,9 +72,26 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           로그인
         </WireButton>
         <p className="note-inline">
-          비밀번호를 잊었거나 계정이 없으면 기관 관리자에게 문의하세요.
+          계정이 없으면 기관 관리자에게 문의하세요.
         </p>
       </form>
+
+      <details>
+        <summary className="note-inline">비밀번호를 잊었나요?</summary>
+        <form className="surface-card preview-gate-card" method="post" action="/login/reset">
+          <p className="note-inline">
+            이메일을 입력하면 재설정 메일을 보냅니다. 등록 여부와 관계없이 같은 안내가 나옵니다.
+          </p>
+          <WireFormField label="이메일" required htmlFor="reset-email">
+            <input id="reset-email" type="email" name="email" autoComplete="email" required />
+          </WireFormField>
+          <WireButton type="submit" variant="neutral" className="preview-gate-submit">
+            재설정 메일 보내기
+          </WireButton>
+        </form>
+      </details>
+
+      <RecoveryFragmentForwarder />
     </main>
   );
 }

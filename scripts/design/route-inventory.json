@@ -123,6 +123,14 @@
       "unification": true
     },
     {
+      "page": "apps/web/app/password/page.tsx",
+      "routePattern": "/password",
+      "representativeUrl": "/password",
+      "seedFixture": "public/password",
+      "permission": { "state": "public", "actor": "anonymous" },
+      "unification": true
+    },
+    {
       "page": "apps/web/app/participants/page.tsx",
       "routePattern": "/participants",
       "representativeUrl": "/participants",

@@ -69,7 +69,7 @@ describe('Supabase identity trust boundary', () => {
       expect(actor).toEqual({ kind: 'human', userId: testActors.counselor.userId, orgId: 'org_demo', roles: ['worker'], scopes: [],
         authn: { source: 'supabase-jwt', assurance: 'aal2', sessionId: 'session-one' } });
     }
-    expect(f.requests).toEqual([{ url: jwksUri, redirect: 'error' }]);
+    expect(f.requests).toEqual([{ url: jwksUri, redirect: 'manual' }]);
   });
 
   it('requires a linked active human even when token email matches a provisioned administrator', async () => {
@@ -127,7 +127,7 @@ describe('Supabase identity trust boundary', () => {
     const f = fixture();
     f.publish([{ ...ec.jwk, alg: 'RS256' }]);
     await expect(f.identity.resolve(request(await token(ec, {}, { jku: 'https://attacker.invalid/jwks' })))).rejects.toBeInstanceOf(ActorAuthenticationError);
-    expect(f.requests).toEqual([{ url: jwksUri, redirect: 'error' }]);
+    expect(f.requests).toEqual([{ url: jwksUri, redirect: 'manual' }]);
   });
 
   it.each([

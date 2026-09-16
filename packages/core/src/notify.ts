@@ -32,9 +32,12 @@ export async function notifyAdmins(env: NotifyEnv, message: string): Promise<voi
       console.error(`${WATCHDOG_ALERT_PREFIX} webhook delivery failed: insecure transport`);
       return;
     }
+    // workerd 는 redirect:'error' 를 구현하지 않아 TypeError 를 던진다(2026-09-16
+    // verifier.ts 와 같은 사고 — 이 경로는 크론 안에서 조용히 죽고 있었다).
+    // 'manual' 이면 3xx 가 그대로 돌아오고 아래 !response.ok 가 실패로 기록한다.
     const response = await fetch(webhookUrl, {
       method: 'POST',
-      redirect: 'error',
+      redirect: 'manual',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ text: line }),
     });
