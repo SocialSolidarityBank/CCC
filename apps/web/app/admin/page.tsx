@@ -123,7 +123,13 @@ export default async function AdminOrganizationPage({
         <WireError>확인할 사업이 없습니다.</WireError>
       ) : programContext.programs.map((program) => (
         <ProgramAdmissionForm
-          key={program.id}
+          key={[
+            program.id,
+            program.version,
+            programContext.admissionCopy.hash,
+            programContext.installation.configHash,
+            programContext.installation.policyVersion,
+          ].join(':')}
           program={program}
           admissionCopy={programContext.admissionCopy}
           installation={programContext.installation}

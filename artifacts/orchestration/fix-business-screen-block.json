@@ -1,0 +1,247 @@
+{
+  "status": "fixed_locally_not_pushed",
+  "date": "2026-09-17",
+  "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/auth-direct",
+  "summary": {
+    "participants": "운영형 canonical 역할 묶음이 legacy users.role과 달라도 목록 API가 통과하도록 수정했다.",
+    "participantsNew": "역할 불일치를 고쳤고, 정당한 D87 사업 도입 잠금을 관리자가 화면에서 확인하고 해제할 수 있게 했다. 등록 액션도 legacy role 대신 canonical roles를 읽는다.",
+    "settings": "배정 요청 등 업무 경로에서 projected canonical role과 legacy users.role의 동일성을 요구하던 검사를 제거했다. active human 존재와 후속 canonical grant 검사는 유지한다."
+  },
+  "messageMap": [
+    {
+      "surface": "/participants",
+      "source": "apps/web/app/participants/page.tsx:30-38",
+      "mapping": "모든 ApiError를 '당사자 목록을 불러올 수 없습니다. 접근 권한을 확인하세요.'로 합친다.",
+      "inferenceLimit": "문구만으로 403을 단정할 수 없으며 5xx도 같은 문구가 된다. 실제 회귀 재현은 /participants 403이었다."
+    },
+    {
+      "surface": "/participants/new",
+      "source": "apps/web/app/participants/new/page.tsx:58-88",
+      "mapping": "getMyIdentity, display labels, /program-options, consent disclosures 중 어떤 ApiError도 '접근 권한을 확인하세요'로 합친다.",
+      "inferenceLimit": "운영에서는 먼저 canonical/legacy 불일치 403, 역할 수정 뒤에는 D87 undecided 409가 같은 문구로 보였다."
+    },
+    {
+      "surface": "/settings page-level",
+      "source": "apps/web/app/settings/page.tsx:42-54,211-225",
+      "mapping": "authentication_required는 재로그인, access_denied/forbidden/not_found는 접근 권한, service_unavailable은 잠시 후 다시 시도로 나뉜다."
+    },
+    {
+      "surface": "/settings sections",
+      "source": "apps/web/app/settings/page.tsx:121-162",
+      "mapping": "/assignment-requests와 /users의 모든 ApiError는 각 섹션에서 '잠시 후 다시 시도하세요'로 합친다. 운영형 역할 불일치는 /assignment-requests 403을 만들었다."
+    }
+  ],
+  "rootCauses": [
+    {
+      "id": "canonical_legacy_role_mismatch",
+      "evidence": [
+        "packages/http-api/src/identity.ts:88-97은 institution-admin을 gateway admin으로 투영한다.",
+        "packages/core/src/gateway.ts의 수정 전 assertCurrentHumanActor는 projected admin과 users.role counselor의 동일성을 요구했다.",
+        "운영형 counselor + institution_admin + institution_technical_admin + practitioner 테스트에서 수정 전 /participants가 403으로 실패했다.",
+        "packages/core/src/gateway.ts:15493-15513은 수정 뒤 active human 존재만 확인하고 실제 권한은 canonical grant와 후속 역할 검사에 맡긴다."
+      ]
+    },
+    {
+      "id": "d87_admission_lock_without_ui",
+      "evidence": [
+        "운영 programs 행은 storage_mode=undecided, processing_mode=undecided, admission confirmation 없음이었다.",
+        "packages/core/src/gateway.ts:15953-15979는 undecided를 program_admission_required 409로 거부한다.",
+        "packages/http-api/src/request-handler.ts:2607-2634에 GET/POST /programs와 PATCH /programs/:id가 이미 있었다.",
+        "migrations/sqlite/0054_program_admission.sql:5-49에 programs 선택과 confirmation 컬럼이 이미 있었다.",
+        "packages/core/src/gateway.ts:16184-16259는 관리자, 시각, 선택값, 문안 버전/hash, 설치 config hash/policy version을 programs와 audit_log에 원자적으로 쓴다."
+      ]
+    },
+    {
+      "id": "registration_action_legacy_role_read",
+      "evidence": [
+        "apps/web/app/actions.ts:1071-1115가 수정 전 identity.role === admin일 때만 initialAssigneeUserId를 보냈다.",
+        "운영형 legacy counselor + canonical institution-admin이면 API는 admin 계약을 적용하지만 웹은 assignee를 누락해 새 등록 POST가 실패할 수 있었다.",
+        "apps/web/app/actions.ts:1108은 이제 identity.roles.includes('institution-admin')를 사용한다. 수정 전 회귀 테스트는 initialAssigneeUserId 누락으로 실패했고 수정 후 통과했다."
+      ]
+    }
+  ],
+  "candidateEvaluation": [
+    {
+      "candidate": "legacy role과 canonical 역할 불일치",
+      "verdict": "원인",
+      "reason": "projected admin을 legacy counselor 행과 동일해야 한다고 검사해 /participants, /program-options, /assignment-requests를 403으로 닫았다."
+    },
+    {
+      "candidate": "당사자 목록의 활성 사업 범위 해석 실패",
+      "verdict": "기각",
+      "reason": "/participants 목록은 사업 도입 상태를 읽지 않고 canonical 관리자면 기관 범위, 실무자면 담당 범위를 읽는다. 빈 support_cases는 정상 빈 목록이어야 한다."
+    },
+    {
+      "candidate": "D87 사업 도입 확인 잠금",
+      "verdict": "/participants/new의 두 번째 원인",
+      "reason": "운영 legacy program이 undecided라 consent disclosures가 409였다. 잠금은 정당했고 우회하지 않았다. 기존 PATCH API와 감사 경로를 이용하는 최소 확인 UI를 /admin에 추가했다."
+    },
+    {
+      "candidate": "/settings/accounts 누락",
+      "verdict": "기각",
+      "reason": "packages/http-api/src/request-handler.ts:2573-2598에 엔드포인트가 있고 /admin/users 운영 실측도 성공했다. 현재 /settings는 이 엔드포인트를 호출하지 않고 /me, /assignment-requests, 조건부 /users를 호출한다."
+    }
+  ],
+  "productionProgram": {
+    "id": "legacy-program:bss",
+    "programType": "financial_support_v1",
+    "createdAt": "2026-09-15T15:25:47.979Z",
+    "updatedAt": "2026-09-15T15:25:47.979Z",
+    "status": "active",
+    "displayNamePresent": false,
+    "storageMode": "undecided",
+    "processingMode": "undecided",
+    "confirmed": false,
+    "origin": "migrations/sqlite/0054_program_admission.sql:81-96이 기존 organization/settings/case/invite 기관마다 legacy-program:<orgId>를 undecided로 생성한다."
+  },
+  "programAdmissionUi": {
+    "route": "/admin 기존 화면에 추가했으므로 새 route-inventory 행은 필요하지 않다.",
+    "source": "apps/web/app/admin/program-admission-form.tsx:30-164",
+    "features": [
+      "undecided 저장값은 기본 선택으로 표시하지 않는다. 미선택 제출은 API에서 기존 undecided를 유지한다.",
+      "기본형 Supabase 서울, 비활성 네이버 공공형과 준비 중 안내, 나중에 정하기를 표시한다.",
+      "외부 허용, 기관 안, 나중에 정하기를 표시한다.",
+      "OpenAI 마스킹 글과 Azure 마스킹 전 원음 고지를 다른 줄로 표시하고 Azure는 지금 켤 수 없음을 알린다.",
+      "두 구획 모두 레포의 docs/manual/project-admission-check.md로 연결한다.",
+      "두 축이 결정된 때만 관리자 확인 체크를 렌더한다.",
+      "체크 없이 저장하면 API 호출 전에 invalid_request로 멈춘다.",
+      "문안 hash와 설치 config hash/policy version을 PATCH에 싣고 서버가 재검증한다.",
+      "사업 version, 문안 hash, 설치 config hash/policy version이 바뀌면 폼 key가 바뀌어 이전 관리자 확인 상태를 버린다."
+    ],
+    "deferred": "settings_changed, notice_changed, selection_changed용 recheck 안내 문구 렌더는 Main이 확정한 최소 unlock 범위 밖이며 다음 버전 후보이다. 잠금과 재확인 자체는 서버에서 유지된다."
+  },
+  "legacyUsersRoleReads": [
+    {
+      "location": "apps/api/src/local-actor.ts:28-38, packages/http-api/src/preview-gate.ts:323",
+      "classification": "legacy actor projection",
+      "impact": "local/preview는 아직 users.role을 Actor.role로 직접 쓴다. 운영 Supabase 경로는 canonical 역할을 투영한다."
+    },
+    {
+      "location": "packages/http-api/src/request-handler.ts:2573-2579",
+      "classification": "legacy metadata projection",
+      "impact": "/settings/accounts가 getMyIdentity의 role로 Actor를 재구성하지만 권한은 currentDirectoryRoles의 canonical grant가 판정한다."
+    },
+    {
+      "location": "packages/core/src/gateway.ts:1259-1265,1289-1303,15053-15080",
+      "classification": "pre-0040 schema fallback",
+      "impact": "user_role_assignments 표가 없는 마이그레이션 회귀 테스트에서만 users.role을 사용한다. 의도된 호환 경로다."
+    },
+    {
+      "location": "packages/core/src/gateway.ts:14441-14445,14929-15026",
+      "classification": "legacy /users account lifecycle",
+      "impact": "구 사용자 upsert/deactivate/reactivate와 마지막 admin 보호가 users.role을 읽는다. 현재 canonical /settings/accounts 역할 화면과 별개다."
+    },
+    {
+      "location": "packages/core/src/gateway.ts:17230-17231",
+      "classification": "real authorization risk, deferred",
+      "impact": "기존 당사자에 참여 사업을 추가하는 counselor creationBoundary가 assignee users.role='counselor'를 요구한다. 새 당사자 첫 등록 경로에는 걸리지 않는다. 다음 버전에서 canonical practitioner 검사로 이행할 후보이다."
+    },
+    {
+      "location": "packages/core/src/gateway.ts의 role IN ('admin','counselor') / role <> 'service' 필터들",
+      "classification": "human/service account-kind filter and audit metadata",
+      "impact": "업무 grant 판정이 아니라 active human과 service 계정을 가르는 legacy 디렉터리 메타로 남아 있다."
+    },
+    {
+      "location": "apps/web/app/settings/page.tsx:233 및 관리자 집계 화면",
+      "classification": "display metadata",
+      "impact": "내 계정 역할 라벨과 구 디렉터리 집계에 users.role을 표시하지만 canonical 권한 판정에는 쓰지 않는다."
+    }
+  ],
+  "localEndToEnd": {
+    "lockedState": {
+      "participants": "열림, alert 0",
+      "settings": "열림, alert 0",
+      "participantsNew": "D87 undecided 상태에서 차단 문구, form 0"
+    },
+    "confirmation": {
+      "uncheckedSave": "invalid_request로 차단, API 쓰기 없음",
+      "selectedStorage": "supabase_seoul",
+      "selectedProcessing": "external_allowed",
+      "confirmedSave": "성공, /admin?notice=program_admission_saved"
+    },
+    "auditReceipt": {
+      "actorIdPresent": true,
+      "confirmedAtPresent": true,
+      "storageMode": "supabase_seoul",
+      "processingMode": "external_allowed",
+      "copyVersion": "D87-v1",
+      "copyHashPresent": true,
+      "installationConfigHashPresent": true,
+      "installationPolicyVersion": 1
+    },
+    "participantRegistration": {
+      "openedAfterConfirmation": true,
+      "syntheticBeneficiaryId": "crane-006",
+      "initializationState": "complete",
+      "supportCaseStatus": "active",
+      "consentEventCount": 6,
+      "redirect": "/schedules/new?...&notice=program_created"
+    },
+    "mobileMeasurement": {
+      "viewport": 390,
+      "documentScrollWidth": 390,
+      "choiceOverflowCount": 0,
+      "sectionHeadingAndChoiceLeftAligned": true,
+      "naverDisabled": true,
+      "guideLinkCount": 2
+    }
+  },
+  "regressionEvidence": {
+    "preFix": [
+      "identity-subject: /participants expected 200 but received 403",
+      "registration action: canonical institution-admin with legacy counselor omitted initialAssigneeUserId"
+    ],
+    "postFix": [
+      "identity-subject.test.ts 6/6",
+      "program-admission.routes.test.ts 10/10",
+      "admin/page.test.tsx + consent-action.test.ts 11/11",
+      "API package 117 files, 1311 tests",
+      "web package 76 files, 657 tests"
+    ],
+    "denialPreserved": [
+      "canonical business roles가 0개인 active identity는 /participants, /program-options, /assignment-requests 모두 403",
+      "undecided 사업은 /participants POST와 consent disclosures를 program_admission_required reason=undecided 409로 거부",
+      "두 축을 골라도 관리자 확인 체크가 없으면 updateProgramAdmission을 호출하지 않음"
+    ]
+  },
+  "validation": {
+    "typecheck": "pass",
+    "apiTests": "117 files, 1311 tests pass",
+    "webTests": "76 files, 657 tests pass",
+    "guards": {
+      "guard:db": "pass",
+      "guard:sql-dialect": "pass",
+      "guard:migration-parity": "pass",
+      "guard:doc-numbers": "pass",
+      "guard:consent-copy": "pass",
+      "guard:core-imports": "pass",
+      "guard:tokens": "pass",
+      "guard:align": "pass",
+      "guard:hierarchy": "pass, existing baseline violations 2 only",
+      "guard:hierarchy:test": "pass",
+      "guard:secrets": "pass",
+      "guard:secrets:allowlist": "pass"
+    },
+    "test:design-routes": "pass, existing /admin route reused so inventory unchanged"
+  },
+  "commits": [
+    {
+      "sha": "db04226b",
+      "subject": "fix(auth): trust canonical role assignments on business routes",
+      "stat": "2 files changed, 53 insertions, 12 deletions"
+    },
+    {
+      "sha": "89c8982b",
+      "subject": "feat(web): add program admission confirmation",
+      "stat": "10 files changed, 493 insertions, 17 deletions"
+    }
+  ],
+  "constraints": {
+    "permissionChecksRelaxed": 0,
+    "productionDbWrites": 0,
+    "migrationsAdded": 0,
+    "pushes": 0,
+    "secretValuesPrinted": 0,
+    "unrelatedFilesCommitted": 0
+  }
+}
