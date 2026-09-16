@@ -309,7 +309,9 @@ describe('정렬 하니스 생성기', () => {
     );
     const scheduleBody = renderToStaticMarkup(
       <ScheduleBody
+        basePath="/programs/financial_support_v1/schedule"
         view="week"
+        anchor="2026-09-02"
         schedules={scheduleRows}
         timeZone="Asia/Seoul"
         todayKey="2026-09-02"

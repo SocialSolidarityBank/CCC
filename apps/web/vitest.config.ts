@@ -6,6 +6,9 @@ export default defineConfig({
   oxc: {
     jsx: { runtime: 'automatic' },
   },
+  resolve: {
+    alias: { 'server-only': new URL('./test/server-only.ts', import.meta.url).pathname },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./test/setup-dom.ts'],

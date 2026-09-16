@@ -107,6 +107,14 @@
       "unification": false
     },
     {
+      "page": "apps/web/app/login/page.tsx",
+      "routePattern": "/login",
+      "representativeUrl": "/login",
+      "seedFixture": "public/login",
+      "permission": { "state": "public", "actor": "anonymous" },
+      "unification": true
+    },
+    {
       "page": "apps/web/app/onboarding/page.tsx",
       "routePattern": "/onboarding",
       "representativeUrl": "/onboarding",

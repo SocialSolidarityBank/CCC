@@ -1,3 +1,4 @@
+import { AUTH_COOKIE_NAME } from './auth-cookie';
 import 'server-only';
 import { headers } from 'next/headers';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
@@ -1360,6 +1361,22 @@ function previewAuthorizationCookie(cookieHeader: string | null): string | null 
   return null;
 }
 
+/** ccc_auth 쿠키(직접 로그인 세션) 값만 뽑는다 — Bearer 로 싣기 전의 원본 토큰이다. */
+function authCookieValue(cookieHeader: string | null): string | null {
+  if (cookieHeader === null) return null;
+
+  for (const segment of cookieHeader.split(';')) {
+    const cookie = segment.trim();
+    const separator = cookie.indexOf('=');
+    if (separator === -1 || cookie.slice(0, separator) !== AUTH_COOKIE_NAME) continue;
+
+    const value = cookie.slice(separator + 1);
+    if (value.length > 0) return value;
+  }
+
+  return null;
+}
+
 async function accessHeaders(): Promise<Headers> {
   const inbound = await headers();
   const accessAssertion = inbound.get('cf-access-jwt-assertion');
@@ -1371,6 +1388,21 @@ async function accessHeaders(): Promise<Headers> {
     const previewCookie = previewAuthorizationCookie(inbound.get('cookie'));
     if (previewCookie === null) throw new ApiError('authentication_required');
     forwarded.set('cookie', previewCookie);
+    return forwarded;
+  }
+
+  // 자격 선택 순서와 그 이유:
+  //   1. ccc_auth(직접 로그인) → Authorization: Bearer. Supabase access token 은 쿠키에
+  //      있지만 API 계약은 Bearer 헤더다 — 쿠키로 넘기면 API 의 Access 리졸버가 그 값을
+  //      Access 세션으로 오독하므로 여기서 헤더로 옮겨 싣는다. 사용자가 /login 으로 로그인을
+  //      마친 최신 신원이므로 Access 쿠키보다 앞선다.
+  //   2. cf-access-jwt-assertion → x-ccc-access-jwt. Access 앞에 선 요청의 서명된 신원.
+  //   3. CF_Authorization 쿠키 → cookie 포워딩. Access 세션 쿠키 경로.
+  //   4. 로컬 프리뷰 이중 잠금(dev + CCC_LOCAL_PREVIEW) — 신원은 API local-actor 가 공급.
+  // 한 요청에 자격은 하나만 싣는다 — 둘을 같이내면 어느 신원으로 기록됐는지 감사가 흐려진다.
+  const authToken = authCookieValue(inbound.get('cookie'));
+  if (authToken !== null) {
+    forwarded.set('authorization', `Bearer ${authToken}`);
     return forwarded;
   }
 
@@ -2740,38 +2772,51 @@ export async function signupParticipant(input: PublicSignupInput): Promise<Publi
 }
 
 
-/** 실무자 초대 링크(초대 토큰) 발급 결과 (CCC-108 · CCC-33). */
-export interface WorkerInvite {
+/** 실무자 초대 발급 결과(D86). token 은 발급 응답에만 온다 — 목록·재조회는 토큰을 주지 않는다. */
+export interface StaffInviteIssue {
   token: string;
-  issuedAt: string;
+  /** 초대에 적은 수신 이메일(정규화된 값). */
+  email: string;
+  expiresAt: string;
 }
 
 /**
- * 실무자 초대 링크 발급(POST /invites/counselor). 관리자 전용 — 권한·감사는 API
- * 게이트웨이가 강제한다(R1·D14). 스위치(PUBLIC_SIGNUP_ENABLED)가 닫힌 배포에서는 404.
+ * 실무자 초대 발급(POST /staff-invites). 관리자 전용 — 권한·감사는 API 게이트웨이가
+ * 강제한다(R1·D14). 이 화면은 실무자 초대만 다루므로 역할은 practitioner 로 고정한다 —
+ * 기관 관리자는 업무 역할을 반드시 골라야 한다는 서버 규칙(D86 결정 3)과 맞물린다.
+ * 당사자 공개 가입 스위치(PUBLIC_SIGNUP_ENABLED)와 무관하게 열린다.
  */
-export async function createWorkerInvite(): Promise<WorkerInvite> {
-  const raw = await jsonRequest<Record<string, unknown>>('/invites/counselor', 'POST', {});
-  if (typeof raw.token !== 'string' || typeof raw.issuedAt !== 'string') {
-    throw new ApiError('invalid_request');
-  }
-  return { token: raw.token, issuedAt: raw.issuedAt };
+export async function createStaffInvite(email: string): Promise<StaffInviteIssue> {
+  const raw = await jsonRequest<Record<string, unknown>>('/staff-invites', 'POST', {
+    email,
+    roles: ['practitioner'],
+  });
+  if (typeof raw.token !== 'string') throw new ApiError('invalid_request');
+  const invite = responseObject(responseProperty(raw, 'invite'));
+  return {
+    token: raw.token,
+    email: responseString(invite, 'email'),
+    expiresAt: responseString(invite, 'expiresAt'),
+  };
 }
 
-/** 공개 실무자 초대 링크 메타데이터(토큰이 유효할 때 기관 표시 이름). Access 불필요(CCC-108). */
-export interface PublicWorkerInviteInfo {
+/** 공개 실무자 초대 정보(D86). 토큰이 유효할 때 기관 표시 이름·역할·만료 시각. 인증 불필요. */
+export interface StaffInvitePublicInfo {
   orgName: string | null;
+  roles: string[];
+  expiresAt: string;
 }
 
 /**
- * 실무자 초대 링크의 공개 정보(기관 표시 이름)를 가져온다. 토큰이 없거나 이미 소비되었으면
- * not_found(404). 인증 헤더를 보내지 않는다 — 공개 경로(CCC-108).
+ * 실무자 초대 링크의 공개 정보(GET /staff-invites/token/:token). 토큰이 없거나 이미
+ * 소비·회수·만료되었으면 not_found(404) — 어느 사유인지 응답이 가르지 않는다.
+ * 인증 헤더를 보내지 않는다 — 공개 경로.
  */
-export async function getPublicWorkerInviteInfo(token: string): Promise<PublicWorkerInviteInfo> {
+export async function getStaffInvitePublicInfo(token: string): Promise<StaffInvitePublicInfo> {
   const requestHeaders = new Headers({ accept: 'application/json' });
   let response: Response;
   try {
-    response = await fetchApi(endpoint(`/invites/worker/${encodeURIComponent(token)}`), {
+    response = await fetchApi(endpoint(`/staff-invites/token/${encodeURIComponent(token)}`), {
       headers: requestHeaders,
       cache: 'no-store',
     });
@@ -2783,36 +2828,51 @@ export async function getPublicWorkerInviteInfo(token: string): Promise<PublicWo
   if (!response.ok) throw new ApiError(errorCode(response.status, payload));
   const record = responseObject(payload);
   const orgName = record.orgName;
-  return { orgName: typeof orgName === 'string' ? orgName : null };
+  return {
+    orgName: typeof orgName === 'string' ? orgName : null,
+    roles: responseArray(record, 'roles').map((role) => {
+      if (typeof role !== 'string') contractViolation();
+      return role;
+    }),
+    expiresAt: responseString(record, 'expiresAt'),
+  };
 }
 
-export interface WorkerSignupInput {
+export interface StaffInviteAcceptInput {
   token: string;
   name: string;
-  /** Cloudflare Access 의 신원 키 — 이 이메일로 로그인하게 된다. 필수. */
   email: string;
 }
 
-export interface WorkerSignupResult {
+export interface StaffInviteAcceptResult {
   userId: string;
   email: string;
+  /** 역할 대기 초대(기술 관리자가 역할 없이 발급)면 true — 배정 전까지 업무가 안 열린다. */
+  roleWaiting: boolean;
 }
 
 /**
- * 실무자 초대 가입을 완료한다(공개 경로, Access 불필요). 성공 시 201 + { userId, email }.
- * 토큰 무효·이미 소비는 not_found(404), 이메일 중복은 conflict(409).
+ * 실무자 초대 수락(POST /staff-invites/token/:token/accept). 공개 경로지만 검증된
+ * Supabase 신원을 요구한다 — accessToken 은 수락 직전에 로그인·가입으로 얻은 것이고
+ * 서버는 그 토큰의 subject·이메일을 검증한 뒤 초대 이메일과 대조한다(D90).
+ * 성공 시 201 + { userId, email, roleWaiting }. 토큰 무효·이메일 불일치·이미 소비는
+ * 전부 not_found(404)로 뭉친다, 이메일 중복은 conflict(409).
  */
-export async function signupWorker(input: WorkerSignupInput): Promise<WorkerSignupResult> {
+export async function acceptStaffInvite(
+  input: StaffInviteAcceptInput,
+  accessToken: string,
+): Promise<StaffInviteAcceptResult> {
   const requestHeaders = new Headers({
     accept: 'application/json',
     'content-type': 'application/json; charset=utf-8',
+    authorization: `Bearer ${accessToken}`,
   });
   let response: Response;
   try {
-    response = await fetchApi(endpoint('/invites/worker'), {
+    response = await fetchApi(endpoint(`/staff-invites/token/${encodeURIComponent(input.token)}/accept`), {
       method: 'POST',
       headers: requestHeaders,
-      body: JSON.stringify(input),
+      body: JSON.stringify({ name: input.name, email: input.email }),
       cache: 'no-store',
       redirect: 'manual',
     });
@@ -2826,5 +2886,6 @@ export async function signupWorker(input: WorkerSignupInput): Promise<WorkerSign
   return {
     userId: responseString(record, 'userId'),
     email: responseString(record, 'email'),
+    roleWaiting: responseBoolean(record, 'roleWaiting'),
   };
 }

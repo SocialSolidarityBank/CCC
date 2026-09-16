@@ -1,5 +1,9 @@
 'use server';
 
+import { cookies } from 'next/headers';
+import { AUTH_COOKIE_NAME } from './lib/auth-cookie';
+import { signInOrSignUpWithPassword } from './lib/supabase-auth';
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
@@ -27,8 +31,8 @@ import {
   listProgramOptions,
   getParticipantInviteConsentDisclosures,
   signupParticipant,
-  createWorkerInvite,
-  signupWorker,
+  createStaffInvite,
+  acceptStaffInvite,
   createSubsequentParticipantProgram,
   editAiDraft,
   generateAiDraft,
@@ -1264,35 +1268,65 @@ export async function createParticipantInviteAction(): Promise<ParticipantInvite
   }
 }
 
-export type WorkerInviteResult = { status: 'created'; token: string } | { status: Notice };
+export type StaffInviteResult =
+  | { status: 'created'; token: string; email: string; expiresAt: string }
+  | { status: Notice };
 
-// 실무자 초대 링크 발급(CCC-108 · CCC-33). 링크 조립·복사는 화면 몫이고 여기는 토큰만
-// 받아 넘긴다. 관리자 검사·감사는 API 게이트웨이가 강제한다(R1·D14).
-export async function createWorkerInviteAction(): Promise<WorkerInviteResult> {
+// 실무자 초대 발급(D86 · POST /staff-invites). 링크 조립·복사는 화면 몫이고 여기는
+// 토큰과 만료만 받아 넘긴다. 관리자 검사·감사는 API 게이트웨이가 강제한다(R1·D14).
+// 토큰은 이 응답에만 온다 — 목록·재조회는 토큰을 주지 않으므로 화면은 발급 직후 한 번만 보여 준다.
+export async function createStaffInviteAction(formData: FormData): Promise<StaffInviteResult> {
   try {
-    const invite = await createWorkerInvite();
-    return { status: 'created', token: invite.token };
+    const email = requiredValue(formData, 'email').trim();
+    if (email.length === 0 || email.length > 254) throw new FormInputError();
+    const invite = await createStaffInvite(email);
+    return { status: 'created', token: invite.token, email: invite.email, expiresAt: invite.expiresAt };
   } catch (error) {
     return { status: noticeFor(error) };
   }
 }
 
-export type WorkerSignupResult =
-  | { status: 'created'; email: string }
+export type StaffInviteAcceptResult =
+  | { status: 'created'; email: string; roleWaiting: boolean }
+  /** Supabase 가 이메일 확인을 요구하는 설치 — 확인 메일을 누르고 같은 링크로 다시 온다. */
+  | { status: 'confirm_email' }
   | { status: Notice };
 
 /**
- * 실무자 초대 가입(CCC-108). 공개 경로 — 인증 불필요. 성공 시 users 에 role=counselor 로
- * 등재되고, 그 이메일로 Cloudflare Access 로그인해서 들어온다. 토큰 무효·이미 소비는
- * not_found, 이메일 중복은 conflict. 리다이렉트 없음 — 클라이언트가 인라인 완료 상태를 표시한다.
+ * 실무자 초대 수락(D86 · D90). 공개 경로지만 순서가 있다: 먼저 Supabase 계정을 만들거나
+ * 로그인해 access token 을 얻고, 그 토큰을 Bearer 로 실어 수락을 요청한다 — 서버는
+ * 검증된 subject 없이는 수락하지 않는다. 성공하면 그 토큰을 ccc_auth 쿠키로 심어
+ * 수락한 사람이 곧바로 로그인 상태가 된다.
+ *
+ * 가입을 먼저 시도하고 이미 계정이 있으면 로그인으로 이어간다 — 같은 링크로 다시 온
+ * 사람(이메일 확인 후 재방문)이 가입에서 막히지 않게. 비밀번호와 토큰은 로그에 남기지
+ * 않는다.
  */
-export async function signupWorkerAction(formData: FormData): Promise<WorkerSignupResult> {
-  const token = requiredValue(formData, 'token');
-  const name = requiredValue(formData, 'name');
-  const email = requiredValue(formData, 'email');
+export async function acceptStaffInviteAction(formData: FormData): Promise<StaffInviteAcceptResult> {
   try {
-    const result = await signupWorker({ token: token.trim(), name: name.trim(), email: email.trim() });
-    return { status: 'created', email: result.email };
+    const token = requiredValue(formData, 'token');
+    const name = requiredValue(formData, 'name');
+    const email = requiredValue(formData, 'email');
+    const password = requiredValue(formData, 'password');
+    const auth = await signInOrSignUpWithPassword(email.trim(), password);
+    if (auth.status === 'confirm_email') return { status: 'confirm_email' };
+    if (auth.status === 'invalid_credentials') return { status: 'invalid_request' };
+    if (auth.status === 'unavailable') return { status: 'service_unavailable' };
+    const session = auth.session;
+
+    const result = await acceptStaffInvite(
+      { token: token.trim(), name: name.trim(), email: email.trim() },
+      session.accessToken,
+    );
+    // 수락이 끝난 토큰을 곧바로 세션 쿠키로 심는다 — 이 사람은 방금 만든 계정의 주인이다.
+    (await cookies()).set(AUTH_COOKIE_NAME, session.accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: session.expiresIn,
+    });
+    return { status: 'created', email: result.email, roleWaiting: result.roleWaiting };
   } catch (error) {
     return { status: noticeFor(error) };
   }

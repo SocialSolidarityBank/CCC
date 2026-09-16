@@ -14,19 +14,19 @@ describe('공개 입구 화면 /welcome (CCC-109)', () => {
     expect(container.querySelector('h1')?.textContent).toBe('CCC 사례관리');
   });
 
-  it('두 진입 버튼이 각각 온보딩과 로그인(홈)으로 간다', () => {
+  it('두 진입 버튼이 각각 온보딩과 로그인 화면으로 간다', () => {
     const { container } = render(<WelcomePage />);
     const links = new Map(
       Array.from(container.querySelectorAll('a')).map((a) => [a.textContent?.trim(), a.getAttribute('href')]),
     );
     expect(links.get('기관 등록 시작')).toBe('/onboarding');
-    expect(links.get('실무자 로그인')).toBe('/');
+    expect(links.get('실무자 로그인')).toBe('/login');
   });
 
-  it('로그인 버튼 곁에 Access 로그인 안내가 있다', () => {
-    // 로그인 화면이 따로 없으므로, Access 화면이 뜨는 것이 고장이 아님을 입구에서 알린다.
+  it('로그인 버튼 곁에 초대 링크 가입 안내가 있다', () => {
+    // 계정은 관리자의 초대 링크로만 만들어진다 — 입구에서 그 사실을 알린다.
     const { container } = render(<WelcomePage />);
-    expect(container.textContent).toContain('Cloudflare Access');
+    expect(container.textContent).toContain('초대 링크');
   });
 
   it('15초 브리핑 카피가 있다 — 5분은 여는 시점, 15초는 훑는 시간', () => {

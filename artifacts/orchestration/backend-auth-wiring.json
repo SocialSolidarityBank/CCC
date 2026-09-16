@@ -1,0 +1,63 @@
+{
+  "agent": "BackendAuthWiring",
+  "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/auth-direct",
+  "branch": "feat/direct-login",
+  "baseHead": "b6daf62f",
+  "commit": "1b1553d88902775b6be620fa07412d433f9f3c89",
+  "commitStat": "7 files changed, 350 insertions(+), 5 deletions(-) — apps/api/package.json, apps/api/src/index.ts, apps/api/src/supabase-identity.ts (new), apps/api/test/supabase-worker-auth.test.ts (new), apps/api/wrangler.toml, packages/http-api/src/identity.ts, pnpm-lock.yaml. 남의 파일 0건 (git show --stat 확인).",
+  "changed": {
+    "apps/api/src/supabase-identity.ts": "신규. SUPABASE_AUTH_ORIGIN 에서 issuer·jwksUri 를 파생해 createSupabaseIdentity 를 만든다. origin 없으면 undefined(레인 없음). hasSupabaseBearerCredential 로 JWT 형태 Bearer 만 골라낸다. __setSupabaseJwksFetchForTests 테스트 훅(identity-access 의 Access 훅과 같은 패턴).",
+    "apps/api/src/index.ts": "preview/local 이중 잠금 뒤, agent-bearer 안쪽에서 Bearer JWT 형태면 supabase.resolve, 아니면 Access identity.resolve. supabase 가 있을 때만 runtimeEnv.verifyIdentityLinkClaims 를 채워 초대 수락 404 를 해소한다.",
+    "packages/http-api/src/identity.ts": "ApiEnv 에 SUPABASE_AUTH_ORIGIN 선언. verifyIdentityLinkClaims 주석을 현재 용도(초대 수락)로 갱신.",
+    "apps/api/wrangler.toml": "[env.production.vars] 에 SUPABASE_AUTH_ORIGIN 값(공개 정보)과 주석. preview 에는 두지 않음을 명시.",
+    "apps/api/package.json + pnpm-lock.yaml": "@ccc/identity-supabase workspace 의존 추가."
+  },
+  "laneSplit": {
+    "rule": "Authorization: Bearer <세 구간 base64url JWT> 이면 Supabase 레인, 그 외는 Access 레인. agent-bearer(43자 opaque)는 정규식에 걸리지 않아 먼저 갈라지는 기존 레인과 섞이지 않는다.",
+    "why": "웹이 싣는 사람 자격이 Bearer JWT 하나이고, JWT 가 아닌 자격을 Supabase 검증기에 넣으면 의미 없는 401 이 된다. Supabase 레인이 없으면(origin 미설정) Bearer JWT 도 Access 레인으로 흘러 401 — 없음이 곧 닫힘.",
+    "accessPreserved": "Access 리졸버 미삭제. Cf-Access-Jwt-Assertion/X-CCC-Access-Jwt 경로 그대로. 공존 시험 통과."
+  },
+  "directoryBinding": "supabase.resolve → resolveDirectoryActorByAuthSubject(env, claims.sub, {source:'supabase-jwt', assurance, sessionId}, issuedAt). 디렉터리에 없거나 비활성이면 ForbiddenError(403). Access 경로의 resolveDirectoryActorByPrincipal 과 같은 resolveDirectoryActorByKey 를 거쳐 auth_revocations 의 session/actor 해지 검사를 동일하게 받는다 — 세션 해지·계정 해지 모두 새 경로에서 403 임을 시험으로 증명.",
+  "databaseForSession": "넘기지 않았다. community-cloud 가 세션별 Postgres 범위를 나누기 위한 옵션이고 ccc-api 는 D1 바인딩 하나가 곧 디렉터리라 env 그대로가 맞다.",
+  "emailMatch": {
+    "verdict": "이중 검사가 이미 있다. 라우트(request-handler.ts:2451-2453)가 검증된 claims.email 과 요청 body.email 을 대조해 다르면 404, gateway(acceptStaffInvite:24932)가 body.email 과 staff_invites.email_normalized 를 대조해 다르면 ForbiddenError→404. 둘 다 시험으로 증명(claim↔body 불일치, body↔invite 불일치 각각 404 + users/staff_invites 무수정 확인).",
+    "note": "토큰의 email claim 이 실제 통제 이메일인지는 토큰이 증명하지 않는다 — Supabase Auth 의 이메일 확인 요구를 설치 doctor 가 강제하는 설계(D80 주석). 이 전제가 무너지면 초대 링크를 얻은 사람이 미확인 이메일 계정으로 수락할 수 있다. doctor 강제 여부는 내 소유 밖이라 확인하지 못했다."
+  },
+  "envVars": [
+    {
+      "name": "SUPABASE_AUTH_ORIGIN",
+      "purpose": "Supabase 프로젝트 origin. issuer(<origin>/auth/v1)와 JWKS URI(<origin>/auth/v1/.well-known/jwks.json)의 유일한 근거. 공개 정보 — 비대칭 서명 검증이라 시크릿이 필요 없다.",
+      "value": "wrangler.toml [env.production.vars] 에 https://qlzwasqwkmenudtfmuql.supabase.co 로 커밋됨(Main 제공, 공개 값).",
+      "preview": "두지 않는다 — preview 는 코드 게이트가 먼저 반환해 이 레인에 닿지 않는다.",
+      "absent": "레인 자체가 없다. Bearer JWT 는 401, 초대 수락은 404."
+    }
+  ],
+  "noSecrets": "서비스 역할 키·JWT 시크릿 불필요(JWKS 공개키 검증). 시크릿 값 출력 0건.",
+  "logout": "POST /auth/logout(:2538)은 resolvedActor.authn.sessionId 를 auth_revocations 에 session 해지로 기록한다. Supabase actor 는 session_id claim 을 sessionId 로 가지므로 그대로 동작한다(시험: 204 후 같은 토큰 403). Access actor 는 sessionId 가 null 이라 403 — Access 세션은 Access 측이 관리하므로 의도된 동작이며 변경 불필요.",
+  "publicSurface": {
+    "reachableWithoutAuth": [
+      "GET /health — 상태 문자열만.",
+      "GET /invites/participant/:token — 초대 링크 정보. PUBLIC_SIGNUP_ENABLED==='1' 필요(운영 미설정=404).",
+      "GET /invites/participant/:token/consent/disclosures — 동의 고지문. 같은 스위치.",
+      "POST /signup/participant — 당사자 가입. 같은 스위치. 토큰이 자격.",
+      "GET /staff-invites/token/:token — 초대 공개 정보(기관명·역할·만료). 스위치 없이 열려 있으나 토큰 자체가 자격이고 실패는 전부 404.",
+      "POST /staff-invites/token/:token/accept — 초대 수락. 이번 배선으로 verifyIdentityLinkClaims 가 채워져 검증된 Supabase 자격 + 이메일 이중 대조를 요구한다.",
+      "POST /agents/pair, POST /agents/token — pairing code/refresh token 이 자격인 Agent 교환. 신원 해석 앞."
+    ],
+    "riskAssessment": "인증 없이 닿는 경로 중 업무 자료·개인정보를 주는 것은 없다. 전부 자격(초대 토큰·pairing code·refresh token)을 요구하거나 공개 정보만 반환한다. 유일한 정보 노출은 GET /staff-invites/token/:token 의 기관명인데 토큰 보유자 전용 설계다. 단 주의: Supabase 레인이 열리면서 '유효한 Supabase 계정 + 디렉터리 연결' 이 있는 사람은 Access 없이도 전체 인증 표면에 닿는다 — 이것이 기능의 목적이며, 디렉터리 미등록 subject 는 403 으로 닫히는 것을 시험했다."
+  },
+  "verification": {
+    "pnpm --filter @ccc/api typecheck": "통과",
+    "pnpm --filter @ccc/api test": "115 files / 1305 tests 전부 통과",
+    "pnpm typecheck": "통과 (api·web·client·community-cloud·wire)",
+    "pnpm guard:sql-dialect": "통과 (41 migrations)",
+    "pnpm guard:db": "통과",
+    "newTests": "apps/api/test/supabase-worker-auth.test.ts 12건: 디렉터리 연결 성공, 미등록 subject 403, 비활성 403, 위조 서명·issuer 불일치 401, 세션 해지 403, 계정 해지 403, origin 없음 401, Access 공존 200, 로그아웃 204→403, 초대 수락 201→/me 200, claim↔body 이메일 불일치 404+무수정, body↔invite 불일치 404+무수정, 자격 없음/origin 없음 수락 404."
+  },
+  "constraints": "마이그레이션 0건, apps/web 수정 0건, Access 경로 제거 0건, 배포 0건, push 0건, 시크릿 값 출력 0건. 커밋은 git commit --only 로 소유 경로만.",
+  "notes": [
+    "SUPABASE_AUTH_ORIGIN 이름은 내가 정했다 — community-cloud 가 쓰는 manifest 필드명 supabaseAuthOrigin 을 env 형태로 옮긴 것.",
+    "CCC_INSTALL_MANIFEST 는 ops.md 가 운영·미리보기에 두지 말라고 명시해 origin 근거로 쓰지 않았다.",
+    "웹 계약(Authorization: Bearer <token>, 쿠키 ccc_auth)은 그대로 지켰다."
+  ]
+}

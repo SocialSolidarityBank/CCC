@@ -59,13 +59,14 @@ export default async function AdminInvitePage({ searchParams }: { searchParams: 
       <div className="wire-admin-section"><WorkerInviteIssue /></div>
 
       {/* 구 '실무자 초대' 폼(이메일 칸 + 영구 비활성 '초대 보내기')은 없앴다(CCC-63).
-          지금 되는 길은 둘이다 — 위의 직접 등록과 초대 링크(CCC-108). 메일 자동 발송만
+          지금 되는 길은 둘이다 — 위의 직접 등록과 초대 링크(D86). 메일 자동 발송만
           아직 없으므로, 그 사실을 말로 적는다. */}
       <div className="wire-admin-section">
         <WireCallout tone="lavender" role="status" testId="admin-invite-note" title="초대 방법 두 가지">
-          이메일을 아는 실무자는 위에서 바로 등록하고, 아니면 초대 링크를 만들어 전달하세요.
-          링크를 받은 사람이 이름과 이메일을 입력해 가입하며, 두 경우 모두 Cloudflare Access 로
-          로그인합니다. 메일을 자동으로 보내 주는 기능은 아직 없습니다. 링크는 직접 전달해야 합니다.
+          초대 링크를 만들어 전달하면 받은 사람이 이메일과 비밀번호로 가입하고 바로 로그인됩니다.
+          위의 바로 등록은 Cloudflare Access 로 들어오는 사람에게만 해당합니다. 직접 로그인으로
+          들어올 사람은 초대 링크를 쓰세요. 메일을 자동으로 보내 주는 기능은 아직 없습니다.
+          링크는 직접 전달해야 합니다.
         </WireCallout>
       </div>
     </>
