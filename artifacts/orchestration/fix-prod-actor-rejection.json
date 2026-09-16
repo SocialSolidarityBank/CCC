@@ -61,7 +61,9 @@
     }
   },
   "otherLatentSameDefect": {
-    "fixed": ["packages/core/src/notify.ts:37 (workerd — 워치독 웹훅)"],
+    "fixed": [
+      "packages/core/src/notify.ts:37 (workerd — 워치독 웹훅)"
+    ],
     "unaffected_node_side": [
       "adapters/audio-signer/src/index.ts:119",
       "apps/community-cloud/src/storage-signer.ts:161,554",
@@ -80,7 +82,7 @@
   },
   "deploy": {
     "workflowRun": "https://github.com/SocialSolidarityBank/CCC/actions/runs/35070213368",
-    "status": "verify 잡 진행 중 — 승인 게이트 도달 시 승인 주소를 Main 에 전달한다"
+    "status": "success — run 35070213368, 모든 잡(confirm·verify·schema-gate·deploy-production) success, 내장 스모크 3종 통과"
   },
   "constraints": {
     "permissionWeakening": 0,
@@ -88,5 +90,13 @@
     "accessRemoval": 0,
     "secretValuesPrinted": 0
   },
-  "postmortem": "docs/postmortems/2026-09-16-workerd-fetch-redirect-error.md"
+  "postmortem": "docs/postmortems/2026-09-16-workerd-fetch-redirect-error.md",
+  "postDeployVerification": {
+    "method": "magiclink 로 신선한 토큰 발급 → Cookie: ccc_auth=<token> 으로 운영 웹 호출",
+    "participants": "HTTP 200, 오류 문구 없음, 빈 상태 문구 \"담당 중인 당사자가 없습니다. 당사자를 먼저 등록하세요.\" 정상",
+    "settings": "HTTP 200, 내 계정(이메일·역할 기관 관리자) 표시, 관리자 탭 5개 전부(기관·배정·사용자·역할·실무자 초대·AI·STT·연결) 보임",
+    "adminInvite": "HTTP 200 (/admin/invite — /admin/invites 는 404, 실제 경로는 단수), 초대 폼 정상 렌더",
+    "scheduleMonth": "HTTP 200, /programs/financial_support_v1/schedule?view=month 에 2026년 9월 월간 격자(일~토 7열, 날짜 셀)가 자료 0건에서도 그려짐 — Q 지적 문제 없음",
+    "webhookSecret": "NOTIFY_WEBHOOK_URL 운영 설정 확인됨(이름만, 값 미출력)"
+  }
 }
