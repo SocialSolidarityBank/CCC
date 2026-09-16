@@ -196,7 +196,7 @@
       "program-admission.routes.test.ts 10/10",
       "admin/page.test.tsx + consent-action.test.ts 11/11",
       "API package 117 files, 1311 tests",
-      "web package 76 files, 657 tests"
+      "web package 76 files, 658 tests"
     ],
     "denialPreserved": [
       "canonical business roles가 0개인 active identity는 /participants, /program-options, /assignment-requests 모두 403",
@@ -207,7 +207,7 @@
   "validation": {
     "typecheck": "pass",
     "apiTests": "117 files, 1311 tests pass",
-    "webTests": "76 files, 657 tests pass",
+    "webTests": "76 files, 658 tests pass",
     "guards": {
       "guard:db": "pass",
       "guard:sql-dialect": "pass",
@@ -234,6 +234,11 @@
       "sha": "89c8982b",
       "subject": "feat(web): add program admission confirmation",
       "stat": "10 files changed, 493 insertions, 17 deletions"
+    },
+    {
+      "sha": "35f42fbe",
+      "subject": "fix(web): reset stale admission confirmation",
+      "stat": "3 files changed, 286 insertions, 2 deletions"
     }
   ],
   "constraints": {
