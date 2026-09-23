@@ -277,13 +277,12 @@ GAS 아코디언은 코드에서 제거한다(D43 이행 — 스키마·데이�
 
 조직(SSB) 시크릿이 필요하면 이 경로만 쓴다 (Cloudflare 시크릿·AES 키 등 2단계부터 해당):
 
-- 값의 원본은 **Infisical**. 사람용 금고(Bitwarden)와 그 마스터 비밀번호는 절대 조회·요청하지 않는다.
-- 에이전트 인증(읽기 전용 Machine Identity, 이 Mac에 배치 완료):
-  ```bash
-  set -a; source ~/.config/infisical-agent/credentials; set +a
-  infisical run --projectId=<ID> --env=<env> -- <명령>
-  ```
-  값은 주입만 한다 — `secrets get` 등으로 stdout·채팅·로그에 출력 금지.
+- 값의 원본은 **Infisical**이며 회사 프로젝트는 **Doppler로 이전 중**이다(2026-09-24 현황). 사람용 금고(Bitwarden)와 그 마스터 비밀번호는 절대 조회하거나 요청하지 않는다.
+- 에이전트 인증 (2026-09-24 변경):
+  - Infisical **ggbss.or.kr** 프로젝트(`/CCC` 포함): 안전 래퍼 `~/.dotfiles/scripts/isec`(`ls|has|set|del|run`)를 쓴다. isec가 1Password `BSS` 금고의 Machine Identity `ggbss-agent` 자격을 `opsvc`로 읽어 스스로 로그인한다.
+  - Infisical **RELAYER** 프로젝트(`78d6f149-…`, `/CURRENT`·`/INSTALL` 등): 지금은 **상시 에이전트 자격이 없다**(`ggbss-agent`는 403). 사본이 Doppler `relayer_runtime/prd`(운영)와 `relayer` dev·stg(개발)에 있다. 다만 `/UNUSED`, `/PREVIEW`, 64KB를 넘는 baseline 3개는 사본에서 뺐다. 필요하면 config별 읽기 전용 Service Token을 Q에게 요청하고, `doppler run --no-fallback`에 child env로만 넘긴다.
+  - 예전 `~/.config/infisical-agent/credentials`는 삭제된 identity의 자격증명이라 파일을 지웠다. `scripts/install/stage-env.sh`는 이 파일을 source하던 경로라서, 지금은 자격을 직접 넘기지 않으면 동작하지 않는다.
+  - 값은 주입만 한다. `secrets get` 등으로 stdout, 채팅, 로그에 출력하지 않는다.
 - **값이 stdout에 닿는 명령은 실행 자체 금지**: `infisical secrets`/`export`/`get`, `--plain`, 자격증명 파일 열람. 이름 확인이 필요해도 값 섞인 출력을 만들지 않는다. (과거 실제 노출로 전 키 로테이션을 치른 규칙 — `~/.claude/hooks/secret-dump-guard.sh` 훅이 결정론 차단)
 - .env는 이름만 커밋(`.env.example`), 값 커밋 금지. 절차 SSOT: `~/DEVELOPER/PROJECTS/BSS/bss-infra/docs/machine-access.md` (레포 `SocialSolidarityBank/bss-infra`).
 - 시크릿 값이 채팅·커밋에 노출되면 즉시 보고하고 해당 키 로테이션을 안내한다.
