@@ -1,0 +1,27 @@
+[
+  {
+    "screen": "write",
+    "elements": 63,
+    "identical": true
+  },
+  {
+    "screen": "briefing",
+    "elements": 15,
+    "identical": true
+  },
+  {
+    "screen": "records",
+    "elements": 14,
+    "identical": true
+  },
+  {
+    "screen": "schedule",
+    "elements": 15,
+    "identical": true
+  },
+  {
+    "screen": "participant",
+    "elements": 15,
+    "identical": true
+  }
+]

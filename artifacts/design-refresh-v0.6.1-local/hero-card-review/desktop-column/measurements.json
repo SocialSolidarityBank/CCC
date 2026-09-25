@@ -1,0 +1,328 @@
+{
+  "prototypeOnly": true,
+  "productionUnchanged": true,
+  "measurements": [
+    {
+      "kind": "two-badge synthetic example",
+      "width": 1280,
+      "height": 183,
+      "overflow": 0,
+      "fieldsTop": 341,
+      "badgesTop": 341,
+      "fieldsRight": 1116.875,
+      "badgesLeft": 1140.875,
+      "tags": [
+        {
+          "x": 1140.875,
+          "y": 341
+        },
+        {
+          "x": 1140.875,
+          "y": 371
+        }
+      ],
+      "rects": [
+        {
+          "x": 337,
+          "y": 341,
+          "width": 243.953125,
+          "height": 46,
+          "top": 341,
+          "right": 580.953125,
+          "bottom": 387,
+          "left": 337
+        },
+        {
+          "x": 604.953125,
+          "y": 341,
+          "width": 243.953125,
+          "height": 46,
+          "top": 341,
+          "right": 848.90625,
+          "bottom": 387,
+          "left": 604.953125
+        },
+        {
+          "x": 872.90625,
+          "y": 341,
+          "width": 243.953125,
+          "height": 46,
+          "top": 341,
+          "right": 1116.859375,
+          "bottom": 387,
+          "left": 872.90625
+        },
+        {
+          "x": 1140.875,
+          "y": 341,
+          "width": 82.125,
+          "height": 22,
+          "top": 341,
+          "right": 1223,
+          "bottom": 363,
+          "left": 1140.875
+        },
+        {
+          "x": 1140.875,
+          "y": 371,
+          "width": 61.703125,
+          "height": 22,
+          "top": 371,
+          "right": 1202.578125,
+          "bottom": 393,
+          "left": 1140.875
+        }
+      ]
+    },
+    {
+      "kind": "desktop proposal",
+      "beforeHeight": 215,
+      "width": 1280,
+      "height": 177,
+      "overflow": 0,
+      "fieldsTop": 341,
+      "badgesTop": 341,
+      "fieldsRight": 1116.875,
+      "badgesLeft": 1140.875,
+      "tags": [
+        {
+          "x": 1140.875,
+          "y": 341
+        }
+      ],
+      "rects": [
+        {
+          "x": 337,
+          "y": 341,
+          "width": 243.953125,
+          "height": 46,
+          "top": 341,
+          "right": 580.953125,
+          "bottom": 387,
+          "left": 337
+        },
+        {
+          "x": 604.953125,
+          "y": 341,
+          "width": 243.953125,
+          "height": 46,
+          "top": 341,
+          "right": 848.90625,
+          "bottom": 387,
+          "left": 604.953125
+        },
+        {
+          "x": 872.90625,
+          "y": 341,
+          "width": 243.953125,
+          "height": 46,
+          "top": 341,
+          "right": 1116.859375,
+          "bottom": 387,
+          "left": 872.90625
+        },
+        {
+          "x": 1140.875,
+          "y": 341,
+          "width": 82.125,
+          "height": 22,
+          "top": 341,
+          "right": 1223,
+          "bottom": 363,
+          "left": 1140.875
+        }
+      ]
+    },
+    {
+      "kind": "desktop proposal",
+      "beforeHeight": 215,
+      "width": 1024,
+      "height": 177,
+      "overflow": 0,
+      "fieldsTop": 341,
+      "badgesTop": 341,
+      "fieldsRight": 860.875,
+      "badgesLeft": 884.875,
+      "tags": [
+        {
+          "x": 884.875,
+          "y": 341
+        }
+      ],
+      "rects": [
+        {
+          "x": 337,
+          "y": 341,
+          "width": 158.625,
+          "height": 46,
+          "top": 341,
+          "right": 495.625,
+          "bottom": 387,
+          "left": 337
+        },
+        {
+          "x": 519.625,
+          "y": 341,
+          "width": 158.625,
+          "height": 46,
+          "top": 341,
+          "right": 678.25,
+          "bottom": 387,
+          "left": 519.625
+        },
+        {
+          "x": 702.25,
+          "y": 341,
+          "width": 158.625,
+          "height": 46,
+          "top": 341,
+          "right": 860.875,
+          "bottom": 387,
+          "left": 702.25
+        },
+        {
+          "x": 884.875,
+          "y": 341,
+          "width": 82.125,
+          "height": 22,
+          "top": 341,
+          "right": 967,
+          "bottom": 363,
+          "left": 884.875
+        }
+      ]
+    },
+    {
+      "kind": "desktop proposal",
+      "beforeHeight": 236,
+      "width": 768,
+      "height": 219,
+      "overflow": 0,
+      "fieldsTop": 341,
+      "badgesTop": 341,
+      "fieldsRight": 604.875,
+      "badgesLeft": 628.875,
+      "tags": [
+        {
+          "x": 628.875,
+          "y": 341
+        }
+      ],
+      "rects": [
+        {
+          "x": 337,
+          "y": 341,
+          "width": 73.28125,
+          "height": 88,
+          "top": 341,
+          "right": 410.28125,
+          "bottom": 429,
+          "left": 337
+        },
+        {
+          "x": 434.28125,
+          "y": 341,
+          "width": 73.296875,
+          "height": 88,
+          "top": 341,
+          "right": 507.578125,
+          "bottom": 429,
+          "left": 434.28125
+        },
+        {
+          "x": 531.578125,
+          "y": 341,
+          "width": 73.28125,
+          "height": 88,
+          "top": 341,
+          "right": 604.859375,
+          "bottom": 429,
+          "left": 531.578125
+        },
+        {
+          "x": 628.875,
+          "y": 341,
+          "width": 82.125,
+          "height": 22,
+          "top": 341,
+          "right": 711,
+          "bottom": 363,
+          "left": 628.875
+        }
+      ]
+    },
+    {
+      "kind": "approved mobile unchanged",
+      "beforeHeight": 252,
+      "width": 390,
+      "height": 252,
+      "overflow": 0,
+      "fieldsTop": 312,
+      "badgesTop": 411,
+      "fieldsRight": 349,
+      "badgesLeft": 41,
+      "tags": [
+        {
+          "x": 41,
+          "y": 411
+        }
+      ],
+      "rects": [
+        {
+          "x": 41,
+          "y": 312,
+          "width": 308,
+          "height": 21,
+          "top": 312,
+          "right": 349,
+          "bottom": 333,
+          "left": 41
+        },
+        {
+          "x": 41,
+          "y": 343,
+          "width": 308,
+          "height": 21,
+          "top": 343,
+          "right": 349,
+          "bottom": 364,
+          "left": 41
+        },
+        {
+          "x": 41,
+          "y": 374,
+          "width": 308,
+          "height": 21,
+          "top": 374,
+          "right": 349,
+          "bottom": 395,
+          "left": 41
+        },
+        {
+          "x": 41,
+          "y": 411,
+          "width": 82.125,
+          "height": 22,
+          "top": 411,
+          "right": 123.125,
+          "bottom": 433,
+          "left": 41
+        }
+      ]
+    }
+  ],
+  "mobileBoundaries": [
+    {
+      "width": 320,
+      "mobileUnchanged": true
+    },
+    {
+      "width": 767,
+      "mobileUnchanged": true
+    },
+    {
+      "width": 768,
+      "mobileUnchanged": null
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "scope": "Shared HERO: information first, horizontal badges last, mobile labels aligned with first value line",
+  "requestedSkill": "align-check unavailable in registered skills and searched local skill/command paths; repository pnpm design:align executed instead",
+  "liveScreens": 8,
+  "liveMeasurements": 19,
+  "allScreensWidths": [
+    1280,
+    390
+  ],
+  "additionalBriefingWidths": [
+    320,
+    767,
+    768
+  ],
+  "multilineLabelTopDifferencePx": 0,
+  "fixtureMeasurements": 6,
+  "badgeGapPx": 8,
+  "checks": {
+    "typecheck": "passed",
+    "tests": 427,
+    "testFiles": 46,
+    "alignmentAssertions": 97,
+    "hierarchyNewViolations": 0,
+    "staticDesignGuards": "passed"
+  },
+  "independentReview": "passed; no blocking findings; added and passed existing-test assertion for information-before-badges reading order",
+  "pr": "awaiting user preview approval",
+  "finalHeroRegressionTests": 7
+}

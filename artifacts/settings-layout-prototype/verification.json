@@ -1,0 +1,26 @@
+{
+  "surface": "local throwaway settings A/B comparison",
+  "url": "http://127.0.0.1:3112/settings?variant=A&role=all",
+  "interactions": {
+    "stepFocus": "2. 연결 확인 시연",
+    "nextBlockedBeforeCheck": true,
+    "applyBlockedBeforeConfirm": true,
+    "reconfirmationPreserved": true,
+    "returnFocus": "ai",
+    "combinedBackupVisible": true,
+    "exportAfterApply": "사업 집계",
+    "variantB": true,
+    "exportAfterVariant": "사업 집계",
+    "openedFiles": true,
+    "technicalApplyDenied": true,
+    "counselorModules": [
+      "account"
+    ]
+  },
+  "visual": {
+    "desktop1280": "overview and detail inspected; no horizontal overflow",
+    "mobile390": "A/B inspected; no horizontal overflow; impact below form",
+    "keyboard": "input arrow keys preserve variant; non-input arrows switch variant"
+  },
+  "limits": "No backend, persistence, API authorization or external connectivity verified. This artifact resets on reload."
+}

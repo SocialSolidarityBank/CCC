@@ -1,0 +1,13 @@
+{
+  "version": "0.6.1",
+  "commit": "33c9fabffd7b184bebe0a8eaf156d38c8e2f724e",
+  "pullRequest": "https://github.com/SocialSolidarityBank/CCC/pull/291",
+  "previewDeployment": "https://github.com/SocialSolidarityBank/CCC/actions/runs/34169964889",
+  "productionDeployment": "https://github.com/SocialSolidarityBank/CCC/actions/runs/34170489553",
+  "previewVerifiedCommit": "33c9fab",
+  "productionWorkflowConclusion": "success",
+  "productionSmoke": { "web": "passed", "apiAuthentication": "passed", "cronRegistration": "passed" },
+  "independentHttpCheck": { "web": 302, "api": 302, "bothRedirectToCloudflareAccess": true },
+  "preservedLocalArtifactFiles": 134,
+  "note": "가상 데이터 시안과 검수 자료 보관. 제품 코드 배포에는 포함하지 않았습니다."
+}

@@ -1,0 +1,22 @@
+{
+  "briefing": {
+    "route": "/participants/owl-001/programs/1d974793-1b5b-454a-a984-8ba1bd937fb7/briefing",
+    "title": "15초 페이지"
+  },
+  "records": {
+    "route": "/participants/owl-001/programs/1d974793-1b5b-454a-a984-8ba1bd937fb7/records",
+    "title": "상담 기록 확인하기"
+  },
+  "write": {
+    "route": "/participants/owl-001/programs/1d974793-1b5b-454a-a984-8ba1bd937fb7/records/new",
+    "title": "상담 기록하기"
+  },
+  "participant": {
+    "route": "/participants/owl-001",
+    "title": "당사자 정보"
+  },
+  "schedule": {
+    "route": "/programs/financial_support_v1/schedule?range=week",
+    "title": "일정"
+  }
+}

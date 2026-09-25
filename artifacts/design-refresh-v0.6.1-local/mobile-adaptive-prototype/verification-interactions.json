@@ -1,0 +1,37 @@
+{
+  "date": "2026-09-07",
+  "browser": "Chromium",
+  "mobileWidths": [
+    320,
+    390,
+    767
+  ],
+  "desktopWidth": 1280,
+  "screens": [
+    "write",
+    "briefing",
+    "records",
+    "schedule",
+    "participant"
+  ],
+  "verified": {
+    "referenceOpenCloseRetainsMemo": true,
+    "variantSwitchPreservesAll37FormValues": true,
+    "screenSwitchPreservesMemoAndFlag": true,
+    "recordSourceLinkOpensFullDetail": true,
+    "recordCloseRestoresFourBodiesAndSummaryFocus": true,
+    "consentFullTextRestoredAndCheckboxToggles": true,
+    "schedulePeriodAndDayWeekMonthSwitch": true,
+    "shortGoalEditInMemory": true,
+    "saveNonGetRequests": 0,
+    "tailnetHttps": true,
+    "desktopABIdenticalElements": 122,
+    "desktopPhoneFrameWidth": 390
+  },
+  "limitations": [
+    "Static captures of synthetic local preview data, no original Next runtime or backend",
+    "Original links outside five captured screens show scope notice",
+    "Fresh reload resets all prototype input",
+    "Actual mobile OS keyboard not exercised"
+  ]
+}

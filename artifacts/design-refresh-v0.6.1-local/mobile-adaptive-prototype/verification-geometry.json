@@ -1,0 +1,82 @@
+[
+  {
+    "screen": "write",
+    "width": 390,
+    "overflow": 0,
+    "title": "상담 기록하기",
+    "mainX": 0,
+    "mainWidth": 390
+  },
+  {
+    "screen": "briefing",
+    "width": 390,
+    "overflow": 0,
+    "title": "15초 페이지",
+    "mainX": 0,
+    "mainWidth": 390
+  },
+  {
+    "screen": "records",
+    "width": 390,
+    "overflow": 0,
+    "title": "상담 기록 확인하기",
+    "mainX": 0,
+    "mainWidth": 390
+  },
+  {
+    "screen": "schedule",
+    "width": 390,
+    "overflow": 0,
+    "title": "일정",
+    "mainX": 0,
+    "mainWidth": 390
+  },
+  {
+    "screen": "participant",
+    "width": 390,
+    "overflow": 0,
+    "title": "당사자 정보",
+    "mainX": 0,
+    "mainWidth": 390
+  },
+  {
+    "screen": "write",
+    "width": 1280,
+    "overflow": 0,
+    "title": "상담 기록하기",
+    "mainX": 280,
+    "mainWidth": 1000
+  },
+  {
+    "screen": "briefing",
+    "width": 1280,
+    "overflow": 0,
+    "title": "15초 페이지",
+    "mainX": 280,
+    "mainWidth": 1000
+  },
+  {
+    "screen": "records",
+    "width": 1280,
+    "overflow": 0,
+    "title": "상담 기록 확인하기",
+    "mainX": 280,
+    "mainWidth": 1000
+  },
+  {
+    "screen": "schedule",
+    "width": 1280,
+    "overflow": 0,
+    "title": "일정",
+    "mainX": 280,
+    "mainWidth": 1000
+  },
+  {
+    "screen": "participant",
+    "width": 1280,
+    "overflow": 0,
+    "title": "당사자 정보",
+    "mainX": 280,
+    "mainWidth": 1000
+  }
+]

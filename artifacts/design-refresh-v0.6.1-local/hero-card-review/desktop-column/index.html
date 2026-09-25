@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>웹 HERO 배지 열 시안</title><style>body{margin:24px;font-family:system-ui,sans-serif;line-height:1.6;color:CanvasText;background:Canvas}main{max-width:1100px;margin:auto}h1{font-size:24px}h2{font-size:20px;margin-top:40px}p{max-width:80ch}img{display:block;max-width:100%;height:auto}figure{margin:16px 0 32px}figcaption{font-size:14px;margin-bottom:12px}a{color:inherit}.mobile{max-width:358px}summary{cursor:pointer;margin:20px 0}nav{display:flex;flex-wrap:wrap;gap:16px}@media(max-width:767px){body{margin:16px}}</style></head><body><main>
+<h1>웹 HERO 배지 열 시안</h1>
+<p><strong>모바일은 승인된 배치를 유지합니다.</strong> 웹에서만 전화번호, 이메일, 상담일 옆 오른쪽에 배지 전용 열을 추가했습니다. 배지는 정보 영역과 윗선을 맞춰 세로로 쌓습니다.</p>
+<p>실제 개발 화면의 가상 데이터에 시안용 CSS만 적용해 촬영했습니다. 제품 코드와 모바일 배치는 바꾸지 않았습니다.</p>
+<nav><a href="#single">배지 1개</a><a href="#multiple">배지 여러 개</a><a href="#mobile">승인된 모바일</a></nav>
+<section id="single"><h2>웹: 정보 3열 + 배지 열</h2><figure><figcaption>1280px 웹. 배지 열은 내용에 필요한 폭만 차지합니다.</figcaption><a href="after.png" target="_blank"><img src="after.png" alt="전화번호 이메일 상담일 옆 네 번째 열에 배지 배치"></a></figure></section>
+<section id="multiple"><h2>웹: 배지가 여러 개라면 세로 배열</h2><figure><figcaption>배지 간격 8px. 두 번째 배지는 배치 확인을 위해 추가한 예시입니다.</figcaption><a href="multiple.png" target="_blank"><img src="multiple.png" alt="정보 영역 옆에서 세로로 쌓인 두 배지"></a></figure></section>
+<details><summary>이전 웹 배치와 비교하기</summary><figure><figcaption>이전: 정보 아래 마지막 줄에 가로 배치</figcaption><img src="before.png" alt="이전 웹 HERO 배치"></figure></details>
+<details><summary>실제 페이지 안에서 보기</summary><a href="page-context.png" target="_blank"><img src="page-context.png" alt="사이드바와 인테이크 본문 사이에 놓인 새 HERO 시안"></a></details>
+<details><summary>좁은 웹 화면 768px에서 보기</summary><p>데스크톱 사이드바를 유지하는 폭입니다. 정보 값은 좁아진 열 안에서 줄바꿈하며, 배지는 오른쪽 열에 남습니다.</p><img src="narrow-desktop.png" alt="768px 웹에서 줄바꿈되는 정보와 별도 배지 열"></details>
+<section id="mobile"><h2>모바일: 승인된 배치 그대로</h2><p>정보 아래 맨 마지막에 배지를 가로로 둡니다. 320px, 390px, 767px에서 시안 CSS 적용 전후의 요소 위치와 크기가 동일했습니다.</p><figure class="mobile"><img src="mobile-approved.png" alt="변경 없는 승인된 모바일 HERO"></figure></section>
+<p>검토용 시안입니다. 웹 배치 확인 후 실제 공통 부품에 반영합니다.</p>
+</main></body></html>

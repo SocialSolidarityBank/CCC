@@ -1,0 +1,180 @@
+/*
+ * Mobile-only reading adaptations for the captured briefing and records DOM.
+ * The captured production rules still own the desktop accordion appearance;
+ * these selectors are intentionally scoped to the B prototype shell.
+ */
+@media (max-width: 767px) {
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .record-section {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  html[data-proto-variant="B"] .proto-panel-body > .record-body {
+    padding: 0;
+    border-top: 0;
+  }
+  html[data-proto-variant="B"] .proto-panel-body > .record-foot {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  html[data-proto-variant="B"] [data-proto-screen="records"] .record-section {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  html[data-proto-variant="B"] .proto-record-metadata {
+    grid-area: kind;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-card[data-proto-always-open] > .wire-card-summary {
+    cursor: default;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-card[data-proto-always-open] > .wire-card-summary .wire-disclosure-chevron {
+    display: none;
+  }
+
+  /* The three memo sections are one reading surface on mobile, not cards nested
+     inside the card. The outer briefing card remains the information boundary. */
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-card > .wire-card-body > .briefing-memo-item.wire-repeat-card {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-card > .wire-card-body > .briefing-memo-item.wire-repeat-card + .briefing-memo-item.wire-repeat-card {
+    border-top: 1px solid var(--line);
+    padding-top: var(--space-4);
+  }
+
+  /* Empty optional sections keep their real summary and status text, but a
+     closed summary prevents an empty seed from reading as a tall container. */
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-card[data-proto-empty] > .wire-card-summary {
+    min-height: var(--badge-height);
+  }
+
+  /* Session rows are a reading transition, so the chevron occupies the right
+     column while the subject sentence gets a full second line. */
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-session-row[data-proto-reading-row] {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
+    align-items: center;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-session-row[data-proto-reading-row] .briefing-session-date {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-session-row[data-proto-reading-row] .briefing-session-kind {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-session-row[data-proto-reading-row] .briefing-session-memo {
+    grid-column: 1 / 3;
+    grid-row: 3;
+    width: auto;
+    min-width: 0;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-session-row[data-proto-reading-row] .briefing-session-memo:empty {
+    display: none;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-session-row[data-proto-reading-row] .briefing-session-text {
+    display: -webkit-box;
+    grid-column: 1 / 3;
+    grid-row: 2;
+    min-width: 0;
+    overflow: hidden;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    mask-image: none;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="briefing"] .briefing-session-row[data-proto-reading-row] > .wire-chevron {
+    grid-column: 3;
+    grid-row: 1 / 4;
+    place-self: center end;
+  }
+
+  /* Records are compact list rows. The original detail body is moved by
+     initRecords into api.openPanel(kind: "full"), so no nested accordion is
+     rendered in the list. */
+  html[data-proto-variant="B"] [data-proto-screen="records"] .record-list {
+    gap: var(--space-2);
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="records"] .record-list > details[data-proto-record] {
+    min-width: 0;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="records"] details[data-proto-record] > .record-summary[data-proto-record-summary] {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "ordinal date state"
+      "subject subject state"
+      "kind kind state";
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="records"] details[data-proto-record] > .record-summary[data-proto-record-summary] > .record-ordinal {
+    grid-area: ordinal;
+    width: auto;
+    white-space: nowrap;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="records"] details[data-proto-record] > .record-summary[data-proto-record-summary] > .record-held-at {
+    grid-area: date;
+    width: auto;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="records"] details[data-proto-record] > .record-summary[data-proto-record-summary] > .wire-badge {
+    grid-area: kind;
+    justify-self: start;
+    min-width: 0;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="records"] details[data-proto-record] > .record-summary[data-proto-record-summary] > .record-one-liner {
+    grid-area: subject;
+    min-width: 0;
+    max-width: none;
+    overflow: hidden;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    mask-image: none;
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="records"] details[data-proto-record] > .record-summary[data-proto-record-summary] > .record-summary-right {
+    grid-area: state;
+    min-width: 0;
+    margin-left: 0;
+    gap: var(--space-2);
+    justify-content: flex-end;
+  }
+
+  /* This is a reading transition, not an accordion: all list arrows point
+     right even though the captured source uses details' down marker. */
+  html[data-proto-variant="B"] [data-proto-screen="records"] details[data-proto-record] .record-summary-right .wire-chevron[data-dir="right"] {
+    transform: rotate(-90deg);
+  }
+
+  html[data-proto-variant="B"] [data-proto-screen="records"] details[data-proto-record] > .record-summary[data-proto-record-summary]:focus-visible {
+    outline-offset: -2px;
+  }
+}

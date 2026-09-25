@@ -9196,63 +9196,167 @@ export async function listAuditLog(
     actorId: string;
     actorRole: Role;
     action: string;
-    targetTable: string;
-    targetId: string | null;
-    caseId: string | null;
-    createdAt: string;
-  }>
-> {
-  assertAdmin(actor);
-  const conditions = ['org_id = ?'];
-  const values: Array<string> = [actor.orgId];
+/**
+ * A bounded, metadata-only audit page. Reads are restricted to an active
+ * institution-admin assignment (legacy users.role fallback is intentionally
+ * disabled), and the read itself is recorded after the page query.
+ */
+export interface AuditLogItem {
+  id: number;
+  actorId: string;
+  actorRole: Role;
+  action: string;
+  targetTable: string;
+  beneficiaryId: string | null;
+  supportCaseId: string | null;
+  createdAt: string;
+}
 
-  if (filter?.caseId !== undefined) {
-    conditions.push('case_id = ?');
-    values.push(filter.caseId);
+export interface AuditLogPage {
+  items: AuditLogItem[];
+  nextCursor: string | null;
+}
+
+export interface AuditLogFilter {
+  limit?: number;
+  cursor?: string;
+  actorId?: string;
+  from?: string;
+  to?: string;
+  supportCaseId?: string;
+}
+
+const DEFAULT_AUDIT_LOG_LIMIT = 50;
+const MAX_AUDIT_LOG_LIMIT = 100;
+
+function encodeAuditCursor(id: number): string {
+  return btoa(`audit:${id}`).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '');
+}
+
+function decodeAuditCursor(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (value.length === 0) throw new ValidationError('cursor is invalid');
+  let decoded: string;
+  try {
+    decoded = atob(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4));
+  } catch {
+    throw new ValidationError('cursor is invalid');
   }
-  if (filter?.actorId !== undefined) {
-    conditions.push('actor_id = ?');
-    values.push(filter.actorId);
+  const raw = decoded.startsWith('audit:') ? decoded.slice('audit:'.length) : '';
+  if (!/^[1-9]\d*$/u.test(raw)) throw new ValidationError('cursor is invalid');
+  const id = Number(raw);
+  if (!Number.isSafeInteger(id) || id < 1) throw new ValidationError('cursor is invalid');
+  return id;
+}
+
+function auditFilterString(value: string | undefined, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (value.trim().length === 0) throw new ValidationError(`${field} is invalid`);
+  return value;
+}
+
+function auditFilterTimestamp(value: string | undefined, field: string): string | undefined {
+  const filtered = auditFilterString(value, field);
+  if (filtered === undefined || Number.isNaN(parseUtcTimestamp(filtered))) {
+    if (filtered !== undefined) throw new ValidationError(`${field} is invalid`);
+    return undefined;
   }
-  if (filter?.from !== undefined) {
-    conditions.push('created_at >= ?');
-    values.push(filter.from);
+  return filtered;
+}
+
+export async function listAuditLog(
+  env: Env,
+  actor: Actor,
+  filter?: AuditLogFilter,
+): Promise<AuditLogPage> {
+  await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
+  const limit = filter?.limit ?? DEFAULT_AUDIT_LOG_LIMIT;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_AUDIT_LOG_LIMIT) {
+    throw new ValidationError('limit is invalid');
   }
-  if (filter?.to !== undefined) {
-    conditions.push('created_at <= ?');
-    values.push(filter.to);
+  const cursor = decodeAuditCursor(filter?.cursor);
+  const actorId = auditFilterString(filter?.actorId, 'actorId');
+  const from = auditFilterTimestamp(filter?.from, 'from');
+  const to = auditFilterTimestamp(filter?.to, 'to');
+  const supportCaseId = auditFilterString(filter?.supportCaseId, 'supportCaseId');
+
+  const conditions = ['audit.org_id = ?'];
+  const values: Array<string | number> = [actor.orgId];
+  if (cursor !== undefined) {
+    conditions.push('audit.id < ?');
+    values.push(cursor);
+  }
+  if (actorId !== undefined) {
+    conditions.push('audit.actor_id = ?');
+    values.push(actorId);
+  }
+  if (from !== undefined) {
+    conditions.push('audit.created_at >= ?');
+    values.push(from);
+  }
+  if (to !== undefined) {
+    conditions.push('audit.created_at <= ?');
+    values.push(to);
+  }
+  if (supportCaseId !== undefined) {
+    // New rows carry support_case_id. Historical rows carry only case_id, so
+    // resolve both sides through the existing legacy_case_id edge.
+    conditions.push(`EXISTS (
+      SELECT 1
+      FROM support_cases AS filter_case
+      WHERE filter_case.org_id = audit.org_id
+        AND (
+          filter_case.id = audit.support_case_id
+          OR filter_case.id = audit.case_id
+          OR filter_case.legacy_case_id = audit.case_id
+        )
+        AND (filter_case.id = ? OR filter_case.legacy_case_id = ?)
+    )`);
+    values.push(supportCaseId, supportCaseId);
   }
 
   const result = await env.DB.prepare(
-    `SELECT id, actor_id, actor_role, action, target_table, target_id, case_id, created_at FROM audit_log WHERE ${conditions.join(' AND ')} ORDER BY id`,
-  ).bind(...values).all<DbRow>();
+    `SELECT
+       audit.id,
+       audit.actor_id,
+       audit.actor_role,
+       audit.action,
+       audit.target_table,
+       COALESCE(audit.beneficiary_id, provenance.beneficiary_id) AS beneficiary_id,
+       COALESCE(audit.support_case_id, provenance.id) AS support_case_id,
+       audit.created_at
+     FROM audit_log AS audit
+     LEFT JOIN support_cases AS provenance
+       ON provenance.org_id = audit.org_id
+      AND (
+        provenance.id = audit.support_case_id
+        OR provenance.id = audit.case_id
+        OR provenance.legacy_case_id = audit.case_id
+      )
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY audit.id DESC
+     LIMIT ?`,
+  ).bind(...values, limit + 1).all<DbRow>();
 
   await writeAudit(env, actor, { action: 'read', targetTable: 'audit_log', detail: { filter: true } });
 
-  return result.results.map((row) => ({
+  const hasNext = result.results.length > limit;
+  const rows = hasNext ? result.results.slice(0, limit) : result.results;
+  const items = rows.map((row) => ({
     id: typeof row.id === 'number' ? row.id : Number.parseInt(stringValue(row.id), 10),
     actorId: stringValue(row.actor_id),
     actorRole: toRole(row.actor_role),
     action: stringValue(row.action),
     targetTable: stringValue(row.target_table),
-    targetId: nullableString(row.target_id),
-    caseId: nullableString(row.case_id),
+    beneficiaryId: nullableString(row.beneficiary_id),
+    supportCaseId: nullableString(row.support_case_id),
     createdAt: stringValue(row.created_at),
   }));
+  return {
+    items,
+    nextCursor: hasNext && items.length > 0 ? encodeAuditCursor(items[items.length - 1]!.id) : null,
+  };
 }
-
-/**
- * 케이스 내보내기(보고서 등 외부 반출). PII는 포함하지 않는다.
- * R2: 승인된 기록만 포함. 권한: 담당 실무자 배정. 감사: export (D14).
- */
-export async function exportCase(
-  env: Env,
-  actor: Actor,
-  caseId: string,
-): Promise<{ case: Case; goals: Goal[]; sessions: Session[]; gasScores: GasScore[] }> {
-  assertHuman(actor);
-  const caseRecord = await assertCaseWriteAccess(env, actor, caseId);
-  const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   // 서로 독립적인 조회는 병렬로 실행한다.
   const [goals, sessionRows, gasScores, approvedBriefings] = await Promise.all([
     env.DB.prepare(

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>기관 설정 구조 비교 | CCC</title>
+<link rel="stylesheet" href="/design/tokens.css"><link rel="stylesheet" href="/wire.css"><link rel="stylesheet" href="/prototype.css">
+</head>
+<body>
+<a class="skip-link wire-button" href="#main">본문으로 이동</a>
+<aside class="sidebar" aria-label="기관 내비게이션">
+<div class="brand">햇살연대 <span>CCC</span></div>
+<nav><p class="nav-heading">업무 공간</p><button class="nav-item" disabled>일정</button><button class="nav-item" disabled>당사자</button><p class="nav-heading">기관 운영</p><button class="nav-item active" id="nav-settings">기관 설정</button><p class="meta">업무 화면 이동은 이 시안에 포함되지 않습니다.</p></nav>
+<div class="sidebar-foot"><p class="label">미리보기 환경</p><p class="meta">가상 기관과 예시 데이터만 사용</p></div>
+</aside>
+<header class="app-header"><span>햇살연대 / 기관 설정</span><span class="meta">연결 전 시안</span></header>
+<main id="main" tabindex="-1">
+<div class="page-intro"><h1 class="wire-page-title">기관 설정</h1><p class="meta">화면 비교 시안입니다. 저장과 연결은 시연이며 새로고침하면 초기화됩니다.</p></div>
+<section class="preview-controls" aria-label="시안 비교 조건"><label class="field"><span class="wire-form-label">역할로 둘러보기 <span class="wire-form-note">프리뷰 전용</span></span><select id="role"><option value="all">전체 둘러보기(프리뷰 전용)</option><option value="admin">기관 관리자</option><option value="tech">기관 기술 관리자</option><option value="lead">실무 책임자</option><option value="counselor">실무자</option><option value="both">관리자+기술 관리자</option></select></label><p class="meta" id="role-note">역할별 화면을 비교하는 기능입니다. 실제 권한 검사나 계정 변경은 하지 않습니다.</p></section>
+<div id="content"></div>
+<p id="announcement" class="meta feedback" role="status" aria-live="polite"></p>
+</main>
+<nav class="prototype-switcher" aria-label="구조 시안 바꾸기"><button id="previous" class="wire-chevron-button" aria-label="이전 시안"></button><span id="variant-label"></span><button id="next" class="wire-chevron-button" aria-label="다음 시안"></button></nav>
+<script type="module" src="/prototype.js"></script>
+</body></html>

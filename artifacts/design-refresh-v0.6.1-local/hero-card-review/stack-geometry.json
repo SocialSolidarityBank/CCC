@@ -1,0 +1,32 @@
+[
+  {
+    "kind": "stack",
+    "width": 1280,
+    "count": 2,
+    "bottom": true,
+    "horizontal": true,
+    "gap": 8,
+    "overflow": 0,
+    "unobstructed": true
+  },
+  {
+    "kind": "stack",
+    "width": 390,
+    "count": 2,
+    "bottom": true,
+    "horizontal": true,
+    "gap": 8,
+    "overflow": 0,
+    "unobstructed": true
+  },
+  {
+    "kind": "stack",
+    "width": 320,
+    "count": 2,
+    "bottom": true,
+    "horizontal": true,
+    "gap": 8,
+    "overflow": 0,
+    "unobstructed": true
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "kind": "review",
+    "width": 1280,
+    "count": 1,
+    "bottom": true,
+    "horizontal": true,
+    "gap": null,
+    "overflow": 0,
+    "unobstructed": true
+  },
+  {
+    "kind": "review",
+    "width": 390,
+    "count": 1,
+    "bottom": true,
+    "horizontal": true,
+    "gap": null,
+    "overflow": 0,
+    "unobstructed": true
+  },
+  {
+    "kind": "review",
+    "width": 320,
+    "count": 1,
+    "bottom": true,
+    "horizontal": true,
+    "gap": null,
+    "overflow": 0,
+    "unobstructed": true
+  }
+]

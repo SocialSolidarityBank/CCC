@@ -1,0 +1,65 @@
+/* Throwaway mobile structure only. Original token palette, font and desktop layout remain captured CCC. */
+html{scroll-padding-bottom:calc(var(--space-8) * 3);}
+body{padding-bottom:calc(var(--space-8) * 3);}
+#proto-switcher{position:fixed;z-index:900;bottom:max(var(--space-3),env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - var(--space-8));padding:var(--space-2) var(--space-3);background:var(--ink);color:var(--panel);border-radius:var(--radius-card);box-shadow:var(--shadow-modal);}
+.proto-switcher-controls{display:flex;align-items:center;gap:var(--space-2);}
+#proto-switcher button{border:0;background:transparent;color:inherit;font-family:inherit;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);height:var(--pill-height);padding:0 var(--space-2);cursor:pointer;white-space:nowrap;border-radius:var(--radius-control);}
+#proto-switcher button:hover,#proto-switcher button:focus-visible{outline:1px solid currentColor;outline-offset:0;}
+#proto-switcher button svg{width:var(--space-3);height:var(--space-3);--chevron-color:currentColor;}
+#proto-variant{min-width:calc(var(--space-8) * 4);}
+#proto-status{font-size:var(--text-badge);font-weight:400;line-height:var(--leading-normal);margin:var(--space-1) 0 0;text-align:center;color:inherit;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.proto-panel{padding:0;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:var(--radius-card);width:min(600px,calc(100vw - var(--space-8)));max-height:85dvh;overflow:hidden;}
+.proto-panel[data-kind="navigation"] .sidebar{position:static;transform:none;width:100%;height:auto;padding:0;}
+.proto-panel[data-kind="navigation"] .sidebar::after{display:none;}
+.proto-panel[data-kind="navigation"] .drawer-dismiss{display:none;}
+.proto-panel[open]{display:flex;flex-direction:column;}
+.proto-panel::backdrop{background:color-mix(in srgb,var(--ink) 40%,transparent);}
+.proto-panel-head{display:flex;gap:var(--space-4);justify-content:space-between;align-items:center;padding:var(--space-5) var(--space-6);border-bottom:1px solid var(--line);flex-shrink:0;}
+.proto-panel-title{margin:0;font-size:var(--text-md);font-weight:600;line-height:var(--leading-snug);color:var(--ink);}
+.proto-panel-body{overflow:auto;overscroll-behavior:contain;padding:var(--space-6);min-height:0;}
+.proto-panel-body>p,.proto-panel-body>dl{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-relaxed);color:var(--ink);}
+.proto-menu-list{display:grid;gap:var(--space-3);}
+.proto-menu-list>.wire-button{width:100%;justify-content:flex-start;}
+.proto-state{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;color:var(--sub);}
+.proto-notice{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-relaxed);color:var(--sub);}
+.proto-edit-form{display:grid;gap:var(--space-4);}
+.proto-edit-form label{display:grid;gap:var(--space-3);font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub);}
+.proto-edit-form textarea{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-relaxed);font-family:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-control);min-height:120px;padding:var(--space-3);width:100%;}
+.proto-edit-actions{display:flex;justify-content:flex-end;gap:var(--space-2);}
+.proto-original-notice{font-size:var(--text-sm);line-height:var(--leading-normal);font-weight:400;color:var(--sub);}
+@media(max-width:767px){
+ .proto-panel{width:100%;max-width:100%;margin:auto 0 0;max-height:85dvh;border-radius:var(--radius-card) var(--radius-card) 0 0;border-bottom:0;}
+ .proto-panel[data-kind="full"]{height:100dvh;max-height:100dvh;border-radius:0;border:0;}
+ .proto-panel-head{padding:var(--space-4) var(--space-6);}
+ .proto-panel-body{padding:var(--space-6);padding-bottom:max(var(--space-6),env(safe-area-inset-bottom));}
+ /* Provisional HERO: identity -> metadata -> primary action. The original three-action header stays unchanged on desktop. */
+ [data-proto-variant="B"] .participant-hero-card{gap:var(--space-4);}
+ .proto-panel[data-kind="navigation"]{width:280px;height:100dvh;max-height:100dvh;margin:0 0 0 auto;border-radius:0;}
+ [data-proto-variant="B"] .participant-hero-top{display:contents;}
+ [data-proto-variant="B"] .participant-hero-title{order:0;}
+ [data-proto-variant="B"] .participant-hero-meta,[data-proto-variant="B"] .participant-hero-details{order:1;}
+ [data-proto-variant="B"] .participant-hero-divider{display:none;}
+ [data-proto-variant="B"] .participant-hero-card .page-actions{order:2;border-top:1px solid var(--line);padding-top:var(--space-4);display:flex;flex-wrap:wrap;gap:var(--space-2);}
+ [data-proto-variant="B"] .proto-hero-compact-meta{display:grid;gap:var(--space-2);margin:0;}
+ [data-proto-variant="B"] .proto-hero-program{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub);}
+ [data-proto-variant="B"] .proto-hero-time{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink);}
+ /* Schedule: period + view in one control row, actions independently visible. No new filter or menu-only create. */
+ [data-proto-variant="B"] .schedule-nav{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-4) var(--space-2);padding:var(--space-4) 0;}
+ [data-proto-variant="B"] .schedule-nav-period{grid-column:1;grid-row:1;display:flex;justify-content:flex-start;gap:var(--space-2);}
+ [data-proto-variant="B"] .schedule-nav-controls{grid-column:2;grid-row:1;justify-content:flex-end;}
+ [data-proto-variant="B"] .schedule-nav-controls>.wire-button{display:none;}
+ [data-proto-variant="B"] .schedule-nav-actions{grid-column:1/-1;grid-row:2;display:flex;justify-content:flex-end;gap:var(--space-2);}
+ [data-proto-variant="B"] .schedule-nav-actions>.proto-today{margin-right:auto;}
+ [data-proto-variant="B"] .schedule-period-label{white-space:normal;max-width:140px;text-align:center;font-size:var(--text-sm);font-weight:500;line-height:var(--leading-normal);}
+ [data-proto-variant="B"] .schedule-view-select{width:80px;}
+ [data-proto-variant="B"] .schedule-day-list{gap:var(--space-6);}
+ [data-proto-variant="B"] .schedule-day-accordion:not(.schedule-past-day){border:0;background:transparent;}
+ [data-proto-variant="B"] .schedule-day-accordion:not(.schedule-past-day)>summary{padding:var(--space-3) 0;background:none;color:var(--ink);}
+ [data-proto-variant="B"] .schedule-day-accordion:not(.schedule-past-day)>summary .wire-card-title{color:var(--ink);}
+ [data-proto-variant="B"] .schedule-day-accordion:not(.schedule-past-day)>.wire-card-body{padding:var(--space-3) 0 0;}
+ [data-proto-variant="B"] .schedule-day-names{display:none;}
+ [data-proto-variant="B"] .schedule-day-summary-title,[data-proto-variant="B"] .schedule-day-head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);}
+ [data-proto-variant="B"] .participant-card[data-variant="schedule"] .participant-card-identity{display:flex;gap:var(--space-2-5);}
+ [data-proto-variant="B"] .participant-card[data-variant="schedule"] .participant-card-fields{gap:var(--space-2);}
+ [data-proto-variant="B"] .participant-card[data-variant="schedule"] .wire-field-row{grid-template-columns:56px minmax(0,1fr);}
+}

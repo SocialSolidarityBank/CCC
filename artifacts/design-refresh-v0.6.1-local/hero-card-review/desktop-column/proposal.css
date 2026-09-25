@@ -1,0 +1,5 @@
+/* Preview only. The approved mobile layout is unchanged. */
+@media(min-width:768px){
+  .participant-hero-info:has(>.participant-hero-status){grid-template-columns:minmax(0,1fr) max-content;column-gap:var(--space-6);align-items:start}
+  .participant-hero-status{flex-direction:column;flex-wrap:nowrap}
+}
