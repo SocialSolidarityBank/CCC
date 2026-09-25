@@ -1,0 +1,126 @@
+Profile PATCH authorization review
+
+Scope
+Read-only inspection of the explicitly authorized settings-backend sibling:
+- packages/http-api/src/request-handler.ts, snapshot BBA1
+- packages/core/src/gateway.ts, snapshot 0378
+- apps/api/test/settings-routes.test.ts, snapshot 5AA8
+Output written only to settings-design/artifacts/settings-profile-authorization-review.txt.
+No source edits, tests, builds, formatting, linting, browser, services or commits.
+Transaction/CAS/audit atomicity correctness belongs to the other reviewer and is not assessed here.
+This is a profile-only backend slice. No frontend integration or broader foundation completion claim.
+
+Conclusion
+No confirmed HTTP payload/status defect or normal-schema TA-to-IA authorization bypass found in the inspected PATCH path. The new handler preserves the actor and does not coerce a technical administrator into an institution administrator. Exact-key enforcement is effective because the handler forwards additional body keys rather than silently discarding them.
+One conditional, pre-existing fail-open authorization helper deserves attention for this new writer. The HTTP test suite also omits the most valuable role boundaries. These are source findings and coverage recommendations, not executed reproductions.
+
+Finding A01 | P2 | Conditional fail-open in the reused institution-admin guard
+Evidence:
+- gateway.ts:10636 invokes assertInstitutionAdmin before profile access.
+- gateway.ts:1195-1200 checks current human identity and hasActiveHumanRoleAssignment('institution_admin').
+- gateway.ts:1179-1184 normally requires an unrevoked institution_admin assignment scoped to actor.userId AND actor.orgId.
+- gateway.ts:1165-1170 considers ANY error object with kind === 'syntax' a missing role-assignment table error, in addition to the specific SQLite missing-table message.
+- gateway.ts:1185-1191 then returns actor.role === 'admin' instead of requiring the assignment.
+- gateway.ts:10023-10048 verifies the current user's active legacy role, not its institution_admin assignment, so that check does not close the fallback.
+
+Consequence:
+If the assignment query fails with such an error after an active legacy-admin actor has been resolved, updateOrganizationProfile can proceed without proving an active IA assignment. A revoked IA or TA-only human represented by the legacy admin role is not rejected by that fallback. This is broader than a migration-only missing-table exception and conflicts with an unconditional 'active IA only' guarantee.
+
+Reachability qualification:
+This behavior is directly visible in the helper, but no live HTTP exploit is established by this review. resolveDirectoryActorByPrincipal at gateway.ts:9426-9436 queries the same assignment table without that fallback, so a table already missing during that identity resolution may fail before the request reaches PATCH. handleRequest also accepts an injected ActorResolver (request-handler.ts:2228-2234,2353). Whether a deployed resolver can reach the fallback was not investigated outside this authorized slice. Do not report this as an observed production TA escalation.
+
+Suggested disposition:
+Make this writer fail closed when IA assignment state cannot be read, or explicitly demonstrate that the legacy fallback is unreachable for supported profile requests. Do not silently broaden the shared helper migration behavior without its owner. A focused fault-injection contract case should keep profile values unchanged and return an error when the IA-assignment read fails; it should not fall back to a legacy admin claim.
+
+Finding A02 | P2 | PATCH tests do not distinguish IA from TA or stale roles
+Evidence:
+- settings-routes.test.ts:96-107 explicitly establishes the admin fixture as IA + TA.
+- PATCH successes at :167-180 and :220-225 use that combined fixture.
+- The only non-admin PATCH rejection at :191-199 uses counselorHeaders.
+- No PATCH case in :160-229 removes the IA assignment while retaining an active TA assignment, revokes the IA assignment, deactivates the user, or supplies a service actor.
+
+Why this matters:
+Replacing assertInstitutionAdmin with the legacy assertAdmin would still satisfy the tested combined-admin success and counselor rejection. Requiring TA in addition to IA would likewise leave existing success coverage green. The tests therefore do not defend the explicit IA-only, active-user contract against plausible mistakes.
+
+Worthwhile role tests, ordered by value:
+1. TA-only active human, no active institution_admin assignment, valid PATCH payload: 403; name/program/policy unchanged; no successful profile-update audit.
+2. IA-only active human, TA assignment absent: 200 for own org; first program and policy remain unchanged. This prevents accidental TA dependency or use of the combined fixture as the contract.
+3. Previously authorized IA with revoked_at now set, legacy user role still admin: valid PATCH returns 403 and no mutation. Keep a TA assignment active to defend the specific legacy-admin pitfall.
+4. Inactive IA user with an otherwise active IA assignment: rejection and no mutation. Gateway contract is ForbiddenError/403; an upstream resolver may instead reject authentication with 401. Assert the actual selected HTTP resolver contract rather than allowing arbitrary statuses.
+5. Authenticated service actor: 403 and no mutation. This protects assertHuman independently of human role fixtures.
+6. Active administrator of org_other: PATCH affects org_other only; org_demo profile/program/policy remain unchanged. Current :226-227 only GETs org_other with a counselor after an org_demo write; it does not exercise another org's administrator writer.
+
+Additional focused HTTP coverage (lower priority; no implementation defect observed)
+- PATCH with no verified actor: assert the route's 401 response. Existing unauthenticated cases at :110-115 and :148-156 target other endpoints.
+- Missing expectedOrgName versus explicit null: missing must be 400; null is the valid optimistic expectation for an unnamed org. This is a meaningful null/absence boundary rather than wording coverage.
+- One policy-field extra-key payload and one unexpected query parameter, both valid otherwise: 400, no profile mutation. Existing tests reject programDisplayName and orgId but do not exercise policy keys or this route's query guard.
+- A non-object or malformed JSON payload should produce 400, not 500. requestBody/asObject appears to handle this correctly; a new permanent row for every primitive type is unnecessary.
+- Existing missing-row 403 at :213-217 and stale 409 at :220-225 already cover those status branches; do not duplicate them merely to increase test count.
+
+Source evidence supporting the normal-path result
+1. Authentication precedes protected routing: request-handler.ts:2353 resolves actor before :2404-2412 handles PATCH.
+2. Query keys: requestQuery(url, []) at :2405 forbids caller-provided org selectors.
+3. JSON shape: requestBody/asObject at :237-250 rejects null, arrays, non-object values and malformed JSON with ValidationError.
+4. Required types: :2407-2409 rejects missing/non-string orgName and missing/non-string/non-null expectedOrgName.
+5. Exact keys: :2411 spreads the entire body into updateOrganizationProfile; gateway.ts:10637 calls assertExactKeys. The helper at :9948-9956 compares the full sorted key set with exactly orgName and expectedOrgName. programDisplayName, orgId and policy keys cannot be silently accepted.
+6. Active own-org human: gateway.ts:10029-10037 queries users by id, org_id, active=1 and expected legacy human role. Normal IA lookup at :1180-1183 additionally scopes active assignment to the same user/org.
+7. Resource scope: profile SELECT at :10644-10646 and UPDATE predicate at :10661-10665 bind actor.orgId; no request body org ID is used.
+8. Partial mutation: SET at :10661 changes org_name, version and updated_at only. program_display_name is returned, not assigned; policy columns are not assigned.
+9. Missing row is ForbiddenError at :10647; stale expected name is ConflictError at :10648. HTTP mapping at request-handler.ts:2201-2202 produces 403/409; ValidationError maps to 400 at :2221. Raw messages and submitted names are not returned in these error bodies.
+10. No TA coercion in the inspected handler: :2411 passes actor unchanged. Normal IA authorization is assignment-based rather than assertAdmin(actor).
+
+Review limits
+- No execution: findings do not replace Main's HTTP or role tests.
+- No transaction ordering, race, audit uniqueness or rollback approval; another reviewer owns those.
+- No production identity adapter, transport/CORS, client wiring, or broader settings service review.
+- Source line numbers and conclusions refer to the snapshots above; concurrent later edits are not implicitly reviewed.
+
+Resolution addendum | Current source review
+
+Inspected snapshots:
+- gateway.ts BFBA:1173-1201,10632-10649,9378-9382
+- settings-routes.test.ts F435:249-273
+Only this report was appended. No source modification or validation command was run.
+
+A01 | Resolved in the profile writer source
+- Main reports a real DROP user_role_assignments reproduction: before the fix PATCH returned 200 where 500 was expected. This establishes reachability in Main's HTTP fixture and supersedes the original report's unconfirmed fixture reachability. I did not rerun it.
+- hasActiveHumanRoleAssignment now accepts options.allowLegacyFallback (:1177). Its catch rethrows immediately when the option is false (:1189), including syntax and missing-table errors.
+- assertInstitutionAdmin forwards the option (:1196-1199), after the unchanged current-human check.
+- updateOrganizationProfile alone explicitly opts out of fallback at :10637. The error propagates before profile mutation.
+- An omitted option retains the prior helper behavior. This is the private seam Main reports Foundation wQ:p1 explicitly approved, not a global authorization cutover.
+- Added HTTP regression :267-272 drops the role table, expects 500, retains the null institution name, and asserts no profile-update audit.
+- Source disposition: the identified profile fail-open is closed. Main owns final runtime/typecheck/guard results; this addendum does not assert their completion.
+
+A02 | Role transition coverage added; one fixture-spelling caveat remains
+- New test :249-265 asserts the requested sequence: IA-only 200, revoked IA 403, TA-only 403, service 403, inactive IA 403.
+- The test ends with exactly one profile-update audit and the legitimate saved name unchanged (:263-264).
+- Main reports these role outcomes. I accept that execution report and did not rerun the test.
+- Source concern: the new DELETE and INSERT use role = 'technical_admin' (:252,257), whereas the current gateway's canonical directory mapping is institution_technical_admin -> technical-admin (:9378-9381). The earlier combined-admin fixture is explicitly documented by the same test file as IA + TA.
+- Consequently, those statements alone do not establish that the recognized TA grant was removed for the IA-only phase or that the TA-only phase uses the recognized canonical role. A green 200/403 sequence does not resolve that fixture identity distinction. If the seed uses institution_technical_admin, the DELETE removes no TA grant and the first phase remains combined-role; the newly inserted technical_admin row is not recognized by this map.
+- Suggested final disposition: confirm the actual seeded grant spelling and align the fixture with the recognized TA role, or document a supported translation at this boundary. No source change was made by this reviewer. A02's original absence of role-transition tests is addressed, but I do not mark the IA-only/TA-only fixture fidelity fully resolved from the inspected source.
+- The other-org administrator test remains a worthwhile optional coverage addition, not a newly identified HTTP defect.
+
+Scope remains profile-only. No frontend integration, production auth integration, broader services completion, or transaction-correctness approval is claimed.
+
+Final A02 resolution | settings-routes.test.ts snapshot 4676
+
+Read only the requested source range :249-264. No commands, tests, or source edits.
+
+A02 | Resolved in source
+- :252 revokes the canonical institution_technical_admin grant using revoked_at instead of deleting an append-only role record. The following successful PATCH at :253 now exercises the intended IA-only phase.
+- :254 revokes IA and :255 expects 403.
+- :256 grants the canonical institution_technical_admin role, with admin@example.invalid as grantor rather than the reviewed actor. :257 expects TA-only 403.
+- :258 expects service 403. :259 restores IA through the separate grantor; :260 deactivates the reviewed user; :261 expects inactive IA 403.
+- :262-263 assert exactly one legitimate profile-update audit and preservation of the legitimate saved name after all denials.
+- The role spelling and forbidden DELETE issues identified in the prior addendum are addressed. The remaining optional cross-org administrator coverage suggestion is not an open authorization defect.
+
+Correction to prior execution attribution
+Main clarifies that the initial role fixture failed on the append-only DELETE and was not a passing role test. This supersedes any earlier wording that could imply the initial sequence passed. The initial source contained the expected statuses, but did not successfully execute them.
+
+Final evidence reported by Main, not independently rerun here
+- settings-routes and role-access-schema: 21/21 passed.
+- API typecheck and DB/SQL guards passed.
+- Final real loopback HTTP smoke: save, readback, stale 409, and audit count 1 passed.
+- PostgreSQL runtime remains unavailable. No PostgreSQL runtime verification is claimed.
+
+Final review disposition: A01 and A02 resolved for the reviewed profile-only slice. No frontend, broader authentication/services integration, or PostgreSQL runtime completion claim.

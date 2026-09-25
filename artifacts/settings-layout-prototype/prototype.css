@@ -1,0 +1,93 @@
+/* Artifact-only layout. Wire primitives and design/tokens.css own appearance. */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 400; line-height: var(--leading-normal); letter-spacing: var(--tracking-base); }
+button, input, select, textarea { font-family: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+a { color: inherit; }
+p, h1, h2, h3 { margin: 0; }
+:focus-visible { outline: var(--space-0-5) solid var(--blue-deep); outline-offset: var(--space-0-5); }
+.skip-link { position: fixed; top: var(--space-2); left: var(--space-2); z-index: var(--z-modal); transform: translateY(-200%); }
+.skip-link:focus { transform: none; }
+.sidebar { position: fixed; inset: 0 auto 0 0; width: var(--sidebar-width); display: flex; flex-direction: column; background: var(--panel); z-index: var(--z-dropdown); }
+.sidebar::after { content: ''; position: absolute; inset: 0 0 0 auto; width: var(--wire-outline-width); background: var(--gradient-frame-v); }
+.brand { min-height: var(--header-height); display: flex; align-items: center; justify-content: space-between; padding: 0 var(--space-6); gap: var(--space-2); font-size: var(--text-md); font-weight: 600; line-height: var(--leading-snug); }
+.brand > span { overflow-wrap: anywhere; }
+.sidebar-return { padding: var(--space-8) var(--space-4) var(--space-4); }
+.sidebar-return .wire-button { max-width: 100%; }
+#navigation { overflow-y: auto; overscroll-behavior: contain; min-height: 0; flex: 1; padding: 0 var(--space-4) var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); scrollbar-gutter: stable; }
+.navigation-group { display: grid; gap: var(--space-1); }
+.navigation-section-title { padding: 0 var(--space-2); font-size: var(--text-sm); font-weight: 600; line-height: var(--leading-normal); background: var(--gradient-deep); background-clip: text; -webkit-background-clip: text; color: transparent; }
+.navigation-items { display: grid; gap: var(--space-0-5); }
+.navigation-link { display: flex; align-items: center; gap: var(--space-2); min-height: var(--pill-height); padding: 0 var(--space-2); border: var(--wire-outline-width) solid transparent; border-radius: var(--radius-control); text-decoration: none; font-size: var(--text-md); font-weight: 500; line-height: normal; }
+.navigation-link svg { flex: none; }
+.navigation-link span { min-width: 0; overflow-wrap: anywhere; }
+.navigation-link:hover { background: var(--gradient-hover); }
+.navigation-link[aria-current="page"] { background: var(--gradient-action); color: var(--on-action); border-color: var(--line-on-action); }
+.sidebar-foot { border-top: var(--wire-outline-width) solid var(--line); padding: var(--space-4); display: grid; justify-items: start; gap: var(--space-3); }
+.app-header { height: var(--header-height); margin-left: var(--sidebar-width); padding: 0 var(--space-8); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); position: sticky; top: 0; z-index: var(--z-sticky); background: var(--canvas); font-size: var(--text-md); font-weight: 500; line-height: normal; }
+.app-header::after { content: ''; position: absolute; inset: auto 0 0; height: var(--wire-outline-width); background: var(--gradient-frame); }
+#header-actions, #drawer-actions { display: flex; align-items: center; gap: var(--space-3); }
+.header-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--pill-height); height: var(--pill-height); padding: 0; border: var(--wire-outline-width) solid transparent; border-radius: 50%; background: linear-gradient(var(--panel),var(--panel)) padding-box, var(--gradient-brand) border-box; color: var(--ink); }
+.header-icon-button:hover { background: var(--gradient-hover); }
+#header-title { min-width: 0; overflow-wrap: anywhere; }
+main { margin-left: var(--sidebar-width); min-width: 0; }
+.page-container { max-width: var(--page-max); margin-inline: auto; padding: var(--page-pad-y) var(--page-pad-x); display: grid; gap: var(--section-gap); min-width: 0; }
+.preview-controls { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-4); }
+.preview-controls > .wire-form-field { flex: 1 1 200px; max-width: var(--grid-min); }
+.preview-controls select { appearance: auto; padding-right: 0; min-height: var(--control-height); }
+.preview-notice { max-width: 72ch; }
+.page-heading { display: grid; gap: var(--space-3); }
+#content { display: grid; gap: var(--section-gap); min-width: 0; }
+.surface-card { min-width: 0; }
+.wire-card-head { flex-wrap: wrap; }
+.wire-card-title { overflow-wrap: anywhere; }
+.meta { font-size: var(--text-sm); font-weight: 400; line-height: var(--leading-normal); color: var(--sub); overflow-wrap: anywhere; }
+.reading { font-size: var(--text-sm); font-weight: 400; line-height: var(--leading-relaxed); color: var(--ink); overflow-wrap: anywhere; }
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-6); min-width: 0; }
+.detail-fields { display: grid; gap: var(--space-6); align-content: start; min-width: 0; margin: 0; }
+.impact { min-width: 0; border-left: var(--wire-outline-width) solid var(--line); padding-left: var(--space-6); display: grid; align-content: start; gap: var(--space-4); }
+.impact-title { font-size: var(--text-sm); font-weight: 600; line-height: var(--leading-normal); color: var(--sub); }
+.impact .wire-data-row { grid-template-columns: 1fr; gap: var(--space-1); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); min-width: 0; }
+.actions .wire-button { max-width: 100%; }
+.wire-input-box > input, .wire-input-box > select { min-height: var(--control-height); }
+.wire-form-field .wire-form-label { flex-wrap: wrap; }
+.wire-choice > input { flex: none; }
+.wire-item-status { align-items: center; }
+.wire-item-title, .wire-item-desc { line-height: var(--leading-normal); }
+.wire-item-desc { font-weight: 400; overflow-wrap: anywhere; }
+.wire-card-section > h3, .wire-data-row > dt { line-height: var(--leading-normal); }
+.wire-data-row > dd { font-weight: 400; line-height: var(--leading-normal); }
+.item-list { display: grid; gap: var(--space-4); }
+.item-list > .wire-item + .wire-item { padding-top: var(--space-4); border-top: var(--wire-outline-width) solid var(--line); }
+.steps { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: 0 0 var(--space-4); padding: 0; font-size: var(--text-sm); font-weight: 400; line-height: var(--leading-normal); color: var(--sub); }
+.steps [aria-current="step"] { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: var(--space-1); }
+.guide-order { display: flex; flex-wrap: wrap; gap: var(--space-3); list-style: none; margin: 0; padding: 0; }
+.feedback { min-height: var(--badge-height); }
+.mobile-only { display: none; }
+#scrim { position: fixed; inset: 0; background: var(--scrim); z-index: var(--z-modal); }
+/* The 768px desktop shell can leave a narrow content column. Reflow the form,
+   not the shell, when its container cannot hold the approved input and impact. */
+.page-container { container-type: inline-size; }
+@container (max-width: 760px) {
+  .detail-grid { grid-template-columns: minmax(0, 1fr); }
+  .impact { border-left: 0; padding-left: 0; border-top: var(--wire-outline-width) solid var(--line); padding-top: var(--space-6); }
+  .wire-data-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+}
+@media (max-width: 767px) {
+  .mobile-only { display: inline-flex; }
+  .sidebar { display: none; width: min(var(--sidebar-width), calc(100% - var(--space-8))); height: 100dvh; z-index: calc(var(--z-modal) + 1); box-shadow: var(--shadow-modal); }
+  .drawer-open { overflow: hidden; }
+  .drawer-open .sidebar { display: flex; }
+  .app-header { margin-left: 0; padding-inline: var(--space-4); }
+  main { margin-left: 0; }
+  .page-container { padding: var(--space-8) var(--space-4); }
+  .preview-controls { align-items: start; }
+  .preview-controls > .wire-form-field { flex-basis: 100%; max-width: none; }
+  .detail-grid { grid-template-columns: minmax(0, 1fr); }
+  .impact { border-left: 0; padding-left: 0; border-top: var(--wire-outline-width) solid var(--line); padding-top: var(--space-6); }
+  .wire-button { white-space: normal; }
+  .wire-card-head > .wire-badge { max-width: 100%; }
+}

@@ -1,0 +1,100 @@
+Settings foundation wave / Lane B source handoff
+Worktree: /Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/settings-design
+Contract: sibling settings-backend/artifacts/settings-foundation-wave-contract.txt
+Status: source implementation and regression test sources written. NO dependency installation, test, typecheck, build, formatter, linter, browser, service, commit or deployment was run by this lane. Main owns integration and all runtime verification. This is not a passing-validation report.
+
+Owned files changed in this wave
+- apps/client/package.json
+- apps/client/src/main.tsx
+- apps/client/src/vite-env.d.ts
+- apps/client/src/business/api.ts
+- apps/client/src/business/auth.ts
+- apps/client/src/business/auth-view.tsx
+- apps/client/src/business/auth.test.ts
+- apps/client/src/business/boundary.test.ts
+- apps/client/src/business/business-page.tsx
+- apps/client/src/business/business.css
+- apps/client/src/business/editing.ts
+- apps/client/src/business/errors.ts
+- apps/client/src/business/installation.ts
+- apps/client/src/business/settings-modules.tsx
+- apps/client/src/business/settings.test.ts
+- apps/client/src/business/test-support.ts
+- artifacts/settings-foundation-lane-b-handoff.txt
+
+Dependencies for Main to install and lock centrally
+- @ccc/contracts: workspace:*
+- @supabase/supabase-js: exactly 2.116.0, official published SDK; its Node engine requirement is >=22.0.0.
+- Existing React, Vite, Vitest and @ccc/web dependencies are unchanged.
+- No root package.json or lockfile was edited. No other checkout's node_modules was linked.
+- Passive editor diagnostics reported unresolved packages while writing source. There is no compiler or test result for this lane yet.
+
+Public trust configuration
+VITE_CCC_INSTALL_SIGNING_KEYS is a BUILD-TIME JSON object mapping each trusted signingKeyId to its base64-encoded RAW 32-byte Ed25519 public key. It is not PEM and must not contain a private signing key, Supabase service-role key or other secret. No default, synthetic trust key or unsigned fallback exists in runtime code.
+
+The client reads only these fixed same-origin files, in this order:
+1. /ccc-install-manifest.json, verified with @ccc/contracts/install-manifest and the build-time public key map.
+2. /ccc-bootstrap.json, parsed with parsePublicBootstrap and compared with assertBootstrapMatchesManifest.
+
+The actual browser origin must equal signed clientOrigin and belong to signed allowedOrigins. API mode, Supabase origin/project/public key, signature and expiry use the existing contract verifier. The signed host field is not incorrectly equated with the Supabase API hostname: the canonical Cloud fixture uses the CLIENT host there.
+Missing trust configuration fails before any network request. Signature/origin/bootstrap failure prevents SDK construction. No Supabase endpoint or credential is taken from a query parameter or unsigned bootstrap.
+
+Routes and navigation
+- /login: real password login, then TOTP verification or first TOTP enrollment.
+- /settings: same verified/authenticated entry, defaults to the account module.
+- /settings?module=account: GET /me; displays actual canonical role union, name and email.
+- /settings?module=institution: institution-admin only; GET and PATCH /organization/profile.
+- /settings?module=memory: institution-admin only; GET and PUT /settings/counseling-memory.
+- All other pathnames still render the existing SttTrialPage. Its source and Vite proxy were not edited.
+- Module navigation uses the existing Wire link-renderer seam plus history/popstate, so it does not reload and discard an in-memory login. Reload/new tab deliberately starts without a saved session.
+- There is no role picker and no use of legacy role or preview role query parameters for authorization. TA-only can reach its real account after capability validation, but never gains institution-admin menus or mutations. Direct administrator-module URLs are denied for non-IA users.
+- Only the three connected modules are shown. The separate 19-module prototype and the static 3113 surface were not changed.
+
+Authentication and request boundaries
+- Official createClient with persistSession:false, detectSessionInUrl:false, autoRefreshToken:true and debug:false.
+- One active SDK instance per verified runtime. StrictMode shares installation loading; logout disposes the SDK, aborts its fetch lifetime and drops references. A later login creates a fresh isolated in-memory SDK instance with a fresh memory storage key, not a browser-storage entry.
+- No cookies, localStorage, sessionStorage or IndexedDB are used for credentials. Password and OTP inputs are cleared when submitted. Tokens are absent from React auth snapshots, URLs and application logs.
+- SDK fetch is confined to the signed auth origin and /auth/v1/ paths. Both SDK and business fetch use credentials:omit, cache:no-store and redirect:error. Network requests have a 30-second deadline.
+- Provider error bodies are reduced to safe codes/messages before the SDK sees them, so its internal error handling cannot log provider-supplied text. Business errors preserve HTTP statuses, including 401, 403/mfa_required, 409 and 503, without exposing arbitrary server messages.
+- Business token access is withheld until MFA is ready. SDK MFA events can omit expires_at; the controller reads SDK getSession() before opening business access, rather than treating that event payload as an expired session.
+- Existing verified TOTP factors are selectable. With none verified, the SDK enroll/challenge/verify path is real. Other verified MFA methods are explicitly unsupported, not bypassed.
+- QR data is an encoded SVG image, never innerHTML or a remote image URL. Enrollment secrets are masked by default and removed on verification, cancel, auth-state change, logout or after five minutes. Explicit cancel only removes this screen's pending factor; a factor observed as verified is not deleted.
+- S2's 30-minute inactivity boundary stops renewal and signs out. Pointer/keyboard activity and return to a visible tab check the deadline before extending it; expired idle sessions are not revived by activity.
+- Every new authenticated business generation starts with GET /capabilities. The existing decoder checks the signed STT registry, mode equality is enforced, and X-CCC-Installation-Id must equal the signed installation ID before GET /me or other business reads.
+- The relative-path API retains the signed apiBase prefix and rejects absolute URLs, authority paths, dot/encoded traversal, backslashes, query strings and fragments. No write is retried automatically.
+- Auth state changes, including token refresh, synchronously dispose the old business transport and remount the business state. Late responses cannot repopulate the old account. This conservative reset also clears unsaved settings drafts on token refresh; capability and /me are then read again.
+
+Main's added logout contract is implemented
+1. Publish signing-out and invalidate business views/transports, while keeping the token getter alive for revocation.
+2. Stop SDK auto-refresh, then POST the verified API's /auth/logout with JSON {} and the current Bearer token. Require 204. This self-revocation operation is allowed even when MFA/capability setup did not finish.
+3. Attempt SDK signOut({scope:'local'}) regardless of the revocation result.
+4. Always clear the controller's session/enrollment state, abort pending auth fetches and dispose the SDK.
+A failed backend revocation, SDK signout or cleanup leaves a safe signout_failed notice. It is never reported as a confirmed server logout. Main must verify its real backend rejects later access JWTs for the same revoked Supabase session_id.
+
+Module mutation contracts
+- Institution name: exactly {orgName, expectedOrgName}; trims only the new name, validates 1..80 characters, preserves the original nullable expectedOrgName.
+- Institution memory: exactly {enabled, expectedVersion}; consumes the existing MemorySettingsView and shows only enabled state, queue counts and lastSuccessAt, never memory text.
+- 409 and uncertain writes retain the draft and old CAS baseline. Saving is disabled until the user explicitly reads the current server state. Re-reading updates the baseline but does not overwrite the draft. There is no optimistic success state or automatic retry.
+- Responses are decoded before display; memory responses with extra content fields or invalid counters are rejected. Organization response orgId must match /me.
+- Server authorization remains authoritative. The client role checks only hide/block UI; they do not replace gateway checks.
+
+Intentionally unsupported modes
+- A verified Local Office installation reports that the local-account and administrator-MFA adapter is not connected here.
+- A verified Local Single installation reports that app-lock and verified DPAPI endpoint discovery are not connected here.
+Neither path constructs a Cloud auth client, invents a loopback token/port or fabricates account/settings values. No Local runtime support is claimed.
+
+Regression sources for Main
+- boundary.test.ts: actual Ed25519 verification, tampered/unsigned install boundaries, missing trust, API-prefix containment, capability identity gate, non-retried conflict, disposed/rotated-session response rejection, explicit MFA error preservation, unsupported Local paths.
+- auth.test.ts: actual official SDK with only the HTTP boundary replaced by a synthetic Auth service; existing TOTP, first enrollment/cancel/completion, expires_at-absent MFA events, backend-before-SDK logout ordering, revocation failure and idle expiration.
+- settings.test.ts: TA-only canonical role preservation, inactive/unknown-role rejection, count-only memory decoding, draft/CAS conflict preservation and uncertain-write blocking.
+- test-support.ts is imported only by tests. Its generated signing keys and synthetic credentials are not a runtime fallback.
+
+Central integration checks requested of Main, not executed here
+1. Install/lock workspace dependencies once, using Node >=22.
+2. pnpm --filter @ccc/client typecheck
+3. pnpm --filter @ccc/client test
+4. pnpm --filter @ccc/client build
+5. Supply real public trust configuration and signed manifest/bootstrap files for the controlled browser preview. No signing/private/provider secret belongs in Vite env.
+6. Verify CORS composition for the signed browser origin, Authorization/Content-Type preflight, PATCH/PUT/POST and the exposed X-CCC-Installation-Id header. Lane B did not edit CORS or proxy configuration.
+7. Exercise real browser password/TOTP login, TA-only /me and /capabilities, IA profile CAS conflict, memory version conflict, session change with an in-flight request, successful server logout and failed-revocation notice.
+8. Confirm the existing STT route and separate static 3113 prototype remain unchanged in the composed runtime.

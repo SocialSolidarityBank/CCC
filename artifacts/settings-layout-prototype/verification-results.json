@@ -1,0 +1,1542 @@
+{
+  "scope": "Static 19-module settings design artifact only; no live API/backend implementation or production deployment",
+  "url": "http://mac-mini.tail79fba7.ts.net:3113/settings",
+  "finalScreens": {
+    "screens": [
+      {
+        "id": "institution",
+        "width": 1280,
+        "heading": "기관 정보",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "programs",
+        "width": 1280,
+        "heading": "사업 관리",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "accounts",
+        "width": 1280,
+        "heading": "계정 및 권한",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "consent",
+        "width": 1280,
+        "heading": "동의서 설정",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "retention",
+        "width": 1280,
+        "heading": "보관 및 파기",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "exports",
+        "width": 1280,
+        "heading": "기록 내보내기",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "audit",
+        "width": 1280,
+        "heading": "열람 및 변경 이력",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "speech",
+        "width": 1280,
+        "heading": "음성 인식 연결",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "ai",
+        "width": 1280,
+        "heading": "AI 에이전트 연결",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "agent",
+        "width": 1280,
+        "heading": "로컬 에이전트 설정",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "memory",
+        "width": 1280,
+        "heading": "AI 메모리 설정",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "database",
+        "width": 1280,
+        "heading": "데이터베이스 연결",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "storage",
+        "width": 1280,
+        "heading": "저장 위치 설정",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "backup",
+        "width": 1280,
+        "heading": "백업 및 복원",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "security",
+        "width": 1280,
+        "heading": "보안 설정",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "system",
+        "width": 1280,
+        "heading": "시스템 상태",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "updates",
+        "width": 1280,
+        "heading": "업데이트",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "account",
+        "width": 1280,
+        "heading": "내 정보",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "guide",
+        "width": 1280,
+        "heading": "사용 가이드",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "institution",
+        "width": 390,
+        "heading": "기관 정보",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "programs",
+        "width": 390,
+        "heading": "사업 관리",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "accounts",
+        "width": 390,
+        "heading": "계정 및 권한",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "consent",
+        "width": 390,
+        "heading": "동의서 설정",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "retention",
+        "width": 390,
+        "heading": "보관 및 파기",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "exports",
+        "width": 390,
+        "heading": "기록 내보내기",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "audit",
+        "width": 390,
+        "heading": "열람 및 변경 이력",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "speech",
+        "width": 390,
+        "heading": "음성 인식 연결",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "ai",
+        "width": 390,
+        "heading": "AI 에이전트 연결",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "agent",
+        "width": 390,
+        "heading": "로컬 에이전트 설정",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "memory",
+        "width": 390,
+        "heading": "AI 메모리 설정",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "database",
+        "width": 390,
+        "heading": "데이터베이스 연결",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "storage",
+        "width": 390,
+        "heading": "저장 위치 설정",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "backup",
+        "width": 390,
+        "heading": "백업 및 복원",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "security",
+        "width": 390,
+        "heading": "보안 설정",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "system",
+        "width": 390,
+        "heading": "시스템 상태",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "updates",
+        "width": 390,
+        "heading": "업데이트",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "account",
+        "width": 390,
+        "heading": "내 정보",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      },
+      {
+        "id": "guide",
+        "width": 390,
+        "heading": "사용 가이드",
+        "overflow": false,
+        "menus": 19,
+        "storage": 0,
+        "cookies": "",
+        "required": true
+      }
+    ],
+    "errors": [],
+    "external": []
+  },
+  "initialBehaviorChecks": [
+    {
+      "name": "role-admin",
+      "pass": true,
+      "detail": [
+        "institution",
+        "programs",
+        "accounts",
+        "consent",
+        "retention",
+        "exports",
+        "audit",
+        "speech",
+        "ai",
+        "agent",
+        "memory",
+        "database",
+        "storage",
+        "backup",
+        "security",
+        "system",
+        "updates",
+        "account",
+        "guide"
+      ]
+    },
+    {
+      "name": "role-tech",
+      "pass": true,
+      "detail": [
+        "accounts",
+        "speech",
+        "ai",
+        "agent",
+        "memory",
+        "database",
+        "storage",
+        "backup",
+        "security",
+        "system",
+        "updates",
+        "account",
+        "guide"
+      ]
+    },
+    {
+      "name": "role-both",
+      "pass": true,
+      "detail": [
+        "institution",
+        "programs",
+        "accounts",
+        "consent",
+        "retention",
+        "exports",
+        "audit",
+        "speech",
+        "ai",
+        "agent",
+        "memory",
+        "database",
+        "storage",
+        "backup",
+        "security",
+        "system",
+        "updates",
+        "account",
+        "guide"
+      ]
+    },
+    {
+      "name": "role-lead",
+      "pass": true,
+      "detail": [
+        "exports",
+        "account",
+        "guide"
+      ]
+    },
+    {
+      "name": "role-counselor",
+      "pass": true,
+      "detail": [
+        "exports",
+        "account",
+        "guide"
+      ]
+    },
+    {
+      "name": "institution-save",
+      "pass": true
+    },
+    {
+      "name": "conflict-keeps-input",
+      "pass": true
+    },
+    {
+      "name": "conflict-does-not-apply",
+      "pass": true
+    },
+    {
+      "name": "reset-restores-fixture",
+      "pass": true
+    },
+    {
+      "name": "browser-back",
+      "pass": true
+    },
+    {
+      "name": "browser-forward",
+      "pass": true
+    },
+    {
+      "name": "tech-no-final-start",
+      "pass": true
+    },
+    {
+      "name": "tech-no-key",
+      "pass": true
+    },
+    {
+      "name": "both-start-is-simulation",
+      "pass": true
+    },
+    {
+      "name": "backup-no-real-execution",
+      "pass": true
+    },
+    {
+      "name": "undecided-no-admission-checkbox",
+      "pass": true
+    },
+    {
+      "name": "undecided-stays-preparation",
+      "pass": true
+    },
+    {
+      "name": "memory-off-no-content",
+      "pass": true
+    },
+    {
+      "name": "memory-unavailable-no-content",
+      "pass": true
+    },
+    {
+      "name": "memory-failure-no-content",
+      "pass": true
+    },
+    {
+      "name": "memory-masking-no-content",
+      "pass": true
+    },
+    {
+      "name": "memory-syncing-no-content",
+      "pass": true
+    },
+    {
+      "name": "assignment-simulation",
+      "pass": true
+    },
+    {
+      "name": "drawer-inert",
+      "pass": true
+    },
+    {
+      "name": "drawer-escape-focus",
+      "pass": true
+    },
+    {
+      "name": "drawer-navigation-closes",
+      "pass": true
+    }
+  ],
+  "initialStateMatrix": {
+    "rows": [
+      {
+        "id": "institution",
+        "state": "basic",
+        "h1": "기관 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "institution",
+        "state": "empty",
+        "h1": "기관 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "institution",
+        "state": "off",
+        "h1": "기관 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "institution",
+        "state": "unavailable",
+        "h1": "기관 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "institution",
+        "state": "failure",
+        "h1": "기관 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "institution",
+        "state": "conflict",
+        "h1": "기관 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "programs",
+        "state": "basic",
+        "h1": "사업 관리",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "programs",
+        "state": "empty",
+        "h1": "사업 관리",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "programs",
+        "state": "off",
+        "h1": "사업 관리",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "programs",
+        "state": "unavailable",
+        "h1": "사업 관리",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "programs",
+        "state": "failure",
+        "h1": "사업 관리",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "programs",
+        "state": "conflict",
+        "h1": "사업 관리",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "accounts",
+        "state": "basic",
+        "h1": "계정 및 권한",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "accounts",
+        "state": "empty",
+        "h1": "계정 및 권한",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "accounts",
+        "state": "off",
+        "h1": "계정 및 권한",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "accounts",
+        "state": "unavailable",
+        "h1": "계정 및 권한",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "accounts",
+        "state": "failure",
+        "h1": "계정 및 권한",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "accounts",
+        "state": "conflict",
+        "h1": "계정 및 권한",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "consent",
+        "state": "basic",
+        "h1": "동의서 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "consent",
+        "state": "empty",
+        "h1": "동의서 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "consent",
+        "state": "off",
+        "h1": "동의서 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "consent",
+        "state": "unavailable",
+        "h1": "동의서 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "consent",
+        "state": "failure",
+        "h1": "동의서 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "consent",
+        "state": "conflict",
+        "h1": "동의서 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "retention",
+        "state": "basic",
+        "h1": "보관 및 파기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "retention",
+        "state": "empty",
+        "h1": "보관 및 파기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "retention",
+        "state": "off",
+        "h1": "보관 및 파기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "retention",
+        "state": "unavailable",
+        "h1": "보관 및 파기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "retention",
+        "state": "failure",
+        "h1": "보관 및 파기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "retention",
+        "state": "conflict",
+        "h1": "보관 및 파기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "exports",
+        "state": "basic",
+        "h1": "기록 내보내기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "exports",
+        "state": "empty",
+        "h1": "기록 내보내기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "exports",
+        "state": "off",
+        "h1": "기록 내보내기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "exports",
+        "state": "unavailable",
+        "h1": "기록 내보내기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "exports",
+        "state": "failure",
+        "h1": "기록 내보내기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "exports",
+        "state": "conflict",
+        "h1": "기록 내보내기",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "audit",
+        "state": "basic",
+        "h1": "열람 및 변경 이력",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "audit",
+        "state": "empty",
+        "h1": "열람 및 변경 이력",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "audit",
+        "state": "off",
+        "h1": "열람 및 변경 이력",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "audit",
+        "state": "unavailable",
+        "h1": "열람 및 변경 이력",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "audit",
+        "state": "failure",
+        "h1": "열람 및 변경 이력",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "audit",
+        "state": "conflict",
+        "h1": "열람 및 변경 이력",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "speech",
+        "state": "basic",
+        "h1": "음성 인식 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "speech",
+        "state": "empty",
+        "h1": "음성 인식 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "speech",
+        "state": "off",
+        "h1": "음성 인식 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "speech",
+        "state": "unavailable",
+        "h1": "음성 인식 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "speech",
+        "state": "failure",
+        "h1": "음성 인식 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "speech",
+        "state": "conflict",
+        "h1": "음성 인식 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "ai",
+        "state": "basic",
+        "h1": "AI 에이전트 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "ai",
+        "state": "empty",
+        "h1": "AI 에이전트 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "ai",
+        "state": "off",
+        "h1": "AI 에이전트 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "ai",
+        "state": "unavailable",
+        "h1": "AI 에이전트 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "ai",
+        "state": "failure",
+        "h1": "AI 에이전트 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "ai",
+        "state": "conflict",
+        "h1": "AI 에이전트 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "agent",
+        "state": "basic",
+        "h1": "로컬 에이전트 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "agent",
+        "state": "empty",
+        "h1": "로컬 에이전트 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "agent",
+        "state": "off",
+        "h1": "로컬 에이전트 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "agent",
+        "state": "unavailable",
+        "h1": "로컬 에이전트 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "agent",
+        "state": "failure",
+        "h1": "로컬 에이전트 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "agent",
+        "state": "conflict",
+        "h1": "로컬 에이전트 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "memory",
+        "state": "basic",
+        "h1": "AI 메모리 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "memory",
+        "state": "empty",
+        "h1": "AI 메모리 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "memory",
+        "state": "off",
+        "h1": "AI 메모리 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "memory",
+        "state": "unavailable",
+        "h1": "AI 메모리 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "memory",
+        "state": "failure",
+        "h1": "AI 메모리 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "memory",
+        "state": "conflict",
+        "h1": "AI 메모리 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "database",
+        "state": "basic",
+        "h1": "데이터베이스 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "database",
+        "state": "empty",
+        "h1": "데이터베이스 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "database",
+        "state": "off",
+        "h1": "데이터베이스 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "database",
+        "state": "unavailable",
+        "h1": "데이터베이스 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "database",
+        "state": "failure",
+        "h1": "데이터베이스 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "database",
+        "state": "conflict",
+        "h1": "데이터베이스 연결",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "storage",
+        "state": "basic",
+        "h1": "저장 위치 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "storage",
+        "state": "empty",
+        "h1": "저장 위치 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "storage",
+        "state": "off",
+        "h1": "저장 위치 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "storage",
+        "state": "unavailable",
+        "h1": "저장 위치 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "storage",
+        "state": "failure",
+        "h1": "저장 위치 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "storage",
+        "state": "conflict",
+        "h1": "저장 위치 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "backup",
+        "state": "basic",
+        "h1": "백업 및 복원",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "backup",
+        "state": "empty",
+        "h1": "백업 및 복원",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "backup",
+        "state": "off",
+        "h1": "백업 및 복원",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "backup",
+        "state": "unavailable",
+        "h1": "백업 및 복원",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "backup",
+        "state": "failure",
+        "h1": "백업 및 복원",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "backup",
+        "state": "conflict",
+        "h1": "백업 및 복원",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "security",
+        "state": "basic",
+        "h1": "보안 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "security",
+        "state": "empty",
+        "h1": "보안 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "security",
+        "state": "off",
+        "h1": "보안 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "security",
+        "state": "unavailable",
+        "h1": "보안 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "security",
+        "state": "failure",
+        "h1": "보안 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "security",
+        "state": "conflict",
+        "h1": "보안 설정",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "system",
+        "state": "basic",
+        "h1": "시스템 상태",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "system",
+        "state": "empty",
+        "h1": "시스템 상태",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "system",
+        "state": "off",
+        "h1": "시스템 상태",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "system",
+        "state": "unavailable",
+        "h1": "시스템 상태",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "system",
+        "state": "failure",
+        "h1": "시스템 상태",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "system",
+        "state": "conflict",
+        "h1": "시스템 상태",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "updates",
+        "state": "basic",
+        "h1": "업데이트",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "updates",
+        "state": "empty",
+        "h1": "업데이트",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "updates",
+        "state": "off",
+        "h1": "업데이트",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "updates",
+        "state": "unavailable",
+        "h1": "업데이트",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "updates",
+        "state": "failure",
+        "h1": "업데이트",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "updates",
+        "state": "conflict",
+        "h1": "업데이트",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "account",
+        "state": "basic",
+        "h1": "내 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "account",
+        "state": "empty",
+        "h1": "내 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "account",
+        "state": "off",
+        "h1": "내 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "account",
+        "state": "unavailable",
+        "h1": "내 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "account",
+        "state": "failure",
+        "h1": "내 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "account",
+        "state": "conflict",
+        "h1": "내 정보",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "guide",
+        "state": "basic",
+        "h1": "사용 가이드",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "guide",
+        "state": "empty",
+        "h1": "사용 가이드",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "guide",
+        "state": "off",
+        "h1": "사용 가이드",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "guide",
+        "state": "unavailable",
+        "h1": "사용 가이드",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "guide",
+        "state": "failure",
+        "h1": "사용 가이드",
+        "blank": false,
+        "overflow": false
+      },
+      {
+        "id": "guide",
+        "state": "conflict",
+        "h1": "사용 가이드",
+        "blank": false,
+        "overflow": false
+      }
+    ],
+    "boundary": [
+      {
+        "id": "programs",
+        "width": 320,
+        "overflow": false
+      },
+      {
+        "id": "ai",
+        "width": 320,
+        "overflow": false
+      },
+      {
+        "id": "guide",
+        "width": 320,
+        "overflow": false
+      },
+      {
+        "id": "programs",
+        "width": 767,
+        "overflow": false
+      },
+      {
+        "id": "ai",
+        "width": 767,
+        "overflow": false
+      },
+      {
+        "id": "guide",
+        "width": 767,
+        "overflow": false
+      },
+      {
+        "id": "programs",
+        "width": 768,
+        "overflow": false
+      },
+      {
+        "id": "ai",
+        "width": 768,
+        "overflow": false
+      },
+      {
+        "id": "guide",
+        "width": 768,
+        "overflow": false
+      }
+    ],
+    "darkTheme": "dark"
+  },
+  "reviewChecks": [
+    {
+      "name": "audit-전체",
+      "pass": true,
+      "detail": 5
+    },
+    {
+      "name": "audit-열람",
+      "pass": true,
+      "detail": 1
+    },
+    {
+      "name": "audit-변경",
+      "pass": true,
+      "detail": 2
+    },
+    {
+      "name": "audit-복호화",
+      "pass": true,
+      "detail": 1
+    },
+    {
+      "name": "audit-내보내기",
+      "pass": true,
+      "detail": 1
+    },
+    {
+      "name": "syncing-coherent",
+      "pass": true
+    },
+    {
+      "name": "syncing-no-real-call",
+      "pass": true
+    },
+    {
+      "name": "required-marker",
+      "pass": true
+    },
+    {
+      "name": "named-groups",
+      "pass": true
+    },
+    {
+      "name": "desktop-theme-location",
+      "pass": true
+    },
+    {
+      "name": "theme-toggle",
+      "pass": true
+    },
+    {
+      "name": "mobile-theme-location",
+      "pass": true
+    },
+    {
+      "name": "mobile-theme-toggle",
+      "pass": false
+    },
+    {
+      "name": "drawer-backward-focus-trap",
+      "pass": true
+    },
+    {
+      "name": "drawer-escape-after-theme-move",
+      "pass": true
+    }
+  ],
+  "finalShellChecks": [
+    {
+      "name": "mobile-theme-toggle-after-drawer-animation",
+      "pass": true
+    },
+    {
+      "name": "desktop-theme-return-preserves-state",
+      "pass": true
+    },
+    {
+      "name": "header-sticky",
+      "pass": true
+    },
+    {
+      "name": "consent-textarea-required",
+      "pass": true,
+      "detail": {
+        "present": true,
+        "required": true,
+        "marker": "필수"
+      }
+    }
+  ],
+  "reviewCheckNotes": [
+    "Initial immediate mobile click ran before the drawer finished animating; finalShellChecks waited for actual animations and passed.",
+    "An aborted combined pass expected theme state to survive Puppeteer mobile emulation reload. Final viewport-only checks passed; no application source change was made for this harness assumption."
+  ],
+  "endpoints": [
+    {
+      "route": "/settings",
+      "status": 200
+    },
+    {
+      "route": "/prototype.js",
+      "status": 200
+    },
+    {
+      "route": "/prototype.css",
+      "status": 200
+    },
+    {
+      "route": "/wire.css",
+      "status": 200
+    },
+    {
+      "route": "/design/tokens.css",
+      "status": 200
+    },
+    {
+      "route": "/server.mjs",
+      "status": 404
+    },
+    {
+      "route": "/package.json",
+      "status": 404
+    }
+  ],
+  "independentReview": ".worktrees/settings-backend/artifacts/settings-design-independent-review.txt",
+  "backendContract": ".worktrees/settings-backend/artifacts/settings-backend-contract.txt",
+  "backendImplemented": false,
+  "committed": false,
+  "merged": false
+}

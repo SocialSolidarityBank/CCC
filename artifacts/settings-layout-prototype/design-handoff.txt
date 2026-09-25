@@ -1,0 +1,121 @@
+Settings design lane handoff
+
+상태: Task 1의 독립 프리뷰 소스 작성. 아직 시각 검증하지 않았습니다.
+이 문서는 검증 통과 보고서가 아닙니다. 실행 검증과 디자인 게이트는 Main 소유입니다.
+Task 2/3 실제 클라이언트 및 API 통합은 시작하지 않았습니다.
+
+1. 작업 범위
+- artifacts/settings-layout-prototype/index.html: A/B 전환기와 고정 업무 메뉴 제거. 하나의 사이드바, 모바일 열기/닫기, 본문, 역할 및 상태 시연 조작 배치.
+- artifacts/settings-layout-prototype/prototype.js: 19개 메뉴, 역할 필터, 모듈별 가상 내용과 폼, URL/history, 시연 상태 및 영향, 가이드, 드로어 동작 작성.
+- artifacts/settings-layout-prototype/prototype.css: 기존 Wire 및 토큰을 사용하는 설정 셸과 폼 배치. 좁은 본문과 모바일 드로어 대응.
+- artifacts/settings-layout-prototype/server.mjs: 비교 시안 주석과 ?variant=A 로그 제거. CCC_PREVIEW_PORT로 Main이 전용 포트를 지정할 수 있도록 변경. 기본 3112와 CCC_PREVIEW_HOST 기본 127.0.0.1 유지. 기존 GET/HEAD 제한, 경로 경계와 확장자 제한, 토큰 파일 경로, no-store는 변경하지 않음.
+- artifacts/settings-layout-prototype/design-handoff.txt: 이 인계 문서.
+- wire.css는 읽기 전용 참조로 유지. design/tokens.css 및 앱, API, 코어, DB, 공유 규칙은 수정하지 않음.
+- 승인 snapshot의 문서 문자열은 메모리에서 읽음. tracked 루트 문서로 복사하지 않음.
+
+테스트, 빌드, 린터, 포매터, 브라우저, 서버, 설치, 커밋을 실행하지 않음.
+다른 탭, pane, subagent를 만들지 않음. 다른 작업자의 파일과 터미널을 조작하지 않음.
+
+2. 부품과 줄 배치표
+줄 번호는 이번 인계 시점 기준. JS는 prototype.js, CSS는 prototype.css.
+
+화면 줄 | 위계/부품 | 소스 위치
+업무 복귀 | WireButton neutral 대응 링크 | index.html sidebar-return, JS 240-250
+메뉴 묶음 | 14/600 navigation-section-title | JS groups 27, modules 32-52, renderNavigation 240-250; CSS 19-27
+메뉴 항목 | 한 계층 NavIcon 대응 SVG + navigation-link | JS 5-16, 32-52, 240-250; CSS 23-27
+내 정보 / 사용 가이드 | 제목 없는 독립 메뉴 각각 | JS 240-250
+프리뷰 조건 | WireFormField / WireInputBox 대응 | index.html preview-controls; JS 395-398; CSS 34-37
+현재 메뉴 제목 | 페이지 유일 h1 / wire-page-title | index.html page-heading; JS 251-270
+카드 제목과 상태 | 16/600 WireCard + 제목 바로 뒤 WireBadge 대응 | JS 17-23, 144-154, 182-210; CSS 40-42
+현재 라벨과 값 | 14/600 라벨 + 14/400 값 / WireDataRows 대응 | JS rows 19, statusRows 144-154
+반복 항목 | WireItem 제목, 설명, 배지, 항목 행동 대응 | JS 22-23, detailsFor 182-205; CSS 55-61
+폼 질문 | 14/600 라벨 / WireFormField 대응 | JS formSpec 69-89, fieldMarkup 105-114
+폼 입력과 도움말 | 14/400 입력 / WireInputBox, 13/400 wire-form-hint | JS 105-114; 기존 wire.css
+단계와 확인 | 질문 하나씩, 마지막 내용 확인 / 체크와 WireButton 대응 | JS formMarkup 122-143, handleFormAction 315-355
+변경 영향 | 입력 옆 라벨/값 구획, 좁으면 입력 아래 | JS impactMarkup 116-121; CSS 45-49, 70-87
+결과와 실패 | 상태 카드, form-result 및 aria-live | JS 155-181, 308-355
+관련 안내 | WireButton neutral 대응 / guide topic | JS 61-63, 211-239
+모바일 드로어 | 같은 sidebar / dialog, inert, focus trap | JS 292-300, 399-413; CSS 66-90
+
+모듈 배치표: modules 32-52가 ID, 표시 이름, 묶음, 조회 역할의 단일 목록입니다.
+폼은 formSpec 69-89, 본문은 detailsFor 182-205, 상태 이유는 stateReasons 155-175에 각각 대응합니다.
+
+묶음 | ID | 표시 이름 | 기본 본문 / 시연 조작
+기관 관리 | institution | 기관 정보 | 기관 코드, 이름, 규모 / 이름과 업무 이메일 수정
+기관 관리 | programs | 사업 관리 | 진행 2개, 종료 1개 / 이름, 팀, 저장 위치, 처리 경로, 도입 확인
+기관 관리 | accounts | 계정 및 권한 | 직원, 초대, 팀 감독 / 1명 초대, 역할 및 배정 검토 안내
+기록 관리 | consent | 동의서 설정 | 6영역 문안과 버전 / 다음 문안 작성
+기록 관리 | retention | 보관 및 파기 | 기본 1년, 아카이브, 검토 3건 / 보관 기간, 보존 및 파기 조건 보기
+기록 관리 | exports | 기록 내보내기 | 파일 형식과 예시 이력 / 권한 범위, 형식, 기간 선택
+기록 관리 | audit | 열람 및 변경 이력 | 가상 사건 5건 / 종류 필터
+AI 연결 및 설정 | speech | 음성 인식 연결 | off/local/azure 차이 / 경로, 가상 자격, 준비, 확인
+AI 연결 및 설정 | ai | AI 에이전트 연결 | OpenAI, 가림 Packet, 시작 조건 / 준비, 가상 키 상태, 최종 시작 절차
+AI 연결 및 설정 | agent | 로컬 에이전트 설정 | 기관 PC 1대, 모델, 폴링, 대기 / 설치 대상과 가림 준비
+AI 연결 및 설정 | memory | AI 메모리 설정 | 기관 기능과 처리 집계만 / 사용 안 함 또는 사용 준비
+저장 및 백업 | database | 데이터베이스 연결 | Cloud 서울 DB / 읽기 전용 plan 대상과 점검 범위
+저장 및 백업 | storage | 저장 위치 설정 | 첨부 2.4 GB, 원음 0건 / 파일 종류와 저장 대상 검토
+저장 및 백업 | backup | 백업 및 복원 | .cccx 이력 3건 / 대상, 승인, 점검, 실행 절차 분리
+시스템 관리 | security | 보안 설정 | 현재 Cloud와 모드별 보호 / MFA 정책 및 복구 준비
+시스템 관리 | system | 시스템 상태 | DB, AI, Agent 진단 / 각 설정 이동, 보고 범위 안내
+시스템 관리 | updates | 업데이트 | 가상 현재/후보 버전, 서명, 복구 / 대상 버전과 중단 시간 준비
+독립 | account | 내 정보 | 본인 정보, 역할 합, MFA / 이름, 실무자 배정 요청 수락
+독립 | guide | 사용 가이드 | 초기 설정 순서, 역할표, 기능별 설명, 문제 해결 / 해당 설정 왕복
+
+3. 구현에 둔 시연 경계
+- URL: ?module=<ID>&role=all|admin|tech|both|lead|counselor. 선택 상태는 state, 안내 목적지는 topic. 폼 값은 URL에 넣지 않음.
+- 기본 진입: 전체/기관 관리자/겸임은 기관 정보, 기술 관리자는 첫 허용 메뉴인 계정 및 권한, 개인 역할은 내 정보.
+- unknown module은 없는 화면, 허용되지 않은 module은 권한 없음. 실제 권한 검사는 아님.
+- 메뉴가 선택되면 하나의 본문으로 교체. 별도 admin 탭이나 두 번째 sidebar 없음.
+- 업무 복귀는 module=work의 업무 메뉴 시연. 실제 상담 화면이 없다는 안내와 설정 복귀를 제공하며 운영 주소로 나가지 않음.
+- 기본 fixture는 직원 12명, 팀 5+4+3명, 진행 사업 2개와 종료 1개, 케이스 30+18개, 기관 장비 1대. 신규 사업 시연은 케이스 0개의 준비 항목을 추가함.
+- 역할 전환 시 미적용 초안과 확인 상태를 지움. 적용한 일반 가상 값은 페이지 메모리 안에 남음. 새 역할의 select에서 허용되지 않는 이전 선택값은 해당 역할 기본값으로 재설정.
+- 단순 변경만 페이지 메모리에 적용. 외부 연결, 설치, 파일 생성, 백업/복원, DB 변경은 선택과 절차 확인만 기록. 실행 완료로 표시하지 않음.
+- 실제 키 입력칸 없음. 가상 자격 상태를 고르는 선택창만 존재. 기술 관리자 단독은 키 상태 선택과 최종 시작 불가.
+- 기관 관리자 단독의 '준비된 결과 예시 보기'는 미리 준비된 기술 결과 fixture를 읽는 프리뷰 조작. 기술 점검 실행으로 취급하지 않음.
+- 기술 관리자 단독의 '기존 승인 예시 보기'는 기존 기관 관리자 승인 fixture를 읽는 프리뷰 조작. 자기 승인으로 취급하지 않음.
+- 겸임은 직접 준비 점검 및 가상 키 설정 또는 복원 승인과 점검을 한 흐름에서 수행.
+- AI 경로와 자격 선택 변경 시 준비 확인, 키 상태 확인, 최종 확인을 해제. 설치 변경 시 진행 사업 재확인 상태를 남김.
+- STT off, 엔진 null, 실제 LLM off 유지. Azure는 마스킹 전 원음, OpenAI는 가려진 텍스트라는 차이를 입력 옆에 표시.
+- 사업 저장/처리 중 하나라도 나중에 정하기면 도입 확인 체크를 받지 않고 준비 상태로 등록하는 시연. 공공형은 비활성. 실제 실데이터 잠금은 구현했다고 주장하지 않음.
+- 메모리 화면은 기관 기능과 처리 건수뿐. 당사자 이름, 상담 원문, 요약 원문, 근거 인용, memory.md, 항목별 승인/정정 UI 없음.
+- 가이드는 기능별로 실제 시안 내 이동 링크를 제공. 기존 docs/manual/project-admission-check.md는 서버 허용 범위 밖이므로 원문 제공 불가를 표시하고 필요한 조건 확인 설명을 가이드에 둠. 404 문서 링크나 외부 운영 주소는 만들지 않음.
+
+4. 정확히 미검증인 동작
+아래 항목은 소스를 작성했으나 실행 결과를 관측하지 않았습니다.
+- JS 구문, 모듈 로드, DOM 조립, CSS 실제 cascade와 토큰 해석.
+- 19개 메뉴의 표시 개수, 라벨, 그룹, 아이콘, 활성 표시와 역할 조합별 최종 DOM.
+- /settings 기본 진입, module 직접 URL, 새로고침, pushState 및 popstate, unknown ID와 권한 없음.
+- 모든 입력, Enter 제출, 다음/이전, 확인 체크, 재설정, 적용 표시, 초안 보존.
+- 기관 관리자와 기술 관리자의 키/준비/최종 시작 경계, 복원 승인/점검/실행 분리.
+- 409/503 상태에서 적용하지 않고 입력을 보존하는 처리. 입력 검증 오류의 포커스와 결과 알림.
+- 가이드 왕복 및 topic 스크롤, 업무 메뉴 시연 복귀, 역할 전환 시 초안 초기화.
+- 모바일 열기, 닫기, 스크림, Escape, Tab/Shift+Tab 순환, 닫힌 메뉴의 포커스 제외, 본문 inert 및 스크롤 잠금, 폭 변경.
+- 네트워크 외부 요청 0건, 브라우저 영구 저장 없음, URL/로그에 입력값 없음에 대한 런타임 관측.
+- 서버 기동, 포트 사용 가능 여부, tailnet 원격 접근, 모든 자산 응답. 링크가 현재 열린다고 주장하지 않음.
+
+5. Main이 실행할 필수 시각 및 행동 사례
+A. Main이 작업 충돌 없는 시점과 전용 포트를 먼저 지정. 기존 3112 서버를 차지하거나 재기동하지 말 것.
+   이 파일의 CCC_PREVIEW_HOST와 CCC_PREVIEW_PORT를 지정하여 전용 프로세스로 실행 가능. 사용 가능 포트는 이 lane에서 확인하지 않음.
+   프로세스 readiness, tailnet 원격 자산 응답, /settings 로드를 확인한 뒤 검수 링크를 제시.
+B. 1280px 및 390px에서 전체 19개 기본 화면을 열고 캡처. 320/767/768px 경계와 다크 모드도 확인.
+   긴 메뉴, 폼 영향 구획, 6영역 문안, 사용 가이드, 카드 배지와 버튼의 넘침 및 서체 위계 확인.
+C. all/admin/tech/both/lead/counselor 각각 메뉴와 빈 그룹 숨김, 직접 권한 밖 URL, 내 정보 역할 합 확인.
+D. institution → programs → ai → guide 이동 후 뒤로/앞으로, 직접 URL 새로고침. unknown module과 work 복귀 확인.
+E. institution 이름을 가상 값으로 수정 후 현재 정보와 사이드바 반영, 새로고침 초기화 확인.
+F. programs의 나중에 정하기 등록과 두 조건 선택 후 확인 등록을 각각 시연. Naver 선택 불가와 기관 안 설명 확인.
+G. both의 ai: 질문 2개 → 준비 점검 → 가상 키 설정 → 확인 → 최종 시작 절차 시연.
+   이전으로 돌아가 경로를 바꾸면 준비/키/최종 확인이 풀리는지 확인. 적용 후 사업 재확인 유지 확인.
+   admin 단독은 준비된 fixture 읽기 후 키/시작, tech 단독은 준비만 가능해야 함.
+H. speech Azure 설명과 off/null 유지, 로컬 비활성. speech와 ai를 합친 폼으로 보이지 않는지 확인.
+I. exports에서 역할별 범위 선택 후 state=conflict 및 failure에서 적용 시 입력 유지, 파일 생성 없음 확인.
+J. backup에서 admin 승인만, tech 기존 승인 fixture와 점검, both 승인+점검+실행 절차를 각각 확인.
+   검증 전 백업은 점검 완료가 되지 않아야 함. 실제 성공/다운로드 메시지는 없어야 함.
+K. memory basic/off/unavailable/failure/masking/syncing 상태를 각각 확인. 내용, 인용, 승인 큐가 없어야 함.
+L. audit 종류 필터, account의 실무자 배정 요청 수락, reset의 즉시 초기화 확인.
+M. 모바일 드로어에서 첫/마지막 포커스 순환, Escape/스크림/메뉴 선택 닫힘, 복귀 초점과 본문 잠금 확인.
+N. 네트워크와 브라우저 저장소 관측. static asset 외 요청 없음, localStorage/sessionStorage/cookie/IndexedDB 사용 없음 확인.
+O. 19개 모듈별 basic/empty/off/unavailable/failure/conflict. 추가 disconnected는 agent/system/ai/speech/database에서 확인.
+P. Main이 별도 rule-reviewer와 화면 검수 일정을 잡고 관문 실행 여부를 결정. 정적 아티팩트가 React guard 대상이라고 간주하지 말 것.
+
+종료 조건: 이 파일과 작성된 아티팩트를 Main에 인계하고 검증 대기.
+시각 검증 전이며, 실연동 완료 또는 검수 통과로 보고하지 않습니다.
