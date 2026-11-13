@@ -1,0 +1,48 @@
+{
+  "agent": "WebLoginAndInvite",
+  "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/auth-direct",
+  "branch": "feat/direct-login",
+  "baseHead": "b6daf62f",
+  "commit": "62869a68",
+  "commitStat": "30 files changed, 1128 insertions(+), 221 deletions(-). git show --stat 에 apps/web/** 만 있으며 남의 파일 0건이다.",
+  "login": {
+    "route": "/login",
+    "flow": "동일 출처 POST /login/unlock 이 Supabase password grant 를 호출하고 성공한 access token 을 HttpOnly, Secure, SameSite=Strict, Path=/, Supabase expires_in 수명의 ccc_auth 쿠키로 저장한다.",
+    "failurePrivacy": "없는 이메일과 틀린 비밀번호를 login_failed 한 문구로 합쳤다. Origin 없음과 다른 출처 POST 는 자격 처리 전에 403 으로 닫는다.",
+    "redirectSafety": "next 는 URL 파서로 정규화한 뒤 동일 출처 경로만 허용한다. 외부 URL, 백슬래시, 탭 정규화 우회를 시험했다.",
+    "protectedGate": "공개 경로가 아닌 요청은 ccc_auth, Cloudflare Access 자격, 또는 기존 로컬 이중 잠금이 없으면 본문 렌더 전에 /login?next=... 로 307 이동한다. Access 와 preview 경로는 유지했다.",
+    "logout": "직접 로그인 세션은 POST /auth/logout 으로 해지 시도 후 ccc_auth 를 삭제하고 /login 으로 간다. Access 세션은 기존 Access 로그아웃으로, preview 는 기존 /preview 로 간다. 해지 API 장애가 로컬 로그아웃을 막지 않는다."
+  },
+  "staffInvites": {
+    "routes": [
+      "POST /staff-invites",
+      "GET /staff-invites/token/:token",
+      "POST /staff-invites/token/:token/accept"
+    ],
+    "issue": "관리자가 이메일을 입력해 practitioner 초대를 발급하고 /join/worker/:token 링크를 복사한다. 1회용, 만료 시각, 발급 직후에만 토큰을 볼 수 있음을 화면에 표시한다. 이메일 자동 발송은 만들지 않았다.",
+    "accept": "기존 확인 완료 Supabase 계정은 먼저 로그인하고, 자격이 없을 때만 가입한다. 세션을 Bearer 로 수락 API에 싣고 성공하면 같은 ccc_auth 쿠키를 저장한다. 이메일 확인 뒤 같은 화면에서 입력 폼을 다시 열 수 있다.",
+    "deadRouteCheck": "apps/web에서 /invites/counselor, /invites/worker, createWorkerInvite, getPublicWorkerInviteInfo, signupWorker 검색 결과 0건이다."
+  },
+  "supabase": {
+    "projectUrl": "https://qlzwasqwkmenudtfmuql.supabase.co",
+    "originEnv": "CCC_SUPABASE_AUTH_ORIGIN",
+    "publishableKeyEnv": "CCC_SUPABASE_PUBLISHABLE_KEY",
+    "configuration": "프로젝트 URL은 운영과 preview wrangler vars에 공개 값으로 넣었다. publishable key 값은 커밋하지 않았고 환경 타입과 서버 전용 코드에 이름만 남겼다.",
+    "missingKeyBehavior": "CCC_SUPABASE_PUBLISHABLE_KEY가 없으면 Supabase 호출 없이 service_unavailable로 닫히고 화면에는 지금 로그인할 수 없다는 일반 문구만 보인다.",
+    "secrets": "비밀번호와 access token을 로그로 출력하는 코드가 없고 브라우저 localStorage 또는 DB에 저장하지 않는다. access token은 HttpOnly 쿠키와 서버 메모리에서만 사용한다."
+  },
+  "verification": {
+    "pnpm --filter @ccc/web typecheck": "통과",
+    "pnpm --filter @ccc/web test": "74 files, 628 tests 전부 통과",
+    "pnpm guard:tokens": "통과, 위반 0",
+    "pnpm guard:align": "통과, 위반 0",
+    "pnpm guard:hierarchy": "통과, 새 위반 0, 기존 기준선 2건",
+    "pnpm guard:consent-copy": "통과, 4 tests",
+    "git diff --check -- apps/web": "통과",
+    "browser": "auth-direct 워크트리 웹을 3116에 띄워 /login 제목, 이메일·비밀번호 필드, 로그인 버튼을 확인했다. 자격 없이 /participants 접근 시 /login?next=%2Fparticipants로 이동했고 보호 화면 내용은 렌더되지 않았다. 키 미설정 상태의 실제 폼 제출은 /login?error=service_unavailable와 일반 오류 문구를 보였다.",
+    "logs": "실제 폼 제출 뒤 Next 개발 로그에는 경로와 상태만 있었고 이메일, 비밀번호, 토큰은 없었다.",
+    "coldReview": "두 차례 블라인드 리뷰에서 로그인 CSRF, 정규화 열린 리다이렉트, 이메일 확인 재개, 기존 Supabase 계정의 세션 없는 중복 가입 응답을 찾았고 모두 수정했다."
+  },
+  "constraints": "apps/api와 packages 수정 0건, 새 마이그레이션 0건, apps/web/app/programs 수정 0건, packages/wire 수정 0건, 배포 0건, push 0건. 커밋은 git commit --only apps/web 로 만들었다.",
+  "blocked": "실제 Supabase 성공 로그인과 실제 초대 수락은 CCC_SUPABASE_PUBLISHABLE_KEY가 아직 주입되지 않아 실행하지 못했다. 필요한 환경변수 이름은 CCC_SUPABASE_PUBLISHABLE_KEY 하나다."
+}

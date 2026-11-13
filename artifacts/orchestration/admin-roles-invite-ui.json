@@ -1,0 +1,78 @@
+{
+  "task": "admin-roles-invite-ui",
+  "branch": "feat/direct-login",
+  "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/auth-direct",
+  "commit": "35dafbb7",
+  "mergeCommit": "e60fc644 (main 병합 — feat/direct-login 의 기존 커밋이 #337 스쿼시로 main 에 이미 들어가 있어 충돌 4건을 전부 main 쪽으로 해소)",
+  "changes": {
+    "sidebar": {
+      "file": "apps/web/app/components/wire/app-sidebar.tsx",
+      "what": "programMenu 에 '관리' 묶음을 추가. 항목은 adminMenuFor(내 역할) 결과를 그대로 씀 — adminMenu 한 벌이 탭줄·설정 진입구·사이드바를 같이 먹인다. adminItems 가 비면 묶음 자체를 그리지 않아 /admin 404 로 보내는 링크가 없다.",
+      "placement_reason": "관리자 영역 안의 자리는 탭줄(AdminSidebar)이 알려주는 기존 축을 깨지 않기 위해, 사이드바에는 탭과 같은 다섯 항목을 같은 라벨·같은 아이콘으로 둠. 아이콘은 AdminMenuItem.icon 필드로 admin-format.ts 에 함께 정의(기관=org, 배정=participant-add, 사용자·역할=participants, 실무자 초대=invite, AI·STT·연결=settings — 전부 기존 ShellIconName).",
+      "wiring": "layout.tsx 가 getMyIdentity() → adminMenuFor(me.roles) 로 adminItems 를 만들어 넘김. ApiError 면 묶음만 빼고 화면은 그린다(메뉴는 안내이지 방어)."
+    },
+    "users_page": {
+      "file": "apps/web/app/admin/users/page.tsx",
+      "what": "GET /users(legacy role, admin·counselor 필터) → GET /settings/accounts(역할 합 디렉터리)로 교체. 역할 대기(roles=[]) 계정이 '역할 대기' 배지로 보인다 — 구 필터는 이 사람들을 숨겨 역할을 줄 수 없었다. 우열에 '역할' 구획(UserRolesEditor) + '담당 당사자' 구획. 페이지 제목을 탭 이름과 같은 '사용자·역할'로 맞췄다.",
+      "editor": "apps/web/app/admin/users/user-roles-editor.tsx — WireChoice 체크박스 3개(기관 관리자·기관 기술 관리자·실무자). 저장 시 FormData 에 roles + expectedRoles(화면이 읽어 둔 현재 역할, supervisor 제외)를 실어 updateAccountRolesAction 호출. supervisor(실무 책임자)는 파생 역할이라 읽기 배지로만 표시.",
+      "detail_page": "apps/web/app/admin/users/[id]/page.tsx 도 디렉터리로 교체 — legacy role 라벨이 역할 대기·기술 관리자 계정을 '담당 실무자'로 잘못 표시하는 것을 고침. '기관' 행은 DirectoryAccount 에 orgId 가 없고 기계 식별자라 뺐다."
+    },
+    "invite_page": {
+      "file": "apps/web/app/admin/invite/page.tsx + worker-invite-issue.tsx",
+      "what": "getMyIdentity() 로 발급자가 institution-admin 인지 읽어 canGrantRoles 를 넘긴다. 기관 관리자는 역할 체크박스 3개(실무자 기본 선택, 1개 이상 필수)를 보고, 기술 관리자만 있는 사람은 역할 칸 없이 '역할 대기 초대만 만들 수 있다'는 안내와 함께 빈 roles 로 발급한다. 신원 조회 실패 시 카드 자리에 오류를 보여 준다(조용히 역할 대기 모드로 내리면 관리자가 역할을 못 담는다).",
+      "api": "createStaffInvite(email, roles) 가 roles 를 받게 됨 — 서버는 저장 이름(institution_admin·institution_technical_admin·practitioner)을 받는다."
+    },
+    "api_client": "apps/web/app/lib/api.ts — listDirectoryAccounts(), updateAccountRoles(userId, {roles, expectedRoles}), AssignableRole·StaffInviteRole·DirectoryAccount·DirectoryAccounts 타입 추가.",
+    "actions": "apps/web/app/actions.ts — updateAccountRolesAction(FormData: userId·roles·expectedRoles, 성공 시 revalidatePath('/admin/users')), createStaffInviteAction 이 roles 를 FormData 에서 읽어 전달."
+  },
+  "server_contract_findings": {
+    "self_role_change": "허용된다 — 단 자기 institution_admin 회수만 금지(gateway.ts:26316 'cannot remove your own institution admin role'). 기관 관리자가 자기에게 실무자 역할을 더하는 것(Q 의 막힌 상황)은 서버가 허용하고 화면도 허용한다. 본인 행에서는 기관 관리자 체크칸을 잠그고 '자기 기관 관리자 역할은 스스로 뺄 수 없습니다'를 보여 준다.",
+    "last_admin_protection": "있다 — ACCOUNT_MUTATION_GUARD_SQL(gateway.ts:26256)이 마지막 institution_admin·institution_technical_admin 회수를 막는다(대체자가 있어야 회수 가능). 위반 시 409.",
+    "who_can_change_roles": "기관 관리자만 — assertDirectoryAccess('roles') 가 institution-admin 을 요구하고, 가드 SQL 도 역할 변경 시 technical-admin 을 배제한다. 기술 관리자는 목록 조회(canManageRoles=false)까지만.",
+    "optimistic_concurrency": "expectedRoles 는 필수이고 현재 역할과 정확히 일치해야 한다 — 불일치·마지막 관리자 회수 모두 409(conflict). 화면은 409 시 '다른 곳에서 바뀌었거나 마지막 관리자' 문구 + router.refresh() 로 최신 상태를 다시 읽는다. 우회(null·빈 배열) 0건.",
+    "invite_role_cap": "서버가 강제한다 — createStaffInvite(gateway.ts:24838) 가 기관 관리자는 roles 1개 이상 필수, 기술 관리자만 있으면 빈 roles 만 허용(D86 결정 3). 화면은 자기가 줄 수 있는 역할만 보여 준다.",
+    "role_names": "PATCH .../roles 는 공개 이름(institution-admin·technical-admin·worker), POST /staff-invites 는 저장 이름(institution_admin·institution_technical_admin·practitioner) — 둘이 다르다. supervisor 는 어느 쪽에도 실을 수 없는 파생 역할."
+  },
+  "verification": {
+    "typecheck": "pnpm --filter @ccc/web typecheck — 내 범위 파일은 오류 0. 단 지금 워크트리에 FixBusinessScreenBlock 의 미커밋 사업 도입 코드(apps/web/app/actions.ts updateProgramAdmission)가 있어 그 파일 1294-1295행에서 input.confirmation possibly undefined 2건이 난다. 내 파일이 아니라 건드리지 않았고 Main 에 통보했다.",
+    "test": "pnpm --filter @ccc/web test — 76 파일 654 테스트 전부 통과(2026-09-17 재실행). 내 범위 3개 파일 41 테스트: app-sidebar.test.tsx(관리 묶음 표시·역할 없음 비표시), users/page.test.tsx(expectedRoles 실음·409 문구·canManageRoles=false·본인 잠금·역할 대기 배지), worker-invite-issue.test.tsx(역할 선택·기술 관리자 역할 칸 없음).",
+    "design_routes": "pnpm test:design-routes — 통과(새 라우트 없음, route-inventory.json 변경 없음)",
+    "guards": "guard:tokens 위반 0 · guard:align 위반 0 · guard:hierarchy 새 위반 0(기준선 기존 2건) · guard:consent-copy 4 테스트 통과",
+    "render": "로컬(웹 3106 + API 8876, CCC_LOCAL_PREVIEW)에서 실측: 사이드바 '관리' 묶음 5항목 렌더, /admin/users 목록에 역할 배지(기관 관리자+기관 기술 관리자 겸임 표시), 선택 시 역할 체크박스·힌트·저장 버튼, 본인 행 기관 관리자 칸 잠김+이유 문구, /admin/invite 역할 체크박스와 '실무자 역할이 없으면 상담 기록을 쓸 수 없습니다' 문구.",
+    "live_save": "로컬에서 실제로 저장까지 됐다(하이드레이션 살아 있었음) — account@bss.or.kr 에 실무자 역할을 화면에서 추가해 목록 배지가 '기관 관리자·기관 기술 관리자·실무자'로 바뀐 것을 확인. 로컬 DB 변경이며 운영 무관.",
+    "live_role_grant": "2026-09-17 로컬 실측: PATCH /settings/accounts/:id/roles 로 counselor-01 에 institution-admin 부여(users.role=counselor 그대로, 운영 Q 와 동일한 어긋남 상태) → LOCAL_DEV_ACTOR_EMAIL 을 그 계정으로 바꿔 API 재기동 후 /me·/program-options·/participants·/settings/accounts 전부 200. db04226b 이후 역할 편집기가 만드는 상태로 업무 화면이 실제로 열린다. 검증 뒤 actor 원복·API 재기동 완료."
+  },
+  "tests_added": [
+    "app-sidebar.test.tsx — adminItems 없으면 관리 묶음 없음 / 기관 관리자 4항목+AI 탭 제외 / 기술 관리자 3항목만",
+    "users/page.test.tsx — 역할 대기 계정 표시 / 저장 요청이 expectedRoles 를 싣는지 / 409 시 사람이 읽는 문구 / canManageRoles=false 면 칸 대신 안내 / 본인 행 관리자 칸 잠김 / 실무자-상담기록 문구",
+    "worker-invite-issue.test.tsx — 기존 3건 복원(canGrantRoles prop 반영) + 역할 선택 4건(기본 실무자·고른 역할이 요청에 실림·모두 끄면 잠김·기술 관리자는 빈 roles)"
+  ],
+  "scope_guard": {
+    "packages_changed": 0,
+    "migrations": 0,
+    "server_contract_changes": 0,
+    "permission_relaxation": 0,
+    "prod_db": 0,
+    "deploy": 0,
+    "new_routes": 0,
+    "commit_files": "git show --stat — 내가 만진 13개 파일뿐, 남의 파일 0건"
+  },
+  "notes": [
+    "워크트리가 main 에 체크아웃돼 있어 feat/direct-login 으로 전환 후 main 을 병합했다(e60fc644). 브랜치의 기존 커밋이 #337 스쿼시로 main 에 이미 있어 충돌 4건을 전부 main 버전으로 해소.",
+    "로컬 dev 서버(3106·8876)는 11시간 된 hung 프로세스라 재기동했다. 웹은 CCC_LOCAL_PREVIEW=true 가 필요해 그 플래그로 띄움.",
+    "역할 편집기는 <form> 없이 버튼 onClick + FormData 로 서버 액션을 부른다 — 기존 '배정을 바꾸는 폼을 두지 않는다' 테스트(querySelector('form') === null)를 그대로 유지.",
+    "UserRolesEditor 의 key 를 account.id+roles 로 둬 저장 후 refresh 시 새 props 로 리마운트된다."
+  ],
+  "users_role_readers_audit": {
+    "request": "Main 요청 — users.role 을 정본으로 읽는 자리를 전부 찾아 어긋남이 문제를 일으키는지 확인",
+    "readers": [
+      "assertNotLastActiveAdmin(gateway.ts:14442) — users.role=admin 카운트. 레거시 POST /users·deactivate 경로에서만 호출. canonical 경로는 ACCOUNT_MUTATION_GUARD_SQL 이 막는다.",
+      "reactivateUser(15024) — users.role=counselor 만 재활성화 허용. 어긋난 admin 계정은 이 레거시 경로로 재활성화 불가.",
+      "upsertUser(14945) — last-admin 가드가 users.role 을 본다. 이 경로로 role 을 바꾸면 0040 트리거가 legacy 행을 무조건 INSERT 해 manual 행과 유일 제약 충돌로 실패한다.",
+      "당사자 재등록 creationBoundary(17231) — assigned_user.role=counselor 검사. 관리자가 실무자 역할만 더한 계정(users.role=admin)이 담당자일 때 재등록이 막힐 수 있다. 실질 기능 영향은 이곳 하나.",
+      "getMyIdentity·getInstitutionReadiness·activeSponsorActor·acceptStaffInvite — 감사 메타·표시용.",
+      "programStaffOptions(16079)·1인 기관 자기배정 카운트(23695)·assertActiveHumanUser — IN (admin,counselor) 절이라 실질 무해."
+    ],
+    "conclusion": "독자는 적고 대부분 레거시 경로·감사 메타다. 당장 기능이 깨지는 곳은 재등록 경계 하나. 0040 트리거 함정(직접 role 수정이 유일 제약으로 막힘)은 next-version-backlog.json 에 기록했다."
+  }
+}

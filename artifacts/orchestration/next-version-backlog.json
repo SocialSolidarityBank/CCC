@@ -29,6 +29,13 @@
       "severity": "next-version",
       "found_by": "ProductionDirectLogin",
       "context": "오늘 GitHub secret CLOUDFLARE_API_TOKEN 이 로테이션 뒤 미갱신이라 schema-gate 가 이 문구로 실패했다. 실제 미적용은 0건이었다."
+    },
+    {
+      "screen": "users.role 직접 수정 경로 (운영 DB·레거시 API)",
+      "what": "0040 트리거 users_sync_independent_roles_after_role_update 는 users.role 이 바뀌면 새 role 의 legacy 역할 행을 무조건 INSERT 한다. 대상 사용자가 같은 역할의 manual 행을 이미 가지고 있으면 uq_user_role_assignments_active 유일 제약으로 UPDATE 자체가 실패한다. 즉 canonical 역할과 어긋난 users.role 을 운영에서 직접 고치는 길이 막혀 있고, POST /users(upsertUser)로 role 을 바꾸는 레거시 경로도 같은 데서 막힌다. db04226b 이후 users.role 은 인가에 쓰이지 않아 급하지 않지만, 어긋난 행을 정합화하려면 manual 행을 먼저 revoke 하고 role 을 바꾼 뒤 다시 부여하는 수순이 필요하다.",
+      "severity": "next-version",
+      "found_by": "AdminRolesAndInviteUI",
+      "context": "users.role 을 정본으로 읽는 자리 목록(2026-09-17 조사): assertNotLastActiveAdmin(레거시 POST /users·deactivate 경로만), reactivateUser(counselor 전용 게이트), upsertUser 의 last-admin 가드, 당사자 재등록 creationBoundary 의 assigned_user.role=counselor 검사(기관 관리자가 실무자 역할만 더한 계정이 담당자일 때 재등록이 막힐 수 있음), getMyIdentity·getInstitutionReadiness·activeSponsorActor·acceptStaffInvite(감사 메타·표시용), programStaffOptions·1인 기관 자기배정 카운트(IN 절이라 실질 무해), assertActiveHumanUser(존재 확인만). 대부분 레거시 경로 또는 감사 메타라 당장 기능이 깨지는 곳은 재등록 경계 하나뿐이다."
     }
   ]
 }

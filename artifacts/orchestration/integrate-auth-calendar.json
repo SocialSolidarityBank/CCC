@@ -1,0 +1,146 @@
+{
+  "task": "integrate-auth-calendar",
+  "date": "2026-09-16",
+  "branch": "feat/direct-login",
+  "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/auth-direct",
+
+  "cherry_pick": {
+    "commit": "35d7f5b8",
+    "landed_as": "475fc61a",
+    "overlap_check": "git show --stat 35d7f5b8 결과 4개 파일(align-harness.test.tsx, schedule/page.test.tsx, schedule/page.tsx, schedule/schedule-view.tsx) 전부 apps/web/app/.../schedule 와 kit 테스트뿐. 62869a68 의 apps/web 30파일과 겹침 0건.",
+    "packages_wire_touched": false,
+    "packages_wire_note": "커밋이 packages/wire 를 건드리지 않아 apps/client 영향 없음. WireMonthCalendar 부품은 이미 있던 것을 import 만 함.",
+    "conflict": "없음, clean cherry-pick"
+  },
+
+  "local_verify": {
+    "install": "pass (pnpm install, already up to date)",
+    "typecheck": "pass (api, web, client, community-cloud, wire)",
+    "test": {
+      "design_routes": "pass — 처음엔 실패했으나 /login 인벤토리 등재 후 통과",
+      "api": "pass — 115 files, 1305 tests",
+      "web": "pass — 74 files, 625 tests",
+      "client": "pass — 21 files, 246 tests",
+      "wire": "pass — 8 files, 55 tests",
+      "scripts": "pass — 31 tests"
+    },
+    "guards": [
+      "guard:sql-dialect pass",
+      "guard:db pass",
+      "guard:core-imports pass",
+      "guard:doc-numbers pass",
+      "guard:consent-copy pass (4 tests)",
+      "guard:tokens pass (위반 0)",
+      "guard:align pass (위반 0)",
+      "guard:hierarchy:test pass",
+      "guard:hierarchy pass (새 위반 0, 기준선 기존 2)",
+      "guard:deploy-verdict pass",
+      "guard:deploy-gates pass"
+    ],
+    "lane_leftover_fixed": {
+      "what": "test:design-routes 실패 — apps/web/app/login/page.tsx 가 route-inventory.json 에 미등재 (inventory=30, page.tsx=31)",
+      "cause": "웹 레인이 /login 페이지를 추가하고 인벤토리를 갱신하지 않은 잔재. cherry-pick 과 무관, 합치기 전에도 실패했을 것.",
+      "fix": "Main 승인으로 /welcome 과 같은 모양의 공개 항목을 추가: permission {state: public, actor: anonymous}, seedFixture \"public/login\". 검사 자체는 손대지 않음. 커밋 08a232fa.",
+      "note": "공개 항목 중 /login 과 성격이 같은 것은 /welcome(인증 없이 닿는 정적 화면). join 계열은 토큰 픽스처가 필요해 다르다."
+    }
+  },
+
+  "pr": {
+    "number": 337,
+    "url": "https://github.com/SocialSolidarityBank/CCC/pull/337",
+    "title": "직접 로그인과 월간 일정 격자",
+    "ci": {
+      "verify": "pass (22m27s)",
+      "design-sweep": "pass",
+      "hierarchy-measure": "pass",
+      "pipeline-test": "pass",
+      "secret-scan": "pass",
+      "electron44-windows-x64": "pass"
+    },
+    "merge": "Main 승인 대기 중. 승인 후 squash 머지."
+  },
+
+  "local_restart": {
+    "web": "http://localhost:3106 (flow-web, auth-direct/apps/web, pnpm dev --port 3106, CCC_API_ORIGIN=http://127.0.0.1:8876 CCC_LOCAL_PREVIEW=true)",
+    "api": "http://127.0.0.1:8876 (flow-api, auth-direct/apps/api, wrangler dev --port 8876)",
+    "old_processes": "release-16 기준 flow-api·flow-web 정지 후 auth-direct 에서 같은 포트로 재기동",
+    "migration": "ccc-local --local 에 0072 까지 적용",
+    "seed": "release-16 의 생성 산출물(scripts/seed/out)을 복사해 seed:apply:local 적용. 재생성하지 않음.",
+    "actor": "apps/api/.dev.vars 의 LOCAL_DEV_ACTOR_EMAIL 을 기관 관리자 계정으로 변경(커밋 안 함). 로컬 D1 에서 해당 계정이 institution_admin·institution_technical_admin 두 역할 행을 갖는 것을 확인."
+  },
+
+  "screen_verification": {
+    "settings": "pass — /settings 가 기관 관리자로 렌더. 내 계정에 역할 '기관 관리자', 기관 실무자 목록, 관리자 설정 링크 다섯 표시.",
+    "admin_area": "pass — /admin 에 관리자 메뉴 다섯 탭(기관·배정·사용자·역할·실무자 초대·AI·STT·연결)과 기관 정보·계정 요약 렌더.",
+    "worker_invite": "pass — /admin/invite 에 실무자 등록 입력과 초대 링크 만들기 폼 렌더. '직접 로그인으로 들어올 사람은 초대 링크를 쓰세요' 안내 문구 표시.",
+    "monthly_grid": "pass — /programs/financial_support_v1/schedule?view=month 에 '2026-09 월간 일정' 테이블, 일~토 7개 columnheader, 날짜 셀에 시드 상담 링크 렌더.",
+    "login_page": "pass — /login 에 이메일·비밀번호 폼 렌더. 실제 로그인은 CCC_SUPABASE_PUBLISHABLE_KEY 미주입으로 불가(정상, 주입 대기).",
+    "server_errors": "API·웹 로그에 5xx 없음. GET /me, /organization/profile, /users, /schedules/month 등 전부 200.",
+    "path_conflict": "두 신원 경로 충돌 없음. 로컬 이중 잠금(LOCAL_ACTOR_HEADER_MODE + Access env 부재)에서 /login 은 공개 페이지로 렌더되고 보호 경로는 local-actor 신원으로 통과."
+  },
+
+  "supabase_confirm_email": "Supabase 프로젝트 qlzwasqwkmenudtfmuql 에서 Confirm email 이 켜져 있음을 2026-09-16 에 Q 가 확인. 이것은 설치 시점에 확인해야 하는 조건 — 다른 기관 설치에서 꺼져 있으면 초대 가로채기 구멍이 생긴다. doctor 의 설치 시점 검사가 실제로 구현돼 있는지는 별도 확인 사항(미구현 시 후속 티켓).",
+
+  "q_steps": [
+    "브라우저에서 http://localhost:3106 을 연다.",
+    "오른쪽 위 '설정'을 누르면 내 계정이 기관 관리자로 보이고 아래에 관리자 설정 다섯 링크가 있다.",
+    "'실무자 초대'를 눌러 이메일을 적고 '초대 링크 만들기'를 누르면 전달할 링크가 나온다.",
+    "왼쪽 메뉴 '일정'을 누르고 '기간 단위'에서 '월간'을 고르면 일~토 7열 달력에 상담이 표시된다.",
+    "직접 로그인 화면은 /login 에서 볼 수 있지만 실제 로그인은 아직 키 주입 전이라 안 된다."
+  ],
+
+  "zero_counts": {
+    "deploy": 0,
+    "production_db_changes": 0,
+    "criteria_relaxation": 0,
+    "other_worktree_modifications": "0 — 단, 실수로 beta-0.9-orchestrator 의 route-inventory.json 에 같은 편집이 한 번 들어갔으나 즉시 git restore 로 되돌렸고 git status clean 확인",
+    "secret_values_printed": 0,
+    "migrations": 0
+  },
+
+  "commit_stats": {
+    "475fc61a": "4 files, +57/-64 — apps/web schedule 격자 연결",
+    "08a232fa": "1 file, +8 — route-inventory.json /login 등재",
+    "foreign_files_in_commits": "없음. 두 커밋 모두 의도한 파일만 포함."
+  },
+
+  "merge": {
+    "approved_by": "Main",
+    "method": "squash",
+    "squash_commit": "7e092194",
+    "main_before": "b6daf62f",
+    "main_after": "7e092194",
+    "title": "직접 로그인과 월간 일정 격자 (#337)"
+  },
+
+  "deployment_readiness": {
+    "what_ships": "오늘 main 에 들어간 것 전부 — 제품 결함 아홉, 계약 드리프트 다섯 갈래, 월간 7열 격자, 직접 로그인과 실무자 초대, /login 인벤토리 등재.",
+    "direct_login_works_after_deploy": "아니오. 배포만으로는 안 된다. 세 가지가 더 필요하다.",
+    "blockers": [
+      {
+        "name": "CCC_SUPABASE_PUBLISHABLE_KEY 미주입",
+        "detail": "웹 워커 ccc 의 secret list 는 비어 있고 vars 에도 없다. apps/web/app/lib/supabase-auth.ts 가 이 값 없이 service_unavailable 로 닫힌다. publishable(공개) 키라 vars 에 커밋하거나 secret 으로 주입하면 된다 — 어느 쪽이든 사람이 넣어야 한다."
+      },
+      {
+        "name": "SUPABASE_AUTH_ORIGIN 은 배포만으로 충족",
+        "detail": "apps/api/wrangler.toml [env.production.vars] 에 값이 커밋돼 있다(공개 값). 배포하면 api 워커에 자동으로 들어간다."
+      },
+      {
+        "name": "운영 admin 의 auth_subject 가 비어 있다",
+        "detail": "운영 D1 ccc 의 users 는 두 행 — admin 계정(role=admin, institution_admin·institution_technical_admin 두 역할 행)과 service 행. 둘 다 auth_subject IS NULL. Supabase JWT 의 sub 는 auth_subject 와 대조하므로 지금은 누구도 직접 로그인으로 Actor 가 되지 못한다(403).",
+        "link_procedure": "scripts/supabase/bootstrap.mjs 의 link-first-admin 오퍼레이션이 있다(ADR-0044 D86, first-admin.mjs). 단 두 가지 한계: ① Supabase Postgres 전용(installer connection, FORCE RLS 해제)이라 운영 D1 에는 그대로 못 쓴다. ② admin_exists 면 FIRST_ADMIN_EXISTS 로 거부한다 — 기존 admin 행에 subject 를 채우는 경로가 아니라 새 admin 을 만드는 경로다. D1 의 기존 admin 행에 auth_subject 를 채우는 절차는 코드에 없다 — 수동 UPDATE(운영 DB 변경, 승인 필요) 또는 새 절차가 필요하다."
+      },
+      {
+        "name": "Cloudflare Access 가 앞에서 막는다",
+        "detail": "실측: https://ccc.account-855.workers.dev/login 과 / 모두 302 → socialsolidaritybank.cloudflareaccess.com. API 도 마찬가지(ccc-api …/me → 302). Access 가 웹·API 둘 다 앞에 있어 /login 화면 자체에 닿지 못한다. 팀원 4명은 Access 계정 없이는 여전히 못 들어온다.",
+        "options": [
+          "A. Access 애플리케이션에서 /login·/login/unlock·/join/worker/*(웹)와 /staff-invites/token/*(API)에 bypass 정책을 둔다 — Access 는 유지하면서 공개 경로만 뚫는다. Access 정책이 경로 단위 bypass 를 지원하는지 확인 필요.",
+          "B. 웹 워커의 Access 애플리케이션을 제거한다 — 앱 자체 세션 게이트(middleware 의 ccc_auth/CF_Authorization 검사)가 남아 보호 경로는 여전히 닫힌다. API Access 는 유지하되 API 도 공개 경로(초대 수락)는 bypass 가 필요하다.",
+          "C. Access 를 완전히 제거한다(웹+API) — 그러면 API 의 ACCESS_TEAM_DOMAIN·ACCESS_AUD vars 도 빼야 Access 레인이 fail closed 되고 Supabase 레인만 남는다. 기존 Access 사용자는 전원 Supabase 계정 + auth_subject 연결이 필요하다."
+        ],
+        "note": "Access 설정 변경은 Q 승인 사안. 실행하지 않았다."
+      }
+    ],
+    "after_deploy_changes": "배포 후 달라지는 것: 월간 격자가 운영 화면에 나오고, /login 페이지 코드와 초대 수락 API 가 배포된다. 아직 안 되는 것: 실제 직접 로그인(위 세 blocker), 팀원 4명의 Access 없는 접근."
+  }
+}
