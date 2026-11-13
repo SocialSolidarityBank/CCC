@@ -1,84 +1,68 @@
 # E2-1 Screen/API Probe Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Goal:** S3의 30개 화면, 93개 endpoint, 47개 PII DTO.field 행을 현재 소스와 오프라인으로 양방향 대조한다. 빈 key 목록은 우회 조건이 아니며 `void`, `{}`, 배열, 객체, scalar를 명시적으로 구분한다.
 
-**Goal:** Add a deterministic, offline verifier that compares the checked S3 screen/API map with the Next route tree, imported server actions, API client calls, request-handler endpoints, DTO wire keys/projections, actor boundaries, PII authorization, and explicitly declared current gaps.
+**Owned files:**
 
-**Architecture:** `scripts/verify-screen-api-map.mjs` will expose one async entry point, `verifyScreenApiMap({ rootDir, map, sourceRoot?, apiSourceRoot? })`. It will discover page entries and route handlers, walk parent layouts and import closures once per route, and compare observations against the machine-readable map. It returns a serializable report (`ok`, `summary`, `routes`, `errors`, `orphans`, `piiMatrix`, `gaps`, and `observed`) rather than performing network or runtime rendering.
+- `scripts/verify-screen-api-map.mjs`
+- `scripts/verify-screen-api-map.test.mjs`
+- `scripts/fixtures/e2-1-screen-api-fixture.json`
+- 이 계획 문서
 
-**Tech Stack:** Node.js ESM, `node:fs/promises`, `node:path`, `node:test`; no new dependency and no root package-script change.
+**Out of scope:** 화면, API handler, gateway, S3 정본, root `package.json` 변경과 네트워크·DB·브라우저 실행.
 
-**Spec:** `docs/specs/S3-screen-api-map.md` (especially §§2.2–2.4, 3, 4.1–4.3, 5, and 8)
+## Success criteria
 
-## Global Constraints
+- [x] `route-inventory.json`과 같은 30개 route를 22 operating + 5 public + 2 redirect + 1 kit으로 명시한다.
+- [x] 93개 endpoint마다 method, path, wire DTO, response kind, exact wire keys, client DTO, projection kind, exact projection keys를 명시한다.
+- [x] 실제 204 응답 두 개만 `responseKind: "void"`로 둔다. `{}`는 `responseKind: "object"`와 빈 key 집합으로 검사한다.
+- [x] required, optional(`?`), nullable(`|null`), array(`[]`), 중첩 key를 TypeScript AST와 type checker로 비교한다.
+- [x] route별 page loader, 각 named action의 call set, rendered component action, root inherited edge, admin inherited edge를 별도 표면으로 기록한다.
+- [x] `apps/web/app/lib/api.ts`의 호출 인수와 literal header 이름·값을 검사한다. public client의 Access/Bearer 사용을 금지하고 fixture에 적힌 public/Preview header만 허용한다.
+- [x] S3 PII matrix를 47개 DTO.field 행으로 펼치고 각 serialized wire field를 endpoint branch, gateway 함수, guard symbol, page route에 연결한다.
+- [x] expected/observed PII 행을 양방향 비교하고 미등록 민감 필드 직렬화와 Actor guard 변경을 각각 실패시킨다.
+- [x] endpoint identity를 `method path [wireDto]`로 유지하고 route call, client projection, handler wire shape를 양방향 대조한다.
+- [x] `POST /ai/provider/activate-runtime`은 실제 wire 객체와 body를 버리는 `void` client projection을 서로 다른 계약으로 기록한다.
+- [x] `fixture` sentinel과 빈 key 일반 우회 분기를 제거한다.
+- [ ] 요청에 따라 이 작업 세션에서는 focused suite, smoke, lint, typecheck를 실행하지 않는다.
 
-- The input route set is the 30 unique `routePattern` rows from `scripts/design/route-inventory.json`: 22 operating, 5 public, 2 redirects, and 1 `/kit` control route.
-- Root layout shell calls/actions and `/admin` layout identity guard are inherited by descendants exactly once; public routes exclude the business shell.
-- Endpoint identity is the exact request-handler method plus path; response objects use exact wire keys, and client projections are checked separately.
-- `/` may declare `GET /me` only as its destination-selection prerequisite; other redirect rows have no rendered-screen API/DTO.
-- Production public join is token-only; preview join is token plus `ccc_preview` preview Actor; public preview unlock starts with code/no Actor and produces the preview cookie; service Actor never satisfies a human PII row.
-- Orphan endpoint/action rows and current contract observations remain named as `unmapped-by-current-page`/declared gaps; they are not counted as implemented screen coverage.
-- The probe is deterministic and offline: no fetch, browser, Next runtime, database, or package installation; it does not edit the root `package.json`.
+## Implementation map
 
----
+### 1. Source discovery and provenance
 
-### Task 1: Implement the verifier against the red contract
+`page.tsx`, root/admin layout, 상대 import closure, rendered JSX component, `actions.ts`, `theme-action.ts`, `logout-action.ts`, `preview/unlock/route.ts`, API handler와 gateway를 읽는다. 페이지 기본 함수에서 도달 가능한 loader call과 action/component 경계를 분리한다. 같은 endpoint 총집합이어도 다른 표면으로 옮기면 `route-action-surface-mismatch`로 실패한다.
 
-**Files:**
-- Create: `scripts/verify-screen-api-map.mjs`
-- Reference: `scripts/verify-screen-api-map.test.mjs`
-- Reference: `scripts/fixtures/e2-1-screen-api-fixture.json`
-- Reference: `docs/specs/S3-screen-api-map.md`
+### 2. Endpoint and DTO contracts
 
-**Interfaces:**
-- Consumes a parsed JSON map with `routes`, `inherited.root`, `inherited.admin`, `endpoints`, `pii`, and `gaps` fields. `routes` contain `routePattern`, `page`, `kind`, `pageApis`, `actions`, and optional `routeHandler` entries.
-- Produces `verifyScreenApiMap(options)`, where `options.rootDir` is the source root and `options.map` is the checked map. Optional `sourceRoot` and `apiSourceRoot` default to the map values.
-- Produces diagnostics with stable `error.code` values used by the red tests: `route-not-found`, `inherited-duplicate`, `page-api-missing`, `endpoint-wire-keys-mismatch`, `endpoint-projection-mismatch`, `endpoint-method-path-mismatch`, and `public-auth-leak`.
+API client의 method/path와 함수 반환 DTO를 읽고 request-handler의 성공 응답을 찾는다. TypeScript type을 await한 뒤 object/array/scalar/void로 분류하고 모든 scope의 exact key, optional, nullable, array 의미를 비교한다. endpoint catalog와 source branch 어느 한쪽에만 있는 method/path도 실패한다.
 
-- [ ] **Step 1: Discover route/page and handler surfaces**
+### 3. Public authentication boundary
 
-Enumerate `page.tsx` below `sourceRoot`, normalize bracket parameters to `:param`, and compare the observed unique set to the 30 map rows. Discover `preview/unlock/route.ts` separately, without adding it to the 30 page count. Emit `route-not-found` for an expected page absent from the tree and a distinct duplicate diagnostic for duplicate normalized route keys.
+`Headers` 생성자, object/tuple header initializer, `headers` 속성, `.set()`/`.append()`, API 호출 인수를 AST로 읽는다. public client는 `Authorization`, Bearer, Cloudflare Access header와 `accessHeaders()` 전이를 사용할 수 없다. header 이름과 값은 projection별 fixture 목록과 exact match한다.
 
-- [ ] **Step 2: Walk layout and import closures with deduplication**
+### 4. PII structural trace
 
-For each page, walk `layout.tsx` ancestors and statically follow relative imports. Attach RootLayout's `GET /organization/profile` and `GET /participants/new-signup-count`, plus `toggleThemeAction` and `logoutAction`, once per route. Attach `GET /me` from `admin/layout.tsx` once to `/admin` descendants. Public rows must receive neither inherited business shell calls nor shell actions.
+47개 행 각각에 DTO.field, serialized wire field, Actor 설명, page route, endpoint, gateway 함수, guard symbol을 둔다. 중첩 DTO가 여러 wire 위치에 쓰이면 trace별 `wireField`를 둔다. 실제 응답 field 누락과 추가 민감 field를 모두 검사하고 service/잘못된 human guard 대체를 허용하지 않는다.
 
-- [ ] **Step 3: Match page/action calls to endpoint catalog**
+### 5. Regression diagnostics
 
-Extract API client calls from page/import closures and exported action calls from `actions.ts`/action imports. Include action prechecks and route-handler calls. Compare every observed method/path/DTO tuple with its route row and endpoint catalog; report page/action omissions and method/path mismatches rather than silently dropping calls.
+Focused test는 다음 source-only mutation이 서로 다른 code를 내는지 고정한다.
 
-- [ ] **Step 4: Validate wire keys and client projections**
+- method/path: `endpoint-method-path-mismatch`
+- DTO: `endpoint-dto-mismatch`
+- wire key/kind/optional/null: `endpoint-wire-shape-mismatch`
+- client projection key/kind/optional/null: `endpoint-projection-mismatch`
+- cross-surface action 이동: `route-action-surface-mismatch`
+- 미등록 PII field: `pii-unauthorized-field`
+- Actor/gateway guard 변경: `pii-actor-guard-mismatch`
+- public Access/Bearer literal: `public-auth-leak`과 `public-header-mismatch`
 
-Parse the request-handler response declarations and API client decoder/projection declarations. Compare required, optional, nullable, nested, and envelope keys as exact sets. Keep wire keys and projection keys as separate report fields so dropped/merged client fields are visible. Treat `/preview/unlock` API JSON `{token,maxAgeSeconds,expiresAt}` and web projection `{token,maxAgeSeconds}` as separate, explicit boundaries.
+## Deferred verification
 
-- [ ] **Step 5: Enforce redirect, credential, Actor, orphan, PII, and gap contracts**
-
-Validate the `/` prerequisite exception and canonical schedule redirect. Reject Access/Bearer/`accessHeaders`/business-shell use on public rows, while preserving the production token-only versus preview-cookie-plus-preview-Actor distinction. Return the catalog's `unmapped-by-current-page` endpoint/action rows in `orphans`, copy the PII allowlist to `piiMatrix`, and return declared `gaps` unchanged with no inferred implementation status.
-
-- [ ] **Step 6: Run the focused test and then the repository gates**
-
-The red-stage command already recorded by this ticket is:
+사용자 지시에 따라 구현 후 명령은 정의만 하고 실행하지 않는다.
 
 ```bash
 node --test scripts/verify-screen-api-map.test.mjs
 ```
 
-Before implementation, it must fail immediately with `ERR_MODULE_NOT_FOUND` for `scripts/verify-screen-api-map.mjs`. After implementation, run this focused file first, then let the parent session run the repository-wide tests and any format/type checks once all sibling changes are present.
-
-- [ ] **Step 7: Commit the green implementation separately**
-
-```bash
-git add scripts/verify-screen-api-map.mjs scripts/verify-screen-api-map.test.mjs scripts/fixtures/e2-1-screen-api-fixture.json docs/superpowers/plans/2026-09-03-E2-1-screen-api-probe.md
-git commit -m "feat: add deterministic screen API probe"
-```
-
-The red-stage commit contains only the plan, focused tests, and fixture data. The follow-up GREEN commit adds only `scripts/verify-screen-api-map.mjs`; it must not add a root `package.json` edit.
-
-## Test Coverage Map
-
-- `valid fixture finds all 30 routes...`: route total/subtotals plus one-time RootLayout/admin layout inheritance and public shell exclusion.
-- `missing page entries...`: absent route, duplicate inherited edge, and omitted page API diagnostics.
-- `endpoint method/path...`: independent exact method/path, wire-key, and projection failures.
-- `redirect exceptions...`: explicit redirect allowlist plus public credential and Preview Actor surface distinctions.
-- `orphan endpoints...`: orphan catalog preservation, PII matrix preservation, and declared-gap preservation without false implementation.
-- `real-repository smoke...`: source-only real-repo discovery, 30 observed page routes, nonzero endpoint observation, and zero network requests.
+Focused suite에는 synthetic valid map, 독립 mutation, zero-key object, 47-row PII 양방향 검사와 실제 저장소 offline smoke(`ok === true`, networkRequests `0`)가 포함된다. 다음 검증 세션에서 위 명령을 실행한 뒤 필요하면 저장소 공통 gate를 별도로 실행한다.
