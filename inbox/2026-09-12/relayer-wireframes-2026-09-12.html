@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>릴레이어 화면 와이어프레임 (2026-09-12)</title>
+<style>
+:root{--surface-0:#eeeeec;--surface-1:#f6f6f4;--surface-2:#ffffff;--border:#cfcfca;--border-strong:#8f8f88;--text-primary:#1f1f1d;--text-secondary:#55554f;--text-muted:#8a8a82;--text-danger:#9a2f2f}
+*{box-sizing:border-box}
+body{margin:0;padding:24px;font-family:"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;font-size:12px;line-height:1.45;color:var(--text-primary);background:#fff;max-width:1180px}
+h1{font-size:20px;font-weight:500;margin:0 0 4px}
+h2{font-size:16px;font-weight:500;margin:36px 0 10px;padding-top:12px;border-top:1px solid var(--border-strong)}
+.meta{color:var(--text-secondary);margin-bottom:8px}
+.toc{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px}
+.toc a{color:var(--text-secondary);text-decoration:none;border:0.5px solid var(--border-strong);border-radius:10px;padding:1px 9px}
+.wf{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.col-h{font-size:14px;font-weight:500;padding:6px 8px;border-bottom:0.5px solid var(--border-strong);margin-bottom:8px;display:flex;justify-content:space-between}
+.col-h span:last-child{font-weight:400;color:var(--text-secondary)}
+.pg{border:1px solid var(--border-strong);border-radius:6px;padding:8px;background:var(--surface-1);margin-bottom:10px}
+.ph{font-weight:500;font-size:13px;margin-bottom:6px;display:flex;justify-content:space-between}
+.ph small{font-weight:400;color:var(--text-muted);font-size:11px}
+.b{border:0.5px solid var(--border-strong);border-radius:4px;padding:7px 8px;margin-bottom:6px;background:var(--surface-2)}
+.b.rail{border-style:dashed;background:var(--surface-1)}
+.b.fold{border-style:dashed}
+.b.mod{margin-left:14px;border-style:dashed}
+.b.warn{border-width:1.5px}
+.t{font-weight:500;display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+.t small{font-weight:400;color:var(--text-muted);font-size:11px;white-space:nowrap}
+.f{border:0.5px solid var(--border);border-radius:3px;height:20px;margin-top:5px;background:var(--surface-1);position:relative}
+.f.ta{height:40px}
+.f::after{content:attr(data-l);position:absolute;left:6px;top:2px;color:var(--text-muted);font-size:11px;white-space:nowrap;overflow:hidden;max-width:95%}
+.row{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap}
+.chip{border:0.5px solid var(--border-strong);border-radius:10px;padding:0 7px;font-size:11px;color:var(--text-secondary);line-height:18px}
+.chip.on{background:var(--surface-0);color:var(--text-primary)}
+.st{font-size:11px;padding:0 6px;border-radius:3px;background:var(--surface-0);color:var(--text-secondary);display:inline-block;margin-top:4px}
+.n{color:var(--text-muted);font-size:11px;margin-top:3px}
+.rq{font-size:11px;color:var(--text-danger)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:5px}
+.pair div{border:0.5px solid var(--border);border-radius:3px;padding:3px 5px;font-size:11px;color:var(--text-secondary)}
+.tabs{display:flex;border-bottom:1px solid var(--border-strong);margin:6px 0 8px}
+.tab{padding:4px 10px;font-size:12px;color:var(--text-secondary);border-bottom:2px solid transparent}
+.tab.on{color:var(--text-primary);border-bottom-color:var(--text-primary);font-weight:500}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tile{border:0.5px solid var(--border);border-radius:4px;padding:6px;font-size:11px;background:var(--surface-1)}
+.tile b{font-weight:500;display:block;font-size:12px;color:var(--text-primary)}
+.lg{font-size:11px;color:var(--text-secondary);margin-top:10px;display:flex;gap:14px;flex-wrap:wrap}
+.note{border-left:3px solid var(--border-strong);padding:4px 10px;margin:8px 0;color:var(--text-secondary)}
+@media (max-width:760px){.wf{grid-template-columns:1fr}}
+@media print{body{padding:0}h2{break-before:page}}
+</style>
+</head>
+<body>
+<h1>릴레이어 화면 와이어프레임</h1>
+<div class="meta">2026-09-12. 레포 main 기준. 인수인계 문서 handoff-record-intake-redesign-2026-09-12.md, 정의서 relayer-definitions-v2-2026-09-12.md와 함께 읽는다. 장식 없는 구조 확인용이며 색, 글꼴, 간격은 결정하지 않았다.</div>
+<div class="toc"><a href="#s1">1 오늘 상담 기록</a><a href="#s2">2 첫 상담 기록(인테이크)</a><a href="#s3">3 상담 전 톺아보기</a><a href="#s4">4 당사자 정보</a><a href="#s5">5 상담 흐름 4화면</a><a href="#s6">6 실무자와 기관 5화면</a></div>
+<div class="lg"><span>실선 = 기본 펼침</span><span>점선 = 접힘, 조건부</span><span>굵은 테두리 = 항상 노출, 접히지 않음</span><span>회색 상태표 = 확인함 / 확인 못 함 / 확인 중</span><span>← 현재 N = 흡수한 현재 구획</span></div>
+
+<h2 id="s1">1. 오늘 상담 기록 (현재 record-onepage.tsx 대 제안)</h2>
+<div class="note">확정: 필수는 수기 메모 1개. 이전 기록은 보조 패널(현재 record-side 레일 재사용). 결과 버튼 3 + 안 누르면 "이번에 확인 안 함". 위기도 미선택은 "판단 안 함". 영역 9개 통일.</div>
+<div class="wf">
+<div>
+<div class="col-h"><span>현재 (레포 main)</span><span>레일 3 + 본문 11구획</span></div>
+<div class="b rail"><div class="t">좌측 레일 <small>고정</small></div><div class="n">이번 상담 목표, 미해결 액션 N건, 체크리스트 필수 0/3</div></div>
+<div class="b"><div class="t">1 오늘 확인할 질문 <small>체크, 저장 안 함</small></div><div class="row"><span class="chip">□ 일정 맞춤 질문</span></div></div>
+<div class="b"><div class="t">2 이번 상담에서 확인할 것 <small>목표 없을 때</small></div><div class="f" data-l="한 줄 + 추가"></div></div>
+<div class="b"><div class="t">3 오늘 상담 내용 <span class="rq">필수</span></div><div class="f ta" data-l="수기 메모"></div><div class="f" data-l="상담 일시"></div><div class="row"><span class="chip">대면</span><span class="chip">전화</span><span class="chip">화상</span></div><div class="f" data-l="완료할 일정"></div></div>
+<div class="b"><div class="t">4 세부 목표 구획 <small>D62</small></div><div class="f" data-l="목표 문구, 상태"></div></div>
+<div class="b"><div class="t">5 미해결 액션 처리 <span class="rq">필수</span></div><div class="row"><span class="chip">완료</span><span class="chip">진행 중</span><span class="chip">보류</span><span class="chip">못 함</span><span class="chip">미처리</span></div><div class="f" data-l="처리 메모"></div></div>
+<div class="b"><div class="t">6 생활 6영역 변화 확인 <span class="rq">필수</span></div><div class="n">경제·생계 / 주거 / 일·고용·학업 / 건강 / 심리·정서 / 가족·관계·돌봄</div><div class="row"><span class="chip">괜찮음</span><span class="chip">긴장</span><span class="chip">위기</span><span class="chip">해당없음</span><span class="chip">답변거부</span></div></div>
+<div class="b fold"><div class="t">7 회차 템플릿 항목 <small>준비 중</small></div></div>
+<div class="b"><div class="t">8 새 액션, 다음 만남</div><div class="f" data-l="할 일"></div><div class="row"><span class="chip">당사자</span><span class="chip">실무자</span><span class="chip">기관</span><span class="chip">기한</span></div><div class="f" data-l="지난 상담 이후 달라진 일"></div></div>
+<div class="b"><div class="t">9 위기·안전 확인</div><div class="f ta" data-l="자유 서술"></div></div>
+<div class="b fold"><div class="t">10 리스크 플래그 <small>조건부</small></div><div class="n">□ 위기 발언 □ 연락 두절 위험 □ 주거·생계·건강 급변 □ 부채 악화 □ 약속 불이행 반복 □ 폭력·착취 피해</div></div>
+<div class="b"><div class="t">11 담당 실무자 의견</div><div class="f ta" data-l="자유 서술"></div></div>
+<div class="b rail"><div class="t">바로가기 <small>목차</small></div></div>
+</div>
+<div>
+<div class="col-h"><span>제안</span><span>보조 패널 1 + 본문 6구획, 필수 1</span></div>
+<div class="b rail"><div class="t">[0] 이전 기록 <small>보조 패널 ← 현재 레일, 5</small></div><div class="n">직전 회차 요약 (200자) / 활성 단기목표 ≤3</div><div class="n">남은 약속 전체 (오래된 순)</div><div class="row"><span class="chip">했음</span><span class="chip">진행 중</span><span class="chip">못 함</span></div><div class="n">안 누르면 "이번에 확인 안 함". 못 함 → 계속한다 / 그만둔다(사유)</div><div class="n">남은 물어볼 것 전체</div><div class="row"><span class="chip">확인함</span></div><div class="f" data-l="확인함이면 한 줄"></div></div>
+<div class="b"><div class="t">당사자 카드</div><div class="n">홍OO, 5/12회차, 담당 김OO (자동)</div><div class="f" data-l="상담일 (일정에서 자동)"></div><div class="row"><span class="chip on">대면</span><span class="chip">전화</span><span class="chip">화상</span><span class="chip">방문</span></div><div class="row"><span class="chip">예약 방문</span><span class="chip">예약 없이 내방</span><span class="chip">전화</span><span class="chip">긴급</span></div></div>
+<div class="b"><div class="t">[1] 오늘 상담 내용 <span class="rq">필수</span> <small>← 현재 3</small></div><div class="f ta" data-l="수기 메모 (상담 중 유일하게 열림). 상담 내용만 적어도 저장할 수 있어요"></div><div class="n">저장 후 AI가 [2]~[5] 아래에 제안 표시</div></div>
+<div class="b"><div class="t">[2] 다음까지 하기로 한 것 <small>← 현재 8</small></div><div class="f" data-l="한 줄"></div><div class="row"><span class="chip on">본인</span><span class="chip">담당자</span><span class="chip">기관</span><span class="chip">기한 (선택)</span><span class="chip">+ 줄 추가</span></div></div>
+<div class="b"><div class="t">[3] 다음에 물어볼 것 <small>← 현재 1, 2</small></div><div class="f" data-l="한 줄"></div><div class="row"><span class="chip">+ 줄 추가</span></div></div>
+<div class="b"><div class="t">[5] 담당자 판단 <small>← 현재 9, 10, 11</small></div><div class="n">위기도</div><div class="row"><span class="chip">안정</span><span class="chip">주의</span><span class="chip">위기</span></div><div class="n">미선택 = "판단 안 함" (안정 아님)</div><div class="f ta" data-l="의견 (선택)"></div><div class="n">▸ 위험 표시 직접 하기 (접힘, 6종 한글)</div></div>
+<div class="b fold"><div class="t">추가 기록 <small>접힘</small></div><div class="n">[4] 달라진 것: 영역 선택 + 이전 → 지금 한 줄. 비우면 "이번 회차 미확인". AI 켠 기관은 제안이 미리 채워짐</div><div class="row"><span class="chip">경제·재정</span><span class="chip">일·고용</span><span class="chip">주거</span><span class="chip">신체건강</span><span class="chip">심리·정서</span><span class="chip">가족·관계</span><span class="chip">돌봄·양육</span><span class="chip">법률·행정</span><span class="chip">기타</span></div><div class="n">[6] 목표 상태: 단기목표별 활성 / 달성 / 중단 + 사유</div><div class="n">기관 연계 상세</div></div>
+<div class="row"><span class="chip on">저장</span><span class="st">저장 중 / 저장됨 / 저장 실패</span></div>
+</div>
+</div>
+
+<h2 id="s2">2. 첫 상담 기록(인테이크) (현재 시트 대 제안)</h2>
+<div class="note">확정: 공통 뼈대 + 영역 모듈(선택 2 + 상세 1, 경제·재정은 숫자 2 예외) + 사업 모듈(금융지원, 코드 고정 켜고 끄기). 접힌 모듈은 필수 계산 제외. 지원욕구 선택지 = 영역 9. 4-2 → "다음에 물어볼 것" 카드.</div>
+<div class="wf">
+<div>
+<div class="col-h"><span>현재 (시트 기준일 9/3)</span><span>55문항 전부 표시, 전 항목 필수</span></div>
+<div class="b"><div class="t">1-1 당사자 기본정보, 동의 <small>8</small></div><div class="n">이름, 생년월일, 휴대전화, 이메일, 주소, 성별 (등록 정보 참조), 동의 2</div></div>
+<div class="b"><div class="t">1-2 공적급여 <small>4</small></div><div class="n">기초생활보장 여부, 수급 유형, 차상위 여부, 기타 공적급여</div></div>
+<div class="b"><div class="t">1-3 상담 운영정보 <small>8</small></div><div class="n">상담일, 시각, 실무자, 회차, 방법, 유입 경로, 연락 시간, 연락 주의</div></div>
+<div class="b"><div class="t">1-4 신청 사유 <small>2</small></div></div>
+<div class="b"><div class="t">2 현재 어려움 영역 <small>복수 선택, 아래와 연결 없음</small></div><div class="row"><span class="chip">경제·재정</span><span class="chip">일·고용</span><span class="chip">주거</span><span class="chip">신체건강</span><span class="chip">심리·정서</span><span class="chip">가족·관계</span><span class="chip">돌봄·양육</span><span class="chip">법률·행정</span><span class="chip">기타</span><span class="chip">무응답(삭제필요)</span></div></div>
+<div class="b"><div class="t">2-1 경제 및 부채상황 <small>5 + 반복표</small></div><div class="n">소득 유형, 월 소득, 월 지출, 연체, 부채 현황, 인테이크_대출부채 탭</div></div>
+<div class="b"><div class="t">2-2 일 및 고용 <small>3</small></div></div>
+<div class="b"><div class="t">2-3 주거 <small>3</small></div></div>
+<div class="b"><div class="t">2-4 건강 및 심리정서 <small>5</small></div></div>
+<div class="b"><div class="t">2-5 가족, 관계 및 돌봄 <small>3</small></div></div>
+<div class="b"><div class="t">3-1 우선 필요한 도움 <small>3</small></div><div class="n">1순위, 2순위 지원욕구 (사업 전용 선택지), 상세</div></div>
+<div class="b"><div class="t">3-2 ~ 3-4 <small>5 + 반복표</small></div><div class="n">이전 지원 경험, 연계 기관 표, 도움 요청할 사람, 강점, 상세</div></div>
+<div class="b"><div class="t">4-1 참여 여건 <small>3</small></div></div>
+<div class="b"><div class="t">4-2 추가 확인사항 <small>반복표 4칸</small></div><div class="n">기록지로 안 이어짐</div></div>
+<div class="b"><div class="t">4-3 실무자 판단 <small>4</small></div><div class="n">긴급도, 주요 지원방향(고정 선택지), 전체 목표, 종합의견</div></div>
+</div>
+<div>
+<div class="col-h"><span>제안</span><span>항상 28, 영역당 +3, 사업 모듈 켤 때만</span></div>
+<div class="b"><div class="t">당사자 카드 <small>자동</small></div><div class="n">홍OO, 금융지원, 1회차, 오늘 14:00, 담당 김OO, 동의 상태(녹음 ✓ AI ✗)</div><div class="n">기본정보와 동의는 재입력 없음 → 당사자 정보</div></div>
+<div class="b"><div class="t">1 신청과 기본 <small>공통, 8</small></div><div class="f" data-l="받고 있는 공적급여 (복수 선택 1문항 ← 현재 4)"></div><div class="f" data-l="상담 방법, 유입 경로, 연락 시간, 연락 주의"></div><div class="f" data-l="신청 사유 (선택지 = 영역 9), 배경"></div></div>
+<div class="b"><div class="t">2 현재 어려움 <small>공통, 관문</small></div><div class="n">해당하는 영역을 고르면 그 영역 질문만 열려요</div><div class="row"><span class="chip on">경제·재정</span><span class="chip">일·고용</span><span class="chip on">주거</span><span class="chip">신체건강</span><span class="chip">심리·정서</span><span class="chip">가족·관계</span><span class="chip">돌봄·양육</span><span class="chip">법률·행정</span><span class="chip">기타</span></div></div>
+<div class="b mod"><div class="t">경제·재정 <small>영역 모듈, 열림</small></div><div class="f" data-l="주된 소득 유형"></div><div class="f" data-l="연체·미납 여부"></div><div class="f" data-l="월 소득, 월 지출 (숫자, 예외 유지)"></div><div class="f" data-l="상세"></div></div>
+<div class="b mod" style="margin-left:28px"><div class="t">채무별 상세표 <small>사업 모듈, 금융지원 켠 기관만</small></div><div class="n">기관·채권자, 구분, 잔액, 월 상환액, 연체 상태</div></div>
+<div class="b mod"><div class="t">주거 <small>영역 모듈, 열림</small></div><div class="f" data-l="주거 형태"></div><div class="f" data-l="주거 불안 수준"></div><div class="f" data-l="상세"></div></div>
+<div class="b mod fold"><div class="t">일·고용 / 신체건강 / 심리·정서 / 가족·관계 / 돌봄·양육 / 법률·행정 <small>안 고르면 닫힘</small></div><div class="n">각 선택 2 + 상세 1. 닫힌 모듈은 필수 계산에서 제외</div></div>
+<div class="b"><div class="t">3 필요한 도움과 자원 <small>공통, 9 + 표</small></div><div class="f" data-l="1순위, 2순위 지원욕구 (선택지 = 영역 9)"></div><div class="f" data-l="이전 지원 경험, 연계 기관 표"></div><div class="f" data-l="도움 요청할 사람, 강점, 상세"></div></div>
+<div class="b"><div class="t">4 참여 여건 <small>공통, 3</small></div></div>
+<div class="b"><div class="t">5 다음에 물어볼 것 <small>공통, 반복 2칸 ← 4-2</small></div><div class="f" data-l="항목, 예정 시점"></div><div class="n">저장하면 확인할 것 카드 → 1회차 톺아보기에 올라와요</div></div>
+<div class="b"><div class="t">6 실무자 판단 <small>공통, 4</small></div><div class="row"><span class="chip">위기도: 안정</span><span class="chip">주의</span><span class="chip">위기</span></div><div class="f" data-l="주요 지원방향 (기관 설정 선택지, 없으면 자유 글)"></div><div class="f" data-l="장기목표. 첫 상담에서 합의가 어려우면 비워 두세요"></div><div class="f" data-l="종합의견"></div></div>
+</div>
+</div>
+
+<h2 id="s3">3. 상담 전 톺아보기 (현재 15초 페이지 대 제안)</h2>
+<div class="note">확정: 읽는 화면. AI 관여 칸마다 상태표. 위험 표시 띠는 항상. 전체 목표 수정과 회차별 정리는 이 화면에서 뺀다. 오늘 물어볼 것은 출처 셋 구분. 개수는 상단 압축 + 전체 N건.</div>
+<div class="wf">
+<div>
+<div class="col-h"><span>현재 (briefing-cards.tsx)</span><span>7구획</span></div>
+<div class="b warn fold"><div class="t">확인된 리스크 N건 <small>확정 있을 때만</small></div><div class="n">없으면 아무것도 안 보임</div></div>
+<div class="b"><div class="t">HERO</div><div class="n">사업, 상담일, 상담 방식, 최근 상담</div><div class="row"><span class="chip">당사자 정보</span><span class="chip">상담 기록 확인</span><span class="chip on">상담 기록</span></div></div>
+<div class="b"><div class="t">전체 목표 <small>여기서 수정 가능</small></div><div class="f" data-l="한 문장, 저장/취소"></div><div class="f" data-l="세부 목표 트리"></div></div>
+<div class="b"><div class="t">오늘 만나기 전 꼭 기억할 것</div><div class="f" data-l="세션 목표: 연결된 일정의 세션 목표가 없습니다"></div><div class="f" data-l="맞춤형 질문 (저장 안 함)"></div><div class="f" data-l="AI 제안 (최대 3): 전체 목표를 설정하면 더 정확해집니다"></div></div>
+<div class="b"><div class="t">상담 내용 회차별 정리 <small>승인 대기 N건</small></div><div class="f" data-l="회차 줄, 수기/AI, 검토할 AI 초안"></div></div>
+<div class="b"><div class="t">내용 불일치</div><div class="f" data-l="검출된 불일치가 없습니다"></div><div class="n">대조를 했는지 못 했는지 구분 없음</div></div>
+<div class="b"><div class="t">미해결 액션</div><div class="f" data-l="담당, 기한, 출처 회차"></div></div>
+</div>
+<div>
+<div class="col-h"><span>제안</span><span>7구획, 모든 칸에 상태</span></div>
+<div class="b warn"><div class="t">위험 표시 <small>항상 표시, 접히지 않음</small></div><div class="n">확인된 위험 표시 2건: 부채 악화(3회차), 연락 두절 위험(4회차)</div><div class="n">없을 때: "위험 표시 없음" + <span class="st">AI 확인: 4회차까지</span> 또는 <span class="st">녹음 없어 AI 확인 안 함</span></div></div>
+<div class="b"><div class="t">당사자 카드 <small>← 현재 HERO</small></div><div class="n">홍OO, 금융지원, 5/12회차, 오늘 14:00 대면</div><div class="row"><span class="chip on">오늘 상담 기록</span><span class="chip">당사자 정보</span><span class="chip">상담 기록</span></div><div class="n">검토할 AI 초안 2건 → AI 초안 검토 (승인 전이라 아래에 안 나와요)</div></div>
+<div class="b"><div class="t">목표 <small>읽기 전용</small></div><div class="n">장기목표: 채무 조정 후 월세 안정 <span class="st">합의 목표</span> (없으면 1순위 지원욕구 + "합의 목표 아님")</div><div class="n">단기목표 (활성 2): ① 신용회복 신청 ② 월세 미납 정리</div><div class="n">이번 상담 목표: 서류 준비 상태 점검</div><div class="n">수정은 당사자 정보 > 목표와 계획에서</div></div>
+<div class="b"><div class="t">직전 회차 요약 <small>4회차, 새로 나온 것만</small></div><div class="f ta" data-l="200자 이내, 안전 관련 맨 위, 근거 인용 →"></div><div class="n"><span class="st">AI 요약, 승인됨</span> 또는 <span class="st">수기 회차, 요약 없음</span></div></div>
+<div class="b"><div class="t">오늘 물어볼 것</div><div class="n">남은 물어볼 것 3</div><div class="f" data-l="어머니 명의 대출 남았는지, 2회차, [확인함]"></div><div class="n">상담 계획에 적은 것 1 <span class="st">내가 적음</span> (카드 통합 시 위로 흡수)</div><div class="n">AI 제안 2 <span class="st">AI, 근거 회차 →</span>, 3건 더</div></div>
+<div class="b"><div class="t">남은 할 일 <small>오래된 순</small></div><div class="f" data-l="위험 관련 맨 위 고정"></div><div class="f" data-l="신용정보조회서 발급, 본인, 3회차, 기한 9/10"></div><div class="n">전체 7건 보기 →, 3건은 지난 회차에 "확인 안 함"</div></div>
+<div class="b"><div class="t">기록 간 확인이 필요한 내용 <small>← 현재 내용 불일치</small></div><div class="n">부채 총액 <span class="st">확인 중</span></div><div class="pair"><div>2회차: 2,400만원</div><div>4회차: 3,100만원</div></div><div class="n">어느 쪽이 맞는지는 판단하지 않았어요. 오늘 확인해 주세요.</div><div class="n">해당 없음 <span class="st">확인함: 4회차까지 대조</span> / <span class="st">확인 못 함: AI 꺼짐, 숫자만 대조</span></div><div class="row"><span class="chip">+ 직접 확인 필요 추가</span></div></div>
+</div>
+</div>
+
+<h2 id="s4">4. 당사자 정보 (현재 두 페이지 대 제안 탭 4)</h2>
+<div class="note">확정: 당사자 카드 고정 + 사례 선택. 탭 순서 상담 기록 → 경과 리포트 → 목표와 계획 → 정보. 기본 열림 상담 기록. AI 없는 회차 한 줄은 구조화 값 조립.</div>
+<div class="wf">
+<div>
+<div class="col-h"><span>현재 (두 페이지)</span><span>당사자 정보 + 상담 기록 화면</span></div>
+<div class="pg"><div class="ph">/participants/[id] 당사자 정보</div>
+<div class="b"><div class="t">당사자 정보</div><div class="n">기본정보, 담당, 기본정보 수정</div></div>
+<div class="b"><div class="t">동의</div><div class="n">전문 보기, 동의서 편집, 저장</div></div>
+<div class="b"><div class="t">최신 일정</div><div class="row"><span class="chip">상담 등록</span><span class="chip">상담 기록 확인</span></div></div>
+<div class="b"><div class="t">참여 중인 사업 <small>사업마다 반복</small></div><div class="row"><span class="chip">인테이크</span><span class="chip">상담 기록 확인</span><span class="chip">종결</span></div><div class="n">목표 트리: 전체 목표, 세부 목표, 이력 보기</div></div>
+</div>
+<div class="pg"><div class="ph">…/programs/[case]/records 상담 기록 화면</div>
+<div class="b"><div class="t">전체 목표 <small>15초 페이지에서 설정</small></div></div>
+<div class="b"><div class="t">회차별 기록 <small>회차마다 펼침</small></div><div class="f" data-l="회차, 리스크, 수기 배지"></div><div class="n">이번 상담의 목표, 수기 메모, 담당 실무자 의견, 액션 아이템, 생활 6영역, 승인된 핵심 한 줄, AI 제안, 불일치 보기</div></div>
+<div class="b fold"><div class="t">리포트 <small>화면 없음</small></div></div>
+</div>
+</div>
+<div>
+<div class="col-h"><span>제안</span><span>/participants/[id]</span></div>
+<div class="b"><div class="t">당사자 카드 <small>탭 위 고정</small></div><div class="n">홍OO, 담당 김OO, 동의: 개인정보 ✓ 녹음 ✓ AI ✗</div><div class="n">사례: <span class="chip on">금융지원 5/12회차</span> <span class="chip">주거지원 2회차</span></div><div class="row"><span class="chip on">상담 전 톺아보기</span><span class="chip">오늘 상담 기록</span><span class="chip">상담 등록</span></div><div class="n">다음 일정: 9/15 14:00 대면</div></div>
+<div class="tabs"><span class="tab on">상담 기록</span><span class="tab">경과 리포트</span><span class="tab">목표와 계획</span><span class="tab">정보</span></div>
+<div class="b" style="border-width:1.5px"><div class="t">탭 1 상담 기록 <small>사례별, 최근 회차 맨 위, 기본 열림</small></div><div class="f" data-l="첫 상담 기록(인테이크), 7/2, 원문 보기"></div><div class="f" data-l="5회차, 9/8, ⚑, 서류 제출 완료, 채무 조정 접수 대기, AI"></div><div class="n" style="padding-left:10px">▾ 요약 200자 (톺아보기의 직전 회차 요약과 같은 것)</div><div class="n" style="padding-left:10px">▾ 원문 보기: 수기 메모, 의견, 할 일, 달라진 것, 위험 표시, 승인된 AI 초안</div><div class="f" data-l="4회차, 8/25, 위기도 주의, 할 일 2, 달라진 것: 주거, 수기"></div><div class="n">수기 회차 한 줄은 구조화 값으로 조립 (AI 없이). 요약은 "요약 없음"</div></div>
+<div class="b"><div class="t">탭 2 경과 리포트 <small>사례별, 공식 기록에서 생성</small></div><div class="n">기본정보, 장기목표, 회차별 한 줄 전체, 핵심지표(있을 때), 한눈에 보는 변화, 상황변화 / 목표변화 / 실천과제 / 자원연계 / 위험신호, 콜로폰</div><div class="row"><span class="chip">인쇄</span><span class="chip">내보내기</span></div><div class="n"><span class="st">기준: 5회차까지, 7/2~9/8</span></div></div>
+<div class="b"><div class="t">탭 3 목표와 계획 <small>사례별</small></div><div class="n">장기목표 (수정은 여기서만, 이력 보기), 단기목표 활성/달성/중단, 할 일 전체(남은 것, 끝난 것), 사례 종결</div></div>
+<div class="b"><div class="t">탭 4 정보 <small>사례 무관</small></div><div class="n">기본정보, 연락 시간과 주의, 동의 6영역(전문, 철회), 연계 기관, 참여 사업 목록(종결 포함)</div><div class="row"><span class="chip">당사자 정보 수정</span><span class="chip">동의 수정</span></div></div>
+</div>
+</div>
+
+<h2 id="s5">5. 상담 흐름 4화면 (제안)</h2>
+<div class="note">확정: 홈 할 일 띠(AI 꺼진 기관은 두 칸). 상담 등록에서 사례 고를 때 동의 상태 표시. AI 초안 검토 순서 위험 → 내용 → 대조 → 후속 → 결정, 승인 불가 조건은 버튼 위. 사례 종결 파기 범위 문구는 파기 규칙 정리 후 확정.</div>
+<div class="wf">
+<div class="pg"><div class="ph"><span>상담 일정 (홈)</span><small>/</small></div>
+<div class="b warn"><div class="t">오늘 할 일</div><div class="row"><span class="chip on">오늘 상담 3</span><span class="chip">검토할 AI 초안 2</span><span class="chip">맞음/틀림 미정 위험 표시 1</span></div></div>
+<div class="b"><div class="t">오늘 <small>9/12 (토)</small></div><div class="f" data-l="14:00 홍OO, 금융지원 5회차, 대면, [톺아보기] [오늘 상담 기록]"></div><div class="f" data-l="16:00 김OO, 주거지원 2회차, 전화, ⚑"></div></div>
+<div class="b"><div class="t">이번 주 <small>이전, 오늘, 다음, 주/월</small></div><div class="f" data-l="9/14 (월) 10:00 이OO, 첫 상담"></div><div class="row"><span class="chip on">상담 등록</span><span class="chip">전체 일정</span></div></div>
+</div>
+<div class="pg"><div class="ph"><span>상담 등록</span><small>/schedules/new</small></div>
+<div class="b"><div class="t">누구와 <small>1</small></div><div class="f" data-l="당사자 검색"></div><div class="row"><span class="chip on">금융지원 (5회차 예정)</span><span class="chip">주거지원</span></div><div class="n">동의: 녹음 ✓ AI ✗ → 이 사례는 AI 초안이 안 만들어져요</div></div>
+<div class="b"><div class="t">언제, 어떻게 <small>2</small></div><div class="f" data-l="일시"></div><div class="row"><span class="chip on">대면</span><span class="chip">전화</span><span class="chip">화상</span><span class="chip">방문</span></div><div class="row"><span class="chip">첫 상담</span><span class="chip on">정기</span><span class="chip">긴급</span></div></div>
+<div class="b fold"><div class="t">이번 상담 목표 <small>선택, ≤3</small></div><div class="f" data-l="한 줄, 단기목표 연결 ▾"></div></div>
+<div class="b fold"><div class="t">다음에 물어볼 것 <small>선택, 카드</small></div><div class="f" data-l="한 줄, + 추가"></div></div>
+<div class="row"><span class="chip on">등록</span></div><div class="n">완료: "등록했어요" → [상담 전 톺아보기]. 상담 계획(/schedules/[id]/plan)은 이 화면의 3, 4만 다시 여는 편집 화면</div>
+</div>
+<div class="pg"><div class="ph"><span>AI 초안 검토</span><small>…/review</small></div>
+<div class="b"><div class="t">홍OO, 5회차, 9/8 <small>재료</small></div><div class="row"><span class="st">전사 있음</span><span class="st">메모 있음</span><span class="st">목표 있음</span><span class="st">지난 4회차 요약 참고</span></div><div class="n">더 새로운 재료가 도착했어요 → [재생성]</div></div>
+<div class="b warn"><div class="t">위험 표시 제안 1</div><div class="f" data-l="부채 악화, 근거 「이자를 석 달째…」, [맞음] [틀림]"></div></div>
+<div class="b"><div class="t">핵심 한 줄, 요약</div><div class="f" data-l="서류 제출 완료, 채무 조정 접수 대기"></div><div class="f ta" data-l="요약 문장 (문장마다 근거 인용 →)"></div></div>
+<div class="b"><div class="t">대조</div><div class="f" data-l="메모에 빠진 것 2 / 녹음에 없는 것 0 / 안 다룬 목표 1"></div></div>
+<div class="b"><div class="t">후속 제안</div><div class="f" data-l="하기로 한 것: 신용정보조회서, [할 일로 등록] 담당과 기한은 직접"></div><div class="f" data-l="물어볼 것: 어머니 명의 대출, [추가]"></div></div>
+<div class="b"><div class="n">☐ 화자 구분(누가 실무자, 당사자인지)을 확인했어요. 전사 신뢰 불가 구간 0</div><div class="row"><span class="chip on">승인</span><span class="chip">반려</span><span class="chip">재생성</span></div></div>
+</div>
+<div class="pg"><div class="ph"><span>사례 종결</span><small>…/close</small></div>
+<div class="b"><div class="t">종결 <small>1</small></div><div class="row"><span class="chip">목표 달성</span><span class="chip">당사자 요청</span><span class="chip">연락 두절</span><span class="chip">이관</span><span class="chip">기타</span></div><div class="f" data-l="종결일"></div></div>
+<div class="b"><div class="t">남은 할 일 3 <small>2</small></div><div class="f" data-l="신용정보조회서, [끝냄] [그만둠: 사유] [다른 사례로]"></div></div>
+<div class="b"><div class="t">활성 단기목표 2 <small>3</small></div><div class="f" data-l="신용회복 신청, [달성] [중단]"></div></div>
+<div class="b"><div class="t">파기 안내 <small>4</small></div><div class="n">파기 예정일. 파기 범위 문구는 파기 규칙(0041)과 동의서를 맞춘 뒤 확정</div></div>
+<div class="row"><span class="chip on">종결</span><span class="chip">취소</span></div>
+</div>
+</div>
+
+<h2 id="s6">6. 실무자와 기관 5화면 (제안)</h2>
+<div class="note">확정: 설정에서 기관 항목 분리. 기관 설정 입구 6. AI 설정 상태는 사업별, 30일 보관과 Azure 원음 문구 표기. 담당자 배정에 이관 안내. 열람 기록 신설.</div>
+<div class="wf">
+<div class="pg"><div class="ph"><span>설정 (실무자)</span><small>/settings</small></div>
+<div class="b"><div class="t">내 계정</div><div class="n">김OO, 실무자, 기관: OO복지관, [비밀번호 변경]</div></div>
+<div class="b"><div class="t">배정 요청 1</div><div class="f" data-l="이OO (주거지원), [수락] [거절]"></div></div>
+<div class="b"><div class="t">상담 기억 <small>AI 배경 참고</small></div><div class="n">AI가 초안을 쓸 때 지난 회차 요약을 배경으로 참고해요. 화면에는 나오지 않아요.</div><div class="row"><span class="chip on">켜짐</span><span class="chip">끄기</span></div><div class="n"><span class="st">처리 상태: 마지막 성공 9/9</span> <span class="st">대기 1</span></div></div>
+</div>
+<div class="pg"><div class="ph"><span>기관 설정 (관리자)</span><small>/admin</small></div>
+<div class="grid2">
+<div class="tile"><b>기관 정보</b>OO복지관, 사업 2, 모듈: 금융지원 켜짐</div>
+<div class="tile"><b>사업 도입 확인</b>금융지원 ✓ 확인됨, 주거지원 ⚠ 미확인 → AI 잠김</div>
+<div class="tile"><b>실무자 목록</b>활성 6, 비활성 1, [초대]</div>
+<div class="tile"><b>AI 설정</b>OpenAI 켜짐, 음성 글자 변환 꺼짐</div>
+<div class="tile"><b>동의 문안, 선택지</b>동의서 v1 (9/3), 주요 지원방향 선택지 5</div>
+<div class="tile"><b>열람 기록</b>이번 달: 비담당 열람 3, 복호화 12, 내보내기 0</div>
+</div>
+</div>
+<div class="pg"><div class="ph"><span>AI 설정</span><small>/admin/ai-provider</small></div>
+<div class="b"><div class="t">상태 <small>사업별</small></div><div class="n"><span class="st">금융지원: 켜짐</span> <span class="st">주거지원: 확인 필요, 사업 도입 미확인 → [사업 도입 확인]</span></div></div>
+<div class="b"><div class="t">AI 회사</div><div class="row"><span class="chip on">OpenAI</span></div><div class="n">가린 자료만 미국 OpenAI로 가고, 오남용 감시로 최대 30일 보관될 수 있어요 (P07)</div></div>
+<div class="b"><div class="t">음성 글자 변환</div><div class="row"><span class="chip on">꺼짐</span><span class="chip">기관 장비</span><span class="chip">Azure</span></div><div class="n">Azure는 가리기 전 원음이 나가요 (P06)</div></div>
+<div class="row"><span class="chip on">활성화</span></div><div class="n">활성화 실패 시: 이유 + 수기 기록은 계속 돼요</div>
+</div>
+<div class="pg"><div class="ph"><span>담당자 배정, 열람 기록</span><small>/admin/assign, 신설</small></div>
+<div class="b"><div class="t">담당자 배정</div><div class="f" data-l="당사자(사례) 검색: 홍OO 금융지원"></div><div class="n">현재 담당: 김OO [제거], 추가: <span class="chip">박OO</span></div><div class="n">바뀌면: 남은 할 일 3건, 물어볼 것 2건이 박OO에게 넘어가요</div></div>
+<div class="b"><div class="t">열람 기록 <small>2026년 9월</small></div><div class="row"><span class="st">비담당 열람 3</span><span class="st">개인정보 복호화 12</span><span class="st">내보내기 0</span></div><div class="f" data-l="9/10 14:22 관리자 최OO, 이OO 상담 원문 열람, 담당 아님"></div><div class="f" data-l="9/9 09:05 김OO, 홍OO 전화번호 복호화"></div><div class="row"><span class="chip">월간 보고서 내려받기</span></div></div>
+</div>
+</div>
+</body>
+</html>

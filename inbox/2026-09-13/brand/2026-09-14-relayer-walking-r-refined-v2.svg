@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">RELAYER walking R symbol</title>
+  <desc id="desc">A bold uppercase R whose vertical and diagonal legs wear two minimal geometric shoes in a walking pose.</desc>
+
+  <!-- The R stays typographic; only its two stroke endings become feet. -->
+  <g fill="none" stroke="#000" stroke-width="112" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M300 190V710"/>
+    <path d="M300 190H500C632 190 704 254 704 358C704 462 632 526 500 526H300"/>
+    <path d="M492 526L710 724"/>
+  </g>
+
+  <!-- Rear shoe: planted, pointing slightly backward. -->
+  <path fill="#000" d="M300 652C279 686 252 717 215 739L132 788C102 806 88 837 99 864C110 891 138 906 172 906H354C389 906 411 873 394 844L336 742C324 721 316 691 318 663Z"/>
+  <path fill="#fff" d="M151 850H343C352 850 358 857 358 866C358 875 351 882 342 882H151C142 882 135 875 135 866C135 857 142 850 151 850Z"/>
+
+  <!-- Forward shoe: lifted, pointing into the next step. -->
+  <g transform="rotate(-7 770 790)">
+    <path fill="#000" d="M674 677C704 688 731 706 756 730L797 769L907 780C942 784 966 808 965 838C964 870 937 893 901 893H724C693 893 667 873 659 844L635 757C626 725 642 692 674 677Z"/>
+    <path fill="#fff" d="M705 837H914C923 837 930 844 930 853C930 862 923 869 914 869H705C696 869 689 862 689 853C689 844 696 837 705 837Z"/>
+  </g>
+</svg>

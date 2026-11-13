@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">릴레이어 한글 세로형 흑백 로고</title>
+  <desc id="desc">Pretendard ExtraBold로 릴, 레이, 어를 세 줄에 조판한 모듈형 워드마크</desc>
+  <g fill="#000000" font-family="Pretendard, 'Pretendard Variable', sans-serif" font-weight="800" text-anchor="middle">
+    <text x="512" y="300" font-size="300" letter-spacing="-18">릴</text>
+    <text x="512" y="555" font-size="288" letter-spacing="-26">레이</text>
+    <text x="512" y="850" font-size="330" letter-spacing="-20">어</text>
+  </g>
+</svg>

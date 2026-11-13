@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>릴레이어 공개 사이트 와이어프레임</title>
+<style>
+:root{
+  --ground:#E1E5E0;
+  --sheet:#FBFBF9;
+  --sheet-2:#F1F3F0;
+  --ink:#171A17;
+  --ink-2:#5A605A;
+  --ink-3:#858B85;
+  --rule:#C1C8C0;
+  --rule-soft:#DCE0DB;
+  --thread:#1F5540;
+  --thread-soft:#E2ECE6;
+  --open:#A2402C;
+  --open-soft:#F4E5E0;
+  --row:62px;
+  --r:2px;
+  --f: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+       'Noto Sans KR', 'Malgun Gothic', 'Segoe UI', sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:86px}
+@media (prefers-reduced-motion:reduce){ html{scroll-behavior:auto} *{transition:none !important; animation:none !important} }
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--f); font-size:15.5px; line-height:1.78;
+  font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased;
+  word-break:keep-all; overflow-wrap:break-word;
+}
+h1,h2,h3,h4{margin:0; font-weight:600; line-height:1.35; letter-spacing:-0.018em}
+p{margin:0 0 .85em}
+p:last-child{margin-bottom:0}
+ul{margin:0; padding:0; list-style:none}
+a{color:var(--thread); text-decoration:none; border-bottom:1px solid var(--rule)}
+a:hover{border-bottom-color:var(--thread)}
+button{font:inherit; color:inherit; cursor:pointer; background:none; border:none}
+:focus-visible{outline:2px solid var(--thread); outline-offset:2px}
+.wrap{max-width:1120px; margin:0 auto; padding:0 28px}
+.prose{max-width:64ch}
+
+/* ── header ───────────────────────────── */
+header{
+  position:sticky; top:0; z-index:50; background:rgba(225,229,224,.93);
+  backdrop-filter:blur(8px); border-bottom:1px solid var(--rule);
+}
+.hbar{display:flex; align-items:center; gap:26px; height:60px}
+.mark{font-weight:600; font-size:16px; letter-spacing:-0.02em; white-space:nowrap}
+.mark span{color:var(--ink-3); font-weight:400; font-size:12px; margin-left:6px}
+nav{display:flex; gap:20px; flex:1; overflow-x:auto; scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav a{
+  border:0; color:var(--ink-2); font-size:13.5px; white-space:nowrap;
+  padding:3px 0; border-bottom:2px solid transparent;
+}
+nav a:hover{color:var(--ink)}
+nav a.on{color:var(--ink); border-bottom-color:var(--thread)}
+.edsw{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-2); white-space:nowrap}
+.tg{width:34px; height:19px; border:1px solid var(--rule); border-radius:10px; background:var(--sheet); position:relative; transition:background .15s}
+.tg::after{content:''; position:absolute; top:2px; left:2px; width:13px; height:13px; border-radius:50%; background:var(--ink-3); transition:transform .15s, background .15s}
+.edsw[aria-pressed="true"] .tg{background:var(--thread-soft); border-color:var(--thread)}
+.edsw[aria-pressed="true"] .tg::after{transform:translateX(15px); background:var(--thread)}
+
+/* ── editor annotations ───────────────── */
+.ed{display:none}
+body.edon .ed{display:block}
+body.edon .ed.inl{display:inline}
+.note{
+  margin:14px 0; padding:9px 13px; background:var(--open-soft);
+  border-left:2px solid var(--open); font-size:13px; line-height:1.65; color:#6E2C1E;
+}
+.note b{font-weight:600}
+
+/* ── sections ─────────────────────────── */
+section{padding:74px 0; border-top:1px solid var(--rule)}
+#hero{border-top:0; padding:56px 0 74px}
+.shead{display:grid; grid-template-columns:186px 1fr; gap:34px; margin-bottom:34px; align-items:start}
+.slab{font-size:13px; color:var(--ink-2); padding-top:9px; border-top:2px solid var(--ink); line-height:1.5}
+.shead h2{font-size:26px; letter-spacing:-0.03em}
+.shead .sub{margin-top:10px; color:var(--ink-2); font-size:15px}
+.body{display:grid; grid-template-columns:186px 1fr; gap:34px}
+.body .col2{grid-column:2}
+@media (max-width:860px){
+  .shead,.body{grid-template-columns:1fr; gap:16px}
+  .body .col2{grid-column:1}
+  .slab{border-top:0; padding-top:0; color:var(--ink-3)}
+}
+
+/* ── hero ─────────────────────────────── */
+.h1{font-size:clamp(30px,4.6vw,48px); letter-spacing:-0.04em; line-height:1.22; max-width:17ch}
+.lede{margin-top:20px; max-width:56ch; font-size:16.5px; color:var(--ink-2)}
+.cta{display:flex; flex-wrap:wrap; gap:9px; margin-top:26px}
+.btn{
+  padding:9px 17px; border:1px solid var(--ink); border-radius:var(--r);
+  font-size:14px; background:var(--sheet); transition:background .12s,color .12s;
+}
+.btn:hover{background:var(--sheet-2)}
+.btn.pri{background:var(--ink); color:var(--sheet); border-color:var(--ink)}
+.btn.pri:hover{background:#000}
+.btn.qui{border-color:var(--rule); color:var(--ink-2)}
+.btn.qui:hover{border-color:var(--ink-2); color:var(--ink)}
+
+/* ── ledger ───────────────────────────── */
+.ledger{margin-top:44px; background:var(--sheet); border:1px solid var(--rule); border-radius:var(--r)}
+.lhead{display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:baseline; padding:14px 18px; border-bottom:1px solid var(--rule)}
+.lhead .t{font-size:14px; font-weight:600}
+.lhead .m{font-size:12.5px; color:var(--ink-3)}
+.lgrid{display:grid; grid-template-columns:66px 46px 1fr; position:relative}
+.threads{position:absolute; left:66px; top:0; width:46px; height:100%; pointer-events:none}
+.thr{position:absolute; width:0; border-left:2px solid var(--open); opacity:.55}
+.thr::before{content:''; position:absolute; left:-4px; top:-4px; width:8px; height:8px; border-radius:50%; background:var(--open)}
+.thr::after{content:''; position:absolute; left:-4px; bottom:-4px; width:8px; height:8px; border:2px solid var(--open); border-radius:50%; background:var(--sheet); box-sizing:border-box}
+.lrow{display:contents}
+.lno,.lmain{height:var(--row); display:flex; align-items:center; border-top:1px solid var(--rule-soft); cursor:pointer; background:none; text-align:left}
+.lgrid .lrow.first .lno, .lgrid .lrow.first .lmain{border-top:0}
+.lno{grid-column:1; justify-content:flex-end; padding-right:14px; white-space:nowrap; font-size:13px; color:var(--ink-3); flex-direction:column; align-items:flex-end; line-height:1.3}
+.lno b{font-weight:600; color:var(--ink); font-size:14.5px}
+.lmain{grid-column:3; padding:0 18px 0 4px; gap:10px; justify-content:space-between}
+.lrow.sel .lno b{color:var(--thread)}
+.lrow.sel .lmain{background:var(--thread-soft)}
+.lrow:hover .lmain{background:var(--sheet-2)}
+.lrow.sel:hover .lmain{background:var(--thread-soft)}
+.lsum{font-size:14px; line-height:1.45}
+.tags{display:flex; gap:5px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end}
+.tag{font-size:11.5px; padding:2px 7px; border:1px solid var(--rule); border-radius:var(--r); color:var(--ink-2); background:var(--sheet); white-space:nowrap}
+.tag.open{border-color:var(--open); color:var(--open); background:var(--open-soft)}
+.tag.done{border-color:var(--thread); color:var(--thread); background:var(--thread-soft)}
+.ldetail{border-top:1px solid var(--rule); padding:20px 18px 22px; background:var(--sheet-2)}
+.ldetail h4{font-size:13.5px; margin-bottom:10px}
+.cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:9px}
+.card{background:var(--sheet); border:1px solid var(--rule-soft); border-left:2px solid var(--rule); padding:10px 13px; border-radius:var(--r)}
+.card .k{font-size:11.5px; color:var(--ink-3); margin-bottom:3px}
+.card .v{font-size:13.5px; line-height:1.55}
+.card.f{border-left-color:var(--ink-3)}
+.card.p{border-left-color:var(--open)}
+.card.q{border-left-color:#8A7A3C}
+.card.j{border-left-color:var(--thread)}
+.legend{display:flex; flex-wrap:wrap; gap:16px; margin-top:16px; font-size:12px; color:var(--ink-3)}
+.legend i{display:inline-block; width:14px; height:2px; vertical-align:middle; margin-right:6px}
+@media (max-width:720px){
+  .lgrid{grid-template-columns:56px 1fr}
+  .threads{display:none}
+  .lmain{grid-column:2; flex-direction:column; align-items:flex-start; justify-content:center; gap:4px; height:auto; padding:12px 14px 12px 4px}
+  .lno{height:auto; padding:12px 10px 12px 0; justify-content:flex-start}
+  .tags{justify-content:flex-start}
+}
+
+/* ── two-list ─────────────────────────── */
+.twin{display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--rule); background:var(--sheet); border-radius:var(--r)}
+.twin>div{padding:20px 22px}
+.twin>div+div{border-left:1px solid var(--rule)}
+.twin h3{font-size:14.5px; margin-bottom:12px}
+.twin li{padding:7px 0 7px 19px; position:relative; border-top:1px solid var(--rule-soft); font-size:14.5px; line-height:1.6}
+.twin li:first-of-type{border-top:0}
+.twin .yes li::before{content:''; position:absolute; left:0; top:16px; width:9px; height:2px; background:var(--thread)}
+.twin .no li::before{content:''; position:absolute; left:0; top:12px; width:9px; height:9px; border:1px solid var(--rule); border-radius:50%}
+.twin .no li{color:var(--ink-2)}
+@media (max-width:720px){ .twin{grid-template-columns:1fr} .twin>div+div{border-left:0; border-top:1px solid var(--rule)} }
+
+/* ── segmented ────────────────────────── */
+.seg{display:inline-flex; border:1px solid var(--rule); border-radius:var(--r); background:var(--sheet); overflow:hidden; flex-wrap:wrap}
+.seg button{padding:7px 14px; font-size:13.5px; color:var(--ink-2); border-right:1px solid var(--rule)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink); color:var(--sheet)}
+.statebox{margin-top:16px; background:var(--sheet); border:1px solid var(--rule); border-radius:var(--r); padding:18px 20px; max-width:560px}
+.statebox .lbl{font-size:12px; color:var(--ink-3); margin-bottom:6px}
+.statebox .big{font-size:15.5px; font-weight:600; margin-bottom:8px}
+.statebox .msg{font-size:14px; color:var(--ink-2); padding:9px 12px; background:var(--sheet-2); border-left:2px solid var(--rule); border-radius:var(--r)}
+.statebox.s1 .msg{border-left-color:var(--thread)}
+.statebox.s2 .msg{border-left-color:var(--open)}
+.statebox.s3 .msg{border-left-color:#8A7A3C}
+.statebox .why{margin-top:12px; font-size:13px; color:var(--ink-3)}
+
+/* ── stepper ──────────────────────────── */
+.step{display:grid; grid-template-columns:250px 1fr; gap:26px}
+.steplist{border-left:1px solid var(--rule)}
+.steplist button{
+  display:grid; grid-template-columns:26px 1fr; gap:8px; width:100%; text-align:left;
+  padding:9px 12px; font-size:14px; color:var(--ink-2); border-left:2px solid transparent; margin-left:-1px;
+}
+.steplist button .n{color:var(--ink-3); font-size:12.5px}
+.steplist button:hover{color:var(--ink); background:var(--sheet-2)}
+.steplist button.on{color:var(--ink); border-left-color:var(--thread); background:var(--sheet); font-weight:600}
+.steplist button.on .n{color:var(--thread)}
+.stepbody{background:var(--sheet); border:1px solid var(--rule); border-radius:var(--r); padding:24px 26px; min-height:420px}
+.stepbody .scr{font-size:12.5px; color:var(--ink-3); margin-bottom:4px}
+.stepbody h3{font-size:20px; letter-spacing:-0.025em}
+.stepbody .lead{margin-top:10px; color:var(--ink-2); font-size:15px; max-width:60ch}
+.split{display:grid; grid-template-columns:1fr 268px; gap:26px; margin-top:22px; align-items:start}
+.split ul li{padding:8px 0; border-top:1px solid var(--rule-soft); font-size:14.5px; line-height:1.6}
+.split ul li:first-child{border-top:0}
+.split ul li b{font-weight:600}
+.quote{margin-top:14px; padding:10px 14px; background:var(--thread-soft); border-radius:var(--r); font-size:13.5px; color:#1B4638}
+.quote .q{font-size:11.5px; color:var(--ink-3); display:block; margin-bottom:3px}
+@media (max-width:960px){ .split{grid-template-columns:1fr} }
+@media (max-width:860px){
+  .step{grid-template-columns:1fr}
+  .steplist{display:flex; overflow-x:auto; border-left:0; border-bottom:1px solid var(--rule); gap:0}
+  .steplist button{width:auto; white-space:nowrap; border-left:0; border-bottom:2px solid transparent; margin-left:0; grid-template-columns:auto auto}
+  .steplist button.on{border-left:0; border-bottom-color:var(--thread)}
+  .stepbody{min-height:0}
+}
+
+/* ── mini screen ──────────────────────── */
+.mini{background:var(--sheet-2); border:1px solid var(--rule); border-radius:var(--r); padding:9px}
+.mini .mt{font-size:11.5px; color:var(--ink-3); padding:0 2px 8px; border-bottom:1px solid var(--rule); margin-bottom:8px}
+.blk{background:var(--sheet); border:1px solid var(--rule-soft); border-radius:var(--r); padding:6px 9px; font-size:12px; margin-bottom:5px; color:var(--ink-2); line-height:1.5}
+.blk:last-child{margin-bottom:0}
+.blk.pin{border:1.5px solid var(--ink); color:var(--ink)}
+.blk.fold{border-style:dashed; color:var(--ink-3)}
+.blk.req{border-left:2px solid var(--thread)}
+.blk small{display:block; color:var(--ink-3); font-size:10.5px}
+.mlg{margin-top:9px; font-size:10.5px; color:var(--ink-3); line-height:1.6}
+
+/* ── goals ────────────────────────────── */
+.goal{background:var(--sheet); border:1px solid var(--rule); border-radius:var(--r); padding:16px 18px}
+.goal .gl{font-size:11.5px; color:var(--ink-3); margin-bottom:5px}
+.goal .gt{font-size:15px; font-weight:600}
+.goal .gm{font-size:13px; color:var(--ink-2); margin-top:4px}
+.goal .inner{margin-top:14px; padding-left:16px; border-left:2px solid var(--thread-soft); display:grid; gap:10px}
+.goal .inner .goal{background:var(--sheet-2)}
+.goal .inner .inner .goal{background:var(--sheet)}
+
+/* ── table ────────────────────────────── */
+table{width:100%; border-collapse:collapse; background:var(--sheet); border:1px solid var(--rule); border-radius:var(--r); font-size:14px}
+th,td{text-align:left; padding:10px 14px; border-top:1px solid var(--rule-soft); vertical-align:top; line-height:1.6}
+thead th{border-top:0; background:var(--sheet-2); font-size:12.5px; color:var(--ink-2); font-weight:600}
+td.off{color:var(--ink-3)}
+tbody tr.grp td{border-top:1px solid var(--rule)}
+tbody tr:not(.grp) td:first-child{border-top-color:transparent}
+.tw{overflow-x:auto}
+
+/* ── chips ────────────────────────────── */
+.chips{display:flex; flex-wrap:wrap; gap:7px}
+.chip{padding:6px 13px; border:1px solid var(--rule); border-radius:var(--r); background:var(--sheet); font-size:13.5px; color:var(--ink-2)}
+.chip.on{border-color:var(--ink); color:var(--ink); background:var(--sheet-2); font-weight:600}
+.chipout{margin-top:14px; background:var(--sheet); border:1px solid var(--rule); border-left:2px solid var(--thread); border-radius:var(--r); padding:14px 16px; font-size:14px; max-width:60ch}
+.chipout .ct{font-weight:600; margin-bottom:4px}
+
+/* ── flow diagram ─────────────────────── */
+.dflow{display:flex; align-items:stretch; gap:0; flex-wrap:wrap; margin-top:6px}
+.dnode{flex:1; min-width:150px; background:var(--sheet); border:1px solid var(--rule); border-radius:var(--r); padding:13px 15px}
+.dnode+.dnode{margin-left:-1px}
+.dnode .dn{font-size:13.5px; font-weight:600}
+.dnode .dd{font-size:12.5px; color:var(--ink-2); margin-top:4px; line-height:1.55}
+.dnode.gate{background:var(--thread-soft); border-color:var(--thread)}
+.dnode.out{background:var(--open-soft); border-color:var(--open)}
+
+/* ── glossary ─────────────────────────── */
+.gsearch{width:100%; max-width:330px; padding:9px 13px; border:1px solid var(--rule); border-radius:var(--r); background:var(--sheet); font:inherit; font-size:14px}
+.glist{margin-top:16px; border-top:1px solid var(--rule)}
+.gitem{display:grid; grid-template-columns:210px 1fr; gap:20px; padding:11px 0; border-bottom:1px solid var(--rule-soft); font-size:14.5px}
+.gitem dt{font-weight:600}
+.gitem dd{margin:0; color:var(--ink-2); line-height:1.6}
+.gempty{padding:20px 0; color:var(--ink-3); font-size:14px}
+@media (max-width:640px){ .gitem{grid-template-columns:1fr; gap:2px} }
+
+/* ── footer ───────────────────────────── */
+footer{border-top:1px solid var(--rule); padding:44px 0 64px; font-size:13.5px; color:var(--ink-2)}
+footer .fmark{font-weight:600; color:var(--ink); font-size:15px; margin-bottom:8px}
+.banner{background:var(--ink); color:var(--sheet); font-size:13px; padding:9px 0}
+.banner .wrap{display:flex; gap:14px; align-items:center; justify-content:space-between; flex-wrap:wrap}
+.banner span{opacity:.78}
+@media (max-width:640px){
+  .mark span{display:none}
+  .edsw span:not(.tg){display:none}
+  .hbar{gap:14px}
+  .wrap{padding:0 20px}
+}
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <div class="wrap">
+    <div>이 페이지는 구조 확인용 와이어프레임입니다. 문구와 숫자는 초안이며 확정된 값이 아닙니다.</div>
+    <span>2026-09-13, 정본 저장소 SocialSolidarityBank/CCC</span>
+  </div>
+</div>
+
+<header>
+  <div class="wrap hbar">
+    <div class="mark">릴레이어<span>Relayer</span></div>
+    <nav id="nav">
+      <a href="#hero">소개</a>
+      <a href="#core">핵심 기능</a>
+      <a href="#flow">사용 흐름</a>
+      <a href="#goals">목표</a>
+      <a href="#ai">AI</a>
+      <a href="#privacy">개인정보</a>
+      <a href="#adopt">도입</a>
+      <a href="#glossary">용어</a>
+    </nav>
+    <button class="edsw" id="edsw" aria-pressed="false">
+      <span class="tg"></span>편집자 표시
+    </button>
+  </div>
+</header>
+
+<!-- ── HERO ─────────────────────────────────────── -->
+<section id="hero">
+  <div class="wrap">
+    <h1 class="h1">쌓인 상담 기록에서 다음 상담에 확인할 내용을 찾습니다</h1>
+    <p class="lede">릴레이어(Relayer, 개발명 CCC)는 사회복지 기관의 상담 기록을 회차끼리 맞대어 보는 사례관리 도구입니다. 약속했는데 결과가 없는 것과 서로 다르게 적힌 것을, 어느 회차 기록에서 나왔는지와 함께 보여 줍니다.</p>
+    <div class="cta">
+      <button class="btn pri">로그인</button>
+      <button class="btn">도입 안내</button>
+      <button class="btn qui">체험하기</button>
+    </div>
+    <div class="note ed"><b>G02, U01.</b> 입구는 실무자와 도입 담당자 두 갈래입니다. 당사자가 링크를 받아 들어오는 경로는 이 화면에 두지 않습니다. 핵심 가치 한 줄은 검증되지 않은 "15초" 표현을 뺀 문안입니다.</div>
+
+    <div class="ledger">
+      <div class="lhead">
+        <div class="t">가상 사례로 보기</div>
+        <div class="m">홍OO, 금융지원, 오늘이 5회차입니다. 회차를 누르면 그날 무엇이 기록됐는지 나옵니다.</div>
+      </div>
+      <div class="lgrid" id="lgrid">
+        <div class="threads" id="threads"></div>
+      </div>
+      <div class="ldetail" id="ldetail"></div>
+      <div style="padding:0 18px 18px">
+        <div class="legend">
+          <span><i style="background:var(--ink-3)"></i>사실</span>
+          <span><i style="background:#8A7A3C"></i>확인할 것</span>
+          <span><i style="background:var(--open)"></i>약속한 일</span>
+          <span><i style="background:var(--thread)"></i>판단과 평가</span>
+          <span>세로선은 결과가 아직 기록되지 않은 항목입니다.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 이름 ──────────────────────────────────────── -->
+<section id="name">
+  <div class="wrap">
+    <div class="shead">
+      <div class="slab">이름의 뜻</div>
+      <div>
+        <h2>이어지는 맥락과 쌓이는 기록</h2>
+        <div class="sub">두 낱말을 합친 이름입니다.</div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="col2 prose">
+        <div class="twin" style="grid-template-columns:1fr 1fr">
+          <div>
+            <h3>릴레이 relay</h3>
+            <p style="font-size:14.5px; color:var(--ink-2)">이어달리기입니다. 앞사람이 쥔 것을 다음 사람에게 넘깁니다. 상담도 회차와 담당자를 넘어 이어집니다.</p>
+          </div>
+          <div>
+            <h3>레이어 layer</h3>
+            <p style="font-size:14.5px; color:var(--ink-2)">겹입니다. 회차가 쌓이면 기록도 겹으로 쌓입니다.</p>
+          </div>
+        </div>
+        <p style="margin-top:18px">릴레이어는 이 둘을 합친 이름입니다. 이어지는 맥락과 쌓이는 기록을 함께 추적해, 회차 사이에서 빠지는 것을 막는다는 뜻입니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 하는 일 ───────────────────────────────────── -->
+<section id="what">
+  <div class="wrap">
+    <div class="shead">
+      <div class="slab">하는 일과 하지 않는 일</div>
+      <div>
+        <h2>판단과 확정은 사람이 합니다</h2>
+        <div class="sub">AI는 카드를 만들고, 맞대어 보고, 제안합니다.</div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="col2">
+        <div class="twin">
+          <div>
+            <h3>하는 일</h3>
+            <ul class="yes">
+              <li>상담 기록을 네 종류 카드로 나눕니다. 사실, 확인할 것, 약속한 일, 판단과 평가입니다.</li>
+              <li>뒤 회차 전부를 훑어, 결과가 기록되지 않은 약속을 모읍니다.</li>
+              <li>같은 주제의 사실 카드끼리 비교해, 값이 서로 다른 쌍을 나란히 보여 줍니다.</li>
+              <li>모든 문장에 어느 회차 기록에서 나왔는지와 원문 인용을 답니다.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>하지 않는 일</h3>
+            <ul class="no">
+              <li>진단하지 않습니다.</li>
+              <li>누구 말이 맞는지 고르지 않습니다.</li>
+              <li>지원을 계속할지 끊을지 판단하지 않습니다.</li>
+              <li>위험에 등급을 매기지 않습니다.</li>
+              <li>담당자와 기한을 대신 정하지 않습니다.</li>
+              <li>목표 달성도를 퍼센트로 계산하지 않습니다.</li>
+            </ul>
+          </div>
+        </div>
+        <p style="margin-top:20px; color:var(--ink-2); max-width:64ch">사회복지 기관에서 같은 사람을 여러 회차에 걸쳐 만나는 사례관리 실무자를 위한 도구입니다. 한 번 만나고 끝나는 상담에는 쓸 이유가 적습니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 핵심 기능 ─────────────────────────────────── -->
+<section id="core">
+  <div class="wrap">
+    <div class="shead">
+      <div class="slab">핵심 기능</div>
+      <div>
+        <h2>빈칸을 그냥 비우지 않습니다</h2>
+        <div class="sub">"없음"과 "안 봤음"이 똑같아 보이는 것이 누락을 막는 도구에서 가장 위험합니다.</div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="col2">
+        <p class="prose" style="margin-bottom:20px">AI가 대조하는 칸은 결과가 없어도 화면에서 빼지 않고, 세 상태 중 하나를 적습니다. 아래 단추를 눌러 같은 칸이 상태마다 어떻게 보이는지 확인할 수 있습니다.</p>
+        <div class="seg" id="stseg">
+          <button data-s="1" class="on">확인함</button>
+          <button data-s="2">확인 못 함</button>
+          <button data-s="3">확인 중</button>
+        </div>
+        <div class="statebox s1" id="stbox"></div>
+        <p class="prose" style="margin-top:20px; color:var(--ink-2)">사람이 적는 칸(할 일, 물어볼 것, 달라진 것)은 비어 있으면 화면에서 뺍니다. "특이사항 없음"으로 채우지 않습니다.</p>
+
+        <h3 style="margin-top:44px; font-size:18px">세 가지를 맞댑니다</h3>
+        <div class="tw" style="margin-top:14px">
+          <table>
+            <thead><tr><th style="width:24%">무엇</th><th>무엇과 무엇을</th><th style="width:30%">어디에 나옵니까</th></tr></thead>
+            <tbody>
+              <tr><td>약속 추적</td><td>앞 회차의 약속과 뒤 회차 전부</td><td class="off">상담 전 톺아보기</td></tr>
+              <tr><td>일치하지 않는 기록</td><td>같은 주제의 사실 카드끼리</td><td class="off">상담 전 톺아보기</td></tr>
+              <tr><td>녹음과 메모</td><td>같은 회차의 녹음 기록과 손으로 쓴 메모</td><td class="off">AI 정리 검토</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="split" style="margin-top:28px">
+          <div>
+            <h3 style="font-size:16px">약속은 자동으로 닫히지 않습니다</h3>
+            <p style="margin-top:8px; color:var(--ink-2)">3회차에 한 약속을 4회차에서 안 다뤄도, 5회차에서 안 다뤄도 목록에 그대로 남습니다. 몇 회차 지났는지만 숫자로 붙습니다. 닫는 일은 사람이 합니다. 오래 열려 있다는 것은 정보이지 판단이 아닙니다.</p>
+            <div class="tw" style="margin-top:14px">
+              <table>
+                <thead><tr><th style="width:42%">상황</th><th>릴레이어가 하는 일</th></tr></thead>
+                <tbody>
+                  <tr><td>이번 회차에 아예 안 나옴</td><td>열린 채로 둡니다</td></tr>
+                  <tr><td>"했어요"</td><td>결과를 연결하고 아래 구역으로 내립니다</td></tr>
+                  <tr><td>"아직요, 다음 주에"</td><td>항목을 새로 만들지 않고 이력만 붙입니다</td></tr>
+                  <tr><td>"이제 필요 없어요"</td><td>결과를 연결하고 아래 구역으로 내립니다</td></tr>
+                  <tr><td>같은 약속이 여러 번 미뤄짐</td><td>미룬 회차만 나열합니다. "반복 불이행" 같은 딱지를 달지 않습니다</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <div class="mini">
+              <div class="mt">상담 전 톺아보기, 남은 할 일</div>
+              <div class="blk pin">위험 신호 없음<small>확인함, 4회차까지</small></div>
+              <div class="blk req">소득 서류 제출<small>2회차 약속, 3회 전, 아직 결과 없음</small></div>
+              <div class="blk req">임대차 계약 종료일 확인<small>1회차, 4회 전</small></div>
+              <div class="blk fold">전체 2건 보기</div>
+              <div class="mlg">굵은 테두리는 접히지 않는 구획, 점선은 조건에 따라 열리는 구획입니다.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="note ed"><b>A01, AI 모듈 정의서 9장.</b> 9월 18일 판의 약속 추적은 읽기 전용입니다. 목록과 "몇 회 전"만 보이고 [해결됨] [해당 없음] [숨기기] [할 일로 등록] 버튼은 다음 판입니다. 일치하지 않는 기록의 노출 범위는 A01 결정을 기다립니다.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 사용 흐름 ─────────────────────────────────── -->
+<section id="flow">
+  <div class="wrap">
+    <div class="shead">
+      <div class="slab">사용 흐름</div>
+      <div>
+        <h2>기관 준비부터 사례 종결까지</h2>
+        <div class="sub">실무자가 일하는 순서입니다. 단계를 누르면 그 화면의 구조가 나옵니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="steplist" id="steplist"></div>
+      <div class="stepbody" id="stepbody"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 목표 ──────────────────────────────────────── -->
+<section id="goals">
+  <div class="wrap">
+    <div class="shead">
+      <div class="slab">목표</div>
+      <div>
+        <h2>목표가 세 층입니다</h2>
+        <div class="sub">장기목표만 있으면 오늘 무엇을 할지 알 수 없고, 이번 상담 목표만 있으면 이 상담이 어디로 가는지 알 수 없습니다.</div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="col2">
+        <div class="goal">
+          <div class="gl">장기목표. 수정은 목표와 계획 탭에서만 합니다</div>
+          <div class="gt">빚을 갚으면서 지금 집에서 계속 살기</div>
+          <div class="gm">이 사례가 가려는 방향입니다. 첫 상담에서 합의가 어려우면 비워 둡니다.</div>
+          <div class="inner">
+            <div class="goal">
+              <div class="gl">단기목표. 활성은 최대 3개, 달성 또는 중단으로 닫습니다</div>
+              <div class="gt">채무 조정 신청을 끝내기</div>
+              <div class="inner">
+                <div class="goal">
+                  <div class="gl">이번 상담 목표. 상담 등록에서 정하고 최대 3개입니다</div>
+                  <div class="gt">소득 서류 제출 상황을 확인하고 남은 서류를 정리하기</div>
+                </div>
+              </div>
+            </div>
+            <div class="goal">
+              <div class="gl">단기목표</div>
+              <div class="gt">임대차 계약 만료 전에 주거 상담 기관과 연결하기</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="split" style="margin-top:30px">
+          <div>
+            <h3 style="font-size:16px">비워도 됩니다</h3>
+            <p style="margin-top:8px; color:var(--ink-2)">릴레이어는 목표 입력을 막거나 강제하지 않습니다. 목표가 없으면 첫 상담 기록의 1순위 지원욕구를 대신 보여 주되, "합의한 목표가 아니라 신청할 때 적은 욕구"라고 표시합니다. 당사자가 말한 필요와 함께 정한 목표는 다른 것이기 때문입니다.</p>
+            <h3 style="font-size:16px; margin-top:24px">고치면 이력이 남습니다</h3>
+            <p style="margin-top:8px; color:var(--ink-2)">이전 문구, 고친 사람, 시각을 한 줄씩 쌓습니다. 쌓인 줄은 고치거나 지우지 않습니다. 화면에는 기본으로 안 보이고 "이력 보기"를 눌렀을 때만 보입니다. 지원금이 걸린 사업에서 목표 변경은 책임이 걸린 정보이고, 담당이 바뀌면 새 담당이 이 목표를 누가 언제 정했는지 알아야 하기 때문입니다.</p>
+            <h3 style="font-size:16px; margin-top:24px">달성도를 계산하지 않습니다</h3>
+            <p style="margin-top:8px; color:var(--ink-2)">퍼센트를 만들지 않습니다. "달성", "완료"는 기록 원문에 그 말이 있을 때만 씁니다. 뚜렷한 근거가 없으면 진척 서술을 비웁니다.</p>
+          </div>
+          <div>
+            <div class="mini">
+              <div class="mt">목표와 계획 탭</div>
+              <div class="blk pin">장기목표<small>수정은 여기서만, 이력 보기</small></div>
+              <div class="blk">단기목표<small>활성 2, 달성 1, 중단 0</small></div>
+              <div class="blk">할 일 전체<small>남은 것 2, 끝난 것 4</small></div>
+              <div class="blk fold">사례 종결</div>
+            </div>
+          </div>
+        </div>
+        <div class="note ed"><b>8월 검수 Q 확인 2, 34일째 열려 있습니다.</b> 이번 상담 목표를 회차가 지난 뒤 잠글지가 확정되지 않았습니다. 단기목표를 닫는 절차도 같은 묶음에 있습니다. 시연 중 눈에 띌 수 있는 항목입니다.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── AI ────────────────────────────────────────── -->
+<section id="ai">
+  <div class="wrap">
+    <div class="shead">
+      <div class="slab">AI 사용 방식</div>
+      <div>
+        <h2>사람이 승인한 것만 재료가 됩니다</h2>
+        <div class="sub">수기 메모는 저장하는 순간 공식 기록입니다. AI가 쓴 초안은 사람이 승인해야 공식 기록이 됩니다.</div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="col2">
+        <div class="tw">
+          <table>
+            <tbody>
+              <tr><td style="width:230px"><b>판단하지 않습니다</b></td><td>카드를 만들고, 맞대어 보고, 제안합니다. 판단과 확정은 사람이 합니다.</td></tr>
+              <tr><td><b>근거 없는 문장을 만들지 않습니다</b></td><td>화면의 모든 문장에 회차 번호와 원문 인용이 붙습니다. 카드가 없으면 출력도 없습니다.</td></tr>
+              <tr><td><b>응답을 요구하지 않습니다</b></td><td>AI 제안에 하나씩 답하지 않아도 됩니다. 무시해도 아무것도 막히지 않습니다. 사람은 틀린 것만 고칩니다.</td></tr>
+              <tr><td><b>애매하면 안 만듭니다</b></td><td>확신이 낮으면 카드를 안 만듭니다. 잘못 만드는 것보다 안 만드는 것이 낫습니다.</td></tr>
+              <tr><td><b>딱지를 붙이지 않습니다</b></td><td>"반복 불이행" 같은 표현 대신 회차 이력만 나열합니다.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="margin-top:40px; font-size:18px">AI 없이도 씁니다</h3>
+        <p style="margin-top:8px; color:var(--ink-2); max-width:64ch">설치 기본값은 AI 꺼짐입니다. AI를 안 쓰는 기관이 예외가 아니라 기본입니다. 아래 스위치로 두 경우를 견줘 볼 수 있습니다.</p>
+        <div style="margin-top:16px">
+          <div class="seg" id="aiseg">
+            <button data-a="on" class="on">AI 켠 기관</button>
+            <button data-a="off">AI 끈 기관</button>
+          </div>
+        </div>
+        <div class="tw" style="margin-top:14px">
+          <table>
+            <thead><tr><th style="width:34%">기능</th><th id="aicol">AI 켠 기관</th></tr></thead>
+            <tbody id="aitbody"></tbody>
+          </table>
+        </div>
+        <p style="margin-top:16px; color:var(--ink-2); max-width:64ch">AI를 안 쓰는 기관에서도 회차 목록이 의미를 갖도록, 실무자가 고른 값을 기계가 이어 붙여 한 줄을 만듭니다. 이것은 요약이 아니라 기록 상태를 보여 주는 표시입니다. 없는 문장을 새로 만들지 않습니다.</p>
+
+        <h3 style="margin-top:40px; font-size:18px">조건이 하나라도 어긋나면 멈춥니다</h3>
+        <div class="dflow" style="margin-top:12px">
+          <div class="dnode"><div class="dn">수기 메모</div><div class="dd">저장 즉시 공식 기록입니다.</div></div>
+          <div class="dnode gate"><div class="dn">세 가지 확인</div><div class="dd">기관의 사업 확인, 당사자 동의, 개인정보 가림 검증</div></div>
+          <div class="dnode"><div class="dn">AI 정리 초안</div><div class="dd">사람이 승인해야 공식 기록이 됩니다.</div></div>
+        </div>
+        <p style="margin-top:12px; color:var(--ink-2); max-width:64ch">하나라도 안 맞으면 AI가 돌지 않습니다. 대신 무엇이 막혔고 어디서 푸는지를 같은 자리에 적습니다. 그동안 수기 기록은 계속됩니다.</p>
+        <div class="quote" style="max-width:60ch"><span class="q">연결 상태 화면 문구</span>이 사업은 동의 확인이 끝나지 않아 AI가 꺼져 있어요. 기관 정보에서 사업 확인을 마치면 켜져요. 수기 기록은 계속 돼요.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 개인정보 ──────────────────────────────────── -->
+<section id="privacy">
+  <div class="wrap">
+    <div class="shead">
+      <div class="slab">민감정보와 개인정보</div>
+      <div>
+        <h2>무엇이 어디까지 나가는지 적습니다</h2>
+        <div class="sub">가린 사본만 바깥으로 나갑니다. 원문은 나가지 않습니다.</div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="col2">
+        <div class="dflow">
+          <div class="dnode"><div class="dn">기관 안</div><div class="dd">상담 기록 원문, 이름과 연락처는 암호를 걸어 따로 보관합니다.</div></div>
+          <div class="dnode gate"><div class="dn">가림 처리</div><div class="dd">이름, 지역 같은 개인정보를 가린 사본을 만듭니다.</div></div>
+          <div class="dnode out"><div class="dn">바깥 AI 회사</div><div class="dd">가린 사본만 미국 OpenAI로 갑니다. 오남용 감시 기록이 최대 30일 보관될 수 있습니다.</div></div>
+        </div>
+        <div class="dflow" style="margin-top:9px">
+          <div class="dnode" style="flex:2"><div class="dn">녹음 파일</div><div class="dd">다음 영업일 첫 처리 기회가 지나면 바로 지웁니다. 처리하지 못한 파일은 "첫 기회 + 24시간"과 "업로드 + 7일" 중 이른 시점에 지웁니다. 7일은 기본 보관기간이 아니라 어떤 경우에도 넘지 않는 상한입니다.</div></div>
+          <div class="dnode out"><div class="dn">외부 녹취록 작성</div><div class="dd">Azure를 고르면 가리기 전 녹음 파일이 그대로 나갑니다.</div></div>
+        </div>
+
+        <h3 style="margin-top:40px; font-size:18px">동의는 여섯 영역입니다</h3>
+        <p style="margin-top:8px; color:var(--ink-2); max-width:64ch">하나씩 따로 받습니다. 전에 받은 동의를 자동으로 올려 쓰지 않습니다. 동의하지 않아도 수기 기록은 그대로 되고, 그 영역에 걸린 처리만 멈춥니다.</p>
+        <div class="chips" id="cschips" style="margin-top:14px"></div>
+        <div class="chipout" id="csout"></div>
+
+        <h3 style="margin-top:40px; font-size:18px">가림 처리는 지금 상태를 그대로 적습니다</h3>
+        <div class="tw" style="margin-top:14px">
+          <table>
+            <thead><tr><th>항목</th><th style="width:32%">상태</th></tr></thead>
+            <tbody>
+              <tr><td>사람 이름과 주소 가리기</td><td>구현됨</td></tr>
+              <tr><td>나이를 5세 구간으로, 지역을 시도 단위로</td><td class="off">규격 확정, 구현 중</td></tr>
+              <tr><td>직장, 학교, 병원, 금융사 이름 가리기</td><td class="off">계획</td></tr>
+              <tr><td>같은 사람에게 사례 안에서 늘 같은 번호 붙이기</td><td class="off">계획</td></tr>
+              <tr><td>날짜를 "상담일 +N일"처럼 상대 날짜로</td><td class="off">계획</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="margin-top:14px; color:var(--ink-2); max-width:64ch">가림이 끝난 뒤에도 건강 상태나 피해 경험 같은 민감한 내용은 남아서 나갈 수 있습니다. 동의 문안에 이 사실을 적습니다.</p>
+
+        <div class="split" style="margin-top:36px">
+          <div>
+            <h3 style="font-size:16px">누가 무엇을 봤는지 남깁니다</h3>
+            <p style="margin-top:8px; color:var(--ink-2)">누가 무엇을 열고 바꿨는지가 건별로 쌓입니다. 여기에 이번 달 집계를 더합니다. 담당이 아닌 당사자를 열어 본 건수, 개인정보를 푼 건수, 내보낸 건수입니다. 월간 점검 보고서를 내려받아 개인정보 보호책임자에게 보냅니다. 쌓기만 하고 아무도 안 보면 감사 기록이 아니기 때문입니다.</p>
+            <h3 style="font-size:16px; margin-top:24px">지원하는 사람이 상담 내용을 보지 않습니다</h3>
+            <p style="margin-top:8px; color:var(--ink-2)">제품에 문제가 생겨 도움을 요청할 때, 도와주는 사람은 오류 코드와 버전, 가상 자료로 재현한 것을 봅니다. 상담 원문이 필요한 경우에만 기관이 범위와 기한을 정해 따로 승인합니다.</p>
+          </div>
+          <div>
+            <div class="mini">
+              <div class="mt">감사 기록</div>
+              <div class="blk pin">이번 달 집계<small>담당 아닌 당사자 열람 3, 개인정보 복호화 11, 내보내기 1</small></div>
+              <div class="blk">건별 목록<small>시각, 사용자, 대상, 행위</small></div>
+              <div class="blk">월간 점검 보고서 내려받기</div>
+            </div>
+          </div>
+        </div>
+        <div class="note ed"><b>P10, 1차 점검 3-1.</b> 당사자의 열람, 정정, 삭제 요청 창구와 담당자가 아직 비어 있습니다. 파기 범위 문구는 파기 규칙(0041 SQL)과 동의서를 맞춘 뒤에 화면에 적습니다.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 도입 ──────────────────────────────────────── -->
+<section id="adopt">
+  <div class="wrap">
+    <div class="shead">
+      <div class="slab">도입</div>
+      <div>
+        <h2>준비물, 비용, 제한</h2>
+        <div class="sub">만들어진 것과 안 만들어진 것을 나눠 적습니다.</div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="col2">
+        <div class="tw">
+          <table>
+            <thead><tr><th style="width:30%">준비물</th><th>내용</th></tr></thead>
+            <tbody>
+              <tr><td>기본</td><td>인터넷에 연결된 PC와 브라우저</td></tr>
+              <tr><td>계정</td><td>실무자마다 개인 업무 계정 하나. 공용 계정은 권하지 않습니다</td></tr>
+              <tr><td>AI를 쓰려면</td><td>기관 PC에서 도는 Agent 프로그램</td></tr>
+              <tr><td>녹음을 글자로 옮기려면</td><td>기관 장비 또는 외부 서비스 연결. 설치 기본값은 꺼짐입니다</td></tr>
+              <tr><td>검증된 환경 목록</td><td class="off">정하는 중입니다<span class="ed inl"> <b>[T01]</b> 검증한 OS와 브라우저만 적습니다.</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tw" style="margin-top:14px">
+          <table>
+            <thead><tr><th style="width:30%">비용</th><th>내용</th></tr></thead>
+            <tbody>
+              <tr><td>소프트웨어</td><td>오픈소스로 공개합니다</td></tr>
+              <tr><td>설치, 교육, 운영 지원</td><td class="off">정하는 중입니다<span class="ed inl"> <b>[B07]</b> 라이선스와 선택 지원 서비스를 나눠 적습니다.</span></td></tr>
+              <tr><td>AI 사용료</td><td>기관이 AI 회사에 직접 냅니다. 기관이 쓸 양을 미리 정합니다</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="margin-top:36px; font-size:18px">제한</h3>
+        <ul style="margin-top:10px; max-width:64ch">
+          <li style="padding:8px 0; border-top:1px solid var(--rule-soft)">AI가 제안하는 위험 신호는 다음 영업일에 나옵니다. 상담 중 위기 대응을 대신하지 않습니다.</li>
+          <li style="padding:8px 0; border-top:1px solid var(--rule-soft)">AI를 끄면 기록, 조회, 목표 관리, 할 일 관리는 그대로 됩니다. 자유 글에서 뽑아내는 요약과 대조는 안 됩니다.</li>
+          <li style="padding:8px 0; border-top:1px solid var(--rule-soft)">기록에 없는 내용은 릴레이어도 모릅니다. 안 적힌 것은 "안 일어난 일"이 아니라 "모르는 일"로 다룹니다.</li>
+        </ul>
+
+        <h3 style="margin-top:40px; font-size:18px">설치 방식 세 가지</h3>
+        <p style="margin-top:8px; color:var(--ink-2); max-width:64ch">기관이 자료를 어디에 둘지 고릅니다. 업무 기능은 세 방식이 같고, 인증과 저장과 접속 경계만 다릅니다.</p>
+        <div class="seg" id="dpseg" style="margin-top:14px">
+          <button data-d="0" class="on">Community Cloud</button>
+          <button data-d="1">Local Single</button>
+          <button data-d="2">Local Office</button>
+        </div>
+        <div class="chipout" id="dpout" style="max-width:66ch"></div>
+
+        <h3 style="margin-top:40px; font-size:18px">지금 되는 것, 만드는 중, 계획</h3>
+        <div class="seg" id="stfilter" style="margin-top:12px">
+          <button data-f="all" class="on">전체</button>
+          <button data-f="now">지금 되는 것</button>
+          <button data-f="mid">만드는 중</button>
+          <button data-f="plan">계획</button>
+        </div>
+        <div class="tw" style="margin-top:14px">
+          <table><thead><tr><th style="width:26%">상태</th><th>항목</th></tr></thead><tbody id="stbody"></tbody></table>
+        </div>
+        <div class="note ed"><b>1차 점검 3-2.</b> 이 표는 문서 근거로 채운 값입니다. 릴리스 담당이 저장소 코드와 한 줄씩 대조한 뒤 확정합니다. 제출용 설명서의 "구현됨 / 구현 중 / 계획" 세 칸 표와 같은 말을 써야 합니다.</div>
+
+        <h3 style="margin-top:40px; font-size:18px">다음 행동</h3>
+        <p style="margin-top:8px; color:var(--ink-2); max-width:64ch">체험판을 열면 가상 당사자 두 명으로 상담 준비부터 기록, AI 검토까지 따라갈 수 있습니다. 실제 개인정보는 넣을 수 없습니다.</p>
+        <div class="cta" style="margin-top:16px">
+          <button class="btn pri">체험하기</button>
+          <button class="btn">도입 문의</button>
+          <button class="btn qui">소스 코드 보기</button>
+        </div>
+        <div class="note ed"><b>G01, G07.</b> 문의 창구 세 가지(기관 문의, 제품 장애, 개인정보 권리 요청)와 공개 저장소 주소가 아직 확정되지 않아 버튼에 링크를 걸지 않았습니다.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 용어 ──────────────────────────────────────── -->
+<section id="glossary">
+  <div class="wrap">
+    <div class="shead">
+      <div class="slab">낱말 뜻</div>
+      <div>
+        <h2>처음 보는 낱말</h2>
+        <div class="sub">화면에서 쓰는 말과 같습니다.</div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="col2">
+        <input class="gsearch" id="gsearch" type="search" placeholder="낱말 찾기" aria-label="낱말 찾기">
+        <dl class="glist" id="glist"></dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="fmark">릴레이어</div>
+    <p style="max-width:64ch">사회복지 기관의 사례관리를 위한 오픈소스 도구입니다. 이 페이지는 구조 확인용 와이어프레임이며, 문구와 숫자는 확정된 값이 아닙니다.</p>
+    <div class="ed" style="margin-top:26px">
+      <h3 style="font-size:15px; color:var(--ink)">이 초안이 쓰지 않은 표현</h3>
+      <div class="tw" style="margin-top:10px; max-width:760px">
+        <table>
+          <thead><tr><th style="width:32%">안 쓴 표현</th><th>이유</th></tr></thead>
+          <tbody>
+            <tr><td>15초면 모두 파악</td><td>측정하지 않았습니다. 화면 이름도 "상담 전 톺아보기"로 바꿨습니다</td></tr>
+            <tr><td>완전 무저장</td><td>OpenAI가 오남용 감시 기록을 최대 30일 둘 수 있습니다</td></tr>
+            <tr><td>무료 운영</td><td>소프트웨어는 무료지만 AI 사용료와 지원 비용은 따로입니다</td></tr>
+            <tr><td>국내에서만 처리</td><td>가린 자료는 미국으로 갑니다</td></tr>
+            <tr><td>모든 기록을 승인합니다</td><td>수기 메모는 즉시 공식 기록입니다. AI 초안만 승인합니다</td></tr>
+            <tr><td>유일한, 최고의</td><td>비교 증거가 없습니다</td></tr>
+            <tr><td>누락을 완전히 막습니다</td><td>기록에 안 적힌 것은 릴레이어도 모릅니다</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ── 편집자 표시 ───────────────────────── */
+const edsw = document.getElementById('edsw');
+edsw.addEventListener('click', () => {
+  const on = edsw.getAttribute('aria-pressed') === 'true';
+  edsw.setAttribute('aria-pressed', String(!on));
+  document.body.classList.toggle('edon', !on);
+});
+
+/* ── 회차 원장 ─────────────────────────── */
+const sessions = [
+  { n:'1회차', d:'7/2', kind:'첫 상담 기록',
+    sum:'신청 사유와 현재 상황을 처음 기록했습니다.',
+    tags:[{t:'물어볼 것 1건 열림', c:'open'}],
+    cards:[
+      {k:'사실', v:'월 소득 180만원', c:'f'},
+      {k:'사실', v:'신용점수 612', c:'f'},
+      {k:'확인할 것', v:'임대차 계약 종료일을 다음에 확인하기로 함', c:'q'},
+      {k:'판단과 평가', v:'위기도 주의', c:'j'}
+    ]},
+  { n:'2회차', d:'7/16', kind:'수기 기록',
+    sum:'당사자가 소득 서류를 내기로 했습니다.',
+    tags:[{t:'약속 1건 열림', c:'open'}],
+    cards:[
+      {k:'약속한 일', v:'"다음 주까지 소득 서류를 내겠다고 함". 당사자, 기한은 상담일 +7일', c:'p'},
+      {k:'사실', v:'채무 조정 절차를 안내받음', c:'f'}
+    ]},
+  { n:'3회차', d:'8/6', kind:'수기 기록',
+    sum:'주거 이야기가 나왔습니다. 소득 서류는 언급이 없었습니다.',
+    tags:[{t:'소득 서류 언급 없음', c:''}],
+    cards:[
+      {k:'사실', v:'월세 60만원, 계약 만료가 다가옴', c:'f'},
+      {k:'약속한 일', v:'실무자가 주거 상담 기관에 의뢰하기', c:'p'},
+      {k:'대조 결과', v:'2회차 소득 서류 약속에 결과 기록이 없습니다. 열린 채로 둡니다.', c:'j'}
+    ]},
+  { n:'4회차', d:'8/27', kind:'녹음 + 수기 기록',
+    sum:'주거 상담 기관 연계를 마쳤습니다. 소득 금액이 1회차와 다르게 적혔습니다.',
+    tags:[{t:'기관 연계 완료', c:'done'}, {t:'불일치 1건', c:'open'}],
+    cards:[
+      {k:'사실', v:'주거 상담 기관 연계 완료. 3회차 약속의 결과입니다', c:'f'},
+      {k:'사실', v:'월 소득 150만원', c:'f'},
+      {k:'사실', v:'신용점수 598', c:'f'},
+      {k:'대조 결과', v:'월 소득이 1회차 180만원, 4회차 150만원으로 다릅니다. 어느 쪽이 맞는지는 판단하지 않았습니다.', c:'j'},
+      {k:'변화', v:'신용점수 612에서 598로. 회차마다 바뀌는 숫자는 불일치가 아니라 변화로 다룹니다.', c:'j'}
+    ]},
+  { n:'5회차', d:'9/12', kind:'오늘, 상담 전 톺아보기',
+    sum:'상담에 들어가기 전에 확인할 것이 세 건 모였습니다.',
+    tags:[{t:'오늘', c:'done'}],
+    cards:[
+      {k:'남은 약속', v:'소득 서류 제출. 2회차 약속, 3회 전, 아직 결과 없음', c:'p'},
+      {k:'남은 물어볼 것', v:'임대차 계약 종료일. 1회차, 4회 전', c:'q'},
+      {k:'일치하지 않는 기록', v:'월 소득 180만원(1회차) / 150만원(4회차)', c:'f'},
+      {k:'위험 신호', v:'위험 신호 없음. 확인함, 4회차까지 대조', c:'j'}
+    ]}
+];
+
+const ROW = 62;
+const grid = document.getElementById('lgrid');
+const threads = document.getElementById('threads');
+const ldetail = document.getElementById('ldetail');
+
+sessions.forEach((s, i) => {
+  const row = document.createElement('div');
+  row.className = 'lrow' + (i === 0 ? ' first' : '') + (i === 4 ? ' sel' : '');
+  row.dataset.i = i;
+  row.innerHTML =
+    '<button class="lno" tabindex="-1"><b>' + s.n + '</b><span>' + s.d + '</span></button>' +
+    '<button class="lmain"><span class="lsum">' + s.sum + '</span>' +
+    '<span class="tags">' + s.tags.map(t => '<span class="tag ' + t.c + '">' + t.t + '</span>').join('') + '</span></button>';
+  row.querySelectorAll('button').forEach(b => b.addEventListener('click', () => select(i)));
+  grid.appendChild(row);
+});
+
+/* 결과가 없는 항목을 잇는 세로선 */
+[[0, 4, '임대차 계약 종료일'], [1, 4, '소득 서류 제출']].forEach(([a, b], k) => {
+  const el = document.createElement('div');
+  el.className = 'thr';
+  el.style.top = (a * ROW + ROW / 2) + 'px';
+  el.style.height = ((b - a) * ROW) + 'px';
+  el.style.left = (13 + k * 18) + 'px';
+  threads.appendChild(el);
+});
+
+function select(i) {
+  document.querySelectorAll('.lrow').forEach(r => r.classList.toggle('sel', +r.dataset.i === i));
+  const s = sessions[i];
+  ldetail.innerHTML =
+    '<h4>' + s.n + ', ' + s.d + ', ' + s.kind + '</h4>' +
+    '<div class="cards">' + s.cards.map(c =>
+      '<div class="card ' + c.c + '"><div class="k">' + c.k + '</div><div class="v">' + c.v + '</div></div>'
+    ).join('') + '</div>';
+}
+select(4);
+
+/* ── 세 상태 ───────────────────────────── */
+const states = {
+  1:{ t:'확인함', msg:'4회차까지 비교했고 서로 다른 내용은 없어요.', why:'대조를 했고 해당 사항이 없을 때 씁니다. 몇 회차까지 봤는지 함께 적습니다.' },
+  2:{ t:'확인 못 함', msg:'이 회차는 녹음이 없어 위험 신호를 살피지 않았어요.', why:'대조를 못 했을 때 씁니다. 이유를 반드시 함께 적습니다. 이유 없는 "없음"은 쓰지 않습니다.' },
+  3:{ t:'확인 중', msg:'확인 중이에요. 다음 영업일에 결과가 나와요.', why:'아직 처리하고 있을 때 씁니다.' }
+};
+const stbox = document.getElementById('stbox');
+function drawState(k) {
+  const s = states[k];
+  stbox.className = 'statebox s' + k;
+  stbox.innerHTML =
+    '<div class="lbl">상담 전 톺아보기, 일치하지 않는 기록</div>' +
+    '<div class="big">' + s.t + '</div>' +
+    '<div class="msg">' + s.msg + '</div>' +
+    '<div class="why">' + s.why + '</div>';
+}
+document.getElementById('stseg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#stseg button').forEach(x => x.classList.toggle('on', x === b));
+  drawState(b.dataset.s);
+});
+drawState(1);
+
+/* ── AI 켬 / 끔 ────────────────────────── */
+const aiRows = [
+  ['기록, 조회, 목표, 할 일', '됩니다', '됩니다'],
+  ['위험 신호', 'AI 제안을 사람이 확정합니다', '사람이 직접 표시합니다'],
+  ['회차 한 줄 요약', 'AI 요약의 핵심 한 줄', '고른 값을 이어 붙입니다. "위기도 주의, 할 일 2, 달라진 것: 주거"'],
+  ['직전 회차 요약', 'AI 요약 200자', '같은 방식의 한 줄'],
+  ['일치하지 않는 기록', '자유 글까지 비교합니다', '숫자와 선택값만 기계가 비교합니다'],
+  ['남은 할 일', '등록한 할 일과 카드에서 찾은 약속', '등록한 할 일만'],
+  ['경과 리포트', '다섯 섹션 전부', '자유 글에서 뽑는 부분은 "AI 요약 없음"으로 비웁니다']
+];
+const aitbody = document.getElementById('aitbody');
+const aicol = document.getElementById('aicol');
+function drawAI(mode) {
+  const idx = mode === 'on' ? 1 : 2;
+  aicol.textContent = mode === 'on' ? 'AI 켠 기관' : 'AI 끈 기관';
+  aitbody.innerHTML = aiRows.map(r =>
+    '<tr><td>' + r[0] + '</td><td' + (idx === 2 ? ' class="off"' : '') + '>' + r[idx] + '</td></tr>'
+  ).join('');
+}
+document.getElementById('aiseg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#aiseg button').forEach(x => x.classList.toggle('on', x === b));
+  drawAI(b.dataset.a);
+});
+drawAI('on');
+
+/* ── 동의 여섯 영역 ────────────────────── */
+const consents = [
+  ['개인정보', '이름, 연락처 같은 기본 정보를 쓰는 것입니다.'],
+  ['민감정보', '건강 상태처럼 법이 따로 보호하는 정보를 쓰는 것입니다.'],
+  ['녹음', '상담을 녹음하는 것입니다.'],
+  ['외부 녹취록 작성', '녹음 파일을 바깥 회사에 보내 글자로 옮기는 것입니다. Azure를 고르면 가리기 전 파일이 나갑니다.'],
+  ['외부 AI와 국외 처리', '가린 기록을 바깥 AI 회사에 보내는 것입니다. 그 회사가 다른 나라에 있는 것도 함께 알립니다.'],
+  ['녹음 파일 보관기간', '녹음 파일을 언제까지 두는지입니다.']
+];
+const cschips = document.getElementById('cschips');
+const csout = document.getElementById('csout');
+consents.forEach((c, i) => {
+  const b = document.createElement('button');
+  b.className = 'chip' + (i === 0 ? ' on' : '');
+  b.textContent = c[0];
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#cschips .chip').forEach(x => x.classList.toggle('on', x === b));
+    csout.innerHTML = '<div class="ct">' + c[0] + '</div>' + c[1];
+  });
+  cschips.appendChild(b);
+});
+csout.innerHTML = '<div class="ct">' + consents[0][0] + '</div>' + consents[0][1];
+
+/* ── 설치 방식 ─────────────────────────── */
+const deploys = [
+  ['Community Cloud', '자료는 공동 클라우드 서버에 있습니다. 서버를 직접 두기 어려운 기관이 씁니다.'],
+  ['Local Single', '자료는 실무자 PC 한 대에 있습니다. 혼자 일하는 기관이 씁니다.'],
+  ['Local Office', '자료는 기관 안 서버 한 대에 있고 기관 망에서 접속합니다. 여러 실무자가 같이 쓰는 기관을 위한 방식입니다.']
+];
+const dpout = document.getElementById('dpout');
+function drawDeploy(i) {
+  dpout.innerHTML = '<div class="ct">' + deploys[i][0] + '</div>' + deploys[i][1] +
+    '<div style="margin-top:8px; color:var(--ink-3); font-size:13px">세 방식 모두 녹음을 글자로 옮기는 기능의 설치 기본값은 꺼짐입니다.</div>';
+}
+document.getElementById('dpseg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#dpseg button').forEach(x => x.classList.toggle('on', x === b));
+  drawDeploy(+b.dataset.d);
+});
+drawDeploy(0);
+
+/* ── 구현 상태 ─────────────────────────── */
+const statusRows = [
+  ['now','지금 되는 것','첫 상담 기록, 회차 기록, 회차별 조회'],
+  ['now','지금 되는 것','목표 세 층과 할 일 관리'],
+  ['now','지금 되는 것','동의 여섯 영역 기록과 철회'],
+  ['now','지금 되는 것','개인정보 금고 암호화, 감사 기록'],
+  ['now','지금 되는 것','AI 초안 작성과 사람 승인'],
+  ['now','지금 되는 것','같은 회차 안 대조 세 가지'],
+  ['now','지금 되는 것','위험 신호 여섯 종을 손으로 표시'],
+  ['mid','만드는 중','빈칸을 세 상태로 나눠 표시'],
+  ['mid','만드는 중','약속 추적 목록, 읽기 전용 첫 판'],
+  ['mid','만드는 중','상담 기억을 그림자 모드로 전환'],
+  ['mid','만드는 중','개인정보 가림 2판, 나이 구간과 시도 단위'],
+  ['mid','만드는 중','파기 범위 문구 정정'],
+  ['plan','계획','사람과 기관에 번호 붙이기'],
+  ['plan','계획','주제를 AI가 찾아 붙이기'],
+  ['plan','계획','녹음과 메모를 맞대는 화면'],
+  ['plan','계획','경과 리포트 화면'],
+  ['plan','계획','목표별 진척 정리'],
+  ['plan','계획','처음부터 지금까지 흐름 보기']
+];
+const stbody = document.getElementById('stbody');
+function drawStatus(f) {
+  const rows = statusRows.filter(r => f === 'all' || r[0] === f);
+  let prev = null;
+  stbody.innerHTML = rows.map(r => {
+    const head = r[0] !== prev; prev = r[0];
+    return '<tr' + (head ? ' class="grp"' : '') + '><td' +
+      (r[0] === 'now' ? '' : ' class="off"') + '>' + (head ? r[1] : '') + '</td><td>' + r[2] + '</td></tr>';
+  }).join('');
+}
+document.getElementById('stfilter').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#stfilter button').forEach(x => x.classList.toggle('on', x === b));
+  drawStatus(b.dataset.f);
+});
+drawStatus('all');
+
+/* ── 사용 흐름 ─────────────────────────── */
+const steps = [
+  { n:'0', name:'기관 준비', screen:'기관 준비',
+    lead:'기관에서 처음 로그인한 관리자가 합니다. 기본 동의는 체크해 두지 않습니다. 관리자가 하나씩 읽고 정합니다.',
+    items:['<b>기관 이름</b>을 넣습니다','<b>첫 사업 이름</b>을 넣습니다. 사업은 "금융지원", "주거지원"처럼 기관이 하는 일의 단위입니다','<b>사업 모듈</b>을 고릅니다. 사업마다 더 물어볼 것이 있으면 여기서 켭니다','<b>실무자를 초대</b>합니다','동의 문안과 개인정보 보유기간을 검토합니다'],
+    mini:{ t:'기관 준비', b:[['기관 이름',''],['첫 사업 이름',''],['사업 모듈 선택','금융지원, 주거지원'],['실무자 초대','']] } },
+  { n:'1', name:'당사자 등록과 동의', screen:'당사자 등록, 당사자 초대',
+    lead:'이름, 생년월일, 연락처, 주소를 넣습니다. 당사자가 링크를 받아 직접 넣는 길도 있습니다. 등록을 마치면 동의를 여섯 영역으로 나눠 하나씩 받습니다.',
+    items:['전에 받은 동의를 자동으로 올려 쓰지 않습니다. 새 영역이 생기면 다시 받습니다','동의하지 않아도 수기 기록은 그대로 됩니다. 그 영역에 걸린 처리만 멈춥니다'],
+    mini:{ t:'당사자 등록', b:[['기본정보','이름, 생년월일, 연락처, 주소'],['동의 여섯 영역','하나씩 따로'],['완료','동의 받기 → 첫 상담 기록 안내']] } },
+  { n:'2', name:'첫 상담 기록', screen:'첫 상담 기록 (인테이크)',
+    lead:'왜 도움을 요청했고 어디서부터 시작할지 적는 자리입니다. 화면은 세 층이고 해당하는 것만 열립니다.',
+    items:['<b>공통 뼈대</b> 28문항은 항상 보입니다','<b>영역 모듈</b>은 고른 영역만 열립니다. 영역마다 선택 2개와 상세 1개입니다','<b>사업 모듈</b>은 기관이 켰을 때만 보입니다','영역은 아홉 개입니다. 경제·재정, 일·고용, 주거, 신체건강, 심리·정서, 가족·관계, 돌봄·양육, 법률·행정, 기타','위기도를 안 고르면 "판단 안 함"으로 저장됩니다. 안정으로 저장되지 않습니다','장기목표는 비워도 됩니다'],
+    quote:'첫 상담에서 합의가 어려우면 비워 두세요.',
+    quoteFrom:'장기목표 칸 안내 문구',
+    mini:{ t:'첫 상담 기록', b:[['1장 기본정보와 동의',''],['2장 현재 어려움','관문. 고른 영역만 아래가 열림'],['영역 모듈','주거, 경제·재정만 펼침',1],['사업 모듈','금융지원 대출부채표',2],['4장 실무자 판단','위기도, 지원방향, 장기목표, 종합의견']] } },
+  { n:'3', name:'상담 등록', screen:'상담 등록',
+    lead:'언제 누구와 만날지 정하고, 이번 상담 준비를 함께 적습니다. 사례를 고르면 동의 상태가 바로 뜹니다.',
+    items:['순서는 당사자, 사례, 일시, 방법, 유형입니다','<b>이번 상담 목표</b>는 선택이고 최대 세 개입니다. 단기목표에 연결할 수 있습니다','<b>다음에 물어볼 것</b>은 저장하면 확인할 것 카드가 되어 준비 화면에 올라갑니다','등록을 마치면 상담 전 톺아보기로 이어집니다'],
+    quote:'이 사례는 AI 정리가 안 만들어져요. 동의 화면에서 외부 AI 항목을 받으면 만들어져요.',
+    quoteFrom:'AI 동의가 없을 때 나오는 문구',
+    mini:{ t:'상담 등록', b:[['누구와','당사자 → 사례. 동의 상태 표시'],['언제, 어떻게','일시, 방법, 유형'],['이번 상담 목표','선택, 최대 3',1],['다음에 물어볼 것','선택, 카드가 됨',1]] } },
+  { n:'4', name:'상담 전 톺아보기', screen:'상담 전 톺아보기',
+    lead:'상담에 들어가기 전에 무엇을 알아야 하는지 한 화면에서 봅니다. 읽는 화면이고 고치는 기능은 없습니다. 고치는 일은 당사자 정보에서 합니다.',
+    items:['<b>위험 신호 알림</b>은 항상 맨 위에 있고 접히지 않습니다. 없을 때도 "위험 신호 없음"과 상태를 적습니다','<b>당사자 카드</b>는 검토 안 한 AI 정리가 있으면 알립니다','<b>목표</b>는 읽기 전용입니다','<b>직전 회차 요약</b>은 200자 안이고 지난 회차에 새로 나온 것만 적습니다','<b>오늘 물어볼 것</b>은 출처 셋을 나눕니다. 남은 물어볼 것, 내가 적음, AI 제안','<b>남은 할 일</b>은 위험 관련이 맨 위, 나머지는 오래된 순입니다','<b>일치하지 않는 기록</b>은 두 기록을 회차 번호와 나란히 보여 줍니다'],
+    quote:'어느 쪽이 맞는지는 판단하지 않았어요. 오늘 확인해 주세요.',
+    quoteFrom:'일치하지 않는 기록 안내 문구',
+    mini:{ t:'상담 전 톺아보기', b:[['1 위험 신호 알림','접히지 않음',3],['2 당사자 카드','검토할 AI 정리 1건'],['3 목표','읽기 전용'],['4 직전 회차 요약','200자'],['5 오늘 물어볼 것','출처 셋'],['6 남은 할 일','위험 고정, 오래된 순'],['7 일치하지 않는 기록','확인함: 4회차까지']] } },
+  { n:'5', name:'오늘 상담 기록', screen:'오늘 상담 기록',
+    lead:'오늘 무슨 이야기를 했고 다음에 무엇을 할지 적습니다. 필수는 수기 메모 하나입니다. 상담 중에는 오늘 상담 내용 칸만 펼쳐져 있습니다.',
+    items:['본문 구획을 열한 개에서 여섯 개로 줄이고, 이전 기록은 옆 보조 패널로 옮겼습니다','남은 약속마다 결과 버튼이 셋입니다. <b>했음, 진행 중, 못 함</b>','안 누르면 "이번에 확인 안 함"으로 저장됩니다. 진행 중으로 추정하지 않습니다','<b>못 함</b>을 누르면 "계속한다 / 그만둔다(사유)" 한 줄이 열립니다','수기 메모는 저장하는 순간 공식 기록입니다'],
+    quote:'상담 내용만 적어도 저장할 수 있어요.',
+    quoteFrom:'필수 항목 안내 문구',
+    mini:{ t:'오늘 상담 기록', b:[['[0] 이전 기록','보조 패널. 남은 약속과 물어볼 것',3],['[1] 오늘 상담 내용','필수. 상담 중 유일하게 열림',4],['[2] 다음까지 하기로 한 것','한 줄 + 누가 + 기한',1],['[3] 다음에 물어볼 것','한 줄',1],['[5] 담당자 판단','위기도, 위험 신호, 의견',1],['추가 기록','달라진 것, 목표 상태, 기관 연계',2]] } },
+  { n:'6', name:'AI 정리 검토', screen:'AI 정리 검토',
+    lead:'AI를 켠 기관에만 있는 화면입니다. AI가 쓴 초안이 맞는지 보고 승인합니다. 승인해야 공식 기록이 됩니다.',
+    items:['<b>재료 상태</b>를 맨 위에 둡니다. 전사 기록, 메모, 목표가 있는지와 "지난 3회차 요약 참고"를 적습니다','<b>위험 신호 제안</b>에 맞음 또는 틀림을 고릅니다','<b>요약</b>은 문장마다 원문 인용이 붙습니다','<b>대조</b>는 셋을 풀어 씁니다. 메모에서 누락된 것, 녹음에서 누락된 것, 다루지 않은 목표','<b>후속 제안</b>의 담당자와 기한은 사람이 정합니다','<b>승인할 수 없는 조건</b>은 승인 버튼 바로 위에 적습니다'],
+    mini:{ t:'AI 정리 검토', b:[['재료 상태','전사 있음, 메모 있음, 지난 3회차 참고',3],['위험 신호 제안','근거 + 맞음/틀림'],['핵심 한 줄과 요약','문장별 원문 인용'],['대조 세 가지',''],['후속 제안','할 일로 등록, 물어볼 것에 추가'],['승인 불가 조건','화자 구분 확인 필요',3],['결정','승인, 반려, 다시 만들기']] } },
+  { n:'7', name:'다음 회차', screen:'3단계부터 6단계까지 반복',
+    lead:'회차가 쌓일수록 대조할 재료가 늘어납니다. 약속은 자동으로 닫히지 않습니다. 닫는 일은 사람이 합니다.',
+    items:['짝 찾기는 바로 다음 회차만 보지 않고 뒤 회차 전부를 봅니다','결과가 생기면 아래 구역으로 내려갑니다. 지우지는 않습니다','각 항목에 "N회차, M회 전"이 붙고 원문 기한이 지났으면 표시합니다','열린 항목이 10건을 넘으면 "오래된 항목 N건 한 번에 정리하기"가 뜹니다'],
+    mini:{ t:'약속 추적', b:[['아직 결과 기록이 없는 약속','소득 서류. 2회차, 3회 전',3],['','임대차 계약 종료일. 1회차, 4회 전'],['결과 기록이 있는 약속','주거 상담 기관 의뢰. 3회차 약속, 4회차 완료',2]] } },
+  { n:'8', name:'당사자 정보', screen:'당사자 정보',
+    lead:'한 당사자에 관한 모든 것을 한 페이지에서 봅니다. 맨 위에 당사자 카드가 고정되고 아래에 탭 네 개가 있습니다.',
+    items:['<b>상담 기록</b>이 기본으로 열립니다. 회차 줄을 펼치면 요약, 다시 펼치면 원문입니다','<b>경과 리포트</b>는 첫 상담부터 지금까지의 변화를 모읍니다','<b>목표와 계획</b>에서만 장기목표를 고칩니다','<b>정보</b>에 동의 여섯 영역과 연계 기관이 있습니다','회차 요약은 세 겹입니다. 한 줄 40~60자, 요약 200자 안, 원문 전체','"처음"과 "지금" 대신 "처음 확인된 상태(2회차)", "마지막으로 확인된 상태(5회차)"라고 씁니다'],
+    mini:{ t:'당사자 정보', b:[['당사자 카드','고정. 이름, 담당, 동의 상태, 다음 일정',3],['탭 1 상담 기록','기본 열림',4],['탭 2 경과 리포트',''],['탭 3 목표와 계획',''],['탭 4 정보','']] } },
+  { n:'9', name:'사례 종결', screen:'사례 종결',
+    lead:'이 사업 참여를 어떻게 마무리할지 정합니다.',
+    items:['종결 사유와 종결일','남은 할 일 처리: 끝냄 / 그만둠(사유) / 다른 사례로','활성 단기목표 닫기: 달성 / 중단','파기 예정일과 파기 범위. 문구는 동의서와 똑같은 말을 씁니다'],
+    ed:'Q5. 파기 범위 문구는 파기 규칙(0041 SQL)과 동의서를 맞춘 뒤에 화면에 적습니다. 그 전에는 범위를 적지 않습니다.',
+    mini:{ t:'사례 종결', b:[['종결 사유와 종결일',''],['남은 할 일 처리','끝냄 / 그만둠 / 다른 사례로'],['활성 단기목표 닫기','달성 / 중단'],['파기 예정일과 범위','동의서와 같은 말',3]] } }
+];
+
+const steplist = document.getElementById('steplist');
+const stepbody = document.getElementById('stepbody');
+steps.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.className = i === 4 ? 'on' : '';
+  b.innerHTML = '<span class="n">' + s.n + '</span><span>' + s.name + '</span>';
+  b.addEventListener('click', () => drawStep(i));
+  steplist.appendChild(b);
+});
+
+function miniHTML(m) {
+  const cls = ['', ' fold', ' fold', ' pin', ' req'];
+  return '<div class="mini"><div class="mt">' + m.t + '</div>' +
+    m.b.map(r => '<div class="blk' + (cls[r[2] || 0]) + '">' + (r[0] || '&nbsp;') +
+      (r[1] ? '<small>' + r[1] + '</small>' : '') + '</div>').join('') +
+    '<div class="mlg">굵은 테두리는 접히지 않는 구획, 점선은 조건에 따라 열리는 구획, 왼쪽 선은 필수 또는 기본 열림입니다.</div></div>';
+}
+
+function drawStep(i) {
+  document.querySelectorAll('#steplist button').forEach((b, k) => b.classList.toggle('on', k === i));
+  const s = steps[i];
+  stepbody.innerHTML =
+    '<div class="scr">' + s.screen + '</div>' +
+    '<h3>' + s.name + '</h3>' +
+    '<p class="lead">' + s.lead + '</p>' +
+    '<div class="split"><div><ul>' +
+      s.items.map(t => '<li>' + t + '</li>').join('') +
+    '</ul>' +
+    (s.quote ? '<div class="quote"><span class="q">' + s.quoteFrom + '</span>' + s.quote + '</div>' : '') +
+    (s.ed ? '<div class="note ed">' + s.ed + '</div>' : '') +
+    '</div><div>' + miniHTML(s.mini) + '</div></div>';
+}
+drawStep(4);
+
+/* ── 용어 ──────────────────────────────── */
+const terms = [
+  ['사례','한 당사자가 한 사업에 참여하는 단위입니다.'],
+  ['회차','한 사례 안에서 몇 번째 상담인지를 가리킵니다.'],
+  ['당사자','상담을 받는 사람입니다. 권리를 가진 주체라는 뜻으로 "클라이언트" 대신 씁니다.'],
+  ['첫 상담 기록 (인테이크)','처음 만나 상황 전체를 파악하는 기록입니다.'],
+  ['상담 전 톺아보기','상담에 들어가기 전에 확인할 것을 모아 보는 화면입니다.'],
+  ['경과 리포트','첫 상담부터 지금까지의 변화를 모은 문서입니다.'],
+  ['위기도','이번 회차의 상황을 안정, 주의, 위기로 적은 값입니다.'],
+  ['위험 신호','확인이 필요한 상황 여섯 유형입니다.'],
+  ['할 일','다음까지 하기로 한 일입니다. 문서에서는 실천과제라고 씁니다.'],
+  ['카드','상담 원문을 한 가지씩 쪼개 적은 단위입니다.'],
+  ['상담 기억','회차를 넘어 맥락을 이어 주는 내부 보조 자료입니다. 화면에는 나오지 않습니다.'],
+  ['녹취록 작성 (STT)','녹음을 글자로 옮기는 처리입니다.'],
+  ['전사 기록','녹음을 글자로 옮긴 결과물입니다.'],
+  ['예약 없이 내방','일정 없이 찾아온 상담입니다.']
+];
+const glist = document.getElementById('glist');
+function drawTerms(q) {
+  const f = terms.filter(t => !q || t[0].includes(q) || t[1].includes(q));
+  glist.innerHTML = f.length
+    ? f.map(t => '<div class="gitem"><dt>' + t[0] + '</dt><dd>' + t[1] + '</dd></div>').join('')
+    : '<div class="gempty">찾는 낱말이 없어요. 다른 말로 찾아 보세요.</div>';
+}
+document.getElementById('gsearch').addEventListener('input', e => drawTerms(e.target.value.trim()));
+drawTerms('');
+
+/* ── 스크롤 위치 표시 ──────────────────── */
+const links = [...document.querySelectorAll('#nav a')];
+const secs = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+const io = new IntersectionObserver(entries => {
+  entries.forEach(en => {
+    if (!en.isIntersecting) return;
+    links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id));
+  });
+}, { rootMargin: '-70px 0px -60% 0px', threshold: 0 });
+secs.forEach(s => io.observe(s));
+</script>
+</body>
+</html>

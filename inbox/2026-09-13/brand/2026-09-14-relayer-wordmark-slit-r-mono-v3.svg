@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="3072" height="1536" viewBox="0 0 3072 1536" role="img" aria-labelledby="title desc">
+  <title id="title">릴레이어 영문 가로형 로고</title>
+  <desc id="desc">하나의 실루엣 안에 바톤 슬릿을 넣은 R을 양끝에 사용한 RELAYER 워드마크</desc>
+  <defs>
+    <symbol id="relay-r" viewBox="150 90 740 850">
+      <path fill="#000000" fill-rule="evenodd" d="
+        M260 110 H520
+        C710 110 825 215 825 380
+        C825 510 750 598 620 635
+        L855 914 H620 L430 650 H385
+        V834 C385 878 349 914 305 914
+        H260 C216 914 180 878 180 834
+        V190 C180 146 216 110 260 110 Z
+        M405 285 H510
+        C595 285 650 325 650 390
+        C650 455 595 495 510 495
+        H405 Z
+        M357 170
+        C372 170 385 183 385 198
+        V692 C385 707 372 720 357 720
+        C342 720 330 707 330 692
+        V198 C330 183 342 170 357 170 Z
+      "/>
+    </symbol>
+  </defs>
+  <use href="#relay-r" x="210" y="480" width="460" height="575"/>
+  <text x="1536" y="1000" fill="#000000" font-family="Pretendard, 'Pretendard Variable', sans-serif" font-size="535" font-weight="800" letter-spacing="-42" text-anchor="middle">ELAYE</text>
+  <use href="#relay-r" x="2402" y="480" width="460" height="575"/>
+</svg>

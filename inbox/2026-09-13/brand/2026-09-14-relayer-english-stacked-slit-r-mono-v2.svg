@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">릴레이어 영문 세로형 로고</title>
+  <desc id="desc">RE, LAY, ER 세 줄과 내부 바톤 슬릿 R을 조합한 흑백 워드마크</desc>
+  <defs>
+    <symbol id="relay-r" viewBox="150 90 740 850">
+      <path fill="#000000" fill-rule="evenodd" d="
+        M260 110 H520
+        C710 110 825 215 825 380
+        C825 510 750 598 620 635
+        L855 914 H620 L430 650 H385
+        V834 C385 878 349 914 305 914
+        H260 C216 914 180 878 180 834
+        V190 C180 146 216 110 260 110 Z
+        M405 285 H510
+        C595 285 650 325 650 390
+        C650 455 595 495 510 495
+        H405 Z
+        M357 170
+        C372 170 385 183 385 198
+        V692 C385 707 372 720 357 720
+        C342 720 330 707 330 692
+        V198 C330 183 342 170 357 170 Z
+      "/>
+    </symbol>
+  </defs>
+  <g fill="#000000" font-family="Pretendard, 'Pretendard Variable', sans-serif" font-weight="800">
+    <use href="#relay-r" x="230" y="70" width="255" height="285"/>
+    <text x="470" y="333" font-size="285" letter-spacing="-16">E</text>
+    <text x="512" y="665" font-size="300" letter-spacing="-24" text-anchor="middle">LAY</text>
+    <text x="237" y="957" font-size="285" letter-spacing="-16">E</text>
+    <use href="#relay-r" x="535" y="692" width="255" height="285"/>
+  </g>
+</svg>
