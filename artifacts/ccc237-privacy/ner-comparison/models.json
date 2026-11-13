@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scope": "One eligible alternative versus current baseline; not a broad model leaderboard",
+  "decoder": "Existing decode_ner_entities bioes-v1; category mapping only, no cross-span merging, suffix stripping, confidence threshold or boundary expansion",
+  "models": {
+    "baseline": {
+      "id": "FrameByFrame/korean-pii-e5-base",
+      "revision": "a308c54b4407819624a5661e31e162a269f39818",
+      "license": "MIT",
+      "labelMap": {"PRIVATE_PERSON": "PRIVATE_PERSON", "PRIVATE_ADDRESS": "PRIVATE_ADDRESS"},
+      "source": "https://huggingface.co/FrameByFrame/korean-pii-e5-base/raw/a308c54b4407819624a5661e31e162a269f39818/README.md"
+    },
+    "alternative": {
+      "id": "vmaca123/korean-pii-ner-v3",
+      "revision": "ebee0847b166f16041bffc9e1521d895d360d02e",
+      "license": "CC-BY-SA-4.0",
+      "labelMap": {"NAME": "PRIVATE_PERSON", "ADDRESS": "PRIVATE_ADDRESS"},
+      "source": "https://huggingface.co/vmaca123/korean-pii-ner-v3/raw/ebee0847b166f16041bffc9e1521d895d360d02e/README.md",
+      "configSource": "https://huggingface.co/vmaca123/korean-pii-ner-v3/resolve/ebee0847b166f16041bffc9e1521d895d360d02e/config.json",
+      "weightBytes": 1342503796,
+      "parameterCount": 335613959,
+      "knownLimitations": ["Model card states ADDRESS_UNIT is unsupported; unit-bearing gold remains unchanged", "No published score is treated as our evidence", "Future redistribution/cutover needs separate license review; no weights are copied into the repository"]
+    }
+  },
+  "excludedBeforeInference": [
+    {"id":"seungkukim/korean-pii-masking","revision":"4986cd9e9201cf16723e2a541b33b5d33bfd68f1","reason":"Only PS_NAME plus structured identifiers; no address label","source":"https://huggingface.co/seungkukim/korean-pii-masking/resolve/4986cd9e9201cf16723e2a541b33b5d33bfd68f1/config.json"},
+    {"id":"OpenMed/OpenMed-PII-Korean-NomicMed-Large-395M-v1","revision":"3fc3670a8d8a3cbd6690f1e8b38d601040bab113","reason":"Separate FIRSTNAME/LASTNAME and CITY/STREET/BUILDINGNUMBER components, not like-for-like whole spans; no post-hoc fusion added","source":"https://huggingface.co/OpenMed/OpenMed-PII-Korean-NomicMed-Large-395M-v1/resolve/3fc3670a8d8a3cbd6690f1e8b38d601040bab113/config.json"},
+    {"id":"Leo97/KoELECTRA-small-v3-modu-ner","revision":"bb9d562674e260712d9779f140ff5564a9e44d36","reason":"No declared model license in inspected metadata/card or LICENSE file in repository listing; not downloaded","source":"https://huggingface.co/api/models/Leo97/KoELECTRA-small-v3-modu-ner"},
+    {"id":"urchade/gliner_multi_pii-v1","revision":"1fcf13e85f4eef5394e1fcd406cf2ca9ea82351d","reason":"Declared languages exclude Korean and repository has pickle weights only; not downloaded","source":"https://huggingface.co/api/models/urchade/gliner_multi_pii-v1"}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "kind": "constructed_validator_counterexample_not_model_output",
+  "limit": "Exact evidence quotes and source-hash roundtrip alone do not reject unsupported summary statements or invented identifiers. This is the isolated prototype, not the CCC gateway.",
+  "modelQualityMeasured": false,
+  "officialRecordCreated": false,
+  "productChanged": false,
+  "reportHash": "0420814c93c8de7db4809550d9cd84faf3038703f0c946a846581f3b5e729af7",
+  "sourceHash": "697675f0a9a2e89f7f4ef58de1f4f16d0c64f42165ae3af22111410793909638",
+  "structurallyValidButInventedNameAccepted": true
+}

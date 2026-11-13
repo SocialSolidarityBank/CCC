@@ -1,0 +1,36 @@
+{
+  "status": "actual_measurement_and_artifacts_verified",
+  "previousPreflightOnlyReview": "review-verification-preflight.json",
+  "measurementReportHash": "f24121cecb9b204a3635007099ee29bef9612fda47f410e61c8b4cea196cbefa",
+  "decisionReportHash": "9a2e35f950a5f116f1b236a2dab7b66f1a33793b675206756a5081b33257c530",
+  "freezeHash": "fee0fd55e671d2d3316af1e71ab29c64b7aeff6b2d0082ca7fcbc9503e70d1f2",
+  "verification": {
+    "status": "verification_passed",
+    "completedCases": 24,
+    "baselineScoresReproduced": 24,
+    "directOpacity": "14/17 -> 14/17",
+    "negativeCasesAdditionallyMasked": "2/9",
+    "protectedPhrasesLost": "1/48",
+    "engineering24000": "complete, 11261/11261 tokens",
+    "sourceWeightReportIntegrity": "verified",
+    "adapterSmokeChecks": "passed",
+    "roleOnlyGate": "unadjudicated",
+    "productChanged": false
+  },
+  "checksExecuted": [
+    "OS-network-denied real CPU baseline and OPF inference",
+    "Frozen source and publisher weight hashes",
+    "Baseline 24-case score reproduction against prior measurement",
+    "Core24 and 24000-character native token coverage",
+    "Exact actual-result denominators and independently recalculated scalar totals",
+    "Native grammar, exact offset, mask-overlap and timeout-identity smoke checks"
+  ],
+  "notClaimed": [
+    "independent holdout qualification",
+    "role-only workplace re-identification safety",
+    "Windows performance",
+    "production or provider activation"
+  ],
+  "experimentComplete": true,
+  "productChanged": false
+}

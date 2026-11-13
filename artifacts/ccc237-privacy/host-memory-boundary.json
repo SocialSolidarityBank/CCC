@@ -1,0 +1,31 @@
+{
+  "scope": "Read-only observation of current Mac and observer process; not a production Agent qualification",
+  "platform": "darwin arm64",
+  "fileVaultEnabled": true,
+  "swap": {
+    "enabled": true,
+    "encrypted": true,
+    "usedMiB": 13231.44,
+    "observedVia": "sysctl vm.swapusage"
+  },
+  "kernelCoreDumpEnabled": true,
+  "observerCoreDumpSoftLimit": 0,
+  "observerCoreDumpHardLimit": 9223372036854775807,
+  "observerMemoryLockLimits": [
+    9223372036854775807,
+    9223372036854775807
+  ],
+  "hibernationMode": 3,
+  "standbyEnabled": true,
+  "policiesChanged": false,
+  "rawParticipantDataRead": false,
+  "windowsMeasured": false,
+  "cloudHostMeasured": false,
+  "gateVerdict": "not_qualified",
+  "limits": [
+    "Encrypted swap mitigates at-rest access but does not prove no persistent copy.",
+    "Hibernation and kernel dump settings are not disabled.",
+    "Observer limits do not establish production Agent process limits.",
+    "No physical wipe of Python/JavaScript/model/TLS internal copies is proven."
+  ]
+}

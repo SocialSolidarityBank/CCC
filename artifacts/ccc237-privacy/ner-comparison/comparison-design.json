@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "approval": "Q selected alternative-candidate comparison, not production replacement",
+  "kind": "Synthetic, independently authored development/heldout comparison; not release qualification",
+  "scope": {
+    "syntheticOnly": true,
+    "originalGoldAndThresholdsUnchanged": true,
+    "productionModelAndCodeUnchanged": true,
+    "noActivationOrIssuance": true,
+    "macOnly": true,
+    "oneCpuModelProcessAtATime": true,
+    "cpuThreads": 2,
+    "freshMemoryCheckBeforeEachLoad": true
+  },
+  "data": {
+    "development": "development.json",
+    "heldout": "heldout.json",
+    "separateAuthorsAndTemplates": true,
+    "separateSyntheticNameAndAddressPools": true,
+    "minimumRowsPerSplit": 500,
+    "minimumTrueNegativesPerSplit": 200,
+    "mainCannotInspectHeldoutTextOrRecipesBeforeSelection": true,
+    "blindGoldReviewBeforeAnyCandidateInference": true,
+    "crossSplitTextAndGoldOverlapCheckBeforeFreeze": true,
+    "limitations": "Synthetic template families are correlated; separate authors and blinding do not create real-world or human-adjudicated population evidence. CI criteria are applied numerically, not claimed as population guarantees."
+  },
+  "inference": {
+    "onlyPublicUngatedLicensedPinnedWeights": true,
+    "trustRemoteCode": false,
+    "onlySafetensorsWeights": true,
+    "noGoldAccessInRecognizer": true,
+    "noJosaTrimmingOrGoldDrivenSpanExpansion": true,
+    "noThresholdTuning": true,
+    "mappingMustBeFrozenFromPublishedLabelSemanticsBeforeInference": true,
+    "semanticMismatchMustBeReportedNotHidden": true,
+    "selectionDoesNotAuthorizeAnyMappingOrDecoderChangeInProduct": true
+  },
+  "selection": {
+    "scorer": "Existing qualify_ner.score_predictions exact label/codepoint spans",
+    "numericGate": "Existing qualify_ner.measurement_passes release criteria, unchanged",
+    "order": [
+      "Runtime-valid alternatives passing every existing release numeric criterion rank before failing alternatives",
+      "Then maximize the minimum of the four existing Wilson lower precision/recall bounds; undefined is zero",
+      "Then minimize existing overgeneralizationUpper; undefined is one",
+      "Then ascending immutable model ID for deterministic ties"
+    ],
+    "baseline": "Current fixed FrameByFrame model is a control, not an alternative candidate",
+    "allAlternativesFail": "Select the strongest measured alternative for heldout diagnosis but recommend no production adoption",
+    "lockBeforeHeldout": "Persist selected model/revision/mapping and development report hashes before heldout is read for inference",
+    "heldout": "Run only selected alternative plus unchanged baseline; no reselection or tuning after heldout",
+    "outputs": "Counts, numeric bounds, row IDs/counts and runtime metadata only; no source text, token arrays or offsets"
+  }
+}

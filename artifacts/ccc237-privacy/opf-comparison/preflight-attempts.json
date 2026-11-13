@@ -1,0 +1,21 @@
+{
+  "status": "pre_model_preflight_corrected",
+  "previousFreeze": "freeze-preflight-v1.json",
+  "modelsLoaded": 0,
+  "casesInferred": 0,
+  "failures": [
+    {
+      "code": "missing_sysctl_in_clean_PATH",
+      "observed": "FileNotFoundError sysctl before baseline model admission",
+      "correction": "Include /usr/sbin and /sbin in clean child PATH"
+    },
+    {
+      "code": "baseline_report_initializer_incomplete",
+      "observed": "Static inspection of prior.baseline shows it appends to report baselineCases",
+      "correction": "Initialize baselineCases and preserve failure metadata across child IPC"
+    }
+  ],
+  "candidateOutputObserved": false,
+  "corpusGoldModelsThresholdsChanged": false,
+  "refreezeReason": "Execution plumbing corrected before any model load; preserve prior freeze and do not score the preflight attempt"
+}

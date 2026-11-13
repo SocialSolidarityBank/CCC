@@ -1,0 +1,27 @@
+{
+  "frozenAt": "2026-09-07T03:09:41.290842+00:00",
+  "inputs": {
+    "apps/pipeline/ccc_pipeline/masking.py": "3d4ccbb35da44d3355351f306de754a10b6fc8aafa8c02f014dacda142b73048",
+    "artifacts/ccc237-privacy/context-gate/corpus.json": "56958278f02f27916180bb820dc57ca745581115e0a5c871370b200fbe5501dd",
+    "artifacts/ccc237-privacy/context-gate/gate_core.py": "cad564ca807e4f826b75ce3385e35059779b45232a4f42e808758d0e7769b351",
+    "artifacts/ccc237-privacy/context-gate/human-review-clarifications.json": "2c4e7343af3dd8f18901d1db278ecbc36e67471a7f6f44fb887edb42d19ed310",
+    "artifacts/ccc237-privacy/context-gate/measurement-design.json": "f2737e0b985f16a5ec1ec2940aa8ea2a0fc2c7e52a747ddf31181de3df7dfa67",
+    "artifacts/ccc237-privacy/context-gate/measurement.json": "3ad345414d70c9189d39f770642d4445e0cf5ee1793d2205db270b74d3f27183",
+    "artifacts/ccc237-privacy/context-gate/open-source-search-criteria.json": "ed8413d452e5e67b80f76617b31e4a0813dc933253ab8044023ca9587b8bf614",
+    "artifacts/ccc237-privacy/context-gate/preflight.py": "db249061cf2046c909e090eaaf84827f0155d04c9334de4d715625b176271a3b",
+    "artifacts/ccc237-privacy/context-gate/run_gate.py": "c0b9b0677f81c320accabb7a77f63bfe978afbae14ecad93143742f2561b2767",
+    "artifacts/ccc237-privacy/full-masking/observe_mask.py": "b3ae88401c29f23f6025b74c6b8e0513464523eb6ff2b34a1f80c65735f42fcd",
+    "artifacts/ccc237-privacy/ner-comparison/weight-provenance.json": "0ec4892dd0e3e6a09172231ff9de033d198c2683bc61f2dfb69359cd15be9041",
+    "artifacts/ccc237-privacy/opf-comparison/asset-provenance.json": "7b7eaa44a5f94d4cd1a6780ebaef458abcd011eb1ebcbd690cdfc0ec515d4b39",
+    "artifacts/ccc237-privacy/opf-comparison/experiment-design.json": "9de85947997b3ab72c5824fbed60e1ea9f4ffde3fc9d9dcdf4b2e02199a39c72",
+    "artifacts/ccc237-privacy/opf-comparison/offline.sb": "5c358b8d847211333e7ba22df82d84f796b5f30a41a2682209a949d783adbd08",
+    "artifacts/ccc237-privacy/opf-comparison/opf_adapter.py": "5d65833df3daa836a6dd242682cd1666b196021604eed32f18394dee168675be",
+    "artifacts/ccc237-privacy/opf-comparison/run_experiment.py": "917a8347df0f0ac6140c0638e40c0a0fbfb6cd96febcb9a22543e19e90b2635c",
+    "scripts/privacy/qualify_ner.py": "d50bf76cf4a9fbfd3f211d23e7091caba891a4b7527f73c1db7a82cd46a15046"
+  },
+  "productChanged": false,
+  "qualificationIssued": false,
+  "reportHash": "10f85f52d2056d97733c8098e0c86f27fb4699ba796255bf60447b4dc40321ac",
+  "selfChecks": "passed",
+  "status": "frozen_before_model_inference"
+}

@@ -1,0 +1,150 @@
+{
+  "attestationIssued": false,
+  "corpusCount": 7,
+  "corpusHash": "10265475ed38dbdc8f902cd78fb29654a948c96ddb9c9daeda3b485d4cdd46a5",
+  "counts": {
+    "PRIVATE_ADDRESS": {
+      "fn": 4,
+      "fp": 0,
+      "tp": 0
+    },
+    "PRIVATE_PERSON": {
+      "fn": 4,
+      "fp": 2,
+      "tp": 0
+    }
+  },
+  "labelSetHash": "b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc",
+  "measuredAt": "2026-09-06T02:42:55.979949+00:00",
+  "metrics": {
+    "addressPrecision": null,
+    "addressRecall": 0.0,
+    "overgeneralizationRate": 1.0,
+    "personPrecision": 0.0,
+    "personRecall": 0.0
+  },
+  "modelId": "FrameByFrame/korean-pii-e5-base",
+  "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+  "probeSha256": "f86d26a18f525be9190b4bb5fdfb8b482c4b1eb24e04b328147755b43ee028b0",
+  "purpose": "S6 literal install-health feasibility; not production qualification",
+  "releaseReceiptIssued": false,
+  "reportHash": "13daca3137d722f1531528c49f11850a80d4fd7f82b9056630510c385653db9c",
+  "resultHash": "b594076074c464097985232ffc9c62836ade984edc040979289158c9705460c3",
+  "rows": [
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "p01"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "p02"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "p03"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "p04"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "p05"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "n01"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "n02"
+    }
+  ],
+  "runtime": {
+    "aggregationStrategy": "simple",
+    "device": "cpu",
+    "python": "3.12.13",
+    "threads": 2,
+    "torch": "2.8.0",
+    "transformers": "4.53.3"
+  },
+  "sourceSpecSha256": "2073e8074cc26a84faf98b6197ef0a273f0907dff0d73d5f4df1090091da68b4",
+  "status": "failed"
+}

@@ -1,0 +1,315 @@
+{
+  "baselineScoresReproducedExactly": true,
+  "freezeHash": "3cb06357339cd4c4d503d7a5570af05099c7ed97b191a084bf3205d4e00d70f8",
+  "kind": "post_run_baseline_metric_audit_not_new_qualification",
+  "limits": "Non-gold removal can include policy-required generalization or harmless suffix removal. It is not automatically a privacy false-positive rate or total semantic loss.",
+  "localLlmRerun": false,
+  "measuredAt": "2026-09-06T16:43:10.114266+00:00",
+  "negativeRowsWithOpaqueMasking": [
+    "cg-023"
+  ],
+  "productChanged": false,
+  "reportHash": "1d3d88fbf7d9b84b12129d05a538b142e327926281a52730745a66e6e42543a0",
+  "rows": [
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-001",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-002",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-003",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-004",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-005",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-006",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-007",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-008",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-009",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-010",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-011",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-012",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-013",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-014",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-015",
+      "negative": false,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-016",
+      "negative": true,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-017",
+      "negative": true,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-018",
+      "negative": true,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-019",
+      "negative": true,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-020",
+      "negative": true,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-021",
+      "negative": true,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-022",
+      "negative": true,
+      "opaqueNonGoldChars": 0
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-023",
+      "negative": true,
+      "opaqueNonGoldChars": 4
+    },
+    {
+      "generalizedNonGoldChars": 0,
+      "id": "cg-024",
+      "negative": true,
+      "opaqueNonGoldChars": 0
+    }
+  ],
+  "runtime": {
+    "baselineCases": [
+      {
+        "id": "cg-001",
+        "inputTokens": 112,
+        "modelMaxTokens": 512,
+        "seconds": 0.2955218330025673
+      },
+      {
+        "id": "cg-002",
+        "inputTokens": 88,
+        "modelMaxTokens": 512,
+        "seconds": 0.2115974579937756
+      },
+      {
+        "id": "cg-003",
+        "inputTokens": 98,
+        "modelMaxTokens": 512,
+        "seconds": 0.23651008401066065
+      },
+      {
+        "id": "cg-004",
+        "inputTokens": 105,
+        "modelMaxTokens": 512,
+        "seconds": 0.25976549996994436
+      },
+      {
+        "id": "cg-005",
+        "inputTokens": 95,
+        "modelMaxTokens": 512,
+        "seconds": 0.2322974579874426
+      },
+      {
+        "id": "cg-006",
+        "inputTokens": 98,
+        "modelMaxTokens": 512,
+        "seconds": 0.23775025003124028
+      },
+      {
+        "id": "cg-007",
+        "inputTokens": 105,
+        "modelMaxTokens": 512,
+        "seconds": 0.2559249590849504
+      },
+      {
+        "id": "cg-008",
+        "inputTokens": 124,
+        "modelMaxTokens": 512,
+        "seconds": 0.3089737920090556
+      },
+      {
+        "id": "cg-009",
+        "inputTokens": 134,
+        "modelMaxTokens": 512,
+        "seconds": 0.33744004101026803
+      },
+      {
+        "id": "cg-010",
+        "inputTokens": 114,
+        "modelMaxTokens": 512,
+        "seconds": 0.28286662499886006
+      },
+      {
+        "id": "cg-011",
+        "inputTokens": 109,
+        "modelMaxTokens": 512,
+        "seconds": 0.26706020801793784
+      },
+      {
+        "id": "cg-012",
+        "inputTokens": 111,
+        "modelMaxTokens": 512,
+        "seconds": 0.2730369999771938
+      },
+      {
+        "id": "cg-013",
+        "inputTokens": 90,
+        "modelMaxTokens": 512,
+        "seconds": 0.2224357919767499
+      },
+      {
+        "id": "cg-014",
+        "inputTokens": 112,
+        "modelMaxTokens": 512,
+        "seconds": 0.2793771249707788
+      },
+      {
+        "id": "cg-015",
+        "inputTokens": 123,
+        "modelMaxTokens": 512,
+        "seconds": 0.3073461669264361
+      },
+      {
+        "id": "cg-016",
+        "inputTokens": 82,
+        "modelMaxTokens": 512,
+        "seconds": 0.1960139999864623
+      },
+      {
+        "id": "cg-017",
+        "inputTokens": 85,
+        "modelMaxTokens": 512,
+        "seconds": 0.2029854169813916
+      },
+      {
+        "id": "cg-018",
+        "inputTokens": 86,
+        "modelMaxTokens": 512,
+        "seconds": 0.20673237508162856
+      },
+      {
+        "id": "cg-019",
+        "inputTokens": 108,
+        "modelMaxTokens": 512,
+        "seconds": 0.2657349589280784
+      },
+      {
+        "id": "cg-020",
+        "inputTokens": 95,
+        "modelMaxTokens": 512,
+        "seconds": 0.23022187501192093
+      },
+      {
+        "id": "cg-021",
+        "inputTokens": 88,
+        "modelMaxTokens": 512,
+        "seconds": 0.21103658399078995
+      },
+      {
+        "id": "cg-022",
+        "inputTokens": 92,
+        "modelMaxTokens": 512,
+        "seconds": 0.22466425003949553
+      },
+      {
+        "id": "cg-023",
+        "inputTokens": 105,
+        "modelMaxTokens": 512,
+        "seconds": 0.257680166978389
+      },
+      {
+        "id": "cg-024",
+        "inputTokens": 110,
+        "modelMaxTokens": 512,
+        "seconds": 0.27100387506652623
+      }
+    ],
+    "memoryBeforeNerLoad": {
+      "modelLoadAllowed": true,
+      "policy": "Load only at normal Darwin VM pressure (1); never close unrelated applications.",
+      "pressureLevel": 1,
+      "status": "measured",
+      "swap": "total = 13312.00M  used = 12144.12M  free = 1167.88M  (encrypted)"
+    },
+    "nerLoadSeconds": 0.3338881660019979
+  }
+}

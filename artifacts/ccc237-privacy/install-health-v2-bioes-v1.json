@@ -1,0 +1,165 @@
+{
+  "addressGoldCount": 4,
+  "attestationIssued": false,
+  "corpusCount": 7,
+  "corpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+  "counts": {
+    "PRIVATE_ADDRESS": {
+      "fn": 4,
+      "fp": 11,
+      "tp": 0
+    },
+    "PRIVATE_PERSON": {
+      "fn": 0,
+      "fp": 0,
+      "tp": 4
+    }
+  },
+  "expectedCorpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+  "kind": "health",
+  "labelSetHash": "b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc",
+  "measuredAt": "2026-09-06T08:14:47.162289Z",
+  "metrics": {
+    "addressPrecision": 0.0,
+    "addressRecall": 0.0,
+    "overgeneralizationRate": 0.7333333333333333,
+    "personPrecision": 1.0,
+    "personRecall": 1.0
+  },
+  "modelExecuted": true,
+  "modelId": "FrameByFrame/korean-pii-e5-base",
+  "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+  "negativeItemCount": 2,
+  "personGoldCount": 4,
+  "releaseReceiptIssued": false,
+  "reportHash": "6c0139b061ca49acab078a5bd51c46f28751a8ac8ab7391c93fedb825d9c30e8",
+  "resultHash": "a611eb9979149d9328572b75038aa804e832c4f6cc7733579be8d8bec4a1bd94",
+  "rows": [
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 1
+        }
+      },
+      "id": "p01",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 3,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 1
+        }
+      },
+      "id": "p02",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 1
+        }
+      },
+      "id": "p03",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 1
+        }
+      },
+      "id": "p04",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 4,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "p05",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "n01",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "n02",
+      "status": "measured"
+    }
+  ],
+  "runtime": {
+    "aggregationStrategy": "none",
+    "decoderPolicy": "bioes-v1",
+    "device": "cpu",
+    "modelLoaded": true,
+    "offline": true,
+    "python": "3.12.13",
+    "threads": 2,
+    "torch": "2.8.0",
+    "transformers": "4.53.3"
+  },
+  "schemaVersion": 1,
+  "status": "failed",
+  "strataCount": 0
+}

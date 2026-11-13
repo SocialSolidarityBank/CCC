@@ -1,0 +1,57 @@
+{
+  "baselineCases": [],
+  "baselineFailure": {
+    "code": "ner_load_blocked_memory_pressure",
+    "errorClass": "GateError"
+  },
+  "blockedStage": "baseline",
+  "cases": [],
+  "code": "baseline_process_failed",
+  "cpu": "Apple M4 Pro",
+  "databaseAccessed": false,
+  "dependencies": {
+    "huggingface-hub": "0.36.2",
+    "numpy": "2.5.3",
+    "safetensors": "0.8.0",
+    "tiktoken": "0.14.0",
+    "torch": "2.8.0",
+    "transformers": "4.53.3"
+  },
+  "engineeringProbes": [],
+  "errorClass": "RuntimeError",
+  "finishedAt": "2026-09-07T03:09:54.004929+00:00",
+  "freezeHash": "10f85f52d2056d97733c8098e0c86f27fb4699ba796255bf60447b4dc40321ac",
+  "host": "macOS-26.6.2-arm64-arm-64bit",
+  "memoryAfter": {
+    "modelLoadAllowed": false,
+    "policy": "Load only at normal Darwin VM pressure (1); never close unrelated applications.",
+    "pressureLevel": 2,
+    "status": "measured",
+    "swap": "total = 18432.00M  used = 17640.69M  free = 791.31M  (encrypted)"
+  },
+  "memoryBeforeNerLoad": {
+    "modelLoadAllowed": false,
+    "policy": "Load only at normal Darwin VM pressure (1); never close unrelated applications.",
+    "pressureLevel": 2,
+    "status": "measured",
+    "swap": "total = 18432.00M  used = 17640.69M  free = 791.31M  (encrypted)"
+  },
+  "memoryInterpretation": "Darwin ru_maxrss is bytes. Candidate process peak includes imports, IPC traces, OPF load and inference. Baseline model runs in a separate exited subprocess with its own peak. Neither figure is incremental model RAM or Windows minimum specification.",
+  "network": {
+    "connectDeniedByOS": true,
+    "mechanism": "Darwin sandbox-exec deny network*"
+  },
+  "processPeakRssBytes": 211648512,
+  "productChanged": false,
+  "qualificationIssued": false,
+  "rawTextsPredictionsAndOffsetsPersisted": false,
+  "reportHash": "b3e69eedd7ec4c35684860e2d884fb28a597dd985dce80d2d4edd4931078f957",
+  "roleInferenceGate": {
+    "reason": "No independent workplace-identification evidence for the role-only examples; original contextual gold opacity is descriptive only.",
+    "status": "unadjudicated"
+  },
+  "startedAt": "2026-09-07T03:09:53.907450+00:00",
+  "status": "experiment_blocked",
+  "summaryExecuted": false,
+  "threads": 2
+}

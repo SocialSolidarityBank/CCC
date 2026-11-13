@@ -1,0 +1,518 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-06T08:23:19.860Z",
+  "approvedScope": "Fixed-model decoder correction and same-corpus remeasurement",
+  "branch": "e5-4-privacy-generalization",
+  "baseCommit": "99d7b41cd71713aa6cb7bfcc684d033582409781",
+  "uncommitted": true,
+  "decoderVersion": "bioes-v1",
+  "pipelineVersion": "ner-mask-v3",
+  "tests": {
+    "pipeline": 176,
+    "evaluator": 11,
+    "total": 187
+  },
+  "sourceFingerprints": [
+    {
+      "path": "apps/pipeline/ccc_pipeline/masking.py",
+      "bytes": 24008,
+      "sha256": "3d4ccbb35da44d3355351f306de754a10b6fc8aafa8c02f014dacda142b73048"
+    },
+    {
+      "path": "apps/pipeline/ccc_pipeline/worker.py",
+      "bytes": 25360,
+      "sha256": "af232b556a7cedda937debd4014947f5799c4e1956ae07019d6cb8421d3c0112"
+    },
+    {
+      "path": "apps/pipeline/tests/test_masking.py",
+      "bytes": 26958,
+      "sha256": "b42766635565e4ecdbbe4ab57327c1cdefe5f6a2f967512cb54c7a53e2eb7348"
+    },
+    {
+      "path": "apps/pipeline/tests/test_api_client_worker.py",
+      "bytes": 45563,
+      "sha256": "d46db78229e557b3b5e0d96355548ef3a83decec344695550da8b80580e4f879"
+    },
+    {
+      "path": "scripts/privacy/qualify_ner.py",
+      "bytes": 28226,
+      "sha256": "d50bf76cf4a9fbfd3f211d23e7091caba891a4b7527f73c1db7a82cd46a15046"
+    },
+    {
+      "path": "scripts/privacy/test_qualify_ner.py",
+      "bytes": 5788,
+      "sha256": "64358201d2f200b749a60d1e142b58b35fd180f29aacf014d6b357dd1c16c68d"
+    },
+    {
+      "path": "docs/specs/S6-privacy-packet.md",
+      "bytes": 46601,
+      "sha256": "f869eba59de636b6530ef6f2e2ebb4ea435bcd301b33006ad1fd2f5bf9ba3bf7"
+    },
+    {
+      "path": "apps/pipeline/README.md",
+      "bytes": 17646,
+      "sha256": "b36f442b64a27f99722f4d7c02d31001bd06208c652494cecc0bd19c19ac894a"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-06-CCC-237-privacy-generalization.md",
+      "bytes": 40272,
+      "sha256": "cf0aabdfec6cfb403a247beb04837159614b35e71abe02f98480fae009077203"
+    }
+  ],
+  "runs": [
+    {
+      "name": "decoder-contract",
+      "cmd": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--python",
+        "3.12",
+        "--with",
+        "torch==2.8.0",
+        "--with",
+        "transformers==4.53.3",
+        "python",
+        "-c",
+        "import json\nfrom transformers import TokenClassificationPipeline\nlabels=['B-private_person','I-private_person','E-private_person','S-private_person']\nactual={label:TokenClassificationPipeline.get_tag(None,label) for label in labels}\nprint(json.dumps({'modelLoaded':False,'syntheticLabelsOnly':True,'transformersGetTag':actual,'bioesEndSharesEntityTag':actual[labels[2]][1]==actual[labels[0]][1],'measurementRerun':False,'decoderChanged':False}))\n"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T07:27:56.775Z",
+      "endedAt": "2026-09-06T07:27:59.112Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-contract.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-library-source",
+      "cmd": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--python",
+        "3.12",
+        "--with",
+        "torch==2.8.0",
+        "--with",
+        "transformers==4.53.3",
+        "python",
+        "-c",
+        "import inspect\nfrom transformers.pipelines.token_classification import TokenClassificationPipeline as P\nprint(inspect.getsource(P.postprocess))\nprint(inspect.getsource(P.aggregate))\nprint(inspect.getsource(P.group_entities))"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T08:07:32.847Z",
+      "endedAt": "2026-09-06T08:07:35.436Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-library-source.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-memory-preflight",
+      "cmd": [
+        "memory_pressure"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T08:08:40.942Z",
+      "endedAt": "2026-09-06T08:08:40.952Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-memory-preflight.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-raw-diagnostic",
+      "cmd": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--python",
+        "3.12",
+        "--with",
+        "torch==2.8.0",
+        "--with",
+        "transformers==4.53.3",
+        "python",
+        "-c",
+        "import json\nfrom pathlib import Path\nfrom collections import Counter\nimport torch\nfrom transformers import pipeline\ntorch.set_num_threads(2)\ntorch.manual_seed(0)\np=pipeline('token-classification', model='FrameByFrame/korean-pii-e5-base',revision='a308c54b4407819624a5661e31e162a269f39818',aggregation_strategy='none',ignore_labels=[],device='cpu')\ntext=json.loads(Path('scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json').read_text())[0]['text']\nr=p(text)\nprint(json.dumps({'modelArchitecture':p.model.config.architectures,'declaredLabelCount':len(p.model.config.id2label),'predictedTokenCount':len(r),'labelCounts':dict(Counter(x['entity'] for x in r)),'minScore':round(min(float(x['score']) for x in r),4),'maxScore':round(max(float(x['score']) for x in r),4),'syntheticOnly':True,'rawTextAndSpansRetained':False}))"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T08:09:11.028Z",
+      "endedAt": "2026-09-06T08:09:14.028Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-raw-diagnostic.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-red",
+      "cmd": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_masking.NerDecodingTest"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T08:11:46.247Z",
+      "endedAt": "2026-09-06T08:11:46.386Z",
+      "exitCode": 1,
+      "path": "artifacts/ccc237-privacy/approved-decoder-red.log",
+      "classification": "expected_pre_fix_failure"
+    },
+    {
+      "name": "decoder-green",
+      "cmd": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_masking.NerDecodingTest"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T08:13:11.834Z",
+      "endedAt": "2026-09-06T08:13:11.909Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-green.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-evaluator",
+      "cmd": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/privacy",
+        "-p",
+        "test_qualify_ner.py"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T08:14:44.410Z",
+      "endedAt": "2026-09-06T08:14:44.512Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-evaluator.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-pipeline",
+      "cmd": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T08:14:44.407Z",
+      "endedAt": "2026-09-06T08:14:44.595Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-pipeline.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-memory-before-health",
+      "cmd": [
+        "memory_pressure"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T08:14:44.596Z",
+      "endedAt": "2026-09-06T08:14:44.603Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-memory-before-health.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-health",
+      "cmd": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--python",
+        "3.12",
+        "--with",
+        "torch==2.8.0",
+        "--with",
+        "transformers==4.53.3",
+        "python",
+        "scripts/privacy/qualify_ner.py",
+        "--kind",
+        "health",
+        "--corpus",
+        "scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json",
+        "--expected-corpus-hash",
+        "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+        "--output",
+        "artifacts/ccc237-privacy/install-health-v2-bioes-v1.json"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T08:14:44.603Z",
+      "endedAt": "2026-09-06T08:14:47.969Z",
+      "exitCode": 2,
+      "path": "artifacts/ccc237-privacy/approved-decoder-health.log",
+      "classification": "measured_qualification_failure"
+    },
+    {
+      "name": "decoder-memory-before-release",
+      "cmd": [
+        "memory_pressure"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T08:15:27.036Z",
+      "endedAt": "2026-09-06T08:15:27.052Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-memory-before-release.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-release",
+      "cmd": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--python",
+        "3.12",
+        "--with",
+        "torch==2.8.0",
+        "--with",
+        "transformers==4.53.3",
+        "python",
+        "scripts/privacy/qualify_ner.py",
+        "--kind",
+        "release",
+        "--corpus",
+        "scripts/privacy/fixtures/s6-release-ko-v1.json",
+        "--expected-corpus-hash",
+        "8fe927f79ad4e84d6ed1440b069e099e15c50618226c6727781e73f00ee321f4",
+        "--output",
+        "artifacts/ccc237-privacy/release-qualification-v1-bioes-v1.json"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T08:15:27.052Z",
+      "endedAt": "2026-09-06T08:15:59.728Z",
+      "exitCode": 2,
+      "path": "artifacts/ccc237-privacy/approved-decoder-release.log",
+      "classification": "measured_qualification_failure"
+    },
+    {
+      "name": "decoder-memory-before-runtime",
+      "cmd": [
+        "memory_pressure"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T08:18:59.413Z",
+      "endedAt": "2026-09-06T08:18:59.433Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-memory-before-runtime.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-runtime",
+      "cmd": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--python",
+        "3.12",
+        "--with",
+        "torch==2.8.0",
+        "--with",
+        "transformers==4.53.3",
+        "python",
+        "-c",
+        "import json\nfrom pathlib import Path\nimport torch\nfrom ccc_pipeline.masking import build_person_and_address_ner\nimport sys\nsys.path.insert(0,'scripts/privacy')\nfrom qualify_ner import score_predictions, point_metrics\ntorch.set_num_threads(2)\ntorch.manual_seed(0)\nitems=json.loads(Path('scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json').read_text())\nperson,address=build_person_and_address_ner('FrameByFrame/korean-pii-e5-base')\npredictions=[tuple([('PRIVATE_PERSON',s,e) for s,e in person(item['text'])]+[('PRIVATE_ADDRESS',s,e) for s,e in address(item['text'])]) for item in items]\ncounts,rows=score_predictions(items,predictions)\nexpected=json.loads(Path('artifacts/ccc237-privacy/install-health-v2-bioes-v1.json').read_text())\nassert counts==expected['counts'], 'runtime_evaluator_count_mismatch'\nproof={'status':'passed','scope':'Actual runtime NER factories match evaluator; not qualification or worker activation','syntheticOnly':True,'modelLoaded':True,'rows':len(rows),'counts':counts,'qualificationStatus':expected['status'],'providerCalls':0,'sttCalls':0,'workerStarted':False}\nPath('artifacts/ccc237-privacy/decoder-runtime-smoke.json').write_text(json.dumps(proof,sort_keys=True,indent=2)+'\\n')\nprint(json.dumps(proof,sort_keys=True))"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T08:18:59.434Z",
+      "endedAt": "2026-09-06T08:19:04.119Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-runtime.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-doc-gate",
+      "cmd": [
+        "pnpm",
+        "guard:doc-numbers"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T08:22:01.679Z",
+      "endedAt": "2026-09-06T08:22:01.933Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-doc-gate.log",
+      "classification": "passed"
+    }
+  ],
+  "logFingerprints": [
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-contract.log",
+      "bytes": 906,
+      "sha256": "92254ff48e7b6bbe4c6cbdec946cb3bc028f409bce15e8197c2616c15a01273c"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-library-source.log",
+      "bytes": 5216,
+      "sha256": "90e6a066d817d6e40a773a94af4a3417454d186c21b43b24a6fe412d344ad310"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-memory-preflight.log",
+      "bytes": 564,
+      "sha256": "ea80f689c34c4414c13957ef0bfe73a31aff3f4971c0091d2d973269a508004d"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-raw-diagnostic.log",
+      "bytes": 1316,
+      "sha256": "191f3605a1dbe007ca50ac854ebe1af3bd12288d1f8580b4e652e94aecb68880"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-red.log",
+      "bytes": 6348,
+      "sha256": "e7ce65836e6872fe5cf29fe441ee37f0342be0e8e97e63900761c97201e536c1"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-green.log",
+      "bytes": 168,
+      "sha256": "14e9a9f249ce4ce7030af4b6c86d065b181352ddcec87f5e224368799365d905"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-evaluator.log",
+      "bytes": 192,
+      "sha256": "c56198f065cd00f6bdc55f156eb3c47954ece12d5a0fccd2b94591a09eaee117"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-pipeline.log",
+      "bytes": 967,
+      "sha256": "d8b244edf4f1aea0802731819865d16cff138bda3e631d315a546501abb967e2"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-memory-before-health.log",
+      "bytes": 566,
+      "sha256": "7b319b6fa1c9f0895016b261efb85e66dc74ccfc4e8764040f7cf92c6da24964"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-health.log",
+      "bytes": 1024,
+      "sha256": "77d3a55d406295b66a18a55111d3a94f0869ff360116fed6e906913063d90585"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-memory-before-release.log",
+      "bytes": 568,
+      "sha256": "d773601a94a79f67607175d3398cc7af3b0fc06a26c293ae741b0d422ea9cea6"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-release.log",
+      "bytes": 1319,
+      "sha256": "17e65bc93becb83cb54a9d13d84dd62ab17baff33dd8bda1ccf33bbc9644c09b"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-memory-before-runtime.log",
+      "bytes": 564,
+      "sha256": "fb00fac4e9809cd3ad62aec5e47ef79056400cc0287320897893d5ab90e2f5e6"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-runtime.log",
+      "bytes": 1772,
+      "sha256": "227eb2bf43a625f9d661ea6516171d41535e14ca8caae8df8f5dc358b119c5c1"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-doc-gate.log",
+      "bytes": 145,
+      "sha256": "06c32fe944926c5e23070ad77b62ddde49d788bf0c611ad51ade1df21051cba8"
+    }
+  ],
+  "measurementIntegrity": "artifacts/ccc237-privacy/decoder-measurement-integrity.json",
+  "measurements": [
+    {
+      "kind": "health",
+      "rows": 7,
+      "counts": {
+        "PRIVATE_PERSON": {
+          "tp": 4,
+          "fp": 0,
+          "fn": 0
+        },
+        "PRIVATE_ADDRESS": {
+          "tp": 0,
+          "fp": 11,
+          "fn": 4
+        }
+      },
+      "metrics": {
+        "personPrecision": 1,
+        "personRecall": 1,
+        "addressPrecision": 0,
+        "addressRecall": 0,
+        "overgeneralizationRate": 0.7333333333333333
+      },
+      "corpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+      "resultHash": "a611eb9979149d9328572b75038aa804e832c4f6cc7733579be8d8bec4a1bd94",
+      "reportHash": "6c0139b061ca49acab078a5bd51c46f28751a8ac8ab7391c93fedb825d9c30e8",
+      "qualificationStatus": "failed"
+    },
+    {
+      "kind": "release",
+      "rows": 601,
+      "counts": {
+        "PRIVATE_PERSON": {
+          "tp": 172,
+          "fp": 74,
+          "fn": 68
+        },
+        "PRIVATE_ADDRESS": {
+          "tp": 1,
+          "fp": 873,
+          "fn": 249
+        }
+      },
+      "metrics": {
+        "personPrecision": 0.6991869918699187,
+        "personRecall": 0.7166666666666667,
+        "addressPrecision": 0.0011441647597254005,
+        "addressRecall": 0.004,
+        "overgeneralizationRate": 0.8455357142857143
+      },
+      "corpusHash": "8fe927f79ad4e84d6ed1440b069e099e15c50618226c6727781e73f00ee321f4",
+      "resultHash": "dd31ba3fb5c9ed79f45b7dc6809ce5f437160368a6c00f59859f02c826991ba5",
+      "reportHash": "9848e00db3bf973d7238e58f4604625ab7935747602901f16ea871b1322ca6e6",
+      "qualificationStatus": "failed"
+    }
+  ],
+  "actualRuntimeSmoke": {
+    "path": "artifacts/ccc237-privacy/decoder-runtime-smoke.json",
+    "deviceObservedInLog": "mps:0",
+    "exitCode": 0,
+    "proof": "N2 aggregate counts match CPU evaluator, not raw-span equivalence or qualification"
+  },
+  "workerSmoke": {
+    "path": "artifacts/ccc237-privacy/decoder-worker-smoke.json",
+    "exitCode": 0,
+    "nerAndAttestationSynthetic": true,
+    "proof": "Actual worker HTTP submission, dictionary rejection and result hashes"
+  },
+  "independentReviews": [
+    {
+      "scope": "Decoder transitions, factories and v3 manifest",
+      "findings": 0
+    },
+    {
+      "scope": "Scorer, unchanged criteria and measurement provenance",
+      "findings": 0
+    }
+  ],
+  "qualificationStatus": "failed",
+  "attestationIssued": false,
+  "releaseReceiptIssued": false,
+  "modelWeightsRevisionUnchanged": true,
+  "goldAndThresholdsUnchanged": true,
+  "windowsTouched": false,
+  "operationalActivation": false,
+  "providerCalls": 0,
+  "wholeProcessZeroizationQualified": false,
+  "committedMergedOrDeployed": false,
+  "evidenceHash": "656b5655aac5c2b959beb5f0d09e8fb39d41aba2ef07420b443a0683890c2e24"
+}

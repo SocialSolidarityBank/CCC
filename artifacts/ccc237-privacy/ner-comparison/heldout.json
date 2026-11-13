@@ -1,0 +1,6802 @@
+[
+  {
+    "id": "heldout-person-001",
+    "text": "어제 이모 강가람에게 안부 전화를 드렸다.",
+    "person": [
+      "강가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-002",
+    "text": "제 친구 강나린이 다음 주에 반찬을 가져오겠다고 했다.",
+    "person": [
+      "강나린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-003",
+    "text": "언니는 ‘강다온 씨가 먼저 연락했어’라고 전했다.",
+    "person": [
+      "강다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-004",
+    "text": "옆집에 사는 강라윤님께서 우산을 빌려 주셨다.",
+    "person": [
+      "강라윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-005",
+    "text": "형부의 동료 강마루한테 서류 전달을 부탁했다.",
+    "person": [
+      "강마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-006",
+    "text": "상담 메모에는 보호자의 지인 강보민이 동행한다고 적혀 있다.",
+    "person": [
+      "강보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-person-007",
+    "text": "동생이 \"강서린에게 일정부터 물어볼게\"라고 말했다.",
+    "person": [
+      "강서린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-008",
+    "text": "대학 선배 강소율과 오랜만에 점심을 먹었다.",
+    "person": [
+      "강소율"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-009",
+    "text": "사촌 강아람은 주말에 아이를 돌봐 주기로 했다.",
+    "person": [
+      "강아람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-010",
+    "text": "예전에 함께 일하던 강여진에게 소식을 들었다.",
+    "person": [
+      "강여진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-011",
+    "text": "‘연락할 사람은 강예린이야.’라고 조카가 알려 줬다.",
+    "person": [
+      "강예린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-012",
+    "text": "고모가 아는 분인 강유담께 도움을 청했다.",
+    "person": [
+      "강유담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-013",
+    "text": "강이든 씨는 제 동네 모임에서 알게 된 이웃이다.",
+    "person": [
+      "강이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "particle"
+    ]
+  },
+  {
+    "id": "heldout-person-014",
+    "text": "아버지의 친구 강지안이 병문안을 오겠다고 했다.",
+    "person": [
+      "강지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-015",
+    "text": "오랜 이웃인 강채린하고 장을 보러 가기로 했다.",
+    "person": [
+      "강채린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-016",
+    "text": "메모에는 ‘비상 연락은 강하람에게’라고만 적혀 있었다.",
+    "person": [
+      "강하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-note"
+    ]
+  },
+  {
+    "id": "heldout-person-017",
+    "text": "\"누가 같이 간대?\" \"우리 형의 동료 강가온.\"",
+    "person": [
+      "강가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-018",
+    "text": "강나윤님이 할머니께 책을 읽어 드렸다고 들었다.",
+    "person": [
+      "강나윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-019",
+    "text": "선생님은 제자 강다인을 기억한다고 말씀하셨다.",
+    "person": [
+      "강다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-020",
+    "text": "연락할분은강로운 님이라고 안내받았다.",
+    "person": [
+      "강로운"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-person-021",
+    "text": "어제 이모 강민서에게 안부 전화를 드렸다.",
+    "person": [
+      "강민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-022",
+    "text": "제 친구 강봄이가 다음 주에 반찬을 가져오겠다고 했다.",
+    "person": [
+      "강봄이"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-023",
+    "text": "언니는 ‘강서우 씨가 먼저 연락했어’라고 전했다.",
+    "person": [
+      "강서우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-024",
+    "text": "옆집에 사는 강수현님께서 우산을 빌려 주셨다.",
+    "person": [
+      "강수현"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-025",
+    "text": "형부의 동료 강아인한테 서류 전달을 부탁했다.",
+    "person": [
+      "강아인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-026",
+    "text": "상담 메모에는 보호자의 지인 강연우가 동행한다고 적혀 있다.",
+    "person": [
+      "강연우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-person-027",
+    "text": "동생이 \"강예담에게 일정부터 물어볼게\"라고 말했다.",
+    "person": [
+      "강예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-028",
+    "text": "대학 선배 강윤서와 오랜만에 점심을 먹었다.",
+    "person": [
+      "강윤서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-029",
+    "text": "사촌 강지율은 주말에 아이를 돌봐 주기로 했다.",
+    "person": [
+      "강지율"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-030",
+    "text": "예전에 함께 일하던 강초아에게 소식을 들었다.",
+    "person": [
+      "강초아"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-031",
+    "text": "‘연락할 사람은 강태린이야.’라고 조카가 알려 줬다.",
+    "person": [
+      "강태린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-032",
+    "text": "고모가 아는 분인 강해원께 도움을 청했다.",
+    "person": [
+      "강해원"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-033",
+    "text": "문가람 씨는 제 동네 모임에서 알게 된 이웃이다.",
+    "person": [
+      "문가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "particle"
+    ]
+  },
+  {
+    "id": "heldout-person-034",
+    "text": "아버지의 친구 문나린이 병문안을 오겠다고 했다.",
+    "person": [
+      "문나린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-035",
+    "text": "오랜 이웃인 문다온하고 장을 보러 가기로 했다.",
+    "person": [
+      "문다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-036",
+    "text": "메모에는 ‘비상 연락은 문라윤에게’라고만 적혀 있었다.",
+    "person": [
+      "문라윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-note"
+    ]
+  },
+  {
+    "id": "heldout-person-037",
+    "text": "\"누가 같이 간대?\" \"우리 형의 동료 문마루.\"",
+    "person": [
+      "문마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-038",
+    "text": "문보민님이 할머니께 책을 읽어 드렸다고 들었다.",
+    "person": [
+      "문보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-039",
+    "text": "선생님은 제자 문서린을 기억한다고 말씀하셨다.",
+    "person": [
+      "문서린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-040",
+    "text": "연락할분은문소율 님이라고 안내받았다.",
+    "person": [
+      "문소율"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-person-041",
+    "text": "어제 이모 문아람에게 안부 전화를 드렸다.",
+    "person": [
+      "문아람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-042",
+    "text": "제 친구 문여진이 다음 주에 반찬을 가져오겠다고 했다.",
+    "person": [
+      "문여진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-043",
+    "text": "언니는 ‘문예린 씨가 먼저 연락했어’라고 전했다.",
+    "person": [
+      "문예린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-044",
+    "text": "옆집에 사는 문유담님께서 우산을 빌려 주셨다.",
+    "person": [
+      "문유담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-045",
+    "text": "형부의 동료 문이든한테 서류 전달을 부탁했다.",
+    "person": [
+      "문이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-046",
+    "text": "상담 메모에는 보호자의 지인 문지안이 동행한다고 적혀 있다.",
+    "person": [
+      "문지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-person-047",
+    "text": "동생이 \"문채린에게 일정부터 물어볼게\"라고 말했다.",
+    "person": [
+      "문채린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-048",
+    "text": "대학 선배 문하람과 오랜만에 점심을 먹었다.",
+    "person": [
+      "문하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-049",
+    "text": "사촌 문가온은 주말에 아이를 돌봐 주기로 했다.",
+    "person": [
+      "문가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-050",
+    "text": "예전에 함께 일하던 문나윤에게 소식을 들었다.",
+    "person": [
+      "문나윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-051",
+    "text": "‘연락할 사람은 문다인이야.’라고 조카가 알려 줬다.",
+    "person": [
+      "문다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-052",
+    "text": "고모가 아는 분인 문로운께 도움을 청했다.",
+    "person": [
+      "문로운"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-053",
+    "text": "문민서 씨는 제 동네 모임에서 알게 된 이웃이다.",
+    "person": [
+      "문민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "particle"
+    ]
+  },
+  {
+    "id": "heldout-person-054",
+    "text": "아버지의 친구 문봄이가 병문안을 오겠다고 했다.",
+    "person": [
+      "문봄이"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-055",
+    "text": "오랜 이웃인 문서우하고 장을 보러 가기로 했다.",
+    "person": [
+      "문서우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-056",
+    "text": "메모에는 ‘비상 연락은 문수현에게’라고만 적혀 있었다.",
+    "person": [
+      "문수현"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-note"
+    ]
+  },
+  {
+    "id": "heldout-person-057",
+    "text": "\"누가 같이 간대?\" \"우리 형의 동료 문아인.\"",
+    "person": [
+      "문아인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-058",
+    "text": "문연우님이 할머니께 책을 읽어 드렸다고 들었다.",
+    "person": [
+      "문연우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-059",
+    "text": "선생님은 제자 문예담을 기억한다고 말씀하셨다.",
+    "person": [
+      "문예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-060",
+    "text": "연락할분은문윤서 님이라고 안내받았다.",
+    "person": [
+      "문윤서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-person-061",
+    "text": "어제 이모 문지율에게 안부 전화를 드렸다.",
+    "person": [
+      "문지율"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-062",
+    "text": "제 친구 문초아가 다음 주에 반찬을 가져오겠다고 했다.",
+    "person": [
+      "문초아"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-063",
+    "text": "언니는 ‘문태린 씨가 먼저 연락했어’라고 전했다.",
+    "person": [
+      "문태린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-064",
+    "text": "옆집에 사는 문해원님께서 우산을 빌려 주셨다.",
+    "person": [
+      "문해원"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-065",
+    "text": "형부의 동료 안가람한테 서류 전달을 부탁했다.",
+    "person": [
+      "안가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-066",
+    "text": "상담 메모에는 보호자의 지인 안나린이 동행한다고 적혀 있다.",
+    "person": [
+      "안나린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-person-067",
+    "text": "동생이 \"안다온에게 일정부터 물어볼게\"라고 말했다.",
+    "person": [
+      "안다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-068",
+    "text": "대학 선배 안라윤과 오랜만에 점심을 먹었다.",
+    "person": [
+      "안라윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-069",
+    "text": "사촌 안마루는 주말에 아이를 돌봐 주기로 했다.",
+    "person": [
+      "안마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-070",
+    "text": "예전에 함께 일하던 안보민에게 소식을 들었다.",
+    "person": [
+      "안보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-071",
+    "text": "‘연락할 사람은 안서린이야.’라고 조카가 알려 줬다.",
+    "person": [
+      "안서린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-072",
+    "text": "고모가 아는 분인 안소율께 도움을 청했다.",
+    "person": [
+      "안소율"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-073",
+    "text": "안아람 씨는 제 동네 모임에서 알게 된 이웃이다.",
+    "person": [
+      "안아람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "particle"
+    ]
+  },
+  {
+    "id": "heldout-person-074",
+    "text": "아버지의 친구 안여진이 병문안을 오겠다고 했다.",
+    "person": [
+      "안여진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-075",
+    "text": "오랜 이웃인 안예린하고 장을 보러 가기로 했다.",
+    "person": [
+      "안예린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-076",
+    "text": "메모에는 ‘비상 연락은 안유담에게’라고만 적혀 있었다.",
+    "person": [
+      "안유담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-note"
+    ]
+  },
+  {
+    "id": "heldout-person-077",
+    "text": "\"누가 같이 간대?\" \"우리 형의 동료 안이든.\"",
+    "person": [
+      "안이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-078",
+    "text": "안지안님이 할머니께 책을 읽어 드렸다고 들었다.",
+    "person": [
+      "안지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-079",
+    "text": "선생님은 제자 안채린을 기억한다고 말씀하셨다.",
+    "person": [
+      "안채린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-080",
+    "text": "연락할분은안하람 님이라고 안내받았다.",
+    "person": [
+      "안하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-person-081",
+    "text": "어제 이모 안가온에게 안부 전화를 드렸다.",
+    "person": [
+      "안가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-082",
+    "text": "제 친구 안나윤이 다음 주에 반찬을 가져오겠다고 했다.",
+    "person": [
+      "안나윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-083",
+    "text": "언니는 ‘안다인 씨가 먼저 연락했어’라고 전했다.",
+    "person": [
+      "안다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-084",
+    "text": "옆집에 사는 안로운님께서 우산을 빌려 주셨다.",
+    "person": [
+      "안로운"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-085",
+    "text": "형부의 동료 안민서한테 서류 전달을 부탁했다.",
+    "person": [
+      "안민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-086",
+    "text": "상담 메모에는 보호자의 지인 안봄이가 동행한다고 적혀 있다.",
+    "person": [
+      "안봄이"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-person-087",
+    "text": "동생이 \"안서우에게 일정부터 물어볼게\"라고 말했다.",
+    "person": [
+      "안서우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-088",
+    "text": "대학 선배 안수현과 오랜만에 점심을 먹었다.",
+    "person": [
+      "안수현"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-089",
+    "text": "사촌 안아인은 주말에 아이를 돌봐 주기로 했다.",
+    "person": [
+      "안아인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-090",
+    "text": "예전에 함께 일하던 안연우에게 소식을 들었다.",
+    "person": [
+      "안연우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-091",
+    "text": "‘연락할 사람은 안예담이야.’라고 조카가 알려 줬다.",
+    "person": [
+      "안예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-092",
+    "text": "고모가 아는 분인 안윤서께 도움을 청했다.",
+    "person": [
+      "안윤서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-093",
+    "text": "안지율 씨는 제 동네 모임에서 알게 된 이웃이다.",
+    "person": [
+      "안지율"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "particle"
+    ]
+  },
+  {
+    "id": "heldout-person-094",
+    "text": "아버지의 친구 안초아가 병문안을 오겠다고 했다.",
+    "person": [
+      "안초아"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-095",
+    "text": "오랜 이웃인 안태린하고 장을 보러 가기로 했다.",
+    "person": [
+      "안태린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-096",
+    "text": "메모에는 ‘비상 연락은 안해원에게’라고만 적혀 있었다.",
+    "person": [
+      "안해원"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-note"
+    ]
+  },
+  {
+    "id": "heldout-person-097",
+    "text": "\"누가 같이 간대?\" \"우리 형의 동료 장가람.\"",
+    "person": [
+      "장가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-098",
+    "text": "장나린님이 할머니께 책을 읽어 드렸다고 들었다.",
+    "person": [
+      "장나린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-099",
+    "text": "선생님은 제자 장다온을 기억한다고 말씀하셨다.",
+    "person": [
+      "장다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-100",
+    "text": "연락할분은장라윤 님이라고 안내받았다.",
+    "person": [
+      "장라윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-person-101",
+    "text": "어제 이모 장마루에게 안부 전화를 드렸다.",
+    "person": [
+      "장마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-102",
+    "text": "제 친구 장보민이 다음 주에 반찬을 가져오겠다고 했다.",
+    "person": [
+      "장보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-103",
+    "text": "언니는 ‘장서린 씨가 먼저 연락했어’라고 전했다.",
+    "person": [
+      "장서린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-104",
+    "text": "옆집에 사는 장소율님께서 우산을 빌려 주셨다.",
+    "person": [
+      "장소율"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-105",
+    "text": "형부의 동료 장아람한테 서류 전달을 부탁했다.",
+    "person": [
+      "장아람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-106",
+    "text": "상담 메모에는 보호자의 지인 장여진이 동행한다고 적혀 있다.",
+    "person": [
+      "장여진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-person-107",
+    "text": "동생이 \"장예린에게 일정부터 물어볼게\"라고 말했다.",
+    "person": [
+      "장예린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-108",
+    "text": "대학 선배 장유담과 오랜만에 점심을 먹었다.",
+    "person": [
+      "장유담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-109",
+    "text": "사촌 장이든은 주말에 아이를 돌봐 주기로 했다.",
+    "person": [
+      "장이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-110",
+    "text": "예전에 함께 일하던 장지안에게 소식을 들었다.",
+    "person": [
+      "장지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-111",
+    "text": "‘연락할 사람은 장채린이야.’라고 조카가 알려 줬다.",
+    "person": [
+      "장채린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-112",
+    "text": "고모가 아는 분인 장하람께 도움을 청했다.",
+    "person": [
+      "장하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-113",
+    "text": "장가온 씨는 제 동네 모임에서 알게 된 이웃이다.",
+    "person": [
+      "장가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "particle"
+    ]
+  },
+  {
+    "id": "heldout-person-114",
+    "text": "아버지의 친구 장나윤이 병문안을 오겠다고 했다.",
+    "person": [
+      "장나윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-115",
+    "text": "오랜 이웃인 장다인하고 장을 보러 가기로 했다.",
+    "person": [
+      "장다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-116",
+    "text": "메모에는 ‘비상 연락은 장로운에게’라고만 적혀 있었다.",
+    "person": [
+      "장로운"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-note"
+    ]
+  },
+  {
+    "id": "heldout-person-117",
+    "text": "\"누가 같이 간대?\" \"우리 형의 동료 장민서.\"",
+    "person": [
+      "장민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-118",
+    "text": "장봄이님이 할머니께 책을 읽어 드렸다고 들었다.",
+    "person": [
+      "장봄이"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-119",
+    "text": "선생님은 제자 장서우를 기억한다고 말씀하셨다.",
+    "person": [
+      "장서우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-120",
+    "text": "연락할분은장수현 님이라고 안내받았다.",
+    "person": [
+      "장수현"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-person-121",
+    "text": "어제 이모 장아인에게 안부 전화를 드렸다.",
+    "person": [
+      "장아인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-122",
+    "text": "제 친구 장연우가 다음 주에 반찬을 가져오겠다고 했다.",
+    "person": [
+      "장연우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-123",
+    "text": "언니는 ‘장예담 씨가 먼저 연락했어’라고 전했다.",
+    "person": [
+      "장예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-124",
+    "text": "옆집에 사는 장윤서님께서 우산을 빌려 주셨다.",
+    "person": [
+      "장윤서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-125",
+    "text": "형부의 동료 장지율한테 서류 전달을 부탁했다.",
+    "person": [
+      "장지율"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-126",
+    "text": "상담 메모에는 보호자의 지인 장초아가 동행한다고 적혀 있다.",
+    "person": [
+      "장초아"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-person-127",
+    "text": "동생이 \"장태린에게 일정부터 물어볼게\"라고 말했다.",
+    "person": [
+      "장태린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-128",
+    "text": "대학 선배 장해원과 오랜만에 점심을 먹었다.",
+    "person": [
+      "장해원"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-129",
+    "text": "사촌 윤가람은 주말에 아이를 돌봐 주기로 했다.",
+    "person": [
+      "윤가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-130",
+    "text": "예전에 함께 일하던 윤나린에게 소식을 들었다.",
+    "person": [
+      "윤나린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-131",
+    "text": "‘연락할 사람은 윤다온이야.’라고 조카가 알려 줬다.",
+    "person": [
+      "윤다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-132",
+    "text": "고모가 아는 분인 윤라윤께 도움을 청했다.",
+    "person": [
+      "윤라윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-133",
+    "text": "윤마루 씨는 제 동네 모임에서 알게 된 이웃이다.",
+    "person": [
+      "윤마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "particle"
+    ]
+  },
+  {
+    "id": "heldout-person-134",
+    "text": "아버지의 친구 윤보민이 병문안을 오겠다고 했다.",
+    "person": [
+      "윤보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-135",
+    "text": "오랜 이웃인 윤서린하고 장을 보러 가기로 했다.",
+    "person": [
+      "윤서린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-136",
+    "text": "메모에는 ‘비상 연락은 윤소율에게’라고만 적혀 있었다.",
+    "person": [
+      "윤소율"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-note"
+    ]
+  },
+  {
+    "id": "heldout-person-137",
+    "text": "\"누가 같이 간대?\" \"우리 형의 동료 윤아람.\"",
+    "person": [
+      "윤아람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-138",
+    "text": "윤여진님이 할머니께 책을 읽어 드렸다고 들었다.",
+    "person": [
+      "윤여진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-139",
+    "text": "선생님은 제자 윤예린을 기억한다고 말씀하셨다.",
+    "person": [
+      "윤예린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-140",
+    "text": "연락할분은윤유담 님이라고 안내받았다.",
+    "person": [
+      "윤유담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-person-141",
+    "text": "어제 이모 윤이든에게 안부 전화를 드렸다.",
+    "person": [
+      "윤이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-142",
+    "text": "제 친구 윤지안이 다음 주에 반찬을 가져오겠다고 했다.",
+    "person": [
+      "윤지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-143",
+    "text": "언니는 ‘윤채린 씨가 먼저 연락했어’라고 전했다.",
+    "person": [
+      "윤채린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-144",
+    "text": "옆집에 사는 윤하람님께서 우산을 빌려 주셨다.",
+    "person": [
+      "윤하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-145",
+    "text": "형부의 동료 윤가온한테 서류 전달을 부탁했다.",
+    "person": [
+      "윤가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-146",
+    "text": "상담 메모에는 보호자의 지인 윤나윤이 동행한다고 적혀 있다.",
+    "person": [
+      "윤나윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-person-147",
+    "text": "동생이 \"윤다인에게 일정부터 물어볼게\"라고 말했다.",
+    "person": [
+      "윤다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-148",
+    "text": "대학 선배 윤로운과 오랜만에 점심을 먹었다.",
+    "person": [
+      "윤로운"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-149",
+    "text": "사촌 윤민서는 주말에 아이를 돌봐 주기로 했다.",
+    "person": [
+      "윤민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-150",
+    "text": "예전에 함께 일하던 윤봄이에게 소식을 들었다.",
+    "person": [
+      "윤봄이"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-151",
+    "text": "‘연락할 사람은 윤서우야.’라고 조카가 알려 줬다.",
+    "person": [
+      "윤서우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-152",
+    "text": "고모가 아는 분인 윤수현께 도움을 청했다.",
+    "person": [
+      "윤수현"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-153",
+    "text": "윤아인 씨는 제 동네 모임에서 알게 된 이웃이다.",
+    "person": [
+      "윤아인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "particle"
+    ]
+  },
+  {
+    "id": "heldout-person-154",
+    "text": "아버지의 친구 윤연우가 병문안을 오겠다고 했다.",
+    "person": [
+      "윤연우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-155",
+    "text": "오랜 이웃인 윤예담하고 장을 보러 가기로 했다.",
+    "person": [
+      "윤예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-156",
+    "text": "메모에는 ‘비상 연락은 윤윤서에게’라고만 적혀 있었다.",
+    "person": [
+      "윤윤서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-note"
+    ]
+  },
+  {
+    "id": "heldout-person-157",
+    "text": "\"누가 같이 간대?\" \"우리 형의 동료 윤지율.\"",
+    "person": [
+      "윤지율"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-158",
+    "text": "윤초아님이 할머니께 책을 읽어 드렸다고 들었다.",
+    "person": [
+      "윤초아"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-159",
+    "text": "선생님은 제자 윤태린을 기억한다고 말씀하셨다.",
+    "person": [
+      "윤태린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-160",
+    "text": "연락할분은윤해원 님이라고 안내받았다.",
+    "person": [
+      "윤해원"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-person-161",
+    "text": "어제 이모 오가람에게 안부 전화를 드렸다.",
+    "person": [
+      "오가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-162",
+    "text": "제 친구 오나린이 다음 주에 반찬을 가져오겠다고 했다.",
+    "person": [
+      "오나린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-163",
+    "text": "언니는 ‘오다온 씨가 먼저 연락했어’라고 전했다.",
+    "person": [
+      "오다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-164",
+    "text": "옆집에 사는 오라윤님께서 우산을 빌려 주셨다.",
+    "person": [
+      "오라윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-165",
+    "text": "형부의 동료 오마루한테 서류 전달을 부탁했다.",
+    "person": [
+      "오마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-166",
+    "text": "상담 메모에는 보호자의 지인 오보민이 동행한다고 적혀 있다.",
+    "person": [
+      "오보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-person-167",
+    "text": "동생이 \"오서린에게 일정부터 물어볼게\"라고 말했다.",
+    "person": [
+      "오서린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-168",
+    "text": "대학 선배 오소율과 오랜만에 점심을 먹었다.",
+    "person": [
+      "오소율"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-169",
+    "text": "사촌 오아람은 주말에 아이를 돌봐 주기로 했다.",
+    "person": [
+      "오아람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-170",
+    "text": "예전에 함께 일하던 오여진에게 소식을 들었다.",
+    "person": [
+      "오여진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-171",
+    "text": "‘연락할 사람은 오예린이야.’라고 조카가 알려 줬다.",
+    "person": [
+      "오예린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-172",
+    "text": "고모가 아는 분인 오유담께 도움을 청했다.",
+    "person": [
+      "오유담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-173",
+    "text": "오이든 씨는 제 동네 모임에서 알게 된 이웃이다.",
+    "person": [
+      "오이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "particle"
+    ]
+  },
+  {
+    "id": "heldout-person-174",
+    "text": "아버지의 친구 오지안이 병문안을 오겠다고 했다.",
+    "person": [
+      "오지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-175",
+    "text": "오랜 이웃인 오채린하고 장을 보러 가기로 했다.",
+    "person": [
+      "오채린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-176",
+    "text": "메모에는 ‘비상 연락은 오하람에게’라고만 적혀 있었다.",
+    "person": [
+      "오하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-note"
+    ]
+  },
+  {
+    "id": "heldout-person-177",
+    "text": "\"누가 같이 간대?\" \"우리 형의 동료 오가온.\"",
+    "person": [
+      "오가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-178",
+    "text": "오나윤님이 할머니께 책을 읽어 드렸다고 들었다.",
+    "person": [
+      "오나윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-179",
+    "text": "선생님은 제자 오다인을 기억한다고 말씀하셨다.",
+    "person": [
+      "오다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-180",
+    "text": "연락할분은오로운 님이라고 안내받았다.",
+    "person": [
+      "오로운"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-person-181",
+    "text": "어제 이모 오민서에게 안부 전화를 드렸다.",
+    "person": [
+      "오민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-182",
+    "text": "제 친구 오봄이가 다음 주에 반찬을 가져오겠다고 했다.",
+    "person": [
+      "오봄이"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-183",
+    "text": "언니는 ‘오서우 씨가 먼저 연락했어’라고 전했다.",
+    "person": [
+      "오서우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-184",
+    "text": "옆집에 사는 오수현님께서 우산을 빌려 주셨다.",
+    "person": [
+      "오수현"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-185",
+    "text": "형부의 동료 오아인한테 서류 전달을 부탁했다.",
+    "person": [
+      "오아인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-186",
+    "text": "상담 메모에는 보호자의 지인 오연우가 동행한다고 적혀 있다.",
+    "person": [
+      "오연우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-person-187",
+    "text": "동생이 \"오예담에게 일정부터 물어볼게\"라고 말했다.",
+    "person": [
+      "오예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-188",
+    "text": "대학 선배 오윤서와 오랜만에 점심을 먹었다.",
+    "person": [
+      "오윤서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-189",
+    "text": "사촌 Aven Mercer는 주말에 아이를 돌봐 주기로 했다.",
+    "person": [
+      "Aven Mercer"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-190",
+    "text": "예전에 함께 일하던 Brell Mercer에게 소식을 들었다.",
+    "person": [
+      "Brell Mercer"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-191",
+    "text": "‘연락할 사람은 Corin Mercer야.’라고 조카가 알려 줬다.",
+    "person": [
+      "Corin Mercer"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-192",
+    "text": "고모가 아는 분인 Daro Mercer께 도움을 청했다.",
+    "person": [
+      "Daro Mercer"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-193",
+    "text": "Elva Mercer 씨는 제 동네 모임에서 알게 된 이웃이다.",
+    "person": [
+      "Elva Mercer"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "particle"
+    ]
+  },
+  {
+    "id": "heldout-person-194",
+    "text": "아버지의 친구 Fenn Mercer가 병문안을 오겠다고 했다.",
+    "person": [
+      "Fenn Mercer"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "relative"
+    ]
+  },
+  {
+    "id": "heldout-person-195",
+    "text": "오랜 이웃인 Aro Cole하고 장을 보러 가기로 했다.",
+    "person": [
+      "Aro Cole"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "acquaintance"
+    ]
+  },
+  {
+    "id": "heldout-person-196",
+    "text": "메모에는 ‘비상 연락은 Bex Cole에게’라고만 적혀 있었다.",
+    "person": [
+      "Bex Cole"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "quoted-note"
+    ]
+  },
+  {
+    "id": "heldout-person-197",
+    "text": "\"누가 같이 간대?\" \"우리 형의 동료 Cyra Cole.\"",
+    "person": [
+      "Cyra Cole"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-person-198",
+    "text": "Doven Cole님이 할머니께 책을 읽어 드렸다고 들었다.",
+    "person": [
+      "Doven Cole"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "honorific"
+    ]
+  },
+  {
+    "id": "heldout-person-199",
+    "text": "선생님은 제자 Eira Cole을 기억한다고 말씀하셨다.",
+    "person": [
+      "Eira Cole"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-person-200",
+    "text": "연락할분은Falin Cole 님이라고 안내받았다.",
+    "person": [
+      "Falin Cole"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-001",
+    "text": "전입 신고할 새집의 상세 주소는 서울특별시 해온구 다솜동 참빛여울길 10, 물결다솜아파트 101동 201호입니다.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 참빛여울길 10, 물결다솜아파트 101동 201호"
+    ],
+    "strata": [
+      "address",
+      "residential"
+    ]
+  },
+  {
+    "id": "heldout-address-002",
+    "text": "택배를 받을 집은 ‘부산광역시 윤슬구 파랑동 새롬미르로 23, 새롬라온아파트 102동 304호’예요.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 새롬미르로 23, 새롬라온아파트 102동 304호"
+    ],
+    "strata": [
+      "address",
+      "quoted-address"
+    ]
+  },
+  {
+    "id": "heldout-address-003",
+    "text": "보호자가 현재 거주하는 곳은 대구광역시 늘봄구 고운동 물결소담길 36-3, 참빛봄내아파트 103동 407호로 확인했다.",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 물결소담길 36-3, 참빛봄내아파트 103동 407호"
+    ],
+    "strata": [
+      "address",
+      "reported-address"
+    ]
+  },
+  {
+    "id": "heldout-address-004",
+    "text": "이사 계약서에 적힌 주택 소재지는 인천광역시 온새미구 미르동 113-22, 노을가온아파트 104동 510호이다.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 113-22, 노을가온아파트 104동 510호"
+    ],
+    "strata": [
+      "address",
+      "contract-note"
+    ]
+  },
+  {
+    "id": "heldout-address-005",
+    "text": "\"어디로 찾아가면 돼?\" \"우리 집은 광주광역시 한빛구 라온동 참빛이든길 62, 물결나래아파트 105동 613호야.\"",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 참빛이든길 62, 물결나래아파트 105동 613호"
+    ],
+    "strata": [
+      "address",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-address-006",
+    "text": "상담 메모: 가족이 머무는 주거지는 대전광역시 새결구 아람동 새롬한결로 75, 새롬초롱아파트 106동 716호임.",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 새롬한결로 75, 새롬초롱아파트 106동 716호"
+    ],
+    "strata": [
+      "address",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-address-007",
+    "text": "아이가 방과 후 귀가할 집 주소를 울산광역시 보람구 누리동 물결다솜길 88, 참빛마루아파트 107동 819호로 등록했다.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 물결다솜길 88, 참빛마루아파트 107동 819호"
+    ],
+    "strata": [
+      "address",
+      "registered-home"
+    ]
+  },
+  {
+    "id": "heldout-address-008",
+    "text": "등기우편은 자택인 세종특별자치시 가온동 157-1, 노을소담아파트 108동 922호로 보내 주세요.",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 157-1, 노을소담아파트 108동 922호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-009",
+    "text": "지인이 알려 준 새 보금자리 주소는 경기도 다온시 마루구 해솔동 참빛아람길 114, 물결이든아파트 109동 1025호였다.",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 참빛아람길 114, 물결이든아파트 109동 1025호"
+    ],
+    "strata": [
+      "address",
+      "acquaintance-home"
+    ]
+  },
+  {
+    "id": "heldout-address-010",
+    "text": "내년부터 살 집은 강원특별자치도 온빛시 이든동 새롬누리로 127, 새롬누리아파트 101동 1128호에 있다.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 새롬누리로 127, 새롬누리아파트 101동 1128호"
+    ],
+    "strata": [
+      "address",
+      "future-home"
+    ]
+  },
+  {
+    "id": "heldout-address-011",
+    "text": "배송지는충청북도 가람시 소담동 물결봄내길 140, 참빛해솔아파트 102동 1231호로 적어 주세요.",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 물결봄내길 140, 참빛해솔아파트 102동 1231호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-012",
+    "text": "세대주의 실제 거주지는 ‘충청남도 여울시 나래동 201-29, 노을단비아파트 103동 1334호’로 기재되어 있다.",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 201-29, 노을단비아파트 103동 1334호"
+    ],
+    "strata": [
+      "address",
+      "household-record"
+    ]
+  },
+  {
+    "id": "heldout-address-013",
+    "text": "동생 부부가 입주한 아파트 주소는 전북특별자치도 모아시 단비동 참빛나래길 166-13, 물결한결아파트 104동 1437호이다.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 참빛나래길 166-13, 물결한결아파트 104동 1437호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-014",
+    "text": "야간 귀가 때 도착할 집을 전라남도 푸름시 초롱동 새롬윤슬로 179, 새롬윤슬아파트 105동 1540호로 설정했다.",
+    "person": [],
+    "address": [
+      "전라남도 푸름시 초롱동 새롬윤슬로 179, 새롬윤슬아파트 105동 1540호"
+    ],
+    "strata": [
+      "address",
+      "navigation-home"
+    ]
+  },
+  {
+    "id": "heldout-address-015",
+    "text": "어머니는 \"우리 집은 경상북도 해든시 봄내동 물결라온길 192, 참빛아람아파트 106동 1643호란다\"라고 말씀하셨다.",
+    "person": [],
+    "address": [
+      "경상북도 해든시 봄내동 물결라온길 192, 참빛아람아파트 106동 1643호"
+    ],
+    "strata": [
+      "address",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-address-016",
+    "text": "전입 예정자의 거주 확인 주소가 경상남도 아라시 잎새동 245-8, 노을미르아파트 107동 1746호로 바뀌었다.",
+    "person": [],
+    "address": [
+      "경상남도 아라시 잎새동 245-8, 노을미르아파트 107동 1746호"
+    ],
+    "strata": [
+      "address",
+      "residency-record"
+    ]
+  },
+  {
+    "id": "heldout-address-017",
+    "text": "생활지원 방문을 할 가정은 제주특별자치도 다솜시 별하동 참빛여울길 218, 물결다솜아파트 108동 1849호에 거주한다.",
+    "person": [],
+    "address": [
+      "제주특별자치도 다솜시 별하동 참빛여울길 218, 물결다솜아파트 108동 1849호"
+    ],
+    "strata": [
+      "address",
+      "home-visit"
+    ]
+  },
+  {
+    "id": "heldout-address-018",
+    "text": "어머니께서 최근 옮기신 자택은 서울특별시 해온구 다솜동 새롬미르로 231-1, 새롬라온아파트 109동 1952호이다.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 새롬미르로 231-1, 새롬라온아파트 109동 1952호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-019",
+    "text": "계약자가 우편물을 받을 주거 주소는 부산광역시 윤슬구 파랑동 물결소담길 244, 참빛봄내아파트 101동 255호로 정했다.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 물결소담길 244, 참빛봄내아파트 101동 255호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-020",
+    "text": "새집주소는‘대구광역시 늘봄구 고운동 289-36, 노을가온아파트 102동 358호’라고 가족에게 알렸다.",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 289-36, 노을가온아파트 102동 358호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-021",
+    "text": "전입 신고할 새집의 상세 주소는 인천광역시 온새미구 미르동 참빛이든길 30, 물결나래아파트 103동 461호입니다.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 참빛이든길 30, 물결나래아파트 103동 461호"
+    ],
+    "strata": [
+      "address",
+      "residential"
+    ]
+  },
+  {
+    "id": "heldout-address-022",
+    "text": "택배를 받을 집은 ‘광주광역시 한빛구 라온동 새롬한결로 43, 새롬초롱아파트 104동 564호’예요.",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 새롬한결로 43, 새롬초롱아파트 104동 564호"
+    ],
+    "strata": [
+      "address",
+      "quoted-address"
+    ]
+  },
+  {
+    "id": "heldout-address-023",
+    "text": "보호자가 현재 거주하는 곳은 대전광역시 새결구 아람동 물결다솜길 56-6, 참빛마루아파트 105동 667호로 확인했다.",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 물결다솜길 56-6, 참빛마루아파트 105동 667호"
+    ],
+    "strata": [
+      "address",
+      "reported-address"
+    ]
+  },
+  {
+    "id": "heldout-address-024",
+    "text": "이사 계약서에 적힌 주택 소재지는 울산광역시 보람구 누리동 333-15, 노을소담아파트 106동 770호이다.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 333-15, 노을소담아파트 106동 770호"
+    ],
+    "strata": [
+      "address",
+      "contract-note"
+    ]
+  },
+  {
+    "id": "heldout-address-025",
+    "text": "\"어디로 찾아가면 돼?\" \"우리 집은 세종특별자치시 가온동 참빛아람길 82, 물결이든아파트 107동 873호야.\"",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 참빛아람길 82, 물결이든아파트 107동 873호"
+    ],
+    "strata": [
+      "address",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-address-026",
+    "text": "상담 메모: 가족이 머무는 주거지는 경기도 다온시 마루구 해솔동 새롬누리로 95, 새롬누리아파트 108동 976호임.",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 새롬누리로 95, 새롬누리아파트 108동 976호"
+    ],
+    "strata": [
+      "address",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-address-027",
+    "text": "아이가 방과 후 귀가할 집 주소를 강원특별자치도 온빛시 이든동 물결봄내길 108, 참빛해솔아파트 109동 1079호로 등록했다.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 물결봄내길 108, 참빛해솔아파트 109동 1079호"
+    ],
+    "strata": [
+      "address",
+      "registered-home"
+    ]
+  },
+  {
+    "id": "heldout-address-028",
+    "text": "등기우편은 자택인 충청북도 가람시 소담동 377-43, 노을단비아파트 101동 1182호로 보내 주세요.",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 377-43, 노을단비아파트 101동 1182호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-029",
+    "text": "지인이 알려 준 새 보금자리 주소는 충청남도 여울시 나래동 참빛나래길 134, 물결한결아파트 102동 1285호였다.",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 참빛나래길 134, 물결한결아파트 102동 1285호"
+    ],
+    "strata": [
+      "address",
+      "acquaintance-home"
+    ]
+  },
+  {
+    "id": "heldout-address-030",
+    "text": "내년부터 살 집은 전북특별자치도 모아시 단비동 새롬윤슬로 147, 새롬윤슬아파트 103동 1388호에 있다.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 새롬윤슬로 147, 새롬윤슬아파트 103동 1388호"
+    ],
+    "strata": [
+      "address",
+      "future-home"
+    ]
+  },
+  {
+    "id": "heldout-address-031",
+    "text": "배송지는전라남도 푸름시 초롱동 물결라온길 160, 참빛아람아파트 104동 1491호로 적어 주세요.",
+    "person": [],
+    "address": [
+      "전라남도 푸름시 초롱동 물결라온길 160, 참빛아람아파트 104동 1491호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-032",
+    "text": "세대주의 실제 거주지는 ‘경상북도 해든시 봄내동 421-22, 노을미르아파트 105동 1594호’로 기재되어 있다.",
+    "person": [],
+    "address": [
+      "경상북도 해든시 봄내동 421-22, 노을미르아파트 105동 1594호"
+    ],
+    "strata": [
+      "address",
+      "household-record"
+    ]
+  },
+  {
+    "id": "heldout-address-033",
+    "text": "동생 부부가 입주한 아파트 주소는 경상남도 아라시 잎새동 참빛여울길 186-16, 물결다솜아파트 106동 1697호이다.",
+    "person": [],
+    "address": [
+      "경상남도 아라시 잎새동 참빛여울길 186-16, 물결다솜아파트 106동 1697호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-034",
+    "text": "야간 귀가 때 도착할 집을 제주특별자치도 다솜시 별하동 새롬미르로 199, 새롬라온아파트 107동 1800호로 설정했다.",
+    "person": [],
+    "address": [
+      "제주특별자치도 다솜시 별하동 새롬미르로 199, 새롬라온아파트 107동 1800호"
+    ],
+    "strata": [
+      "address",
+      "navigation-home"
+    ]
+  },
+  {
+    "id": "heldout-address-035",
+    "text": "어머니는 \"우리 집은 서울특별시 해온구 다솜동 물결소담길 212, 참빛봄내아파트 108동 1903호란다\"라고 말씀하셨다.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 물결소담길 212, 참빛봄내아파트 108동 1903호"
+    ],
+    "strata": [
+      "address",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-address-036",
+    "text": "전입 예정자의 거주 확인 주소가 부산광역시 윤슬구 파랑동 465-1, 노을가온아파트 109동 206호로 바뀌었다.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 465-1, 노을가온아파트 109동 206호"
+    ],
+    "strata": [
+      "address",
+      "residency-record"
+    ]
+  },
+  {
+    "id": "heldout-address-037",
+    "text": "생활지원 방문을 할 가정은 대구광역시 늘봄구 고운동 참빛이든길 238, 물결나래아파트 101동 309호에 거주한다.",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 참빛이든길 238, 물결나래아파트 101동 309호"
+    ],
+    "strata": [
+      "address",
+      "home-visit"
+    ]
+  },
+  {
+    "id": "heldout-address-038",
+    "text": "어머니께서 최근 옮기신 자택은 인천광역시 온새미구 미르동 새롬한결로 11-4, 새롬초롱아파트 102동 412호이다.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 새롬한결로 11-4, 새롬초롱아파트 102동 412호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-039",
+    "text": "계약자가 우편물을 받을 주거 주소는 광주광역시 한빛구 라온동 물결다솜길 24, 참빛마루아파트 103동 515호로 정했다.",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 물결다솜길 24, 참빛마루아파트 103동 515호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-040",
+    "text": "새집주소는‘대전광역시 새결구 아람동 509-29, 노을소담아파트 104동 618호’라고 가족에게 알렸다.",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 509-29, 노을소담아파트 104동 618호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-041",
+    "text": "전입 신고할 새집의 상세 주소는 울산광역시 보람구 누리동 참빛아람길 50, 물결이든아파트 105동 721호입니다.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 참빛아람길 50, 물결이든아파트 105동 721호"
+    ],
+    "strata": [
+      "address",
+      "residential"
+    ]
+  },
+  {
+    "id": "heldout-address-042",
+    "text": "택배를 받을 집은 ‘세종특별자치시 가온동 새롬누리로 63, 새롬누리아파트 106동 824호’예요.",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 새롬누리로 63, 새롬누리아파트 106동 824호"
+    ],
+    "strata": [
+      "address",
+      "quoted-address"
+    ]
+  },
+  {
+    "id": "heldout-address-043",
+    "text": "보호자가 현재 거주하는 곳은 경기도 다온시 마루구 해솔동 물결봄내길 76-9, 참빛해솔아파트 107동 927호로 확인했다.",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 물결봄내길 76-9, 참빛해솔아파트 107동 927호"
+    ],
+    "strata": [
+      "address",
+      "reported-address"
+    ]
+  },
+  {
+    "id": "heldout-address-044",
+    "text": "이사 계약서에 적힌 주택 소재지는 강원특별자치도 온빛시 이든동 553-8, 노을단비아파트 108동 1030호이다.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 553-8, 노을단비아파트 108동 1030호"
+    ],
+    "strata": [
+      "address",
+      "contract-note"
+    ]
+  },
+  {
+    "id": "heldout-address-045",
+    "text": "\"어디로 찾아가면 돼?\" \"우리 집은 충청북도 가람시 소담동 참빛나래길 102, 물결한결아파트 109동 1133호야.\"",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 참빛나래길 102, 물결한결아파트 109동 1133호"
+    ],
+    "strata": [
+      "address",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-address-046",
+    "text": "상담 메모: 가족이 머무는 주거지는 충청남도 여울시 나래동 새롬윤슬로 115, 새롬윤슬아파트 101동 1236호임.",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 새롬윤슬로 115, 새롬윤슬아파트 101동 1236호"
+    ],
+    "strata": [
+      "address",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-address-047",
+    "text": "아이가 방과 후 귀가할 집 주소를 전북특별자치도 모아시 단비동 물결라온길 128, 참빛아람아파트 102동 1339호로 등록했다.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 물결라온길 128, 참빛아람아파트 102동 1339호"
+    ],
+    "strata": [
+      "address",
+      "registered-home"
+    ]
+  },
+  {
+    "id": "heldout-address-048",
+    "text": "등기우편은 자택인 전라남도 푸름시 초롱동 597-36, 노을미르아파트 103동 1442호로 보내 주세요.",
+    "person": [],
+    "address": [
+      "전라남도 푸름시 초롱동 597-36, 노을미르아파트 103동 1442호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-049",
+    "text": "지인이 알려 준 새 보금자리 주소는 경상북도 해든시 봄내동 참빛여울길 154, 물결다솜아파트 104동 1545호였다.",
+    "person": [],
+    "address": [
+      "경상북도 해든시 봄내동 참빛여울길 154, 물결다솜아파트 104동 1545호"
+    ],
+    "strata": [
+      "address",
+      "acquaintance-home"
+    ]
+  },
+  {
+    "id": "heldout-address-050",
+    "text": "내년부터 살 집은 경상남도 아라시 잎새동 새롬미르로 167, 새롬라온아파트 105동 1648호에 있다.",
+    "person": [],
+    "address": [
+      "경상남도 아라시 잎새동 새롬미르로 167, 새롬라온아파트 105동 1648호"
+    ],
+    "strata": [
+      "address",
+      "future-home"
+    ]
+  },
+  {
+    "id": "heldout-address-051",
+    "text": "배송지는제주특별자치도 다솜시 별하동 물결소담길 180, 참빛봄내아파트 106동 1751호로 적어 주세요.",
+    "person": [],
+    "address": [
+      "제주특별자치도 다솜시 별하동 물결소담길 180, 참빛봄내아파트 106동 1751호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-052",
+    "text": "세대주의 실제 거주지는 ‘서울특별시 해온구 다솜동 641-15, 노을가온아파트 107동 1854호’로 기재되어 있다.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 641-15, 노을가온아파트 107동 1854호"
+    ],
+    "strata": [
+      "address",
+      "household-record"
+    ]
+  },
+  {
+    "id": "heldout-address-053",
+    "text": "동생 부부가 입주한 아파트 주소는 부산광역시 윤슬구 파랑동 참빛이든길 206-2, 물결나래아파트 108동 1957호이다.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 참빛이든길 206-2, 물결나래아파트 108동 1957호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-054",
+    "text": "야간 귀가 때 도착할 집을 대구광역시 늘봄구 고운동 새롬한결로 219, 새롬초롱아파트 109동 260호로 설정했다.",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 새롬한결로 219, 새롬초롱아파트 109동 260호"
+    ],
+    "strata": [
+      "address",
+      "navigation-home"
+    ]
+  },
+  {
+    "id": "heldout-address-055",
+    "text": "어머니는 \"우리 집은 인천광역시 온새미구 미르동 물결다솜길 232, 참빛마루아파트 101동 363호란다\"라고 말씀하셨다.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 물결다솜길 232, 참빛마루아파트 101동 363호"
+    ],
+    "strata": [
+      "address",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-address-056",
+    "text": "전입 예정자의 거주 확인 주소가 광주광역시 한빛구 라온동 685-43, 노을소담아파트 102동 466호로 바뀌었다.",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 685-43, 노을소담아파트 102동 466호"
+    ],
+    "strata": [
+      "address",
+      "residency-record"
+    ]
+  },
+  {
+    "id": "heldout-address-057",
+    "text": "생활지원 방문을 할 가정은 대전광역시 새결구 아람동 참빛아람길 18, 물결이든아파트 103동 569호에 거주한다.",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 참빛아람길 18, 물결이든아파트 103동 569호"
+    ],
+    "strata": [
+      "address",
+      "home-visit"
+    ]
+  },
+  {
+    "id": "heldout-address-058",
+    "text": "어머니께서 최근 옮기신 자택은 울산광역시 보람구 누리동 새롬누리로 31-7, 새롬누리아파트 104동 672호이다.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 새롬누리로 31-7, 새롬누리아파트 104동 672호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-059",
+    "text": "계약자가 우편물을 받을 주거 주소는 세종특별자치시 가온동 물결봄내길 44, 참빛해솔아파트 105동 775호로 정했다.",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 물결봄내길 44, 참빛해솔아파트 105동 775호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-060",
+    "text": "새집주소는‘경기도 다온시 마루구 해솔동 729-22, 노을단비아파트 106동 878호’라고 가족에게 알렸다.",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 729-22, 노을단비아파트 106동 878호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-061",
+    "text": "전입 신고할 새집의 상세 주소는 강원특별자치도 온빛시 이든동 참빛나래길 70, 물결한결아파트 107동 981호입니다.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 참빛나래길 70, 물결한결아파트 107동 981호"
+    ],
+    "strata": [
+      "address",
+      "residential"
+    ]
+  },
+  {
+    "id": "heldout-address-062",
+    "text": "택배를 받을 집은 ‘충청북도 가람시 소담동 새롬윤슬로 83, 새롬윤슬아파트 108동 1084호’예요.",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 새롬윤슬로 83, 새롬윤슬아파트 108동 1084호"
+    ],
+    "strata": [
+      "address",
+      "quoted-address"
+    ]
+  },
+  {
+    "id": "heldout-address-063",
+    "text": "보호자가 현재 거주하는 곳은 충청남도 여울시 나래동 물결라온길 96-12, 참빛아람아파트 109동 1187호로 확인했다.",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 물결라온길 96-12, 참빛아람아파트 109동 1187호"
+    ],
+    "strata": [
+      "address",
+      "reported-address"
+    ]
+  },
+  {
+    "id": "heldout-address-064",
+    "text": "이사 계약서에 적힌 주택 소재지는 전북특별자치도 모아시 단비동 773-1, 노을미르아파트 101동 1290호이다.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 773-1, 노을미르아파트 101동 1290호"
+    ],
+    "strata": [
+      "address",
+      "contract-note"
+    ]
+  },
+  {
+    "id": "heldout-address-065",
+    "text": "\"어디로 찾아가면 돼?\" \"우리 집은 전라남도 푸름시 초롱동 참빛여울길 122, 물결다솜아파트 102동 1393호야.\"",
+    "person": [],
+    "address": [
+      "전라남도 푸름시 초롱동 참빛여울길 122, 물결다솜아파트 102동 1393호"
+    ],
+    "strata": [
+      "address",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-address-066",
+    "text": "상담 메모: 가족이 머무는 주거지는 경상북도 해든시 봄내동 새롬미르로 135, 새롬라온아파트 103동 1496호임.",
+    "person": [],
+    "address": [
+      "경상북도 해든시 봄내동 새롬미르로 135, 새롬라온아파트 103동 1496호"
+    ],
+    "strata": [
+      "address",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-address-067",
+    "text": "아이가 방과 후 귀가할 집 주소를 경상남도 아라시 잎새동 물결소담길 148, 참빛봄내아파트 104동 1599호로 등록했다.",
+    "person": [],
+    "address": [
+      "경상남도 아라시 잎새동 물결소담길 148, 참빛봄내아파트 104동 1599호"
+    ],
+    "strata": [
+      "address",
+      "registered-home"
+    ]
+  },
+  {
+    "id": "heldout-address-068",
+    "text": "등기우편은 자택인 제주특별자치도 다솜시 별하동 117-29, 노을가온아파트 105동 1702호로 보내 주세요.",
+    "person": [],
+    "address": [
+      "제주특별자치도 다솜시 별하동 117-29, 노을가온아파트 105동 1702호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-069",
+    "text": "지인이 알려 준 새 보금자리 주소는 서울특별시 해온구 다솜동 참빛이든길 174, 물결나래아파트 106동 1805호였다.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 참빛이든길 174, 물결나래아파트 106동 1805호"
+    ],
+    "strata": [
+      "address",
+      "acquaintance-home"
+    ]
+  },
+  {
+    "id": "heldout-address-070",
+    "text": "내년부터 살 집은 부산광역시 윤슬구 파랑동 새롬한결로 187, 새롬초롱아파트 107동 1908호에 있다.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 새롬한결로 187, 새롬초롱아파트 107동 1908호"
+    ],
+    "strata": [
+      "address",
+      "future-home"
+    ]
+  },
+  {
+    "id": "heldout-address-071",
+    "text": "배송지는대구광역시 늘봄구 고운동 물결다솜길 200, 참빛마루아파트 108동 211호로 적어 주세요.",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 물결다솜길 200, 참빛마루아파트 108동 211호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-072",
+    "text": "세대주의 실제 거주지는 ‘인천광역시 온새미구 미르동 161-8, 노을소담아파트 109동 314호’로 기재되어 있다.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 161-8, 노을소담아파트 109동 314호"
+    ],
+    "strata": [
+      "address",
+      "household-record"
+    ]
+  },
+  {
+    "id": "heldout-address-073",
+    "text": "동생 부부가 입주한 아파트 주소는 광주광역시 한빛구 라온동 참빛아람길 226-5, 물결이든아파트 101동 417호이다.",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 참빛아람길 226-5, 물결이든아파트 101동 417호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-074",
+    "text": "야간 귀가 때 도착할 집을 대전광역시 새결구 아람동 새롬누리로 239, 새롬누리아파트 102동 520호로 설정했다.",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 새롬누리로 239, 새롬누리아파트 102동 520호"
+    ],
+    "strata": [
+      "address",
+      "navigation-home"
+    ]
+  },
+  {
+    "id": "heldout-address-075",
+    "text": "어머니는 \"우리 집은 울산광역시 보람구 누리동 물결봄내길 12, 참빛해솔아파트 103동 623호란다\"라고 말씀하셨다.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 물결봄내길 12, 참빛해솔아파트 103동 623호"
+    ],
+    "strata": [
+      "address",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-address-076",
+    "text": "전입 예정자의 거주 확인 주소가 세종특별자치시 가온동 205-36, 노을단비아파트 104동 726호로 바뀌었다.",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 205-36, 노을단비아파트 104동 726호"
+    ],
+    "strata": [
+      "address",
+      "residency-record"
+    ]
+  },
+  {
+    "id": "heldout-address-077",
+    "text": "생활지원 방문을 할 가정은 경기도 다온시 마루구 해솔동 참빛나래길 38, 물결한결아파트 105동 829호에 거주한다.",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 참빛나래길 38, 물결한결아파트 105동 829호"
+    ],
+    "strata": [
+      "address",
+      "home-visit"
+    ]
+  },
+  {
+    "id": "heldout-address-078",
+    "text": "어머니께서 최근 옮기신 자택은 강원특별자치도 온빛시 이든동 새롬윤슬로 51-10, 새롬윤슬아파트 106동 932호이다.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 새롬윤슬로 51-10, 새롬윤슬아파트 106동 932호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-079",
+    "text": "계약자가 우편물을 받을 주거 주소는 충청북도 가람시 소담동 물결라온길 64, 참빛아람아파트 107동 1035호로 정했다.",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 물결라온길 64, 참빛아람아파트 107동 1035호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-080",
+    "text": "새집주소는‘충청남도 여울시 나래동 249-15, 노을미르아파트 108동 1138호’라고 가족에게 알렸다.",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 249-15, 노을미르아파트 108동 1138호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-081",
+    "text": "전입 신고할 새집의 상세 주소는 전북특별자치도 모아시 단비동 참빛여울길 90, 물결다솜아파트 109동 1241호입니다.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 참빛여울길 90, 물결다솜아파트 109동 1241호"
+    ],
+    "strata": [
+      "address",
+      "residential"
+    ]
+  },
+  {
+    "id": "heldout-address-082",
+    "text": "택배를 받을 집은 ‘전라남도 푸름시 초롱동 새롬미르로 103, 새롬라온아파트 101동 1344호’예요.",
+    "person": [],
+    "address": [
+      "전라남도 푸름시 초롱동 새롬미르로 103, 새롬라온아파트 101동 1344호"
+    ],
+    "strata": [
+      "address",
+      "quoted-address"
+    ]
+  },
+  {
+    "id": "heldout-address-083",
+    "text": "보호자가 현재 거주하는 곳은 경상북도 해든시 봄내동 물결소담길 116-15, 참빛봄내아파트 102동 1447호로 확인했다.",
+    "person": [],
+    "address": [
+      "경상북도 해든시 봄내동 물결소담길 116-15, 참빛봄내아파트 102동 1447호"
+    ],
+    "strata": [
+      "address",
+      "reported-address"
+    ]
+  },
+  {
+    "id": "heldout-address-084",
+    "text": "이사 계약서에 적힌 주택 소재지는 경상남도 아라시 잎새동 293-43, 노을가온아파트 103동 1550호이다.",
+    "person": [],
+    "address": [
+      "경상남도 아라시 잎새동 293-43, 노을가온아파트 103동 1550호"
+    ],
+    "strata": [
+      "address",
+      "contract-note"
+    ]
+  },
+  {
+    "id": "heldout-address-085",
+    "text": "\"어디로 찾아가면 돼?\" \"우리 집은 제주특별자치도 다솜시 별하동 참빛이든길 142, 물결나래아파트 104동 1653호야.\"",
+    "person": [],
+    "address": [
+      "제주특별자치도 다솜시 별하동 참빛이든길 142, 물결나래아파트 104동 1653호"
+    ],
+    "strata": [
+      "address",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-address-086",
+    "text": "상담 메모: 가족이 머무는 주거지는 서울특별시 해온구 다솜동 새롬한결로 155, 새롬초롱아파트 105동 1756호임.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 새롬한결로 155, 새롬초롱아파트 105동 1756호"
+    ],
+    "strata": [
+      "address",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-address-087",
+    "text": "아이가 방과 후 귀가할 집 주소를 부산광역시 윤슬구 파랑동 물결다솜길 168, 참빛마루아파트 106동 1859호로 등록했다.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 물결다솜길 168, 참빛마루아파트 106동 1859호"
+    ],
+    "strata": [
+      "address",
+      "registered-home"
+    ]
+  },
+  {
+    "id": "heldout-address-088",
+    "text": "등기우편은 자택인 대구광역시 늘봄구 고운동 337-22, 노을소담아파트 107동 1962호로 보내 주세요.",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 337-22, 노을소담아파트 107동 1962호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-089",
+    "text": "지인이 알려 준 새 보금자리 주소는 인천광역시 온새미구 미르동 참빛아람길 194, 물결이든아파트 108동 265호였다.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 참빛아람길 194, 물결이든아파트 108동 265호"
+    ],
+    "strata": [
+      "address",
+      "acquaintance-home"
+    ]
+  },
+  {
+    "id": "heldout-address-090",
+    "text": "내년부터 살 집은 광주광역시 한빛구 라온동 새롬누리로 207, 새롬누리아파트 109동 368호에 있다.",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 새롬누리로 207, 새롬누리아파트 109동 368호"
+    ],
+    "strata": [
+      "address",
+      "future-home"
+    ]
+  },
+  {
+    "id": "heldout-address-091",
+    "text": "배송지는대전광역시 새결구 아람동 물결봄내길 220, 참빛해솔아파트 101동 471호로 적어 주세요.",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 물결봄내길 220, 참빛해솔아파트 101동 471호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-092",
+    "text": "세대주의 실제 거주지는 ‘울산광역시 보람구 누리동 381-1, 노을단비아파트 102동 574호’로 기재되어 있다.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 381-1, 노을단비아파트 102동 574호"
+    ],
+    "strata": [
+      "address",
+      "household-record"
+    ]
+  },
+  {
+    "id": "heldout-address-093",
+    "text": "동생 부부가 입주한 아파트 주소는 세종특별자치시 가온동 참빛나래길 246-8, 물결한결아파트 103동 677호이다.",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 참빛나래길 246-8, 물결한결아파트 103동 677호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-094",
+    "text": "야간 귀가 때 도착할 집을 경기도 다온시 마루구 해솔동 새롬윤슬로 19, 새롬윤슬아파트 104동 780호로 설정했다.",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 새롬윤슬로 19, 새롬윤슬아파트 104동 780호"
+    ],
+    "strata": [
+      "address",
+      "navigation-home"
+    ]
+  },
+  {
+    "id": "heldout-address-095",
+    "text": "어머니는 \"우리 집은 강원특별자치도 온빛시 이든동 물결라온길 32, 참빛아람아파트 105동 883호란다\"라고 말씀하셨다.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 물결라온길 32, 참빛아람아파트 105동 883호"
+    ],
+    "strata": [
+      "address",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-address-096",
+    "text": "전입 예정자의 거주 확인 주소가 충청북도 가람시 소담동 425-29, 노을미르아파트 106동 986호로 바뀌었다.",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 425-29, 노을미르아파트 106동 986호"
+    ],
+    "strata": [
+      "address",
+      "residency-record"
+    ]
+  },
+  {
+    "id": "heldout-address-097",
+    "text": "생활지원 방문을 할 가정은 충청남도 여울시 나래동 참빛여울길 58, 물결다솜아파트 107동 1089호에 거주한다.",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 참빛여울길 58, 물결다솜아파트 107동 1089호"
+    ],
+    "strata": [
+      "address",
+      "home-visit"
+    ]
+  },
+  {
+    "id": "heldout-address-098",
+    "text": "어머니께서 최근 옮기신 자택은 전북특별자치도 모아시 단비동 새롬미르로 71-13, 새롬라온아파트 108동 1192호이다.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 새롬미르로 71-13, 새롬라온아파트 108동 1192호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-099",
+    "text": "계약자가 우편물을 받을 주거 주소는 전라남도 푸름시 초롱동 물결소담길 84, 참빛봄내아파트 109동 1295호로 정했다.",
+    "person": [],
+    "address": [
+      "전라남도 푸름시 초롱동 물결소담길 84, 참빛봄내아파트 109동 1295호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-100",
+    "text": "새집주소는‘경상북도 해든시 봄내동 469-8, 노을가온아파트 101동 1398호’라고 가족에게 알렸다.",
+    "person": [],
+    "address": [
+      "경상북도 해든시 봄내동 469-8, 노을가온아파트 101동 1398호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-101",
+    "text": "전입 신고할 새집의 상세 주소는 경상남도 아라시 잎새동 참빛이든길 110, 물결나래아파트 102동 1501호입니다.",
+    "person": [],
+    "address": [
+      "경상남도 아라시 잎새동 참빛이든길 110, 물결나래아파트 102동 1501호"
+    ],
+    "strata": [
+      "address",
+      "residential"
+    ]
+  },
+  {
+    "id": "heldout-address-102",
+    "text": "택배를 받을 집은 ‘제주특별자치도 다솜시 별하동 새롬한결로 123, 새롬초롱아파트 103동 1604호’예요.",
+    "person": [],
+    "address": [
+      "제주특별자치도 다솜시 별하동 새롬한결로 123, 새롬초롱아파트 103동 1604호"
+    ],
+    "strata": [
+      "address",
+      "quoted-address"
+    ]
+  },
+  {
+    "id": "heldout-address-103",
+    "text": "보호자가 현재 거주하는 곳은 서울특별시 해온구 다솜동 물결다솜길 136-1, 참빛마루아파트 104동 1707호로 확인했다.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 물결다솜길 136-1, 참빛마루아파트 104동 1707호"
+    ],
+    "strata": [
+      "address",
+      "reported-address"
+    ]
+  },
+  {
+    "id": "heldout-address-104",
+    "text": "이사 계약서에 적힌 주택 소재지는 부산광역시 윤슬구 파랑동 513-36, 노을소담아파트 105동 1810호이다.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 513-36, 노을소담아파트 105동 1810호"
+    ],
+    "strata": [
+      "address",
+      "contract-note"
+    ]
+  },
+  {
+    "id": "heldout-address-105",
+    "text": "\"어디로 찾아가면 돼?\" \"우리 집은 대구광역시 늘봄구 고운동 참빛아람길 162, 물결이든아파트 106동 1913호야.\"",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 참빛아람길 162, 물결이든아파트 106동 1913호"
+    ],
+    "strata": [
+      "address",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-address-106",
+    "text": "상담 메모: 가족이 머무는 주거지는 인천광역시 온새미구 미르동 새롬누리로 175, 새롬누리아파트 107동 216호임.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 새롬누리로 175, 새롬누리아파트 107동 216호"
+    ],
+    "strata": [
+      "address",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-address-107",
+    "text": "아이가 방과 후 귀가할 집 주소를 광주광역시 한빛구 라온동 물결봄내길 188, 참빛해솔아파트 108동 319호로 등록했다.",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 물결봄내길 188, 참빛해솔아파트 108동 319호"
+    ],
+    "strata": [
+      "address",
+      "registered-home"
+    ]
+  },
+  {
+    "id": "heldout-address-108",
+    "text": "등기우편은 자택인 대전광역시 새결구 아람동 557-15, 노을단비아파트 109동 422호로 보내 주세요.",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 557-15, 노을단비아파트 109동 422호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-109",
+    "text": "지인이 알려 준 새 보금자리 주소는 울산광역시 보람구 누리동 참빛나래길 214, 물결한결아파트 101동 525호였다.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 참빛나래길 214, 물결한결아파트 101동 525호"
+    ],
+    "strata": [
+      "address",
+      "acquaintance-home"
+    ]
+  },
+  {
+    "id": "heldout-address-110",
+    "text": "내년부터 살 집은 세종특별자치시 가온동 새롬윤슬로 227, 새롬윤슬아파트 102동 628호에 있다.",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 새롬윤슬로 227, 새롬윤슬아파트 102동 628호"
+    ],
+    "strata": [
+      "address",
+      "future-home"
+    ]
+  },
+  {
+    "id": "heldout-address-111",
+    "text": "배송지는경기도 다온시 마루구 해솔동 물결라온길 240, 참빛아람아파트 103동 731호로 적어 주세요.",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 물결라온길 240, 참빛아람아파트 103동 731호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-112",
+    "text": "세대주의 실제 거주지는 ‘강원특별자치도 온빛시 이든동 601-43, 노을미르아파트 104동 834호’로 기재되어 있다.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 601-43, 노을미르아파트 104동 834호"
+    ],
+    "strata": [
+      "address",
+      "household-record"
+    ]
+  },
+  {
+    "id": "heldout-address-113",
+    "text": "동생 부부가 입주한 아파트 주소는 충청북도 가람시 소담동 참빛여울길 26-11, 물결다솜아파트 105동 937호이다.",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 참빛여울길 26-11, 물결다솜아파트 105동 937호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-114",
+    "text": "야간 귀가 때 도착할 집을 충청남도 여울시 나래동 새롬미르로 39, 새롬라온아파트 106동 1040호로 설정했다.",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 새롬미르로 39, 새롬라온아파트 106동 1040호"
+    ],
+    "strata": [
+      "address",
+      "navigation-home"
+    ]
+  },
+  {
+    "id": "heldout-address-115",
+    "text": "어머니는 \"우리 집은 전북특별자치도 모아시 단비동 물결소담길 52, 참빛봄내아파트 107동 1143호란다\"라고 말씀하셨다.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 물결소담길 52, 참빛봄내아파트 107동 1143호"
+    ],
+    "strata": [
+      "address",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-address-116",
+    "text": "전입 예정자의 거주 확인 주소가 전라남도 푸름시 초롱동 645-22, 노을가온아파트 108동 1246호로 바뀌었다.",
+    "person": [],
+    "address": [
+      "전라남도 푸름시 초롱동 645-22, 노을가온아파트 108동 1246호"
+    ],
+    "strata": [
+      "address",
+      "residency-record"
+    ]
+  },
+  {
+    "id": "heldout-address-117",
+    "text": "생활지원 방문을 할 가정은 경상북도 해든시 봄내동 참빛이든길 78, 물결나래아파트 109동 1349호에 거주한다.",
+    "person": [],
+    "address": [
+      "경상북도 해든시 봄내동 참빛이든길 78, 물결나래아파트 109동 1349호"
+    ],
+    "strata": [
+      "address",
+      "home-visit"
+    ]
+  },
+  {
+    "id": "heldout-address-118",
+    "text": "어머니께서 최근 옮기신 자택은 경상남도 아라시 잎새동 새롬한결로 91-16, 새롬초롱아파트 101동 1452호이다.",
+    "person": [],
+    "address": [
+      "경상남도 아라시 잎새동 새롬한결로 91-16, 새롬초롱아파트 101동 1452호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-119",
+    "text": "계약자가 우편물을 받을 주거 주소는 제주특별자치도 다솜시 별하동 물결다솜길 104, 참빛마루아파트 102동 1555호로 정했다.",
+    "person": [],
+    "address": [
+      "제주특별자치도 다솜시 별하동 물결다솜길 104, 참빛마루아파트 102동 1555호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-120",
+    "text": "새집주소는‘서울특별시 해온구 다솜동 689-1, 노을소담아파트 103동 1658호’라고 가족에게 알렸다.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 689-1, 노을소담아파트 103동 1658호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-121",
+    "text": "전입 신고할 새집의 상세 주소는 부산광역시 윤슬구 파랑동 참빛아람길 130, 물결이든아파트 104동 1761호입니다.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 참빛아람길 130, 물결이든아파트 104동 1761호"
+    ],
+    "strata": [
+      "address",
+      "residential"
+    ]
+  },
+  {
+    "id": "heldout-address-122",
+    "text": "택배를 받을 집은 ‘대구광역시 늘봄구 고운동 새롬누리로 143, 새롬누리아파트 105동 1864호’예요.",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 새롬누리로 143, 새롬누리아파트 105동 1864호"
+    ],
+    "strata": [
+      "address",
+      "quoted-address"
+    ]
+  },
+  {
+    "id": "heldout-address-123",
+    "text": "보호자가 현재 거주하는 곳은 인천광역시 온새미구 미르동 물결봄내길 156-4, 참빛해솔아파트 106동 1967호로 확인했다.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 물결봄내길 156-4, 참빛해솔아파트 106동 1967호"
+    ],
+    "strata": [
+      "address",
+      "reported-address"
+    ]
+  },
+  {
+    "id": "heldout-address-124",
+    "text": "이사 계약서에 적힌 주택 소재지는 광주광역시 한빛구 라온동 733-29, 노을단비아파트 107동 270호이다.",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 733-29, 노을단비아파트 107동 270호"
+    ],
+    "strata": [
+      "address",
+      "contract-note"
+    ]
+  },
+  {
+    "id": "heldout-address-125",
+    "text": "\"어디로 찾아가면 돼?\" \"우리 집은 대전광역시 새결구 아람동 참빛나래길 182, 물결한결아파트 108동 373호야.\"",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 참빛나래길 182, 물결한결아파트 108동 373호"
+    ],
+    "strata": [
+      "address",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-address-126",
+    "text": "상담 메모: 가족이 머무는 주거지는 울산광역시 보람구 누리동 새롬윤슬로 195, 새롬윤슬아파트 109동 476호임.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 새롬윤슬로 195, 새롬윤슬아파트 109동 476호"
+    ],
+    "strata": [
+      "address",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-address-127",
+    "text": "아이가 방과 후 귀가할 집 주소를 세종특별자치시 가온동 물결라온길 208, 참빛아람아파트 101동 579호로 등록했다.",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 물결라온길 208, 참빛아람아파트 101동 579호"
+    ],
+    "strata": [
+      "address",
+      "registered-home"
+    ]
+  },
+  {
+    "id": "heldout-address-128",
+    "text": "등기우편은 자택인 경기도 다온시 마루구 해솔동 777-8, 노을미르아파트 102동 682호로 보내 주세요.",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 777-8, 노을미르아파트 102동 682호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-129",
+    "text": "지인이 알려 준 새 보금자리 주소는 강원특별자치도 온빛시 이든동 참빛여울길 234, 물결다솜아파트 103동 785호였다.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 참빛여울길 234, 물결다솜아파트 103동 785호"
+    ],
+    "strata": [
+      "address",
+      "acquaintance-home"
+    ]
+  },
+  {
+    "id": "heldout-address-130",
+    "text": "내년부터 살 집은 충청북도 가람시 소담동 새롬미르로 247, 새롬라온아파트 104동 888호에 있다.",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 새롬미르로 247, 새롬라온아파트 104동 888호"
+    ],
+    "strata": [
+      "address",
+      "future-home"
+    ]
+  },
+  {
+    "id": "heldout-address-131",
+    "text": "배송지는충청남도 여울시 나래동 물결소담길 20, 참빛봄내아파트 105동 991호로 적어 주세요.",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 물결소담길 20, 참빛봄내아파트 105동 991호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-132",
+    "text": "세대주의 실제 거주지는 ‘전북특별자치도 모아시 단비동 121-36, 노을가온아파트 106동 1094호’로 기재되어 있다.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 121-36, 노을가온아파트 106동 1094호"
+    ],
+    "strata": [
+      "address",
+      "household-record"
+    ]
+  },
+  {
+    "id": "heldout-address-133",
+    "text": "동생 부부가 입주한 아파트 주소는 전라남도 푸름시 초롱동 참빛이든길 46-14, 물결나래아파트 107동 1197호이다.",
+    "person": [],
+    "address": [
+      "전라남도 푸름시 초롱동 참빛이든길 46-14, 물결나래아파트 107동 1197호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-134",
+    "text": "야간 귀가 때 도착할 집을 경상북도 해든시 봄내동 새롬한결로 59, 새롬초롱아파트 108동 1300호로 설정했다.",
+    "person": [],
+    "address": [
+      "경상북도 해든시 봄내동 새롬한결로 59, 새롬초롱아파트 108동 1300호"
+    ],
+    "strata": [
+      "address",
+      "navigation-home"
+    ]
+  },
+  {
+    "id": "heldout-address-135",
+    "text": "어머니는 \"우리 집은 경상남도 아라시 잎새동 물결다솜길 72, 참빛마루아파트 109동 1403호란다\"라고 말씀하셨다.",
+    "person": [],
+    "address": [
+      "경상남도 아라시 잎새동 물결다솜길 72, 참빛마루아파트 109동 1403호"
+    ],
+    "strata": [
+      "address",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-address-136",
+    "text": "전입 예정자의 거주 확인 주소가 제주특별자치도 다솜시 별하동 165-15, 노을소담아파트 101동 1506호로 바뀌었다.",
+    "person": [],
+    "address": [
+      "제주특별자치도 다솜시 별하동 165-15, 노을소담아파트 101동 1506호"
+    ],
+    "strata": [
+      "address",
+      "residency-record"
+    ]
+  },
+  {
+    "id": "heldout-address-137",
+    "text": "생활지원 방문을 할 가정은 서울특별시 해온구 다솜동 참빛아람길 98, 물결이든아파트 102동 1609호에 거주한다.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 참빛아람길 98, 물결이든아파트 102동 1609호"
+    ],
+    "strata": [
+      "address",
+      "home-visit"
+    ]
+  },
+  {
+    "id": "heldout-address-138",
+    "text": "어머니께서 최근 옮기신 자택은 부산광역시 윤슬구 파랑동 새롬누리로 111-2, 새롬누리아파트 103동 1712호이다.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 새롬누리로 111-2, 새롬누리아파트 103동 1712호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-139",
+    "text": "계약자가 우편물을 받을 주거 주소는 대구광역시 늘봄구 고운동 물결봄내길 124, 참빛해솔아파트 104동 1815호로 정했다.",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 물결봄내길 124, 참빛해솔아파트 104동 1815호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-140",
+    "text": "새집주소는‘인천광역시 온새미구 미르동 209-43, 노을단비아파트 105동 1918호’라고 가족에게 알렸다.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 209-43, 노을단비아파트 105동 1918호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-141",
+    "text": "전입 신고할 새집의 상세 주소는 광주광역시 한빛구 라온동 참빛나래길 150, 물결한결아파트 106동 221호입니다.",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 참빛나래길 150, 물결한결아파트 106동 221호"
+    ],
+    "strata": [
+      "address",
+      "residential"
+    ]
+  },
+  {
+    "id": "heldout-address-142",
+    "text": "택배를 받을 집은 ‘대전광역시 새결구 아람동 새롬윤슬로 163, 새롬윤슬아파트 107동 324호’예요.",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 새롬윤슬로 163, 새롬윤슬아파트 107동 324호"
+    ],
+    "strata": [
+      "address",
+      "quoted-address"
+    ]
+  },
+  {
+    "id": "heldout-address-143",
+    "text": "보호자가 현재 거주하는 곳은 울산광역시 보람구 누리동 물결라온길 176-7, 참빛아람아파트 108동 427호로 확인했다.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 물결라온길 176-7, 참빛아람아파트 108동 427호"
+    ],
+    "strata": [
+      "address",
+      "reported-address"
+    ]
+  },
+  {
+    "id": "heldout-address-144",
+    "text": "이사 계약서에 적힌 주택 소재지는 세종특별자치시 가온동 253-22, 노을미르아파트 109동 530호이다.",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 253-22, 노을미르아파트 109동 530호"
+    ],
+    "strata": [
+      "address",
+      "contract-note"
+    ]
+  },
+  {
+    "id": "heldout-address-145",
+    "text": "\"어디로 찾아가면 돼?\" \"우리 집은 경기도 다온시 마루구 해솔동 참빛여울길 202, 물결다솜아파트 101동 633호야.\"",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 참빛여울길 202, 물결다솜아파트 101동 633호"
+    ],
+    "strata": [
+      "address",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-address-146",
+    "text": "상담 메모: 가족이 머무는 주거지는 강원특별자치도 온빛시 이든동 새롬미르로 215, 새롬라온아파트 102동 736호임.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 새롬미르로 215, 새롬라온아파트 102동 736호"
+    ],
+    "strata": [
+      "address",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-address-147",
+    "text": "아이가 방과 후 귀가할 집 주소를 충청북도 가람시 소담동 물결소담길 228, 참빛봄내아파트 103동 839호로 등록했다.",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 물결소담길 228, 참빛봄내아파트 103동 839호"
+    ],
+    "strata": [
+      "address",
+      "registered-home"
+    ]
+  },
+  {
+    "id": "heldout-address-148",
+    "text": "등기우편은 자택인 충청남도 여울시 나래동 297-1, 노을가온아파트 104동 942호로 보내 주세요.",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 297-1, 노을가온아파트 104동 942호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-149",
+    "text": "지인이 알려 준 새 보금자리 주소는 전북특별자치도 모아시 단비동 참빛이든길 14, 물결나래아파트 105동 1045호였다.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 참빛이든길 14, 물결나래아파트 105동 1045호"
+    ],
+    "strata": [
+      "address",
+      "acquaintance-home"
+    ]
+  },
+  {
+    "id": "heldout-address-150",
+    "text": "내년부터 살 집은 전라남도 푸름시 초롱동 새롬한결로 27, 새롬초롱아파트 106동 1148호에 있다.",
+    "person": [],
+    "address": [
+      "전라남도 푸름시 초롱동 새롬한결로 27, 새롬초롱아파트 106동 1148호"
+    ],
+    "strata": [
+      "address",
+      "future-home"
+    ]
+  },
+  {
+    "id": "heldout-address-151",
+    "text": "배송지는경상북도 해든시 봄내동 물결다솜길 40, 참빛마루아파트 107동 1251호로 적어 주세요.",
+    "person": [],
+    "address": [
+      "경상북도 해든시 봄내동 물결다솜길 40, 참빛마루아파트 107동 1251호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-152",
+    "text": "세대주의 실제 거주지는 ‘경상남도 아라시 잎새동 341-29, 노을소담아파트 108동 1354호’로 기재되어 있다.",
+    "person": [],
+    "address": [
+      "경상남도 아라시 잎새동 341-29, 노을소담아파트 108동 1354호"
+    ],
+    "strata": [
+      "address",
+      "household-record"
+    ]
+  },
+  {
+    "id": "heldout-address-153",
+    "text": "동생 부부가 입주한 아파트 주소는 제주특별자치도 다솜시 별하동 참빛아람길 66-17, 물결이든아파트 109동 1457호이다.",
+    "person": [],
+    "address": [
+      "제주특별자치도 다솜시 별하동 참빛아람길 66-17, 물결이든아파트 109동 1457호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-154",
+    "text": "야간 귀가 때 도착할 집을 서울특별시 해온구 다솜동 새롬누리로 79, 새롬누리아파트 101동 1560호로 설정했다.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 새롬누리로 79, 새롬누리아파트 101동 1560호"
+    ],
+    "strata": [
+      "address",
+      "navigation-home"
+    ]
+  },
+  {
+    "id": "heldout-address-155",
+    "text": "어머니는 \"우리 집은 부산광역시 윤슬구 파랑동 물결봄내길 92, 참빛해솔아파트 102동 1663호란다\"라고 말씀하셨다.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 물결봄내길 92, 참빛해솔아파트 102동 1663호"
+    ],
+    "strata": [
+      "address",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-address-156",
+    "text": "전입 예정자의 거주 확인 주소가 대구광역시 늘봄구 고운동 385-8, 노을단비아파트 103동 1766호로 바뀌었다.",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 385-8, 노을단비아파트 103동 1766호"
+    ],
+    "strata": [
+      "address",
+      "residency-record"
+    ]
+  },
+  {
+    "id": "heldout-address-157",
+    "text": "생활지원 방문을 할 가정은 인천광역시 온새미구 미르동 참빛나래길 118, 물결한결아파트 104동 1869호에 거주한다.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 참빛나래길 118, 물결한결아파트 104동 1869호"
+    ],
+    "strata": [
+      "address",
+      "home-visit"
+    ]
+  },
+  {
+    "id": "heldout-address-158",
+    "text": "어머니께서 최근 옮기신 자택은 광주광역시 한빛구 라온동 새롬윤슬로 131-5, 새롬윤슬아파트 105동 1972호이다.",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 새롬윤슬로 131-5, 새롬윤슬아파트 105동 1972호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-159",
+    "text": "계약자가 우편물을 받을 주거 주소는 대전광역시 새결구 아람동 물결라온길 144, 참빛아람아파트 106동 275호로 정했다.",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 물결라온길 144, 참빛아람아파트 106동 275호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-160",
+    "text": "새집주소는‘울산광역시 보람구 누리동 429-36, 노을미르아파트 107동 378호’라고 가족에게 알렸다.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 429-36, 노을미르아파트 107동 378호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-161",
+    "text": "전입 신고할 새집의 상세 주소는 세종특별자치시 가온동 참빛여울길 170, 물결다솜아파트 108동 481호입니다.",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 참빛여울길 170, 물결다솜아파트 108동 481호"
+    ],
+    "strata": [
+      "address",
+      "residential"
+    ]
+  },
+  {
+    "id": "heldout-address-162",
+    "text": "택배를 받을 집은 ‘경기도 다온시 마루구 해솔동 새롬미르로 183, 새롬라온아파트 109동 584호’예요.",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 새롬미르로 183, 새롬라온아파트 109동 584호"
+    ],
+    "strata": [
+      "address",
+      "quoted-address"
+    ]
+  },
+  {
+    "id": "heldout-address-163",
+    "text": "보호자가 현재 거주하는 곳은 강원특별자치도 온빛시 이든동 물결소담길 196-10, 참빛봄내아파트 101동 687호로 확인했다.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 물결소담길 196-10, 참빛봄내아파트 101동 687호"
+    ],
+    "strata": [
+      "address",
+      "reported-address"
+    ]
+  },
+  {
+    "id": "heldout-address-164",
+    "text": "이사 계약서에 적힌 주택 소재지는 충청북도 가람시 소담동 473-15, 노을가온아파트 102동 790호이다.",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 473-15, 노을가온아파트 102동 790호"
+    ],
+    "strata": [
+      "address",
+      "contract-note"
+    ]
+  },
+  {
+    "id": "heldout-address-165",
+    "text": "\"어디로 찾아가면 돼?\" \"우리 집은 충청남도 여울시 나래동 참빛이든길 222, 물결나래아파트 103동 893호야.\"",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 참빛이든길 222, 물결나래아파트 103동 893호"
+    ],
+    "strata": [
+      "address",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-address-166",
+    "text": "상담 메모: 가족이 머무는 주거지는 전북특별자치도 모아시 단비동 새롬한결로 235, 새롬초롱아파트 104동 996호임.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 새롬한결로 235, 새롬초롱아파트 104동 996호"
+    ],
+    "strata": [
+      "address",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-address-167",
+    "text": "아이가 방과 후 귀가할 집 주소를 전라남도 푸름시 초롱동 물결다솜길 248, 참빛마루아파트 105동 1099호로 등록했다.",
+    "person": [],
+    "address": [
+      "전라남도 푸름시 초롱동 물결다솜길 248, 참빛마루아파트 105동 1099호"
+    ],
+    "strata": [
+      "address",
+      "registered-home"
+    ]
+  },
+  {
+    "id": "heldout-address-168",
+    "text": "등기우편은 자택인 경상북도 해든시 봄내동 517-43, 노을소담아파트 106동 1202호로 보내 주세요.",
+    "person": [],
+    "address": [
+      "경상북도 해든시 봄내동 517-43, 노을소담아파트 106동 1202호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-169",
+    "text": "지인이 알려 준 새 보금자리 주소는 경상남도 아라시 잎새동 참빛아람길 34, 물결이든아파트 107동 1305호였다.",
+    "person": [],
+    "address": [
+      "경상남도 아라시 잎새동 참빛아람길 34, 물결이든아파트 107동 1305호"
+    ],
+    "strata": [
+      "address",
+      "acquaintance-home"
+    ]
+  },
+  {
+    "id": "heldout-address-170",
+    "text": "내년부터 살 집은 제주특별자치도 다솜시 별하동 새롬누리로 47, 새롬누리아파트 108동 1408호에 있다.",
+    "person": [],
+    "address": [
+      "제주특별자치도 다솜시 별하동 새롬누리로 47, 새롬누리아파트 108동 1408호"
+    ],
+    "strata": [
+      "address",
+      "future-home"
+    ]
+  },
+  {
+    "id": "heldout-address-171",
+    "text": "배송지는서울특별시 해온구 다솜동 물결봄내길 60, 참빛해솔아파트 109동 1511호로 적어 주세요.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 물결봄내길 60, 참빛해솔아파트 109동 1511호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-172",
+    "text": "세대주의 실제 거주지는 ‘부산광역시 윤슬구 파랑동 561-22, 노을단비아파트 101동 1614호’로 기재되어 있다.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 561-22, 노을단비아파트 101동 1614호"
+    ],
+    "strata": [
+      "address",
+      "household-record"
+    ]
+  },
+  {
+    "id": "heldout-address-173",
+    "text": "동생 부부가 입주한 아파트 주소는 대구광역시 늘봄구 고운동 참빛나래길 86-3, 물결한결아파트 102동 1717호이다.",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 참빛나래길 86-3, 물결한결아파트 102동 1717호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-174",
+    "text": "야간 귀가 때 도착할 집을 인천광역시 온새미구 미르동 새롬윤슬로 99, 새롬윤슬아파트 103동 1820호로 설정했다.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 새롬윤슬로 99, 새롬윤슬아파트 103동 1820호"
+    ],
+    "strata": [
+      "address",
+      "navigation-home"
+    ]
+  },
+  {
+    "id": "heldout-address-175",
+    "text": "어머니는 \"우리 집은 광주광역시 한빛구 라온동 물결라온길 112, 참빛아람아파트 104동 1923호란다\"라고 말씀하셨다.",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 물결라온길 112, 참빛아람아파트 104동 1923호"
+    ],
+    "strata": [
+      "address",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-address-176",
+    "text": "전입 예정자의 거주 확인 주소가 대전광역시 새결구 아람동 605-1, 노을미르아파트 105동 226호로 바뀌었다.",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 605-1, 노을미르아파트 105동 226호"
+    ],
+    "strata": [
+      "address",
+      "residency-record"
+    ]
+  },
+  {
+    "id": "heldout-address-177",
+    "text": "생활지원 방문을 할 가정은 울산광역시 보람구 누리동 참빛여울길 138, 물결다솜아파트 106동 329호에 거주한다.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 참빛여울길 138, 물결다솜아파트 106동 329호"
+    ],
+    "strata": [
+      "address",
+      "home-visit"
+    ]
+  },
+  {
+    "id": "heldout-address-178",
+    "text": "어머니께서 최근 옮기신 자택은 세종특별자치시 가온동 새롬미르로 151-8, 새롬라온아파트 107동 432호이다.",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 새롬미르로 151-8, 새롬라온아파트 107동 432호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-179",
+    "text": "계약자가 우편물을 받을 주거 주소는 경기도 다온시 마루구 해솔동 물결소담길 164, 참빛봄내아파트 108동 535호로 정했다.",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 물결소담길 164, 참빛봄내아파트 108동 535호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-180",
+    "text": "새집주소는‘강원특별자치도 온빛시 이든동 649-29, 노을가온아파트 109동 638호’라고 가족에게 알렸다.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 649-29, 노을가온아파트 109동 638호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-181",
+    "text": "전입 신고할 새집의 상세 주소는 충청북도 가람시 소담동 참빛이든길 190, 물결나래아파트 101동 741호입니다.",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 참빛이든길 190, 물결나래아파트 101동 741호"
+    ],
+    "strata": [
+      "address",
+      "residential"
+    ]
+  },
+  {
+    "id": "heldout-address-182",
+    "text": "택배를 받을 집은 ‘충청남도 여울시 나래동 새롬한결로 203, 새롬초롱아파트 102동 844호’예요.",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 새롬한결로 203, 새롬초롱아파트 102동 844호"
+    ],
+    "strata": [
+      "address",
+      "quoted-address"
+    ]
+  },
+  {
+    "id": "heldout-address-183",
+    "text": "보호자가 현재 거주하는 곳은 전북특별자치도 모아시 단비동 물결다솜길 216-13, 참빛마루아파트 103동 947호로 확인했다.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 물결다솜길 216-13, 참빛마루아파트 103동 947호"
+    ],
+    "strata": [
+      "address",
+      "reported-address"
+    ]
+  },
+  {
+    "id": "heldout-address-184",
+    "text": "이사 계약서에 적힌 주택 소재지는 전라남도 푸름시 초롱동 693-8, 노을소담아파트 104동 1050호이다.",
+    "person": [],
+    "address": [
+      "전라남도 푸름시 초롱동 693-8, 노을소담아파트 104동 1050호"
+    ],
+    "strata": [
+      "address",
+      "contract-note"
+    ]
+  },
+  {
+    "id": "heldout-address-185",
+    "text": "\"어디로 찾아가면 돼?\" \"우리 집은 경상북도 해든시 봄내동 참빛아람길 242, 물결이든아파트 105동 1153호야.\"",
+    "person": [],
+    "address": [
+      "경상북도 해든시 봄내동 참빛아람길 242, 물결이든아파트 105동 1153호"
+    ],
+    "strata": [
+      "address",
+      "dialogue"
+    ]
+  },
+  {
+    "id": "heldout-address-186",
+    "text": "상담 메모: 가족이 머무는 주거지는 경상남도 아라시 잎새동 새롬누리로 15, 새롬누리아파트 106동 1256호임.",
+    "person": [],
+    "address": [
+      "경상남도 아라시 잎새동 새롬누리로 15, 새롬누리아파트 106동 1256호"
+    ],
+    "strata": [
+      "address",
+      "briefing-note"
+    ]
+  },
+  {
+    "id": "heldout-address-187",
+    "text": "아이가 방과 후 귀가할 집 주소를 제주특별자치도 다솜시 별하동 물결봄내길 28, 참빛해솔아파트 107동 1359호로 등록했다.",
+    "person": [],
+    "address": [
+      "제주특별자치도 다솜시 별하동 물결봄내길 28, 참빛해솔아파트 107동 1359호"
+    ],
+    "strata": [
+      "address",
+      "registered-home"
+    ]
+  },
+  {
+    "id": "heldout-address-188",
+    "text": "등기우편은 자택인 서울특별시 해온구 다솜동 737-36, 노을단비아파트 108동 1462호로 보내 주세요.",
+    "person": [],
+    "address": [
+      "서울특별시 해온구 다솜동 737-36, 노을단비아파트 108동 1462호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-189",
+    "text": "지인이 알려 준 새 보금자리 주소는 부산광역시 윤슬구 파랑동 참빛나래길 54, 물결한결아파트 109동 1565호였다.",
+    "person": [],
+    "address": [
+      "부산광역시 윤슬구 파랑동 참빛나래길 54, 물결한결아파트 109동 1565호"
+    ],
+    "strata": [
+      "address",
+      "acquaintance-home"
+    ]
+  },
+  {
+    "id": "heldout-address-190",
+    "text": "내년부터 살 집은 대구광역시 늘봄구 고운동 새롬윤슬로 67, 새롬윤슬아파트 101동 1668호에 있다.",
+    "person": [],
+    "address": [
+      "대구광역시 늘봄구 고운동 새롬윤슬로 67, 새롬윤슬아파트 101동 1668호"
+    ],
+    "strata": [
+      "address",
+      "future-home"
+    ]
+  },
+  {
+    "id": "heldout-address-191",
+    "text": "배송지는인천광역시 온새미구 미르동 물결라온길 80, 참빛아람아파트 102동 1771호로 적어 주세요.",
+    "person": [],
+    "address": [
+      "인천광역시 온새미구 미르동 물결라온길 80, 참빛아람아파트 102동 1771호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-address-192",
+    "text": "세대주의 실제 거주지는 ‘광주광역시 한빛구 라온동 81-15, 노을미르아파트 103동 1874호’로 기재되어 있다.",
+    "person": [],
+    "address": [
+      "광주광역시 한빛구 라온동 81-15, 노을미르아파트 103동 1874호"
+    ],
+    "strata": [
+      "address",
+      "household-record"
+    ]
+  },
+  {
+    "id": "heldout-address-193",
+    "text": "동생 부부가 입주한 아파트 주소는 대전광역시 새결구 아람동 참빛여울길 106-6, 물결다솜아파트 104동 1977호이다.",
+    "person": [],
+    "address": [
+      "대전광역시 새결구 아람동 참빛여울길 106-6, 물결다솜아파트 104동 1977호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-194",
+    "text": "야간 귀가 때 도착할 집을 울산광역시 보람구 누리동 새롬미르로 119, 새롬라온아파트 105동 280호로 설정했다.",
+    "person": [],
+    "address": [
+      "울산광역시 보람구 누리동 새롬미르로 119, 새롬라온아파트 105동 280호"
+    ],
+    "strata": [
+      "address",
+      "navigation-home"
+    ]
+  },
+  {
+    "id": "heldout-address-195",
+    "text": "어머니는 \"우리 집은 세종특별자치시 가온동 물결소담길 132, 참빛봄내아파트 106동 383호란다\"라고 말씀하셨다.",
+    "person": [],
+    "address": [
+      "세종특별자치시 가온동 물결소담길 132, 참빛봄내아파트 106동 383호"
+    ],
+    "strata": [
+      "address",
+      "reported-speech"
+    ]
+  },
+  {
+    "id": "heldout-address-196",
+    "text": "전입 예정자의 거주 확인 주소가 경기도 다온시 마루구 해솔동 125-43, 노을가온아파트 107동 486호로 바뀌었다.",
+    "person": [],
+    "address": [
+      "경기도 다온시 마루구 해솔동 125-43, 노을가온아파트 107동 486호"
+    ],
+    "strata": [
+      "address",
+      "residency-record"
+    ]
+  },
+  {
+    "id": "heldout-address-197",
+    "text": "생활지원 방문을 할 가정은 강원특별자치도 온빛시 이든동 참빛이든길 158, 물결나래아파트 108동 589호에 거주한다.",
+    "person": [],
+    "address": [
+      "강원특별자치도 온빛시 이든동 참빛이든길 158, 물결나래아파트 108동 589호"
+    ],
+    "strata": [
+      "address",
+      "home-visit"
+    ]
+  },
+  {
+    "id": "heldout-address-198",
+    "text": "어머니께서 최근 옮기신 자택은 충청북도 가람시 소담동 새롬한결로 171-11, 새롬초롱아파트 109동 692호이다.",
+    "person": [],
+    "address": [
+      "충청북도 가람시 소담동 새롬한결로 171-11, 새롬초롱아파트 109동 692호"
+    ],
+    "strata": [
+      "address",
+      "relative-home"
+    ]
+  },
+  {
+    "id": "heldout-address-199",
+    "text": "계약자가 우편물을 받을 주거 주소는 충청남도 여울시 나래동 물결다솜길 184, 참빛마루아파트 101동 795호로 정했다.",
+    "person": [],
+    "address": [
+      "충청남도 여울시 나래동 물결다솜길 184, 참빛마루아파트 101동 795호"
+    ],
+    "strata": [
+      "address",
+      "residential-mail"
+    ]
+  },
+  {
+    "id": "heldout-address-200",
+    "text": "새집주소는‘전북특별자치도 모아시 단비동 169-22, 노을소담아파트 102동 898호’라고 가족에게 알렸다.",
+    "person": [],
+    "address": [
+      "전북특별자치도 모아시 단비동 169-22, 노을소담아파트 102동 898호"
+    ],
+    "strata": [
+      "address",
+      "no-space"
+    ]
+  },
+  {
+    "id": "heldout-negative-001",
+    "text": "회의는 1월 1일 9시에 시작한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date-time"
+    ]
+  },
+  {
+    "id": "heldout-negative-002",
+    "text": "이번 달 운영비 잔액은 32,379원이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-003",
+    "text": "이번 주 목표는 상담 기록 5건을 정리하는 것이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-004",
+    "text": "창고 선반에 종이 상자가 6개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-005",
+    "text": "오늘 낮 기온은 16도까지 오를 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-006",
+    "text": "열차가 점검 때문에 10분 늦게 출발했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-007",
+    "text": "도서관 안내대는 7층에 있고 15시에 닫는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-place"
+    ]
+  },
+  {
+    "id": "heldout-negative-008",
+    "text": "중앙공원 산책로는 8월 8일 16시부터 정비한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-009",
+    "text": "문서에서 26쪽까지 검토를 마쳤다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "document"
+    ]
+  },
+  {
+    "id": "heldout-negative-010",
+    "text": "급식실에 쌀 21킬로그램이 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-011",
+    "text": "설문 응답 목표를 13건으로 조정했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-012",
+    "text": "안내 지도는 실제 거리의 2,550분의 1로 축소되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "map-scale"
+    ]
+  },
+  {
+    "id": "heldout-negative-013",
+    "text": "강변 산책길의 공공 구간은 약 6.2킬로미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-014",
+    "text": "지난달 전기 사용량은 153킬로와트시였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "utility"
+    ]
+  },
+  {
+    "id": "heldout-negative-015",
+    "text": "달력에는 제출 마감이 3월 15일로 표시되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date"
+    ]
+  },
+  {
+    "id": "heldout-negative-016",
+    "text": "오늘 점심은 보리밥과 채소국을 18인분 준비했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-017",
+    "text": "팀 점검 회의는 31분 동안 진행됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-018",
+    "text": "프린터 용지함에 종이 20장이 들어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-019",
+    "text": "강의실에는 빈 의자가 21개 놓여 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-020",
+    "text": "보관실 습도는 54퍼센트로 측정됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-021",
+    "text": "시청 앞 광장의 분수는 9월 21일 9시에 작동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-022",
+    "text": "남부 지역의 이번 주 누적 강수량은 29밀리미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-023",
+    "text": "생활용품 할인율이 27퍼센트로 바뀌었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-024",
+    "text": "휴대용 배터리 충전량은 58퍼센트다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-025",
+    "text": "파란 컵 27개와 흰 접시 세 개를 식탁에 놓았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-026",
+    "text": "회의는 2월 26일 14시에 시작한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date-time"
+    ]
+  },
+  {
+    "id": "heldout-negative-027",
+    "text": "이번 달 운영비 잔액은 66,854원이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-028",
+    "text": "이번 주 목표는 상담 기록 30건을 정리하는 것이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-029",
+    "text": "창고 선반에 종이 상자가 31개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-030",
+    "text": "오늘 낮 기온은 20도까지 오를 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-031",
+    "text": "열차가 점검 때문에 35분 늦게 출발했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-032",
+    "text": "도서관 안내대는 4층에 있고 10시에 닫는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-place"
+    ]
+  },
+  {
+    "id": "heldout-negative-033",
+    "text": "중앙공원 산책로는 9월 5일 11시부터 정비한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-034",
+    "text": "문서에서 51쪽까지 검토를 마쳤다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "document"
+    ]
+  },
+  {
+    "id": "heldout-negative-035",
+    "text": "급식실에 쌀 46킬로그램이 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-036",
+    "text": "설문 응답 목표를 38건으로 조정했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-037",
+    "text": "안내 지도는 실제 거리의 3,800분의 1로 축소되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "map-scale"
+    ]
+  },
+  {
+    "id": "heldout-negative-038",
+    "text": "강변 산책길의 공공 구간은 약 7.7킬로미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-039",
+    "text": "지난달 전기 사용량은 178킬로와트시였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "utility"
+    ]
+  },
+  {
+    "id": "heldout-negative-040",
+    "text": "달력에는 제출 마감이 4월 12일로 표시되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date"
+    ]
+  },
+  {
+    "id": "heldout-negative-041",
+    "text": "오늘 점심은 보리밥과 채소국을 43인분 준비했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-042",
+    "text": "팀 점검 회의는 56분 동안 진행됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-043",
+    "text": "프린터 용지함에 종이 45장이 들어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-044",
+    "text": "강의실에는 빈 의자가 46개 놓여 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-045",
+    "text": "보관실 습도는 79퍼센트로 측정됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-046",
+    "text": "시청 앞 광장의 분수는 10월 18일 14시에 작동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-047",
+    "text": "남부 지역의 이번 주 누적 강수량은 54밀리미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-048",
+    "text": "생활용품 할인율이 16퍼센트로 바뀌었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-049",
+    "text": "휴대용 배터리 충전량은 83퍼센트다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-050",
+    "text": "파란 컵 52개와 흰 접시 세 개를 식탁에 놓았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-051",
+    "text": "회의는 3월 23일 9시에 시작한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date-time"
+    ]
+  },
+  {
+    "id": "heldout-negative-052",
+    "text": "이번 달 운영비 잔액은 101,329원이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-053",
+    "text": "이번 주 목표는 상담 기록 55건을 정리하는 것이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-054",
+    "text": "창고 선반에 종이 상자가 56개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-055",
+    "text": "오늘 낮 기온은 24도까지 오를 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-056",
+    "text": "열차가 점검 때문에 9분 늦게 출발했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-057",
+    "text": "도서관 안내대는 1층에 있고 15시에 닫는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-place"
+    ]
+  },
+  {
+    "id": "heldout-negative-058",
+    "text": "중앙공원 산책로는 10월 2일 16시부터 정비한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-059",
+    "text": "문서에서 76쪽까지 검토를 마쳤다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "document"
+    ]
+  },
+  {
+    "id": "heldout-negative-060",
+    "text": "급식실에 쌀 32킬로그램이 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-061",
+    "text": "설문 응답 목표를 63건으로 조정했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-062",
+    "text": "안내 지도는 실제 거리의 5,050분의 1로 축소되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "map-scale"
+    ]
+  },
+  {
+    "id": "heldout-negative-063",
+    "text": "강변 산책길의 공공 구간은 약 8.2킬로미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-064",
+    "text": "지난달 전기 사용량은 203킬로와트시였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "utility"
+    ]
+  },
+  {
+    "id": "heldout-negative-065",
+    "text": "달력에는 제출 마감이 5월 9일로 표시되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date"
+    ]
+  },
+  {
+    "id": "heldout-negative-066",
+    "text": "오늘 점심은 보리밥과 채소국을 68인분 준비했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-067",
+    "text": "팀 점검 회의는 35분 동안 진행됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-068",
+    "text": "프린터 용지함에 종이 70장이 들어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-069",
+    "text": "강의실에는 빈 의자가 71개 놓여 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-070",
+    "text": "보관실 습도는 43퍼센트로 측정됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-071",
+    "text": "시청 앞 광장의 분수는 11월 15일 9시에 작동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-072",
+    "text": "남부 지역의 이번 주 누적 강수량은 79밀리미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-073",
+    "text": "생활용품 할인율이 5퍼센트로 바뀌었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-074",
+    "text": "휴대용 배터리 충전량은 47퍼센트다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-075",
+    "text": "파란 컵 77개와 흰 접시 세 개를 식탁에 놓았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-076",
+    "text": "회의는 4월 20일 14시에 시작한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date-time"
+    ]
+  },
+  {
+    "id": "heldout-negative-077",
+    "text": "이번 달 운영비 잔액은 135,804원이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-078",
+    "text": "이번 주 목표는 상담 기록 80건을 정리하는 것이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-079",
+    "text": "창고 선반에 종이 상자가 81개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-080",
+    "text": "오늘 낮 기온은 28도까지 오를 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-081",
+    "text": "열차가 점검 때문에 34분 늦게 출발했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-082",
+    "text": "도서관 안내대는 5층에 있고 10시에 닫는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-place"
+    ]
+  },
+  {
+    "id": "heldout-negative-083",
+    "text": "중앙공원 산책로는 11월 27일 11시부터 정비한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-084",
+    "text": "문서에서 101쪽까지 검토를 마쳤다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "document"
+    ]
+  },
+  {
+    "id": "heldout-negative-085",
+    "text": "급식실에 쌀 18킬로그램이 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-086",
+    "text": "설문 응답 목표를 88건으로 조정했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-087",
+    "text": "안내 지도는 실제 거리의 6,300분의 1로 축소되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "map-scale"
+    ]
+  },
+  {
+    "id": "heldout-negative-088",
+    "text": "강변 산책길의 공공 구간은 약 9.7킬로미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-089",
+    "text": "지난달 전기 사용량은 228킬로와트시였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "utility"
+    ]
+  },
+  {
+    "id": "heldout-negative-090",
+    "text": "달력에는 제출 마감이 6월 6일로 표시되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date"
+    ]
+  },
+  {
+    "id": "heldout-negative-091",
+    "text": "오늘 점심은 보리밥과 채소국을 93인분 준비했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-092",
+    "text": "팀 점검 회의는 60분 동안 진행됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-093",
+    "text": "프린터 용지함에 종이 95장이 들어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-094",
+    "text": "강의실에는 빈 의자가 96개 놓여 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-095",
+    "text": "보관실 습도는 68퍼센트로 측정됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-096",
+    "text": "시청 앞 광장의 분수는 12월 12일 14시에 작동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-097",
+    "text": "남부 지역의 이번 주 누적 강수량은 21밀리미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-098",
+    "text": "생활용품 할인율이 30퍼센트로 바뀌었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-099",
+    "text": "휴대용 배터리 충전량은 72퍼센트다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-100",
+    "text": "파란 컵 102개와 흰 접시 세 개를 식탁에 놓았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-101",
+    "text": "회의는 5월 17일 9시에 시작한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date-time"
+    ]
+  },
+  {
+    "id": "heldout-negative-102",
+    "text": "이번 달 운영비 잔액은 170,279원이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-103",
+    "text": "이번 주 목표는 상담 기록 105건을 정리하는 것이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-104",
+    "text": "창고 선반에 종이 상자가 106개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-105",
+    "text": "오늘 낮 기온은 32도까지 오를 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-106",
+    "text": "열차가 점검 때문에 8분 늦게 출발했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-107",
+    "text": "도서관 안내대는 2층에 있고 15시에 닫는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-place"
+    ]
+  },
+  {
+    "id": "heldout-negative-108",
+    "text": "중앙공원 산책로는 12월 24일 16시부터 정비한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-109",
+    "text": "문서에서 126쪽까지 검토를 마쳤다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "document"
+    ]
+  },
+  {
+    "id": "heldout-negative-110",
+    "text": "급식실에 쌀 43킬로그램이 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-111",
+    "text": "설문 응답 목표를 113건으로 조정했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-112",
+    "text": "안내 지도는 실제 거리의 7,550분의 1로 축소되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "map-scale"
+    ]
+  },
+  {
+    "id": "heldout-negative-113",
+    "text": "강변 산책길의 공공 구간은 약 2.2킬로미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-114",
+    "text": "지난달 전기 사용량은 253킬로와트시였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "utility"
+    ]
+  },
+  {
+    "id": "heldout-negative-115",
+    "text": "달력에는 제출 마감이 7월 3일로 표시되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date"
+    ]
+  },
+  {
+    "id": "heldout-negative-116",
+    "text": "오늘 점심은 보리밥과 채소국을 118인분 준비했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-117",
+    "text": "팀 점검 회의는 39분 동안 진행됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-118",
+    "text": "프린터 용지함에 종이 120장이 들어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-119",
+    "text": "강의실에는 빈 의자가 121개 놓여 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-120",
+    "text": "보관실 습도는 93퍼센트로 측정됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-121",
+    "text": "시청 앞 광장의 분수는 1월 9일 9시에 작동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-122",
+    "text": "남부 지역의 이번 주 누적 강수량은 46밀리미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-123",
+    "text": "생활용품 할인율이 19퍼센트로 바뀌었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-124",
+    "text": "휴대용 배터리 충전량은 36퍼센트다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-125",
+    "text": "파란 컵 127개와 흰 접시 세 개를 식탁에 놓았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-126",
+    "text": "회의는 6월 14일 14시에 시작한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date-time"
+    ]
+  },
+  {
+    "id": "heldout-negative-127",
+    "text": "이번 달 운영비 잔액은 204,754원이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-128",
+    "text": "이번 주 목표는 상담 기록 130건을 정리하는 것이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-129",
+    "text": "창고 선반에 종이 상자가 131개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-130",
+    "text": "오늘 낮 기온은 15도까지 오를 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-131",
+    "text": "열차가 점검 때문에 33분 늦게 출발했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-132",
+    "text": "도서관 안내대는 6층에 있고 10시에 닫는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-place"
+    ]
+  },
+  {
+    "id": "heldout-negative-133",
+    "text": "중앙공원 산책로는 1월 21일 11시부터 정비한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-134",
+    "text": "문서에서 151쪽까지 검토를 마쳤다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "document"
+    ]
+  },
+  {
+    "id": "heldout-negative-135",
+    "text": "급식실에 쌀 29킬로그램이 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-136",
+    "text": "설문 응답 목표를 138건으로 조정했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-137",
+    "text": "안내 지도는 실제 거리의 8,800분의 1로 축소되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "map-scale"
+    ]
+  },
+  {
+    "id": "heldout-negative-138",
+    "text": "강변 산책길의 공공 구간은 약 3.7킬로미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-139",
+    "text": "지난달 전기 사용량은 278킬로와트시였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "utility"
+    ]
+  },
+  {
+    "id": "heldout-negative-140",
+    "text": "달력에는 제출 마감이 8월 28일로 표시되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date"
+    ]
+  },
+  {
+    "id": "heldout-negative-141",
+    "text": "오늘 점심은 보리밥과 채소국을 143인분 준비했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-142",
+    "text": "팀 점검 회의는 18분 동안 진행됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-143",
+    "text": "프린터 용지함에 종이 145장이 들어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-144",
+    "text": "강의실에는 빈 의자가 146개 놓여 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-145",
+    "text": "보관실 습도는 57퍼센트로 측정됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-146",
+    "text": "시청 앞 광장의 분수는 2월 6일 14시에 작동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-147",
+    "text": "남부 지역의 이번 주 누적 강수량은 71밀리미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-148",
+    "text": "생활용품 할인율이 8퍼센트로 바뀌었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-149",
+    "text": "휴대용 배터리 충전량은 61퍼센트다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-150",
+    "text": "파란 컵 152개와 흰 접시 세 개를 식탁에 놓았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-151",
+    "text": "회의는 7월 11일 9시에 시작한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date-time"
+    ]
+  },
+  {
+    "id": "heldout-negative-152",
+    "text": "이번 달 운영비 잔액은 239,229원이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-153",
+    "text": "이번 주 목표는 상담 기록 155건을 정리하는 것이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-154",
+    "text": "창고 선반에 종이 상자가 156개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-155",
+    "text": "오늘 낮 기온은 19도까지 오를 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-156",
+    "text": "열차가 점검 때문에 7분 늦게 출발했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-157",
+    "text": "도서관 안내대는 3층에 있고 15시에 닫는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-place"
+    ]
+  },
+  {
+    "id": "heldout-negative-158",
+    "text": "중앙공원 산책로는 2월 18일 16시부터 정비한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-159",
+    "text": "문서에서 176쪽까지 검토를 마쳤다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "document"
+    ]
+  },
+  {
+    "id": "heldout-negative-160",
+    "text": "급식실에 쌀 15킬로그램이 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-161",
+    "text": "설문 응답 목표를 163건으로 조정했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-162",
+    "text": "안내 지도는 실제 거리의 10,050분의 1로 축소되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "map-scale"
+    ]
+  },
+  {
+    "id": "heldout-negative-163",
+    "text": "강변 산책길의 공공 구간은 약 4.2킬로미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-164",
+    "text": "지난달 전기 사용량은 303킬로와트시였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "utility"
+    ]
+  },
+  {
+    "id": "heldout-negative-165",
+    "text": "달력에는 제출 마감이 9월 25일로 표시되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date"
+    ]
+  },
+  {
+    "id": "heldout-negative-166",
+    "text": "오늘 점심은 보리밥과 채소국을 168인분 준비했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-167",
+    "text": "팀 점검 회의는 43분 동안 진행됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-168",
+    "text": "프린터 용지함에 종이 170장이 들어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-169",
+    "text": "강의실에는 빈 의자가 171개 놓여 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-170",
+    "text": "보관실 습도는 82퍼센트로 측정됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-171",
+    "text": "시청 앞 광장의 분수는 3월 3일 9시에 작동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-172",
+    "text": "남부 지역의 이번 주 누적 강수량은 13밀리미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-173",
+    "text": "생활용품 할인율이 33퍼센트로 바뀌었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-174",
+    "text": "휴대용 배터리 충전량은 86퍼센트다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-175",
+    "text": "파란 컵 177개와 흰 접시 세 개를 식탁에 놓았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-176",
+    "text": "회의는 8월 8일 14시에 시작한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date-time"
+    ]
+  },
+  {
+    "id": "heldout-negative-177",
+    "text": "이번 달 운영비 잔액은 273,704원이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-178",
+    "text": "이번 주 목표는 상담 기록 180건을 정리하는 것이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-179",
+    "text": "창고 선반에 종이 상자가 181개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-180",
+    "text": "오늘 낮 기온은 23도까지 오를 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-181",
+    "text": "열차가 점검 때문에 32분 늦게 출발했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-182",
+    "text": "도서관 안내대는 7층에 있고 10시에 닫는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-place"
+    ]
+  },
+  {
+    "id": "heldout-negative-183",
+    "text": "중앙공원 산책로는 3월 15일 11시부터 정비한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-184",
+    "text": "문서에서 201쪽까지 검토를 마쳤다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "document"
+    ]
+  },
+  {
+    "id": "heldout-negative-185",
+    "text": "급식실에 쌀 40킬로그램이 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-186",
+    "text": "설문 응답 목표를 188건으로 조정했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "goal"
+    ]
+  },
+  {
+    "id": "heldout-negative-187",
+    "text": "안내 지도는 실제 거리의 11,300분의 1로 축소되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "map-scale"
+    ]
+  },
+  {
+    "id": "heldout-negative-188",
+    "text": "강변 산책길의 공공 구간은 약 5.7킬로미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-189",
+    "text": "지난달 전기 사용량은 328킬로와트시였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "utility"
+    ]
+  },
+  {
+    "id": "heldout-negative-190",
+    "text": "달력에는 제출 마감이 10월 22일로 표시되어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "date"
+    ]
+  },
+  {
+    "id": "heldout-negative-191",
+    "text": "오늘 점심은 보리밥과 채소국을 193인분 준비했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  },
+  {
+    "id": "heldout-negative-192",
+    "text": "팀 점검 회의는 22분 동안 진행됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "duration"
+    ]
+  },
+  {
+    "id": "heldout-negative-193",
+    "text": "프린터 용지함에 종이 195장이 들어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "inventory"
+    ]
+  },
+  {
+    "id": "heldout-negative-194",
+    "text": "강의실에는 빈 의자가 196개 놓여 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-object"
+    ]
+  },
+  {
+    "id": "heldout-negative-195",
+    "text": "보관실 습도는 46퍼센트로 측정됐다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-196",
+    "text": "시청 앞 광장의 분수는 4월 28일 14시에 작동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "public-geography"
+    ]
+  },
+  {
+    "id": "heldout-negative-197",
+    "text": "남부 지역의 이번 주 누적 강수량은 38밀리미터다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "weather"
+    ]
+  },
+  {
+    "id": "heldout-negative-198",
+    "text": "생활용품 할인율이 22퍼센트로 바뀌었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "amount"
+    ]
+  },
+  {
+    "id": "heldout-negative-199",
+    "text": "휴대용 배터리 충전량은 50퍼센트다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "measurement"
+    ]
+  },
+  {
+    "id": "heldout-negative-200",
+    "text": "파란 컵 202개와 흰 접시 세 개를 식탁에 놓았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "ordinary-nouns"
+    ]
+  }
+]

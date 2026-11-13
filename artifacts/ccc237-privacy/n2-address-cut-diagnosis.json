@@ -1,0 +1,14 @@
+{
+  "fragmentGapCounts": {
+    "nonspace_gap_with_O": 2,
+    "whitespace_gap_without_O": 5
+  },
+  "goldAddressCount": 4,
+  "productionChanged": false,
+  "purpose": "N2 address cut mechanism only, not qualification",
+  "rawTextTokensOffsetsRetained": false,
+  "reportHash": "befda89d542a29302e0075bc41b84925c9664e8937f023078bc03343c103c8df",
+  "uncoveredGoldNonspaceCharacterClasses": {
+    "hangul": 11
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-09-06T10:10:30.875Z",
+  "scope": "CCC-237 residual NER diagnosis only",
+  "frozenInputsAndProductUnchanged": true,
+  "diagnosticScriptMatchesPreregisteredHash": true,
+  "canonicalReportHashesVerified": true,
+  "diagnosticSelfCheckPassed": true,
+  "documentNumberGuardPassed": true,
+  "modelRuns": [
+    {
+      "log": "artifacts/ccc237-privacy/approved-residual-diagnosis.log",
+      "exitCode": 0,
+      "device": "cpu",
+      "threads": 2,
+      "rows": 608
+    },
+    {
+      "log": "artifacts/ccc237-privacy/approved-residual-address-cuts.log",
+      "exitCode": 0,
+      "device": "cpu",
+      "threads": 2,
+      "rows": 7
+    }
+  ],
+  "reviews": [
+    {
+      "agent": "ResidualTaxonomyReview",
+      "mode": "read-only static review, no model or test execution",
+      "findingCount": 0
+    },
+    {
+      "agent": "ResidualReferenceReview",
+      "mode": "read-only static review, no model or test execution",
+      "findingCount": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "artifacts/ccc237-privacy/residual-diagnosis-freeze.json",
+      "bytes": 2434,
+      "sha256": "3e76c863c49be50433e9472d8bf29db0ba197ee4b3efa643295d08cc6342050b"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/diagnose-ner-boundaries.py",
+      "bytes": 11878,
+      "sha256": "ad9e6654e3876308999671083bddd593a0bc795ac71e48fef3dfff684d9ce73b"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/residual-ner-diagnosis.json",
+      "bytes": 15051,
+      "sha256": "e2c66cd40b9c5a65641bece824ff1fd7f66c92c26ab2f360dd88e83952aa3f47"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/n2-address-cut-diagnosis.json",
+      "bytes": 408,
+      "sha256": "7483087494f8585493a37a29fd4c3a9b535480f126284bc51562e24899feda77"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-residual-diagnosis.log",
+      "bytes": 1521,
+      "sha256": "b1558f4fb118c2fb01cfab3441b9fee8d99972bf3c006c2e6c4fb51c293a086a"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-residual-address-cuts.log",
+      "bytes": 2574,
+      "sha256": "cd1ed7bb3be36bb959128b41b5be760e4e45d71012c6e83ae4fc685895fe466a"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-residual-integrity.log",
+      "bytes": 529,
+      "sha256": "63eb702b86191ac806a6ad92502118a35bb23fe99e261ebafbaeab1dd8b8f1d1"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-residual-doc-guard.log",
+      "bytes": 145,
+      "sha256": "06c32fe944926c5e23070ad77b62ddde49d788bf0c611ad51ade1df21051cba8"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-06-CCC-237-privacy-generalization.md",
+      "bytes": 44394,
+      "sha256": "d0bd18a87790e6a55a972ef284cd7f1bbe7b74f50915fbf9208ff08f3604e434"
+    }
+  ],
+  "linear": {
+    "identifier": "CCC-237",
+    "observedState": "In Progress",
+    "commentPostedAt": "2026-09-06T10:08:52.401Z",
+    "commentUrl": "https://linear.app/bss-ccc/issue/CCC-237/e5-4-준식별자-일반화#comment-5ac8ee81"
+  },
+  "qualificationStatus": "N2 and release remain failed; no issuance",
+  "wholeProcessZeroizationQualified": false,
+  "productChangedInThisSlice": false,
+  "modelReplaced": false,
+  "modelComparisonApproved": false,
+  "committedOrDeployed": false
+}

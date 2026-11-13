@@ -1,0 +1,22 @@
+{
+  "stage": "before_model_predictions",
+  "readOnlyReviewers": ["ContextGateCodeReview", "ContextGateBlindReview"],
+  "resolved": [
+    "Canonical prediction material now converts validated edit tuples to lists; nonempty-edit hashing exercised.",
+    "Preserved-content loss includes unique original non-space character counts before and after, in addition to affected phrases; partial-versus-total removal exercised.",
+    "Person gold in cg-001, cg-002, cg-012 and cg-013 now covers the name body without honorifics or particles. This was corrected before inference, not fitted to predictions.",
+    "Any new target-negative masking is a diagnostic defect. Extra non-gold masking in positive records requires overmasking review; unchanged protected phrases do not certify overall meaning.",
+    "cg-008 now separates workplace and unique-role clues across turns 1 and 7. cg-009 is labeled pronoun-across-chunks, not proof of cross-chunk entity discovery.",
+    "Prompt examples and schema line IDs are one-based to match actual numbered input.",
+    "Independent corpus execution exposed a newline-rejection bug missed by the helper's generated fixtures. Multiline corpus validation and matching multi-turn self-check fixtures now pass."
+  ],
+  "limitsKeptExplicit": [
+    "Machine-authored labels and machine review are not independent human ground truth.",
+    "Contextual component opacity is not a validated re-identification-risk measure. Do not pool it with direct-identifier recall.",
+    "No matched counterfactual or full-document ablation proves the necessity or sufficiency of the full context pass.",
+    "Exact summary evidence and in-memory staging do not certify semantic fidelity, hallucination absence or CCC gateway behavior.",
+    "Neither this Mac nor these 24 synthetic records establish local-model usability, release qualification or adoption."
+  ],
+  "productChanged": false,
+  "qualificationIssued": false
+}

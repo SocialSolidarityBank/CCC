@@ -1,0 +1,504 @@
+{
+  "schemaVersion": 1,
+  "status": "diagnostic_complete_not_qualification",
+  "purpose": "Measure unchanged current NER and unchanged product masking rules on synthetic reference inputs",
+  "measurementHash": "df3c4c7e3526d62e9ad9a9b025e324b18683c68c3df50da5ebc92a2139ea6198",
+  "verificationHash": "94ddbe80e5d5a109f6e34bd8f543179ce16c51589a9bd18ca03c4d06503767b3",
+  "referenceEvidence": {
+    "originalRelease": {
+      "rows": 601,
+      "person": {
+        "goldSpans": 240,
+        "fullyOpaqueSpans": 173,
+        "partiallyLiteralSpans": 18,
+        "fullyLiteralSpans": 49,
+        "opaqueNonspaceCodepoints": 657,
+        "goldNonspaceCodepoints": 940
+      },
+      "address": {
+        "goldSpans": 250,
+        "fullyOpaqueSpans": 203,
+        "partiallyLiteralSpans": 42,
+        "fullyLiteralSpans": 5,
+        "opaqueNonspaceCodepoints": 4114,
+        "goldNonspaceCodepoints": 4216
+      },
+      "targetNegativeRows": 201,
+      "targetNegativeFalsePositiveRows": 85,
+      "mergedNameAddressExact": {
+        "counts": {
+          "PRIVATE_ADDRESS": {
+            "fn": 112,
+            "fp": 265,
+            "tp": 138
+          },
+          "PRIVATE_PERSON": {
+            "fn": 68,
+            "fp": 74,
+            "tp": 172
+          }
+        },
+        "numericGatePassed": 0,
+        "pointMetrics": {
+          "addressPrecision": 0.3424317617866005,
+          "addressRecall": 0.552,
+          "overgeneralizationRate": 0.522342064714946,
+          "personPrecision": 0.6991869918699187,
+          "personRecall": 0.7166666666666667
+        },
+        "wilson95": {
+          "addressPrecisionLower": 0.2977857821942663,
+          "addressRecallLower": 0.4900328126787554,
+          "overgeneralizationUpper": 0.5605268302621288,
+          "personPrecisionLower": 0.6391749002234595,
+          "personRecallLower": 0.6565914084521374
+        }
+      },
+      "nerOnlyExact": {
+        "counts": {
+          "PRIVATE_ADDRESS": {
+            "fn": 249,
+            "fp": 873,
+            "tp": 1
+          },
+          "PRIVATE_PERSON": {
+            "fn": 68,
+            "fp": 74,
+            "tp": 172
+          }
+        },
+        "numericGatePassed": 0,
+        "pointMetrics": {
+          "addressPrecision": 0.0011441647597254005,
+          "addressRecall": 0.004,
+          "overgeneralizationRate": 0.8455357142857143,
+          "personPrecision": 0.6991869918699187,
+          "personRecall": 0.7166666666666667
+        },
+        "wilson95": {
+          "addressPrecisionLower": 0.0002020017352217479,
+          "addressRecallLower": 0.0007064475340650966,
+          "overgeneralizationUpper": 0.8655164435018772,
+          "personPrecisionLower": 0.6391749002234595,
+          "personRecallLower": 0.6565914084521374
+        }
+      }
+    },
+    "previousHeldout": {
+      "rows": 600,
+      "person": {
+        "goldSpans": 200,
+        "fullyOpaqueSpans": 181,
+        "partiallyLiteralSpans": 9,
+        "fullyLiteralSpans": 10,
+        "opaqueNonspaceCodepoints": 612,
+        "goldNonspaceCodepoints": 674
+      },
+      "address": {
+        "goldSpans": 200,
+        "fullyOpaqueSpans": 12,
+        "partiallyLiteralSpans": 188,
+        "fullyLiteralSpans": 0,
+        "opaqueNonspaceCodepoints": 6841,
+        "goldNonspaceCodepoints": 7030
+      },
+      "targetNegativeRows": 200,
+      "targetNegativeFalsePositiveRows": 0,
+      "mergedNameAddressExact": {
+        "counts": {
+          "PRIVATE_ADDRESS": {
+            "fn": 200,
+            "fp": 414,
+            "tp": 0
+          },
+          "PRIVATE_PERSON": {
+            "fn": 25,
+            "fp": 15,
+            "tp": 175
+          }
+        },
+        "numericGatePassed": 0,
+        "pointMetrics": {
+          "addressPrecision": 0,
+          "addressRecall": 0,
+          "overgeneralizationRate": 0.7102649006622517,
+          "personPrecision": 0.9210526315789473,
+          "personRecall": 0.875
+        },
+        "wilson95": {
+          "addressPrecisionLower": 0,
+          "addressRecallLower": 0,
+          "overgeneralizationUpper": 0.7450236852083926,
+          "personPrecisionLower": 0.8738413094782581,
+          "personRecallLower": 0.8219857499741765
+        }
+      },
+      "nerOnlyExact": {
+        "counts": {
+          "PRIVATE_ADDRESS": {
+            "fn": 200,
+            "fp": 907,
+            "tp": 0
+          },
+          "PRIVATE_PERSON": {
+            "fn": 25,
+            "fp": 15,
+            "tp": 175
+          }
+        },
+        "numericGatePassed": 0,
+        "pointMetrics": {
+          "addressPrecision": 0,
+          "addressRecall": 0,
+          "overgeneralizationRate": 0.8404740200546946,
+          "personPrecision": 0.9210526315789473,
+          "personRecall": 0.875
+        },
+        "wilson95": {
+          "addressPrecisionLower": 0,
+          "addressRecallLower": 0,
+          "overgeneralizationUpper": 0.8609488696025793,
+          "personPrecisionLower": 0.8738413094782581,
+          "personRecallLower": 0.8219857499741765
+        }
+      }
+    },
+    "previousDevelopment": {
+      "rows": 600,
+      "person": {
+        "goldSpans": 200,
+        "fullyOpaqueSpans": 197,
+        "partiallyLiteralSpans": 0,
+        "fullyLiteralSpans": 3,
+        "opaqueNonspaceCodepoints": 626,
+        "goldNonspaceCodepoints": 640
+      },
+      "address": {
+        "goldSpans": 200,
+        "fullyOpaqueSpans": 5,
+        "partiallyLiteralSpans": 195,
+        "fullyLiteralSpans": 0,
+        "opaqueNonspaceCodepoints": 5832,
+        "goldNonspaceCodepoints": 6650
+      },
+      "targetNegativeRows": 200,
+      "targetNegativeFalsePositiveRows": 16,
+      "nerOnlyExact": {
+        "counts": {
+          "PRIVATE_ADDRESS": {
+            "fn": 200,
+            "fp": 832,
+            "tp": 0
+          },
+          "PRIVATE_PERSON": {
+            "fn": 3,
+            "fp": 31,
+            "tp": 197
+          }
+        },
+        "numericGatePassed": 0,
+        "pointMetrics": {
+          "addressPrecision": 0,
+          "addressRecall": 0,
+          "overgeneralizationRate": 0.8141509433962264,
+          "personPrecision": 0.8640350877192983,
+          "personRecall": 0.985
+        },
+        "wilson95": {
+          "addressPrecisionLower": 0,
+          "addressRecallLower": 0,
+          "overgeneralizationUpper": 0.8364185729931956,
+          "personPrecisionLower": 0.8134732478059531,
+          "personRecallLower": 0.9568342712073097
+        }
+      },
+      "mergedNameAddressExact": {
+        "counts": {
+          "PRIVATE_ADDRESS": {
+            "fn": 200,
+            "fp": 525,
+            "tp": 0
+          },
+          "PRIVATE_PERSON": {
+            "fn": 3,
+            "fp": 31,
+            "tp": 197
+          }
+        },
+        "numericGatePassed": 0,
+        "pointMetrics": {
+          "addressPrecision": 0,
+          "addressRecall": 0,
+          "overgeneralizationRate": 0.7383798140770252,
+          "personPrecision": 0.8640350877192983,
+          "personRecall": 0.985
+        },
+        "wilson95": {
+          "addressPrecisionLower": 0,
+          "addressRecallLower": 0,
+          "overgeneralizationUpper": 0.768505996800846,
+          "personPrecisionLower": 0.8134732478059531,
+          "personRecallLower": 0.9568342712073097
+        }
+      }
+    },
+    "health": {
+      "rows": 7,
+      "person": {
+        "goldSpans": 4,
+        "fullyOpaqueSpans": 4,
+        "partiallyLiteralSpans": 0,
+        "fullyLiteralSpans": 0,
+        "opaqueNonspaceCodepoints": 12,
+        "goldNonspaceCodepoints": 12
+      },
+      "address": {
+        "goldSpans": 4,
+        "fullyOpaqueSpans": 4,
+        "partiallyLiteralSpans": 0,
+        "fullyLiteralSpans": 0,
+        "opaqueNonspaceCodepoints": 54,
+        "goldNonspaceCodepoints": 54
+      },
+      "targetNegativeRows": 2,
+      "targetNegativeFalsePositiveRows": 0,
+      "nerOnlyExact": {
+        "counts": {
+          "PRIVATE_ADDRESS": {
+            "fn": 4,
+            "fp": 11,
+            "tp": 0
+          },
+          "PRIVATE_PERSON": {
+            "fn": 0,
+            "fp": 0,
+            "tp": 4
+          }
+        },
+        "numericGatePassed": 0,
+        "pointMetrics": {
+          "addressPrecision": 0,
+          "addressRecall": 0,
+          "overgeneralizationRate": 0.7333333333333333,
+          "personPrecision": 1,
+          "personRecall": 1
+        },
+        "wilson95": {
+          "addressPrecisionLower": 0,
+          "addressRecallLower": 0,
+          "overgeneralizationUpper": 0.8910254667430761,
+          "personPrecisionLower": 0.5101091635454027,
+          "personRecallLower": 0.5101091635454027
+        }
+      },
+      "mergedNameAddressExact": {
+        "counts": {
+          "PRIVATE_ADDRESS": {
+            "fn": 0,
+            "fp": 0,
+            "tp": 4
+          },
+          "PRIVATE_PERSON": {
+            "fn": 0,
+            "fp": 0,
+            "tp": 4
+          }
+        },
+        "numericGatePassed": 0,
+        "pointMetrics": {
+          "addressPrecision": 1,
+          "addressRecall": 1,
+          "overgeneralizationRate": 0,
+          "personPrecision": 1,
+          "personRecall": 1
+        },
+        "wilson95": {
+          "addressPrecisionLower": 0.5101091635454027,
+          "addressRecallLower": 0.5101091635454027,
+          "overgeneralizationUpper": 0.32440756488388023,
+          "personPrecisionLower": 0.5101091635454027,
+          "personRecallLower": 0.5101091635454027
+        }
+      }
+    }
+  },
+  "longInput": {
+    "rows": 11,
+    "contextLimit": 512,
+    "inputTokenRange": [
+      962,
+      989
+    ],
+    "allExceededContext": true,
+    "preprocessWindowsPerRow": 1,
+    "head": {
+      "rows": 5,
+      "targetNotFed": 0,
+      "unprocessedNonspace": 3909,
+      "nerPersonTp": 4,
+      "nerPersonFn": 0,
+      "mergedAddressTp": 4,
+      "mergedAddressFn": 0
+    },
+    "tail": {
+      "rows": 5,
+      "targetNotFed": 66,
+      "unprocessedNonspace": 3883,
+      "nerPersonTp": 0,
+      "nerPersonFn": 4,
+      "mergedAddressTp": 4,
+      "mergedAddressFn": 0
+    },
+    "negative": {
+      "rows": 1,
+      "targetNotFed": 0,
+      "unprocessedNonspace": 750,
+      "note": "The eleventh probe is one target-negative row"
+    },
+    "totalUnprocessedNonspaceCodepoints": 8542,
+    "totalTargetNonspaceCodepointsNotFedToModel": 66,
+    "interpretation": "Fixed positional probe using repeated neutral filler and known N2 targets; not realistic counseling prevalence"
+  },
+  "interpretation": [
+    "Existing deterministic rules materially improve address masking but do not remove all literal address characters or meet exact-span gates",
+    "Person detection remains a separate blocker; deterministic address work cannot repair person misses",
+    "Inputs above the 512-token context are silently truncated to one model window; tail person identifiers are not fed to NER",
+    "Existing corpora are already exposed synthetic references without independent human adjudication; no result is fresh qualification"
+  ],
+  "proposal": {
+    "immediateDecision": "Recommendation, not yet authorized: do not qualify, activate or adopt either FrameByFrame or vmaca from existing evidence. The next approval should cover only a bounded overlap-window long-input repair with the current model, decoder, deterministic rules and thresholds held as controls.",
+    "firstEngineeringStep": "Implement overlap-windowed NER inference so every supported input region reaches inference, or incomplete processing fails closed; preserve original code-point offsets and deduplicate cross-window spans.",
+    "doneCondition": "After the pre-implementation contract is separately approved: all fixed head/tail pairs meet pinned expectations; four tail person spans contain zero literal non-whitespace survivors and match head controls; pinned window-boundary, Unicode and target-negative assertions pass; every short-reference output is byte-identical to the frozen baseline except a separately approved immutable allowlist; incomplete processing returns no partially masked text and reports local_ner_unavailable with external AI calls zero; pinned Windows resource gates pass; no qualification or activation is issued by the repair.",
+    "futureArchitectureCandidate": "After the length repair, evaluate a composite local detector with person and address layers separately. Keep existing deterministic address rules as baseline and add a pinned Juso lexicon only after a controlled incremental ablation. A composite S6 assessment contract requires separate approval and fresh sealed human-adjudicated evidence.",
+    "preImplementationContract": [
+      "Pin accepted maximum input length and unit",
+      "Pin tokenizer revision, window size including special tokens, and stride",
+      "Pin original-codepoint offset restoration and deterministic duplicate/overlap/label conflict resolution",
+      "If complete processing of an accepted input cannot be established, return no partially masked text, report local_ner_unavailable, and keep external AI calls at zero",
+      "Pin Windows latency and peak-memory limits before acceptance"
+    ]
+  },
+  "productChanged": false,
+  "qualificationIssued": false,
+  "activated": false,
+  "independentReviews": [
+    {
+      "reviewer": "FullMaskIntegrityReview",
+      "overallCorrectness": "correct",
+      "confidence": 0.94,
+      "findings": [],
+      "verified": [
+        "1819 per-row identities and aggregates across N2 7, three reference corpora totaling 1801, and 11 long probes",
+        "50 point metrics and 50 Wilson values",
+        "20 frozen file hashes and five corpus/probe hashes",
+        "raw-free persisted structure and positional long-input counts"
+      ],
+      "limitations": [
+        "Raw-free evidence cannot independently regenerate predictions or outputs",
+        "Frozen equality is relative to experiment freeze, not Git HEAD",
+        "Long probes are positional diagnostics, not realistic counseling coverage"
+      ]
+    },
+    {
+      "reviewer": "FullMaskDecisionReview",
+      "overallCorrectness": "correct",
+      "confidence": 0.97,
+      "findings": [],
+      "recommendation": "First commission a bounded overlap-window long-input repair; keep model, decoder, rules and thresholds fixed as controls, and issue no qualification or activation"
+    }
+  ],
+  "researchIntegration": {
+    "verifiedDirection": "Separate person and address detection; preserve deterministic rules and treat Juso as a later measured increment",
+    "corrections": [
+      "BIOES correction and official-helper diagnosis are already complete",
+      "Current full masking already has deterministic address detection before NER merge",
+      "Detailed-address DB full/update availability and actual download/schema/hash remain unverified"
+    ],
+    "officialSources": [
+      "https://www.data.go.kr/biz/dcat/metadata/15050417.do",
+      "https://www.data.go.kr/biz/dcat/metadata/15050425.do",
+      "https://huggingface.co/OpenMed/OpenMed-PII-Korean-NomicMed-Large-395M-v1/raw/3fc3670a8d8a3cbd6690f1e8b38d601040bab113/classification_report.txt"
+    ]
+  },
+  "evaluatedSystem": {
+    "model": {
+      "aggregation": "none",
+      "decoder": "bioes-v1",
+      "id": "FrameByFrame/korean-pii-e5-base",
+      "ignoreLabels": [],
+      "revision": "a308c54b4407819624a5661e31e162a269f39818",
+      "loadDtypePolicy": "No dtype argument supplied; use pinned checkpoint and transformers pipeline default",
+      "observedParameterDtype": "torch.bfloat16"
+    },
+    "runtime": {
+      "python": "3.12.13",
+      "torch": "2.8.0",
+      "transformers": "4.53.3",
+      "device": "cpu",
+      "dtype": "torch.bfloat16",
+      "threads": 2,
+      "contextLimit": 512
+    },
+    "productFunctions": [
+      "ccc_pipeline.masking.decode_ner_entities bioes-v1",
+      "ccc_pipeline.masking.mask_text_with_report unchanged"
+    ],
+    "modelLoads": 1
+  },
+  "priorModelComparison": {
+    "models": [
+      {
+        "id": "FrameByFrame/korean-pii-e5-base",
+        "revision": "a308c54b4407819624a5661e31e162a269f39818"
+      },
+      {
+        "id": "vmaca123/korean-pii-ner-v3",
+        "revision": "ebee0847b166f16041bffc9e1521d895d360d02e"
+      }
+    ],
+    "result": "Both failed unchanged numeric gates; neither is approved for adoption",
+    "evidence": "artifacts/ccc237-privacy/ner-comparison/comparison-summary.json"
+  },
+  "metricDefinitions": {
+    "exactSpanTruePositive": "Prediction and gold have identical label and Python code-point [start,end) boundaries",
+    "fullyOpaqueSpan": "Every non-whitespace code point originating in a gold span is represented only by opaque replacement output",
+    "partiallyLiteralSpan": "At least one but not all non-whitespace gold-origin code points remain literal",
+    "fullyLiteralSpan": "Every non-whitespace gold-origin code point remains literal",
+    "generalized": "Information-reducing transformation that is not counted as opaque masking",
+    "targetNegativeFalsePositiveRow": "A row with no person or address gold that has at least one merged first-stage person/address span",
+    "overgeneralizationRate": "(person FP + address FP) / (person TP + address TP + person FP + address FP)",
+    "notes": [
+      "Span exactness, source-origin survival, and whole-string reappearance are separate diagnostics",
+      "Final opaque code points outside person/address gold may be intentional masking of another PII or condition"
+    ]
+  },
+  "qualificationGate": {
+    "applicableAs": "Diagnostic comparison only; not a valid receipt for the current S6 model-only contract",
+    "criteria": {
+      "personPrecisionWilsonLowerMin": 0.9,
+      "personRecallWilsonLowerMin": 0.9,
+      "addressPrecisionWilsonLowerMin": 0.9,
+      "addressRecallWilsonLowerMin": 0.9,
+      "overgeneralizationWilsonUpperMax": 0.05,
+      "minimumRows": 500,
+      "minimumHardNegativeRows": 200
+    },
+    "allReportedReleaseStyleArmsPassed": false
+  },
+  "decisionState": {
+    "diagnosticComplete": true,
+    "longInputRepairAuthorized": false,
+    "compositeContractApproved": false,
+    "modelAdoptionApproved": false,
+    "qualificationIssued": false,
+    "deploymentApproved": false,
+    "activated": false
+  },
+  "evidence": {
+    "design": "artifacts/ccc237-privacy/full-masking/measurement-design.json",
+    "freeze": "artifacts/ccc237-privacy/full-masking/freeze.json",
+    "measurement": "artifacts/ccc237-privacy/full-masking/measurement.json",
+    "verification": "artifacts/ccc237-privacy/full-masking/verification.json",
+    "planSection": "docs/superpowers/plans/2026-09-06-CCC-237-privacy-generalization.md#현행-전체-가림-실측과-최종-제안"
+  }
+}

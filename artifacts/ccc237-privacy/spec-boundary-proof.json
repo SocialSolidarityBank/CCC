@@ -1,0 +1,9 @@
+{
+  "baseline": "99d7b41",
+  "jsonLiteralsUnchanged": true,
+  "goldenRowsUnchanged": true,
+  "fixedHashesUnchanged": true,
+  "baselineSpecSha256": "2073e8074cc26a84faf98b6197ef0a273f0907dff0d73d5f4df1090091da68b4",
+  "currentSpecSha256": "d0d27bae5d0d7fda38f0d76a82f90f6c296136de11d7e0b084b9882adbbd88e6",
+  "note": "Approved replay/memory prose changed; N, G1-G10, fixed hashes including unapproved G10 correction remain byte-identical."
+}

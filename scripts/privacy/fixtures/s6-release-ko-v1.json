@@ -1,0 +1,7189 @@
+[
+  {
+    "id": "release-ko-0001",
+    "text": "상담을 맡은 분은 김준입니다.",
+    "person": [
+      "김준"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0002",
+    "text": "이린 선생님께 다음 주에 다시 연락드리기로 했어요.",
+    "person": [
+      "이린"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0003",
+    "text": "오늘은 박새봄 님과 생활비 계획을 차분히 이야기했습니다.",
+    "person": [
+      "박새봄"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0004",
+    "text": "접수 메모의 담당자 이름은 최채운입니다.",
+    "person": [
+      "최채운"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0005",
+    "text": "정로은 상담사님이 준비 서류를 설명해 주셨습니다.",
+    "person": [
+      "정로은"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0006",
+    "text": "보호자와 상의한 뒤 강태린에게 먼저 연락하려고 합니다.",
+    "person": [
+      "강태린"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0007",
+    "text": "지난번 면담을 맡은 분은 조서다온입니다.",
+    "person": [
+      "조서다온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0008",
+    "text": "윤다한별 님께서 오전 통화가 편하다고 하셨어요.",
+    "person": [
+      "윤다한별"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0009",
+    "text": "회의 전에 장아라여울 담당자님을 찾아가면 될까요?",
+    "person": [
+      "장아라여울"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0010",
+    "text": "문자를 받을 사람 이름은 임빛입니다.",
+    "person": [
+      "임빛"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0011",
+    "text": "오늘 기록은 한다온 선생님이 확인해 주셨습니다.",
+    "person": [
+      "한다온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0012",
+    "text": "상담 시간을 오온유에게 확인한 뒤 금요일 오후로 바꿨어요.",
+    "person": [
+      "오온유"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0013",
+    "text": "제가 신뢰하는 지원 담당자는 서겨울입니다.",
+    "person": [
+      "서겨울"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0014",
+    "text": "신별하 님이 신청 절차를 다시 안내해 주셨어요.",
+    "person": [
+      "신별하"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0015",
+    "text": "첫 통화의 상담사 이름은 권한결입니다.",
+    "person": [
+      "권한결"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0016",
+    "text": "다음 면담에는 황고운결 선생님도 함께 오십니다.",
+    "person": [
+      "황고운결"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0017",
+    "text": "사례회의 연락 창구 이름은 안가온누리입니다.",
+    "person": [
+      "안가온누리"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0018",
+    "text": "송하람푸름 님과 나눈 약속을 기록에 남겨 주세요.",
+    "person": [
+      "송하람푸름"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0019",
+    "text": "서류 확인은 전온 담당자에게 부탁드렸습니다.",
+    "person": [
+      "전온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0020",
+    "text": "오늘 방문한 상담자 이름은 홍보담입니다.",
+    "person": [
+      "홍보담"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0021",
+    "text": "유지안 선생님이 천천히 설명해 주셔서 이해했습니다.",
+    "person": [
+      "유지안"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0022",
+    "text": "지원 일정은 고다솜 님과 조율 중입니다.",
+    "person": [
+      "고다솜"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0023",
+    "text": "마지막으로 통화한 사람은 문지온입니다.",
+    "person": [
+      "문지온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0024",
+    "text": "양윤가온 담당자님께 변경 내용을 전달했습니다.",
+    "person": [
+      "양윤가온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0025",
+    "text": "상담을 맡은 분은 손해누리입니다.",
+    "person": [
+      "손해누리"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0026",
+    "text": "배보담새봄 선생님께 다음 주에 다시 연락드리기로 했어요.",
+    "person": [
+      "배보담새봄"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0027",
+    "text": "오늘은 백솔 님과 생활비 계획을 차분히 이야기했습니다.",
+    "person": [
+      "백솔"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0028",
+    "text": "접수 메모의 담당자 이름은 허나래입니다.",
+    "person": [
+      "허나래"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0029",
+    "text": "남여울 상담사님이 준비 서류를 설명해 주셨습니다.",
+    "person": [
+      "남여울"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0030",
+    "text": "보호자와 상의한 뒤 심해온에게 먼저 연락하려고 합니다.",
+    "person": [
+      "심해온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0031",
+    "text": "지난번 면담을 맡은 분은 노바다입니다.",
+    "person": [
+      "노바다"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0032",
+    "text": "하푸름 님께서 오전 통화가 편하다고 하셨어요.",
+    "person": [
+      "하푸름"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0033",
+    "text": "회의 전에 곽푸른별 담당자님을 찾아가면 될까요?",
+    "person": [
+      "곽푸른별"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0034",
+    "text": "문자를 받을 사람 이름은 성참누리입니다.",
+    "person": [
+      "성참누리"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0035",
+    "text": "오늘 기록은 차채운해솔 선생님이 확인해 주셨습니다.",
+    "person": [
+      "차채운해솔"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0036",
+    "text": "상담 시간을 주결에게 확인한 뒤 금요일 오후로 바꿨어요.",
+    "person": [
+      "주결"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0037",
+    "text": "제가 신뢰하는 지원 담당자는 우마루입니다.",
+    "person": [
+      "우마루"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0038",
+    "text": "구이든 님이 신청 절차를 다시 안내해 주셨어요.",
+    "person": [
+      "구이든"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0039",
+    "text": "첫 통화의 상담사 이름은 민누리입니다.",
+    "person": [
+      "민누리"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0040",
+    "text": "다음 면담에는 진예담 선생님도 함께 오십니다.",
+    "person": [
+      "진예담"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0041",
+    "text": "사례회의 연락 창구 이름은 남궁한가람입니다.",
+    "person": [
+      "남궁한가람"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0042",
+    "text": "황보온마음 님과 나눈 약속을 기록에 남겨 주세요.",
+    "person": [
+      "황보온마음"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0043",
+    "text": "서류 확인은 제갈라온하늘 담당자에게 부탁드렸습니다.",
+    "person": [
+      "제갈라온하늘"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0044",
+    "text": "오늘 방문한 상담자 이름은 선우봄입니다.",
+    "person": [
+      "선우봄"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0045",
+    "text": "김가온 선생님이 천천히 설명해 주셔서 이해했습니다.",
+    "person": [
+      "김가온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0046",
+    "text": "지원 일정은 이아라 님과 조율 중입니다.",
+    "person": [
+      "이아라"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0047",
+    "text": "마지막으로 통화한 사람은 박하람입니다.",
+    "person": [
+      "박하람"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0048",
+    "text": "최미르 담당자님께 변경 내용을 전달했습니다.",
+    "person": [
+      "최미르"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0049",
+    "text": "상담을 맡은 분은 정해솔입니다.",
+    "person": [
+      "정해솔"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0050",
+    "text": "강이루리 선생님께 다음 주에 다시 연락드리기로 했어요.",
+    "person": [
+      "강이루리"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0051",
+    "text": "오늘은 조라온빛 님과 생활비 계획을 차분히 이야기했습니다.",
+    "person": [
+      "조라온빛"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0052",
+    "text": "접수 메모의 담당자 이름은 윤윤슬바다입니다.",
+    "person": [
+      "윤윤슬바다"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0053",
+    "text": "장담 상담사님이 준비 서류를 설명해 주셨습니다.",
+    "person": [
+      "장담"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0054",
+    "text": "보호자와 상의한 뒤 임라온에게 먼저 연락하려고 합니다.",
+    "person": [
+      "임라온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0055",
+    "text": "지난번 면담을 맡은 분은 한윤슬입니다.",
+    "person": [
+      "한윤슬"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0056",
+    "text": "오그루 님께서 오전 통화가 편하다고 하셨어요.",
+    "person": [
+      "오그루"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0057",
+    "text": "회의 전에 서소담 담당자님을 찾아가면 될까요?",
+    "person": [
+      "서소담"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0058",
+    "text": "문자를 받을 사람 이름은 신초롱입니다.",
+    "person": [
+      "신초롱"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0059",
+    "text": "오늘 기록은 권새로미 선생님이 확인해 주셨습니다.",
+    "person": [
+      "권새로미"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0060",
+    "text": "상담 시간을 황다온마음에게 확인한 뒤 금요일 오후로 바꿨어요.",
+    "person": [
+      "황다온마음"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0061",
+    "text": "제가 신뢰하는 지원 담당자는 안준입니다.",
+    "person": [
+      "안준"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0062",
+    "text": "송린 님이 신청 절차를 다시 안내해 주셨어요.",
+    "person": [
+      "송린"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0063",
+    "text": "첫 통화의 상담사 이름은 전새봄입니다.",
+    "person": [
+      "전새봄"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0064",
+    "text": "다음 면담에는 홍채운 선생님도 함께 오십니다.",
+    "person": [
+      "홍채운"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0065",
+    "text": "사례회의 연락 창구 이름은 유로은입니다.",
+    "person": [
+      "유로은"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0066",
+    "text": "고태린 님과 나눈 약속을 기록에 남겨 주세요.",
+    "person": [
+      "고태린"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0067",
+    "text": "서류 확인은 문서다온 담당자에게 부탁드렸습니다.",
+    "person": [
+      "문서다온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0068",
+    "text": "오늘 방문한 상담자 이름은 양다한별입니다.",
+    "person": [
+      "양다한별"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0069",
+    "text": "손아라여울 선생님이 천천히 설명해 주셔서 이해했습니다.",
+    "person": [
+      "손아라여울"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0070",
+    "text": "지원 일정은 배빛 님과 조율 중입니다.",
+    "person": [
+      "배빛"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0071",
+    "text": "마지막으로 통화한 사람은 백다온입니다.",
+    "person": [
+      "백다온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0072",
+    "text": "허온유 담당자님께 변경 내용을 전달했습니다.",
+    "person": [
+      "허온유"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0073",
+    "text": "상담을 맡은 분은 남겨울입니다.",
+    "person": [
+      "남겨울"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0074",
+    "text": "심별하 선생님께 다음 주에 다시 연락드리기로 했어요.",
+    "person": [
+      "심별하"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0075",
+    "text": "오늘은 노한결 님과 생활비 계획을 차분히 이야기했습니다.",
+    "person": [
+      "노한결"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0076",
+    "text": "접수 메모의 담당자 이름은 하고운결입니다.",
+    "person": [
+      "하고운결"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0077",
+    "text": "곽가온누리 상담사님이 준비 서류를 설명해 주셨습니다.",
+    "person": [
+      "곽가온누리"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0078",
+    "text": "보호자와 상의한 뒤 성하람푸름에게 먼저 연락하려고 합니다.",
+    "person": [
+      "성하람푸름"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0079",
+    "text": "지난번 면담을 맡은 분은 차온입니다.",
+    "person": [
+      "차온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0080",
+    "text": "주보담 님께서 오전 통화가 편하다고 하셨어요.",
+    "person": [
+      "주보담"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0081",
+    "text": "회의 전에 우지안 담당자님을 찾아가면 될까요?",
+    "person": [
+      "우지안"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0082",
+    "text": "문자를 받을 사람 이름은 구다솜입니다.",
+    "person": [
+      "구다솜"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0083",
+    "text": "오늘 기록은 민지온 선생님이 확인해 주셨습니다.",
+    "person": [
+      "민지온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0084",
+    "text": "상담 시간을 진윤가온에게 확인한 뒤 금요일 오후로 바꿨어요.",
+    "person": [
+      "진윤가온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0085",
+    "text": "제가 신뢰하는 지원 담당자는 남궁해누리입니다.",
+    "person": [
+      "남궁해누리"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0086",
+    "text": "황보보담새봄 님이 신청 절차를 다시 안내해 주셨어요.",
+    "person": [
+      "황보보담새봄"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0087",
+    "text": "첫 통화의 상담사 이름은 제갈솔입니다.",
+    "person": [
+      "제갈솔"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0088",
+    "text": "다음 면담에는 선우나래 선생님도 함께 오십니다.",
+    "person": [
+      "선우나래"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0089",
+    "text": "사례회의 연락 창구 이름은 김여울입니다.",
+    "person": [
+      "김여울"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0090",
+    "text": "이해온 님과 나눈 약속을 기록에 남겨 주세요.",
+    "person": [
+      "이해온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0091",
+    "text": "서류 확인은 박바다 담당자에게 부탁드렸습니다.",
+    "person": [
+      "박바다"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0092",
+    "text": "오늘 방문한 상담자 이름은 최푸름입니다.",
+    "person": [
+      "최푸름"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0093",
+    "text": "정푸른별 선생님이 천천히 설명해 주셔서 이해했습니다.",
+    "person": [
+      "정푸른별"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0094",
+    "text": "지원 일정은 강참누리 님과 조율 중입니다.",
+    "person": [
+      "강참누리"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0095",
+    "text": "마지막으로 통화한 사람은 조채운해솔입니다.",
+    "person": [
+      "조채운해솔"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0096",
+    "text": "윤결 담당자님께 변경 내용을 전달했습니다.",
+    "person": [
+      "윤결"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0097",
+    "text": "상담을 맡은 분은 장마루입니다.",
+    "person": [
+      "장마루"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0098",
+    "text": "임이든 선생님께 다음 주에 다시 연락드리기로 했어요.",
+    "person": [
+      "임이든"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0099",
+    "text": "오늘은 한누리 님과 생활비 계획을 차분히 이야기했습니다.",
+    "person": [
+      "한누리"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0100",
+    "text": "접수 메모의 담당자 이름은 오예담입니다.",
+    "person": [
+      "오예담"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0101",
+    "text": "김 가온 선생님께 다음 주에 다시 연락드리기로 했어요.",
+    "person": [
+      "김 가온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0102",
+    "text": "지난번 면담을 맡은 분은 이 나 래입니다.",
+    "person": [
+      "이 나 래"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing"
+    ]
+  },
+  {
+    "id": "release-ko-0103",
+    "text": "상담 시간을 박 다온에게 확인한 뒤 금요일 오후로 바꿨어요.",
+    "person": [
+      "박 다온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing"
+    ]
+  },
+  {
+    "id": "release-ko-0104",
+    "text": "사례회의 연락 창구 이름은 최 라 온입니다.",
+    "person": [
+      "최 라 온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing"
+    ]
+  },
+  {
+    "id": "release-ko-0105",
+    "text": "지원 일정은 정 마루 님과 조율 중입니다.",
+    "person": [
+      "정 마루"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0106",
+    "text": "오늘은 강 보 담 님과 생활비 계획을 차분히 이야기했습니다.",
+    "person": [
+      "강 보 담"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0107",
+    "text": "조 새봄 님께서 오전 통화가 편하다고 하셨어요.",
+    "person": [
+      "조 새봄"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0108",
+    "text": "제가 신뢰하는 지원 담당자는 윤 아 라입니다.",
+    "person": [
+      "윤 아 라"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing"
+    ]
+  },
+  {
+    "id": "release-ko-0109",
+    "text": "장 여울 님과 나눈 약속을 기록에 남겨 주세요.",
+    "person": [
+      "장 여울"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0110",
+    "text": "마지막으로 통화한 사람은 임 온 유입니다.",
+    "person": [
+      "임 온 유"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing"
+    ]
+  },
+  {
+    "id": "release-ko-0111",
+    "text": "접수 메모의 담당자 이름은 한 윤슬입니다.",
+    "person": [
+      "한 윤슬"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing"
+    ]
+  },
+  {
+    "id": "release-ko-0112",
+    "text": "회의 전에 오 이 든 담당자님을 찾아가면 될까요?",
+    "person": [
+      "오 이 든"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0113",
+    "text": "서 지안 님이 신청 절차를 다시 안내해 주셨어요.",
+    "person": [
+      "서 지안"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0114",
+    "text": "서류 확인은 신 채 운 담당자에게 부탁드렸습니다.",
+    "person": [
+      "신 채 운"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0115",
+    "text": "권 하람 담당자님께 변경 내용을 전달했습니다.",
+    "person": [
+      "권 하람"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0116",
+    "text": "황 해 온 상담사님이 준비 서류를 설명해 주셨습니다.",
+    "person": [
+      "황 해 온"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0117",
+    "text": "문자를 받을 사람 이름은 안 겨 울입니다.",
+    "person": [
+      "안 겨 울"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing"
+    ]
+  },
+  {
+    "id": "release-ko-0118",
+    "text": "첫 통화의 상담사 이름은 송 그루입니다.",
+    "person": [
+      "송 그루"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0119",
+    "text": "오늘 방문한 상담자 이름은 전 누 리입니다.",
+    "person": [
+      "전 누 리"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing"
+    ]
+  },
+  {
+    "id": "release-ko-0120",
+    "text": "상담을 맡은 분은 홍 다솜입니다.",
+    "person": [
+      "홍 다솜"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "spacing"
+    ]
+  },
+  {
+    "id": "release-ko-0121",
+    "text": "오늘은 Mina Park 님과 생활비 계획을 차분히 이야기했습니다.",
+    "person": [
+      "Mina Park"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0122",
+    "text": "문자를 받을 사람 이름은 Joon Lee입니다.",
+    "person": [
+      "Joon Lee"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0123",
+    "text": "사례회의 연락 창구 이름은 Alex Kim입니다.",
+    "person": [
+      "Alex Kim"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0124",
+    "text": "Sora Choi 담당자님께 변경 내용을 전달했습니다.",
+    "person": [
+      "Sora Choi"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0125",
+    "text": "지난번 면담을 맡은 분은 Noah Jung입니다.",
+    "person": [
+      "Noah Jung"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0126",
+    "text": "Yuna Kang 님이 신청 절차를 다시 안내해 주셨어요.",
+    "person": [
+      "Yuna Kang"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0127",
+    "text": "Daniel Cho 선생님이 천천히 설명해 주셔서 이해했습니다.",
+    "person": [
+      "Daniel Cho"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0128",
+    "text": "접수 메모의 담당자 이름은 Hana Yoon입니다.",
+    "person": [
+      "Hana Yoon"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0129",
+    "text": "오늘 기록은 Leo Jang 선생님이 확인해 주셨습니다.",
+    "person": [
+      "Leo Jang"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0130",
+    "text": "Emma Lim 님과 나눈 약속을 기록에 남겨 주세요.",
+    "person": [
+      "Emma Lim"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0131",
+    "text": "상담을 맡은 분은 Ian Han입니다.",
+    "person": [
+      "Ian Han"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0132",
+    "text": "Lina Oh 님께서 오전 통화가 편하다고 하셨어요.",
+    "person": [
+      "Lina Oh"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0133",
+    "text": "첫 통화의 상담사 이름은 Evan Seo입니다.",
+    "person": [
+      "Evan Seo"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0134",
+    "text": "지원 일정은 Mia Shin 님과 조율 중입니다.",
+    "person": [
+      "Mia Shin"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0135",
+    "text": "Theo Kwon 상담사님이 준비 서류를 설명해 주셨습니다.",
+    "person": [
+      "Theo Kwon"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0136",
+    "text": "상담 시간을 Sara Hwang에게 확인한 뒤 금요일 오후로 바꿨어요.",
+    "person": [
+      "Sara Hwang"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length"
+    ]
+  },
+  {
+    "id": "release-ko-0137",
+    "text": "서류 확인은 June Ahn 담당자에게 부탁드렸습니다.",
+    "person": [
+      "June Ahn"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0138",
+    "text": "Ryan Song 선생님께 다음 주에 다시 연락드리기로 했어요.",
+    "person": [
+      "Ryan Song"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0139",
+    "text": "회의 전에 Ella Jeon 담당자님을 찾아가면 될까요?",
+    "person": [
+      "Ella Jeon"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0140",
+    "text": "다음 면담에는 Nari Hong 선생님도 함께 오십니다.",
+    "person": [
+      "Nari Hong"
+    ],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0141",
+    "text": "이번 사례회의에는 류새온 님과 엄가람 님이 함께 참석합니다.",
+    "person": [
+      "류새온",
+      "엄가람"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0142",
+    "text": "상담사는 도윤결, 후속 지원 담당자는 공하루입니다.",
+    "person": [
+      "도윤결",
+      "공하루"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0143",
+    "text": "연락 순서는 변다빛 선생님 다음에 염로운 선생님입니다.",
+    "person": [
+      "변다빛",
+      "염로운"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0144",
+    "text": "접수 담당자는 여진솔, 후속 상담 담당자는 추보라입니다.",
+    "person": [
+      "여진솔",
+      "추보라"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0145",
+    "text": "오늘 면담에는 탁예온 님과 통역을 맡은 편한별 님이 오십니다.",
+    "person": [
+      "탁예온",
+      "편한별"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0146",
+    "text": "이번 사례회의에는 위마음 님과 표다정 님이 함께 참석합니다.",
+    "person": [
+      "위마음",
+      "표다정"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0147",
+    "text": "상담사는 라해담, 후속 지원 담당자는 명초은입니다.",
+    "person": [
+      "라해담",
+      "명초은"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0148",
+    "text": "연락 순서는 기나봄 선생님 다음에 반이룸 선생님입니다.",
+    "person": [
+      "기나봄",
+      "반이룸"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0149",
+    "text": "접수 담당자는 왕서온, 후속 상담 담당자는 옥가윤입니다.",
+    "person": [
+      "왕서온",
+      "옥가윤"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0150",
+    "text": "오늘 면담에는 육도담 님과 통역을 맡은 인채움 님이 오십니다.",
+    "person": [
+      "육도담",
+      "인채움"
+    ],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific"
+    ]
+  },
+  {
+    "id": "release-ko-0151",
+    "text": "방문 장소로 안내받은 주소는 해솔시 나래구 별무리로 11입니다.",
+    "person": [],
+    "address": [
+      "해솔시 나래구 별무리로 11"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0152",
+    "text": "서류를 보낼 주소는 별온시 여울구 여울목길 14입니다.",
+    "person": [],
+    "address": [
+      "별온시 여울구 여울목길 14"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0153",
+    "text": "현재 머무는 곳은 다온시 이든구 가온누리로 17입니다.",
+    "person": [],
+    "address": [
+      "다온시 이든구 가온누리로 17"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0154",
+    "text": "다음 상담 장소는 푸른시 미르구 푸른결길 20입니다.",
+    "person": [],
+    "address": [
+      "푸른시 미르구 푸른결길 20"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0155",
+    "text": "이사 뒤 새 주소는 한결시 마루구 솔바람로 23입니다.",
+    "person": [],
+    "address": [
+      "한결시 마루구 솔바람로 23"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0156",
+    "text": "택배 수령 주소는 새롬시 소담구 초롱꽃길 26입니다.",
+    "person": [],
+    "address": [
+      "새롬시 소담구 초롱꽃길 26"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0157",
+    "text": "가정 방문지로 확인한 곳은 가람시 아람구 해오름로 29입니다.",
+    "person": [],
+    "address": [
+      "가람시 아람구 해오름로 29"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0158",
+    "text": "우편물을 받을 주소는 누리시 윤슬구 새봄길 32입니다.",
+    "person": [],
+    "address": [
+      "누리시 윤슬구 새봄길 32"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0159",
+    "text": "신청서에 적은 거주지는 온빛시 한빛구 마루샘로 35입니다.",
+    "person": [],
+    "address": [
+      "온빛시 한빛구 마루샘로 35"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0160",
+    "text": "목적지 입력란에 적을 주소는 보담시 초롱구 나래숲길 38입니다.",
+    "person": [],
+    "address": [
+      "보담시 초롱구 나래숲길 38"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0161",
+    "text": "상담 기록에 남긴 주소는 해솔시 나래구 윤슬로 41입니다.",
+    "person": [],
+    "address": [
+      "해솔시 나래구 윤슬로 41"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0162",
+    "text": "이번 달부터 지내는 곳은 별온시 여울구 이든별길 44입니다.",
+    "person": [],
+    "address": [
+      "별온시 여울구 이든별길 44"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0163",
+    "text": "지원 물품 수령지는 다온시 이든구 온새미로 47입니다.",
+    "person": [],
+    "address": [
+      "다온시 이든구 온새미로 47"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0164",
+    "text": "방문 전에 확인할 주소는 푸른시 미르구 고운달길 50입니다.",
+    "person": [],
+    "address": [
+      "푸른시 미르구 고운달길 50"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0165",
+    "text": "새로 알려드릴 주소는 한결시 마루구 아라빛로 53입니다.",
+    "person": [],
+    "address": [
+      "한결시 마루구 아라빛로 53"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0166",
+    "text": "등기 서류를 받을 곳은 새롬시 소담구 구름빛길 56입니다.",
+    "person": [],
+    "address": [
+      "새롬시 소담구 구름빛길 56"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0167",
+    "text": "약속 장소의 정확한 주소는 가람시 아람구 한마음로 59입니다.",
+    "person": [],
+    "address": [
+      "가람시 아람구 한마음로 59"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0168",
+    "text": "지도 검색창에 입력할 주소는 누리시 윤슬구 해솔누리길 62입니다.",
+    "person": [],
+    "address": [
+      "누리시 윤슬구 해솔누리길 62"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0169",
+    "text": "생활 실태 확인 장소는 온빛시 한빛구 다온로 65입니다.",
+    "person": [],
+    "address": [
+      "온빛시 한빛구 다온로 65"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0170",
+    "text": "주소 칸에 작성한 내용은 보담시 초롱구 보담길 68입니다.",
+    "person": [],
+    "address": [
+      "보담시 초롱구 보담길 68"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0171",
+    "text": "방문 장소로 안내받은 주소는 해솔시 나래구 별무리로 71입니다.",
+    "person": [],
+    "address": [
+      "해솔시 나래구 별무리로 71"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0172",
+    "text": "서류를 보낼 주소는 별온시 여울구 여울목길 74입니다.",
+    "person": [],
+    "address": [
+      "별온시 여울구 여울목길 74"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0173",
+    "text": "현재 머무는 곳은 다온시 이든구 가온누리로 77입니다.",
+    "person": [],
+    "address": [
+      "다온시 이든구 가온누리로 77"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0174",
+    "text": "다음 상담 장소는 푸른시 미르구 푸른결길 80입니다.",
+    "person": [],
+    "address": [
+      "푸른시 미르구 푸른결길 80"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0175",
+    "text": "이사 뒤 새 주소는 한결시 마루구 솔바람로 83입니다.",
+    "person": [],
+    "address": [
+      "한결시 마루구 솔바람로 83"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0176",
+    "text": "택배 수령 주소는 새롬시 소담구 초롱꽃길 86입니다.",
+    "person": [],
+    "address": [
+      "새롬시 소담구 초롱꽃길 86"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0177",
+    "text": "가정 방문지로 확인한 곳은 가람시 아람구 해오름로 89입니다.",
+    "person": [],
+    "address": [
+      "가람시 아람구 해오름로 89"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0178",
+    "text": "우편물을 받을 주소는 누리시 윤슬구 새봄길 92입니다.",
+    "person": [],
+    "address": [
+      "누리시 윤슬구 새봄길 92"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0179",
+    "text": "신청서에 적은 거주지는 온빛시 한빛구 마루샘로 95입니다.",
+    "person": [],
+    "address": [
+      "온빛시 한빛구 마루샘로 95"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0180",
+    "text": "목적지 입력란에 적을 주소는 보담시 초롱구 나래숲길 98입니다.",
+    "person": [],
+    "address": [
+      "보담시 초롱구 나래숲길 98"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0181",
+    "text": "상담 기록에 남긴 주소는 해솔시 나래구 윤슬로 101입니다.",
+    "person": [],
+    "address": [
+      "해솔시 나래구 윤슬로 101"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0182",
+    "text": "이번 달부터 지내는 곳은 별온시 여울구 이든별길 104입니다.",
+    "person": [],
+    "address": [
+      "별온시 여울구 이든별길 104"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0183",
+    "text": "지원 물품 수령지는 다온시 이든구 온새미로 107입니다.",
+    "person": [],
+    "address": [
+      "다온시 이든구 온새미로 107"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0184",
+    "text": "방문 전에 확인할 주소는 푸른시 미르구 고운달길 110입니다.",
+    "person": [],
+    "address": [
+      "푸른시 미르구 고운달길 110"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0185",
+    "text": "새로 알려드릴 주소는 한결시 마루구 아라빛로 113입니다.",
+    "person": [],
+    "address": [
+      "한결시 마루구 아라빛로 113"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0186",
+    "text": "등기 서류를 받을 곳은 새롬시 소담구 구름빛길 116입니다.",
+    "person": [],
+    "address": [
+      "새롬시 소담구 구름빛길 116"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0187",
+    "text": "약속 장소의 정확한 주소는 가람시 아람구 한마음로 119입니다.",
+    "person": [],
+    "address": [
+      "가람시 아람구 한마음로 119"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0188",
+    "text": "지도 검색창에 입력할 주소는 누리시 윤슬구 해솔누리길 122입니다.",
+    "person": [],
+    "address": [
+      "누리시 윤슬구 해솔누리길 122"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0189",
+    "text": "생활 실태 확인 장소는 온빛시 한빛구 다온로 125입니다.",
+    "person": [],
+    "address": [
+      "온빛시 한빛구 다온로 125"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0190",
+    "text": "주소 칸에 작성한 내용은 보담시 초롱구 보담길 128입니다.",
+    "person": [],
+    "address": [
+      "보담시 초롱구 보담길 128"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0191",
+    "text": "방문 장소로 안내받은 주소는 해솔시 나래구 별무리로 131입니다.",
+    "person": [],
+    "address": [
+      "해솔시 나래구 별무리로 131"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0192",
+    "text": "서류를 보낼 주소는 별온시 여울구 여울목길 134입니다.",
+    "person": [],
+    "address": [
+      "별온시 여울구 여울목길 134"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0193",
+    "text": "현재 머무는 곳은 다온시 이든구 가온누리로 137입니다.",
+    "person": [],
+    "address": [
+      "다온시 이든구 가온누리로 137"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0194",
+    "text": "다음 상담 장소는 푸른시 미르구 푸른결길 140입니다.",
+    "person": [],
+    "address": [
+      "푸른시 미르구 푸른결길 140"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0195",
+    "text": "이사 뒤 새 주소는 한결시 마루구 솔바람로 143입니다.",
+    "person": [],
+    "address": [
+      "한결시 마루구 솔바람로 143"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0196",
+    "text": "택배 수령 주소는 새롬시 소담구 초롱꽃길 146입니다.",
+    "person": [],
+    "address": [
+      "새롬시 소담구 초롱꽃길 146"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0197",
+    "text": "가정 방문지로 확인한 곳은 가람시 아람구 해오름로 149입니다.",
+    "person": [],
+    "address": [
+      "가람시 아람구 해오름로 149"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0198",
+    "text": "우편물을 받을 주소는 누리시 윤슬구 새봄길 152입니다.",
+    "person": [],
+    "address": [
+      "누리시 윤슬구 새봄길 152"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0199",
+    "text": "신청서에 적은 거주지는 온빛시 한빛구 마루샘로 155입니다.",
+    "person": [],
+    "address": [
+      "온빛시 한빛구 마루샘로 155"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0200",
+    "text": "목적지 입력란에 적을 주소는 보담시 초롱구 나래숲길 158입니다.",
+    "person": [],
+    "address": [
+      "보담시 초롱구 나래숲길 158"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0201",
+    "text": "현재 머무는 곳은 푸른시 윤슬구 가온동 101-2입니다.",
+    "person": [],
+    "address": [
+      "푸른시 윤슬구 가온동 101-2"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0202",
+    "text": "택배 수령 주소는 한결시 아람구 온유동 102-3입니다.",
+    "person": [],
+    "address": [
+      "한결시 아람구 온유동 102-3"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0203",
+    "text": "신청서에 적은 거주지는 새롬시 소담구 누리동 103-4입니다.",
+    "person": [],
+    "address": [
+      "새롬시 소담구 누리동 103-4"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0204",
+    "text": "이번 달부터 지내는 곳은 가람시 마루구 아라동 104-5입니다.",
+    "person": [],
+    "address": [
+      "가람시 마루구 아라동 104-5"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0205",
+    "text": "새로 알려드릴 주소는 누리시 미르구 겨울동 105-6입니다.",
+    "person": [],
+    "address": [
+      "누리시 미르구 겨울동 105-6"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0206",
+    "text": "지도 검색창에 입력할 주소는 온빛시 이든구 보담동 106-7입니다.",
+    "person": [],
+    "address": [
+      "온빛시 이든구 보담동 106-7"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0207",
+    "text": "방문 장소로 안내받은 주소는 보담시 여울구 하람동 107-8입니다.",
+    "person": [],
+    "address": [
+      "보담시 여울구 하람동 107-8"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0208",
+    "text": "다음 상담 장소는 해솔시 나래구 라온동 108-9입니다.",
+    "person": [],
+    "address": [
+      "해솔시 나래구 라온동 108-9"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0209",
+    "text": "가정 방문지로 확인한 곳은 별온시 초롱구 지안동 109-10입니다.",
+    "person": [],
+    "address": [
+      "별온시 초롱구 지안동 109-10"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0210",
+    "text": "목적지 입력란에 적을 주소는 다온시 한빛구 나래동 110-11입니다.",
+    "person": [],
+    "address": [
+      "다온시 한빛구 나래동 110-11"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0211",
+    "text": "지원 물품 수령지는 푸른시 윤슬구 윤슬동 111-12입니다.",
+    "person": [],
+    "address": [
+      "푸른시 윤슬구 윤슬동 111-12"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0212",
+    "text": "등기 서류를 받을 곳은 한결시 아람구 푸름동 112-13입니다.",
+    "person": [],
+    "address": [
+      "한결시 아람구 푸름동 112-13"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0213",
+    "text": "생활 실태 확인 장소는 새롬시 소담구 여울동 113-14입니다.",
+    "person": [],
+    "address": [
+      "새롬시 소담구 여울동 113-14"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0214",
+    "text": "서류를 보낼 주소는 가람시 마루구 그루동 114-15입니다.",
+    "person": [],
+    "address": [
+      "가람시 마루구 그루동 114-15"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0215",
+    "text": "이사 뒤 새 주소는 누리시 미르구 새봄동 115-16입니다.",
+    "person": [],
+    "address": [
+      "누리시 미르구 새봄동 115-16"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0216",
+    "text": "우편물을 받을 주소는 온빛시 이든구 해온동 116-17입니다.",
+    "person": [],
+    "address": [
+      "온빛시 이든구 해온동 116-17"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0217",
+    "text": "상담 기록에 남긴 주소는 보담시 여울구 마루동 117-18입니다.",
+    "person": [],
+    "address": [
+      "보담시 여울구 마루동 117-18"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0218",
+    "text": "방문 전에 확인할 주소는 해솔시 나래구 채운동 118-2입니다.",
+    "person": [],
+    "address": [
+      "해솔시 나래구 채운동 118-2"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0219",
+    "text": "약속 장소의 정확한 주소는 별온시 초롱구 다솜동 119-3입니다.",
+    "person": [],
+    "address": [
+      "별온시 초롱구 다솜동 119-3"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0220",
+    "text": "주소 칸에 작성한 내용은 다온시 한빛구 이든동 120-4입니다.",
+    "person": [],
+    "address": [
+      "다온시 한빛구 이든동 120-4"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0221",
+    "text": "현재 머무는 곳은 푸른시 윤슬구 가온동 121-5입니다.",
+    "person": [],
+    "address": [
+      "푸른시 윤슬구 가온동 121-5"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0222",
+    "text": "택배 수령 주소는 한결시 아람구 온유동 122-6입니다.",
+    "person": [],
+    "address": [
+      "한결시 아람구 온유동 122-6"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0223",
+    "text": "신청서에 적은 거주지는 새롬시 소담구 누리동 123-7입니다.",
+    "person": [],
+    "address": [
+      "새롬시 소담구 누리동 123-7"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0224",
+    "text": "이번 달부터 지내는 곳은 가람시 마루구 아라동 124-8입니다.",
+    "person": [],
+    "address": [
+      "가람시 마루구 아라동 124-8"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0225",
+    "text": "새로 알려드릴 주소는 누리시 미르구 겨울동 125-9입니다.",
+    "person": [],
+    "address": [
+      "누리시 미르구 겨울동 125-9"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0226",
+    "text": "지도 검색창에 입력할 주소는 온빛시 이든구 보담동 126-10입니다.",
+    "person": [],
+    "address": [
+      "온빛시 이든구 보담동 126-10"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0227",
+    "text": "방문 장소로 안내받은 주소는 보담시 여울구 하람동 127-11입니다.",
+    "person": [],
+    "address": [
+      "보담시 여울구 하람동 127-11"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0228",
+    "text": "다음 상담 장소는 해솔시 나래구 라온동 128-12입니다.",
+    "person": [],
+    "address": [
+      "해솔시 나래구 라온동 128-12"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0229",
+    "text": "가정 방문지로 확인한 곳은 별온시 초롱구 지안동 129-13입니다.",
+    "person": [],
+    "address": [
+      "별온시 초롱구 지안동 129-13"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0230",
+    "text": "목적지 입력란에 적을 주소는 다온시 한빛구 나래동 130-14입니다.",
+    "person": [],
+    "address": [
+      "다온시 한빛구 나래동 130-14"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0231",
+    "text": "지원 물품 수령지는 푸른시 윤슬구 윤슬동 131-15입니다.",
+    "person": [],
+    "address": [
+      "푸른시 윤슬구 윤슬동 131-15"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0232",
+    "text": "등기 서류를 받을 곳은 한결시 아람구 푸름동 132-16입니다.",
+    "person": [],
+    "address": [
+      "한결시 아람구 푸름동 132-16"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0233",
+    "text": "생활 실태 확인 장소는 새롬시 소담구 여울동 133-17입니다.",
+    "person": [],
+    "address": [
+      "새롬시 소담구 여울동 133-17"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0234",
+    "text": "서류를 보낼 주소는 가람시 마루구 그루동 134-18입니다.",
+    "person": [],
+    "address": [
+      "가람시 마루구 그루동 134-18"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0235",
+    "text": "이사 뒤 새 주소는 누리시 미르구 새봄동 135-2입니다.",
+    "person": [],
+    "address": [
+      "누리시 미르구 새봄동 135-2"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0236",
+    "text": "우편물을 받을 주소는 온빛시 이든구 해온동 136-3입니다.",
+    "person": [],
+    "address": [
+      "온빛시 이든구 해온동 136-3"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0237",
+    "text": "상담 기록에 남긴 주소는 보담시 여울구 마루동 137-4입니다.",
+    "person": [],
+    "address": [
+      "보담시 여울구 마루동 137-4"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0238",
+    "text": "방문 전에 확인할 주소는 해솔시 나래구 채운동 138-5입니다.",
+    "person": [],
+    "address": [
+      "해솔시 나래구 채운동 138-5"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0239",
+    "text": "약속 장소의 정확한 주소는 별온시 초롱구 다솜동 139-6입니다.",
+    "person": [],
+    "address": [
+      "별온시 초롱구 다솜동 139-6"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0240",
+    "text": "주소 칸에 작성한 내용은 다온시 한빛구 이든동 140-7입니다.",
+    "person": [],
+    "address": [
+      "다온시 한빛구 이든동 140-7"
+    ],
+    "strata": [
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0241",
+    "text": "이사 뒤 새 주소는 새롬시 여울구 온새미로 40 다온누리 101동 201호입니다.",
+    "person": [],
+    "address": [
+      "새롬시 여울구 온새미로 40 다온누리 101동 201호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0242",
+    "text": "이번 달부터 지내는 곳은 가람시 소담구 초롱꽃길 41 별빛마루 102동 202호입니다.",
+    "person": [],
+    "address": [
+      "가람시 소담구 초롱꽃길 41 별빛마루 102동 202호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0243",
+    "text": "생활 실태 확인 장소는 누리시 초롱구 다온로 42 해솔정원 103동 203호입니다.",
+    "person": [],
+    "address": [
+      "누리시 초롱구 다온로 42 해솔정원 103동 203호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0244",
+    "text": "택배 수령 주소는 온빛시 미르구 이든별길 43 푸른여울 104동 204호입니다.",
+    "person": [],
+    "address": [
+      "온빛시 미르구 이든별길 43 푸른여울 104동 204호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0245",
+    "text": "지원 물품 수령지는 보담시 윤슬구 솔바람로 44 새봄채 105동 205호입니다.",
+    "person": [],
+    "address": [
+      "보담시 윤슬구 솔바람로 44 새봄채 105동 205호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0246",
+    "text": "주소 칸에 작성한 내용은 해솔시 여울구 해솔누리길 45 한결타운 106동 206호입니다.",
+    "person": [],
+    "address": [
+      "해솔시 여울구 해솔누리길 45 한결타운 106동 206호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0247",
+    "text": "가정 방문지로 확인한 곳은 별온시 소담구 윤슬로 46 보담하우스 107동 207호입니다.",
+    "person": [],
+    "address": [
+      "별온시 소담구 윤슬로 46 보담하우스 107동 207호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0248",
+    "text": "방문 전에 확인할 주소는 다온시 초롱구 푸른결길 47 윤슬마을 108동 208호입니다.",
+    "person": [],
+    "address": [
+      "다온시 초롱구 푸른결길 47 윤슬마을 108동 208호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0249",
+    "text": "방문 장소로 안내받은 주소는 푸른시 미르구 한마음로 48 가온빌 101동 209호입니다.",
+    "person": [],
+    "address": [
+      "푸른시 미르구 한마음로 48 가온빌 101동 209호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0250",
+    "text": "우편물을 받을 주소는 한결시 윤슬구 나래숲길 49 나래뜰 102동 210호입니다.",
+    "person": [],
+    "address": [
+      "한결시 윤슬구 나래숲길 49 나래뜰 102동 210호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0251",
+    "text": "새로 알려드릴 주소는 새롬시 여울구 가온누리로 50 다온누리 103동 211호입니다.",
+    "person": [],
+    "address": [
+      "새롬시 여울구 가온누리로 50 다온누리 103동 211호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0252",
+    "text": "서류를 보낼 주소는 가람시 소담구 구름빛길 51 별빛마루 104동 212호입니다.",
+    "person": [],
+    "address": [
+      "가람시 소담구 구름빛길 51 별빛마루 104동 212호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0253",
+    "text": "신청서에 적은 거주지는 누리시 초롱구 마루샘로 52 해솔정원 105동 213호입니다.",
+    "person": [],
+    "address": [
+      "누리시 초롱구 마루샘로 52 해솔정원 105동 213호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0254",
+    "text": "등기 서류를 받을 곳은 온빛시 미르구 여울목길 53 푸른여울 106동 214호입니다.",
+    "person": [],
+    "address": [
+      "온빛시 미르구 여울목길 53 푸른여울 106동 214호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0255",
+    "text": "현재 머무는 곳은 보담시 윤슬구 아라빛로 54 새봄채 107동 215호입니다.",
+    "person": [],
+    "address": [
+      "보담시 윤슬구 아라빛로 54 새봄채 107동 215호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0256",
+    "text": "목적지 입력란에 적을 주소는 해솔시 여울구 새봄길 55 한결타운 108동 216호입니다.",
+    "person": [],
+    "address": [
+      "해솔시 여울구 새봄길 55 한결타운 108동 216호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0257",
+    "text": "약속 장소의 정확한 주소는 별온시 소담구 별무리로 56 보담하우스 101동 217호입니다.",
+    "person": [],
+    "address": [
+      "별온시 소담구 별무리로 56 보담하우스 101동 217호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0258",
+    "text": "다음 상담 장소는 다온시 초롱구 고운달길 57 윤슬마을 102동 218호입니다.",
+    "person": [],
+    "address": [
+      "다온시 초롱구 고운달길 57 윤슬마을 102동 218호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0259",
+    "text": "상담 기록에 남긴 주소는 푸른시 미르구 해오름로 58 가온빌 103동 219호입니다.",
+    "person": [],
+    "address": [
+      "푸른시 미르구 해오름로 58 가온빌 103동 219호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0260",
+    "text": "지도 검색창에 입력할 주소는 한결시 윤슬구 보담길 59 나래뜰 104동 220호입니다.",
+    "person": [],
+    "address": [
+      "한결시 윤슬구 보담길 59 나래뜰 104동 220호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0261",
+    "text": "이사 뒤 새 주소는 새롬시 여울구 온새미로 60 다온누리 105동 221호입니다.",
+    "person": [],
+    "address": [
+      "새롬시 여울구 온새미로 60 다온누리 105동 221호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0262",
+    "text": "이번 달부터 지내는 곳은 가람시 소담구 초롱꽃길 61 별빛마루 106동 222호입니다.",
+    "person": [],
+    "address": [
+      "가람시 소담구 초롱꽃길 61 별빛마루 106동 222호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0263",
+    "text": "생활 실태 확인 장소는 누리시 초롱구 다온로 62 해솔정원 107동 223호입니다.",
+    "person": [],
+    "address": [
+      "누리시 초롱구 다온로 62 해솔정원 107동 223호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0264",
+    "text": "택배 수령 주소는 온빛시 미르구 이든별길 63 푸른여울 108동 224호입니다.",
+    "person": [],
+    "address": [
+      "온빛시 미르구 이든별길 63 푸른여울 108동 224호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0265",
+    "text": "지원 물품 수령지는 보담시 윤슬구 솔바람로 64 새봄채 101동 225호입니다.",
+    "person": [],
+    "address": [
+      "보담시 윤슬구 솔바람로 64 새봄채 101동 225호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0266",
+    "text": "주소 칸에 작성한 내용은 해솔시 여울구 해솔누리길 65 한결타운 102동 226호입니다.",
+    "person": [],
+    "address": [
+      "해솔시 여울구 해솔누리길 65 한결타운 102동 226호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0267",
+    "text": "가정 방문지로 확인한 곳은 별온시 소담구 윤슬로 66 보담하우스 103동 227호입니다.",
+    "person": [],
+    "address": [
+      "별온시 소담구 윤슬로 66 보담하우스 103동 227호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0268",
+    "text": "방문 전에 확인할 주소는 다온시 초롱구 푸른결길 67 윤슬마을 104동 228호입니다.",
+    "person": [],
+    "address": [
+      "다온시 초롱구 푸른결길 67 윤슬마을 104동 228호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0269",
+    "text": "방문 장소로 안내받은 주소는 푸른시 미르구 한마음로 68 가온빌 105동 229호입니다.",
+    "person": [],
+    "address": [
+      "푸른시 미르구 한마음로 68 가온빌 105동 229호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0270",
+    "text": "우편물을 받을 주소는 한결시 윤슬구 나래숲길 69 나래뜰 106동 230호입니다.",
+    "person": [],
+    "address": [
+      "한결시 윤슬구 나래숲길 69 나래뜰 106동 230호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0271",
+    "text": "새로 알려드릴 주소는 새롬시 여울구 가온누리로 70 다온누리 107동 231호입니다.",
+    "person": [],
+    "address": [
+      "새롬시 여울구 가온누리로 70 다온누리 107동 231호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0272",
+    "text": "서류를 보낼 주소는 가람시 소담구 구름빛길 71 별빛마루 108동 232호입니다.",
+    "person": [],
+    "address": [
+      "가람시 소담구 구름빛길 71 별빛마루 108동 232호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0273",
+    "text": "신청서에 적은 거주지는 누리시 초롱구 마루샘로 72 해솔정원 101동 233호입니다.",
+    "person": [],
+    "address": [
+      "누리시 초롱구 마루샘로 72 해솔정원 101동 233호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0274",
+    "text": "등기 서류를 받을 곳은 온빛시 미르구 여울목길 73 푸른여울 102동 234호입니다.",
+    "person": [],
+    "address": [
+      "온빛시 미르구 여울목길 73 푸른여울 102동 234호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0275",
+    "text": "현재 머무는 곳은 보담시 윤슬구 아라빛로 74 새봄채 103동 235호입니다.",
+    "person": [],
+    "address": [
+      "보담시 윤슬구 아라빛로 74 새봄채 103동 235호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0276",
+    "text": "목적지 입력란에 적을 주소는 해솔시 여울구 새봄길 75 한결타운 104동 236호입니다.",
+    "person": [],
+    "address": [
+      "해솔시 여울구 새봄길 75 한결타운 104동 236호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0277",
+    "text": "약속 장소의 정확한 주소는 별온시 소담구 별무리로 76 보담하우스 105동 237호입니다.",
+    "person": [],
+    "address": [
+      "별온시 소담구 별무리로 76 보담하우스 105동 237호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0278",
+    "text": "다음 상담 장소는 다온시 초롱구 고운달길 77 윤슬마을 106동 238호입니다.",
+    "person": [],
+    "address": [
+      "다온시 초롱구 고운달길 77 윤슬마을 106동 238호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0279",
+    "text": "상담 기록에 남긴 주소는 푸른시 미르구 해오름로 78 가온빌 107동 239호입니다.",
+    "person": [],
+    "address": [
+      "푸른시 미르구 해오름로 78 가온빌 107동 239호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0280",
+    "text": "지도 검색창에 입력할 주소는 한결시 윤슬구 보담길 79 나래뜰 108동 240호입니다.",
+    "person": [],
+    "address": [
+      "한결시 윤슬구 보담길 79 나래뜰 108동 240호"
+    ],
+    "strata": [
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0281",
+    "text": "가정 방문지로 확인한 곳은 41001 누리시 마루구 다온로 70 푸른여울 301동 501호입니다.",
+    "person": [],
+    "address": [
+      "41001 누리시 마루구 다온로 70 푸른여울 301동 501호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0282",
+    "text": "등기 서류를 받을 곳은 41138 온빛시 초롱구 해솔누리길 71입니다.",
+    "person": [],
+    "address": [
+      "41138 온빛시 초롱구 해솔누리길 71"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0283",
+    "text": "이사 뒤 새 주소는 41275 보담시 마루구 한마음로 72 한결타운 303동 503호입니다.",
+    "person": [],
+    "address": [
+      "41275 보담시 마루구 한마음로 72 한결타운 303동 503호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0284",
+    "text": "방문 전에 확인할 주소는 41412 해솔시 초롱구 구름빛길 73입니다.",
+    "person": [],
+    "address": [
+      "41412 해솔시 초롱구 구름빛길 73"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0285",
+    "text": "현재 머무는 곳은 41549 별온시 마루구 아라빛로 74 윤슬마을 305동 505호입니다.",
+    "person": [],
+    "address": [
+      "41549 별온시 마루구 아라빛로 74 윤슬마을 305동 505호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0286",
+    "text": "이번 달부터 지내는 곳은 41686 다온시 초롱구 고운달길 75입니다.",
+    "person": [],
+    "address": [
+      "41686 다온시 초롱구 고운달길 75"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0287",
+    "text": "방문 장소로 안내받은 주소는 41823 푸른시 마루구 온새미로 76 나래뜰 301동 507호입니다.",
+    "person": [],
+    "address": [
+      "41823 푸른시 마루구 온새미로 76 나래뜰 301동 507호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0288",
+    "text": "목적지 입력란에 적을 주소는 41960 한결시 초롱구 이든별길 77입니다.",
+    "person": [],
+    "address": [
+      "41960 한결시 초롱구 이든별길 77"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0289",
+    "text": "생활 실태 확인 장소는 42097 새롬시 마루구 윤슬로 78 별빛마루 303동 509호입니다.",
+    "person": [],
+    "address": [
+      "42097 새롬시 마루구 윤슬로 78 별빛마루 303동 509호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0290",
+    "text": "우편물을 받을 주소는 42234 가람시 초롱구 나래숲길 79입니다.",
+    "person": [],
+    "address": [
+      "42234 가람시 초롱구 나래숲길 79"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0291",
+    "text": "약속 장소의 정확한 주소는 42371 누리시 마루구 마루샘로 80 푸른여울 305동 511호입니다.",
+    "person": [],
+    "address": [
+      "42371 누리시 마루구 마루샘로 80 푸른여울 305동 511호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0292",
+    "text": "택배 수령 주소는 42508 온빛시 초롱구 새봄길 81입니다.",
+    "person": [],
+    "address": [
+      "42508 온빛시 초롱구 새봄길 81"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0293",
+    "text": "새로 알려드릴 주소는 42645 보담시 마루구 해오름로 82 한결타운 301동 513호입니다.",
+    "person": [],
+    "address": [
+      "42645 보담시 마루구 해오름로 82 한결타운 301동 513호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0294",
+    "text": "다음 상담 장소는 42782 해솔시 초롱구 초롱꽃길 83입니다.",
+    "person": [],
+    "address": [
+      "42782 해솔시 초롱구 초롱꽃길 83"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0295",
+    "text": "지원 물품 수령지는 42919 별온시 마루구 솔바람로 84 윤슬마을 303동 515호입니다.",
+    "person": [],
+    "address": [
+      "42919 별온시 마루구 솔바람로 84 윤슬마을 303동 515호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0296",
+    "text": "서류를 보낼 주소는 43056 다온시 초롱구 푸른결길 85입니다.",
+    "person": [],
+    "address": [
+      "43056 다온시 초롱구 푸른결길 85"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0297",
+    "text": "상담 기록에 남긴 주소는 43193 푸른시 마루구 가온누리로 86 나래뜰 305동 517호입니다.",
+    "person": [],
+    "address": [
+      "43193 푸른시 마루구 가온누리로 86 나래뜰 305동 517호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0298",
+    "text": "주소 칸에 작성한 내용은 43330 한결시 초롱구 여울목길 87입니다.",
+    "person": [],
+    "address": [
+      "43330 한결시 초롱구 여울목길 87"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0299",
+    "text": "신청서에 적은 거주지는 43467 새롬시 마루구 별무리로 88 별빛마루 301동 519호입니다.",
+    "person": [],
+    "address": [
+      "43467 새롬시 마루구 별무리로 88 별빛마루 301동 519호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0300",
+    "text": "지도 검색창에 입력할 주소는 43604 가람시 초롱구 보담길 89입니다.",
+    "person": [],
+    "address": [
+      "43604 가람시 초롱구 보담길 89"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0301",
+    "text": "가정 방문지로 확인한 곳은 43741 누리시 마루구 다온로 90 푸른여울 303동 521호입니다.",
+    "person": [],
+    "address": [
+      "43741 누리시 마루구 다온로 90 푸른여울 303동 521호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0302",
+    "text": "등기 서류를 받을 곳은 43878 온빛시 초롱구 해솔누리길 91입니다.",
+    "person": [],
+    "address": [
+      "43878 온빛시 초롱구 해솔누리길 91"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0303",
+    "text": "이사 뒤 새 주소는 44015 보담시 마루구 한마음로 92 한결타운 305동 523호입니다.",
+    "person": [],
+    "address": [
+      "44015 보담시 마루구 한마음로 92 한결타운 305동 523호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0304",
+    "text": "방문 전에 확인할 주소는 44152 해솔시 초롱구 구름빛길 93입니다.",
+    "person": [],
+    "address": [
+      "44152 해솔시 초롱구 구름빛길 93"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0305",
+    "text": "현재 머무는 곳은 44289 별온시 마루구 아라빛로 94 윤슬마을 301동 525호입니다.",
+    "person": [],
+    "address": [
+      "44289 별온시 마루구 아라빛로 94 윤슬마을 301동 525호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0306",
+    "text": "이번 달부터 지내는 곳은 44426 다온시 초롱구 고운달길 95입니다.",
+    "person": [],
+    "address": [
+      "44426 다온시 초롱구 고운달길 95"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0307",
+    "text": "방문 장소로 안내받은 주소는 44563 푸른시 마루구 온새미로 96 나래뜰 303동 527호입니다.",
+    "person": [],
+    "address": [
+      "44563 푸른시 마루구 온새미로 96 나래뜰 303동 527호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0308",
+    "text": "목적지 입력란에 적을 주소는 44700 한결시 초롱구 이든별길 97입니다.",
+    "person": [],
+    "address": [
+      "44700 한결시 초롱구 이든별길 97"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0309",
+    "text": "생활 실태 확인 장소는 44837 새롬시 마루구 윤슬로 98 별빛마루 305동 529호입니다.",
+    "person": [],
+    "address": [
+      "44837 새롬시 마루구 윤슬로 98 별빛마루 305동 529호"
+    ],
+    "strata": [
+      "postcode",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0310",
+    "text": "우편물을 받을 주소는 44974 가람시 초롱구 나래숲길 99입니다.",
+    "person": [],
+    "address": [
+      "44974 가람시 초롱구 나래숲길 99"
+    ],
+    "strata": [
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0311",
+    "text": "류가람 님이 알려 준 새 주소는 별온시 한빛구 푸른결길 201입니다.",
+    "person": [
+      "류가람"
+    ],
+    "address": [
+      "별온시 한빛구 푸른결길 201"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0312",
+    "text": "푸른시 나래구 온유동 302-12에 거주하는 엄라윤 님과 방문 시간을 정했습니다.",
+    "person": [
+      "엄라윤"
+    ],
+    "address": [
+      "푸른시 나래구 온유동 302-12"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0313",
+    "text": "지원 물품 수신인은 원새온, 배송지는 가람시 나래구 푸른결길 152 윤슬마을 203동 603호입니다.",
+    "person": [
+      "원새온"
+    ],
+    "address": [
+      "가람시 나래구 푸른결길 152 윤슬마을 203동 603호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0314",
+    "text": "천온결 선생님의 가정 방문지는 한결시 여울구 마루샘로 204입니다.",
+    "person": [
+      "천온결"
+    ],
+    "address": [
+      "한결시 여울구 마루샘로 204"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0315",
+    "text": "방지후 님이 새 주소를 알려 주셨습니다. 주소는 가람시 소담구 윤슬동 305-15입니다.",
+    "person": [
+      "방지후"
+    ],
+    "address": [
+      "가람시 소담구 윤슬동 305-15"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0316",
+    "text": "공해담에게 연락했고 만날 곳은 보담시 윤슬구 솔바람로 155 다온누리 206동 606호입니다.",
+    "person": [
+      "공해담"
+    ],
+    "address": [
+      "보담시 윤슬구 솔바람로 155 다온누리 206동 606호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0317",
+    "text": "신청자 현누빈의 서류 수령지는 누리시 마루구 고운달길 207입니다.",
+    "person": [
+      "현누빈"
+    ],
+    "address": [
+      "누리시 마루구 고운달길 207"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0318",
+    "text": "보담시 나래구 이든동 308-18에 도착하면 함미소 담당자님이 안내합니다.",
+    "person": [
+      "함미소"
+    ],
+    "address": [
+      "보담시 나래구 이든동 308-18"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0319",
+    "text": "변소은 님과의 다음 상담 장소는 다온시 마루구 초롱꽃길 158 푸른여울 202동 609호입니다.",
+    "person": [
+      "변소은"
+    ],
+    "address": [
+      "다온시 마루구 초롱꽃길 158 푸른여울 202동 609호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0320",
+    "text": "기록에 적힌 염태온의 거주지는 해솔시 윤슬구 다온로 210입니다.",
+    "person": [
+      "염태온"
+    ],
+    "address": [
+      "해솔시 윤슬구 다온로 210"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0321",
+    "text": "다온시 소담구 지안동 311-21에 도착하면 여한별 선생님께 전화해 주세요.",
+    "person": [
+      "여한별"
+    ],
+    "address": [
+      "다온시 소담구 지안동 311-21"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0322",
+    "text": "우편물 받는 사람은 추도담, 받는 곳은 새롬시 여울구 해오름로 161 보담하우스 205동 612호입니다.",
+    "person": [
+      "추도담"
+    ],
+    "address": [
+      "새롬시 여울구 해오름로 161 보담하우스 205동 612호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0323",
+    "text": "도하루 님이 현재 지내는 곳은 푸른시 나래구 푸른결길 213입니다.",
+    "person": [
+      "도하루"
+    ],
+    "address": [
+      "푸른시 나래구 푸른결길 213"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0324",
+    "text": "방문 대상자는 소보라이고 목적지는 새롬시 나래구 채운동 314-24입니다.",
+    "person": [
+      "소보라"
+    ],
+    "address": [
+      "새롬시 나래구 채운동 314-24"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0325",
+    "text": "온빛시 한빛구 새봄길 164 나래뜰 201동 615호에서 진행할 상담 일정을 석다해 님과 다시 잡았습니다.",
+    "person": [
+      "석다해"
+    ],
+    "address": [
+      "온빛시 한빛구 새봄길 164 나래뜰 201동 615호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0326",
+    "text": "선보민 담당자의 근무지가 아니라 방문할 가정 주소는 가람시 미르구 마루샘로 216입니다.",
+    "person": [
+      "선보민"
+    ],
+    "address": [
+      "가람시 미르구 마루샘로 216"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0327",
+    "text": "등기 수신인은 설여민, 배송 주소는 온빛시 소담구 하람동 317-27입니다.",
+    "person": [
+      "설여민"
+    ],
+    "address": [
+      "온빛시 소담구 하람동 317-27"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0328",
+    "text": "마이봄 상담사님이 별온시 소담구 마루샘로 167 해솔정원 204동 618호에 직접 찾아오기로 했어요.",
+    "person": [
+      "마이봄"
+    ],
+    "address": [
+      "별온시 소담구 마루샘로 167 해솔정원 204동 618호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0329",
+    "text": "새 연락 메모의 이름은 길하윤, 주소는 보담시 아람구 고운달길 219입니다.",
+    "person": [
+      "길하윤"
+    ],
+    "address": [
+      "보담시 아람구 고운달길 219"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0330",
+    "text": "별온시 나래구 해온동 320-30에서 만날 분은 연그림입니다.",
+    "person": [
+      "연그림"
+    ],
+    "address": [
+      "별온시 나래구 해온동 320-30"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0331",
+    "text": "위로운 님이 알려 준 새 주소는 한결시 이든구 나래숲길 170 한결타운 207동 621호입니다.",
+    "person": [
+      "위로운"
+    ],
+    "address": [
+      "한결시 이든구 나래숲길 170 한결타운 207동 621호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0332",
+    "text": "다온시 초롱구 다온로 222에 거주하는 표별찬 님과 방문 시간을 정했습니다.",
+    "person": [
+      "표별찬"
+    ],
+    "address": [
+      "다온시 초롱구 다온로 222"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0333",
+    "text": "지원 물품 수신인은 명지솔, 배송지는 한결시 소담구 겨울동 323-33입니다.",
+    "person": [
+      "명지솔"
+    ],
+    "address": [
+      "한결시 소담구 겨울동 323-33"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0334",
+    "text": "기푸른 선생님의 가정 방문지는 누리시 초롱구 윤슬로 173 가온빌 203동 624호입니다.",
+    "person": [
+      "기푸른"
+    ],
+    "address": [
+      "누리시 초롱구 윤슬로 173 가온빌 203동 624호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0335",
+    "text": "반가윤 님이 새 주소를 알려 주셨습니다. 주소는 새롬시 이든구 푸른결길 225입니다.",
+    "person": [
+      "반가윤"
+    ],
+    "address": [
+      "새롬시 이든구 푸른결길 225"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0336",
+    "text": "왕채움에게 연락했고 만날 곳은 누리시 나래구 그루동 326-13입니다.",
+    "person": [
+      "왕채움"
+    ],
+    "address": [
+      "누리시 나래구 그루동 326-13"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0337",
+    "text": "신청자 금나린의 서류 수령지는 해솔시 아람구 이든별길 176 별빛마루 206동 627호입니다.",
+    "person": [
+      "금나린"
+    ],
+    "address": [
+      "해솔시 아람구 이든별길 176 별빛마루 206동 627호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0338",
+    "text": "온빛시 소담구 마루샘로 228에 도착하면 옥나봄 담당자님이 안내합니다.",
+    "person": [
+      "옥나봄"
+    ],
+    "address": [
+      "온빛시 소담구 마루샘로 228"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0339",
+    "text": "육마온 님과의 다음 상담 장소는 해솔시 소담구 누리동 329-16입니다.",
+    "person": [
+      "육마온"
+    ],
+    "address": [
+      "해솔시 소담구 누리동 329-16"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0340",
+    "text": "기록에 적힌 인아진의 거주지는 푸른시 미르구 온새미로 179 새봄채 202동 630호입니다.",
+    "person": [
+      "인아진"
+    ],
+    "address": [
+      "푸른시 미르구 온새미로 179 새봄채 202동 630호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0341",
+    "text": "별온시 한빛구 고운달길 231에 도착하면 맹윤서 선생님께 전화해 주세요.",
+    "person": [
+      "맹윤서"
+    ],
+    "address": [
+      "별온시 한빛구 고운달길 231"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0342",
+    "text": "우편물 받는 사람은 모채린, 받는 곳은 푸른시 나래구 푸름동 332-19입니다.",
+    "person": [
+      "모채린"
+    ],
+    "address": [
+      "푸른시 나래구 푸름동 332-19"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0343",
+    "text": "탁겨온 님이 현재 지내는 곳은 가람시 나래구 고운달길 182 윤슬마을 205동 633호입니다.",
+    "person": [
+      "탁겨온"
+    ],
+    "address": [
+      "가람시 나래구 고운달길 182 윤슬마을 205동 633호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0344",
+    "text": "방문 대상자는 국다정이고 목적지는 한결시 여울구 다온로 234입니다.",
+    "person": [
+      "국다정"
+    ],
+    "address": [
+      "한결시 여울구 다온로 234"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0345",
+    "text": "가람시 소담구 가온동 335-22에서 진행할 상담 일정을 편바름 님과 다시 잡았습니다.",
+    "person": [
+      "편바름"
+    ],
+    "address": [
+      "가람시 소담구 가온동 335-22"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0346",
+    "text": "용예온 담당자의 근무지가 아니라 방문할 가정 주소는 보담시 윤슬구 아라빛로 185 다온누리 201동 636호입니다.",
+    "person": [
+      "용예온"
+    ],
+    "address": [
+      "보담시 윤슬구 아라빛로 185 다온누리 201동 636호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0347",
+    "text": "등기 수신인은 봉해봄, 배송 주소는 누리시 마루구 푸른결길 237입니다.",
+    "person": [
+      "봉해봄"
+    ],
+    "address": [
+      "누리시 마루구 푸른결길 237"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0348",
+    "text": "사초은 상담사님이 보담시 나래구 나래동 338-25에 직접 찾아오기로 했어요.",
+    "person": [
+      "사초은"
+    ],
+    "address": [
+      "보담시 나래구 나래동 338-25"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0349",
+    "text": "새 연락 메모의 이름은 부이룸, 주소는 다온시 마루구 구름빛길 188 푸른여울 204동 639호입니다.",
+    "person": [
+      "부이룸"
+    ],
+    "address": [
+      "다온시 마루구 구름빛길 188 푸른여울 204동 639호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0350",
+    "text": "해솔시 윤슬구 마루샘로 240에서 만날 분은 갈해든입니다.",
+    "person": [
+      "갈해든"
+    ],
+    "address": [
+      "해솔시 윤슬구 마루샘로 240"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0351",
+    "text": "류가람 님이 알려 준 새 주소는 다온시 소담구 다솜동 341-28입니다.",
+    "person": [
+      "류가람"
+    ],
+    "address": [
+      "다온시 소담구 다솜동 341-28"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0352",
+    "text": "새롬시 여울구 한마음로 191 보담하우스 207동 642호에 거주하는 엄라윤 님과 방문 시간을 정했습니다.",
+    "person": [
+      "엄라윤"
+    ],
+    "address": [
+      "새롬시 여울구 한마음로 191 보담하우스 207동 642호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0353",
+    "text": "지원 물품 수신인은 원새온, 배송지는 푸른시 나래구 고운달길 243입니다.",
+    "person": [
+      "원새온"
+    ],
+    "address": [
+      "푸른시 나래구 고운달길 243"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0354",
+    "text": "천온결 선생님의 가정 방문지는 새롬시 나래구 라온동 344-31입니다.",
+    "person": [
+      "천온결"
+    ],
+    "address": [
+      "새롬시 나래구 라온동 344-31"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0355",
+    "text": "방지후 님이 새 주소를 알려 주셨습니다. 주소는 온빛시 한빛구 해솔누리길 194 나래뜰 203동 645호입니다.",
+    "person": [
+      "방지후"
+    ],
+    "address": [
+      "온빛시 한빛구 해솔누리길 194 나래뜰 203동 645호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0356",
+    "text": "공해담에게 연락했고 만날 곳은 가람시 미르구 다온로 246입니다.",
+    "person": [
+      "공해담"
+    ],
+    "address": [
+      "가람시 미르구 다온로 246"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0357",
+    "text": "신청자 현누빈의 서류 수령지는 온빛시 소담구 마루동 347-11입니다.",
+    "person": [
+      "현누빈"
+    ],
+    "address": [
+      "온빛시 소담구 마루동 347-11"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0358",
+    "text": "별온시 소담구 다온로 197 해솔정원 206동 648호에 도착하면 함미소 담당자님이 안내합니다.",
+    "person": [
+      "함미소"
+    ],
+    "address": [
+      "별온시 소담구 다온로 197 해솔정원 206동 648호"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address",
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0359",
+    "text": "변소은 님과의 다음 상담 장소는 보담시 아람구 푸른결길 249입니다.",
+    "person": [
+      "변소은"
+    ],
+    "address": [
+      "보담시 아람구 푸른결길 249"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0360",
+    "text": "기록에 적힌 염태온의 거주지는 별온시 나래구 보담동 350-14입니다.",
+    "person": [
+      "염태온"
+    ],
+    "address": [
+      "별온시 나래구 보담동 350-14"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "lot-address"
+    ]
+  },
+  {
+    "id": "release-ko-0361",
+    "text": "52003 가람시 윤슬구 솔바람로 260에 거주하는 Arin Moon 님과 방문 시간을 정했습니다.",
+    "person": [
+      "Arin Moon"
+    ],
+    "address": [
+      "52003 가람시 윤슬구 솔바람로 260"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0362",
+    "text": "Ben Yang 님이 새 주소를 알려 주셨습니다. 주소는 52214 누리시 소담구 고운달길 261입니다.",
+    "person": [
+      "Ben Yang"
+    ],
+    "address": [
+      "52214 누리시 소담구 고운달길 261"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0363",
+    "text": "52425 온빛시 미르구 가온누리로 262에 도착하면 Chloe Son 담당자님이 안내합니다.",
+    "person": [
+      "Chloe Son"
+    ],
+    "address": [
+      "52425 온빛시 미르구 가온누리로 262"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0364",
+    "text": "52636 보담시 여울구 이든별길 263에 도착하면 Dylan Bae 선생님께 전화해 주세요.",
+    "person": [
+      "Dylan Bae"
+    ],
+    "address": [
+      "52636 보담시 여울구 이든별길 263"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0365",
+    "text": "방문 대상자는 Erin Baek이고 목적지는 52847 해솔시 초롱구 별무리로 264입니다.",
+    "person": [
+      "Erin Baek"
+    ],
+    "address": [
+      "52847 해솔시 초롱구 별무리로 264"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0366",
+    "text": "등기 수신인은 Felix Heo, 배송 주소는 53058 별온시 윤슬구 나래숲길 265입니다.",
+    "person": [
+      "Felix Heo"
+    ],
+    "address": [
+      "53058 별온시 윤슬구 나래숲길 265"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0367",
+    "text": "53269 다온시 소담구 다온로 266에서 만날 분은 Grace Nam입니다.",
+    "person": [
+      "Grace Nam"
+    ],
+    "address": [
+      "53269 다온시 소담구 다온로 266"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0368",
+    "text": "지원 물품 수신인은 Henry Sim, 배송지는 53480 푸른시 미르구 새봄길 267입니다.",
+    "person": [
+      "Henry Sim"
+    ],
+    "address": [
+      "53480 푸른시 미르구 새봄길 267"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0369",
+    "text": "Iris Noh에게 연락했고 만날 곳은 53691 한결시 여울구 한마음로 268입니다.",
+    "person": [
+      "Iris Noh"
+    ],
+    "address": [
+      "53691 한결시 여울구 한마음로 268"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0370",
+    "text": "Jason Ha 님과의 다음 상담 장소는 53902 새롬시 초롱구 초롱꽃길 269입니다.",
+    "person": [
+      "Jason Ha"
+    ],
+    "address": [
+      "53902 새롬시 초롱구 초롱꽃길 269"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0371",
+    "text": "우편물 받는 사람은 Kelly Kwak, 받는 곳은 54113 가람시 윤슬구 아라빛로 270입니다.",
+    "person": [
+      "Kelly Kwak"
+    ],
+    "address": [
+      "54113 가람시 윤슬구 아라빛로 270"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0372",
+    "text": "54324 누리시 소담구 푸른결길 271에서 진행할 상담 일정을 Liam Sung 님과 다시 잡았습니다.",
+    "person": [
+      "Liam Sung"
+    ],
+    "address": [
+      "54324 누리시 소담구 푸른결길 271"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0373",
+    "text": "May Cha 상담사님이 54535 온빛시 미르구 온새미로 272에 직접 찾아오기로 했어요.",
+    "person": [
+      "May Cha"
+    ],
+    "address": [
+      "54535 온빛시 미르구 온새미로 272"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0374",
+    "text": "Neil Joo 님이 알려 준 새 주소는 54746 보담시 여울구 여울목길 273입니다.",
+    "person": [
+      "Neil Joo"
+    ],
+    "address": [
+      "54746 보담시 여울구 여울목길 273"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0375",
+    "text": "Olivia Woo 선생님의 가정 방문지는 54957 해솔시 초롱구 윤슬로 274입니다.",
+    "person": [
+      "Olivia Woo"
+    ],
+    "address": [
+      "54957 해솔시 초롱구 윤슬로 274"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0376",
+    "text": "신청자 Paul Koo의 서류 수령지는 55168 별온시 윤슬구 보담길 275입니다.",
+    "person": [
+      "Paul Koo"
+    ],
+    "address": [
+      "55168 별온시 윤슬구 보담길 275"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0377",
+    "text": "기록에 적힌 Rina Min의 거주지는 55379 다온시 소담구 마루샘로 276입니다.",
+    "person": [
+      "Rina Min"
+    ],
+    "address": [
+      "55379 다온시 소담구 마루샘로 276"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0378",
+    "text": "Sam Jin 님이 현재 지내는 곳은 55590 푸른시 미르구 해솔누리길 277입니다.",
+    "person": [
+      "Sam Jin"
+    ],
+    "address": [
+      "55590 푸른시 미르구 해솔누리길 277"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "honorific",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0379",
+    "text": "Tina Ryu 담당자의 근무지가 아니라 방문할 가정 주소는 55801 한결시 여울구 해오름로 278입니다.",
+    "person": [
+      "Tina Ryu"
+    ],
+    "address": [
+      "55801 한결시 여울구 해오름로 278"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0380",
+    "text": "새 연락 메모의 이름은 Will Eom, 주소는 56012 새롬시 초롱구 구름빛길 279입니다.",
+    "person": [
+      "Will Eom"
+    ],
+    "address": [
+      "56012 새롬시 초롱구 구름빛길 279"
+    ],
+    "strata": [
+      "roman-name",
+      "name-length",
+      "postcode",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0381",
+    "text": "새봄지원단는 기관명이고 담당자는 김새봄, 방문지는 온빛시 초롱구 새봄길 330입니다.",
+    "person": [
+      "김새봄"
+    ],
+    "address": [
+      "온빛시 초롱구 새봄길 330"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "organization-ambiguity",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0382",
+    "text": "이다온님은 다온마음센터 소속이며 상담 장소는 보담시 나래구 마루샘로 331입니다.",
+    "person": [
+      "이다온"
+    ],
+    "address": [
+      "보담시 나래구 마루샘로 331"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "organization-ambiguity",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0383",
+    "text": "한결복지회가 아니라 개인 담당자 박한결에게 해솔시 여울구 나래숲길 332 방문을 요청했어요.",
+    "person": [
+      "박한결"
+    ],
+    "address": [
+      "해솔시 여울구 나래숲길 332"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "organization-ambiguity",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0384",
+    "text": "기관 나래돌봄소의 연락 창구는 최나래이고 서류 받을 곳은 별온시 이든구 윤슬로 333입니다.",
+    "person": [
+      "최나래"
+    ],
+    "address": [
+      "별온시 이든구 윤슬로 333"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "organization-ambiguity",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0385",
+    "text": "다온시 미르구 이든별길 334에서 만날 사람은 가온생활관라는 기관이 아니라 정가온입니다.",
+    "person": [
+      "정가온"
+    ],
+    "address": [
+      "다온시 미르구 이든별길 334"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "organization-ambiguity",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0386",
+    "text": "여울협동회는 기관명이고 담당자는 강여울, 방문지는 푸른시 마루구 온새미로 335입니다.",
+    "person": [
+      "강여울"
+    ],
+    "address": [
+      "푸른시 마루구 온새미로 335"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "organization-ambiguity",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0387",
+    "text": "조보담님은 보담지원소 소속이며 상담 장소는 한결시 소담구 고운달길 336입니다.",
+    "person": [
+      "조보담"
+    ],
+    "address": [
+      "한결시 소담구 고운달길 336"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "organization-ambiguity",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0388",
+    "text": "해솔연대가 아니라 개인 담당자 윤해솔에게 새롬시 아람구 아라빛로 337 방문을 요청했어요.",
+    "person": [
+      "윤해솔"
+    ],
+    "address": [
+      "새롬시 아람구 아라빛로 337"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "organization-ambiguity",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0389",
+    "text": "기관 윤슬상담실의 연락 창구는 장윤슬이고 서류 받을 곳은 가람시 윤슬구 구름빛길 338입니다.",
+    "person": [
+      "장윤슬"
+    ],
+    "address": [
+      "가람시 윤슬구 구름빛길 338"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "organization-ambiguity",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0390",
+    "text": "누리시 한빛구 한마음로 339에서 만날 사람은 이든나눔회라는 기관이 아니라 임이든입니다.",
+    "person": [
+      "임이든"
+    ],
+    "address": [
+      "누리시 한빛구 한마음로 339"
+    ],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "honorific",
+      "organization-ambiguity",
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0391",
+    "text": "요즘은 서울 지역의 지원 제도를 알아보고 있어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0392",
+    "text": "부산 쪽으로 이동할 가능성만 있고 주소는 아직 정하지 않았습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0393",
+    "text": "상담 대상 지역이 대구인지 확인하는 중이에요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0394",
+    "text": "인천에서 살고 싶다는 희망만 이야기했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0395",
+    "text": "이번 교육은 광주 권역을 대상으로 합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0396",
+    "text": "대전 관련 소식이 궁금해서 문의드렸습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0397",
+    "text": "가족이 울산 어딘가에 있다는 말만 들었어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0398",
+    "text": "세종 전체를 비교한 뒤 결정하려고 합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0399",
+    "text": "계획서에는 넓은 지역 이름으로 경기도만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0400",
+    "text": "강원도 방문 일정은 아직 구체적인 장소 없이 논의 중입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0401",
+    "text": "요즘은 충청북도 지역의 지원 제도를 알아보고 있어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0402",
+    "text": "충청남도 쪽으로 이동할 가능성만 있고 주소는 아직 정하지 않았습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0403",
+    "text": "상담 대상 지역이 전라북도인지 확인하는 중이에요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0404",
+    "text": "전라남도에서 살고 싶다는 희망만 이야기했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0405",
+    "text": "이번 교육은 경상북도 권역을 대상으로 합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0406",
+    "text": "경상남도 관련 소식이 궁금해서 문의드렸습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0407",
+    "text": "가족이 제주도 어딘가에 있다는 말만 들었어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0408",
+    "text": "수도권 전체를 비교한 뒤 결정하려고 합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0409",
+    "text": "계획서에는 넓은 지역 이름으로 영남권만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0410",
+    "text": "호남권 방문 일정은 아직 구체적인 장소 없이 논의 중입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0411",
+    "text": "서울 쪽으로 이동할 가능성만 있고 주소는 아직 정하지 않았습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0412",
+    "text": "상담 대상 지역이 부산인지 확인하는 중이에요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0413",
+    "text": "대구에서 살고 싶다는 희망만 이야기했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0414",
+    "text": "이번 교육은 인천 권역을 대상으로 합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0415",
+    "text": "광주 관련 소식이 궁금해서 문의드렸습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0416",
+    "text": "가족이 대전 어딘가에 있다는 말만 들었어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0417",
+    "text": "울산 전체를 비교한 뒤 결정하려고 합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0418",
+    "text": "계획서에는 넓은 지역 이름으로 세종만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0419",
+    "text": "경기도 방문 일정은 아직 구체적인 장소 없이 논의 중입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0420",
+    "text": "요즘은 강원도 지역의 지원 제도를 알아보고 있어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0421",
+    "text": "충청북도 쪽으로 이동할 가능성만 있고 주소는 아직 정하지 않았습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0422",
+    "text": "상담 대상 지역이 충청남도인지 확인하는 중이에요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0423",
+    "text": "전라북도에서 살고 싶다는 희망만 이야기했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0424",
+    "text": "이번 교육은 전라남도 권역을 대상으로 합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0425",
+    "text": "경상북도 관련 소식이 궁금해서 문의드렸습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0426",
+    "text": "가족이 경상남도 어딘가에 있다는 말만 들었어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0427",
+    "text": "제주도 전체를 비교한 뒤 결정하려고 합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0428",
+    "text": "계획서에는 넓은 지역 이름으로 수도권만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0429",
+    "text": "영남권 방문 일정은 아직 구체적인 장소 없이 논의 중입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0430",
+    "text": "요즘은 호남권 지역의 지원 제도를 알아보고 있어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0431",
+    "text": "이번에 협력하는 기관 이름은 김하늘센터입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0432",
+    "text": "담당자 개인 이름은 모르고 기관명 이로운재단만 들었어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0433",
+    "text": "회의 자료에는 박새봄상사의 기관 일정만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0434",
+    "text": "후원 물품을 보낸 곳은 최다온협동회이며 특정 개인에게 보낸 것은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0435",
+    "text": "안내문 상단의 기관명은 정가온복지관이며 사람 이름이 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0436",
+    "text": "협약 여부를 검토하는 기관은 강한결연구소입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0437",
+    "text": "이번 교육을 주최하는 곳은 조나래지원단입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0438",
+    "text": "윤보담상담실의 대표 번호만 필요하고 개인 연락처는 필요 없습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0439",
+    "text": "보고서에서는 장해솔연대를 참여 기관으로 분류했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0440",
+    "text": "간판에 적힌 기관명은 임윤슬교육원입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0441",
+    "text": "이번에 협력하는 기관 이름은 한이든생활관입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0442",
+    "text": "담당자 개인 이름은 모르고 기관명 오여울네트워크만 들었어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0443",
+    "text": "회의 자료에는 서마루돌봄소의 기관 일정만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0444",
+    "text": "후원 물품을 보낸 곳은 신온유모임이며 특정 개인에게 보낸 것은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0445",
+    "text": "안내문 상단의 기관명은 권다솜나눔회이며 사람 이름이 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0446",
+    "text": "협약 여부를 검토하는 기관은 황라온센터입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0447",
+    "text": "이번 교육을 주최하는 곳은 안채운기획입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0448",
+    "text": "송하람공방의 대표 번호만 필요하고 개인 연락처는 필요 없습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0449",
+    "text": "보고서에서는 전누리배움터를 참여 기관으로 분류했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0450",
+    "text": "간판에 적힌 기관명은 홍지안협회입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0451",
+    "text": "이번에 협력하는 기관 이름은 유푸름프로젝트입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0452",
+    "text": "담당자 개인 이름은 모르고 기관명 고초롱식당만 들었어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0453",
+    "text": "회의 자료에는 문아라서점의 기관 일정만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0454",
+    "text": "후원 물품을 보낸 곳은 양새온스튜디오이며 특정 개인에게 보낸 것은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0455",
+    "text": "안내문 상단의 기관명은 손가람클럽이며 사람 이름이 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0456",
+    "text": "협약 여부를 검토하는 기관은 배해담위원회입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0457",
+    "text": "이번 교육을 주최하는 곳은 백로운센터입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0458",
+    "text": "허미소공동체의 대표 번호만 필요하고 개인 연락처는 필요 없습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0459",
+    "text": "보고서에서는 남바름기금를 참여 기관으로 분류했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0460",
+    "text": "간판에 적힌 기관명은 심별찬연구회입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0461",
+    "text": "이번에 협력하는 기관 이름은 노소은상담소입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0462",
+    "text": "담당자 개인 이름은 모르고 기관명 하예온지원회만 들었어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0463",
+    "text": "회의 자료에는 곽지솔사무소의 기관 일정만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0464",
+    "text": "후원 물품을 보낸 곳은 성태온돌봄회이며 특정 개인에게 보낸 것은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0465",
+    "text": "안내문 상단의 기관명은 차해봄협동조합이며 사람 이름이 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0466",
+    "text": "협약 여부를 검토하는 기관은 주한별네트워크입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0467",
+    "text": "이번 교육을 주최하는 곳은 우가윤문화원입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0468",
+    "text": "구도담교육소의 대표 번호만 필요하고 개인 연락처는 필요 없습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0469",
+    "text": "보고서에서는 민이룸재단를 참여 기관으로 분류했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0470",
+    "text": "간판에 적힌 기관명은 진채움복지회입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0471",
+    "text": "이번에 협력하는 기관 이름은 류하루기획단입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0472",
+    "text": "담당자 개인 이름은 모르고 기관명 엄해든도서관만 들었어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0473",
+    "text": "회의 자료에는 원나린센터의 기관 일정만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0474",
+    "text": "후원 물품을 보낸 곳은 천보라생활회이며 특정 개인에게 보낸 것은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0475",
+    "text": "안내문 상단의 기관명은 방다해지원소이며 사람 이름이 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0476",
+    "text": "협약 여부를 검토하는 기관은 공라윤연구원입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0477",
+    "text": "이번 교육을 주최하는 곳은 현마온돌봄터입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0478",
+    "text": "함보민나눔단의 대표 번호만 필요하고 개인 연락처는 필요 없습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0479",
+    "text": "보고서에서는 변아진상담회를 참여 기관으로 분류했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0480",
+    "text": "간판에 적힌 기관명은 염여민복지소입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0481",
+    "text": "거주지 설명에 \"중앙로 근처\"만 있어 정확한 주소는 아직 모릅니다.",
+    "person": [],
+    "address": [
+      "중앙로"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0482",
+    "text": "만남 장소 설명은 \"시장 뒤편\"이고 번지는 정하지 않았어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "road-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0483",
+    "text": "기억나는 위치 표현은 \"강변 쪽\" 정도라서 방문지를 특정할 수 없습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "road-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0484",
+    "text": "방향 설명에 \"역 앞 골목\"만 있고 주소 칸은 비어 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "road-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0485",
+    "text": "상담 중 \"학교 건너편\" 표현이 나왔지만 거주지로 확인된 곳은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "road-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0486",
+    "text": "행사 장소 설명은 \"공원 옆\"뿐이라 배송 주소로 쓸 수 없어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "road-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0487",
+    "text": "메모에는 길찾기 힌트로 \"터미널 부근\"만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "road-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0488",
+    "text": "안내받은 말은 \"큰길 안쪽\"까지 오면 다시 전화하라는 내용입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "road-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0489",
+    "text": "거주지 설명에 \"다리 아래쪽\"만 있어 정확한 주소는 아직 모릅니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "road-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0490",
+    "text": "만남 장소 설명은 \"도서관 주변\"이고 번지는 정하지 않았어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "road-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0491",
+    "text": "기억나는 위치 표현은 \"새봄길 방향\" 정도라서 방문지를 특정할 수 없습니다.",
+    "person": [],
+    "address": [
+      "새봄길"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0492",
+    "text": "방향 설명에 \"한빛로 일대\"만 있고 주소 칸은 비어 있습니다.",
+    "person": [],
+    "address": [
+      "한빛로"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0493",
+    "text": "상담 중 \"가온동 부근\" 표현이 나왔지만 거주지로 확인된 곳은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0494",
+    "text": "행사 장소 설명은 \"나래구 쪽\"뿐이라 배송 주소로 쓸 수 없어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0495",
+    "text": "메모에는 길찾기 힌트로 \"푸른시 외곽\"만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0496",
+    "text": "안내받은 말은 \"마루아파트 근처\"까지 오면 다시 전화하라는 내용입니다.",
+    "person": [],
+    "address": [
+      "마루아파트"
+    ],
+    "strata": [
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0497",
+    "text": "거주지 설명에 \"101동 앞\"만 있어 정확한 주소는 아직 모릅니다.",
+    "person": [],
+    "address": [
+      "101동"
+    ],
+    "strata": [
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0499",
+    "text": "기억나는 위치 표현은 \"오른쪽 두 번째 문\" 정도라서 방문지를 특정할 수 없습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0500",
+    "text": "방향 설명에 \"버스 종점 근방\"만 있고 주소 칸은 비어 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0501",
+    "text": "상담 중 \"옛 우체국 자리\" 표현이 나왔지만 거주지로 확인된 곳은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0502",
+    "text": "행사 장소 설명은 \"보건소 맞은편\"뿐이라 배송 주소로 쓸 수 없어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0503",
+    "text": "메모에는 길찾기 힌트로 \"북쪽 언덕\"만 적혀 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0504",
+    "text": "안내받은 말은 \"남문 주변\"까지 오면 다시 전화하라는 내용입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0505",
+    "text": "거주지 설명에 \"상가 뒤쪽\"만 있어 정확한 주소는 아직 모릅니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0506",
+    "text": "만남 장소 설명은 \"주차장 입구\"이고 번지는 정하지 않았어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0507",
+    "text": "기억나는 위치 표현은 \"하천 산책로\" 정도라서 방문지를 특정할 수 없습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0508",
+    "text": "방향 설명에 \"복지관 인근\"만 있고 주소 칸은 비어 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0509",
+    "text": "상담 중 \"은행 사거리\" 표현이 나왔지만 거주지로 확인된 곳은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0510",
+    "text": "행사 장소 설명은 \"작은 놀이터 옆\"뿐이라 배송 주소로 쓸 수 없어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0511",
+    "text": "메모에는 길찾기 힌트로 \"별무리로 방향\"만 적혀 있습니다.",
+    "person": [],
+    "address": [
+      "별무리로"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0512",
+    "text": "안내받은 말은 \"윤슬동 일대\"까지 오면 다시 전화하라는 내용입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0513",
+    "text": "거주지 설명에 \"해솔시 안쪽\"만 있어 정확한 주소는 아직 모릅니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "lot-address",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0514",
+    "text": "만남 장소 설명은 \"나래숲길 근처\"이고 번지는 정하지 않았어요.",
+    "person": [],
+    "address": [
+      "나래숲길"
+    ],
+    "strata": [
+      "road-address"
+    ]
+  },
+  {
+    "id": "release-ko-0516",
+    "text": "방향 설명에 \"우편번호 앞자리 41\"만 있고 주소 칸은 비어 있습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "postcode",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0517",
+    "text": "상담 중 \"오백이호 회의실\" 표현이 나왔지만 거주지로 확인된 곳은 아닙니다.",
+    "person": [],
+    "address": [
+      "오백이호"
+    ],
+    "strata": [
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0518",
+    "text": "행사 장소 설명은 \"가동 출입구\"뿐이라 배송 주소로 쓸 수 없어요.",
+    "person": [],
+    "address": [
+      "가동"
+    ],
+    "strata": [
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0520",
+    "text": "안내받은 말은 \"마을회관 주변\"까지 오면 다시 전화하라는 내용입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0521",
+    "text": "김이 많이 올라와서 창문을 잠시 열었어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0522",
+    "text": "이는 지난달과 비교한 비율일 뿐 사람을 뜻하지 않습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0523",
+    "text": "박을 심을 텃밭 자리를 상담 중에 이야기했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0524",
+    "text": "최고라는 표현을 줄여 최라고 메모한 것은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0525",
+    "text": "정이 들어서 오래 쓰던 물건을 버리기 어렵다고 했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0526",
+    "text": "강이 범람하지 않을까 걱정된다는 일반적인 대화였습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0527",
+    "text": "조를 나누어 프로그램을 진행하기로 했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0528",
+    "text": "윤이 나는 바닥이라 미끄럽지 않은지 살폈습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0529",
+    "text": "장이 열리는 날에 장을 보겠다는 이야기였어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0530",
+    "text": "임시 표기를 줄여 임이라고 쓴 업무 메모입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0531",
+    "text": "한결 마음이 편해졌다는 소감을 남겼어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0532",
+    "text": "새봄이 오면 산책을 늘리고 싶다고 했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0533",
+    "text": "가온이라는 순우리말의 뜻을 교육 시간에 설명했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0534",
+    "text": "다온은 캠페인 표어에 쓰인 단어일 뿐 개인 이름이 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0535",
+    "text": "라온이라는 프로그램 이름을 다음 달에도 유지합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0536",
+    "text": "마루가 미끄러워서 안전 매트를 놓기로 했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0537",
+    "text": "보담이라는 행사 표어를 포스터에 크게 적었습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0538",
+    "text": "아라는 감탄사가 아니라 교재의 예시 음절입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0539",
+    "text": "여울이 깊어지는 계절이라 야외 활동을 줄였어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0540",
+    "text": "온유한 말투가 중요하다는 상담 교육 내용이었습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0541",
+    "text": "윤슬이 보이는 강가 사진을 자료에 넣었어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0542",
+    "text": "이든은 조건을 나타내는 문법 예시의 일부입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0543",
+    "text": "지안은 내부 프로젝트의 짧은 코드명으로만 사용합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0544",
+    "text": "채운 빈칸을 다시 확인해 달라는 문서 작업 요청입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0545",
+    "text": "하람은 신규 과정의 이름이고 수강생 이름은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0546",
+    "text": "해온 일을 차례로 정리해 보자는 뜻으로 말했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0547",
+    "text": "겨울이 길어서 난방비가 걱정된다는 상담이었습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0548",
+    "text": "그루 수를 세어 화단 관리표에 적었습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0549",
+    "text": "누리집 사용법을 줄여 누리라고 부르는 팀 용어입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0550",
+    "text": "다솜은 봉사 프로그램 명칭이며 참여자 개인 이름은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "korean-surname",
+      "name-length",
+      "hard-negative",
+      "organization-ambiguity"
+    ]
+  },
+  {
+    "id": "release-ko-0551",
+    "text": "Mina는 사람 이름이 아니라 이번 달 내부 앱의 코드명입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0552",
+    "text": "Joon이라는 글자는 교육용 샘플 로고에만 들어갑니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0553",
+    "text": "Alex 프로젝트의 예산표를 검토했지만 담당자 이름은 적지 않았어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0554",
+    "text": "Sora 캠페인은 기관 전체가 운영하는 행사명입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0555",
+    "text": "Noah 버전으로 문서를 저장하자는 파일 규칙 이야기였습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0557",
+    "text": "Daniel은 시연용 챗봇 이름으로 정한 단어입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0558",
+    "text": "Hana 과정은 하나씩 배우자는 뜻에서 붙인 교육명입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0559",
+    "text": "Leo 표시는 회의실 장비의 자산 코드입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0560",
+    "text": "Emma 템플릿을 골랐다는 디자인 작업 메모입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0561",
+    "text": "Ian 단계는 업무 절차의 첫 구간을 뜻합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0562",
+    "text": "Lina 앱을 업데이트했지만 사용자 이름은 입력하지 않았어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0563",
+    "text": "Evan 표는 월별 합계를 보여 주는 보고서 양식입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0564",
+    "text": "Mia 카드는 홍보물 형식의 이름이지 사람 카드가 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0565",
+    "text": "Theo 규칙은 교육 게임에서만 쓰는 약속입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0567",
+    "text": "June 일정은 6월 계획을 영어로 표시한 제목입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0568",
+    "text": "Ryan 모드는 장비 점검용 설정 이름입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0570",
+    "text": "Nari 표식은 자료 분류용 태그로만 사용했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "roman-name",
+      "organization-ambiguity",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0571",
+    "text": "101동 회의실에서 교육하지만 거주지 주소는 수집하지 않습니다.",
+    "person": [],
+    "address": [
+      "101동"
+    ],
+    "strata": [
+      "building-unit"
+    ]
+  },
+  {
+    "id": "release-ko-0572",
+    "text": "203호는 문서 양식 번호이고 방 번호가 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0573",
+    "text": "우편번호처럼 보이는 41001은 이번 접수 순번입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "postcode",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0574",
+    "text": "52003은 교육 자료의 페이지 식별자일 뿐입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "postcode",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0575",
+    "text": "가동과 나동은 행사 조 편성 이름으로 사용했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0576",
+    "text": "삼층이라는 표현은 지원 단계의 세 번째 층위를 뜻합니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0577",
+    "text": "12-7은 상담 회차 표기이고 지번이 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0578",
+    "text": "별무리로 가자는 말은 방향을 정하자는 비유였습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0579",
+    "text": "새봄길은 프로그램의 다섯 번째 과정 이름입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0580",
+    "text": "301호 서식이라는 내부 양식명을 검토했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0581",
+    "text": "우편번호 칸은 비워 두고 신청서를 먼저 저장했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "postcode",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0582",
+    "text": "아파트 동과 호를 아직 묻지 않았다고 기록했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0583",
+    "text": "번지 정보 없이 건물 이름만 들은 상태입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0584",
+    "text": "도로명은 다음 통화에서 확인하기로 했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0585",
+    "text": "주소 숫자가 지워져서 정확한 방문지는 모릅니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0588",
+    "text": "70012는 영수증 번호라서 주소와 관계없습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "postcode",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0589",
+    "text": "2호선 출구를 말했을 뿐 집 주소를 말한 것은 아닙니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "building-unit",
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0591",
+    "text": "오늘은 식사와 수면 상태를 간단히 점검했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0592",
+    "text": "다음 주에 다시 통화하기로 하고 상담을 마쳤어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0593",
+    "text": "필요한 서류 목록을 천천히 읽어 드렸습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0594",
+    "text": "지원 신청을 계속할지 가족과 상의해 보기로 했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0595",
+    "text": "비가 오면 방문 일정을 미룰 수 있다고 안내했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0596",
+    "text": "최근 지출이 늘어 예산을 다시 짜고 싶다고 했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0597",
+    "text": "아이 돌봄 시간을 조정할 방법을 함께 찾아봤어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0598",
+    "text": "서류 작성 중 모르는 항목은 비워 두기로 했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0599",
+    "text": "아침보다 오후 통화가 편하다는 의견을 들었습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0600",
+    "text": "교육 자료를 종이로 받을지 파일로 받을지 고민 중입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0601",
+    "text": "지난 상담 이후 마음이 조금 편해졌다고 했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0602",
+    "text": "오늘은 개인정보를 말하지 않고 절차만 문의했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0603",
+    "text": "대기 시간이 길어지면 문자로 알려 달라고 요청했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0604",
+    "text": "신청 기한을 달력에 표시하고 준비 순서를 정했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0605",
+    "text": "방문보다는 전화 상담을 먼저 받고 싶다고 했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0606",
+    "text": "필요하면 통역 지원을 신청할 수 있다고 설명했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0607",
+    "text": "제출한 서류의 사본을 보관해 두기로 했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0608",
+    "text": "이번 달 목표는 규칙적으로 식사하는 것입니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0609",
+    "text": "상담 내용은 동의한 범위에서만 기록하기로 했어요.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  },
+  {
+    "id": "release-ko-0610",
+    "text": "오늘 안내가 충분했고 추가 질문은 없다고 했습니다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "hard-negative"
+    ]
+  }
+]

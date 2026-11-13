@@ -1,0 +1,36 @@
+{
+  "items": 601,
+  "uniqueTexts": 601,
+  "negatives": 201,
+  "personSpans": 240,
+  "addressSpans": 250,
+  "corpusHash": "8fe927f79ad4e84d6ed1440b069e099e15c50618226c6727781e73f00ee321f4",
+  "correctedIds": [
+    "0481",
+    "0491",
+    "0492",
+    "0496",
+    "0497",
+    "0511",
+    "0514",
+    "0517",
+    "0518",
+    "0571"
+  ],
+  "removedAmbiguousIds": [
+    "0498",
+    "0515",
+    "0519",
+    "0556",
+    "0566",
+    "0569",
+    "0586",
+    "0587",
+    "0590"
+  ],
+  "frozenBeforeInference": true,
+  "reviewedRows": 617,
+  "independentReviewer": "BlindCorpusReview",
+  "templateCorrelationLimit": "Synthetic stratified corpus, not a representative sample of real counseling",
+  "frozenAt": "2026-09-06T07:18:37.791Z"
+}

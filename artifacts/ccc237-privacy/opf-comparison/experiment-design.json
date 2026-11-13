@@ -1,0 +1,343 @@
+{
+  "schema": "ccc237.opf-comparison.experiment-design.v1",
+  "status": "frozen_diagnostic_design_before_inference",
+  "purpose": "Compare the frozen CCC contextual-gate baseline with the pinned OpenAI Privacy Filter candidate on the same synthetic diagnostics. This experiment can expose defects and operational facts; it is not a product contract, qualification, adoption, release, or downstream-processing decision.",
+  "freeze": {
+    "fixedBeforeCandidateInference": true,
+    "candidateFinalOutputVisibleBeforeFreeze": false,
+    "postInferenceChangesForbidden": [
+      "corpus text, gold spans, preserve phrases, strata, or case membership",
+      "baseline model, revision, runtime, decoder, or provenance scoring",
+      "candidate code revision, weights revision, native decoder defaults, token window, labels, or CPU thread count",
+      "metric definitions, denominators, span-overlap rules, or interpretation rules"
+    ],
+    "resultDrivenTuning": false,
+    "promptTuning": false,
+    "modelTuning": false,
+    "maskingThresholdTuningApproved": false,
+    "classifierChangeApproved": false,
+    "fallbackApproved": false
+  },
+  "designSources": {
+    "hashAlgorithm": "SHA-256 over each file's original bytes, computed with Python standard-library hashlib",
+    "files": {
+      "artifacts/ccc237-privacy/context-gate/measurement-design.json": "f2737e0b985f16a5ec1ec2940aa8ea2a0fc2c7e52a747ddf31181de3df7dfa67",
+      "artifacts/ccc237-privacy/context-gate/corpus.json": "56958278f02f27916180bb820dc57ca745581115e0a5c871370b200fbe5501dd",
+      "artifacts/ccc237-privacy/context-gate/gate_core.py": "cad564ca807e4f826b75ce3385e35059779b45232a4f42e808758d0e7769b351",
+      "artifacts/ccc237-privacy/context-gate/human-review-clarifications.json": "2c4e7343af3dd8f18901d1db278ecbc36e67471a7f6f44fb887edb42d19ed310",
+      "artifacts/ccc237-privacy/context-gate/open-source-search-criteria.json": "ed8413d452e5e67b80f76617b31e4a0813dc933253ab8044023ca9587b8bf614"
+    },
+    "mismatchRule": "A hash mismatch blocks the run. It must be reported as source_hash_mismatch; the runner must not silently accept or rewrite a changed source."
+  },
+  "corpus": {
+    "source": "artifacts/ccc237-privacy/context-gate/corpus.json",
+    "sha256": "56958278f02f27916180bb820dc57ca745581115e0a5c871370b200fbe5501dd",
+    "reuse": "exact original 24 cases previously used for the contextual-gate diagnostics",
+    "caseCount": 24,
+    "caseIds": [
+      "cg-001",
+      "cg-002",
+      "cg-003",
+      "cg-004",
+      "cg-005",
+      "cg-006",
+      "cg-007",
+      "cg-008",
+      "cg-009",
+      "cg-010",
+      "cg-011",
+      "cg-012",
+      "cg-013",
+      "cg-014",
+      "cg-015",
+      "cg-016",
+      "cg-017",
+      "cg-018",
+      "cg-019",
+      "cg-020",
+      "cg-021",
+      "cg-022",
+      "cg-023",
+      "cg-024"
+    ],
+    "positiveCaseCount": 15,
+    "targetNegativeCaseCount": 9,
+    "targetNegativeCaseIds": [
+      "cg-016",
+      "cg-017",
+      "cg-018",
+      "cg-019",
+      "cg-020",
+      "cg-021",
+      "cg-022",
+      "cg-023",
+      "cg-024"
+    ],
+    "goldSpanCounts": {
+      "person": 9,
+      "address": 3,
+      "identifier": 5,
+      "contextual": 5
+    },
+    "goldEdits": false,
+    "goldRemoval": false,
+    "relabeling": false,
+    "newCoreCases": false,
+    "priorUseDisclosure": "These are the same previously used diagnostic cases, not an independent new qualification corpus. Human reviewers have already seen parts of the corpus and its labels, so this comparison is not truly blind."
+  },
+  "humanReviewInterpretation": {
+    "reviewedDirectPositiveCases": {
+      "cg-007": "The ordinary word 봄 is semantically a person's name in the source context and remains aligned with the original person gold.",
+      "cg-004": "The detailed visit location remains semantically aligned with the original address gold.",
+      "cg-014": "The case identifier and email address remain semantically aligned with the original identifier gold."
+    },
+    "effect": "The three reviewed positives support the semantic meaning of their existing direct-identifier annotations only. They do not approve a model, output, threshold, classifier, fallback, product change, or release.",
+    "roleInferenceGate": {
+      "status": "mandatory_and_unadjudicated",
+      "rule": "A workplace or facility role may be retained only after determining that the role alone cannot be used to infer the workplace or facility. Masking a facility name or receiving a person, address, or identifier label does not automatically satisfy this gate.",
+      "explicitlyIncludes": [
+        "cg-008"
+      ],
+      "otherFrozenContextualCases": [
+        "cg-011",
+        "cg-015"
+      ],
+      "cg-008": "The existing facility-name and unique-night-guide contextual gold remains unchanged. Whether the role alone identifies the workplace is not adjudicated.",
+      "scoringBoundary": "Contextual gold is scored and reported separately. Removal of old contextual gold is descriptive evidence that annotated characters were made opaque, not proof that re-identification risk is resolved. Retention is likewise an unresolved review item, not automatic proof of a privacy leak. Contextual results must never be pooled with direct person/address/identifier results."
+    }
+  },
+  "baseline": {
+    "reuse": "frozen original contextual-gate baseline; no golden edits and no baseline changes",
+    "model": "FrameByFrame/korean-pii-e5-base",
+    "revision": "a308c54b4407819624a5661e31e162a269f39818",
+    "runtime": "torch==2.8.0;transformers==4.53.3",
+    "device": "cpu",
+    "threads": 2,
+    "decoder": "actual current masking.decode_ner_entities",
+    "pipeline": "actual current masking.mask observed with original-character provenance through gate_core.baseline_trace",
+    "comparisonPoint": "before is the frozen baseline trace; after is the same trace with validated OPF spans made opaque",
+    "changeOnUnavailable": "Do not substitute another baseline. Report the baseline load or structural failure."
+  },
+  "candidate": {
+    "name": "OpenAI Privacy Filter",
+    "sourceCodeRevision": "f7f00ca7fb869683eb732c010299d901457f19c3",
+    "weightsRepository": "openai/privacy-filter",
+    "weightsRevision": "7ffa9a043d54d1be65afb281eddf0ffbe629385b",
+    "sourceImport": "Main supplies PYTHONPATH to the fixed OPF source checkout; no runtime source fetch or remote code execution is allowed.",
+    "device": "native CPU only",
+    "threads": 2,
+    "nativeTokenWindow": 4096,
+    "decoder": "official calibrated default decoder with no overridden masking threshold",
+    "outputKinds": [
+      "person",
+      "address",
+      "identifier"
+    ],
+    "labelRule": "Use typed native labels mapped only to gate_core.KINDS person, address, and identifier. Do not invent a contextual label or infer that direct labels adjudicate contextual role risk.",
+    "adapterContract": {
+      "module": "opf_adapter.py",
+      "load": "load(checkpoint: str) -> handle",
+      "predict": "predict(handle, text: str) -> dict",
+      "spans": "list of zero-based, end-exclusive (start, end, kind) tuples over the exact input string",
+      "metrics": "JSON-compatible and raw-free, including native token/window coverage and token-overlap counts",
+      "errors": "Every structural failure raises AdapterError with a stable code and no raw text"
+    },
+    "forbiddenChanges": [
+      "prompting or prompt tuning",
+      "model or weights tuning",
+      "decoder or masking-threshold changes",
+      "new classifier or heuristic post-classifier",
+      "retry, alternate model, provider, or fallback behavior"
+    ]
+  },
+  "inputAndSpanContract": {
+    "candidateInput": "the frozen baseline-masked text for one case, never gold labels or preserve phrases",
+    "completeInput": "No silent truncation. Native tokenization and every 4096-token window must account for the complete candidate input.",
+    "nativeOffsets": "Candidate character spans must be derived from exact native token offsets and remain within the exact input string.",
+    "existingOpaqueTokens": {
+      "fullyContainedPrediction": "A native prediction span wholly inside one existing opaque mask token is structurally allowed, counted in adapter metrics, ignored for mutation, and not credited as newly masking original characters.",
+      "mixedOverlap": "A prediction that crosses an existing opaque-token boundary or otherwise mixes token and non-token characters blocks the case with a stable mixed_existing_mask_overlap failure.",
+      "restoration": "Existing opaque tokens may not be changed, widened by mixed overlap, decoded, or restored."
+    },
+    "candidateSpanCombination": "Normalize exact duplicates without double credit. Non-overlapping accepted spans are applied once. Any incompatible or mixed overlap is a structural failure, not a best-effort edit.",
+    "provenance": "All quality counts use original-character lineage from gate_core. Whitespace is excluded only where the scoring contract names non-space characters."
+  },
+  "execution": {
+    "location": "local macOS host only",
+    "network": "No API call, telemetry, remote inference, data upload, or other network transmission is permitted during inference.",
+    "processModel": "One dedicated candidate subprocess loads one checkpoint once and processes cases sequentially. Parallel slots, concurrent cases, and additional candidate workers are forbidden.",
+    "order": "cg-001 through cg-024 in frozen corpus order",
+    "preLoadMemoryAdmission": {
+      "required": true,
+      "when": "immediately before each model load and each candidate case",
+      "admitOnlyIf": "Darwin pressure is known normal (1) or warning (2). Warning alone is not a measured allocation failure. See resumption-amendment.json for the pre-inference correction.",
+      "onFailure": "Critical or unknown pressure blocks further work; retain completed cases and explicitly count remaining cases as not attempted. Real allocation failures and existing 180-second timeouts remain failures, without model fallback.",
+      "hostSnapshot": "Record raw-free total physical memory, available/free memory evidence exposed by the operating system, memory-pressure state, and timestamp.",
+      "workloadRule": "Never terminate, suspend, or reconfigure unrelated applications or workloads to make memory available."
+    },
+    "timing": {
+      "clock": "monotonic wall clock",
+      "coldLoadSeconds": "Measure from immediately before opf_adapter.load(checkpoint) until it returns or raises. Keep this separate from subprocess startup, checkpoint download, and all inference.",
+      "inferenceSeconds": "Measure each opf_adapter.predict call separately, excluding cold load.",
+      "warmup": "No hidden warmup. Any first-inference initialization remains in cg-001 inference timing and is disclosed.",
+      "perCaseOperationalTimeoutSeconds": 180,
+      "timeoutMeaning": "An experiment execution bound only, not a product SLA or an approved acceptable delay.",
+      "timeoutAction": "Record timeout with the case ID and stable code, with no raw text. Do not retry or use a fallback. If enforcing the timeout terminates the single subprocess, mark every remaining case not_attempted_after_process_termination rather than treating it as success or ordinary exclusion."
+    },
+    "peakMemory": {
+      "measure": "true peak resident set size of the dedicated candidate subprocess over cold load plus all attempted inference",
+      "source": "the subprocess's operating-system RUSAGE_SELF ru_maxrss at exit, normalized to bytes for the recorded platform",
+      "notAProxy": "Do not report a parent-process peak, pre/post RSS delta, host-memory delta, allocator estimate, or periodic sample as subprocess peak RSS.",
+      "hostSnapshots": "Pre-load and post-run host snapshots may be recorded separately but must not be labeled candidate peak RSS."
+    },
+    "windows": {
+      "execution": false,
+      "rule": "Do not start, stop, or add Windows VMs, emulators, remote hosts, or other Windows workloads for this run.",
+      "interpretation": "This macOS CPU run supplies no representative Windows installation, latency, memory, or usability evidence."
+    },
+    "stagesExcluded": [
+      "OpenAI or any other external API",
+      "summary generation or summary scoring",
+      "database, SQLite, draft staging, or product gateway integration",
+      "product masking pipeline changes",
+      "model or checkpoint download as part of inference"
+    ]
+  },
+  "optionalCoverageProbes": {
+    "owner": "Main",
+    "allowed": true,
+    "maximumCharactersPerProbe": 24000,
+    "construction": "Use only existing frozen synthetic corpus text, its frozen baseline-masked form, and harmless non-identifying filler. Do not add real data, new identifier claims, new gold, or adjudicated examples.",
+    "purpose": "Engineering stress evidence for native token/window coverage, overlap accounting, truncation detection, latency, timeout, and failure handling.",
+    "separation": "Each probe is labeled engineering_stress_probe and reported outside core24. Probes are not independent corpus cases and are excluded from every core24 quality count, rate, denominator, and interpretation.",
+    "record": [
+      "probe construction hash and character count",
+      "native input-token count",
+      "window count and per-window token count",
+      "unique native tokens covered",
+      "token occurrences processed",
+      "overlap token occurrences",
+      "uncovered token count",
+      "inside-existing-mask predictions counted and ignored",
+      "mixed-overlap, timeout, or structural failure code",
+      "inference wall time"
+    ]
+  },
+  "metrics": {
+    "rawOutputPolicy": "Results contain case IDs, source/output hashes, counts, timings, resource values, statuses, and stable failure codes only. Do not persist original text, baseline text, predicted quotes, decoded token text, or model logits.",
+    "perCase": {
+      "status": "success, failed, or not_attempted, with a stable raw-free reason code",
+      "hashes": "original source hash, frozen baseline-output hash, and after-output hash",
+      "originalCharacterOpacity": {
+        "directKinds": [
+          "person",
+          "address",
+          "identifier"
+        ],
+        "contextualKind": "reported in a separate block only",
+        "beforeAndAfter": [
+          "goldNonspaceLiteralChars",
+          "goldNonspaceNonOpaqueChars",
+          "completelyMaskedSpans"
+        ],
+        "spanStates": {
+          "full": "all non-space original characters in the gold span are opaque",
+          "partial": "at least one but not all non-space original characters in the gold span are opaque",
+          "none": "no non-space original character in the gold span is opaque"
+        },
+        "generalization": "Literal and generalized original characters remain non-opaque and are reported distinctly through literal and non-opaque counts. Generalization is not credited as full masking."
+      },
+      "protectedPhraseLoss": [
+        "protectedPreserveStringsLost before and after",
+        "protectedPreserveNonspaceChars and protectedPreserveNonspaceCharsLost before and after"
+      ],
+      "extraNonGoldMasking": "Report newly opaque non-space original characters outside annotated gold. This is an adjudication queue, not an automatic assertion that every extra mask is harmful.",
+      "negativeCaseMetrics": "For each target-negative case, report any newly opaque characters, affected preserve phrases, predicted span counts by kind, full/inside-token ignored counts, and status in a dedicated negative-case block rather than pooling it with positive rows.",
+      "adapterCoverage": [
+        "native input-token count",
+        "window count and per-window token counts",
+        "unique native tokens covered",
+        "token occurrences processed",
+        "overlap token occurrences",
+        "uncovered token count",
+        "native predictions before deduplication",
+        "exact duplicates removed",
+        "predictions fully inside existing mask tokens counted and ignored",
+        "mixed-overlap rejection count"
+      ],
+      "operations": [
+        "inference wall seconds",
+        "timeout flag",
+        "stable adapter or runner failure code"
+      ]
+    },
+    "aggregate": {
+      "core24": {
+        "eligibleCases": 24,
+        "eligiblePositiveCases": 15,
+        "eligibleTargetNegativeCases": 9,
+        "eligibleDirectGoldSpans": 17,
+        "eligibleContextualGoldSpans": 5
+      },
+      "requiredCounts": [
+        "attempted cases",
+        "successful cases",
+        "failed cases",
+        "not-attempted cases",
+        "successful and failed positive cases",
+        "successful and failed target-negative cases",
+        "successful direct gold spans and non-space characters",
+        "successful contextual gold spans and non-space characters",
+        "successful preserve strings and non-space characters"
+      ],
+      "denominatorRule": "A quality rate may exclude failed or not-attempted rows only when its numerator and explicit successful-case, successful-span, or successful-character denominator are printed beside it. Failures and not-attempted rows must also remain visible as separate counts over the fixed eligible total. They are never converted to zeros, passes, or successful masks.",
+      "separateReports": [
+        "direct person/address/identifier before versus after",
+        "contextual before versus after, descriptive only",
+        "target-negative masking",
+        "positive-row extra non-gold masking",
+        "protected phrase loss",
+        "coverage and structural failures",
+        "cold load, per-case inference timing, operational timeouts, and subprocess peak RSS",
+        "optional engineering stress probes outside core24"
+      ]
+    },
+    "thresholds": "Record raw values, counts, denominators, observed timing distributions, and failures. No arbitrary accuracy, masking, latency, memory, or failure-rate passing threshold is authorized by this design."
+  },
+  "failurePolicy": {
+    "reportAll": true,
+    "retryCount": 0,
+    "fallback": false,
+    "structuralFailures": [
+      "source or corpus hash mismatch",
+      "baseline load, trace, or provenance failure",
+      "candidate load failure",
+      "invalid or untyped label",
+      "invalid native offset or incomplete token/window coverage",
+      "mixed overlap with an existing opaque token",
+      "per-case operational timeout",
+      "adapter exception or non-JSON-compatible/raw-bearing metrics"
+    ],
+    "effect": "A failure blocks that case's after-quality score. It remains in the fixed eligible denominator and is reported through the explicit failure/not-attempted accounting; it does not authorize a retry, fallback, threshold change, or corpus edit."
+  },
+  "interpretationLimits": {
+    "diagnosticOnly": true,
+    "notIndependentQualification": "The 24 reused synthetic diagnostics and optional constructed stress probes cannot establish real counseling-data safety, generalization, or user-PC feasibility.",
+    "notBlind": "Prior use and human exposure mean the comparison is not truly blind even though candidate outputs were hidden until this design was fixed.",
+    "directVsContextual": "Direct-identifier opacity and contextual role inference are different questions. Direct labels cannot automatically close the mandatory role-alone workplace-inference gate.",
+    "extraMasking": "Masking outside gold is not automatically all harmful; it requires human meaning-preservation adjudication. Negative cases remain separately visible because they are targeted overmasking diagnostics.",
+    "contextualRemoval": "Opaque removal of old contextual gold is a descriptive operation count, not proof that risk was present before or eliminated after.",
+    "operations": "Observed macOS cold-load, inference, timeout, and peak-RSS values have no approved product threshold and are not Windows evidence.",
+    "authorization": "No result, including zero observed defects, can authorize downstream summary, database staging, product integration, provider changes, AI/STT activation, preview, deployment, or release. A separate user decision and the existing qualification/release gates remain required."
+  },
+  "outOfScope": [
+    "real PII or real participant material",
+    "remote calls with any experiment text",
+    "OpenAI API or another external processor",
+    "summary generation, factuality review, or evidence quoting",
+    "database or product pipeline stages",
+    "product code, contracts, settings, classifiers, thresholds, fallbacks, or release gates",
+    "model/source download or revision changes",
+    "representative Windows workload or product-usability claims"
+  ]
+}

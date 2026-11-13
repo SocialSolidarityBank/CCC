@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Measure the existing full text masking function against its actual NER-only predictions; diagnostic experiment, not qualification",
+  "approval": "Q: 응 이어서 진행한 다음 최종 제안해줘, following proposal to measure existing NER plus existing rules before adding models or a Juso lexicon",
+  "productChangesAllowed": false,
+  "newModelsOrLexiconsAllowed": false,
+  "qualificationIssued": false,
+  "activationAllowed": false,
+  "execution": {"platform": "current Mac", "device": "cpu", "threads": 2, "modelLoads": 1, "offline": true, "freshMemoryCheckBeforeModelLoad": true, "windowsOrWsl": false},
+  "model": {"id": "FrameByFrame/korean-pii-e5-base", "revision": "a308c54b4407819624a5661e31e162a269f39818", "aggregation": "none", "ignoreLabels": [], "decoder": "bioes-v1", "dtype": "unchanged native checkpoint/pipeline default"},
+  "corpora": [
+    {"name": "health-reference", "path": "scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json", "kind": "health"},
+    {"name": "original-release-reference", "path": "scripts/privacy/fixtures/s6-release-ko-v1.json", "kind": "release"},
+    {"name": "previous-development-reference", "path": "artifacts/ccc237-privacy/ner-comparison/development.json", "kind": "release"},
+    {"name": "previous-heldout-reference", "path": "artifacts/ccc237-privacy/ner-comparison/heldout.json", "kind": "release"}
+  ],
+  "corpusInterpretation": "All existing corpora are reused diagnostic references, not fresh independent release evidence. Gold, strata and thresholds are unchanged. No candidate selection or rule fitting is performed.",
+  "arms": [
+    "NER-only: same actual raw model output decoded by unchanged product decoder",
+    "Existing name/address masking stage: actual deterministic address spans plus actual NER, merged by unchanged product function; exact-span scores describe this stage only",
+    "Final mask_text_with_report output: includes dates, ages, regions, postcode, condition dictionary and structured-identifier rules; trace original-codepoint provenance through actual transformations"
+  ],
+  "measurement": {
+    "predictionReuse": "Infer each row once, freeze actual predictions, and feed callbacks with those same predictions to the unchanged product masking function. No gold-aware prediction changes or mocked model outputs in measured runs.",
+    "observer": "Record actual product operations; exact output and report-count equality against an uninstrumented call on every row. No fuzzy diff or substring-based source-coordinate reconstruction.",
+    "exactScores": "Reuse qualify_ner exact label/start/end scoring and unchanged Wilson criteria for the NER-only and merged name/address-stage spans. Numeric pass is not a qualification receipt.",
+    "finalCoverage": "For each original gold codepoint, distinguish opaque mask, generalized information and literal survivor. Generalization is not counted as opaque masking. Report complete/partial/no raw survival per gold span, excluding whitespace from character counts.",
+    "overmask": "Report name/address first-stage coverage outside all person/address gold separately from final non-gold opaque coverage. The latter may be legitimate masking of other PII or conditions and must not be called wholly unnecessary.",
+    "literalPresence": "Complete gold-string presence in final output is a supplemental non-origin-specific diagnostic, not the only residual test.",
+    "failure": "Observer mismatch, invalid source partition, altered frozen file, model failure or incomplete row means no aggregate success claim; preserve sanitized failure evidence, not exception text."
+  },
+  "longInputProbes": {
+    "source": "Same fixed N2 positive rows as short controls; deterministic neutral filler before or after each row, plus long target-negative control",
+    "filler": "기록을 함께 확인했다. ",
+    "repeatCount": 160,
+    "framing": "Prepare and hash all probe rows before inference. Do not change them after seeing predictions.",
+    "observe": "Record actual recognizer preprocess token-offset coverage in memory without altering inputs; report only counts and target-coverage booleans. Exercise unchanged long-input behavior, do not add splitting or suppress truncation.",
+    "interpretation": "Positional diagnostic only, not a realistic long-counseling corpus or Windows performance qualification"
+  },
+  "scopeLimits": ["No registered-PII dictionary or STT input path exercised; targets represent unregistered third parties", "No worker/core/provider egress or consent authorization exercised", "No independent human gold review or real participant data", "No new Windows RAM/latency evidence", "No raw text, model token arrays, predicted offsets or output strings in persisted measurement reports", "No edits to S6, runtime code, old corpora, old reports or thresholds", "No commits, merges or deployments"]
+}

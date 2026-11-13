@@ -1,0 +1,26 @@
+{
+  "recordedAt": "2026-09-06T08:11:46.387Z",
+  "approvedAction": "Fixed-model BIOES decoder correction and remeasurement of unchanged N2/release corpora",
+  "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+  "healthCorpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+  "releaseCorpusHash": "8fe927f79ad4e84d6ed1440b069e099e15c50618226c6727781e73f00ee321f4",
+  "priorHealthReportHash": "6d5a8254b11e97e0bf481a01b2cd654ad7c396790baa837f061392efa7aed64f",
+  "priorReleaseReportHash": "bf72f5c37684ef72cfb2fce227efefd9cf5ca7a70a1d353be045cace28bbe92c",
+  "priorEvidenceHash": "66c33238efc5d7c5de7d8c59b39b5b34881b54f27709c62c7de48158d9ddfe5c",
+  "corpusFiles": [
+    {
+      "path": "scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json",
+      "bytes": 1059,
+      "sha256": "d39a4ce278316623bc046f9332e86e99e78f6f75d534e8390e359f375f116592"
+    },
+    {
+      "path": "scripts/privacy/fixtures/s6-release-ko-v1.json",
+      "bytes": 166306,
+      "sha256": "6e3cb9a53b07926d86a3ea701288e2b73553e07ab4433b91d12a2aee174d0ba1"
+    }
+  ],
+  "thresholdsUnchanged": true,
+  "modelWeightsUnchanged": true,
+  "priorReportsWillBePreserved": true,
+  "operationalActivationApproved": false
+}

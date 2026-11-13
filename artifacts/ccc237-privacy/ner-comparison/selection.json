@@ -1,0 +1,46 @@
+{
+  "allAlternativesFailed": true,
+  "developmentReportHashes": {
+    "artifacts/ccc237-privacy/ner-comparison/development-alternative.json": "6e05f2c826587fea4b83c20002916981685922f48dfb6f663566340419f8ebc7",
+    "artifacts/ccc237-privacy/ner-comparison/development-baseline.json": "69055cc942fa1ed41b045e1cf7677148b5ac27a6e8575338096c6c88f8e50b7d"
+  },
+  "eligibleAlternativeCount": 1,
+  "freezeHash": "a7f4cd4c1bbe3306a6f5e18cee782cb0d986fb82d19141c2c6a3804bf123a780",
+  "heldoutInspectedForSelection": false,
+  "purpose": "Lock alternative for heldout diagnosis; no production adoption or qualification",
+  "qualificationIssued": false,
+  "ranking": [
+    {
+      "model": "vmaca123/korean-pii-ner-v3",
+      "numericGatePassed": false,
+      "rankKey": [
+        true,
+        -0.04321477996538102,
+        0.6786325605086538,
+        "vmaca123/korean-pii-ner-v3"
+      ]
+    }
+  ],
+  "reportHash": "7b3b9bbd5f6502c93463cae2d8af8d84581dc734c6693d65fb25006d3c091c22",
+  "reselectionAfterHeldoutAllowed": false,
+  "schemaVersion": 1,
+  "selectedAt": "2026-09-06T11:06:53.541439+00:00",
+  "selectedModel": {
+    "configSource": "https://huggingface.co/vmaca123/korean-pii-ner-v3/resolve/ebee0847b166f16041bffc9e1521d895d360d02e/config.json",
+    "id": "vmaca123/korean-pii-ner-v3",
+    "knownLimitations": [
+      "Model card states ADDRESS_UNIT is unsupported; unit-bearing gold remains unchanged",
+      "No published score is treated as our evidence",
+      "Future redistribution/cutover needs separate license review; no weights are copied into the repository"
+    ],
+    "labelMap": {
+      "ADDRESS": "PRIVATE_ADDRESS",
+      "NAME": "PRIVATE_PERSON"
+    },
+    "license": "CC-BY-SA-4.0",
+    "parameterCount": 335613959,
+    "revision": "ebee0847b166f16041bffc9e1521d895d360d02e",
+    "source": "https://huggingface.co/vmaca123/korean-pii-ner-v3/raw/ebee0847b166f16041bffc9e1521d895d360d02e/README.md",
+    "weightBytes": 1342503796
+  }
+}

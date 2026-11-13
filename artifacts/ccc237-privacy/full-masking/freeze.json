@@ -1,0 +1,68 @@
+{
+  "corpora": [
+    {
+      "corpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+      "kind": "health",
+      "name": "health-reference",
+      "path": "scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json",
+      "rows": 7
+    },
+    {
+      "corpusHash": "8fe927f79ad4e84d6ed1440b069e099e15c50618226c6727781e73f00ee321f4",
+      "kind": "release",
+      "name": "original-release-reference",
+      "path": "scripts/privacy/fixtures/s6-release-ko-v1.json",
+      "rows": 601
+    },
+    {
+      "corpusHash": "1ad784b2a176ea9c72e3e2b627a373b26cbd5312af4d180d81a3f8daa6162f81",
+      "kind": "release",
+      "name": "previous-development-reference",
+      "path": "artifacts/ccc237-privacy/ner-comparison/development.json",
+      "rows": 600
+    },
+    {
+      "corpusHash": "d7ee70e1387112dbb8720ce6b442e598f87b1280443bc82aa7d31073d371fced",
+      "kind": "release",
+      "name": "previous-heldout-reference",
+      "path": "artifacts/ccc237-privacy/ner-comparison/heldout.json",
+      "rows": 600
+    }
+  ],
+  "fileHashes": {
+    "apps/pipeline/ccc_pipeline/condition_terms.py": "74f480ebce1105677330b117c25f14e46272e2214a5d3017fcc1c568fe40b767",
+    "apps/pipeline/ccc_pipeline/masking.py": "3d4ccbb35da44d3355351f306de754a10b6fc8aafa8c02f014dacda142b73048",
+    "apps/pipeline/ccc_pipeline/model_registry.py": "f96609d61187c51cf37956191890d0400e99e746ed6f172278f662e26f257531",
+    "apps/pipeline/ccc_pipeline/results.py": "e1a3de5be90e1a25b79057196d56d53be3a84729c26992d8cf244b8ed28ba6c3",
+    "apps/pipeline/ccc_pipeline/worker.py": "af232b556a7cedda937debd4014947f5799c4e1956ae07019d6cb8421d3c0112",
+    "artifacts/ccc237-privacy/full-masking/diagnostics.py": "035d8d8493eca43756831f5aa4c9aab706de1e5f2e369df53944efa59a93e7ff",
+    "artifacts/ccc237-privacy/full-masking/long-probes.json": "1f427c9e14eedbb5195d6052cde004a4ba58cb57a666674380c04c6a9b21a542",
+    "artifacts/ccc237-privacy/full-masking/measurement-design.json": "94513b1c4b71ae5b679cb76c37ec61808d6ac6d6871db916a782bf80e1d08e13",
+    "artifacts/ccc237-privacy/full-masking/observe_mask.py": "b3ae88401c29f23f6025b74c6b8e0513464523eb6ff2b34a1f80c65735f42fcd",
+    "artifacts/ccc237-privacy/full-masking/run_baseline.py": "301122955c8e862103a91e28683f5492169a18edef25a00a57e368b8500df27e",
+    "artifacts/ccc237-privacy/install-health-v2-bioes-v1.json": "20f136b967407132a9b3b07c129be409eada36b615300e6966d222b9bfb06131",
+    "artifacts/ccc237-privacy/ner-comparison/development-baseline.json": "591ab32c337a4183c512738019a13115d4bd3b8de51b5d4f64576a0e58f6ea14",
+    "artifacts/ccc237-privacy/ner-comparison/development.json": "26f8a31d72221b237051d88b368a837766f4c837abf751873fae7b466eb245d2",
+    "artifacts/ccc237-privacy/ner-comparison/heldout-baseline.json": "7b306a199cb2383813beaf59a3c10529a2ed858671f899565071de7695ee5546",
+    "artifacts/ccc237-privacy/ner-comparison/heldout.json": "9c3c2518b9814344dab6c477cfe7117d61e195d4fa47285b12bd00d3d81b6730",
+    "artifacts/ccc237-privacy/ner-comparison/weight-provenance.json": "0ec4892dd0e3e6a09172231ff9de033d198c2683bc61f2dfb69359cd15be9041",
+    "artifacts/ccc237-privacy/release-qualification-v1-bioes-v1.json": "c40fcfe620d07f62b71ab1dbe365885e926af45d4621f255a0ffc9d4e4c351e5",
+    "scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json": "d39a4ce278316623bc046f9332e86e99e78f6f75d534e8390e359f375f116592",
+    "scripts/privacy/fixtures/s6-release-ko-v1.json": "6e3cb9a53b07926d86a3ea701288e2b73553e07ab4433b91d12a2aee174d0ba1",
+    "scripts/privacy/qualify_ner.py": "d50bf76cf4a9fbfd3f211d23e7091caba891a4b7527f73c1db7a82cd46a15046"
+  },
+  "frozenAt": "2026-09-06T12:34:06.194576+00:00",
+  "nerControls": {
+    "health-reference": "artifacts/ccc237-privacy/install-health-v2-bioes-v1.json",
+    "original-release-reference": "artifacts/ccc237-privacy/release-qualification-v1-bioes-v1.json",
+    "previous-development-reference": "artifacts/ccc237-privacy/ner-comparison/development-baseline.json",
+    "previous-heldout-reference": "artifacts/ccc237-privacy/ner-comparison/heldout-baseline.json"
+  },
+  "probeHash": "7af0aab7126bfae89a56302a054994c78a8eea618a4e0c640ffdf25f07b992e3",
+  "probeRows": 11,
+  "productChanged": false,
+  "purpose": "Existing masking diagnostic, not new independent qualification",
+  "qualificationIssued": false,
+  "reportHash": "cbbe56ab43c209ef191374c5619ff67c48520ffa95d5a8e04c49984d387eb0c8",
+  "schemaVersion": 1
+}

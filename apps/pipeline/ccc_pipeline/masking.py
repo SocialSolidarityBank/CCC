@@ -4,6 +4,7 @@
 여기는 2차 — 대화에 등장하는 제3자 인명·전화번호 등 패턴을 로컬에서 마스킹한 뒤에만
 텍스트가 장비를 떠난다.
 
+- 준식별자 계층(항상 동작): 날짜·나이·지역 일반화 뒤 상세 주소·우편번호 토큰화
 - 정규식 계층(항상 동작): 전화번호·주민등록번호·이메일·계좌형 숫자열
 - 질병명 사전 계층(항상 동작, G3): 구체 병명·진단명을 `[질환]` 으로 치환. 사전은
   `condition_terms.py` — 무엇을 일부러 뺐는지도 거기 적혀 있다.
@@ -17,12 +18,17 @@
 
 from __future__ import annotations
 
+import operator
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import date
 
 from .condition_terms import ALL_TERMS
 from .model_registry import ModelRegistryError, model_spec
+
+NER_AGGREGATION_STRATEGY = "none"
+NER_DECODER_VERSION = "bioes-v1"
 
 # 치환 토큰 — 검토 화면에서 마스킹 사실이 보이도록 각괄호 한글 라벨을 쓴다.
 PHONE_TOKEN = "[전화번호]"
@@ -32,6 +38,9 @@ ACCOUNT_TOKEN = "[계좌번호]"
 PERSON_TOKEN = "[인명]"
 ADDRESS_TOKEN = "[주소]"
 CONDITION_TOKEN = "[질환]"
+POSTCODE_TOKEN = "[우편번호]"
+REGION_TOKEN = "[지역]"
+QUASI_IDENTIFIER_TOKEN = "[준식별자]"
 
 # 태깅 접두(BIO·BIOES·BILOU). 라벨 대조 전에 떼어 낸다.
 _TAG_PREFIXES = ("B-", "I-", "E-", "S-", "L-", "U-")
@@ -68,6 +77,99 @@ _REGEX_LAYERS: list[tuple[re.Pattern[str], str]] = [
     (_ACCOUNT, ACCOUNT_TOKEN),
     (_EMAIL, EMAIL_TOKEN),
 ]
+
+# S6 §2.5 준식별자 후보. 날짜는 계좌 패턴보다 먼저 처리한다.
+_ISO_DATE = re.compile(
+    r"(?<![\d-])(?P<year>\d{4})(?P<separator>[-./])(?P<month>\d{1,2})"
+    r"(?P=separator)(?P<day>\d{1,2})(?![\d-])",
+)
+_KOREAN_DATE = re.compile(
+    r"(?<!\d)(?P<year>\d{4})년\s*(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일(?!\d)",
+)
+_KOREAN_MONTH_DAY = re.compile(r"(?<![\d년])\d{1,2}월\s*\d{1,2}일(?!\d)")
+_EXPLICIT_AGE = re.compile(r"(?<![\d-])(?:만\s*)?(?P<age>\d{1,3})(?:세(?!기|대)|살)")
+
+_METRO_NAMES = (
+    "세종특별자치시",
+    "서울특별시",
+    "부산광역시",
+    "대구광역시",
+    "인천광역시",
+    "광주광역시",
+    "대전광역시",
+    "울산광역시",
+    "강원특별자치도",
+    "전북특별자치도",
+    "제주특별자치도",
+    "전라북도",
+    "전라남도",
+    "충청북도",
+    "충청남도",
+    "경상북도",
+    "경상남도",
+    "경기도",
+    "강원도",
+    "제주도",
+    "서울시",
+    "부산시",
+    "대구시",
+    "인천시",
+    "광주시",
+    "대전시",
+    "울산시",
+    "세종시",
+    "전북",
+    "전남",
+    "충북",
+    "충남",
+    "경북",
+    "경남",
+)
+_METRO = "(?:" + "|".join(map(re.escape, _METRO_NAMES)) + ")"
+# 읍/면/동/리 접미사와 조사만으로는 지역으로 보지 않는다. 이 하위 이름들은
+# 명시된 광역 또는 시/군/구 뒤의 행정구역 계층 안에서만 인식한다.
+_LOCAL_ADMIN = r"[가-힣]{1,12}(?:시|군|구|읍|면|동|리)"
+_NON_METRO_LOCAL_ADMIN = rf"(?!(?:{_METRO})(?=\s)){_LOCAL_ADMIN}"
+_ADMIN_CHAIN = rf"{_NON_METRO_LOCAL_ADMIN}(?:\s+{_NON_METRO_LOCAL_ADMIN}){{0,2}}"
+_REGION_END = r"(?=$|[\s,.;:!?)]|(?:에서|으로|까지|부터|에|로|은|는|이|가|을|를|와|과|의)(?=$|[\s,.;:!?)]))"
+_BARE_DISTRICT = r"(?:[가-힣]{2,12}(?:시|군|구)|[중동서남북]구)"
+_REGION_WITH_SUBREGION = re.compile(
+    rf"(?<![가-힣])(?P<metro>{_METRO})\s+"
+    rf"(?P<subregions>{_ADMIN_CHAIN}){_REGION_END}",
+)
+_LOCAL_REGION = re.compile(
+    rf"(?<![가-힣])(?!(?:{_METRO}))"
+    rf"(?P<region>{_BARE_DISTRICT}(?:\s+{_NON_METRO_LOCAL_ADMIN}){{0,2}}){_REGION_END}",
+)
+
+# 대한민국 주소 계층은 광역 1단계 + 하위 3단계로 제한한다. 광역명은 반복 하위 단계에서
+# 제외해 "서울시 " 반복 입력에 같은 접두를 여러 방식으로 재해석하는 백트래킹을 막는다.
+_ADMIN_PREFIX = rf"(?:{_METRO}\s+)?(?:{_NON_METRO_LOCAL_ADMIN}\s+){{0,3}}"
+_ROAD_NAME = r"[가-힣A-Za-z0-9·.-]{1,30}(?:대로|로|길)"
+_BUILDING_NAME = (
+    r"[가-힣A-Za-z0-9·.-]{1,30}(?:아파트|빌라|오피스텔|빌딩|타워|센터|주택|연립|건물)"
+)
+_UNIT = r"(?:\d{1,4}동(?:\s*\d{1,5}호)?|\d{1,5}호)"
+_ROAD_ADDRESS = (
+    rf"{_ADMIN_PREFIX}{_ROAD_NAME}\s+\d{{1,5}}(?:-\d{{1,5}})?"
+    rf"(?:\s+(?:{_BUILDING_NAME}|{_UNIT})){{0,3}}"
+)
+_LOT_ADDRESS = (
+    rf"{_ADMIN_PREFIX}[가-힣]{{1,12}}(?:읍|면|동|리)\s+(?:산\s*)?"
+    rf"\d{{1,5}}(?:-\d{{1,5}})?(?:\s+{_UNIT})?"
+)
+_ADMIN_LOT_ADDRESS = (
+    rf"(?:{_METRO}\s+)?(?:{_NON_METRO_LOCAL_ADMIN}\s+){{1,3}}(?:산\s*)?"
+    rf"\d{{1,5}}(?:-\d{{1,5}})?(?:\s+{_UNIT})?"
+)
+_BUILDING_ADDRESS = rf"{_ADMIN_PREFIX}{_BUILDING_NAME}(?:\s+{_UNIT})?"
+_NAMED_UNIT_ADDRESS = rf"{_ADMIN_PREFIX}[가-힣A-Za-z0-9·.-]{{1,30}}\s+{_UNIT}"
+_ADDRESS = re.compile(
+    rf"(?<![가-힣A-Za-z0-9])(?:{_ROAD_ADDRESS}|{_ADMIN_LOT_ADDRESS}|{_LOT_ADDRESS}|"
+    rf"{_BUILDING_ADDRESS}|{_NAMED_UNIT_ADDRESS}|{_UNIT})"
+    r"(?![A-Za-z0-9])",
+)
+_POSTCODE = re.compile(r"(?<![\d-])\d{5}(?![\d-])")
 
 # 질병명 사전 → 정규식 1개. **긴 항목이 먼저** 와야 "제2형 당뇨병"이 "당뇨병"·"당뇨"에
 # 먼저 잡혀 조각나지 않는다(파이썬 re 는 같은 위치에서 앞선 대안을 택한다).
@@ -108,14 +210,14 @@ _TOKEN_PRIORITY = (PERSON_TOKEN, ADDRESS_TOKEN, CONDITION_TOKEN)
 
 
 def _merge_spans(spans: list[tuple[int, int, str]], limit: int) -> list[tuple[int, int, str]]:
-    """겹치는 스팬을 **합쳐서** 한 번에 가릴 구간 목록으로 만든다 (뒤에서 앞 순서로 반환).
+    """겹치는 스팬을 **합쳐서** 한 번에 가릴 구간 목록으로 만든다.
 
     2026-08-01 Q 결정(못 가리는 것보다 과하게 가리는 쪽)의 구현이다. 겹칠 때 한쪽을
     버리면 겹치지 않는 부분이 원문 그대로 남고, 잘라서 치환하면 `[인명][주소]수` 처럼
     조각이 남는다 — 둘 다 유출이다. 합집합을 한 토큰으로 덮으면 남는 조각이 없다.
 
-    계층이 섞이면 식별력이 큰 쪽 토큰을 쓴다(인명 > 주소 > 질환). 뒤에서 앞으로 치환해야
-    앞선 치환이 뒤 구간의 오프셋을 밀지 않으므로, 내림차순으로 돌려준다.
+    계층이 섞이면 식별력이 큰 쪽 토큰을 쓴다(인명 > 주소 > 질환). 모든 원문 오프셋을
+    한 번에 적용할 수 있도록 오름차순으로 돌려준다.
     """
     # 범위를 벗어난 스팬은 버린다 — 모델이 텍스트 밖 오프셋을 주면 그건 좌표가 깨진 것이고,
     # 그 좌표로 자르면 엉뚱한 자리가 사라진다. 끝만 넘치면 텍스트 끝까지로 줄여 가린다.
@@ -142,7 +244,7 @@ def _merge_spans(spans: list[tuple[int, int, str]], limit: int) -> list[tuple[in
                 return candidate
         return next(iter(tokens))
 
-    return [(start, end, pick(tokens)) for start, end, tokens in reversed(merged)]
+    return [(start, end, pick(tokens)) for start, end, tokens in merged]
 
 
 def _sub_counting(pattern: re.Pattern[str], token: str, text: str, report: MaskingReport) -> str:
@@ -151,6 +253,74 @@ def _sub_counting(pattern: re.Pattern[str], token: str, text: str, report: Maski
         return token
 
     return pattern.sub(replace, text)
+
+
+def _generalize_dates(text: str, report: MaskingReport) -> str:
+    def replace_iso(match: re.Match[str]) -> str:
+        year = int(match["year"])
+        month = int(match["month"])
+        day = int(match["day"])
+        try:
+            date(year, month, day)
+        except ValueError:
+            report.add(QUASI_IDENTIFIER_TOKEN)
+            return QUASI_IDENTIFIER_TOKEN
+        if match["separator"] != "-":
+            report.add(QUASI_IDENTIFIER_TOKEN)
+            return QUASI_IDENTIFIER_TOKEN
+        return f"{year:04d}-{month:02d}"
+
+    def replace_korean(match: re.Match[str]) -> str:
+        year = int(match["year"])
+        month = int(match["month"])
+        day = int(match["day"])
+        try:
+            date(year, month, day)
+        except ValueError:
+            report.add(QUASI_IDENTIFIER_TOKEN)
+            return QUASI_IDENTIFIER_TOKEN
+        return f"{year:04d}-{month:02d}"
+
+    text = _ISO_DATE.sub(replace_iso, text)
+    text = _KOREAN_DATE.sub(replace_korean, text)
+    return _sub_counting(_KOREAN_MONTH_DAY, QUASI_IDENTIFIER_TOKEN, text, report)
+
+
+def _generalize_ages(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        lower = int(match["age"]) // 5 * 5
+        return f"{lower}-{lower + 4}세"
+
+    return _EXPLICIT_AGE.sub(replace, text)
+
+
+def _address_spans(text: str) -> list[tuple[int, int]]:
+    return [(match.start(), match.end()) for match in _ADDRESS.finditer(text)]
+
+
+def _generalize_regions(text: str, report: MaskingReport) -> str:
+    address_spans = _address_spans(text)
+
+    def inside_address(match: re.Match[str]) -> bool:
+        return any(start <= match.start() and match.end() <= end for start, end in address_spans)
+
+    replacements: list[tuple[int, int, str]] = []
+    metro_matches = list(_REGION_WITH_SUBREGION.finditer(text))
+    for match in metro_matches:
+        if not inside_address(match):
+            replacements.append((match.start(), match.end(), match["metro"]))
+
+    for match in _LOCAL_REGION.finditer(text):
+        if inside_address(match) or any(
+            metro.start() <= match.start() and match.end() <= metro.end() for metro in metro_matches
+        ):
+            continue
+        replacements.append((match.start(), match.end(), REGION_TOKEN))
+        report.add(REGION_TOKEN)
+
+    for start, end, replacement in sorted(replacements, key=lambda item: item[0], reverse=True):
+        text = text[:start] + replacement + text[end:]
+    return text
 
 
 def mask_patterns(text: str) -> str:
@@ -179,13 +349,15 @@ def mask_text_with_report(
 ) -> tuple[str, MaskingReport]:
     """전 계층 마스킹 + 집계.
 
-    순서: NER 스팬(오프셋 기반이라 먼저) → 질병명 사전 → 숫자·형식 정규식.
-    NER 스팬은 **뒤에서 앞으로** 치환해 앞선 치환이 뒤 스팬의 오프셋을 밀지 않게 한다.
-    인명·질병명 두 목록은 **합쳐서 한 번에** 정렬한다 — 목록별로 따로 치환하면 앞 목록의
-    치환이 뒤 목록 스팬의 오프셋을 밀어 엉뚱한 자리를 지운다.
+    순서: 원문의 결정론 주소·NER 스팬 → 날짜 → 나이 → 지역 → 우편번호 → 질병명 사전
+    → 숫자·형식 정규식. 주소 후보와 NER 스팬은 원문 좌표에서 합쳐 한 번에 적용하므로,
+    일부 주소 NER가 도로명만 먼저 지워도 번지 조각이 남지 않는다.
     """
     report = MaskingReport()
-    spans: list[tuple[int, int, str]] = []
+    spans = [
+        (start, end, ADDRESS_TOKEN)
+        for start, end in _address_spans(text)
+    ]
     # 계층마다 **자기 토큰**을 쓴다 — 주소를 [인명] 으로 치환하면 검토 화면과 집계가
     # 둘 다 거짓이 된다(무엇이 가려졌는지가 실무자에게 필요한 정보다).
     for span_fn, token in (
@@ -197,9 +369,21 @@ def mask_text_with_report(
             continue
         spans.extend((start, end, token) for start, end in span_fn(text))
 
-    for start, end, token in _merge_spans(spans, len(text)):
-        text = text[:start] + token + text[end:]
-        report.add(token)
+    merged_spans = _merge_spans(spans, len(text))
+    if merged_spans:
+        pieces: list[str] = []
+        position = 0
+        for start, end, token in merged_spans:
+            pieces.extend((text[position:start], token))
+            position = end
+            report.add(token)
+        pieces.append(text[position:])
+        text = "".join(pieces)
+
+    text = _generalize_dates(text, report)
+    text = _generalize_ages(text)
+    text = _generalize_regions(text, report)
+    text = _sub_counting(_POSTCODE, POSTCODE_TOKEN, text, report)
 
     text = _sub_counting(_CONDITION, CONDITION_TOKEN, text, report)
     for pattern, token in _REGEX_LAYERS:
@@ -227,9 +411,7 @@ def _assert_labels_exist(recognizer, model_id: str, label_prefixes: tuple[str, .
         raise MaskingConfigError(f"NER model {model_id} does not declare a label set")
 
     labels = {str(value).upper() for value in id2label.values()}
-    # 파이프라인의 aggregation 이 태깅 접두를 떼므로 여기서도 떼고 비교한다.
-    # BIO 뿐 아니라 BIOES(E-·S-)·BILOU(L-·U-)도 쓴다 — 실제로 채택한 모델
-    # (korean-pii-e5-base)이 BIOES 다. 접두 목록이 좁으면 멀쩡한 모델을 거부한다.
+    # 선언 라벨도 런타임 디코더와 같은 BIO/BIOES/BILOU 접두를 벗겨 비교한다.
     stripped = {label.split("-", 1)[1] if label[:2] in _TAG_PREFIXES else label for label in labels}
     if not any(label.startswith(label_prefixes) for label in stripped):
         raise MaskingConfigError(
@@ -238,16 +420,54 @@ def _assert_labels_exist(recognizer, model_id: str, label_prefixes: tuple[str, .
         )
 
 
+def decode_ner_entities(tokens: list[dict], text_length: int) -> list[dict]:
+    """토큰의 BIO/BIOES/BILOU 경계를 해석하고 원문 좌표만 돌려준다.
+
+    B는 새 구간, E/L은 끝, S/U는 단독 구간이다. O와 범주 변경은 구간을 끊는다.
+    시작 없는 I/E/L도 버리지 않고 새 구간으로 보존하며 정답으로 경계를 보정하지 않는다.
+    """
+    groups: list[dict] = []
+    current = None
+    previous_start = -1
+    for token in tokens:
+        try:
+            raw_label = token["entity"]
+            if not isinstance(raw_label, str) or not raw_label:
+                raise ValueError
+            if isinstance(token["start"], bool) or isinstance(token["end"], bool):
+                raise ValueError
+            start, end = operator.index(token["start"]), operator.index(token["end"])
+            if not 0 <= start <= end <= text_length or start < previous_start:
+                raise ValueError
+        except (KeyError, TypeError, ValueError):
+            raise MaskingConfigError("NER token label or coordinates are invalid") from None
+        previous_start = start
+        label = raw_label.upper()
+        if label == "O":
+            current = None
+            continue
+        tag, label = (label[0], label[2:]) if label[:2] in _TAG_PREFIXES else ("S", label)
+        if not label:
+            raise MaskingConfigError("NER token label or coordinates are invalid")
+        if current is None or current["entity_group"] != label or tag in ("B", "S", "U"):
+            current = {"entity_group": label, "start": start, "end": end}
+            groups.append(current)
+        else:
+            current["end"] = max(current["end"], end)
+        if tag in ("E", "L", "S", "U"):
+            current = None
+    return [group for group in groups if group["start"] < group["end"]]
+
+
 def _span_fn(recognizer, label_prefixes: tuple[str, ...]):  # noqa: ANN001, ANN202 — 반환은 NerFn
-    """이미 불러온 파이프라인에서 특정 라벨 접두만 고르는 스팬 함수를 만든다."""
+    """공통 토큰 디코더의 결과에서 특정 라벨 접두를 고르는 스팬 함수를 만든다."""
 
     def ner(text: str) -> list[tuple[int, int]]:
-        spans: list[tuple[int, int]] = []
-        for entity in recognizer(text):
-            group = str(entity.get("entity_group", "")).upper()
-            if group.startswith(label_prefixes):
-                spans.append((int(entity["start"]), int(entity["end"])))
-        return spans
+        return [
+            (entity["start"], entity["end"])
+            for entity in decode_ner_entities(recognizer(text), len(text))
+            if entity["entity_group"].startswith(label_prefixes)
+        ]
 
     return ner
 
@@ -264,7 +484,8 @@ def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: AN
         "token-classification",
         model=spec.name,
         revision=spec.revision,
-        aggregation_strategy="simple",
+        aggregation_strategy=NER_AGGREGATION_STRATEGY,
+        ignore_labels=[],
     )
     _assert_labels_exist(recognizer, model_id, label_prefixes)
     return _span_fn(recognizer, label_prefixes)
@@ -299,7 +520,8 @@ def build_person_and_address_ner(  # noqa: ANN201 — 반환은 (NerFn, NerFn | 
         "token-classification",
         model=spec.name,
         revision=spec.revision,
-        aggregation_strategy="simple",
+        aggregation_strategy=NER_AGGREGATION_STRATEGY,
+        ignore_labels=[],
     )
     _assert_labels_exist(recognizer, model_id, person_prefixes)
     person = _span_fn(recognizer, person_prefixes)

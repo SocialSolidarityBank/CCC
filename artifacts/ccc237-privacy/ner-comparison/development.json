@@ -1,0 +1,8151 @@
+[
+  {
+    "id": "dev-address-186",
+    "text": "신청서에는 세대의 거주 주소로 온새도 새봄시 가온구 다빛동 625-6, 솔이음채아파트 102동 1546호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 새봄시 가온구 다빛동 625-6, 솔이음채아파트 102동 1546호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-182",
+    "text": "회의실 예약은 다음 주까지 온라인으로 받는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-07",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-address-082",
+    "text": "상담자는 거주지가 \"온새도 푸름시 윤슬구 별빛마루길 173-1, 솔이음채빌라 11층 1578호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 푸름시 윤슬구 별빛마루길 173-1, 솔이음채빌라 11층 1578호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-022",
+    "text": "비상 훈련은 지하 강당에서 실시한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-22",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-072",
+    "text": "비상 훈련은 공용 회의실에서 실시한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-22",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-person-128",
+    "text": "일정표의 인터뷰 대상은 최온유씨로 표시되었다.",
+    "person": [
+      "최온유"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-170",
+    "text": "업무 인계 메모는 담당자를 한예담님으로 지정했다.",
+    "person": [
+      "한예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-124",
+    "text": "관계자는 (최유진)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "최유진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-119",
+    "text": "거주확인란:다별도 온빛시 누리구 솔여울로 247-2, 한울가람채아파트 107동 407호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 온빛시 누리구 솔여울로 247-2, 한울가람채아파트 107동 407호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-184",
+    "text": "택배 상자 9개는 안내 데스크 옆 보관함에 놓였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-09",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-126",
+    "text": "회의는 8월 17일 오후 6시에 열린다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-01",
+      "date-time"
+    ]
+  },
+  {
+    "id": "dev-address-056",
+    "text": "우편물 수령지는 (해솔도 새봄시 가온구 한울새봄길 121 (해봄동), 푸른누리채빌라 1136호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 새봄시 가온구 한울새봄길 121 (해봄동), 푸른누리채빌라 1136호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-136",
+    "text": "우편물 수령지는 (해솔도 새봄시 가온구 한울새봄길 281 (해봄동), 푸른누리채빌라 696호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 새봄시 가온구 한울새봄길 281 (해봄동), 푸른누리채빌라 696호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-064",
+    "text": "문자에는 \"집 주소: 해솔도 온빛시 누리구 한울새봄길 137번길 1, 푸른누리채다세대 1272호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 온빛시 누리구 한울새봄길 137번길 1, 푸른누리채다세대 1272호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-068",
+    "text": "전시관 입장은 예약 시간 15분 전부터 가능하다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-18",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-person-033",
+    "text": "이가온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "이가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-010",
+    "text": "업무 인계 메모는 담당자를 김예담님으로 지정했다.",
+    "person": [
+      "김예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-155",
+    "text": "남쪽 해안의 바람은 일요일 저녁에 강해질 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-05",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-012",
+    "text": "주민은 해솔도 푸름시 윤슬구 한울가람로 33-3 (윤슬동), 푸른다온채주택 388호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 푸름시 윤슬구 한울가람로 33-3 (윤슬동), 푸른다온채주택 388호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-050",
+    "text": "상담자는 거주지가 \"온새도 다솜시 모아구 별빛마루길 109-5, 솔이음채빌라 3층 1034호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 다솜시 모아구 별빛마루길 109-5, 솔이음채빌라 3층 1034호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-113",
+    "text": "기기 점검 결과 배터리 잔량은 62%였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-13",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-negative-007",
+    "text": "회의실 예약은 월요일까지 온라인으로 받는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-07",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-address-168",
+    "text": "우편물 수령지는 (해솔도 이음시 나래구 한울새봄길 345 (해봄동), 푸른누리채빌라 1240호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 이음시 나래구 한울새봄길 345 (해봄동), 푸른누리채빌라 1240호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-117",
+    "text": "발표 순서는 최지우부터 시작한다고 공지했다.",
+    "person": [
+      "최지우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-196",
+    "text": "강 유역의 적설 관측 자료가 공개되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-21",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-026",
+    "text": "업무 인계 메모는 담당자를 김은호님으로 지정했다.",
+    "person": [
+      "김은호"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-138",
+    "text": "신청서에는 세대의 거주 주소로 온새도 이음시 나래구 다빛동 481-3, 솔이음채아파트 102동 730호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 이음시 나래구 다빛동 481-3, 솔이음채아파트 102동 730호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-048",
+    "text": "문자에는 \"집 주소: 해솔도 이음시 나래구 한울새봄길 105번길 3, 푸른누리채다세대 1000호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 이음시 나래구 한울새봄길 105번길 3, 푸른누리채다세대 1000호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-144",
+    "text": "파일 이름은 제출 규칙에 맞게 바꾸기로 했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-19",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-194",
+    "text": "상담자는 거주지가 \"온새도 온빛시 누리구 별빛마루길 397-5, 솔이음채빌라 3층 1682호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 온빛시 누리구 별빛마루길 397-5, 솔이음채빌라 3층 1682호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-person-145",
+    "text": "정해온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "정해온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-157",
+    "text": "회의실 예약은 이번 주까지 온라인으로 받는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-07",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-address-032",
+    "text": "문자에는 \"집 주소: 해솔도 푸름시 윤슬구 한울새봄길 73번길 5, 푸른누리채다세대 728호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 푸름시 윤슬구 한울새봄길 73번길 5, 푸른누리채다세대 728호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-141",
+    "text": "회의 안건은 예산 조정과 일정 변경을 포함해 7가지다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-16",
+      "briefing"
+    ]
+  },
+  {
+    "id": "dev-address-148",
+    "text": "전입 안내문을 해솔도 이음시 나래구 한울가람로 305번길 4, 푸른다온채아파트 104동 900호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 이음시 나래구 한울가람로 305번길 4, 푸른다온채아파트 104동 900호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-041",
+    "text": "회의 안건은 예산 조정과 일정 변경을 포함해 3가지다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-16",
+      "briefing"
+    ]
+  },
+  {
+    "id": "dev-person-102",
+    "text": "동료는 최보민에게 자료를 건넸다고 말했다.",
+    "person": [
+      "최보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-022",
+    "text": "동료는 김현우에게 자료를 건넸다고 말했다.",
+    "person": [
+      "김현우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-116",
+    "text": "전입 안내문을 해솔도 새봄시 가온구 한울가람로 241번길 8, 푸른다온채아파트 104동 356호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 새봄시 가온구 한울가람로 241번길 8, 푸른다온채아파트 104동 356호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-133",
+    "text": "발표 순서는 정마루부터 시작한다고 공지했다.",
+    "person": [
+      "정마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-069",
+    "text": "파일 이름은 보관 규칙에 맞게 바꾸기로 했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-19",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-058",
+    "text": "신청서에는 세대의 거주 주소로 온새도 이음시 나래구 다빛동 241-4, 솔이음채아파트 102동 1170호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 이음시 나래구 다빛동 241-4, 솔이음채아파트 102동 1170호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-195",
+    "text": "정류장 주변의 보도 정비가 겨울철에 시작된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-20",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-059",
+    "text": "새 보금자리인 다별도 온빛시 누리구 솔온빛길 127, 한울모아채다세대 12층 1187호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 온빛시 누리구 솔온빛길 127, 한울모아채다세대 12층 1187호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-043",
+    "text": "새 보금자리인 다별도 이음시 나래구 솔온빛길 95, 한울모아채다세대 8층 915호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 이음시 나래구 솔온빛길 95, 한울모아채다세대 8층 915호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-141",
+    "text": "주거 확인 전화에서 가람도 새봄시 가온구 이음동 490번지 별빛새결채빌라 10층 781호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 새봄시 가온구 이음동 490번지 별빛새결채빌라 10층 781호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-156",
+    "text": "주민은 해솔도 새봄시 가온구 한울가람로 321-3 (윤슬동), 푸른다온채주택 1036호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 새봄시 가온구 한울가람로 321-3 (윤슬동), 푸른다온채주택 1036호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-200",
+    "text": "회의록 의견 제출자: Elin Hall. 기록 확인을 마쳤다.",
+    "person": [
+      "Elin Hall"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-003",
+    "text": "방문자 명단에는 김다온만 등록되어 있었다.",
+    "person": [
+      "김다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-159",
+    "text": "기숙사가 아니라 다별도 온빛시 누리구 솔여울로 327, 한울가람채연립 107동 4층 1087호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 온빛시 누리구 솔여울로 327, 한울가람채연립 107동 4층 1087호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-198",
+    "text": "메뉴 구성에는 감자전 항목도 포함된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-23",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-146",
+    "text": "팀장은 \"정도윤씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "정도윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-166",
+    "text": "담당자는 '현재 사는 곳은 온새도 새봄시 가온구 모아동 565번지, 솔윤슬채다세대 11층 1206호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 새봄시 가온구 모아동 565번지, 솔윤슬채다세대 11층 1206호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-020",
+    "text": "전입 안내문을 해솔도 다솜시 모아구 한울가람로 49번길 2, 푸른다온채아파트 104동 524호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 다솜시 모아구 한울가람로 49번길 2, 푸른다온채아파트 104동 524호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-081",
+    "text": "도서관 평일 운영 안내에는 정기간행물실 개방 시간이 오전 9시부터 오후 6시로 적혀 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-06",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-address-169",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 온빛시 누리구 푸른나래로 347번길 7-4, 별빛온채연립 1257호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 온빛시 누리구 푸른나래로 347번길 7-4, 별빛온채연립 1257호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-person-176",
+    "text": "일정표의 인터뷰 대상은 한하람씨로 표시되었다.",
+    "person": [
+      "한하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-019",
+    "text": "방문자 명단에는 김민서만 등록되어 있었다.",
+    "person": [
+      "김민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-047",
+    "text": "기숙사가 아니라 다별도 푸름시 윤슬구 솔여울로 103, 한울가람채연립 107동 12층 983호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 푸름시 윤슬구 솔여울로 103, 한울가람채연립 107동 12층 983호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-001",
+    "text": "회의는 3월 7일 오후 1시에 열린다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-01",
+      "date-time"
+    ]
+  },
+  {
+    "id": "dev-person-068",
+    "text": "상담 기록에 보호자로 박라온님이 기재되었다.",
+    "person": [
+      "박라온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-123",
+    "text": "참석자:최다인—확인 완료.",
+    "person": [
+      "최다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-161",
+    "text": "산책로 공사는 다음 달 9일에 끝날 예정이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-11",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-186",
+    "text": "산책로 공사는 다음 달 10일에 끝날 예정이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-11",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-address-096",
+    "text": "문자에는 \"집 주소: 해솔도 새봄시 가온구 한울새봄길 201번길 6, 푸른누리채다세대 1816호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 새봄시 가온구 한울새봄길 201번길 6, 푸른누리채다세대 1816호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-181",
+    "text": "도서관 평일 운영 안내에는 전시실 개방 시간이 오전 9시부터 오후 6시로 적혀 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-06",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-negative-160",
+    "text": "버스는 도서관 정류장을 지나 종점으로 이동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-10",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-142",
+    "text": "주문 합계는 40500원이며 배송비는 포함되지 않았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-17",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-074",
+    "text": "업무 인계 메모는 담당자를 박예담님으로 지정했다.",
+    "person": [
+      "박예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-057",
+    "text": "접수 창구에서 \"이하린님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "이하린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-171",
+    "text": "참석자:한유안—확인 완료.",
+    "person": [
+      "한유안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-051",
+    "text": "회의는 5월 11일 오후 3시에 열린다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-01",
+      "date-time"
+    ]
+  },
+  {
+    "id": "dev-address-146",
+    "text": "상담자는 거주지가 \"온새도 새봄시 가온구 별빛마루길 301-2, 솔이음채빌라 3층 866호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 새봄시 가온구 별빛마루길 301-2, 솔이음채빌라 3층 866호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-119",
+    "text": "파일 이름은 출력 규칙에 맞게 바꾸기로 했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-19",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-negative-062",
+    "text": "교육 자료는 5개 장으로 나뉘어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-12",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-037",
+    "text": "기록된 자택 주소는 가람도 푸름시 윤슬구 푸른이음길 83, 별빛새결채주택 813호이다.",
+    "person": [],
+    "address": [
+      "가람도 푸름시 윤슬구 푸른이음길 83, 별빛새결채주택 813호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-person-065",
+    "text": "박가온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "박가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-035",
+    "text": "보호자는 다별도 다솜시 모아구 온새동 172-8, 한울모아채연립 779호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 다솜시 모아구 온새동 172-8, 한울모아채연립 779호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-195",
+    "text": "보호자는 다별도 다솜시 모아구 온새동 652-6, 한울모아채연립 1699호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 다솜시 모아구 온새동 652-6, 한울모아채연립 1699호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-058",
+    "text": "업무 인계 메모는 담당자를 이은호님으로 지정했다.",
+    "person": [
+      "이은호"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-168",
+    "text": "회의록 의견 제출자: 한아린. 기록 확인을 마쳤다.",
+    "person": [
+      "한아린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-151",
+    "text": "회의는 9월 19일 오후 7시에 열린다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-01",
+      "date-time"
+    ]
+  },
+  {
+    "id": "dev-address-083",
+    "text": "보호자는 다별도 이음시 나래구 온새동 316-2, 한울모아채연립 1595호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 이음시 나래구 온새동 316-2, 한울모아채연립 1595호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-134",
+    "text": "동료는 정보민에게 자료를 건넸다고 말했다.",
+    "person": [
+      "정보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-013",
+    "text": "주거 확인 전화에서 가람도 이음시 나래구 이음동 106번지 별빛새결채빌라 2층 405호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 이음시 나래구 이음동 106번지 별빛새결채빌라 2층 405호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-138",
+    "text": "업무 인계 메모는 담당자를 정예담님으로 지정했다.",
+    "person": [
+      "정예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-043",
+    "text": "전시관 입장은 예약 시간 10분 전부터 가능하다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-18",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-address-132",
+    "text": "전입 안내문을 해솔도 푸름시 윤슬구 한울가람로 273번길 6, 푸른다온채아파트 104동 628호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 푸름시 윤슬구 한울가람로 273번길 6, 푸른다온채아파트 104동 628호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-097",
+    "text": "배송지는 가람도 푸름시 윤슬구 푸른나래로 203, 별빛온채아파트 101동 1833호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 푸름시 윤슬구 푸른나래로 203, 별빛온채아파트 101동 1833호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-192",
+    "text": "일정표의 인터뷰 대상은 한온유씨로 표시되었다.",
+    "person": [
+      "한온유"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-006",
+    "text": "담당자는 '현재 사는 곳은 온새도 새봄시 가온구 모아동 85번지, 솔윤슬채다세대 7층 286호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 새봄시 가온구 모아동 85번지, 솔윤슬채다세대 7층 286호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-041",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 새봄시 가온구 푸른나래로 91번길 5-1, 별빛온채연립 881호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 새봄시 가온구 푸른나래로 91번길 5-1, 별빛온채연립 881호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-065",
+    "text": "동부 산지에는 오전부터 구름이 많겠다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-15",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-131",
+    "text": "방문자 명단에는 정다온만 등록되어 있었다.",
+    "person": [
+      "정다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-148",
+    "text": "상담 기록에 보호자로 정서윤님이 기재되었다.",
+    "person": [
+      "정서윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-140",
+    "text": "주민은 해솔도 다솜시 모아구 한울가람로 289-5 (윤슬동), 푸른다온채주택 764호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 다솜시 모아구 한울가람로 289-5 (윤슬동), 푸른다온채주택 764호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-199",
+    "text": "거주확인란:다별도 온빛시 누리구 솔여울로 407-1, 한울가람채아파트 107동 1767호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 온빛시 누리구 솔여울로 407-1, 한울가람채아파트 107동 1767호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-162",
+    "text": "교육 자료는 9개 장으로 나뉘어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-12",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-189",
+    "text": "주거 확인 전화에서 가람도 온빛시 누리구 이음동 634번지 별빛새결채빌라 10층 1597호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 온빛시 누리구 이음동 634번지 별빛새결채빌라 10층 1597호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-046",
+    "text": "강 유역의 유속 관측 자료가 공개되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-21",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-067",
+    "text": "주문 합계는 27000원이며 배송비는 포함되지 않았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-17",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-025",
+    "text": "접수 창구에서 \"김하린님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "김하린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-128",
+    "text": "문자에는 \"집 주소: 해솔도 이음시 나래구 한울새봄길 265번길 2, 푸른누리채다세대 560호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 이음시 나래구 한울새봄길 265번길 2, 푸른누리채다세대 560호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-029",
+    "text": "주거 확인 전화에서 가람도 온빛시 누리구 이음동 154번지 별빛새결채빌라 6층 677호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 온빛시 누리구 이음동 154번지 별빛새결채빌라 6층 677호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-038",
+    "text": "동료는 이보민에게 자료를 건넸다고 말했다.",
+    "person": [
+      "이보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-167",
+    "text": "오늘 전화한 분은 한서온씨라고 안내받았다.",
+    "person": [
+      "한서온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-170",
+    "text": "신청서에는 세대의 거주 주소로 온새도 다솜시 모아구 다빛동 577-8, 솔이음채아파트 102동 1274호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 다솜시 모아구 다빛동 577-8, 솔이음채아파트 102동 1274호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-098",
+    "text": "팀장은 \"최나래씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "최나래"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-142",
+    "text": "등기 우편은 온새도 푸름시 윤슬구 별빛다솜길 293-7, 솔윤슬채아파트 106동 798호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 푸름시 윤슬구 별빛다솜길 293-7, 솔윤슬채아파트 106동 798호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-029",
+    "text": "초대장 수신인은 김시온님 한 분이다.",
+    "person": [
+      "김시온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-188",
+    "text": "관계자는 (한유진)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "한유진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-075",
+    "text": "새 보금자리인 다별도 다솜시 모아구 솔온빛길 159, 한울모아채다세대 4층 1459호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 다솜시 모아구 솔온빛길 159, 한울모아채다세대 4층 1459호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-156",
+    "text": "도서관 평일 운영 안내에는 보존서고 개방 시간이 오전 9시부터 오후 6시로 적혀 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-06",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-person-160",
+    "text": "일정표의 인터뷰 대상은 정온유씨로 표시되었다.",
+    "person": [
+      "정온유"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-075",
+    "text": "기부금 집계액은 284000원이며 개인별 내역은 없다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-25",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-016",
+    "text": "일정표의 인터뷰 대상은 김하람씨로 표시되었다.",
+    "person": [
+      "김하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-004",
+    "text": "전입 안내문을 해솔도 온빛시 누리구 한울가람로 17번길 4, 푸른다온채아파트 104동 252호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 온빛시 누리구 한울가람로 17번길 4, 푸른다온채아파트 104동 252호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-088",
+    "text": "우편물 수령지는 (해솔도 이음시 나래구 한울새봄길 185 (해봄동), 푸른누리채빌라 1680호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 이음시 나래구 한울새봄길 185 (해봄동), 푸른누리채빌라 1680호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-096",
+    "text": "강 유역의 강수 관측 자료가 공개되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-21",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-149",
+    "text": "기록된 자택 주소는 가람도 온빛시 누리구 푸른이음길 307, 별빛새결채주택 917호이다.",
+    "person": [],
+    "address": [
+      "가람도 온빛시 누리구 푸른이음길 307, 별빛새결채주택 917호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-person-185",
+    "text": "접수 창구에서 \"한하린님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "한하린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-122",
+    "text": "신청서에는 세대의 거주 주소로 온새도 푸름시 윤슬구 다빛동 433-5, 솔이음채아파트 102동 458호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 푸름시 윤슬구 다빛동 433-5, 솔이음채아파트 102동 458호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-126",
+    "text": "지원 요청자는 최태오이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "최태오"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-139",
+    "text": "참석자:정유안—확인 완료.",
+    "person": [
+      "정유안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-105",
+    "text": "접수 창구에서 \"최여울님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "최여울"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-093",
+    "text": "전시관 입장은 예약 시간 20분 전부터 가능하다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-18",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-person-163",
+    "text": "방문자 명단에는 한다온만 등록되어 있었다.",
+    "person": [
+      "한다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-154",
+    "text": "북부 지역의 강수량이 지난달보다 10% 늘었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-04",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-174",
+    "text": "지원 요청자는 한지안이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "한지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-068",
+    "text": "전입 안내문을 해솔도 이음시 나래구 한울가람로 145번길 5, 푸른다온채아파트 104동 1340호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 이음시 나래구 한울가람로 145번길 5, 푸른다온채아파트 104동 1340호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-023",
+    "text": "거주확인란:다별도 이음시 나래구 솔여울로 55-5, 한울가람채아파트 107동 575호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 이음시 나래구 솔여울로 55-5, 한울가람채아파트 107동 575호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-005",
+    "text": "발표 순서는 김마루부터 시작한다고 공지했다.",
+    "person": [
+      "김마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-055",
+    "text": "남쪽 해안의 바람은 수요일 저녁에 강해질 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-05",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-153",
+    "text": "접수 창구에서 \"정하린님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "정하린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-011",
+    "text": "산책로 공사는 다음 달 3일에 끝날 예정이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-11",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-address-067",
+    "text": "보호자는 다별도 푸름시 윤슬구 온새동 268-4, 한울모아채연립 1323호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 푸름시 윤슬구 온새동 268-4, 한울모아채연립 1323호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-077",
+    "text": "주거 확인 전화에서 가람도 푸름시 윤슬구 이음동 298번지 별빛새결채빌라 6층 1493호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 푸름시 윤슬구 이음동 298번지 별빛새결채빌라 6층 1493호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-108",
+    "text": "주민은 해솔도 이음시 나래구 한울가람로 225-9 (윤슬동), 푸른다온채주택 220호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 이음시 나래구 한울가람로 225-9 (윤슬동), 푸른다온채주택 220호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-124",
+    "text": "회의실 온도는 섭씨 23도로 맞춰 두었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-24",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-address-145",
+    "text": "배송지는 가람도 다솜시 모아구 푸른나래로 299, 별빛온채아파트 101동 849호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 다솜시 모아구 푸른나래로 299, 별빛온채아파트 101동 849호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-008",
+    "text": "우편물 수령지는 (해솔도 이음시 나래구 한울새봄길 25 (해봄동), 푸른누리채빌라 320호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 이음시 나래구 한울새봄길 25 (해봄동), 푸른누리채빌라 320호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-140",
+    "text": "관계자는 (정이든)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "정이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-093",
+    "text": "초대장 수신인은 박시온님 한 분이다.",
+    "person": [
+      "박시온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-028",
+    "text": "창고에는 접이식 의자가 17개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-03",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-negative-042",
+    "text": "주문 합계는 22500원이며 배송비는 포함되지 않았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-17",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-011",
+    "text": "참석자:김유안—확인 완료.",
+    "person": [
+      "김유안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-011",
+    "text": "새 보금자리인 다별도 새봄시 가온구 솔온빛길 31, 한울모아채다세대 12층 371호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 새봄시 가온구 솔온빛길 31, 한울모아채다세대 12층 371호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-069",
+    "text": "기록된 자택 주소는 가람도 온빛시 누리구 푸른이음길 147, 별빛새결채주택 1357호이다.",
+    "person": [],
+    "address": [
+      "가람도 온빛시 누리구 푸른이음길 147, 별빛새결채주택 1357호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-189",
+    "text": "서쪽 권역의 평균 기온이 평년보다 8도 낮았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-14",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-036",
+    "text": "전입 안내문을 해솔도 새봄시 가온구 한울가람로 81번길 9, 푸른다온채아파트 104동 796호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 새봄시 가온구 한울가람로 81번길 9, 푸른다온채아파트 104동 796호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-192",
+    "text": "문자에는 \"집 주소: 해솔도 푸름시 윤슬구 한울새봄길 393번길 3, 푸른누리채다세대 1648호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 푸름시 윤슬구 한울새봄길 393번길 3, 푸른누리채다세대 1648호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-041",
+    "text": "접수 창구에서 \"이여울님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "이여울"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-133",
+    "text": "공유 폴더의 검토함에는 보고서 부록 파일이 저장되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-08",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-negative-056",
+    "text": "도서관 평일 운영 안내에는 어린이실 개방 시간이 오전 9시부터 오후 6시로 적혀 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-06",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-person-067",
+    "text": "방문자 명단에는 박다온만 등록되어 있었다.",
+    "person": [
+      "박다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-127",
+    "text": "간사는 \"발언자는 최가람입니다\"라고 정리했다.",
+    "person": [
+      "최가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-person-066",
+    "text": "팀장은 \"박나래씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "박나래"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-129",
+    "text": "북부 지역의 강수량이 지난달보다 9% 늘었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-04",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-006",
+    "text": "동료는 김보민에게 자료를 건넸다고 말했다.",
+    "person": [
+      "김보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-132",
+    "text": "상담 기록에 보호자로 정라온님이 기재되었다.",
+    "person": [
+      "정라온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-065",
+    "text": "배송지는 가람도 다솜시 모아구 푸른나래로 139, 별빛온채아파트 101동 1289호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 다솜시 모아구 푸른나래로 139, 별빛온채아파트 101동 1289호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-024",
+    "text": "회의록 의견 제출자: 김예준. 기록 확인을 마쳤다.",
+    "person": [
+      "김예준"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-106",
+    "text": "업무 인계 메모는 담당자를 최예담님으로 지정했다.",
+    "person": [
+      "최예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-160",
+    "text": "문자에는 \"집 주소: 해솔도 다솜시 모아구 한울새봄길 329번길 7, 푸른누리채다세대 1104호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 다솜시 모아구 한울새봄길 329번길 7, 푸른누리채다세대 1104호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-165",
+    "text": "기록된 자택 주소는 가람도 다솜시 모아구 푸른이음길 339, 별빛새결채주택 1189호이다.",
+    "person": [],
+    "address": [
+      "가람도 다솜시 모아구 푸른이음길 339, 별빛새결채주택 1189호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-address-154",
+    "text": "신청서에는 세대의 거주 주소로 온새도 온빛시 누리구 다빛동 529-1, 솔이음채아파트 102동 1002호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 온빛시 누리구 다빛동 529-1, 솔이음채아파트 102동 1002호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-030",
+    "text": "남쪽 해안의 바람은 화요일 저녁에 강해질 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-05",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-184",
+    "text": "우편물 수령지는 (해솔도 온빛시 누리구 한울새봄길 377 (해봄동), 푸른누리채빌라 1512호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 온빛시 누리구 한울새봄길 377 (해봄동), 푸른누리채빌라 1512호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-101",
+    "text": "회의는 7월 15일 오후 5시에 열린다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-01",
+      "date-time"
+    ]
+  },
+  {
+    "id": "dev-person-079",
+    "text": "간사는 \"발언자는 박채온입니다\"라고 정리했다.",
+    "person": [
+      "박채온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-115",
+    "text": "동부 산지에는 오후부터 구름이 많겠다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-15",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-145",
+    "text": "정류장 주변의 보도 정비가 여름철에 시작된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-20",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-095",
+    "text": "정류장 주변의 보도 정비가 다음 달에 시작된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-20",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-143",
+    "text": "간사는 \"발언자는 정채온입니다\"라고 정리했다.",
+    "person": [
+      "정채온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-052",
+    "text": "전입 안내문을 해솔도 푸름시 윤슬구 한울가람로 113번길 7, 푸른다온채아파트 104동 1068호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 푸름시 윤슬구 한울가람로 113번길 7, 푸른다온채아파트 104동 1068호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-058",
+    "text": "공유 폴더의 검토함에는 보고서 검토본 파일이 저장되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-08",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-048",
+    "text": "일정표의 인터뷰 대상은 이하람씨로 표시되었다.",
+    "person": [
+      "이하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-016",
+    "text": "회의 안건은 예산 조정과 일정 변경을 포함해 2가지다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-16",
+      "briefing"
+    ]
+  },
+  {
+    "id": "dev-person-162",
+    "text": "팀장은 \"한나래씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "한나래"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-180",
+    "text": "남쪽 해안의 바람은 다음 주 저녁에 강해질 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-05",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-114",
+    "text": "상담자는 거주지가 \"온새도 온빛시 누리구 별빛마루길 237-6, 솔이음채빌라 7층 322호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 온빛시 누리구 별빛마루길 237-6, 솔이음채빌라 7층 322호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-person-099",
+    "text": "방문자 명단에는 최다온만 등록되어 있었다.",
+    "person": [
+      "최다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-019",
+    "text": "보호자는 다별도 온빛시 누리구 온새동 124-1, 한울모아채연립 507호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 온빛시 누리구 온새동 124-1, 한울모아채연립 507호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-016",
+    "text": "문자에는 \"집 주소: 해솔도 새봄시 가온구 한울새봄길 41번길 7, 푸른누리채다세대 456호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 새봄시 가온구 한울새봄길 41번길 7, 푸른누리채다세대 456호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-108",
+    "text": "공유 폴더의 검토함에는 보고서 표지 파일이 저장되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-08",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-051",
+    "text": "방문자 명단에는 이민서만 등록되어 있었다.",
+    "person": [
+      "이민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-046",
+    "text": "등기 우편은 온새도 새봄시 가온구 별빛다솜길 101-1, 솔윤슬채아파트 106동 966호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 새봄시 가온구 별빛다솜길 101-1, 솔윤슬채아파트 106동 966호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-091",
+    "text": "회의 안건은 예산 조정과 일정 변경을 포함해 5가지다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-16",
+      "briefing"
+    ]
+  },
+  {
+    "id": "dev-negative-183",
+    "text": "공유 폴더의 검토함에는 보고서 목차 파일이 저장되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-08",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-181",
+    "text": "기록된 자택 주소는 가람도 새봄시 가온구 푸른이음길 371, 별빛새결채주택 1461호이다.",
+    "person": [],
+    "address": [
+      "가람도 새봄시 가온구 푸른이음길 371, 별빛새결채주택 1461호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-138",
+    "text": "기기 점검 결과 배터리 잔량은 69%였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-13",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-address-127",
+    "text": "기숙사가 아니라 다별도 푸름시 윤슬구 솔여울로 263, 한울가람채연립 107동 8층 543호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 푸름시 윤슬구 솔여울로 263, 한울가람채연립 107동 8층 543호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-073",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 이음시 나래구 푸른나래로 155번길 1-3, 별빛온채연립 1425호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 이음시 나래구 푸른나래로 155번길 1-3, 별빛온채연립 1425호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-address-001",
+    "text": "배송지는 가람도 새봄시 가온구 푸른나래로 11, 별빛온채아파트 101동 201호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 새봄시 가온구 푸른나래로 11, 별빛온채아파트 101동 201호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-063",
+    "text": "간사는 \"발언자는 이가람입니다\"라고 정리했다.",
+    "person": [
+      "이가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-127",
+    "text": "이번 분기 예산은 595만 원으로 조정되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-02",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-087",
+    "text": "오늘 전화한 분은 박수빈씨라고 안내받았다.",
+    "person": [
+      "박수빈"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-178",
+    "text": "상담자는 거주지가 \"온새도 이음시 나래구 별빛마루길 365-7, 솔이음채빌라 11층 1410호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 이음시 나래구 별빛마루길 365-7, 솔이음채빌라 11층 1410호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-111",
+    "text": "산책로 공사는 다음 달 7일에 끝날 예정이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-11",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-person-196",
+    "text": "상담 기록에 보호자로 Sola Hall님이 기재되었다.",
+    "person": [
+      "Sola Hall"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-130",
+    "text": "팀장은 \"정나래씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "정나래"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-176",
+    "text": "문자에는 \"집 주소: 해솔도 새봄시 가온구 한울새봄길 361번길 5, 푸른누리채다세대 1376호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 새봄시 가온구 한울새봄길 361번길 5, 푸른누리채다세대 1376호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-150",
+    "text": "담당자는 '현재 사는 곳은 온새도 다솜시 모아구 모아동 517번지, 솔윤슬채다세대 7층 934호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 다솜시 모아구 모아동 517번지, 솔윤슬채다세대 7층 934호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-172",
+    "text": "비상 훈련은 대강당에서 실시한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-22",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-083",
+    "text": "공유 폴더의 검토함에는 보고서 수정본 파일이 저장되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-08",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-101",
+    "text": "발표 순서는 최마루부터 시작한다고 공지했다.",
+    "person": [
+      "최마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-052",
+    "text": "상담 기록에 보호자로 이서윤님이 기재되었다.",
+    "person": [
+      "이서윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-092",
+    "text": "주문 합계는 31500원이며 배송비는 포함되지 않았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-17",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-address-005",
+    "text": "기록된 자택 주소는 가람도 다솜시 모아구 푸른이음길 19, 별빛새결채주택 269호이다.",
+    "person": [],
+    "address": [
+      "가람도 다솜시 모아구 푸른이음길 19, 별빛새결채주택 269호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-address-139",
+    "text": "새 보금자리인 다별도 온빛시 누리구 솔온빛길 287, 한울모아채다세대 8층 747호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 온빛시 누리구 솔온빛길 287, 한울모아채다세대 8층 747호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-104",
+    "text": "우편물 수령지는 (해솔도 온빛시 누리구 한울새봄길 217 (해봄동), 푸른누리채빌라 1952호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 온빛시 누리구 한울새봄길 217 (해봄동), 푸른누리채빌라 1952호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-151",
+    "text": "거주확인란:다별도 새봄시 가온구 솔여울로 311-7, 한울가람채아파트 107동 951호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 새봄시 가온구 솔여울로 311-7, 한울가람채아파트 107동 951호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-114",
+    "text": "서쪽 권역의 평균 기온이 평년보다 5도 낮았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-14",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-077",
+    "text": "이번 분기 예산은 525만 원으로 조정되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-02",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-address-200",
+    "text": "우편물 수령지는 (해솔도 다솜시 모아구 한울새봄길 409 (해봄동), 푸른누리채빌라 1784호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 다솜시 모아구 한울새봄길 409 (해봄동), 푸른누리채빌라 1784호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-078",
+    "text": "창고에는 접이식 의자가 23개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-03",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-172",
+    "text": "관계자는 (한이든)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "한이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-195",
+    "text": "방문자 명단에는 Nari Reed만 등록되어 있었다.",
+    "person": [
+      "Nari Reed"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-107",
+    "text": "참석자:최유안—확인 완료.",
+    "person": [
+      "최유안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-036",
+    "text": "상담 기록에 보호자로 이라온님이 기재되었다.",
+    "person": [
+      "이라온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-140",
+    "text": "동부 산지에는 저녁부터 구름이 많겠다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-15",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-193",
+    "text": "배송지는 가람도 이음시 나래구 푸른나래로 395, 별빛온채아파트 101동 1665호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 이음시 나래구 푸른나래로 395, 별빛온채아파트 101동 1665호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-137",
+    "text": "접수 창구에서 \"정여울님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "정여울"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-173",
+    "text": "초대장 수신인은 한재온님 한 분이다.",
+    "person": [
+      "한재온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-004",
+    "text": "상담 기록에 보호자로 김라온님이 기재되었다.",
+    "person": [
+      "김라온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-162",
+    "text": "상담자는 거주지가 \"온새도 푸름시 윤슬구 별빛마루길 333-9, 솔이음채빌라 7층 1138호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 푸름시 윤슬구 별빛마루길 333-9, 솔이음채빌라 7층 1138호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-person-012",
+    "text": "관계자는 (김이든)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "김이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-193",
+    "text": "Arin Reed님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "Arin Reed"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-151",
+    "text": "오늘 전화한 분은 정수빈씨라고 안내받았다.",
+    "person": [
+      "정수빈"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-150",
+    "text": "동료는 정현우에게 자료를 건넸다고 말했다.",
+    "person": [
+      "정현우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-107",
+    "text": "새 보금자리인 다별도 푸름시 윤슬구 솔온빛길 223, 한울모아채다세대 12층 203호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 푸름시 윤슬구 솔온빛길 223, 한울모아채다세대 12층 203호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-027",
+    "text": "새 보금자리인 다별도 푸름시 윤슬구 솔온빛길 63, 한울모아채다세대 4층 643호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 푸름시 윤슬구 솔온빛길 63, 한울모아채다세대 4층 643호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-114",
+    "text": "팀장은 \"최도윤씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "최도윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-188",
+    "text": "주민은 해솔도 이음시 나래구 한울가람로 385-8 (윤슬동), 푸른다온채주택 1580호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 이음시 나래구 한울가람로 385-8 (윤슬동), 푸른다온채주택 1580호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-081",
+    "text": "배송지는 가람도 새봄시 가온구 푸른나래로 171, 별빛온채아파트 101동 1561호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 새봄시 가온구 푸른나래로 171, 별빛온채아파트 101동 1561호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-079",
+    "text": "북부 지역의 강수량이 지난달보다 7% 늘었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-04",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-023",
+    "text": "오늘 전화한 분은 김수빈씨라고 안내받았다.",
+    "person": [
+      "김수빈"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-047",
+    "text": "비상 훈련은 실내 체육관에서 실시한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-22",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-070",
+    "text": "정류장 주변의 보도 정비가 이번 달에 시작된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-20",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-104",
+    "text": "회의록 의견 제출자: 최아린. 기록 확인을 마쳤다.",
+    "person": [
+      "최아린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-194",
+    "text": "팀장은 \"Juno Hall씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "Juno Hall"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-054",
+    "text": "동료는 이현우에게 자료를 건넸다고 말했다.",
+    "person": [
+      "이현우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-045",
+    "text": "주거 확인 전화에서 가람도 다솜시 모아구 이음동 202번지 별빛새결채빌라 10층 949호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 다솜시 모아구 이음동 202번지 별빛새결채빌라 10층 949호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-039",
+    "text": "서쪽 권역의 평균 기온이 평년보다 2도 낮았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-14",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-054",
+    "text": "북부 지역의 강수량이 지난달보다 6% 늘었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-04",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-173",
+    "text": "메뉴 구성에는 과일차 항목도 포함된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-23",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-033",
+    "text": "배송지는 가람도 이음시 나래구 푸른나래로 75, 별빛온채아파트 101동 745호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 이음시 나래구 푸른나래로 75, 별빛온채아파트 101동 745호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-103",
+    "text": "오늘 전화한 분은 최서온씨라고 안내받았다.",
+    "person": [
+      "최서온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-188",
+    "text": "기기 점검 결과 배터리 잔량은 83%였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-13",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-address-025",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 다솜시 모아구 푸른나래로 59번길 7-5, 별빛온채연립 609호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 다솜시 모아구 푸른나래로 59번길 7-5, 별빛온채연립 609호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-address-092",
+    "text": "주민은 해솔도 푸름시 윤슬구 한울가람로 193-2 (윤슬동), 푸른다온채주택 1748호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 푸름시 윤슬구 한울가람로 193-2 (윤슬동), 푸른다온채주택 1748호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-154",
+    "text": "업무 인계 메모는 담당자를 정은호님으로 지정했다.",
+    "person": [
+      "정은호"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-146",
+    "text": "강 유역의 습도 관측 자료가 공개되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-21",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-116",
+    "text": "회의 안건은 예산 조정과 일정 변경을 포함해 6가지다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-16",
+      "briefing"
+    ]
+  },
+  {
+    "id": "dev-negative-025",
+    "text": "기부금 집계액은 230000원이며 개인별 내역은 없다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-25",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-address-099",
+    "text": "보호자는 다별도 온빛시 누리구 온새동 364-9, 한울모아채연립 1867호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 온빛시 누리구 온새동 364-9, 한울모아채연립 1867호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-094",
+    "text": "지원 요청자는 박태오이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "박태오"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-037",
+    "text": "교육 자료는 4개 장으로 나뉘어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-12",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-198",
+    "text": "동료는 Theo Hall에게 자료를 건넸다고 말했다.",
+    "person": [
+      "Theo Hall"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-161",
+    "text": "배송지는 가람도 새봄시 가온구 푸른나래로 331, 별빛온채아파트 101동 1121호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 새봄시 가온구 푸른나래로 331, 별빛온채아파트 101동 1121호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-010",
+    "text": "신청서에는 세대의 거주 주소로 온새도 다솜시 모아구 다빛동 97-1, 솔이음채아파트 102동 354호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 다솜시 모아구 다빛동 97-1, 솔이음채아파트 102동 354호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-014",
+    "text": "지원 요청자는 김지안이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "김지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-095",
+    "text": "기숙사가 아니라 다별도 다솜시 모아구 솔여울로 199, 한울가람채연립 107동 12층 1799호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 다솜시 모아구 솔여울로 199, 한울가람채연립 107동 12층 1799호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-141",
+    "text": "초대장 수신인은 정재온님 한 분이다.",
+    "person": [
+      "정재온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-072",
+    "text": "회의록 의견 제출자: 박아린. 기록 확인을 마쳤다.",
+    "person": [
+      "박아린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-020",
+    "text": "정류장 주변의 보도 정비가 이번 주에 시작된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-20",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-100",
+    "text": "기부금 집계액은 311000원이며 개인별 내역은 없다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-25",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-043",
+    "text": "참석자:이유안—확인 완료.",
+    "person": [
+      "이유안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-044",
+    "text": "관계자는 (이이든)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "이이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-060",
+    "text": "관계자는 (이유진)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "이유진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-090",
+    "text": "업무 인계 메모는 담당자를 박은호님으로 지정했다.",
+    "person": [
+      "박은호"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-023",
+    "text": "메뉴 구성에는 계절 채소 수프 항목도 포함된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-23",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-negative-132",
+    "text": "회의실 예약은 토요일까지 온라인으로 받는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-07",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-address-171",
+    "text": "새 보금자리인 다별도 새봄시 가온구 솔온빛길 351, 한울모아채다세대 4층 1291호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 새봄시 가온구 솔온빛길 351, 한울모아채다세대 4층 1291호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-135",
+    "text": "버스는 운동장 정류장을 지나 종점으로 이동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-10",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-169",
+    "text": "접수 창구에서 \"한여울님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "한여울"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-187",
+    "text": "참석자:한다인—확인 완료.",
+    "person": [
+      "한다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-070",
+    "text": "담당자는 '현재 사는 곳은 온새도 다솜시 모아구 모아동 277번지, 솔윤슬채다세대 11층 1374호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 다솜시 모아구 모아동 277번지, 솔윤슬채다세대 11층 1374호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-098",
+    "text": "상담자는 거주지가 \"온새도 이음시 나래구 별빛마루길 205-8, 솔이음채빌라 3층 1850호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 이음시 나래구 별빛마루길 205-8, 솔이음채빌라 3층 1850호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-person-050",
+    "text": "팀장은 \"이도윤씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "이도윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-171",
+    "text": "강 유역의 풍향 관측 자료가 공개되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-21",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-184",
+    "text": "회의록 의견 제출자: 한예준. 기록 확인을 마쳤다.",
+    "person": [
+      "한예준"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-002",
+    "text": "팀장은 \"김나래씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "김나래"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-131",
+    "text": "보호자는 다별도 새봄시 가온구 온새동 460-5, 한울모아채연립 611호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 새봄시 가온구 온새동 460-5, 한울모아채연립 611호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-124",
+    "text": "주민은 해솔도 온빛시 누리구 한울가람로 257-7 (윤슬동), 푸른다온채주택 492호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 온빛시 누리구 한울가람로 257-7 (윤슬동), 푸른다온채주택 492호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-022",
+    "text": "담당자는 '현재 사는 곳은 온새도 푸름시 윤슬구 모아동 133번지, 솔윤슬채다세대 11층 558호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 푸름시 윤슬구 모아동 133번지, 솔윤슬채다세대 11층 558호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-029",
+    "text": "북부 지역의 강수량이 지난달보다 5% 늘었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-04",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-185",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 다솜시 모아구 푸른나래로 379번길 5-5, 별빛온채연립 1529호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 다솜시 모아구 푸른나래로 379번길 5-5, 별빛온채연립 1529호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-118",
+    "text": "전시관 입장은 예약 시간 25분 전부터 가능하다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-18",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-negative-066",
+    "text": "회의 안건은 예산 조정과 일정 변경을 포함해 4가지다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-16",
+      "briefing"
+    ]
+  },
+  {
+    "id": "dev-negative-057",
+    "text": "회의실 예약은 수요일까지 온라인으로 받는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-07",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-person-030",
+    "text": "지원 요청자는 김태오이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "김태오"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-026",
+    "text": "회의는 4월 9일 오후 2시에 열린다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-01",
+      "date-time"
+    ]
+  },
+  {
+    "id": "dev-negative-176",
+    "text": "회의는 10월 21일 오후 8시에 열린다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-01",
+      "date-time"
+    ]
+  },
+  {
+    "id": "dev-person-047",
+    "text": "간사는 \"발언자는 이채온입니다\"라고 정리했다.",
+    "person": [
+      "이채온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-197",
+    "text": "비상 훈련은 주차 광장에서 실시한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-22",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-088",
+    "text": "기기 점검 결과 배터리 잔량은 55%였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-13",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-negative-032",
+    "text": "회의실 예약은 화요일까지 온라인으로 받는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-07",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-address-007",
+    "text": "거주확인란:다별도 푸름시 윤슬구 솔여울로 23-7, 한울가람채아파트 107동 303호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 푸름시 윤슬구 솔여울로 23-7, 한울가람채아파트 107동 303호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-060",
+    "text": "버스는 시장 정류장을 지나 종점으로 이동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-10",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-015",
+    "text": "간사는 \"발언자는 김채온입니다\"라고 정리했다.",
+    "person": [
+      "김채온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-person-159",
+    "text": "간사는 \"발언자는 정가람입니다\"라고 정리했다.",
+    "person": [
+      "정가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-185",
+    "text": "버스는 터미널 정류장을 지나 종점으로 이동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-10",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-166",
+    "text": "동료는 한보민에게 자료를 건넸다고 말했다.",
+    "person": [
+      "한보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-153",
+    "text": "창고에는 접이식 의자가 32개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-03",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-100",
+    "text": "상담 기록에 보호자로 최라온님이 기재되었다.",
+    "person": [
+      "최라온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-157",
+    "text": "주거 확인 전화에서 가람도 푸름시 윤슬구 이음동 538번지 별빛새결채빌라 2층 1053호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 푸름시 윤슬구 이음동 538번지 별빛새결채빌라 2층 1053호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-147",
+    "text": "방문자 명단에는 정민서만 등록되어 있었다.",
+    "person": [
+      "정민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-083",
+    "text": "방문자 명단에는 박민서만 등록되어 있었다.",
+    "person": [
+      "박민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-033",
+    "text": "공유 폴더의 검토함에는 보고서 요약본 파일이 저장되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-08",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-negative-168",
+    "text": "전시관 입장은 예약 시간 35분 전부터 가능하다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-18",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-negative-038",
+    "text": "기기 점검 결과 배터리 잔량은 41%였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-13",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-negative-027",
+    "text": "이번 분기 예산은 455만 원으로 조정되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-02",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-address-123",
+    "text": "새 보금자리인 다별도 이음시 나래구 솔온빛길 255, 한울모아채다세대 4층 475호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 이음시 나래구 솔온빛길 255, 한울모아채다세대 4층 475호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-032",
+    "text": "일정표의 인터뷰 대상은 김온유씨로 표시되었다.",
+    "person": [
+      "김온유"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-125",
+    "text": "주거 확인 전화에서 가람도 다솜시 모아구 이음동 442번지 별빛새결채빌라 6층 509호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 다솜시 모아구 이음동 442번지 별빛새결채빌라 6층 509호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-129",
+    "text": "정가온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "정가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-037",
+    "text": "발표 순서는 이마루부터 시작한다고 공지했다.",
+    "person": [
+      "이마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-085",
+    "text": "발표 순서는 박지우부터 시작한다고 공지했다.",
+    "person": [
+      "박지우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-142",
+    "text": "지원 요청자는 정지안이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "정지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-166",
+    "text": "회의 안건은 예산 조정과 일정 변경을 포함해 8가지다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-16",
+      "briefing"
+    ]
+  },
+  {
+    "id": "dev-negative-128",
+    "text": "창고에는 접이식 의자가 29개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-03",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-057",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 푸름시 윤슬구 푸른나래로 123번길 3-2, 별빛온채연립 1153호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 푸름시 윤슬구 푸른나래로 123번길 3-2, 별빛온채연립 1153호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-071",
+    "text": "강 유역의 수온 관측 자료가 공개되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-21",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-107",
+    "text": "회의실 예약은 금요일까지 온라인으로 받는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-07",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-negative-105",
+    "text": "남쪽 해안의 바람은 금요일 저녁에 강해질 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-05",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-143",
+    "text": "전시관 입장은 예약 시간 30분 전부터 가능하다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-18",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-negative-024",
+    "text": "회의실 온도는 섭씨 19도로 맞춰 두었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-24",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-address-187",
+    "text": "새 보금자리인 다별도 푸름시 윤슬구 솔온빛길 383, 한울모아채다세대 8층 1563호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 푸름시 윤슬구 솔온빛길 383, 한울모아채다세대 8층 1563호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-118",
+    "text": "담당자는 '현재 사는 곳은 온새도 이음시 나래구 모아동 421번지, 솔윤슬채다세대 11층 390호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 이음시 나래구 모아동 421번지, 솔윤슬채다세대 11층 390호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-084",
+    "text": "전입 안내문을 해솔도 온빛시 누리구 한울가람로 177번길 3, 푸른다온채아파트 104동 1612호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 온빛시 누리구 한울가람로 177번길 3, 푸른다온채아파트 104동 1612호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-044",
+    "text": "파일 이름은 배포 규칙에 맞게 바꾸기로 했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-19",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-095",
+    "text": "간사는 \"발언자는 박가람입니다\"라고 정리했다.",
+    "person": [
+      "박가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-053",
+    "text": "창고에는 접이식 의자가 20개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-03",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-097",
+    "text": "최가온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "최가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-117",
+    "text": "주문 합계는 36000원이며 배송비는 포함되지 않았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-17",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-119",
+    "text": "오늘 전화한 분은 최수빈씨라고 안내받았다.",
+    "person": [
+      "최수빈"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-149",
+    "text": "발표 순서는 정지우부터 시작한다고 공지했다.",
+    "person": [
+      "정지우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-179",
+    "text": "북부 지역의 강수량이 지난달보다 11% 늘었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-04",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-048",
+    "text": "메뉴 구성에는 보리빵 항목도 포함된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-23",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-negative-063",
+    "text": "기기 점검 결과 배터리 잔량은 48%였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-13",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-negative-199",
+    "text": "회의실 온도는 섭씨 26도로 맞춰 두었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-24",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-negative-061",
+    "text": "산책로 공사는 다음 달 5일에 끝날 예정이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-11",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-person-183",
+    "text": "오늘 전화한 분은 한수빈씨라고 안내받았다.",
+    "person": [
+      "한수빈"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-115",
+    "text": "보호자는 다별도 다솜시 모아구 온새동 412-7, 한울모아채연립 339호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 다솜시 모아구 온새동 412-7, 한울모아채연립 339호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-187",
+    "text": "교육 자료는 10개 장으로 나뉘어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-12",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-negative-003",
+    "text": "창고에는 접이식 의자가 14개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-03",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-081",
+    "text": "박해온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "박해온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-198",
+    "text": "담당자는 '현재 사는 곳은 온새도 이음시 나래구 모아동 661번지, 솔윤슬채다세대 7층 1750호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 이음시 나래구 모아동 661번지, 솔윤슬채다세대 7층 1750호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-036",
+    "text": "산책로 공사는 다음 달 4일에 끝날 예정이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-11",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-134",
+    "text": "택배 상자 7개는 안내 데스크 옆 보관함에 놓였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-09",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-170",
+    "text": "정류장 주변의 보도 정비가 가을철에 시작된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-20",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-111",
+    "text": "간사는 \"발언자는 최채온입니다\"라고 정리했다.",
+    "person": [
+      "최채온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-person-078",
+    "text": "지원 요청자는 박지안이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "박지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-194",
+    "text": "파일 이름은 정리 규칙에 맞게 바꾸기로 했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-19",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-182",
+    "text": "담당자는 '현재 사는 곳은 온새도 푸름시 윤슬구 모아동 613번지, 솔윤슬채다세대 3층 1478호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 푸름시 윤슬구 모아동 613번지, 솔윤슬채다세대 3층 1478호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-031",
+    "text": "기숙사가 아니라 다별도 새봄시 가온구 솔여울로 71, 한울가람채연립 107동 8층 711호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 새봄시 가온구 솔여울로 71, 한울가람채연립 107동 8층 711호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-112",
+    "text": "일정표의 인터뷰 대상은 최하람씨로 표시되었다.",
+    "person": [
+      "최하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-018",
+    "text": "상담자는 거주지가 \"온새도 이음시 나래구 별빛마루길 45-9, 솔이음채빌라 7층 490호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 이음시 나래구 별빛마루길 45-9, 솔이음채빌라 7층 490호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-person-075",
+    "text": "참석자:박유안—확인 완료.",
+    "person": [
+      "박유안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-191",
+    "text": "기숙사가 아니라 다별도 새봄시 가온구 솔여울로 391, 한울가람채연립 107동 12층 1631호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 새봄시 가온구 솔여울로 391, 한울가람채연립 107동 12층 1631호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-070",
+    "text": "동료는 박보민에게 자료를 건넸다고 말했다.",
+    "person": [
+      "박보민"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-063",
+    "text": "기숙사가 아니라 다별도 이음시 나래구 솔여울로 135, 한울가람채연립 107동 4층 1255호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 이음시 나래구 솔여울로 135, 한울가람채연립 107동 4층 1255호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-046",
+    "text": "지원 요청자는 이지안이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "이지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-042",
+    "text": "업무 인계 메모는 담당자를 이예담님으로 지정했다.",
+    "person": [
+      "이예담"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-035",
+    "text": "방문자 명단에는 이다온만 등록되어 있었다.",
+    "person": [
+      "이다온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-155",
+    "text": "참석자:정다인—확인 완료.",
+    "person": [
+      "정다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-121",
+    "text": "접수 창구에서 \"최하린님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "최하린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-054",
+    "text": "담당자는 '현재 사는 곳은 온새도 온빛시 누리구 모아동 229번지, 솔윤슬채다세대 7층 1102호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 온빛시 누리구 모아동 229번지, 솔윤슬채다세대 7층 1102호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-091",
+    "text": "새 보금자리인 다별도 새봄시 가온구 솔온빛길 191, 한울모아채다세대 8층 1731호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 새봄시 가온구 솔온빛길 191, 한울모아채다세대 8층 1731호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-108",
+    "text": "관계자는 (최이든)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "최이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-155",
+    "text": "새 보금자리인 다별도 다솜시 모아구 솔온빛길 319, 한울모아채다세대 12층 1019호로 이사했다고 알렸다.",
+    "person": [],
+    "address": [
+      "다별도 다솜시 모아구 솔온빛길 319, 한울모아채다세대 12층 1019호"
+    ],
+    "strata": [
+      "address",
+      "address-context-11",
+      "address-form-11",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-089",
+    "text": "서쪽 권역의 평균 기온이 평년보다 4도 낮았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-14",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-059",
+    "text": "참석자:이다인—확인 완료.",
+    "person": [
+      "이다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-115",
+    "text": "방문자 명단에는 최민서만 등록되어 있었다.",
+    "person": [
+      "최민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-180",
+    "text": "전입 안내문을 해솔도 다솜시 모아구 한울가람로 369번길 9, 푸른다온채아파트 104동 1444호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 다솜시 모아구 한울가람로 369번길 9, 푸른다온채아파트 104동 1444호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-050",
+    "text": "기부금 집계액은 257000원이며 개인별 내역은 없다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-25",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-address-094",
+    "text": "등기 우편은 온새도 온빛시 누리구 별빛다솜길 197-4, 솔윤슬채아파트 106동 1782호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 온빛시 누리구 별빛다솜길 197-4, 솔윤슬채아파트 106동 1782호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-040",
+    "text": "회의록 의견 제출자: 이아린. 기록 확인을 마쳤다.",
+    "person": [
+      "이아린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-014",
+    "text": "서쪽 권역의 평균 기온이 평년보다 1도 낮았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-14",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-130",
+    "text": "남쪽 해안의 바람은 토요일 저녁에 강해질 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-05",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-080",
+    "text": "문자에는 \"집 주소: 해솔도 다솜시 모아구 한울새봄길 169번길 8, 푸른누리채다세대 1544호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 다솜시 모아구 한울새봄길 169번길 8, 푸른누리채다세대 1544호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-002",
+    "text": "상담자는 거주지가 \"온새도 푸름시 윤슬구 별빛마루길 13-2, 솔이음채빌라 3층 218호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 푸름시 윤슬구 별빛마루길 13-2, 솔이음채빌라 3층 218호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-196",
+    "text": "전입 안내문을 해솔도 새봄시 가온구 한울가람로 401번길 7, 푸른다온채아파트 104동 1716호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 새봄시 가온구 한울가람로 401번길 7, 푸른다온채아파트 104동 1716호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-052",
+    "text": "이번 분기 예산은 490만 원으로 조정되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-02",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-address-049",
+    "text": "배송지는 가람도 온빛시 누리구 푸른나래로 107, 별빛온채아파트 101동 1017호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 온빛시 누리구 푸른나래로 107, 별빛온채아파트 101동 1017호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-042",
+    "text": "신청서에는 세대의 거주 주소로 온새도 푸름시 윤슬구 다빛동 193-6, 솔이음채아파트 102동 898호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 푸름시 윤슬구 다빛동 193-6, 솔이음채아파트 102동 898호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-064",
+    "text": "일정표의 인터뷰 대상은 이온유씨로 표시되었다.",
+    "person": [
+      "이온유"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-086",
+    "text": "산책로 공사는 다음 달 6일에 끝날 예정이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-11",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-address-111",
+    "text": "기숙사가 아니라 다별도 새봄시 가온구 솔여울로 231, 한울가람채연립 107동 4층 271호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 새봄시 가온구 솔여울로 231, 한울가람채연립 107동 4층 271호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-121",
+    "text": "강 유역의 토양 관측 자료가 공개되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-21",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-009",
+    "text": "접수 창구에서 \"김여울님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "김여울"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-163",
+    "text": "보호자는 다별도 이음시 나래구 온새동 556-1, 한울모아채연립 1155호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 이음시 나래구 온새동 556-1, 한울모아채연립 1155호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-074",
+    "text": "회의실 온도는 섭씨 21도로 맞춰 두었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-24",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-person-161",
+    "text": "한가온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "한가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-110",
+    "text": "지원 요청자는 최지안이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "최지안"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-064",
+    "text": "서쪽 권역의 평균 기온이 평년보다 3도 낮았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-14",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-093",
+    "text": "주거 확인 전화에서 가람도 이음시 나래구 이음동 346번지 별빛새결채빌라 10층 1765호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 이음시 나래구 이음동 346번지 별빛새결채빌라 10층 1765호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-191",
+    "text": "간사는 \"발언자는 한가람입니다\"라고 정리했다.",
+    "person": [
+      "한가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-person-109",
+    "text": "초대장 수신인은 최재온님 한 분이다.",
+    "person": [
+      "최재온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-136",
+    "text": "산책로 공사는 다음 달 8일에 끝날 예정이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-11",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-013",
+    "text": "기기 점검 결과 배터리 잔량은 34%였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-13",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-person-135",
+    "text": "오늘 전화한 분은 정서온씨라고 안내받았다.",
+    "person": [
+      "정서온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-164",
+    "text": "서쪽 권역의 평균 기온이 평년보다 7도 낮았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-14",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-165",
+    "text": "동부 산지에는 밤부터 구름이 많겠다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-15",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-015",
+    "text": "동부 산지에는 새벽부터 구름이 많겠다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-15",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-045",
+    "text": "정류장 주변의 보도 정비가 다음 주에 시작된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-20",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-027",
+    "text": "참석자:김다인—확인 완료.",
+    "person": [
+      "김다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-013",
+    "text": "초대장 수신인은 김재온님 한 분이다.",
+    "person": [
+      "김재온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-085",
+    "text": "버스는 공원 정류장을 지나 종점으로 이동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-10",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-080",
+    "text": "일정표의 인터뷰 대상은 박하람씨로 표시되었다.",
+    "person": [
+      "박하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-062",
+    "text": "등기 우편은 온새도 푸름시 윤슬구 별빛다솜길 133-8, 솔윤슬채아파트 106동 1238호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 푸름시 윤슬구 별빛다솜길 133-8, 솔윤슬채아파트 106동 1238호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-062",
+    "text": "지원 요청자는 이태오이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "이태오"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-112",
+    "text": "교육 자료는 7개 장으로 나뉘어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-12",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-034",
+    "text": "팀장은 \"이나래씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "이나래"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-035",
+    "text": "버스는 북문 정류장을 지나 종점으로 이동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-10",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-072",
+    "text": "우편물 수령지는 (해솔도 푸름시 윤슬구 한울새봄길 153 (해봄동), 푸른누리채빌라 1408호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 푸름시 윤슬구 한울새봄길 153 (해봄동), 푸른누리채빌라 1408호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-091",
+    "text": "참석자:박다인—확인 완료.",
+    "person": [
+      "박다인"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-11",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-153",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 이음시 나래구 푸른나래로 315번길 9-3, 별빛온채연립 985호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 이음시 나래구 푸른나래로 315번길 9-3, 별빛온채연립 985호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-person-186",
+    "text": "업무 인계 메모는 담당자를 한은호님으로 지정했다.",
+    "person": [
+      "한은호"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-197",
+    "text": "발표 순서는 Yuna Reed부터 시작한다고 공지했다.",
+    "person": [
+      "Yuna Reed"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-084",
+    "text": "택배 상자 5개는 안내 데스크 옆 보관함에 놓였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-09",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-106",
+    "text": "도서관 평일 운영 안내에는 멀티미디어실 개방 시간이 오전 9시부터 오후 6시로 적혀 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-06",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-negative-125",
+    "text": "기부금 집계액은 338000원이며 개인별 내역은 없다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-25",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-negative-049",
+    "text": "회의실 온도는 섭씨 20도로 맞춰 두었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-24",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-person-008",
+    "text": "회의록 의견 제출자: 김아린. 기록 확인을 마쳤다.",
+    "person": [
+      "김아린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-167",
+    "text": "거주확인란:다별도 푸름시 윤슬구 솔여울로 343-5, 한울가람채아파트 107동 1223호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 푸름시 윤슬구 솔여울로 343-5, 한울가람채아파트 107동 1223호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-197",
+    "text": "기록된 자택 주소는 가람도 푸름시 윤슬구 푸른이음길 403, 별빛새결채주택 1733호이다.",
+    "person": [],
+    "address": [
+      "가람도 푸름시 윤슬구 푸른이음길 403, 별빛새결채주택 1733호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-120",
+    "text": "정류장 주변의 보도 정비가 봄철에 시작된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-20",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-084",
+    "text": "상담 기록에 보호자로 박서윤님이 기재되었다.",
+    "person": [
+      "박서윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-147",
+    "text": "보호자는 다별도 푸름시 윤슬구 온새동 508-3, 한울모아채연립 883호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 푸름시 윤슬구 온새동 508-3, 한울모아채연립 883호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-055",
+    "text": "오늘 전화한 분은 이수빈씨라고 안내받았다.",
+    "person": [
+      "이수빈"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-061",
+    "text": "초대장 수신인은 이시온님 한 분이다.",
+    "person": [
+      "이시온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-020",
+    "text": "상담 기록에 보호자로 김서윤님이 기재되었다.",
+    "person": [
+      "김서윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-034",
+    "text": "상담자는 거주지가 \"온새도 온빛시 누리구 별빛마루길 77-7, 솔이음채빌라 11층 762호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 온빛시 누리구 별빛마루길 77-7, 솔이음채빌라 11층 762호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-147",
+    "text": "비상 훈련은 교육실에서 실시한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-22",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-017",
+    "text": "주문 합계는 18000원이며 배송비는 포함되지 않았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-17",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-negative-137",
+    "text": "교육 자료는 8개 장으로 나뉘어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-12",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-190",
+    "text": "등기 우편은 온새도 다솜시 모아구 별빛다솜길 389-1, 솔윤슬채아파트 106동 1614호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 다솜시 모아구 별빛다솜길 389-1, 솔윤슬채아파트 106동 1614호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-152",
+    "text": "이번 분기 예산은 630만 원으로 조정되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-02",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-001",
+    "text": "김가온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "김가온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-103",
+    "text": "거주확인란:다별도 이음시 나래구 솔여울로 215-4, 한울가람채아파트 107동 1935호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 이음시 나래구 솔여울로 215-4, 한울가람채아파트 107동 1935호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-177",
+    "text": "이번 분기 예산은 665만 원으로 조정되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-02",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-017",
+    "text": "김해온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "김해온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-024",
+    "text": "우편물 수령지는 (해솔도 온빛시 누리구 한울새봄길 57 (해봄동), 푸른누리채빌라 592호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 온빛시 누리구 한울새봄길 57 (해봄동), 푸른누리채빌라 592호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-175",
+    "text": "간사는 \"발언자는 한채온입니다\"라고 정리했다.",
+    "person": [
+      "한채온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-130",
+    "text": "상담자는 거주지가 \"온새도 다솜시 모아구 별빛마루길 269-4, 솔이음채빌라 11층 594호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 다솜시 모아구 별빛마루길 269-4, 솔이음채빌라 11층 594호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-152",
+    "text": "우편물 수령지는 (해솔도 푸름시 윤슬구 한울새봄길 313 (해봄동), 푸른누리채빌라 968호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 푸름시 윤슬구 한울새봄길 313 (해봄동), 푸른누리채빌라 968호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-135",
+    "text": "거주확인란:다별도 다솜시 모아구 솔여울로 279-9, 한울가람채아파트 107동 679호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 다솜시 모아구 솔여울로 279-9, 한울가람채아파트 107동 679호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-045",
+    "text": "초대장 수신인은 이재온님 한 분이다.",
+    "person": [
+      "이재온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-174",
+    "text": "등기 우편은 온새도 온빛시 누리구 별빛다솜길 357-3, 솔윤슬채아파트 106동 1342호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 온빛시 누리구 별빛다솜길 357-3, 솔윤슬채아파트 106동 1342호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-109",
+    "text": "택배 상자 6개는 안내 데스크 옆 보관함에 놓였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-09",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-person-179",
+    "text": "방문자 명단에는 한민서만 등록되어 있었다.",
+    "person": [
+      "한민서"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-03",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-005",
+    "text": "남쪽 해안의 바람은 월요일 저녁에 강해질 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-05",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-018",
+    "text": "팀장은 \"김도윤씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "김도윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-100",
+    "text": "전입 안내문을 해솔도 다솜시 모아구 한울가람로 209번길 1, 푸른다온채아파트 104동 1884호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 다솜시 모아구 한울가람로 209번길 1, 푸른다온채아파트 104동 1884호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-002",
+    "text": "이번 분기 예산은 420만 원으로 조정되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-02",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-116",
+    "text": "상담 기록에 보호자로 최서윤님이 기재되었다.",
+    "person": [
+      "최서윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-158",
+    "text": "지원 요청자는 정태오이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "정태오"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-133",
+    "text": "기록된 자택 주소는 가람도 이음시 나래구 푸른이음길 275, 별빛새결채주택 645호이다.",
+    "person": [],
+    "address": [
+      "가람도 이음시 나래구 푸른이음길 275, 별빛새결채주택 645호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-address-078",
+    "text": "등기 우편은 온새도 이음시 나래구 별빛다솜길 165-6, 솔윤슬채아파트 106동 1510호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 이음시 나래구 별빛다솜길 165-6, 솔윤슬채아파트 106동 1510호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-030",
+    "text": "등기 우편은 온새도 다솜시 모아구 별빛다솜길 69-3, 솔윤슬채아파트 106동 694호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 다솜시 모아구 별빛다솜길 69-3, 솔윤슬채아파트 106동 694호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-086",
+    "text": "담당자는 '현재 사는 곳은 온새도 새봄시 가온구 모아동 325번지, 솔윤슬채다세대 3층 1646호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 새봄시 가온구 모아동 325번지, 솔윤슬채다세대 3층 1646호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-039",
+    "text": "거주확인란:다별도 온빛시 누리구 솔여울로 87-3, 한울가람채아파트 107동 847호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 온빛시 누리구 솔여울로 87-3, 한울가람채아파트 107동 847호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-071",
+    "text": "거주확인란:다별도 새봄시 가온구 솔여울로 151-8, 한울가람채아파트 107동 1391호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 새봄시 가온구 솔여울로 151-8, 한울가람채아파트 107동 1391호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-173",
+    "text": "주거 확인 전화에서 가람도 이음시 나래구 이음동 586번지 별빛새결채빌라 6층 1325호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 이음시 나래구 이음동 586번지 별빛새결채빌라 6층 1325호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-069",
+    "text": "발표 순서는 박마루부터 시작한다고 공지했다.",
+    "person": [
+      "박마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-190",
+    "text": "지원 요청자는 한태오이고, 동행인은 없다고 확인했다.",
+    "person": [
+      "한태오"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-14",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-087",
+    "text": "교육 자료는 6개 장으로 나뉘어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-12",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-071",
+    "text": "오늘 전화한 분은 박서온씨라고 안내받았다.",
+    "person": [
+      "박서온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-073",
+    "text": "접수 창구에서 \"박여울님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "박여울"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-157",
+    "text": "초대장 수신인은 정시온님 한 분이다.",
+    "person": [
+      "정시온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-131",
+    "text": "도서관 평일 운영 안내에는 학습실 개방 시간이 오전 9시부터 오후 6시로 적혀 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-06",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-negative-008",
+    "text": "공유 폴더의 검토함에는 보고서 초안 파일이 저장되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-08",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-109",
+    "text": "주거 확인 전화에서 가람도 온빛시 누리구 이음동 394번지 별빛새결채빌라 2층 237호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 온빛시 누리구 이음동 394번지 별빛새결채빌라 2층 237호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-089",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 온빛시 누리구 푸른나래로 187번길 8-4, 별빛온채연립 1697호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 온빛시 누리구 푸른나래로 187번길 8-4, 별빛온채연립 1697호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-174",
+    "text": "회의실 온도는 섭씨 25도로 맞춰 두었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-24",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-address-177",
+    "text": "배송지는 가람도 푸름시 윤슬구 푸른나래로 363, 별빛온채아파트 101동 1393호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 푸름시 윤슬구 푸른나래로 363, 별빛온채아파트 101동 1393호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-053",
+    "text": "발표 순서는 이지우부터 시작한다고 공지했다.",
+    "person": [
+      "이지우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-118",
+    "text": "동료는 최현우에게 자료를 건넸다고 말했다.",
+    "person": [
+      "최현우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-092",
+    "text": "관계자는 (박유진)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "박유진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-191",
+    "text": "회의 안건은 예산 조정과 일정 변경을 포함해 9가지다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-16",
+      "briefing"
+    ]
+  },
+  {
+    "id": "dev-negative-021",
+    "text": "강 유역의 수위 관측 자료가 공개되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-21",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-113",
+    "text": "최해온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "최해온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-179",
+    "text": "보호자는 다별도 온빛시 누리구 온새동 604-8, 한울모아채연립 1427호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 온빛시 누리구 온새동 604-8, 한울모아채연립 1427호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-004",
+    "text": "북부 지역의 강수량이 지난달보다 4% 늘었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-04",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-082",
+    "text": "팀장은 \"박도윤씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "박도윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-105",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 다솜시 모아구 푸른나래로 219번길 6-5, 별빛온채연립 1969호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 다솜시 모아구 푸른나래로 219번길 6-5, 별빛온채연립 1969호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-010",
+    "text": "버스는 중앙 정류장을 지나 종점으로 이동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-10",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-103",
+    "text": "창고에는 접이식 의자가 26개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-03",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-055",
+    "text": "거주확인란:다별도 다솜시 모아구 솔여울로 119-1, 한울가람채아파트 107동 1119호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 다솜시 모아구 솔여울로 119-1, 한울가람채아파트 107동 1119호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-076",
+    "text": "관계자는 (박이든)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "박이든"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-121",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 새봄시 가온구 푸른나래로 251번길 4-1, 별빛온채연립 441호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 새봄시 가온구 푸른나래로 251번길 4-1, 별빛온채연립 441호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-012",
+    "text": "교육 자료는 3개 장으로 나뉘어 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-12",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-158",
+    "text": "등기 우편은 온새도 이음시 나래구 별빛다솜길 325-5, 솔윤슬채아파트 106동 1070호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 이음시 나래구 별빛다솜길 325-5, 솔윤슬채아파트 106동 1070호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-087",
+    "text": "거주확인란:다별도 푸름시 윤슬구 솔여울로 183-6, 한울가람채아파트 107동 1663호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 푸름시 윤슬구 솔여울로 183-6, 한울가람채아파트 107동 1663호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-060",
+    "text": "주민은 해솔도 다솜시 모아구 한울가람로 129-6 (윤슬동), 푸른다온채주택 1204호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 다솜시 모아구 한울가람로 129-6 (윤슬동), 푸른다온채주택 1204호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-019",
+    "text": "파일 이름은 검토 규칙에 맞게 바꾸기로 했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-19",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-090",
+    "text": "신청서에는 세대의 거주 주소로 온새도 다솜시 모아구 다빛동 337-9, 솔이음채아파트 102동 1714호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 다솜시 모아구 다빛동 337-9, 솔이음채아파트 102동 1714호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-169",
+    "text": "파일 이름은 백업 규칙에 맞게 바꾸기로 했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-19",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-178",
+    "text": "팀장은 \"한도윤씨가 오후에 합류합니다\"라고 알렸다.",
+    "person": [
+      "한도윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-02",
+      "third-party",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-097",
+    "text": "비상 훈련은 야외 운동장에서 실시한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-22",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-163",
+    "text": "기기 점검 결과 배터리 잔량은 76%였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-13",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-address-026",
+    "text": "신청서에는 세대의 거주 주소로 온새도 새봄시 가온구 다빛동 145-8, 솔이음채아파트 102동 626호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 새봄시 가온구 다빛동 145-8, 솔이음채아파트 102동 626호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-143",
+    "text": "기숙사가 아니라 다별도 이음시 나래구 솔여울로 295, 한울가람채연립 107동 12층 815호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 이음시 나래구 솔여울로 295, 한울가람채연립 107동 12층 815호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-112",
+    "text": "문자에는 \"집 주소: 해솔도 푸름시 윤슬구 한울새봄길 233번길 4, 푸른누리채다세대 288호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 푸름시 윤슬구 한울새봄길 233번길 4, 푸른누리채다세대 288호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-021",
+    "text": "기록된 자택 주소는 가람도 새봄시 가온구 푸른이음길 51, 별빛새결채주택 541호이다.",
+    "person": [],
+    "address": [
+      "가람도 새봄시 가온구 푸른이음길 51, 별빛새결채주택 541호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-address-066",
+    "text": "상담자는 거주지가 \"온새도 새봄시 가온구 별빛마루길 141-3, 솔이음채빌라 7층 1306호\"라고 확인했다.",
+    "person": [],
+    "address": [
+      "온새도 새봄시 가온구 별빛마루길 141-3, 솔이음채빌라 7층 1306호"
+    ],
+    "strata": [
+      "address",
+      "address-context-02",
+      "address-form-02",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-159",
+    "text": "택배 상자 8개는 안내 데스크 옆 보관함에 놓였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-09",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-person-021",
+    "text": "발표 순서는 김지우부터 시작한다고 공지했다.",
+    "person": [
+      "김지우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-199",
+    "text": "오늘 전화한 분은 Miro Reed씨라고 안내받았다.",
+    "person": [
+      "Miro Reed"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-137",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 푸름시 윤슬구 푸른나래로 283번길 2-2, 별빛온채연립 713호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 푸름시 윤슬구 푸른나래로 283번길 2-2, 별빛온채연립 713호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-address-051",
+    "text": "보호자는 다별도 새봄시 가온구 온새동 220-6, 한울모아채연립 1051호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 새봄시 가온구 온새동 220-6, 한울모아채연립 1051호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-077",
+    "text": "초대장 수신인은 박재온님 한 분이다.",
+    "person": [
+      "박재온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-044",
+    "text": "주민은 해솔도 온빛시 누리구 한울가람로 97-8 (윤슬동), 푸른다온채주택 932호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 온빛시 누리구 한울가람로 97-8 (윤슬동), 푸른다온채주택 932호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-200",
+    "text": "기부금 집계액은 419000원이며 개인별 내역은 없다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-25",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-negative-059",
+    "text": "택배 상자 4개는 안내 데스크 옆 보관함에 놓였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-09",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-123",
+    "text": "메뉴 구성에는 두부구이 항목도 포함된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-23",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-074",
+    "text": "신청서에는 세대의 거주 주소로 온새도 온빛시 누리구 다빛동 289-2, 솔이음채아파트 102동 1442호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 온빛시 누리구 다빛동 289-2, 솔이음채아파트 102동 1442호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-014",
+    "text": "등기 우편은 온새도 온빛시 누리구 별빛다솜길 37-5, 솔윤슬채아파트 106동 422호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 온빛시 누리구 별빛다솜길 37-5, 솔윤슬채아파트 106동 422호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-129",
+    "text": "배송지는 가람도 온빛시 누리구 푸른나래로 267, 별빛온채아파트 101동 577호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 온빛시 누리구 푸른나래로 267, 별빛온채아파트 101동 577호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-003",
+    "text": "보호자는 다별도 이음시 나래구 온새동 76-3, 한울모아채연립 235호에서 거주한다고 말했다.",
+    "person": [],
+    "address": [
+      "다별도 이음시 나래구 온새동 76-3, 한울모아채연립 235호"
+    ],
+    "strata": [
+      "address",
+      "address-context-03",
+      "address-form-03",
+      "third-party",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-149",
+    "text": "회의실 온도는 섭씨 24도로 맞춰 두었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-24",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-person-181",
+    "text": "발표 순서는 한지우부터 시작한다고 공지했다.",
+    "person": [
+      "한지우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-120",
+    "text": "우편물 수령지는 (해솔도 다솜시 모아구 한울새봄길 249 (해봄동), 푸른누리채빌라 424호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 다솜시 모아구 한울새봄길 249 (해봄동), 푸른누리채빌라 424호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-049",
+    "text": "이해온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "이해온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-104",
+    "text": "북부 지역의 강수량이 지난달보다 8% 늘었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-04",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-126",
+    "text": "등기 우편은 온새도 새봄시 가온구 별빛다솜길 261-9, 솔윤슬채아파트 106동 526호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 새봄시 가온구 별빛다솜길 261-9, 솔윤슬채아파트 106동 526호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-110",
+    "text": "등기 우편은 온새도 다솜시 모아구 별빛다솜길 229-2, 솔윤슬채아파트 106동 254호로 발송해 달라고 했다.",
+    "person": [],
+    "address": [
+      "온새도 다솜시 모아구 별빛다솜길 229-2, 솔윤슬채아파트 106동 254호"
+    ],
+    "strata": [
+      "address",
+      "address-context-14",
+      "address-form-14",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-009",
+    "text": "가족은 방문 장소가 아닌 실제 주거지가 가람도 온빛시 누리구 푸른나래로 27번길 9-4, 별빛온채연립 337호라고 설명했다.",
+    "person": [],
+    "address": [
+      "가람도 온빛시 누리구 푸른나래로 27번길 9-4, 별빛온채연립 337호"
+    ],
+    "strata": [
+      "address",
+      "address-context-09",
+      "address-form-09",
+      "third-party",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-address-079",
+    "text": "기숙사가 아니라 다별도 온빛시 누리구 솔여울로 167, 한울가람채연립 107동 8층 1527호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 온빛시 누리구 솔여울로 167, 한울가람채연립 107동 8층 1527호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-172",
+    "text": "주민은 해솔도 푸름시 윤슬구 한울가람로 353-1 (윤슬동), 푸른다온채주택 1308호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 푸름시 윤슬구 한울가람로 353-1 (윤슬동), 푸른다온채주택 1308호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-175",
+    "text": "기숙사가 아니라 다별도 다솜시 모아구 솔여울로 359, 한울가람채연립 107동 8층 1359호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 다솜시 모아구 솔여울로 359, 한울가람채연립 107동 8층 1359호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-158",
+    "text": "공유 폴더의 검토함에는 보고서 도표 파일이 저장되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-08",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-person-089",
+    "text": "접수 창구에서 \"박하린님, 잠시 기다려 주세요\"라고 불렀다.",
+    "person": [
+      "박하린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-09",
+      "dialogue",
+      "quote",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-178",
+    "text": "창고에는 접이식 의자가 35개 남아 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-03",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-038",
+    "text": "담당자는 '현재 사는 곳은 온새도 이음시 나래구 모아동 181번지, 솔윤슬채다세대 3층 830호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 이음시 나래구 모아동 181번지, 솔윤슬채다세대 3층 830호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-102",
+    "text": "이번 분기 예산은 560만 원으로 조정되었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-02",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-negative-090",
+    "text": "동부 산지에는 정오부터 구름이 많겠다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-15",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-082",
+    "text": "회의실 예약은 목요일까지 온라인으로 받는다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-07",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-address-040",
+    "text": "우편물 수령지는 (해솔도 다솜시 모아구 한울새봄길 89 (해봄동), 푸른누리채빌라 864호)로 지정되었다.",
+    "person": [],
+    "address": [
+      "해솔도 다솜시 모아구 한울새봄길 89 (해봄동), 푸른누리채빌라 864호"
+    ],
+    "strata": [
+      "address",
+      "address-context-08",
+      "address-form-08",
+      "record",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-086",
+    "text": "동료는 박현우에게 자료를 건넸다고 말했다.",
+    "person": [
+      "박현우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-040",
+    "text": "동부 산지에는 아침부터 구름이 많겠다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-15",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-person-144",
+    "text": "일정표의 인터뷰 대상은 정하람씨로 표시되었다.",
+    "person": [
+      "정하람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-085",
+    "text": "기록된 자택 주소는 가람도 다솜시 모아구 푸른이음길 179, 별빛새결채주택 1629호이다.",
+    "person": [],
+    "address": [
+      "가람도 다솜시 모아구 푸른이음길 179, 별빛새결채주택 1629호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-175",
+    "text": "기부금 집계액은 392000원이며 개인별 내역은 없다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-25",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-address-076",
+    "text": "주민은 해솔도 새봄시 가온구 한울가람로 161-4 (윤슬동), 푸른다온채주택 1476호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 새봄시 가온구 한울가람로 161-4 (윤슬동), 푸른다온채주택 1476호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-177",
+    "text": "한해온님이 회의 참석 의사를 전달했다.",
+    "person": [
+      "한해온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-01",
+      "third-party",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-125",
+    "text": "초대장 수신인은 최시온님 한 분이다.",
+    "person": [
+      "최시온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-person-152",
+    "text": "회의록 의견 제출자: 정예준. 기록 확인을 마쳤다.",
+    "person": [
+      "정예준"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-189",
+    "text": "초대장 수신인은 한시온님 한 분이다.",
+    "person": [
+      "한시온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-13",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-192",
+    "text": "주문 합계는 49500원이며 배송비는 포함되지 않았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-17",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-negative-190",
+    "text": "동부 산지에는 자정부터 구름이 많겠다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-15",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-183",
+    "text": "거주확인란:다별도 이음시 나래구 솔여울로 375-3, 한울가람채아파트 107동 1495호—서류와 일치.",
+    "person": [],
+    "address": [
+      "다별도 이음시 나래구 솔여울로 375-3, 한울가람채아파트 107동 1495호"
+    ],
+    "strata": [
+      "address",
+      "address-context-07",
+      "address-form-07",
+      "record",
+      "no-space",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-182",
+    "text": "동료는 한현우에게 자료를 건넸다고 말했다.",
+    "person": [
+      "한현우"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-06",
+      "third-party",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-101",
+    "text": "기록된 자택 주소는 가람도 새봄시 가온구 푸른이음길 211, 별빛새결채주택 1901호이다.",
+    "person": [],
+    "address": [
+      "가람도 새봄시 가온구 푸른이음길 211, 별빛새결채주택 1901호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-098",
+    "text": "메뉴 구성에는 버섯죽 항목도 포함된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-23",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-negative-009",
+    "text": "택배 상자 2개는 안내 데스크 옆 보관함에 놓였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-09",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-negative-006",
+    "text": "도서관 평일 운영 안내에는 열람실 개방 시간이 오전 9시부터 오후 6시로 적혀 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-06",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-negative-031",
+    "text": "도서관 평일 운영 안내에는 자료실 개방 시간이 오전 9시부터 오후 6시로 적혀 있다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-06",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-person-031",
+    "text": "간사는 \"발언자는 김가람입니다\"라고 정리했다.",
+    "person": [
+      "김가람"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-15",
+      "briefing",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-person-056",
+    "text": "회의록 의견 제출자: 이예준. 기록 확인을 마쳤다.",
+    "person": [
+      "이예준"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-102",
+    "text": "담당자는 '현재 사는 곳은 온새도 푸름시 윤슬구 모아동 373번지, 솔윤슬채다세대 7층 1918호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 푸름시 윤슬구 모아동 373번지, 솔윤슬채다세대 7층 1918호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-negative-094",
+    "text": "파일 이름은 공유 규칙에 맞게 바꾸기로 했다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-19",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-negative-148",
+    "text": "메뉴 구성에는 현미밥 항목도 포함된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-23",
+      "ordinary-noun"
+    ]
+  },
+  {
+    "id": "dev-address-061",
+    "text": "주거 확인 전화에서 가람도 새봄시 가온구 이음동 250번지 별빛새결채빌라 2층 1221호가 현주소로 확인되었다.",
+    "person": [],
+    "address": [
+      "가람도 새봄시 가온구 이음동 250번지 별빛새결채빌라 2층 1221호"
+    ],
+    "strata": [
+      "address",
+      "address-context-13",
+      "address-form-13",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-099",
+    "text": "회의실 온도는 섭씨 22도로 맞춰 두었다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-24",
+      "measurement"
+    ]
+  },
+  {
+    "id": "dev-person-096",
+    "text": "일정표의 인터뷰 대상은 박온유씨로 표시되었다.",
+    "person": [
+      "박온유"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-16",
+      "record",
+      "honorific",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-034",
+    "text": "택배 상자 3개는 안내 데스크 옆 보관함에 놓였다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-09",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-address-106",
+    "text": "신청서에는 세대의 거주 주소로 온새도 새봄시 가온구 다빛동 385-7, 솔이음채아파트 102동 1986호가 적혀 있다.",
+    "person": [],
+    "address": [
+      "온새도 새봄시 가온구 다빛동 385-7, 솔이음채아파트 102동 1986호"
+    ],
+    "strata": [
+      "address",
+      "address-context-10",
+      "address-form-10",
+      "record",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-156",
+    "text": "관계자는 (정유진)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "정유진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-088",
+    "text": "회의록 의견 제출자: 박예준. 기록 확인을 마쳤다.",
+    "person": [
+      "박예준"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-negative-193",
+    "text": "전시관 입장은 예약 시간 40분 전부터 가능하다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-18",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-negative-076",
+    "text": "회의는 6월 13일 오후 4시에 열린다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-01",
+      "date-time"
+    ]
+  },
+  {
+    "id": "dev-person-120",
+    "text": "회의록 의견 제출자: 최예준. 기록 확인을 마쳤다.",
+    "person": [
+      "최예준"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-165",
+    "text": "발표 순서는 한마루부터 시작한다고 공지했다.",
+    "person": [
+      "한마루"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-05",
+      "briefing",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-139",
+    "text": "서쪽 권역의 평균 기온이 평년보다 6도 낮았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-14",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-110",
+    "text": "버스는 박물관 정류장을 지나 종점으로 이동한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-10",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-negative-122",
+    "text": "비상 훈련은 중앙 로비에서 실시한다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-22",
+      "generic-place"
+    ]
+  },
+  {
+    "id": "dev-person-180",
+    "text": "상담 기록에 보호자로 한서윤님이 기재되었다.",
+    "person": [
+      "한서윤"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-150",
+    "text": "기부금 집계액은 365000원이며 개인별 내역은 없다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-25",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-007",
+    "text": "오늘 전화한 분은 김서온씨라고 안내받았다.",
+    "person": [
+      "김서온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-053",
+    "text": "기록된 자택 주소는 가람도 이음시 나래구 푸른이음길 115, 별빛새결채주택 1085호이다.",
+    "person": [],
+    "address": [
+      "가람도 이음시 나래구 푸른이음길 115, 별빛새결채주택 1085호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-negative-080",
+    "text": "남쪽 해안의 바람은 목요일 저녁에 강해질 전망이다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-05",
+      "generic-geography"
+    ]
+  },
+  {
+    "id": "dev-address-117",
+    "text": "기록된 자택 주소는 가람도 푸름시 윤슬구 푸른이음길 243, 별빛새결채주택 373호이다.",
+    "person": [],
+    "address": [
+      "가람도 푸름시 윤슬구 푸른이음길 243, 별빛새결채주택 373호"
+    ],
+    "strata": [
+      "address",
+      "address-context-05",
+      "address-form-05",
+      "record",
+      "residential"
+    ]
+  },
+  {
+    "id": "dev-address-134",
+    "text": "담당자는 '현재 사는 곳은 온새도 온빛시 누리구 모아동 469번지, 솔윤슬채다세대 3층 662호입니다'라고 받아 적었다.",
+    "person": [],
+    "address": [
+      "온새도 온빛시 누리구 모아동 469번지, 솔윤슬채다세대 3층 662호"
+    ],
+    "strata": [
+      "address",
+      "address-context-06",
+      "address-form-06",
+      "third-party",
+      "quote"
+    ]
+  },
+  {
+    "id": "dev-address-144",
+    "text": "문자에는 \"집 주소: 해솔도 온빛시 누리구 한울새봄길 297번길 9, 푸른누리채다세대 832호\"라고 적혀 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 온빛시 누리구 한울새봄길 297번길 9, 푸른누리채다세대 832호"
+    ],
+    "strata": [
+      "address",
+      "address-context-16",
+      "address-form-16",
+      "record",
+      "quote",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-person-164",
+    "text": "상담 기록에 보호자로 한라온님이 기재되었다.",
+    "person": [
+      "한라온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-04",
+      "third-party",
+      "record",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-address-164",
+    "text": "전입 안내문을 해솔도 온빛시 누리구 한울가람로 337번길 2, 푸른다온채아파트 104동 1172호로 보내 달라는 요청이 있었다.",
+    "person": [],
+    "address": [
+      "해솔도 온빛시 누리구 한울가람로 337번길 2, 푸른다온채아파트 104동 1172호"
+    ],
+    "strata": [
+      "address",
+      "address-context-04",
+      "address-form-04",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-028",
+    "text": "주민은 해솔도 이음시 나래구 한울가람로 65-1 (윤슬동), 푸른다온채주택 660호에 살고 있다고 답했다.",
+    "person": [],
+    "address": [
+      "해솔도 이음시 나래구 한울가람로 65-1 (윤슬동), 푸른다온채주택 660호"
+    ],
+    "strata": [
+      "address",
+      "address-context-12",
+      "address-form-12",
+      "conversation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-017",
+    "text": "배송지는 가람도 푸름시 윤슬구 푸른나래로 43, 별빛온채아파트 101동 473호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 푸름시 윤슬구 푸른나래로 43, 별빛온채아파트 101동 473호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-address-113",
+    "text": "배송지는 가람도 이음시 나래구 푸른나래로 235, 별빛온채아파트 101동 305호로 등록해 주세요.",
+    "person": [],
+    "address": [
+      "가람도 이음시 나래구 푸른나래로 235, 별빛온채아파트 101동 305호"
+    ],
+    "strata": [
+      "address",
+      "address-context-01",
+      "address-form-01",
+      "request",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-136",
+    "text": "회의록 의견 제출자: 정아린. 기록 확인을 마쳤다.",
+    "person": [
+      "정아린"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-08",
+      "record",
+      "punctuation"
+    ]
+  },
+  {
+    "id": "dev-address-015",
+    "text": "기숙사가 아니라 다별도 다솜시 모아구 솔여울로 39, 한울가람채연립 107동 4층 439호가 실제 거처라고 밝혔다.",
+    "person": [],
+    "address": [
+      "다별도 다솜시 모아구 솔여울로 39, 한울가람채연립 107동 4층 439호"
+    ],
+    "strata": [
+      "address",
+      "address-context-15",
+      "address-form-15",
+      "conversation",
+      "residential",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-negative-167",
+    "text": "주문 합계는 45000원이며 배송비는 포함되지 않았다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-17",
+      "amount"
+    ]
+  },
+  {
+    "id": "dev-person-122",
+    "text": "업무 인계 메모는 담당자를 최은호님으로 지정했다.",
+    "person": [
+      "최은호"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-10",
+      "briefing",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-018",
+    "text": "전시관 입장은 예약 시간 5분 전부터 가능하다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-18",
+      "schedule"
+    ]
+  },
+  {
+    "id": "dev-person-028",
+    "text": "관계자는 (김유진)의 방문이 다음 주라고 전했다.",
+    "person": [
+      "김유진"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-12",
+      "third-party",
+      "punctuation",
+      "particle"
+    ]
+  },
+  {
+    "id": "dev-person-039",
+    "text": "오늘 전화한 분은 이서온씨라고 안내받았다.",
+    "person": [
+      "이서온"
+    ],
+    "address": [],
+    "strata": [
+      "person",
+      "person-structure-07",
+      "conversation",
+      "honorific"
+    ]
+  },
+  {
+    "id": "dev-negative-073",
+    "text": "메뉴 구성에는 콩 샐러드 항목도 포함된다.",
+    "person": [],
+    "address": [],
+    "strata": [
+      "negative",
+      "negative-structure-23",
+      "ordinary-noun"
+    ]
+  }
+]

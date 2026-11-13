@@ -1,0 +1,11 @@
+{
+  "checks": [
+    "core_synthetic_invariants",
+    "preserve_character_loss_distinguishes_partial_and_total",
+    "nonempty_prediction_edits_canonical_hash"
+  ],
+  "modelQualityMeasured": false,
+  "productChanged": false,
+  "reportHash": "e2c2c0215343da422fc3a5ccd3457db0e19a46719fa6cb90905322c51ea33e4d",
+  "status": "passed"
+}

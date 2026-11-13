@@ -1,0 +1,21 @@
+{
+  "activated": false,
+  "compositeContractApproved": false,
+  "docNumberGuardExitCode": 0,
+  "freezeHash": "cbbe56ab43c209ef191374c5619ff67c48520ffa95d5a8e04c49984d387eb0c8",
+  "independentFindings": 0,
+  "independentReviewers": 2,
+  "longInputRepairAuthorized": false,
+  "measuredRows": 1819,
+  "measurementHash": "df3c4c7e3526d62e9ad9a9b025e324b18683c68c3df50da5ebc92a2139ea6198",
+  "measurementVerificationHash": "94ddbe80e5d5a109f6e34bd8f543179ce16c51589a9bd18ca03c4d06503767b3",
+  "modelAdoptionApproved": false,
+  "planSha256": "20a7ddca76f36c1b3e610417bd6b427fc68f2851533ecad6ff382b0143abe950",
+  "productSourceHashesRemainFrozen": true,
+  "qualificationIssued": false,
+  "reportHash": "d49d2aeb49b51408f054158e8af6a122cb9cef4133c7f5a378de9fb6fdf905a2",
+  "schemaVersion": 1,
+  "status": "final_proposal_verified_not_authorized_or_qualified",
+  "summarySha256": "5c75f555818645f3c25018b40e1612727518cf80810616dfb3a6e4e0b8d0c1fb",
+  "verifiedAt": "2026-09-06T12:53:31.270376+00:00"
+}

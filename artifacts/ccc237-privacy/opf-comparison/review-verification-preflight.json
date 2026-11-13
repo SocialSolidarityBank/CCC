@@ -1,0 +1,32 @@
+{
+  "status": "review_findings_corrected_without_model_execution",
+  "executedPreflightArchive": "preflight-v2.zip",
+  "executedFreeze": "freeze-preflight-v2.json",
+  "preparedFreeze": "freeze.json",
+  "preparedFreezeHash": "a716797aebbea7efc77479e8a18ccb09aef307e06701c01d4aeb6f95df5b59ac",
+  "modelInferencesAfterReview": 0,
+  "findings": [
+    {
+      "finding": "Finite native -1e9 sentinel was not a BIESO grammar check",
+      "fix": "Validate starts, ends, same-label continuation and boundary transitions without altering native decoder scores",
+      "proof": "Native decoder invalid I-only, interrupted B, cross-label B/E smoke checks reject; valid direct-span and token-boundary smoke checks pass"
+    },
+    {
+      "finding": "Broad adapter handlers swallowed TimeoutError",
+      "fix": "Propagate TimeoutError explicitly through loading, tokenization, inference, decoder and span helpers",
+      "proof": "Controlled model TimeoutError preserved by predict self-check"
+    },
+    {
+      "finding": "Case timing included scoring and alarm covered evaluation work",
+      "fix": "Record inferenceSeconds and disable alarm immediately after predict; caseWallSeconds separately records evaluation work",
+      "proof": "Controlled clock smoke: inferenceSeconds 1 versus caseWallSeconds 14; no models or real measurements used"
+    },
+    {
+      "finding": "Blocked measurement lacked fixed-denominator accounting",
+      "fix": "decision.json annotates immutable blocked result; prepared runner always emits caseAccounting and notAttemptedIds",
+      "proof": "Actual 24 unattempted disclosed; controlled blocked harness reports all 24 as unattempted"
+    }
+  ],
+  "qualityResultsUnchanged": "All 24 actual cases remain not attempted. Synthetic harness checks are not model-quality evidence.",
+  "productChanged": false
+}

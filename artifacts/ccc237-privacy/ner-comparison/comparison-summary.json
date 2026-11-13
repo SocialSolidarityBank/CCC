@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Completed synthetic compatibility comparison, not production qualification",
+  "recommendation": "Do not replace the production model; both fail unchanged numeric gates",
+  "eligibleAlternatives": 1,
+  "screenedAlternatives": 5,
+  "corpora": {
+    "development": {
+      "rows": 600,
+      "person": 200,
+      "address": 200,
+      "negative": 200
+    },
+    "heldout": {
+      "rows": 600,
+      "person": 200,
+      "address": 200,
+      "negative": 200
+    }
+  },
+  "results": [
+    {
+      "split": "development",
+      "model": {
+        "id": "FrameByFrame/korean-pii-e5-base",
+        "labelMap": {
+          "PRIVATE_ADDRESS": "PRIVATE_ADDRESS",
+          "PRIVATE_PERSON": "PRIVATE_PERSON"
+        },
+        "license": "MIT",
+        "revision": "a308c54b4407819624a5661e31e162a269f39818",
+        "source": "https://huggingface.co/FrameByFrame/korean-pii-e5-base/raw/a308c54b4407819624a5661e31e162a269f39818/README.md"
+      },
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 200,
+          "fp": 832,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 3,
+          "fp": 31,
+          "tp": 197
+        }
+      },
+      "pointMetrics": {
+        "addressPrecision": 0,
+        "addressRecall": 0,
+        "overgeneralizationRate": 0.8141509433962264,
+        "personPrecision": 0.8640350877192983,
+        "personRecall": 0.985
+      },
+      "wilson95": {
+        "addressPrecisionLower": 0,
+        "addressRecallLower": 0,
+        "overgeneralizationUpper": 0.8364185729931956,
+        "personPrecisionLower": 0.8134732478059531,
+        "personRecallLower": 0.9568342712073097
+      },
+      "numericGatePassed": false,
+      "runtime": {
+        "aggregationStrategy": "none",
+        "decoderPolicy": "bioes-v1",
+        "device": "cpu",
+        "dtype": "torch.bfloat16",
+        "inferenceSeconds": 35.56163316802122,
+        "loadSeconds": 0.33305562497116625,
+        "maxInputTokens": 48,
+        "medianItemSeconds": 0.042061187501531094,
+        "modelLoaded": true,
+        "offline": true,
+        "p95ItemSeconds": 0.10630590659566223,
+        "parameters": 277481509,
+        "peakRssMiB": 847.34375,
+        "python": "3.12.13",
+        "threads": 2,
+        "timingScope": "CPU tokenizer+model+decoder only; excludes dictionary, STT, network and workflow",
+        "torch": "2.8.0",
+        "transformers": "4.53.3"
+      },
+      "sourceReportHash": "69055cc942fa1ed41b045e1cf7677148b5ac27a6e8575338096c6c88f8e50b7d"
+    },
+    {
+      "split": "development",
+      "model": {
+        "configSource": "https://huggingface.co/vmaca123/korean-pii-ner-v3/resolve/ebee0847b166f16041bffc9e1521d895d360d02e/config.json",
+        "id": "vmaca123/korean-pii-ner-v3",
+        "knownLimitations": [
+          "Model card states ADDRESS_UNIT is unsupported; unit-bearing gold remains unchanged",
+          "No published score is treated as our evidence",
+          "Future redistribution/cutover needs separate license review; no weights are copied into the repository"
+        ],
+        "labelMap": {
+          "ADDRESS": "PRIVATE_ADDRESS",
+          "NAME": "PRIVATE_PERSON"
+        },
+        "license": "CC-BY-SA-4.0",
+        "parameterCount": 335613959,
+        "revision": "ebee0847b166f16041bffc9e1521d895d360d02e",
+        "source": "https://huggingface.co/vmaca123/korean-pii-ner-v3/raw/ebee0847b166f16041bffc9e1521d895d360d02e/README.md",
+        "weightBytes": 1342503796
+      },
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 174,
+          "fp": 388,
+          "tp": 26
+        },
+        "PRIVATE_PERSON": {
+          "fn": 6,
+          "fp": 6,
+          "tp": 194
+        }
+      },
+      "pointMetrics": {
+        "addressPrecision": 0.06280193236714976,
+        "addressRecall": 0.13,
+        "overgeneralizationRate": 0.6416938110749185,
+        "personPrecision": 0.97,
+        "personRecall": 0.97
+      },
+      "wilson95": {
+        "addressPrecisionLower": 0.04321477996538102,
+        "addressRecallLower": 0.0902820227966932,
+        "overgeneralizationUpper": 0.6786325605086538,
+        "personPrecisionLower": 0.9361057075454807,
+        "personRecallLower": 0.9361057075454807
+      },
+      "numericGatePassed": false,
+      "runtime": {
+        "aggregationStrategy": "none",
+        "decoderPolicy": "bioes-v1",
+        "device": "cpu",
+        "dtype": "torch.float32",
+        "inferenceSeconds": 32.79997183231171,
+        "loadSeconds": 0.19517700001597404,
+        "maxInputTokens": 46,
+        "medianItemSeconds": 0.049116145994048566,
+        "modelLoaded": true,
+        "offline": true,
+        "p95ItemSeconds": 0.0666276499745436,
+        "parameters": 335613959,
+        "peakRssMiB": 1427.203125,
+        "python": "3.12.13",
+        "threads": 2,
+        "timingScope": "CPU tokenizer+model+decoder only; excludes dictionary, STT, network and workflow",
+        "torch": "2.8.0",
+        "transformers": "4.53.3"
+      },
+      "sourceReportHash": "6e05f2c826587fea4b83c20002916981685922f48dfb6f663566340419f8ebc7"
+    },
+    {
+      "split": "heldout",
+      "model": {
+        "id": "FrameByFrame/korean-pii-e5-base",
+        "labelMap": {
+          "PRIVATE_ADDRESS": "PRIVATE_ADDRESS",
+          "PRIVATE_PERSON": "PRIVATE_PERSON"
+        },
+        "license": "MIT",
+        "revision": "a308c54b4407819624a5661e31e162a269f39818",
+        "source": "https://huggingface.co/FrameByFrame/korean-pii-e5-base/raw/a308c54b4407819624a5661e31e162a269f39818/README.md"
+      },
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 200,
+          "fp": 907,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 25,
+          "fp": 15,
+          "tp": 175
+        }
+      },
+      "pointMetrics": {
+        "addressPrecision": 0,
+        "addressRecall": 0,
+        "overgeneralizationRate": 0.8404740200546946,
+        "personPrecision": 0.9210526315789473,
+        "personRecall": 0.875
+      },
+      "wilson95": {
+        "addressPrecisionLower": 0,
+        "addressRecallLower": 0,
+        "overgeneralizationUpper": 0.8609488696025793,
+        "personPrecisionLower": 0.8738413094782581,
+        "personRecallLower": 0.8219857499741765
+      },
+      "numericGatePassed": false,
+      "runtime": {
+        "aggregationStrategy": "none",
+        "decoderPolicy": "bioes-v1",
+        "device": "cpu",
+        "dtype": "torch.bfloat16",
+        "inferenceSeconds": 36.509557331795804,
+        "loadSeconds": 0.3756340420804918,
+        "maxInputTokens": 48,
+        "medianItemSeconds": 0.04434433352435008,
+        "modelLoaded": true,
+        "offline": true,
+        "p95ItemSeconds": 0.10794288135366514,
+        "parameters": 277481509,
+        "peakRssMiB": 836.375,
+        "python": "3.12.13",
+        "threads": 2,
+        "timingScope": "CPU tokenizer+model+decoder only; excludes dictionary, STT, network and workflow",
+        "torch": "2.8.0",
+        "transformers": "4.53.3"
+      },
+      "sourceReportHash": "d7eb04e1768017c17286000b6baa2be38ed3385ce2159b365d087579668092aa"
+    },
+    {
+      "split": "heldout",
+      "model": {
+        "configSource": "https://huggingface.co/vmaca123/korean-pii-ner-v3/resolve/ebee0847b166f16041bffc9e1521d895d360d02e/config.json",
+        "id": "vmaca123/korean-pii-ner-v3",
+        "knownLimitations": [
+          "Model card states ADDRESS_UNIT is unsupported; unit-bearing gold remains unchanged",
+          "No published score is treated as our evidence",
+          "Future redistribution/cutover needs separate license review; no weights are copied into the repository"
+        ],
+        "labelMap": {
+          "ADDRESS": "PRIVATE_ADDRESS",
+          "NAME": "PRIVATE_PERSON"
+        },
+        "license": "CC-BY-SA-4.0",
+        "parameterCount": 335613959,
+        "revision": "ebee0847b166f16041bffc9e1521d895d360d02e",
+        "source": "https://huggingface.co/vmaca123/korean-pii-ner-v3/raw/ebee0847b166f16041bffc9e1521d895d360d02e/README.md",
+        "weightBytes": 1342503796
+      },
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 181,
+          "fp": 390,
+          "tp": 19
+        },
+        "PRIVATE_PERSON": {
+          "fn": 13,
+          "fp": 13,
+          "tp": 187
+        }
+      },
+      "pointMetrics": {
+        "addressPrecision": 0.04645476772616137,
+        "addressRecall": 0.095,
+        "overgeneralizationRate": 0.6617405582922824,
+        "personPrecision": 0.935,
+        "personRecall": 0.935
+      },
+      "wilson95": {
+        "addressPrecisionLower": 0.029938824812720553,
+        "addressRecallLower": 0.06166310271738653,
+        "overgeneralizationUpper": 0.6981982931286634,
+        "personPrecisionLower": 0.8919809207009312,
+        "personRecallLower": 0.8919809207009312
+      },
+      "numericGatePassed": false,
+      "runtime": {
+        "aggregationStrategy": "none",
+        "decoderPolicy": "bioes-v1",
+        "device": "cpu",
+        "dtype": "torch.float32",
+        "inferenceSeconds": 31.992782804183662,
+        "loadSeconds": 0.20481124997604638,
+        "maxInputTokens": 45,
+        "medianItemSeconds": 0.04920302098616958,
+        "modelLoaded": true,
+        "offline": true,
+        "p95ItemSeconds": 0.055542012519435954,
+        "parameters": 335613959,
+        "peakRssMiB": 1321.875,
+        "python": "3.12.13",
+        "threads": 2,
+        "timingScope": "CPU tokenizer+model+decoder only; excludes dictionary, STT, network and workflow",
+        "torch": "2.8.0",
+        "transformers": "4.53.3"
+      },
+      "sourceReportHash": "414d4505de2f45d3a0aa5ddc67dcf436f30d1d0f08a205ab3510bdfb4dfe11b4"
+    }
+  ],
+  "limitations": [
+    "One eligible alternative versus baseline, not a broad model leaderboard",
+    "Independently authored but correlated synthetic templates, not a real-world population sample",
+    "No human gold adjudication or training-data contamination assessment",
+    "Weight-native dtypes differ; timings are a single CPU pass, not a controlled platform speed claim",
+    "No gold/threshold/policy/model adjustment after heldout",
+    "Original N2/release status and whole-process zeroization remain unqualified"
+  ],
+  "productionModelChanged": false,
+  "qualificationIssued": false,
+  "activated": false
+}

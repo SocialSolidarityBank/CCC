@@ -1,0 +1,46 @@
+{
+  "artifact": "human-review.html",
+  "documentVersion": "human-review-v1",
+  "scope": "Standalone synthetic-data human review worksheet, not a product screen or model qualification",
+  "checks": {
+    "renderedCases": 8,
+    "labeledAnswerInputs": 24,
+    "initialAnswersEmpty": true,
+    "inputRestoredAfterReload": true,
+    "actualJsonDownloadParsed": true,
+    "partialExportCompletedCases": 1,
+    "partialExportTotalCases": 8,
+    "priorExposureExported": true,
+    "literalTextPreservedInExport": true,
+    "printMediaDisplaysAnswers": true,
+    "desktopWidth": 1280,
+    "desktopScrollWidth": 1280,
+    "mobileWidth": 390,
+    "mobileScrollWidth": 390,
+    "fullInputProgressObserved": "8 / 8",
+    "deniedStorageWarningObserved": true,
+    "embeddedCaseFields": ["id", "text"],
+    "externalResourceElements": 0,
+    "httpResourceTimingEntries": 0,
+    "testAnswersRemoved": true,
+    "desktopScreenshotInspected": true
+  },
+  "coldRead": {
+    "method": "Independent stateless completion given the complete HTML without session context",
+    "understood": "Read eight synthetic dialogues, enter three judgments, download JSON and return it",
+    "findingsDisposition": [
+      "Reviewer identity is intentionally not collected for this single-user worksheet. Multiple reviewers must submit separately with attribution in the accompanying message.",
+      "The source corpus path is recorded; the originating conversation has the existing answers. The answer key is deliberately not distributed to the reviewer.",
+      "The exact privacy boundary is being elicited, not prescribed by model-authored examples. Uncertainty is collected explicitly.",
+      "Human feedback remains pending adjudication. This worksheet does not authorize release or amend existing criteria."
+    ]
+  },
+  "evaluationIndependence": {
+    "existingAnswersPredictionsAndScoresExcluded": true,
+    "priorExposureRecorded": true,
+    "previouslyTestedPurposiveSampleDisclosed": true,
+    "humanFeedbackNotAutomaticallyPromotedToGold": true,
+    "notAccuracyOrReleaseEvidence": true
+  },
+  "limitations": ["Only Chromium was exercised; other browsers were not tested.", "Print media content was checked; a PDF file was not generated.", "No model inference or production integration was exercised."]
+}

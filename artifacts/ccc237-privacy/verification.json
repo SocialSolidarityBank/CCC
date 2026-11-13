@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "scope": "approved-claim-replay-and-memory-hardening-only",
+  "baseCommit": "99d7b41cd71713aa6cb7bfcc684d033582409781",
+  "branch": "e5-4-privacy-generalization",
+  "worktreeState": "uncommitted",
+  "recordedAt": "2026-09-06T06:32:20.035Z",
+  "syntheticOnly": true,
+  "modelLoadsDuringThisSlice": 0,
+  "providerCalls": 0,
+  "regressionCounts": {
+    "api": 82,
+    "clientWorker": 44,
+    "secureMemory": 4,
+    "masking": 38,
+    "results": 7,
+    "total": 175
+  },
+  "runs": [
+    {
+      "name": "guard-doc-numbers",
+      "command": [
+        "node",
+        "scripts/guard-doc-numbers.mjs"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T06:30:57.675Z",
+      "endedAt": "2026-09-06T06:30:57.725Z",
+      "exitCode": 0,
+      "logPath": "artifacts/ccc237-privacy/guard-doc-numbers.log",
+      "logSha256": "cda3f89d94f722e6c3846d08c01a26105c1994cd9c65fb8bdf18431a58d6a909"
+    },
+    {
+      "name": "guard-core-imports",
+      "command": [
+        "node",
+        "scripts/guard-core-imports.mjs"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T06:19:01.313Z",
+      "endedAt": "2026-09-06T06:19:01.392Z",
+      "exitCode": 0,
+      "logPath": "artifacts/ccc237-privacy/guard-core-imports.log",
+      "logSha256": "623b8de0856dc40d2c7a5f1687dfa738a69c534c4dfe7fd0947236c71b07591f"
+    },
+    {
+      "name": "test_masking",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_masking.py"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T06:19:01.312Z",
+      "endedAt": "2026-09-06T06:19:01.396Z",
+      "exitCode": 0,
+      "logPath": "artifacts/ccc237-privacy/test_masking.log",
+      "logSha256": "885a7cd187831fc948f6edcb6f81177b441500af9c41f1deba242763402eed9b"
+    },
+    {
+      "name": "test_results",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_results.py"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T06:19:01.312Z",
+      "endedAt": "2026-09-06T06:19:01.400Z",
+      "exitCode": 0,
+      "logPath": "artifacts/ccc237-privacy/test_results.log",
+      "logSha256": "c871f8210212e8e5273d052dc6e9ae7cef75f4973d7afabeb36d26a680e948a9"
+    },
+    {
+      "name": "test_secure_memory",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_secure_memory.py"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T06:19:01.312Z",
+      "endedAt": "2026-09-06T06:19:01.425Z",
+      "exitCode": 0,
+      "logPath": "artifacts/ccc237-privacy/test_secure_memory.log",
+      "logSha256": "e2b9fc5839f3f3d4b46c532965a2a6b161c49bee8cceeb5253be5f2ef9fadd62"
+    },
+    {
+      "name": "guard-db-gateway",
+      "command": [
+        "node",
+        "scripts/guard-db-gateway.mjs"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T06:19:01.313Z",
+      "endedAt": "2026-09-06T06:19:01.429Z",
+      "exitCode": 0,
+      "logPath": "artifacts/ccc237-privacy/guard-db-gateway.log",
+      "logSha256": "deea7370a6306ce6e0949db92b72e24d335f3049dbea4319161076825a84581d"
+    },
+    {
+      "name": "test_api_client_worker",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_api_client_worker.py"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T06:26:03.914Z",
+      "endedAt": "2026-09-06T06:26:04.018Z",
+      "exitCode": 0,
+      "logPath": "artifacts/ccc237-privacy/test_api_client_worker.log",
+      "logSha256": "369234431a103b6d74a51ddad175c63d1bf15d5ed825c60a6ca48e2a19e8479d"
+    },
+    {
+      "name": "typecheck",
+      "command": [
+        "pnpm",
+        "--filter",
+        "@ccc/api",
+        "run",
+        "typecheck"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T06:26:04.018Z",
+      "endedAt": "2026-09-06T06:26:06.717Z",
+      "exitCode": 0,
+      "logPath": "artifacts/ccc237-privacy/typecheck.log",
+      "logSha256": "23b4913be963539e6035e7fbc5696e60bf25c195a57a5165a6def123e68d15aa"
+    },
+    {
+      "name": "api-regressions",
+      "command": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "apps/api/vitest.config.ts",
+        "apps/api/test/agent-job-contract.test.ts",
+        "apps/api/test/agent-job-contract.modes.test.ts",
+        "apps/api/test/gateway-foundation.test.ts",
+        "apps/api/test/gateway-intake.test.ts",
+        "--maxWorkers=1"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T06:22:55.272Z",
+      "endedAt": "2026-09-06T06:23:50.348Z",
+      "exitCode": 0,
+      "logPath": "artifacts/ccc237-privacy/api-regressions.log",
+      "logSha256": "493731e86d93bc311d684f56b5c494d29d68dfa56b0e1a7297629d8418b5d8d8"
+    }
+  ],
+  "nativeSmoke": {
+    "command": [
+      "python3",
+      "artifacts/ccc237-privacy/transport-memory-smoke.py",
+      "artifacts/ccc237-privacy/transport-memory-smoke.json"
+    ],
+    "env": {
+      "PYTHONPATH": "apps/pipeline",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    },
+    "processName": "ccc237-memory-smoke",
+    "observedBanner": "SMOKE_READY",
+    "observedExitCode": 0,
+    "result": {
+      "syntheticOnly": true,
+      "modelLoads": 0,
+      "providerCalls": 0,
+      "windowsMeasured": false,
+      "sourceTransport": true,
+      "dictionaryTransport": true,
+      "errorSanitized": true,
+      "errorContextDetached": true,
+      "nativeLockSucceeded": true,
+      "independentNativeReadObservedZeroes": true,
+      "ownedMappingDumpExcluded": false,
+      "nativeLockFailureClosedBeforeRead": true,
+      "errorBodyLockFailurePreservesMaskingPhase": true,
+      "observerLimitRestored": true,
+      "wholeProcessZeroizationQualified": false,
+      "note": "Heap parser copies are wiped but not page-locked; immutable strings, HTTP/TLS/model internals, dumps and hibernation are outside this proof. RLIMIT fault injection affects only this temporary process and is restored."
+    }
+  },
+  "qualification": {
+    "wholeProcessZeroization": "not-qualified",
+    "nerInstallationHealth": "failed-prior-measurement",
+    "nerReleaseQualification": "not-measured",
+    "windowsNativeMemory": "not-measured",
+    "cloudHostMemory": "not-measured"
+  },
+  "sha256": {
+    "packages/core/src/gateway.ts": "1d475a16694b50aa5c099a711b0fdbf6a7ef11d0f899da39386ae22af0585a47",
+    "apps/api/test/agent-job-contract.test.ts": "4de77df7241a8bc2f5fbcd9cd5be38f0307dd6dc287868cb3b3c4d3d8edc31f2",
+    "apps/pipeline/ccc_pipeline/api_client.py": "f289f4a401925fe1d4d9f999f1f08b8d3c7749a7a156fdb5407df66f7ff4e501",
+    "apps/pipeline/ccc_pipeline/worker.py": "44da8a0927a9e53189e417ce25075f28643a65a930024c56ca5680244fd905a4",
+    "apps/pipeline/ccc_pipeline/secure_memory.py": "a2e6b89759c5ed7da1b2a163fdecfe51abd2089e8455be5ea95a392e12483fdd",
+    "apps/pipeline/tests/test_api_client_worker.py": "a9025aaf41f1d2699b8f9d677c9e687679bbed49b773f768ec35d384dd4a9e20",
+    "apps/pipeline/tests/test_secure_memory.py": "eb1243f1193ebbdaec2d28e41a453b407369f7e98fbcd78d9931e946e744291f",
+    "docs/specs/S5-agent-job-contract-v2.md": "571d4d591e70c24039d86fa67673cc3226308b5b0ef3a3b119b6115892eb1b70",
+    "docs/specs/S6-privacy-packet.md": "d0d27bae5d0d7fda38f0d76a82f90f6c296136de11d7e0b084b9882adbbd88e6",
+    "docs/superpowers/plans/2026-09-06-CCC-237-privacy-generalization.md": "fcfe575469cbbdc3ef4f6fccb19b82d13a1669e06a7f9cda6c5f3e25a4e740cd",
+    "artifacts/ccc237-privacy/transport-memory-smoke.py": "1b4f7c5e2e446289ec64d6739c17b3d7f6f1b311fdbd17c23ece18545d071f30",
+    "artifacts/ccc237-privacy/transport-memory-smoke.json": "63f0a04a15d3ed22375d95ac3abe808ae960e04b76b7313037db6a399d291a39",
+    "artifacts/ccc237-privacy/spec-boundary-proof.json": "7df9ad1df11128ca54301dd230fb427fcb34a03710cb64051e08924356be88b5",
+    "artifacts/ccc237-privacy/host-memory-boundary.json": "aedff855c882d0c39d8e2e75be6d7f335c476e14084060bc89fd6ac4dde47c38"
+  }
+}

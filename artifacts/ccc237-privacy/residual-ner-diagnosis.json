@@ -1,0 +1,479 @@
+{
+  "attestationIssued": false,
+  "goldOrThresholdsChanged": false,
+  "measuredAt": "2026-09-06T09:57:08.192759+00:00",
+  "modelId": "FrameByFrame/korean-pii-e5-base",
+  "modelLoads": 1,
+  "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+  "productCodeChanged": false,
+  "providerCalls": 0,
+  "purpose": "Residual error diagnosis; NOT release requalification or production policy",
+  "rawTextTokensOrOffsetsRetained": false,
+  "receiptIssued": false,
+  "referenceScope": "Grouping and target-label normalization policies only; not reproduction of the author's bf16 benchmark",
+  "reportHash": "b084b106ef4cf31e037ad96771027d32306ba073d4ac737113bc7b804842b0b5",
+  "reports": [
+    {
+      "arms": {
+        "author_grouping_and_normalization": {
+          "counts": {
+            "PRIVATE_ADDRESS": {
+              "fn": 4,
+              "fp": 11,
+              "tp": 0
+            },
+            "PRIVATE_PERSON": {
+              "fn": 0,
+              "fp": 0,
+              "tp": 4
+            }
+          },
+          "diagnosis": {
+            "PRIVATE_ADDRESS": {
+              "coveredGoldNonspaceCodePoints": 43,
+              "falsePositiveBuckets": {
+                "overlaps_same_label_gold": 11
+              },
+              "goldBuckets": {
+                "fragmented_full_nonspace_coverage": 2,
+                "partial_coverage": 2
+              },
+              "goldNonspaceCodePoints": 54
+            },
+            "PRIVATE_PERSON": {
+              "coveredGoldNonspaceCodePoints": 12,
+              "falsePositiveBuckets": {},
+              "goldBuckets": {
+                "exact": 4
+              },
+              "goldNonspaceCodePoints": 12
+            }
+          },
+          "pointMetrics": {
+            "addressPrecision": 0.0,
+            "addressRecall": 0.0,
+            "overgeneralizationRate": 0.7333333333333333,
+            "personPrecision": 1.0,
+            "personRecall": 1.0
+          }
+        },
+        "author_grouping_only": {
+          "counts": {
+            "PRIVATE_ADDRESS": {
+              "fn": 4,
+              "fp": 11,
+              "tp": 0
+            },
+            "PRIVATE_PERSON": {
+              "fn": 0,
+              "fp": 0,
+              "tp": 4
+            }
+          },
+          "diagnosis": {
+            "PRIVATE_ADDRESS": {
+              "coveredGoldNonspaceCodePoints": 43,
+              "falsePositiveBuckets": {
+                "overlaps_same_label_gold": 11
+              },
+              "goldBuckets": {
+                "fragmented_full_nonspace_coverage": 2,
+                "partial_coverage": 2
+              },
+              "goldNonspaceCodePoints": 54
+            },
+            "PRIVATE_PERSON": {
+              "coveredGoldNonspaceCodePoints": 12,
+              "falsePositiveBuckets": {},
+              "goldBuckets": {
+                "exact": 4
+              },
+              "goldNonspaceCodePoints": 12
+            }
+          },
+          "pointMetrics": {
+            "addressPrecision": 0.0,
+            "addressRecall": 0.0,
+            "overgeneralizationRate": 0.7333333333333333,
+            "personPrecision": 1.0,
+            "personRecall": 1.0
+          }
+        },
+        "author_normalization_only": {
+          "counts": {
+            "PRIVATE_ADDRESS": {
+              "fn": 4,
+              "fp": 11,
+              "tp": 0
+            },
+            "PRIVATE_PERSON": {
+              "fn": 0,
+              "fp": 0,
+              "tp": 4
+            }
+          },
+          "diagnosis": {
+            "PRIVATE_ADDRESS": {
+              "coveredGoldNonspaceCodePoints": 43,
+              "falsePositiveBuckets": {
+                "overlaps_same_label_gold": 11
+              },
+              "goldBuckets": {
+                "fragmented_full_nonspace_coverage": 2,
+                "partial_coverage": 2
+              },
+              "goldNonspaceCodePoints": 54
+            },
+            "PRIVATE_PERSON": {
+              "coveredGoldNonspaceCodePoints": 12,
+              "falsePositiveBuckets": {},
+              "goldBuckets": {
+                "exact": 4
+              },
+              "goldNonspaceCodePoints": 12
+            }
+          },
+          "pointMetrics": {
+            "addressPrecision": 0.0,
+            "addressRecall": 0.0,
+            "overgeneralizationRate": 0.7333333333333333,
+            "personPrecision": 1.0,
+            "personRecall": 1.0
+          }
+        },
+        "bioes_v1": {
+          "counts": {
+            "PRIVATE_ADDRESS": {
+              "fn": 4,
+              "fp": 11,
+              "tp": 0
+            },
+            "PRIVATE_PERSON": {
+              "fn": 0,
+              "fp": 0,
+              "tp": 4
+            }
+          },
+          "diagnosis": {
+            "PRIVATE_ADDRESS": {
+              "coveredGoldNonspaceCodePoints": 43,
+              "falsePositiveBuckets": {
+                "overlaps_same_label_gold": 11
+              },
+              "goldBuckets": {
+                "fragmented_full_nonspace_coverage": 2,
+                "partial_coverage": 2
+              },
+              "goldNonspaceCodePoints": 54
+            },
+            "PRIVATE_PERSON": {
+              "coveredGoldNonspaceCodePoints": 12,
+              "falsePositiveBuckets": {},
+              "goldBuckets": {
+                "exact": 4
+              },
+              "goldNonspaceCodePoints": 12
+            }
+          },
+          "pointMetrics": {
+            "addressPrecision": 0.0,
+            "addressRecall": 0.0,
+            "overgeneralizationRate": 0.7333333333333333,
+            "personPrecision": 1.0,
+            "personRecall": 1.0
+          }
+        }
+      },
+      "corpusCount": 7,
+      "corpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+      "kind": "health",
+      "maxTokenCountIncludingSpecial": 29,
+      "normalizationEffects": {
+        "author_grouping_and_normalization": {
+          "PRIVATE_ADDRESS": {
+            "exactGoldGains": 0,
+            "exactGoldLosses": 0,
+            "removedGoldNonspaceCodePoints": 0
+          },
+          "PRIVATE_PERSON": {
+            "exactGoldGains": 0,
+            "exactGoldLosses": 0,
+            "removedGoldNonspaceCodePoints": 0
+          }
+        },
+        "author_normalization_only": {
+          "PRIVATE_ADDRESS": {
+            "exactGoldGains": 0,
+            "exactGoldLosses": 0,
+            "removedGoldNonspaceCodePoints": 0
+          },
+          "PRIVATE_PERSON": {
+            "exactGoldGains": 0,
+            "exactGoldLosses": 0,
+            "removedGoldNonspaceCodePoints": 0
+          }
+        }
+      },
+      "rowsOverAuthorMaxLength256": 0
+    },
+    {
+      "arms": {
+        "author_grouping_and_normalization": {
+          "counts": {
+            "PRIVATE_ADDRESS": {
+              "fn": 249,
+              "fp": 871,
+              "tp": 1
+            },
+            "PRIVATE_PERSON": {
+              "fn": 72,
+              "fp": 76,
+              "tp": 168
+            }
+          },
+          "diagnosis": {
+            "PRIVATE_ADDRESS": {
+              "coveredGoldNonspaceCodePoints": 4100,
+              "falsePositiveBuckets": {
+                "overlaps_same_label_gold": 839,
+                "prediction_on_true_negative": 32
+              },
+              "goldBuckets": {
+                "exact": 1,
+                "fragmented_full_nonspace_coverage": 198,
+                "no_same_label_overlap": 7,
+                "other_target_label_only": 1,
+                "partial_coverage": 43
+              },
+              "goldNonspaceCodePoints": 4216
+            },
+            "PRIVATE_PERSON": {
+              "coveredGoldNonspaceCodePoints": 652,
+              "falsePositiveBuckets": {
+                "outside_same_label_gold_in_positive_row": 3,
+                "overlaps_same_label_gold": 25,
+                "prediction_on_true_negative": 48
+              },
+              "goldBuckets": {
+                "exact": 168,
+                "no_same_label_overlap": 49,
+                "partial_coverage": 23
+              },
+              "goldNonspaceCodePoints": 940
+            }
+          },
+          "pointMetrics": {
+            "addressPrecision": 0.0011467889908256881,
+            "addressRecall": 0.004,
+            "overgeneralizationRate": 0.8485663082437276,
+            "personPrecision": 0.6885245901639344,
+            "personRecall": 0.7
+          }
+        },
+        "author_grouping_only": {
+          "counts": {
+            "PRIVATE_ADDRESS": {
+              "fn": 249,
+              "fp": 871,
+              "tp": 1
+            },
+            "PRIVATE_PERSON": {
+              "fn": 67,
+              "fp": 71,
+              "tp": 173
+            }
+          },
+          "diagnosis": {
+            "PRIVATE_ADDRESS": {
+              "coveredGoldNonspaceCodePoints": 4100,
+              "falsePositiveBuckets": {
+                "overlaps_same_label_gold": 839,
+                "prediction_on_true_negative": 32
+              },
+              "goldBuckets": {
+                "exact": 1,
+                "fragmented_full_nonspace_coverage": 198,
+                "no_same_label_overlap": 7,
+                "other_target_label_only": 1,
+                "partial_coverage": 43
+              },
+              "goldNonspaceCodePoints": 4216
+            },
+            "PRIVATE_PERSON": {
+              "coveredGoldNonspaceCodePoints": 657,
+              "falsePositiveBuckets": {
+                "outside_same_label_gold_in_positive_row": 3,
+                "overlaps_same_label_gold": 20,
+                "prediction_on_true_negative": 48
+              },
+              "goldBuckets": {
+                "exact": 173,
+                "no_same_label_overlap": 49,
+                "partial_coverage": 18
+              },
+              "goldNonspaceCodePoints": 940
+            }
+          },
+          "pointMetrics": {
+            "addressPrecision": 0.0011467889908256881,
+            "addressRecall": 0.004,
+            "overgeneralizationRate": 0.8440860215053764,
+            "personPrecision": 0.7090163934426229,
+            "personRecall": 0.7208333333333333
+          }
+        },
+        "author_normalization_only": {
+          "counts": {
+            "PRIVATE_ADDRESS": {
+              "fn": 249,
+              "fp": 873,
+              "tp": 1
+            },
+            "PRIVATE_PERSON": {
+              "fn": 73,
+              "fp": 79,
+              "tp": 167
+            }
+          },
+          "diagnosis": {
+            "PRIVATE_ADDRESS": {
+              "coveredGoldNonspaceCodePoints": 4100,
+              "falsePositiveBuckets": {
+                "overlaps_same_label_gold": 841,
+                "prediction_on_true_negative": 32
+              },
+              "goldBuckets": {
+                "exact": 1,
+                "fragmented_full_nonspace_coverage": 198,
+                "no_same_label_overlap": 7,
+                "other_target_label_only": 1,
+                "partial_coverage": 43
+              },
+              "goldNonspaceCodePoints": 4216
+            },
+            "PRIVATE_PERSON": {
+              "coveredGoldNonspaceCodePoints": 652,
+              "falsePositiveBuckets": {
+                "outside_same_label_gold_in_positive_row": 3,
+                "overlaps_same_label_gold": 28,
+                "prediction_on_true_negative": 48
+              },
+              "goldBuckets": {
+                "exact": 167,
+                "fragmented_full_nonspace_coverage": 1,
+                "no_same_label_overlap": 49,
+                "partial_coverage": 23
+              },
+              "goldNonspaceCodePoints": 940
+            }
+          },
+          "pointMetrics": {
+            "addressPrecision": 0.0011441647597254005,
+            "addressRecall": 0.004,
+            "overgeneralizationRate": 0.85,
+            "personPrecision": 0.6788617886178862,
+            "personRecall": 0.6958333333333333
+          }
+        },
+        "bioes_v1": {
+          "counts": {
+            "PRIVATE_ADDRESS": {
+              "fn": 249,
+              "fp": 873,
+              "tp": 1
+            },
+            "PRIVATE_PERSON": {
+              "fn": 68,
+              "fp": 74,
+              "tp": 172
+            }
+          },
+          "diagnosis": {
+            "PRIVATE_ADDRESS": {
+              "coveredGoldNonspaceCodePoints": 4100,
+              "falsePositiveBuckets": {
+                "overlaps_same_label_gold": 841,
+                "prediction_on_true_negative": 32
+              },
+              "goldBuckets": {
+                "exact": 1,
+                "fragmented_full_nonspace_coverage": 198,
+                "no_same_label_overlap": 7,
+                "other_target_label_only": 1,
+                "partial_coverage": 43
+              },
+              "goldNonspaceCodePoints": 4216
+            },
+            "PRIVATE_PERSON": {
+              "coveredGoldNonspaceCodePoints": 657,
+              "falsePositiveBuckets": {
+                "outside_same_label_gold_in_positive_row": 3,
+                "overlaps_same_label_gold": 23,
+                "prediction_on_true_negative": 48
+              },
+              "goldBuckets": {
+                "exact": 172,
+                "fragmented_full_nonspace_coverage": 1,
+                "no_same_label_overlap": 49,
+                "partial_coverage": 18
+              },
+              "goldNonspaceCodePoints": 940
+            }
+          },
+          "pointMetrics": {
+            "addressPrecision": 0.0011441647597254005,
+            "addressRecall": 0.004,
+            "overgeneralizationRate": 0.8455357142857143,
+            "personPrecision": 0.6991869918699187,
+            "personRecall": 0.7166666666666667
+          }
+        }
+      },
+      "corpusCount": 601,
+      "corpusHash": "8fe927f79ad4e84d6ed1440b069e099e15c50618226c6727781e73f00ee321f4",
+      "kind": "release",
+      "maxTokenCountIncludingSpecial": 37,
+      "normalizationEffects": {
+        "author_grouping_and_normalization": {
+          "PRIVATE_ADDRESS": {
+            "exactGoldGains": 0,
+            "exactGoldLosses": 0,
+            "removedGoldNonspaceCodePoints": 0
+          },
+          "PRIVATE_PERSON": {
+            "exactGoldGains": 0,
+            "exactGoldLosses": 5,
+            "removedGoldNonspaceCodePoints": 5
+          }
+        },
+        "author_normalization_only": {
+          "PRIVATE_ADDRESS": {
+            "exactGoldGains": 0,
+            "exactGoldLosses": 0,
+            "removedGoldNonspaceCodePoints": 0
+          },
+          "PRIVATE_PERSON": {
+            "exactGoldGains": 0,
+            "exactGoldLosses": 5,
+            "removedGoldNonspaceCodePoints": 5
+          }
+        }
+      },
+      "rowsOverAuthorMaxLength256": 0
+    }
+  ],
+  "runtime": {
+    "aggregationStrategy": "none",
+    "decoderPolicy": "four-arm same-token diagnostic comparison",
+    "device": "cpu",
+    "dtype": "torch.bfloat16",
+    "modelLoaded": true,
+    "offline": true,
+    "python": "3.12.13",
+    "threads": 2,
+    "torch": "2.8.0",
+    "transformers": "4.53.3"
+  },
+  "schemaVersion": 1,
+  "syntheticOnly": true
+}

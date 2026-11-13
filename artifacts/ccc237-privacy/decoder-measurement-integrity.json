@@ -1,0 +1,65 @@
+{
+  "status": "passed",
+  "scope": "Arithmetic, complete row counts, unchanged corpus file bytes, JCS hashes and independent Wilson quadratic roots only; qualification remains failed.",
+  "measurements": [
+    {
+      "kind": "health",
+      "rows": 7,
+      "counts": {
+        "PRIVATE_PERSON": {
+          "tp": 4,
+          "fp": 0,
+          "fn": 0
+        },
+        "PRIVATE_ADDRESS": {
+          "tp": 0,
+          "fp": 11,
+          "fn": 4
+        }
+      },
+      "metrics": {
+        "personPrecision": 1,
+        "personRecall": 1,
+        "addressPrecision": 0,
+        "addressRecall": 0,
+        "overgeneralizationRate": 0.7333333333333333
+      },
+      "corpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+      "resultHash": "a611eb9979149d9328572b75038aa804e832c4f6cc7733579be8d8bec4a1bd94",
+      "reportHash": "6c0139b061ca49acab078a5bd51c46f28751a8ac8ab7391c93fedb825d9c30e8",
+      "qualificationStatus": "failed"
+    },
+    {
+      "kind": "release",
+      "rows": 601,
+      "counts": {
+        "PRIVATE_PERSON": {
+          "tp": 172,
+          "fp": 74,
+          "fn": 68
+        },
+        "PRIVATE_ADDRESS": {
+          "tp": 1,
+          "fp": 873,
+          "fn": 249
+        }
+      },
+      "metrics": {
+        "personPrecision": 0.6991869918699187,
+        "personRecall": 0.7166666666666667,
+        "addressPrecision": 0.0011441647597254005,
+        "addressRecall": 0.004,
+        "overgeneralizationRate": 0.8455357142857143
+      },
+      "corpusHash": "8fe927f79ad4e84d6ed1440b069e099e15c50618226c6727781e73f00ee321f4",
+      "resultHash": "dd31ba3fb5c9ed79f45b7dc6809ce5f437160368a6c00f59859f02c826991ba5",
+      "reportHash": "9848e00db3bf973d7238e58f4604625ab7935747602901f16ea871b1322ca6e6",
+      "qualificationStatus": "failed"
+    }
+  ],
+  "corpusBytesUnchanged": true,
+  "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+  "decoder": "bioes-v1",
+  "attestationIssued": false,
+  "releaseReceiptIssued": false
+}

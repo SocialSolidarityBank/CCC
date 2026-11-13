@@ -37,7 +37,7 @@ ccc_pipeline/
   diarize.py         pyannote 화자 분리 (지연 임포트)
   speaker_mapping.py 전사 구간↔화자 정렬 + 수혜자/상담사 자동 추정 (D11, 순수 로직)
   emotion.py         감정 점수 집계 (음성 0.3 + 텍스트 0.7 가중, R4, 순수 로직)
-  masking.py         2차 PII 마스킹 — 정규식(전화·주민번호·이메일·계좌) + 질병명 사전(G3) + 선택적 NER (D2)
+  masking.py         2차 PII 마스킹과 S6 날짜/나이/지역 일반화, 주소/우편번호 토큰화
   condition_terms.py 질병명·진단명 사전 — 무엇을 일부러 뺐는지도 여기 적혀 있다 (G3)
   results.py         v2 결과 payload 조립 — canonical JSON 과 hash 3종 (S5 §2.1)
   worker.py          claim 루프 (claim→처리→result 또는 release, 작업 디렉터리는 무조건 삭제)
@@ -73,11 +73,11 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_STT_MAX_CHUNK_SECONDS` | | `180` | 조각 최대 길이. 실측에서 3분 조각이 반복 붕괴를 없앴다 |
 | `CCC_STT_MIN_CHUNK_SECONDS` | | `30` | 조각 최소 길이. 너무 잘게 나누면 조각마다 문맥이 사라져 정확도가 떨어진다 |
 | `CCC_STT_REPEAT_THRESHOLD` | | `4` | 같은 문장이 몇 번 연속되면 붕괴로 볼지. 상담에서 두세 번 반복은 흔하므로 그 위 |
-| `CCC_NER_MODEL_ID` | **예** | (없음) | 2차 마스킹용 한국어 인명 NER 모델. `red` **미설정이면 회차를 처리하지 않는다**(2026-07-31 Q 결정) — 인명 계층이 빈 채로 돌면 금고에 없는 제3자가 그대로 사업자로 나간다(R3). **라이선스 표기 확인 후 지정**(§5 규칙) |
-| `CCC_NER_LABELS` | | `PS,PER,NAME,PRIVATE_PERSON` | 위 모델이 **인명에 붙이는 라벨 접두**. 모델과 한 쌍이다 — KLUE 계열은 `PS`/`PER`, PII 전용 모델은 `NAME` 계열로 다르다. 모델을 불러올 때 그 모델이 선언한 라벨과 대조하고, **안 맞으면 뜨지 않는다**(조용한 0건 마스킹 방지) |
-| `CCC_NER_ADDRESS_LABELS` | | `LC,ADDRESS,PRIVATE_ADDRESS` | 주소 라벨 접두. `none`·`off` 로 두면 **주소 계층을 끈다**(주소를 안 잡는 모델로 갈아탈 때). 비어 있지 않은데 모델이 그 라벨을 선언하지 않으면 뜨지 않는다 |
-| `CCC_CONDITION_NER_MODEL_ID` | | (없음) | 질병명 NER(G3). 미설정이면 사전 계층만 동작하고 **진행한다** — 인명과 달리 사전이 주 계층이다 |
-| `CCC_CONDITION_NER_LABELS` | | `DS,DISEASE,SYMPTOM,CV_DISEASE,TRM` | 위 모델의 질병 라벨 접두. 대조 규칙은 인명과 같다 |
+| `CCC_NER_MODEL_ID` | **예** | 없음 | S6가 고정한 `FrameByFrame/korean-pii-e5-base`. 다른 모델로 자동 전환하지 않는다 |
+| `CCC_NER_LABELS` | | `PRIVATE_PERSON` | 정식 S6의 정확한 인명 라벨. 다른 라벨 구성은 같은 manifest로 처리하지 않는다 |
+| `CCC_NER_ADDRESS_LABELS` | | `PRIVATE_ADDRESS` | 정식 S6의 정확한 주소 라벨. `none`/`off`는 정식 처리에서 허용하지 않는다 |
+| `CCC_CONDITION_NER_MODEL_ID` | | 없음 | 정식 S6에서는 설정하지 않는다. 질환 사전 계층만 사용하며 별도 NER 모델을 같은 manifest에 추가하지 않는다 |
+| `CCC_CONDITION_NER_LABELS` | | `DS,DISEASE,SYMPTOM,CV_DISEASE,TRM` | 기존 비활성 후보 설정. 정식 S6는 별도 질환 NER을 사용하지 않는다 |
 | `HF_TOKEN` | pyannote 사용 시 | — | Hugging Face 토큰(게이트 모델) |
 | `CCC_NER_ATTESTATION` | **필수** | 없음 | S5 claim 이 요구하는 S6 NER attestation JSON(`id`·`modelId`·`modelRevision`·`labelSetHash`·`corpusHash`·`resultHash`·`validatedAt`·`expiresAt`·`status:"passed"`). 모양이 어긋나면 기동하지 않는다 |
 | `CCC_NER_RELEASE_RECEIPT_ID` | **필수** | 없음 | E5-4 가 발급한 release qualification 영수증 ID. 서버가 만료·해시 일치를 확인하고, 어긋나면 claim 이 `local_ner_unavailable` 로 닫힌다 |
@@ -120,34 +120,17 @@ E0-4에서 넘긴 모델 5종의 인증 다운로드와 파일 무결성 검증�
 상태만 남기고 녹음 결과 처리는 계속된다. OFF 전환은 새 복사만 멈추며 이미 만들어진 사본의
 만료일을 바꾸거나 지우지 않는다. 기존 사본 즉시 삭제는 복사 경로와 분리된 별도 감사 작업이다.
 
-### 인명 NER 모델 (2026-08-01 Q 승인)
+### NER 검증과 가림 규칙
 
-**`FrameByFrame/korean-pii-e5-base`** — 라이선스 **MIT**(§5 규칙 충족, 모델 카드 확인).
-베이스는 `intfloat/multilingual-e5-base`. 대화체 KDPII F1 0.943 / KLUE 인명 0.866.
+모델과 revision, labels, 설치 N2 및 출시 기준은 [S6 §2.2](../../docs/specs/S6-privacy-packet.md#22-ner-health-attestation)가 정본이다. 인명과 주소는 같은 모델을 한 번 로드하되 `[인명]`, `[주소]`로 구분한다. 등록값 직접 치환과 일반화의 순서 및 주소/지역 분류도 S6 §2.4~2.5를 따른다.
 
-```bash
-CCC_NER_MODEL_ID=FrameByFrame/korean-pii-e5-base
-CCC_NER_LABELS=PRIVATE_PERSON
-CCC_NER_ADDRESS_LABELS=PRIVATE_ADDRESS   # 주소도 가린다(2026-08-01 Q 결정). 끄려면 none
-```
+구간 해석은 `ner-mask-v3`의 공통 BIOES 디코더를 사용한다. 토큰을 미리 합치거나 O를 버리지 않고, 시작/끝/단독 표식과 원문 좌표를 함께 처리한다. 이전 디코더의 실패 보고서를 새 버전의 결과로 다시 표시하지 않는다.
 
-인명과 주소는 **같은 모델**이 잡으므로 가중치는 한 번만 올린다. 다만 치환 토큰은 갈라서
-`[인명]`·`[주소]` 로 따로 남긴다 — 주소를 `[인명]` 으로 치환하면 검토 화면과 마스킹 집계가
-둘 다 거짓이 된다.
+등록된 값의 정확한 치환이 날짜/나이/지역 일반화보다 먼저다. 겹치는 원문은 긴 매칭의 대체값으로 한 번만 덮고, 상충하거나 대체값에 등록값이 남는 dictionary는 거부한다. 날짜는 연월, 명시 나이는 5년 구간, 명시된 지역은 광역까지만 남긴다. 상대 날짜와 이미 광역인 일반 서술은 유지한다.
 
-`yellow` **생년월일(`private_date`)은 일부러 넣지 않았다.** 상담에서 날짜는 "지난달 퇴사",
-"3월 계약 만료" 처럼 맥락 자체인 경우가 많아, 가리면 AI 가 시간 흐름을 읽지 못한다.
+`scripts/privacy/qualify_ner.py`는 `--kind health|release`, `--corpus`, `--expected-corpus-hash`, 새 `--output`을 받는다. `--validate-only`는 ML을 로드하지 않는다. 실제 검사는 Mac 메모리를 먼저 확인하고 캐시된 고정 모델을 offline CPU 2 threads로 실행한다. 기존 결과는 덮어쓰지 않는다. 보고서 숫자는 기존 canonical JSON의 상호운용 범위를 쓰며, 지원하지 않는 숫자 표기는 hash를 꾸미지 않고 실패로 닫는다.
 
-`yellow` **이 모델의 라벨은 `PS`/`PER` 가 아니다.** 실제 라벨은 `private_person`·`private_address`·
-`private_phone` … 9종이고 태깅은 **BIOES**(B-/I-/E-/S-)다. 기본값에 `PRIVATE_PERSON` 을 넣어 뒀지만,
-세팅 때 `CCC_NER_LABELS` 로 **의도한 라벨만 명시**하는 쪽을 권한다 — 무엇을 가리기로 했는지가
-설정에 남는다.
-
-이 모델은 전화·이메일·계좌·주소·URL·IP·생년월일도 함께 잡는다. 정규식 계층과 **겹치지만 겹쳐 둔다** —
-한쪽이 놓쳐도 다른 쪽이 잡는 게 목적이고, 같은 자리를 두 번 치환해도 결과는 같다.
-
-`red` 질병명은 이 모델에 **없다**. 질병명은 사전 계층(`condition_terms.py`)이 주 계층이고, 그건
-이 모델 채택과 무관하게 그대로다(G3).
+**2026-09-06 BIOES 교정 후 상태:** [N2 7항목](../../artifacts/ccc237-privacy/install-health-v2-bioes-v1.json)은 인명 4개를 정확히 잡았지만 주소가 미통과다. [출시 601항목](../../artifacts/ccc237-privacy/release-qualification-v1-bioes-v1.json)도 FAIL이다. passing attestation/receipt를 발행하거나 등록하지 않았으며 실제 AI/STT를 활성화하지 않았다. 재현 명령과 남은 관문은 [CCC-237 실행 기록](../../docs/superpowers/plans/2026-09-06-CCC-237-privacy-generalization.md#bioes-교정과-동일-자료-재측정)에 있다.
 
 ### 마스킹 원칙 — 과마스킹을 감수한다 (2026-08-01 Q 결정)
 
@@ -160,7 +143,7 @@ CCC_NER_ADDRESS_LABELS=PRIVATE_ADDRESS   # 주소도 가린다(2026-08-01 Q 결�
 
 **미탐보다 과탐을 택한다.** 구현에 두 군데 반영돼 있다:
 
-- **라벨 접두는 넓게** 잡는다(여러 계열을 함께). 좁혀서 놓치는 것보다 낫고, 아예 안 맞으면 뜨지 않으므로 조용한 실패는 없다.
+- **정식 라벨은 고정**한다. 모델의 BIOES label 검증과 실제 exact-span health를 구분하며, label 이름이 맞는다는 이유만으로 모델 통과를 주장하지 않는다.
 - **겹치는 스팬은 합집합을 한 토큰으로 덮는다**(`_merge_spans`). 한쪽을 버리면 겹치지 않는 부분이 원문 그대로 남고, 잘라서 치환하면 `[인명][주소]수` 같은 조각이 남는다 — 둘 다 유출이다.
 
 `yellow` **민감도 손잡이는 이 모델에 없다.** 실제로 조정하려면 실측에서 두 실수의 비율을 보고 후처리 규칙을 얹어야 한다 — 실측 게이트의 몫이고, 지금은 원칙만 못 박아 둔 상태다.

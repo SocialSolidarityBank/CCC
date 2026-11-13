@@ -1,0 +1,83 @@
+{
+  "sourceSpecSha256": "2073e8074cc26a84faf98b6197ef0a273f0907dff0d73d5f4df1090091da68b4",
+  "healthCorpusHash": "10265475ed38dbdc8f902cd78fb29654a948c96ddb9c9daeda3b485d4cdd46a5",
+  "manifestHash": "49d44dbc50067341ff4ec63c1d76bdbf49d6ee9d9a730dbb707c147259de77dd",
+  "measuredReportHashMatches": true,
+  "measuredResultHashMatches": true,
+  "probeHashMatches": true,
+  "fixtures": [
+    {
+      "case": "g1",
+      "codePointEndMatches": true,
+      "bodyHashMatches": true,
+      "evidenceHash": "23052267672721fa8b63bd29d3eb7544f89a4dd91bca9f9f8fc0e857847f9d2a",
+      "declaredEvidenceHash": "23052267672721fa8b63bd29d3eb7544f89a4dd91bca9f9f8fc0e857847f9d2a",
+      "declaredEvidenceHashLength": 64,
+      "evidenceHashMatches": true
+    },
+    {
+      "case": "g2",
+      "codePointEndMatches": true,
+      "bodyHashMatches": true,
+      "evidenceHash": "14f31cc51a226d169d93c0c5d23f56cffbf822e4926cb8fe3317d34decb53ba0",
+      "declaredEvidenceHash": "14f31cc51a226d169d93c0c5d23f56cffbf822e4926cb8fe3317d34decb53ba0",
+      "declaredEvidenceHashLength": 64,
+      "evidenceHashMatches": true
+    },
+    {
+      "case": "g3",
+      "codePointEndMatches": true,
+      "bodyHashMatches": true,
+      "evidenceHash": "a9b74b34cdbba5145d1290446074f4c3c07acdada8a1d5d87d2e1bdfbf89acec",
+      "declaredEvidenceHash": "a9b74b34cdbba5145d1290446074f4c3c07acdada8a1d5d87d2e1bdfbf89acec",
+      "declaredEvidenceHashLength": 64,
+      "evidenceHashMatches": true
+    },
+    {
+      "case": "g6",
+      "codePointEndMatches": true,
+      "bodyHashMatches": true,
+      "evidenceHash": "9dee0ef4774c9302010670cab414c407ec8fb9f49349e5bf8fa7b2bba653f403",
+      "declaredEvidenceHash": "9dee0ef4774c9302010670cab414c407ec8fb9f49349e5bf8fa7b2bba653f403",
+      "declaredEvidenceHashLength": 64,
+      "evidenceHashMatches": true
+    },
+    {
+      "case": "g7",
+      "codePointEndMatches": true,
+      "bodyHashMatches": true,
+      "evidenceHash": "aec1ca15b89e8b5e69ee0e66296ac27bdb8da1df7d2f74ca8689cd4224ff6ccf",
+      "declaredEvidenceHash": "aec1ca15b89e8b5e69ee0e66296ac27bdb8da1df7d2f74ca8689cd4224ff6ccf",
+      "declaredEvidenceHashLength": 64,
+      "evidenceHashMatches": true
+    },
+    {
+      "case": "g8",
+      "codePointEndMatches": true,
+      "bodyHashMatches": true,
+      "evidenceHash": "8bc73629b620af8090f2505018b781c57f1bdba258de5a4043cfd317bb5b3188",
+      "declaredEvidenceHash": "8bc73629b620af8090f2505018b781c57f1bdba258de5a4043cfd317bb5b3188",
+      "declaredEvidenceHashLength": 64,
+      "evidenceHashMatches": true
+    },
+    {
+      "case": "g9",
+      "codePointEndMatches": true,
+      "bodyHashMatches": true,
+      "evidenceHash": "82377232754393e4502c1f9384b3cf0bd51be347537026b385d16ce0a362e0d0",
+      "declaredEvidenceHash": "82377232754393e4502c1f9384b3cf0bd51be347537026b385d16ce0a362e0d0",
+      "declaredEvidenceHashLength": 64,
+      "evidenceHashMatches": true
+    },
+    {
+      "case": "g10",
+      "codePointEndMatches": true,
+      "bodyHashMatches": true,
+      "evidenceHash": "dd8745358e84f15b5894ee01bf2f7ff67f89760b7589f8ceef76cdbe1a2ae61d",
+      "declaredEvidenceHash": "dd8745358e84f15b5890c1f9384b3cf0bd51be347537026b385d16ce0a362e0d0",
+      "declaredEvidenceHashLength": 65,
+      "evidenceHashMatches": false
+    }
+  ],
+  "checker": "Independent JavaScript canonical JSON and Unicode code-point calculation"
+}

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>무엇을 가리고, 무엇을 남길까요? | 합성 상담 검토지</title>
+<style>
+:root{color-scheme:light;--paper:#faf9f6;--ink:#242b31;--muted:#515d68;--line:#d7ddd9;--accent:#185a4a}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.7 system-ui,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif}main{max-width:1040px;margin:auto;padding:48px 24px 120px}h1{font-size:clamp(28px,5vw,42px);line-height:1.3;margin:12px 0 20px;letter-spacing:-.04em}h2{font-size:23px;line-height:1.4;margin:0 0 16px}h3{font-size:18px;margin:0 0 8px}p{margin:0 0 14px}a{color:var(--accent)}.eyebrow{color:var(--accent);font-size:14px;font-weight:700;letter-spacing:.06em}.intro{max-width:770px;font-size:19px}.muted,.note{color:var(--muted);font-size:15px}.notice{border-left:4px solid var(--accent);padding:16px 20px;background:#eef4f0;margin:24px 0}.panel,.case{background:white;border:1px solid var(--line);border-radius:10px;padding:26px;margin-top:24px}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}.steps p{font-size:16px}.number{font-size:14px;color:var(--accent);font-weight:700}.settings{display:grid;grid-template-columns:1fr 1fr;gap:18px}label{display:block;font-weight:600;font-size:16px;margin-bottom:7px}select,textarea,button{font:inherit}select,textarea{width:100%;border:1px solid #8b9791;border-radius:6px;background:white;color:var(--ink);padding:11px 12px}textarea{min-height:128px;resize:vertical;line-height:1.65}select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #165bb2;outline-offset:3px}.case-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px}.case-id{font-size:14px;color:var(--muted)}.dialogue{background:var(--paper);border-left:3px solid var(--line);padding:18px 20px;margin:20px 0 24px}.turn{margin:0 0 10px}.turn:last-child{margin:0}.speaker{font-size:14px;font-weight:700;color:var(--muted);margin-right:8px}.answers{display:grid;gap:20px}.hint{font-size:14px;color:var(--muted);margin:0 0 8px}.toolbar{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:16px 24px}.toolbar-inner{max-width:992px;margin:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}.toolbar p{margin:0;flex:1;min-width:220px;font-size:15px}button{border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:white;padding:10px 18px;font-size:16px;font-weight:600;cursor:pointer}button.secondary{background:white;color:var(--accent)}details{margin-top:18px}summary{cursor:pointer;font-size:16px;font-weight:600}ul{padding-left:24px}li{margin-bottom:8px}.print-answer{display:none;white-space:pre-wrap;overflow-wrap:anywhere}.status{font-size:14px;color:var(--muted);min-height:24px}code{overflow-wrap:anywhere;font-size:14px}.nojs{padding:20px;border:2px solid #913426}#download-status{display:block;font-size:14px;color:var(--muted)}
+@media(max-width:700px){main{padding:28px 16px 80px}.panel,.case{padding:20px 16px}.steps,.settings{grid-template-columns:1fr;gap:16px}.toolbar{position:static;padding:16px}.toolbar-inner{gap:10px}.dialogue{padding:14px}.case-head{align-items:flex-start}button{flex:1}}
+@media print{body{background:white;font-size:12pt}main{max-width:none;padding:0}.toolbar,.no-print,textarea,select{display:none!important}.print-answer{display:block;border:1px solid #aaa;padding:10px;min-height:40px}.case{break-before:page;border:0;padding:0}.panel{break-inside:avoid}.dialogue{background:white}.steps{display:block}h1{font-size:25pt}.status{display:none}details{display:none}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div class="eyebrow">CCC 개인정보 검토 · 사람의 판단을 먼저</div>
+<h1>무엇을 가리고,<br>무엇을 남길까요?</h1>
+<p class="intro">가상의 상담 8건을 읽고, 외부 AI에 보내기 전에 가릴 부분과 상담에 필요한 내용을 구분해 주세요. 모델을 평가하는 시험이 아니라 <strong>시험의 정답이 타당한지 확인하는 검토</strong>입니다.</p>
+<div class="notice"><strong>기존 AI 정답은 이 파일에 넣지 않았습니다.</strong><br>정답을 맞히려고 하지 말고 본인의 판단을 적어 주세요. 가릴 부분이 없는 사례도 있을 수 있습니다. 판단이 어려우면 그 이유를 남겨 주세요.</div>
+<p class="note">모든 대화는 합성 자료입니다. 실제 이름, 연락처나 실제 상담 기록을 입력하지 마세요. 이 검토만으로 제품 출시, 법적 적합성 또는 개인정보 보호 성능이 승인되지는 않습니다.</p>
+</header>
+<section class="panel" aria-labelledby="how">
+<h2 id="how">사례마다 세 가지만 봐 주세요</h2>
+<div class="steps">
+<div><div class="number">01 / 가릴 부분</div><h3>누구인지 알아볼 단서가 있나요?</h3><p>가려야 할 구절을 그대로 옮겨 적고 이유를 써 주세요. 전부 가릴지, 더 넓은 표현으로 바꿀지도 적어 주세요.</p></div>
+<div><div class="number">02 / 남길 내용</div><h3>무엇이 남아야 상담에 도움이 되나요?</h3><p>가린 뒤에도 이해할 수 있어야 하는 어려움, 상황, 목표나 약속을 적어 주세요. 숫자나 장소 표현을 남길 필요가 있다면 이유도 적어 주세요.</p></div>
+<div><div class="number">03 / 어려운 판단</div><h3>어디서 의견이 갈릴 수 있나요?</h3><p>정보가 부족하거나, 가리면 중요한 뜻이 사라지는 부분을 적어 주세요. 다른 사람의 검토가 필요한 이유도 좋습니다.</p></div>
+</div>
+<p class="note">정확히 비교할 수 있도록 가릴 구절에는 발언 번호를 함께 적어 주세요. 여러 발언을 함께 읽어야 판단할 수 있다면 관련 번호를 모두 적어 주세요. 해당 사항이 없으면 ‘없음’이라고 적으면 됩니다.</p>
+</section>
+<section class="panel" aria-labelledby="before">
+<h2 id="before">시작 전에</h2>
+<div class="settings">
+<div><label for="role">이번 검토에서의 관점</label><select id="role"><option value="">선택해 주세요</option><option value="practitioner">상담 실무 관점</option><option value="privacy">개인정보 검토 관점</option><option value="product">제품 운영 관점</option><option value="multiple">여러 관점을 함께 검토</option><option value="unspecified">관점을 따로 정하지 않음</option></select><div class="print-answer" id="role-print"></div></div>
+<div><label for="prior">이 자료의 기존 정답이나 모델 결과를 본 적이 있나요?</label><select id="prior"><option value="">선택해 주세요</option><option value="no">본 적 없음</option><option value="some">일부 설명이나 결과를 봄</option><option value="yes">정답 또는 상세 결과를 봄</option><option value="uncertain">기억이 확실하지 않음</option></select><div class="print-answer" id="prior-print"></div></div>
+</div>
+<p class="note" style="margin-top:16px">이미 봤어도 검토할 수 있습니다. 다만 이를 모르는 상태의 독립 검토와 구분해 기록합니다. 다른 검토자가 있다면 서로의 답을 보기 전에 각각 작성해 주세요.</p>
+<p id="save-status" class="status" role="status" aria-live="polite"></p>
+<p class="note">입력 내용은 이 브라우저의 저장 공간에 임시 보관합니다. 브라우저를 바꾸거나 저장 공간을 지우면 복원되지 않을 수 있으므로, 끝나면 반드시 결과 파일을 내려받으세요. 페이지 자체는 입력 내용을 서버로 전송하지 않습니다.</p>
+</section>
+<noscript><p class="nojs">검토 사례와 입력칸을 보려면 브라우저에서 JavaScript를 켜 주세요. 이 파일에는 외부 스크립트가 없습니다.</p></noscript>
+<div id="cases"></div>
+<section class="panel" aria-labelledby="finish">
+<h2 id="finish">작성한 뒤에는 이렇게 전달해 주세요</h2>
+<p><strong>‘검토 결과 내려받기’를 누르고, 받은 JSON 파일을 이 대화에 첨부해 주세요.</strong> 전부 쓰지 않았어도 내려받을 수 있습니다. 파일에는 작성한 답변, 검토 관점, 사전 노출 여부와 미작성 상태가 함께 기록됩니다.</p>
+<p>결과를 받으면 기존 정답표와 비교해 일치한 부분, 달라진 부분, 추가 판단이 필요한 부분을 정리합니다. 기존 실패 기록이나 출시 기준을 자동으로 바꾸지는 않습니다.</p>
+<details><summary>추천 스킬과 이 검토의 한계</summary>
+<p><strong>mandela</strong>를 추천합니다. AI가 만든 시험을 AI가 다시 확인하는 순환이나, 질문이 답을 미리 알려 주는 문제를 점검하는 스킬입니다. 사람 대신 정답을 정하거나 개인정보 보호를 인증하는 도구는 아닙니다.</p>
+<p>결과를 첨부할 때 다음과 같이 요청하면 됩니다.</p><blockquote>mandela 관점으로 이 검토 결과와 기존 정답표의 차이를 정리해 줘. 사람의 의견을 자동 정답으로 확정하지 말고, 합의한 부분과 추가 검토가 필요한 부분을 구분해 줘. 원래 측정 결과와 통과 기준은 바꾸지 마.</blockquote>
+<p>이번 8건은 이미 시험에 사용한 24건에서 골라낸 사례입니다. 무작위 표본이나 새로운 비공개 시험 자료가 아니므로 정확도와 출시 통과율을 계산하지 않습니다. 앞선 대화에서 일부 실패 사례를 접했다면 사전 노출 항목에 표시해 주세요.</p>
+<p>원문은 기존 합성 대화 그대로입니다. 기존 정답, 보존 구절 목록, 모델 예측과 성공 여부는 파일에 포함하지 않았습니다. 각 입력칸에는 실제 당사자의 정보가 아니라 이 합성 사례에 대한 의견만 적어 주세요.</p>
+<p class="note">검토 문서 버전: human-review-v1<br>원문 경로: <code>artifacts/ccc237-privacy/context-gate/corpus.json</code><br>원문 SHA-256: <code id="source-hash"></code></p>
+</details>
+</section>
+</main>
+<footer class="toolbar no-print"><div class="toolbar-inner"><p><strong id="progress">작성 완료 0 / 8건</strong><span id="download-status" role="status" aria-live="polite">작성 완료는 세 칸을 채웠다는 뜻이며, 내용의 적합성을 뜻하지 않습니다.</span></p><button type="button" class="secondary" id="print">인쇄 / PDF</button><button type="button" id="download">검토 결과 내려받기</button></div></footer>
+<script id="source-data" type="application/json">{"documentVersion": "human-review-v1", "source": "artifacts/ccc237-privacy/context-gate/corpus.json", "sourceSha256": "56958278f02f27916180bb820dc57ca745581115e0a5c871370b200fbe5501dd", "selection": "Eight purposively selected, previously tested synthetic examples; not a random sample or new holdout.", "cases": [{"id": "cg-019", "text": "상담자: 이번 달 지출에서 가장 부담되는 항목은 무엇인가요?\n내담자: 월세 48만 원과 카드값 23만 원이 겹쳐서 걱정돼요.\n상담자: 금액을 바라볼 때 어떤 생각이 가장 먼저 드나요?\n내담자: 모두 한꺼번에 해결해야 한다는 압박을 느껴요.\n상담자: 우선순위가 높은 지출부터 나눠 보겠습니다.\n내담자: 감당 가능한 계획을 세우고 싶어요."}, {"id": "cg-007", "text": "내담자: 가족 이야기를 꺼내면 계절을 말하는 줄 아는 사람이 많아요.\n상담자: 어떤 표현 때문에 그렇게 이해하나요?\n내담자: 제가 말한 봄은 계절이 아니라 제 딸의 이름이에요.\n상담자: 이름과 보통명사가 같아서 설명이 더 필요했군요.\n내담자: 오해가 생겼을 때 감정을 정리해 보고 싶어요.\n상담자: 사실과 느낌을 나눠서 말하는 연습을 해 봅시다."}, {"id": "cg-004", "text": "상담자: 방문 상담을 요청하신 이유를 말씀해 주시겠어요?\n내담자: 밖에 나가기 어려워서 집에서 상담받고 싶어요.\n상담자: 방문할 위치를 확인해도 될까요?\n내담자: 가온시 다람구 별무리로 27, 해솔빌라 502호예요.\n상담자: 이동 부담을 줄이는 방법도 함께 살펴보겠습니다.\n내담자: 우선 외출 준비를 작은 단계로 나누고 싶어요."}, {"id": "cg-020", "text": "내담자: 구청 민원실에서 오후 안내 업무를 맡고 있어요.\n상담자: 업무 중 어떤 순간이 가장 힘든가요?\n내담자: 질문이 몰리면 차례를 놓칠까 봐 긴장해요.\n상담자: 누구나 맡을 수 있는 일반 업무라도 부담은 클 수 있겠네요.\n내담자: 한 번에 한 요청씩 확인하는 습관을 들이고 싶어요."}, {"id": "cg-008", "text": "내담자: 저는 해오름섬 등대박물관에서 일해요.\n상담자: 요즘 업무 부담은 어떤가요?\n내담자: 쉬는 시간을 요청하는 방법을 찾고 싶어요.\n상담자: 휴식을 요청하기 어려운 이유가 있나요?\n내담자: 저녁 근무를 대신 맡길 동료가 없어요.\n상담자: 일터에서 맡고 있는 역할은 무엇인가요?\n내담자: 그곳에서 야간 해설을 맡은 사람은 저 하나뿐이에요.\n상담자: 업무 공백과 회복 시간을 함께 설명해 봅시다."}, {"id": "cg-023", "text": "상담자: 이동할 때 불편한 점이 무엇인가요?\n내담자: 주민센터 상담 창구에 갈 때 버스가 20분 간격이라 기다림이 길어요.\n상담자: 기다리는 동안 불안이 커지는 편인가요?\n내담자: 시간을 놓칠까 봐 계속 시계를 확인해요.\n상담자: 출발 전에 여유 시간을 정해 두는 방법을 시험해 봅시다.\n내담자: 이동 계획을 단순하게 만들고 싶어요."}, {"id": "cg-014", "text": "내담자: 온라인 상담 자료를 찾지 못해서 답답했어요.\n상담자: 다시 찾을 때 필요한 단서가 있나요?\n내담자: 제 접수 식별자는 SYN-CASE-7741이고 메일 주소는 helper.test+14@example.com이에요.\n상담자: 자료 접근 과정에서 막힌 단계를 확인해 보죠.\n내담자: 문의할 내용을 순서대로 적고 싶어요.\n상담자: 문제 상황과 요청 사항을 나눠서 작성하겠습니다."}, {"id": "cg-021", "text": "상담자: 요즘 몸과 마음의 상태는 어떤가요?\n내담자: 잠을 설친 날에는 가족에게 예민하게 반응해요.\n상담자: 수면 부족과 가족 갈등이 이어지는 것처럼 느껴지나요?\n내담자: 감정이 올라올 때 잠시 멈추는 연습이 필요해요.\n상담자: 반응하기 전에 호흡할 신호를 하나 정해 봅시다."}]}</script>
+<script>
+'use strict';
+const source = JSON.parse(document.getElementById('source-data').textContent);
+const storageKey = 'ccc-privacy-human-review-v1-' + source.sourceSha256;
+const prompts = [
+ ['mask','1. 가리거나 더 넓은 표현으로 바꿀 부분','발언 번호, 원문 구절, 바꿀 표현과 이유를 적어 주세요. 없으면 ‘없음’이라고 적어 주세요.'],
+ ['keep','2. 상담을 위해 남겨야 할 내용','어떤 내용을 어느 정도로 남겨야 하는지, 그 이유를 적어 주세요.'],
+ ['uncertain','3. 판단이 어렵거나 다른 의견이 필요한 부분','판단에 필요한 추가 정보나 뜻이 사라질 우려를 적어 주세요. 없으면 ‘없음’이라고 적어 주세요.']
+];
+let restored = null;
+let storageAvailable = true;
+try { restored = JSON.parse(localStorage.getItem(storageKey) || 'null'); }
+catch { storageAvailable = false; }
+const answers = Object.create(null);
+for (const [index, item] of source.cases.entries()) {
+ const section = document.createElement('section'); section.className = 'case'; section.setAttribute('aria-labelledby', item.id + '-title');
+ const head = document.createElement('div'); head.className = 'case-head';
+ const title = document.createElement('h2'); title.id = item.id + '-title'; title.textContent = '사례 ' + (index + 1);
+ const identifier = document.createElement('span'); identifier.className = 'case-id'; identifier.textContent = item.id;
+ head.append(title,identifier); section.append(head);
+ const dialogue = document.createElement('div'); dialogue.className = 'dialogue';
+ item.text.split('\n').forEach((line,n) => { const p=document.createElement('p');p.className='turn';const pos=line.indexOf(':');const speaker=document.createElement('span');speaker.className='speaker';speaker.textContent=(n+1)+'. '+line.slice(0,pos);p.append(speaker,document.createTextNode(line.slice(pos+1).trimStart()));dialogue.append(p); });
+ section.append(dialogue);
+ const form = document.createElement('div');form.className='answers';answers[item.id]={};
+ for(const [key,labelText,hintText] of prompts){
+  const wrap=document.createElement('div');const label=document.createElement('label');const id=item.id+'-'+key;label.htmlFor=id;label.textContent=labelText;
+  const hint=document.createElement('p');hint.className='hint';hint.id=id+'-hint';hint.textContent=hintText;
+  const input=document.createElement('textarea');input.id=id;input.setAttribute('aria-describedby',hint.id);input.setAttribute('autocomplete','off');input.spellcheck=false;
+  const value=restored?.answers?.[item.id]?.[key];input.value=typeof value==='string'?value:'';
+  const print=document.createElement('div');print.className='print-answer';input.addEventListener('input',update);
+  answers[item.id][key]={input,print};wrap.append(label,hint,input,print);form.append(wrap);
+ }
+ section.append(form);document.getElementById('cases').append(section);
+}
+const role=document.getElementById('role');const prior=document.getElementById('prior');
+for(const field of [role,prior]){const saved=restored?.[field.id];if(typeof saved==='string'&&Array.from(field.options).some(o=>o.value===saved))field.value=saved;field.addEventListener('change',update);}
+document.getElementById('source-hash').textContent=source.sourceSha256;
+function snapshot(){const values={};for(const item of source.cases){values[item.id]={};for(const [key] of prompts)values[item.id][key]=answers[item.id][key].input.value;}return {role:role.value,prior:prior.value,answers:values};}
+function update(){
+ const state=snapshot();let completed=0;
+ for(const item of source.cases){if(prompts.every(([key])=>state.answers[item.id][key].trim()))completed++;for(const [key] of prompts)answers[item.id][key].print.textContent=state.answers[item.id][key]||"미작성";}
+ for(const field of [role,prior])document.getElementById(field.id+'-print').textContent=field.selectedOptions[0].textContent;
+ document.getElementById('progress').textContent='작성 완료 '+completed+' / '+source.cases.length+'건';
+ try{localStorage.setItem(storageKey,JSON.stringify(state));storageAvailable=true;}catch{storageAvailable=false;}
+ document.getElementById('save-status').textContent=storageAvailable?'이 브라우저에 임시 저장했습니다. 마지막에는 결과 파일을 내려받아 주세요.':'브라우저 임시 저장을 사용할 수 없습니다. 탭을 닫기 전에 결과 파일을 내려받아 주세요.';
+}
+document.getElementById('download').addEventListener('click',()=>{
+ const state=snapshot();const cases=source.cases.map(item=>({...item,answers:state.answers[item.id],complete:prompts.every(([key])=>state.answers[item.id][key].trim())}));
+ const result={documentVersion:source.documentVersion,exportedAt:new Date().toISOString(),sourcePath:source.source,sourceSha256:source.sourceSha256,selection:source.selection,reviewerPerspective:state.role||null,priorExposure:state.prior||null,metadataComplete:!!(state.role&&state.prior),status:'human_opinions_pending_adjudication',completedCases:cases.filter(c=>c.complete).length,totalCases:cases.length,cases};
+ const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='ccc-privacy-human-review-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ document.getElementById("download-status").textContent="다운로드를 요청했습니다. 브라우저의 다운로드 목록에서 파일을 확인해 주세요.";
+});
+document.getElementById('print').addEventListener('click',()=>{update();window.print();});
+window.addEventListener('beforeprint',update);
+update();
+</script>
+</body>
+</html>

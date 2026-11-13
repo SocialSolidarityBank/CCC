@@ -1,0 +1,39 @@
+{
+  "corpora": {
+    "development": {
+      "addressCount": 200,
+      "corpusCount": 600,
+      "corpusHash": "1ad784b2a176ea9c72e3e2b627a373b26cbd5312af4d180d81a3f8daa6162f81",
+      "negativeCount": 200,
+      "personCount": 200
+    },
+    "heldout": {
+      "addressCount": 200,
+      "corpusCount": 600,
+      "corpusHash": "d7ee70e1387112dbb8720ce6b442e598f87b1280443bc82aa7d31073d371fced",
+      "negativeCount": 200,
+      "personCount": 200
+    }
+  },
+  "crossSplitGoldOverlap": 0,
+  "crossSplitTextOverlap": 0,
+  "fileHashes": {
+    "apps/pipeline/ccc_pipeline/masking.py": "3d4ccbb35da44d3355351f306de754a10b6fc8aafa8c02f014dacda142b73048",
+    "apps/pipeline/ccc_pipeline/worker.py": "af232b556a7cedda937debd4014947f5799c4e1956ae07019d6cb8421d3c0112",
+    "artifacts/ccc237-privacy/ner-comparison/build-development.py": "6af6c2a3341579f61676877e9b471623f58360c338fa04707562718277b0dbfb",
+    "artifacts/ccc237-privacy/ner-comparison/build-heldout.py": "1aa06b6e41bd39a2edb2ca7ad6afc96922bd8b88d5929520ddbad077a4a102ff",
+    "artifacts/ccc237-privacy/ner-comparison/comparison-design.json": "f20325c301aec44ad191641a35928ae2df4a650f7fe17ef93e7d31ed70bcfa54",
+    "artifacts/ccc237-privacy/ner-comparison/development.json": "26f8a31d72221b237051d88b368a837766f4c837abf751873fae7b466eb245d2",
+    "artifacts/ccc237-privacy/ner-comparison/heldout.json": "9c3c2518b9814344dab6c477cfe7117d61e195d4fa47285b12bd00d3d81b6730",
+    "artifacts/ccc237-privacy/ner-comparison/models.json": "f6aaee14a24208f746be6c67066a7d296e95a37a558f0d808ea485e3701a56c5",
+    "artifacts/ccc237-privacy/ner-comparison/run-comparison.py": "961f643bc77c4c2214e7a754185769b5c6fbc5b3e4cee653d289001391c569ae",
+    "scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json": "d39a4ce278316623bc046f9332e86e99e78f6f75d534e8390e359f375f116592",
+    "scripts/privacy/fixtures/s6-release-ko-v1.json": "6e3cb9a53b07926d86a3ea701288e2b73553e07ab4433b91d12a2aee174d0ba1",
+    "scripts/privacy/qualify_ner.py": "d50bf76cf4a9fbfd3f211d23e7091caba891a4b7527f73c1db7a82cd46a15046"
+  },
+  "frozenAt": "2026-09-06T10:59:53.306078+00:00",
+  "heldoutTextSeenByMain": false,
+  "qualificationIssued": false,
+  "reportHash": "a7f4cd4c1bbe3306a6f5e18cee782cb0d986fb82d19141c2c6a3804bf123a780",
+  "schemaVersion": 1
+}

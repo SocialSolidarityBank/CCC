@@ -1,0 +1,20 @@
+{
+  "actualWorker": true,
+  "attestationIsSynthetic": true,
+  "bodyEvidencePayloadHashesVerified": true,
+  "g1CodePoints": 147,
+  "g3CodePoints": 37,
+  "modelLoads": 0,
+  "nerQualificationProved": false,
+  "nerStubbed": true,
+  "postedResults": 2,
+  "providerCalls": 0,
+  "rejectedResults": 1,
+  "reportHash": "5c08434a2b478727d4ec893b65a4c7a86ca5e1827c1235eda70529e8a2839730",
+  "status": "passed",
+  "sttCalls": 0,
+  "syntheticOnly": true,
+  "temporaryFiles": 0,
+  "transport": "localhost HTTP",
+  "wholeProcessZeroizationQualified": false
+}

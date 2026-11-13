@@ -1,0 +1,12 @@
+{
+  "status": "fixed_before_first_model_inference",
+  "authorization": "Q asked why the run stopped; assistant identified the self-imposed warning-level hard stop as excessive. Q then instructed: 이어서 마무리해.",
+  "change": "Inspect actual memory before each model load. Normal (1) or warning (2) permits the existing bounded sequential experiment; critical or unknown state stops further work. Warning is recorded, not represented as an allocation error.",
+  "unchanged": ["24 synthetic corpus cases and original gold", "baseline weights, decoder and masking pipeline", "candidate code, weights and calibrated decoder", "180-second operational bounds", "source-provenance metrics and independent role gate", "OS network denial", "no product changes or AI/STT activation", "no unrelated process termination and no Windows workloads"],
+  "priorRun": "measurement-blocked-preflight.json",
+  "priorEvidence": "before-resumption.zip",
+  "priorModelLoads": 0,
+  "priorCandidatePredictions": 0,
+  "resultDrivenTuning": false,
+  "interpretation": "Resource admission correction only. This is not approval to change privacy thresholds, model versions, gold, or qualification requirements."
+}

@@ -1,0 +1,3815 @@
+{
+  "baselineCases": [
+    {
+      "id": "cg-001",
+      "inputTokens": 112,
+      "modelMaxTokens": 512,
+      "seconds": 0.30396345793269575
+    },
+    {
+      "id": "cg-002",
+      "inputTokens": 88,
+      "modelMaxTokens": 512,
+      "seconds": 0.2146652500377968
+    },
+    {
+      "id": "cg-003",
+      "inputTokens": 98,
+      "modelMaxTokens": 512,
+      "seconds": 0.2417464170139283
+    },
+    {
+      "id": "cg-004",
+      "inputTokens": 105,
+      "modelMaxTokens": 512,
+      "seconds": 0.2592337499372661
+    },
+    {
+      "id": "cg-005",
+      "inputTokens": 95,
+      "modelMaxTokens": 512,
+      "seconds": 0.23314125009346753
+    },
+    {
+      "id": "cg-006",
+      "inputTokens": 98,
+      "modelMaxTokens": 512,
+      "seconds": 0.2398532920051366
+    },
+    {
+      "id": "cg-007",
+      "inputTokens": 105,
+      "modelMaxTokens": 512,
+      "seconds": 0.26097566704265773
+    },
+    {
+      "id": "cg-008",
+      "inputTokens": 124,
+      "modelMaxTokens": 512,
+      "seconds": 0.3148521250113845
+    },
+    {
+      "id": "cg-009",
+      "inputTokens": 134,
+      "modelMaxTokens": 512,
+      "seconds": 0.34279604093171656
+    },
+    {
+      "id": "cg-010",
+      "inputTokens": 114,
+      "modelMaxTokens": 512,
+      "seconds": 0.28199687507003546
+    },
+    {
+      "id": "cg-011",
+      "inputTokens": 109,
+      "modelMaxTokens": 512,
+      "seconds": 0.269730250001885
+    },
+    {
+      "id": "cg-012",
+      "inputTokens": 111,
+      "modelMaxTokens": 512,
+      "seconds": 0.2741248339880258
+    },
+    {
+      "id": "cg-013",
+      "inputTokens": 90,
+      "modelMaxTokens": 512,
+      "seconds": 0.21681649994570762
+    },
+    {
+      "id": "cg-014",
+      "inputTokens": 112,
+      "modelMaxTokens": 512,
+      "seconds": 0.27680691704154015
+    },
+    {
+      "id": "cg-015",
+      "inputTokens": 123,
+      "modelMaxTokens": 512,
+      "seconds": 0.3134584999643266
+    },
+    {
+      "id": "cg-016",
+      "inputTokens": 82,
+      "modelMaxTokens": 512,
+      "seconds": 0.19194475002586842
+    },
+    {
+      "id": "cg-017",
+      "inputTokens": 85,
+      "modelMaxTokens": 512,
+      "seconds": 0.19809045805595815
+    },
+    {
+      "id": "cg-018",
+      "inputTokens": 86,
+      "modelMaxTokens": 512,
+      "seconds": 0.2027685419889167
+    },
+    {
+      "id": "cg-019",
+      "inputTokens": 108,
+      "modelMaxTokens": 512,
+      "seconds": 0.2656312499893829
+    },
+    {
+      "id": "cg-020",
+      "inputTokens": 95,
+      "modelMaxTokens": 512,
+      "seconds": 0.22710091702174395
+    },
+    {
+      "id": "cg-021",
+      "inputTokens": 88,
+      "modelMaxTokens": 512,
+      "seconds": 0.2078555419575423
+    },
+    {
+      "id": "cg-022",
+      "inputTokens": 92,
+      "modelMaxTokens": 512,
+      "seconds": 0.22352970798965544
+    },
+    {
+      "id": "cg-023",
+      "inputTokens": 105,
+      "modelMaxTokens": 512,
+      "seconds": 0.25662612507585436
+    },
+    {
+      "id": "cg-024",
+      "inputTokens": 110,
+      "modelMaxTokens": 512,
+      "seconds": 0.27171416697092354
+    }
+  ],
+  "callLatency": {
+    "maximumSeconds": 36.89191904198378,
+    "medianSeconds": 25.732421624998096
+  },
+  "calls": [
+    {
+      "id": "cg-001",
+      "inputTokens": 587,
+      "outputTokens": 42,
+      "seconds": 28.12480775010772,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-002",
+      "inputTokens": 581,
+      "outputTokens": 44,
+      "seconds": 27.61242462496739,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-003",
+      "inputTokens": 565,
+      "outputTokens": 30,
+      "seconds": 25.842179832980037,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-004",
+      "inputTokens": 562,
+      "outputTokens": 29,
+      "seconds": 25.416533040930517,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-005",
+      "inputTokens": 581,
+      "outputTokens": 26,
+      "seconds": 26.021765375044197,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-006",
+      "inputTokens": 564,
+      "outputTokens": 40,
+      "seconds": 26.841762125026435,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-007",
+      "inputTokens": 576,
+      "outputTokens": 6,
+      "seconds": 24.729392833076417,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-007",
+      "inputTokens": 546,
+      "outputTokens": 6,
+      "seconds": 22.788011875003576,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-007",
+      "inputTokens": 645,
+      "outputTokens": 6,
+      "seconds": 27.897952917031944,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-007",
+      "inputTokens": 448,
+      "outputTokens": 219,
+      "seconds": 33.09277041698806,
+      "stage": "summary",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-008",
+      "inputTokens": 564,
+      "outputTokens": 6,
+      "seconds": 24.440115957986563,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-008",
+      "inputTokens": 574,
+      "outputTokens": 6,
+      "seconds": 24.856284584035166,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-008",
+      "inputTokens": 514,
+      "outputTokens": 6,
+      "seconds": 21.947316166944802,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-008",
+      "inputTokens": 697,
+      "outputTokens": 6,
+      "seconds": 30.958867500070482,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-008",
+      "inputTokens": 500,
+      "outputTokens": 235,
+      "seconds": 36.89191904198378,
+      "stage": "summary",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-009",
+      "inputTokens": 577,
+      "outputTokens": 23,
+      "seconds": 26.089495791937225,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-010",
+      "inputTokens": 571,
+      "outputTokens": 6,
+      "seconds": 24.621771833044477,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-010",
+      "inputTokens": 554,
+      "outputTokens": 22,
+      "seconds": 26.053421374992467,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-011",
+      "inputTokens": 597,
+      "outputTokens": 46,
+      "seconds": 28.3167139160214,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-012",
+      "inputTokens": 576,
+      "outputTokens": 50,
+      "seconds": 27.254957791999914,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-013",
+      "inputTokens": 585,
+      "outputTokens": 41,
+      "seconds": 26.991189500084147,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-014",
+      "inputTokens": 584,
+      "outputTokens": 27,
+      "seconds": 26.581646249978803,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-014",
+      "inputTokens": 536,
+      "outputTokens": 6,
+      "seconds": 22.52236099995207,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-014",
+      "inputTokens": 643,
+      "outputTokens": 27,
+      "seconds": 28.85667587502394,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-014",
+      "inputTokens": 443,
+      "outputTokens": 236,
+      "seconds": 33.58571574999951,
+      "stage": "summary",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-015",
+      "inputTokens": 574,
+      "outputTokens": 62,
+      "seconds": 27.956823708023876,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-015",
+      "inputTokens": 583,
+      "outputTokens": 6,
+      "seconds": 24.714893416967243,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-015",
+      "inputTokens": 677,
+      "outputTokens": 32,
+      "seconds": 30.48661754198838,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-015",
+      "inputTokens": 454,
+      "outputTokens": 158,
+      "seconds": 29.15506945794914,
+      "stage": "summary",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-016",
+      "inputTokens": 576,
+      "outputTokens": 6,
+      "seconds": 24.775221333024092,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-016",
+      "inputTokens": 513,
+      "outputTokens": 6,
+      "seconds": 21.123470332939178,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-016",
+      "inputTokens": 609,
+      "outputTokens": 6,
+      "seconds": 25.36751612497028,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-016",
+      "inputTokens": 412,
+      "outputTokens": 141,
+      "seconds": 25.336034542066045,
+      "stage": "summary",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-017",
+      "inputTokens": 574,
+      "outputTokens": 6,
+      "seconds": 24.749493750045076,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-017",
+      "inputTokens": 517,
+      "outputTokens": 6,
+      "seconds": 21.36883095803205,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-017",
+      "inputTokens": 609,
+      "outputTokens": 6,
+      "seconds": 25.159969291999005,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-017",
+      "inputTokens": 412,
+      "outputTokens": 162,
+      "seconds": 26.330546458018944,
+      "stage": "summary",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-018",
+      "inputTokens": 579,
+      "outputTokens": 6,
+      "seconds": 24.311247958103195,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-018",
+      "inputTokens": 506,
+      "outputTokens": 6,
+      "seconds": 21.011272166040726,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-018",
+      "inputTokens": 608,
+      "outputTokens": 6,
+      "seconds": 25.26235570909921,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-018",
+      "inputTokens": 411,
+      "outputTokens": 195,
+      "seconds": 28.593980999896303,
+      "stage": "summary",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-019",
+      "inputTokens": 588,
+      "outputTokens": 6,
+      "seconds": 25.488142000045627,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-019",
+      "inputTokens": 537,
+      "outputTokens": 6,
+      "seconds": 22.52136012504343,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-019",
+      "inputTokens": 648,
+      "outputTokens": 6,
+      "seconds": 27.486704249982722,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-019",
+      "inputTokens": 451,
+      "outputTokens": 183,
+      "seconds": 29.873630916932598,
+      "stage": "summary",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-020",
+      "inputTokens": 586,
+      "outputTokens": 6,
+      "seconds": 24.780459332978353,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-020",
+      "inputTokens": 514,
+      "outputTokens": 6,
+      "seconds": 21.17810658295639,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-020",
+      "inputTokens": 620,
+      "outputTokens": 6,
+      "seconds": 25.622663417016156,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-020",
+      "inputTokens": 423,
+      "outputTokens": 182,
+      "seconds": 27.96905295900069,
+      "stage": "summary",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-021",
+      "inputTokens": 582,
+      "outputTokens": 6,
+      "seconds": 24.49981520907022,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-021",
+      "inputTokens": 517,
+      "outputTokens": 6,
+      "seconds": 21.490448291995563,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-021",
+      "inputTokens": 617,
+      "outputTokens": 6,
+      "seconds": 25.315244541037828,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-021",
+      "inputTokens": 420,
+      "outputTokens": 191,
+      "seconds": 28.6765029579401,
+      "stage": "summary",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-022",
+      "inputTokens": 594,
+      "outputTokens": 6,
+      "seconds": 24.68193316599354,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-022",
+      "inputTokens": 511,
+      "outputTokens": 6,
+      "seconds": 22.24691474996507,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-022",
+      "inputTokens": 626,
+      "outputTokens": 6,
+      "seconds": 26.8297513340367,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-022",
+      "inputTokens": 429,
+      "outputTokens": 217,
+      "seconds": 31.354006040957756,
+      "stage": "summary",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-023",
+      "inputTokens": 589,
+      "outputTokens": 49,
+      "seconds": 28.328039375017397,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-024",
+      "inputTokens": 586,
+      "outputTokens": 6,
+      "seconds": 25.214957750053145,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-024",
+      "inputTokens": 541,
+      "outputTokens": 6,
+      "seconds": 22.505967458011582,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-024",
+      "inputTokens": 650,
+      "outputTokens": 6,
+      "seconds": 28.36927675001789,
+      "stage": "masking",
+      "status": "response_received"
+    },
+    {
+      "id": "cg-024",
+      "inputTokens": 453,
+      "outputTokens": 230,
+      "seconds": 33.472928041941486,
+      "stage": "summary",
+      "status": "response_received"
+    }
+  ],
+  "cases": [
+    {
+      "allGoldSpans": 1,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 31,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 31,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-001",
+      "maskingCompleted": false,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 28.126124833012,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 1,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-002",
+      "maskingCompleted": false,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 27.612732041045092,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 2,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 2
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 2
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 28,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 2
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 2
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 28,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-003",
+      "maskingCompleted": false,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 25.842555915936828,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 1,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-004",
+      "maskingCompleted": false,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 25.416872000088915,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 1,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-005",
+      "maskingCompleted": false,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 26.022040458978154,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 2,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 2,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 2,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 2,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 2,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-006",
+      "maskingCompleted": false,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 26.842117833090015,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 1,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 1,
+            "before": 1
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 1,
+            "before": 1
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 1,
+            "before": 1
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 1,
+            "before": 1
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "ef47713aa60d34701b604b3e280647f266150df68cbe5f0ccfe4ffc96ce52dff",
+      "id": "cg-007",
+      "maskingCompleted": true,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 108.51469508407172,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 1
+    },
+    {
+      "allGoldSpans": 2,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 26,
+            "before": 26
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 26,
+            "before": 26
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 26,
+            "before": 26
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 26,
+            "before": 26
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "81e4e713b91a9fd283136c14b7ea62ae8375a62759846500ee62c1593ebd59f5",
+      "id": "cg-008",
+      "maskingCompleted": true,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 139.10013058397453,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 1
+    },
+    {
+      "allGoldSpans": 1,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 33,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 33,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-009",
+      "maskingCompleted": false,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 26.089815291925333,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 1,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-010",
+      "maskingCompleted": false,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 50.6757510000607,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 1,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [
+          "baseline_gold_partially_literal"
+        ],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 22,
+            "before": 22
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 22,
+            "before": 22
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [
+          "baseline_gold_partially_literal"
+        ],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 22,
+            "before": 22
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 22,
+            "before": 22
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-011",
+      "maskingCompleted": false,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 28.316858790931292,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 3,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 1
+        },
+        "diagnostics": [
+          "baseline_gold_partially_literal"
+        ],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 1,
+            "before": 1
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 1,
+            "before": 1
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 1
+        },
+        "diagnostics": [
+          "baseline_gold_partially_literal"
+        ],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 1,
+            "before": 1
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 1,
+            "before": 1
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-012",
+      "maskingCompleted": false,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 27.255021457909606,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 1,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 42,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 42,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-013",
+      "maskingCompleted": false,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 26.991320125060156,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 2,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 13,
+            "before": 13
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 13,
+            "before": 13
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 2,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 13
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 13
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "9e8be56212a7225eba39b8c8de51323a6483ac841673eb98454036fa519b9109",
+      "id": "cg-014",
+      "maskingCompleted": true,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 111.54802116600331,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 0
+    },
+    {
+      "allGoldSpans": 2,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 20,
+            "before": 20
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 20,
+            "before": 20
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 40,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 2,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 16,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 20
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 20
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 40,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "850ae83aca499c23cf624d5095c6a7352bcbc48c994e4fc17eb7bfc955cbcab2",
+      "id": "cg-015",
+      "maskingCompleted": true,
+      "negative": false,
+      "protectedStrings": 2,
+      "seconds": 112.31635879201349,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 0
+    },
+    {
+      "allGoldSpans": 0,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "70d035589364fc74e0f63971bff04b03b49ff578c3d470516aa69ea162dbce5f",
+      "id": "cg-016",
+      "maskingCompleted": true,
+      "negative": true,
+      "protectedStrings": 2,
+      "seconds": 96.60373741702642,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 0
+    },
+    {
+      "allGoldSpans": 0,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 29,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 29,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "13e2e96b908463fe58cadf0e9f94e75619093b89d5337fe68d00caf98f2132c0",
+      "id": "cg-017",
+      "maskingCompleted": true,
+      "negative": true,
+      "protectedStrings": 2,
+      "seconds": 97.6102777919732,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 0
+    },
+    {
+      "allGoldSpans": 0,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "481ab3cdafc71546874bf1cac5b4e6190b3380fec159b4e9385f911d8f265302",
+      "id": "cg-018",
+      "maskingCompleted": true,
+      "negative": true,
+      "protectedStrings": 2,
+      "seconds": 99.18958545802161,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 0
+    },
+    {
+      "allGoldSpans": 0,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "fab9d200099a7937cc64b7ee79b85dfdbe29ccae7032eff5d1e50fe3ccfe5d11",
+      "id": "cg-019",
+      "maskingCompleted": true,
+      "negative": true,
+      "protectedStrings": 2,
+      "seconds": 105.37779487506486,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 0
+    },
+    {
+      "allGoldSpans": 0,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "4a047f5375428d3e455295957e4ff8483f7e1fa1ef39f282273c6e2107e0d430",
+      "id": "cg-020",
+      "maskingCompleted": true,
+      "negative": true,
+      "protectedStrings": 2,
+      "seconds": 99.55148620903492,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 0
+    },
+    {
+      "allGoldSpans": 0,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "dca5fb7b115458710989881582be45dc04fbf2a475454a37ef846283696b1ac0",
+      "id": "cg-021",
+      "maskingCompleted": true,
+      "negative": true,
+      "protectedStrings": 2,
+      "seconds": 99.98287945892662,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 0
+    },
+    {
+      "allGoldSpans": 0,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 40,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 40,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "d410569955ee9180d61b83ef8646121f6df57dbc5c55a9cd3d6ed9ea375934be",
+      "id": "cg-022",
+      "maskingCompleted": true,
+      "negative": true,
+      "protectedStrings": 2,
+      "seconds": 105.11421779193915,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 0
+    },
+    {
+      "allGoldSpans": 0,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "code": "edit_overlaps_existing_mask",
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": false,
+      "errorClass": "GateError",
+      "id": "cg-023",
+      "maskingCompleted": false,
+      "negative": true,
+      "protectedStrings": 2,
+      "seconds": 28.328364791930653,
+      "status": "rejected",
+      "summaryExactGoldMatches": null
+    },
+    {
+      "allGoldSpans": 0,
+      "approvedAt": null,
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 36,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "diagnosticPartialOrFinalMasking": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 36,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "draftStaged": true,
+      "finalHash": "ce21c6ec2074f9168c003893e4e8b3364b876d69fd33fe42cb9f5292b0d9f29d",
+      "id": "cg-024",
+      "maskingCompleted": true,
+      "negative": true,
+      "protectedStrings": 2,
+      "seconds": 109.56764962500893,
+      "status": "staged_unapproved",
+      "summaryExactGoldMatches": 0
+    }
+  ],
+  "completedCases": 24,
+  "externalArm": {
+    "boundary": "An external contextual masker would receive residual synthetic identifiers in baseline text. This cannot prove protection from disclosure to that first external processor.",
+    "credentialMutation": false,
+    "existingCredentialChecks": 2,
+    "httpStatuses": [
+      401,
+      401
+    ],
+    "modelExecuted": false,
+    "status": "blocked_authentication"
+  },
+  "finalMemory": {
+    "modelLoadAllowed": true,
+    "policy": "Load only at normal Darwin VM pressure (1); never close unrelated applications.",
+    "pressureLevel": 1,
+    "status": "measured",
+    "swap": "total = 13312.00M  used = 12272.19M  free = 1039.81M  (encrypted)"
+  },
+  "finishedAt": "2026-09-06T16:38:27.575296+00:00",
+  "freezeHash": "3cb06357339cd4c4d503d7a5570af05099c7ed97b191a084bf3205d4e00d70f8",
+  "localModel": {
+    "baseModel": "Qwen/Qwen3-4B-Instruct-2507",
+    "bytes": 2497281120,
+    "contextTokens": 4096,
+    "device": "CPU only; no GPU offload",
+    "file": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "license": "Apache-2.0 (publisher metadata)",
+    "maximumOutputTokens": 768,
+    "parallelSlots": 1,
+    "perRequestTimeoutSeconds": 120,
+    "providerFallback": false,
+    "quantizationRepository": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
+    "retryCount": 0,
+    "revision": "a06e946bb6b655725eafa393f4a9745d460374c9",
+    "runtime": "llama.cpp 9590 d2462f8f7",
+    "seed": 0,
+    "sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
+    "temperature": 0,
+    "threads": 2
+  },
+  "memoryBeforeNerLoad": {
+    "modelLoadAllowed": true,
+    "policy": "Load only at normal Darwin VM pressure (1); never close unrelated applications.",
+    "pressureLevel": 1,
+    "status": "measured",
+    "swap": "total = 12288.00M  used = 11285.38M  free = 1002.62M  (encrypted)"
+  },
+  "nerLoadSeconds": 0.3578428339678794,
+  "predictionHash": "5c8b0ed2f77f1975d52e0098a2cb6fa49f7cbb5e6aab1636b06dd1da281abd9c",
+  "predictionsFrozenAt": "2026-09-06T16:38:27.567397+00:00",
+  "productChanged": false,
+  "qualificationIssued": false,
+  "rawTextTokensOffsetsRetained": false,
+  "reportHash": "5312e82be85dbe3527ab684de937df7d49b8f253ac24e2e6bd78822f358117a9",
+  "runnerPeakRssBytes": 889208832,
+  "stagingScope": "isolated SQLite diagnostic, not the CCC gateway",
+  "startedAt": "2026-09-06T16:10:09.567776+00:00",
+  "status": "measured"
+}

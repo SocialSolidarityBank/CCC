@@ -1,0 +1,89 @@
+{
+  "status": "proposed_unmeasured",
+  "modelExecuted": false,
+  "attestationIssued": false,
+  "releaseReceiptIssued": false,
+  "corpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+  "corpusHashMatchesPlan": true,
+  "itemCount": 7,
+  "personCount": 4,
+  "addressCount": 4,
+  "negativeItemCount": 2,
+  "uniqueIds": true,
+  "goldSpans": [
+    {
+      "id": "p01",
+      "spans": [
+        {
+          "label": "PRIVATE_PERSON",
+          "start": 0,
+          "end": 3
+        },
+        {
+          "label": "PRIVATE_ADDRESS",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "p02",
+      "spans": [
+        {
+          "label": "PRIVATE_PERSON",
+          "start": 0,
+          "end": 3
+        },
+        {
+          "label": "PRIVATE_ADDRESS",
+          "start": 8,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "p03",
+      "spans": [
+        {
+          "label": "PRIVATE_PERSON",
+          "start": 0,
+          "end": 3
+        },
+        {
+          "label": "PRIVATE_ADDRESS",
+          "start": 7,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "p04",
+      "spans": [
+        {
+          "label": "PRIVATE_PERSON",
+          "start": 0,
+          "end": 3
+        }
+      ]
+    },
+    {
+      "id": "p05",
+      "spans": [
+        {
+          "label": "PRIVATE_ADDRESS",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "n01",
+      "spans": []
+    },
+    {
+      "id": "n02",
+      "spans": []
+    }
+  ],
+  "sourceS6Unchanged": true
+}

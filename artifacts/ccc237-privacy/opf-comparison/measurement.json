@@ -1,0 +1,5011 @@
+{
+  "baselineCases": [
+    {
+      "id": "cg-001",
+      "inputTokens": 112,
+      "modelMaxTokens": 512,
+      "seconds": 0.3000553750898689
+    },
+    {
+      "id": "cg-002",
+      "inputTokens": 88,
+      "modelMaxTokens": 512,
+      "seconds": 0.21291079092770815
+    },
+    {
+      "id": "cg-003",
+      "inputTokens": 98,
+      "modelMaxTokens": 512,
+      "seconds": 0.23913341690786183
+    },
+    {
+      "id": "cg-004",
+      "inputTokens": 105,
+      "modelMaxTokens": 512,
+      "seconds": 0.25809879100415856
+    },
+    {
+      "id": "cg-005",
+      "inputTokens": 95,
+      "modelMaxTokens": 512,
+      "seconds": 0.23483937501441687
+    },
+    {
+      "id": "cg-006",
+      "inputTokens": 98,
+      "modelMaxTokens": 512,
+      "seconds": 0.24153370794374496
+    },
+    {
+      "id": "cg-007",
+      "inputTokens": 105,
+      "modelMaxTokens": 512,
+      "seconds": 0.2558832080103457
+    },
+    {
+      "id": "cg-008",
+      "inputTokens": 124,
+      "modelMaxTokens": 512,
+      "seconds": 0.308223707950674
+    },
+    {
+      "id": "cg-009",
+      "inputTokens": 134,
+      "modelMaxTokens": 512,
+      "seconds": 0.34037704207003117
+    },
+    {
+      "id": "cg-010",
+      "inputTokens": 114,
+      "modelMaxTokens": 512,
+      "seconds": 0.2836745000677183
+    },
+    {
+      "id": "cg-011",
+      "inputTokens": 109,
+      "modelMaxTokens": 512,
+      "seconds": 0.27400483295787126
+    },
+    {
+      "id": "cg-012",
+      "inputTokens": 111,
+      "modelMaxTokens": 512,
+      "seconds": 0.27647325000725687
+    },
+    {
+      "id": "cg-013",
+      "inputTokens": 90,
+      "modelMaxTokens": 512,
+      "seconds": 0.22410145890899003
+    },
+    {
+      "id": "cg-014",
+      "inputTokens": 112,
+      "modelMaxTokens": 512,
+      "seconds": 0.2768064169213176
+    },
+    {
+      "id": "cg-015",
+      "inputTokens": 123,
+      "modelMaxTokens": 512,
+      "seconds": 0.31145079201087356
+    },
+    {
+      "id": "cg-016",
+      "inputTokens": 82,
+      "modelMaxTokens": 512,
+      "seconds": 0.19771075004246086
+    },
+    {
+      "id": "cg-017",
+      "inputTokens": 85,
+      "modelMaxTokens": 512,
+      "seconds": 0.20426987507380545
+    },
+    {
+      "id": "cg-018",
+      "inputTokens": 86,
+      "modelMaxTokens": 512,
+      "seconds": 0.20503195794299245
+    },
+    {
+      "id": "cg-019",
+      "inputTokens": 108,
+      "modelMaxTokens": 512,
+      "seconds": 0.2678865829948336
+    },
+    {
+      "id": "cg-020",
+      "inputTokens": 95,
+      "modelMaxTokens": 512,
+      "seconds": 0.23786545800976455
+    },
+    {
+      "id": "cg-021",
+      "inputTokens": 88,
+      "modelMaxTokens": 512,
+      "seconds": 0.21755637496244162
+    },
+    {
+      "id": "cg-022",
+      "inputTokens": 92,
+      "modelMaxTokens": 512,
+      "seconds": 0.2248406249564141
+    },
+    {
+      "id": "cg-023",
+      "inputTokens": 105,
+      "modelMaxTokens": 512,
+      "seconds": 0.2569482090184465
+    },
+    {
+      "id": "cg-024",
+      "inputTokens": 110,
+      "modelMaxTokens": 512,
+      "seconds": 0.2688325420022011
+    }
+  ],
+  "baselineProcessPeakRssBytes": 872087552,
+  "baselineReproducedCases": 24,
+  "caseAccounting": {
+    "attempted": 24,
+    "eligible": 24,
+    "eligiblePositive": 15,
+    "eligibleTargetNegative": 9,
+    "failed": 0,
+    "notAttempted": 0,
+    "successful": 24
+  },
+  "cases": [
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 31,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.4856753329513595,
+      "finalHash": "7c6089242669ab0acd1c6572ee12c9f84083a906f281ceb55914c25604965ff8",
+      "id": "cg-001",
+      "inferenceSeconds": 1.48534312506672,
+      "inputChars": 186,
+      "inputHash": "7c6089242669ab0acd1c6572ee12c9f84083a906f281ceb55914c25604965ff8",
+      "metrics": {
+        "covered_token_count": 116,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 116,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          116
+        ],
+        "window_token_observation_count": 116
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 2522284032,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 31,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.48534312506672,
+      "sourceHash": "e2147d7b3ef20ada9e6f57edc7ccb714e65367651f5f305cb82166db8d97bef2",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.1234784999396652,
+      "finalHash": "9d30e4064b61a3528fc6d77bfc1df40070fde26bdb4b7c41481c4a1f95d3dca6",
+      "id": "cg-002",
+      "inferenceSeconds": 1.1231536669656634,
+      "inputChars": 156,
+      "inputHash": "9d30e4064b61a3528fc6d77bfc1df40070fde26bdb4b7c41481c4a1f95d3dca6",
+      "metrics": {
+        "covered_token_count": 99,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 99,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          99
+        ],
+        "window_token_observation_count": 99
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 2792800256,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.1231536669656634,
+      "sourceHash": "4c60023f2219a07450a56bc9fa2315f56ab598dee122f40cac2202122f29e60a",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 2
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 2
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 28,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.0462240830529481,
+      "finalHash": "98e89122a48d2e9a9470ac4e003e7a6b6ff4498b83dc94f3caaf95e7fd1ad3fa",
+      "id": "cg-003",
+      "inferenceSeconds": 1.0459320830414072,
+      "inputChars": 161,
+      "inputHash": "98e89122a48d2e9a9470ac4e003e7a6b6ff4498b83dc94f3caaf95e7fd1ad3fa",
+      "metrics": {
+        "covered_token_count": 104,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 104,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          104
+        ],
+        "window_token_observation_count": 104
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3013427200,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 2
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 2
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 28,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.0459320830414072,
+      "sourceHash": "818844a9d5f1b24ef67a0d4b2ad45322d440e099d2b9796c94466a808669bda0",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 2,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 2,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 0.9830646249465644,
+      "finalHash": "2b4381609bde025a08ae8c9e3e38adf68a94d69aeec2b2afae88ee7578a7e872",
+      "id": "cg-004",
+      "inferenceSeconds": 0.9826765418983996,
+      "inputChars": 166,
+      "inputHash": "2b4381609bde025a08ae8c9e3e38adf68a94d69aeec2b2afae88ee7578a7e872",
+      "metrics": {
+        "covered_token_count": 101,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 101,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          101
+        ],
+        "window_token_observation_count": 101
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3083321344,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 0.9826765418983996,
+      "sourceHash": "652c7b377b2e7d8c0875aaee476344216d0388ce611781c80438461795dd6f08",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 0.9116678750142455,
+      "finalHash": "d3a16e88fc61a62f42fbf9111d1d761574703f515027943acdef07205be5b5de",
+      "id": "cg-005",
+      "inferenceSeconds": 0.9113635829417035,
+      "inputChars": 149,
+      "inputHash": "d3a16e88fc61a62f42fbf9111d1d761574703f515027943acdef07205be5b5de",
+      "metrics": {
+        "covered_token_count": 92,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 92,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          92
+        ],
+        "window_token_observation_count": 92
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3197829120,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 1,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 0.9113635829417035,
+      "sourceHash": "d5b41655df18cf51149721e0bc7e78eea4ebb117971e8a90a66cfcc96ecdf4da",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 2,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 2,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 0.9713821250479668,
+      "finalHash": "8a2eb1451b01568f4c6feea4838560dff4b646071a211460cb33aad43d1a17a6",
+      "id": "cg-006",
+      "inferenceSeconds": 0.971005667001009,
+      "inputChars": 166,
+      "inputHash": "8a2eb1451b01568f4c6feea4838560dff4b646071a211460cb33aad43d1a17a6",
+      "metrics": {
+        "covered_token_count": 94,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 94,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          94
+        ],
+        "window_token_observation_count": 94
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3221487616,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 2,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 2,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 0.971005667001009,
+      "sourceHash": "79964978c630b606ae78fab8905d104c8a25ec2c02ceae8e27b0a48e442ab35e",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 2,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 2,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 1,
+            "before": 1
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 1,
+            "before": 1
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.2292272499762475,
+      "finalHash": "ef47713aa60d34701b604b3e280647f266150df68cbe5f0ccfe4ffc96ce52dff",
+      "id": "cg-007",
+      "inferenceSeconds": 1.2289194170152768,
+      "inputChars": 193,
+      "inputHash": "ef47713aa60d34701b604b3e280647f266150df68cbe5f0ccfe4ffc96ce52dff",
+      "metrics": {
+        "covered_token_count": 120,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 120,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          120
+        ],
+        "window_token_observation_count": 120
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3228729344,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 1,
+            "before": 1
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 1,
+            "before": 1
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.2289194170152768,
+      "sourceHash": "ef47713aa60d34701b604b3e280647f266150df68cbe5f0ccfe4ffc96ce52dff",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 1,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 1,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 26,
+            "before": 26
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 26,
+            "before": 26
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.3681510830065235,
+      "finalHash": "81e4e713b91a9fd283136c14b7ea62ae8375a62759846500ee62c1593ebd59f5",
+      "id": "cg-008",
+      "inferenceSeconds": 1.3677967078983784,
+      "inputChars": 221,
+      "inputHash": "81e4e713b91a9fd283136c14b7ea62ae8375a62759846500ee62c1593ebd59f5",
+      "metrics": {
+        "covered_token_count": 139,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 139,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          139
+        ],
+        "window_token_observation_count": 139
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3247063040,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 26,
+            "before": 26
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 26,
+            "before": 26
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.3677967078983784,
+      "sourceHash": "81e4e713b91a9fd283136c14b7ea62ae8375a62759846500ee62c1593ebd59f5",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 2,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 2,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 33,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.3775993750896305,
+      "finalHash": "9a00a127405afd7a4e348689612d7fdd5aa9348b284e627948ca56911c76c534",
+      "id": "cg-009",
+      "inferenceSeconds": 1.3772244580322877,
+      "inputChars": 237,
+      "inputHash": "9a00a127405afd7a4e348689612d7fdd5aa9348b284e627948ca56911c76c534",
+      "metrics": {
+        "covered_token_count": 146,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 146,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          146
+        ],
+        "window_token_observation_count": 146
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3272966144,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 33,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.3772244580322877,
+      "sourceHash": "32dab8989049d4ae45b77b59489a2ad9a608fc54ce2f6e946562ef4a6fb0f555",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.167367291986011,
+      "finalHash": "34ffe14580c792ef39431f93193b0bbf294c0605f27e547aabfe28cfdd7705f3",
+      "id": "cg-010",
+      "inferenceSeconds": 1.1670372920343652,
+      "inputChars": 197,
+      "inputHash": "34ffe14580c792ef39431f93193b0bbf294c0605f27e547aabfe28cfdd7705f3",
+      "metrics": {
+        "covered_token_count": 125,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 125,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          125
+        ],
+        "window_token_observation_count": 125
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3309879296,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.1670372920343652,
+      "sourceHash": "c7558c5e06a9f49910230174976c31f8583e9ffe4838822dc333306a642c084e",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [
+          "baseline_gold_partially_literal"
+        ],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 22,
+            "before": 22
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 22,
+            "before": 22
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.1105051670456305,
+      "finalHash": "7c1575260dc2fee0323d4ccdc66d3034b6b3e16eacde3b960bd70fd6f42d3156",
+      "id": "cg-011",
+      "inferenceSeconds": 1.110052666044794,
+      "inputChars": 198,
+      "inputHash": "7c1575260dc2fee0323d4ccdc66d3034b6b3e16eacde3b960bd70fd6f42d3156",
+      "metrics": {
+        "covered_token_count": 119,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 119,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          119
+        ],
+        "window_token_observation_count": 119
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3336814592,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [
+          "baseline_gold_partially_literal"
+        ],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 22,
+            "before": 22
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 22,
+            "before": 22
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.110052666044794,
+      "sourceHash": "588cae45ec5d080cdcb46b35f68b06f6639c78bae34481c6b01bc28080659154",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 1
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 1
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 1
+        },
+        "diagnostics": [
+          "baseline_gold_partially_literal"
+        ],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 1,
+            "before": 1
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 1,
+            "before": 1
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.0950899590970948,
+      "finalHash": "ef939a0ce59e01bb3f5b0d0c7624f099a4c8002e960702d2805440f668f7b29e",
+      "id": "cg-012",
+      "inferenceSeconds": 1.0947263750713319,
+      "inputChars": 185,
+      "inputHash": "ef939a0ce59e01bb3f5b0d0c7624f099a4c8002e960702d2805440f668f7b29e",
+      "metrics": {
+        "covered_token_count": 113,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 113,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          113
+        ],
+        "window_token_observation_count": 113
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3340042240,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 1
+        },
+        "diagnostics": [
+          "baseline_gold_partially_literal"
+        ],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 1,
+            "before": 1
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 1,
+            "before": 1
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.0947263750713319,
+      "sourceHash": "937b76646fa1bd2ed56ac38367c39e36a956d9217a74087b68d923d6b63469cf",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 1
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 1
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 1,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 1
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 42,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 0.9795114999869838,
+      "finalHash": "546226e38a2001c0f53c2fcf9d973abd08a3b4dcbd26d3b6ebe8270aaba95020",
+      "id": "cg-013",
+      "inferenceSeconds": 0.9792057919548824,
+      "inputChars": 169,
+      "inputHash": "04d0a61cd8a06bf41790db6ede877ace10462796df1f3724076b7f703fd967d3",
+      "metrics": {
+        "covered_token_count": 104,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 1,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 104,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          104
+        ],
+        "window_token_observation_count": 104
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3354624000,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 1
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 3,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 42,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 0.9792057919548824,
+      "sourceHash": "26a91e9f73719ac1b58723dcf9636b8806c4ce84bb150f02d31d57fa84df7266",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 1,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 13,
+            "before": 13
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 13,
+            "before": 13
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.0749337079469115,
+      "finalHash": "b5103ada66d26e07f90711cc573c9c7073782e908f6ac06b635b5a290d792ea6",
+      "id": "cg-014",
+      "inferenceSeconds": 1.0745477909222245,
+      "inputChars": 192,
+      "inputHash": "b5103ada66d26e07f90711cc573c9c7073782e908f6ac06b635b5a290d792ea6",
+      "metrics": {
+        "covered_token_count": 110,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 110,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          110
+        ],
+        "window_token_observation_count": 110
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3367092224,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 1,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 13,
+            "before": 13
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 13,
+            "before": 13
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 35,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.0745477909222245,
+      "sourceHash": "11ff25ade7dc597c5bb0419c05ed2f3b1b49d307acaf062b6e9ab9b644a63d3c",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 1,
+            "none": 1,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 1,
+            "none": 1,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 20,
+            "before": 20
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 20,
+            "before": 20
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 40,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.2923592920415103,
+      "finalHash": "7f0aef07c28d421669e70e29c540368c94921a4dfed1b883f473df844128ad42",
+      "id": "cg-015",
+      "inferenceSeconds": 1.2920054160058498,
+      "inputChars": 209,
+      "inputHash": "7f0aef07c28d421669e70e29c540368c94921a4dfed1b883f473df844128ad42",
+      "metrics": {
+        "covered_token_count": 136,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 136,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          136
+        ],
+        "window_token_observation_count": 136
+      },
+      "negative": false,
+      "processCumulativePeakRssBytes": 3375448064,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 20,
+            "before": 20
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 20,
+            "before": 20
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 40,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.2920054160058498,
+      "sourceHash": "7f0aef07c28d421669e70e29c540368c94921a4dfed1b883f473df844128ad42",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 2,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 2,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 0.9005542090162635,
+      "finalHash": "70d035589364fc74e0f63971bff04b03b49ff578c3d470516aa69ea162dbce5f",
+      "id": "cg-016",
+      "inferenceSeconds": 0.9002953749150038,
+      "inputChars": 141,
+      "inputHash": "70d035589364fc74e0f63971bff04b03b49ff578c3d470516aa69ea162dbce5f",
+      "metrics": {
+        "covered_token_count": 96,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 96,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          96
+        ],
+        "window_token_observation_count": 96
+      },
+      "negative": true,
+      "processCumulativePeakRssBytes": 3380920320,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 34,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 0.9002953749150038,
+      "sourceHash": "70d035589364fc74e0f63971bff04b03b49ff578c3d470516aa69ea162dbce5f",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 29,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 0.911052499897778,
+      "finalHash": "13e2e96b908463fe58cadf0e9f94e75619093b89d5337fe68d00caf98f2132c0",
+      "id": "cg-017",
+      "inferenceSeconds": 0.9107748330570757,
+      "inputChars": 150,
+      "inputHash": "13e2e96b908463fe58cadf0e9f94e75619093b89d5337fe68d00caf98f2132c0",
+      "metrics": {
+        "covered_token_count": 94,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 94,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          94
+        ],
+        "window_token_observation_count": 94
+      },
+      "negative": true,
+      "processCumulativePeakRssBytes": 3388915712,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 29,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 0.9107748330570757,
+      "sourceHash": "13e2e96b908463fe58cadf0e9f94e75619093b89d5337fe68d00caf98f2132c0",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 0.9046283749630675,
+      "finalHash": "481ab3cdafc71546874bf1cac5b4e6190b3380fec159b4e9385f911d8f265302",
+      "id": "cg-018",
+      "inferenceSeconds": 0.9043704170035198,
+      "inputChars": 146,
+      "inputHash": "481ab3cdafc71546874bf1cac5b4e6190b3380fec159b4e9385f911d8f265302",
+      "metrics": {
+        "covered_token_count": 95,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 95,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          95
+        ],
+        "window_token_observation_count": 95
+      },
+      "negative": true,
+      "processCumulativePeakRssBytes": 3399450624,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 0.9043704170035198,
+      "sourceHash": "481ab3cdafc71546874bf1cac5b4e6190b3380fec159b4e9385f911d8f265302",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.1228517079725862,
+      "finalHash": "fab9d200099a7937cc64b7ee79b85dfdbe29ccae7032eff5d1e50fe3ccfe5d11",
+      "id": "cg-019",
+      "inferenceSeconds": 1.122554749948904,
+      "inputChars": 187,
+      "inputHash": "fab9d200099a7937cc64b7ee79b85dfdbe29ccae7032eff5d1e50fe3ccfe5d11",
+      "metrics": {
+        "covered_token_count": 119,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 119,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          119
+        ],
+        "window_token_observation_count": 119
+      },
+      "negative": true,
+      "processCumulativePeakRssBytes": 3417505792,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 32,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.122554749948904,
+      "sourceHash": "fab9d200099a7937cc64b7ee79b85dfdbe29ccae7032eff5d1e50fe3ccfe5d11",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 1,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 1
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 0.9437523329397663,
+      "finalHash": "8eeb1eb663d4d59ece7755ffff893c5fe4ef00fbc225831258b64c2b98442278",
+      "id": "cg-020",
+      "inferenceSeconds": 0.9434856669977307,
+      "inputChars": 159,
+      "inputHash": "4a047f5375428d3e455295957e4ff8483f7e1fa1ef39f282273c6e2107e0d430",
+      "metrics": {
+        "covered_token_count": 98,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 1,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 98,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          98
+        ],
+        "window_token_observation_count": 98
+      },
+      "negative": true,
+      "processCumulativePeakRssBytes": 3437051904,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 5,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 0.9434856669977307,
+      "sourceHash": "4a047f5375428d3e455295957e4ff8483f7e1fa1ef39f282273c6e2107e0d430",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 0.9753207499161363,
+      "finalHash": "dca5fb7b115458710989881582be45dc04fbf2a475454a37ef846283696b1ac0",
+      "id": "cg-021",
+      "inferenceSeconds": 0.9750462080119178,
+      "inputChars": 154,
+      "inputHash": "dca5fb7b115458710989881582be45dc04fbf2a475454a37ef846283696b1ac0",
+      "metrics": {
+        "covered_token_count": 102,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 102,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          102
+        ],
+        "window_token_observation_count": 102
+      },
+      "negative": true,
+      "processCumulativePeakRssBytes": 3444981760,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 38,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 0.9750462080119178,
+      "sourceHash": "dca5fb7b115458710989881582be45dc04fbf2a475454a37ef846283696b1ac0",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 1,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 1
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 40,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.0379243749193847,
+      "finalHash": "3e5f7a0ac019fb9079ff60f53f198c80ca9dbebaf1925d603124c8032ba2d963",
+      "id": "cg-022",
+      "inferenceSeconds": 1.0375884580425918,
+      "inputChars": 171,
+      "inputHash": "d410569955ee9180d61b83ef8646121f6df57dbc5c55a9cd3d6ed9ea375934be",
+      "metrics": {
+        "covered_token_count": 107,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 1,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 107,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          107
+        ],
+        "window_token_observation_count": 107
+      },
+      "negative": true,
+      "processCumulativePeakRssBytes": 3455156224,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 4,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 40,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 4,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 1
+      },
+      "seconds": 1.0375884580425918,
+      "sourceHash": "d410569955ee9180d61b83ef8646121f6df57dbc5c55a9cd3d6ed9ea375934be",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.1301664999919012,
+      "finalHash": "6f31be8a4ab0abd07a70fb74cd19dc93158571a5df1b7b8e4c72bd18bebd3144",
+      "id": "cg-023",
+      "inferenceSeconds": 1.1298507920000702,
+      "inputChars": 186,
+      "inputHash": "6f31be8a4ab0abd07a70fb74cd19dc93158571a5df1b7b8e4c72bd18bebd3144",
+      "metrics": {
+        "covered_token_count": 115,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 115,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          115
+        ],
+        "window_token_observation_count": 115
+      },
+      "negative": true,
+      "processCumulativePeakRssBytes": 3455156224,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 37,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.1298507920000702,
+      "sourceHash": "6c0751aac73fc62d7fb3eee9ec32b5ebc03e34104b7f765ee61f4666cf29e46e",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "addedSpanCount": 0,
+      "addedSpansByKind": {
+        "address": 0,
+        "contextual": 0,
+        "identifier": 0,
+        "person": 0
+      },
+      "baseline": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 36,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "caseWallSeconds": 1.1777746248990297,
+      "finalHash": "ce21c6ec2074f9168c003893e4e8b3364b876d69fd33fe42cb9f5292b0d9f29d",
+      "id": "cg-024",
+      "inferenceSeconds": 1.1774514999706298,
+      "inputChars": 184,
+      "inputHash": "ce21c6ec2074f9168c003893e4e8b3364b876d69fd33fe42cb9f5292b0d9f29d",
+      "metrics": {
+        "covered_token_count": 120,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 120,
+        "uncovered_token_count": 0,
+        "window_count": 1,
+        "window_token_counts": [
+          120
+        ],
+        "window_token_observation_count": 120
+      },
+      "negative": true,
+      "processCumulativePeakRssBytes": 3455156224,
+      "score": {
+        "completelyMaskedSpans": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "completelyMaskedSpansBefore": {
+          "address": 0,
+          "contextual": 0,
+          "identifier": 0,
+          "person": 0
+        },
+        "diagnostics": [],
+        "extraNonGoldMaskingChars": 0,
+        "goldNonspaceLiteralChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "goldNonspaceNonOpaqueChars": {
+          "address": {
+            "after": 0,
+            "before": 0
+          },
+          "contextual": {
+            "after": 0,
+            "before": 0
+          },
+          "identifier": {
+            "after": 0,
+            "before": 0
+          },
+          "person": {
+            "after": 0,
+            "before": 0
+          }
+        },
+        "protectedPreserveNonspaceChars": 36,
+        "protectedPreserveNonspaceCharsLost": {
+          "after": 0,
+          "before": 0
+        },
+        "protectedPreserveStringsLost": 0
+      },
+      "seconds": 1.1774514999706298,
+      "sourceHash": "ce21c6ec2074f9168c003893e4e8b3364b876d69fd33fe42cb9f5292b0d9f29d",
+      "spanStates": {
+        "after": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        },
+        "before": {
+          "address": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "contextual": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "identifier": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          },
+          "person": {
+            "full": 0,
+            "none": 0,
+            "partial": 0
+          }
+        }
+      },
+      "status": "completed"
+    }
+  ],
+  "cpu": "Apple M4 Pro",
+  "databaseAccessed": false,
+  "dependencies": {
+    "huggingface-hub": "0.36.2",
+    "numpy": "2.5.3",
+    "safetensors": "0.8.0",
+    "tiktoken": "0.14.0",
+    "torch": "2.8.0",
+    "transformers": "4.53.3"
+  },
+  "engineeringProbes": [
+    {
+      "caseWallSeconds": 105.89799154095817,
+      "constructionHash": "56f563572403a06d2774ef5d7452506272b6b4a20e748e6128407099162d6e22",
+      "id": "engineering-24000",
+      "inferenceSeconds": 105.8979054170195,
+      "inputChars": 24000,
+      "metrics": {
+        "covered_token_count": 11261,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 11261,
+        "uncovered_token_count": 0,
+        "window_count": 3,
+        "window_token_counts": [
+          4096,
+          4096,
+          3069
+        ],
+        "window_token_observation_count": 11261
+      },
+      "qualityDenominator": false,
+      "seconds": 105.8979054170195,
+      "source": "Repeated baseline cg-007 plus synthetic neutral filler",
+      "spanCount": 0,
+      "status": "completed"
+    }
+  ],
+  "finishedAt": "2026-09-07T04:35:34.748927+00:00",
+  "freezeHash": "fee0fd55e671d2d3316af1e71ab29c64b7aeff6b2d0082ca7fcbc9503e70d1f2",
+  "host": "macOS-26.6.2-arm64-arm-64bit",
+  "memoryAfter": {
+    "checkedAt": "2026-09-07T04:35:34.762933+00:00",
+    "modelLoadAllowed": true,
+    "policy": "Inspect before loading; normal and warning permit a bounded sequential run. Critical or unknown pressure blocks. Never close unrelated applications.",
+    "pressureLevel": 2,
+    "status": "measured",
+    "swap": "total = 21504.00M  used = 20235.00M  free = 1269.00M  (encrypted)"
+  },
+  "memoryBeforeNerLoad": {
+    "checkedAt": "2026-09-07T04:33:01.464187+00:00",
+    "modelLoadAllowed": true,
+    "policy": "Inspect before loading; normal and warning permit a bounded sequential run. Critical or unknown pressure blocks. Never close unrelated applications.",
+    "pressureLevel": 2,
+    "status": "measured",
+    "swap": "total = 18432.00M  used = 17891.25M  free = 540.75M  (encrypted)"
+  },
+  "memoryBeforeOpfLoad": {
+    "checkedAt": "2026-09-07T04:33:15.932282+00:00",
+    "modelLoadAllowed": true,
+    "policy": "Inspect before loading; normal and warning permit a bounded sequential run. Critical or unknown pressure blocks. Never close unrelated applications.",
+    "pressureLevel": 2,
+    "status": "measured",
+    "swap": "total = 18432.00M  used = 18037.44M  free = 394.56M  (encrypted)"
+  },
+  "memoryInterpretation": "Darwin ru_maxrss is bytes. Candidate process peak includes imports, IPC traces, OPF load and inference. Baseline model runs in a separate exited subprocess with its own peak. Neither figure is incremental model RAM or Windows minimum specification.",
+  "nerLoadSeconds": 0.3825657080160454,
+  "network": {
+    "connectDeniedByOS": true,
+    "mechanism": "Darwin sandbox-exec deny network*"
+  },
+  "notAttemptedIds": [],
+  "opfLoadSeconds": 6.248636582982726,
+  "processPeakRssBytes": 3564650496,
+  "productChanged": false,
+  "qualificationIssued": false,
+  "rawTextsPredictionsAndOffsetsPersisted": false,
+  "reportHash": "f24121cecb9b204a3635007099ee29bef9612fda47f410e61c8b4cea196cbefa",
+  "roleInferenceGate": {
+    "reason": "No independent workplace-identification evidence for the role-only examples; original contextual gold opacity is descriptive only.",
+    "status": "unadjudicated"
+  },
+  "startedAt": "2026-09-07T04:33:01.373294+00:00",
+  "status": "diagnostic_complete_not_qualified",
+  "summaryExecuted": false,
+  "threads": 2
+}

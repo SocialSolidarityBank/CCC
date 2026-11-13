@@ -1,0 +1,98 @@
+{
+  "adoptionApproved": false,
+  "candidate": {
+    "name": "OpenAI Privacy Filter",
+    "sourceRevision": "f7f00ca7fb869683eb732c010299d901457f19c3",
+    "weightsRevision": "7ffa9a043d54d1be65afb281eddf0ffbe629385b"
+  },
+  "execution": {
+    "attemptedInferenceCases": 0,
+    "baselineModelsLoaded": 0,
+    "candidateModelsLoaded": 0,
+    "completedInferenceCases": 0,
+    "eligibleCases": 24,
+    "eligiblePositiveCases": 15,
+    "eligibleTargetNegativeCases": 9,
+    "failedInferenceCases": 0,
+    "notAttemptedCases": 24,
+    "notAttemptedPositiveCases": 15,
+    "notAttemptedTargetNegativeCases": 9,
+    "notAttemptedIds": [
+      "cg-001",
+      "cg-002",
+      "cg-003",
+      "cg-004",
+      "cg-005",
+      "cg-006",
+      "cg-007",
+      "cg-008",
+      "cg-009",
+      "cg-010",
+      "cg-011",
+      "cg-012",
+      "cg-013",
+      "cg-014",
+      "cg-015",
+      "cg-016",
+      "cg-017",
+      "cg-018",
+      "cg-019",
+      "cg-020",
+      "cg-021",
+      "cg-022",
+      "cg-023",
+      "cg-024"
+    ],
+    "qualityDenominator": 0,
+    "reason": "Darwin VM memory pressure was 2, but frozen load policy requires 1; baseline admission rejected before model construction."
+  },
+  "externalInferenceCalls": 0,
+  "freezeHash": "10f85f52d2056d97733c8098e0c86f27fb4699ba796255bf60447b4dc40321ac",
+  "executedFreezeArtifact": "freeze-preflight-v2.json",
+  "executedSourceArchive": "preflight-v2.zip",
+  "preparedFreezeArtifact": "freeze.json",
+  "preparedFreezeHash": "a716797aebbea7efc77479e8a18ccb09aef307e06701c01d4aeb6f95df5b59ac",
+  "reviewVerification": "review-verification.json",
+  "measurementReportHash": "b3e69eedd7ec4c35684860e2d884fb28a597dd985dce80d2d4edd4931078f957",
+  "memory": {
+    "interpretation": "This roughly 202 MiB process peak was measured before any model load and is NOT model RAM usage.",
+    "preflightProcessPeakRssBytes": 211648512,
+    "pressureLevel": 2,
+    "requiredPressureLevel": 1
+  },
+  "participantDataUsed": false,
+  "productChanged": false,
+  "quality": {
+    "candidateInferenceSeconds": null,
+    "candidateLoadSeconds": null,
+    "candidateModelPeakRssBytes": null,
+    "contextualGoldBeforeAfter": null,
+    "directIdentifierBeforeAfter": null,
+    "engineering24000Probe": "not_attempted",
+    "interpretation": "No model quality, accuracy, latency or model-memory conclusion is available; zero attempted cases is not zero defects.",
+    "protectedPhraseLoss": null,
+    "targetNegativeMasking": null
+  },
+  "rawInferenceOutputsRetained": false,
+  "resumption": {
+    "condition": "Fresh Darwin memory pressure reading equals 1 immediately before each model load",
+    "preserve": "Keep the immutable blocked measurement and executed source archive. Before a future attempt, preserve measurement.json under a unique blocked-run filename, then use the reviewed freeze.json and unchanged corpus, weights and scoring. The runner refuses to overwrite any existing measurement.json. No automatic retry is scheduled.",
+    "prohibited": "Do not close unrelated apps, lower the admission guard, change models or thresholds, tune on results, start Windows workloads, integrate product code, activate AI/STT, merge or deploy."
+  },
+  "roleOnlyWorkplaceInferenceGate": {
+    "cg008ExampleApproved": false,
+    "facilityNameMaskingAloneSufficient": false,
+    "status": "mandatory_unadjudicated"
+  },
+  "schema": "ccc237.opf-diagnostic-decision.v1",
+  "status": "blocked_before_model_load_not_measured",
+  "verifiedPreparation": {
+    "OSNetworkConnectDenied": true,
+    "adapterBoundarySmokeChecks": true,
+    "baselineProvenanceSelfCheck": true,
+    "baselineQualityReproduced": false,
+    "canonicalTokenizerSha256": true,
+    "frozenInputsUnchanged": true,
+    "sourceAndWeightPublisherDigests": true
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "status": "diagnostic_complete_adoption_not_approved",
+  "recommendation": "현재 조합을 그대로 제품에 반영하지 않는다. 로컬 LLM이 해결책이라는 결론도, 모든 로컬 LLM이 불가능하다는 결론도 내리지 않는다.",
+  "userAdoptionDecision": "pending",
+  "evidence": {
+    "measurement": "measurement.json",
+    "measurementHash": "5312e82be85dbe3527ab684de937df7d49b8f253ac24e2e6bd78822f358117a9",
+    "summary": "summary.json",
+    "baselineMetricAudit": "baseline-audit.json",
+    "structuralChecks": "checks.json",
+    "constructedCounterexample": "boundary-counterexamples.json",
+    "reviewResolutions": "review-resolutions.json",
+    "runtimeObservations": "runtime-observations.json",
+    "openSourceSearchCriteria": "open-source-search-criteria.json"
+  },
+  "actualTest": {
+    "syntheticCases": 24,
+    "positiveCases": 15,
+    "negativeCases": 9,
+    "turns": [5, 8],
+    "originalCodepoints": [141, 236],
+    "flow": "기존 가림 → 4줄씩 겹쳐 읽는 추가 가림과 전체 문맥 확인 → 최종 재료만으로 요약 → 실험용 메모리 DB의 미승인 초안",
+    "candidate": "Qwen3-4B-Instruct-2507 Q4_K_M, llama.cpp 9590, Mac M4 Pro 24GB, CPU 2 threads, GPU offload 없음, prompt cache 비활성",
+    "modelCalls": {"masking": 50, "summary": 12, "total": 62, "requestFailures": 0},
+    "maskingCompleted": 12,
+    "unapprovedDraftsStaged": 12,
+    "rejectedBeforeSummaryAndStaging": 12,
+    "completedCaseMedianSeconds": 105.24600633350201,
+    "completedCaseMaximumSeconds": 139.10013058397453,
+    "allAttemptMedianSecondsIncludingEarlyRejections": 73.63974420854356,
+    "observedLlmRssMaximumGiB": 2.4760284423828125,
+    "rssLimit": "세 시점의 RSS 관측값이며 최대 메모리 사용량이나 일반 사용자 PC의 필요 사양을 뜻하지 않는다. 메모리 압력이 정상일 때 모델을 순차 적재했지만 호스트에는 기존 스왑 사용과 다른 작업이 있었다."
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "finding": "cg-007은 이름임을 명시한 한 글자 인명을 추가 가림에서 놓쳤다. 같은 문자열이 요약에도 나타났고 실험용 초안 저장 단계까지 통과했다.",
+      "meaning": "LLM이 읽고 추가 가림했다는 사실, 정확한 근거 인용과 해시 검사만으로 잔존 식별정보가 없다고 보장할 수 없다. 실제 개인정보 유출 실험은 아니며 모든 재료는 합성이다."
+    },
+    {
+      "id": "F2",
+      "finding": "12건의 거부는 모두 edit_overlaps_existing_mask였다. HTTP, 시간 초과, JSON 파싱 오류는 관측되지 않았다.",
+      "meaning": "기존 가림 토큰과 겹친 인용을 거부하는 규칙과 모델의 응답이 충돌했다. 이 12건을 개인정보 누출 12건이나 모델 자체의 정확도 실패 12건으로 해석하면 안 된다. 토큰만 다시 지목한 경우와 주변 미가림 내용까지 포함한 경우는 이번 보고서만으로 분리할 수 없다."
+    },
+    {
+      "id": "F3",
+      "finding": "추가 가림을 마친 동일한 12건 안에서 식별코드 완전 가림은 1/2개에서 2/2개로 늘었다(cg-014). 인명은 0/1개로 그대로였다. 주소 정답은 이 완료 집합에 없어 주소 개선율은 계산하지 않는다.",
+      "meaning": "개선 사례는 있지만 전체 안전성이나 최종 사용 가능성을 입증하지는 못했다."
+    },
+    {
+      "id": "F4",
+      "finding": "선택한 보존 구절의 글자 손실은 0이었다. 그러나 cg-015에서는 정답 구간 밖 16글자가 추가로 가려졌다. 초기 가림 재측정은 원래 점수를 모두 재현했고, 식별정보 정답이 없는 cg-023에서도 가림이 확인됐다.",
+      "meaning": "선택한 보존 구절만으로 상담 내용 전체의 의미 보존을 판정할 수 없다. 정답 밖 가림은 필수 정책이나 무해한 어미 삭제도 포함할 수 있어 별도 판정이 필요하다. 이후 단계는 초기 가림에서 사라진 내용을 복원하지 않는다."
+    },
+    {
+      "id": "F5",
+      "finding": "완료된 짧은 대화 12건의 처리 시간 중앙값은 약 105초였다. 약 74초라는 전체 중앙값에는 일찍 거부된 12건이 섞인다.",
+      "meaning": "현재 설정의 처리 부담으로 기록한다. 일반 Windows PC의 속도, 설치 용이성, 장시간 상담 처리 능력이나 다른 로컬 모델의 성능으로 일반화하지 않는다."
+    }
+  ],
+  "decisionReview": {
+    "retain": [
+      "로컬 실행 가능 여부와 제품 채택 여부를 분리한다.",
+      "모델이 안전하다고 말하는 것만 믿지 않고 코드로 출력 범위와 근거를 검증한다.",
+      "검증 실패 시 후속 요약과 저장을 차단하고 다른 공급자로 자동 전환하지 않는다.",
+      "AI 초안은 기존 승인 전에는 공식 기록이 아니다. 수기 기록 경로는 별도로 유지한다."
+    ],
+    "reconsiderBeforeAnyAdoption": [
+      "이미 가려진 토큰에 대한 반복 가림을 어떻게 처리할지 검토하고, 검증 규칙 때문에 생기는 거부와 실제 누락을 분리한다.",
+      "일반명사와 같은 짧은 이름 등 문맥상 명확한 식별정보 누락과 요약으로의 잔존을 막는지 검증한다.",
+      "가림 전후 상담 의미와 요약의 사실 충실도를 독립적으로 검토한다.",
+      "대표 사용자 PC에서 설치, 메모리, 지연, 장애 복구 부담을 측정한다."
+    ],
+    "notIntroduced": "기록마다 사람이 개인정보를 검수하는 상시 절차는 추가하지 않았다. 정답의 독립 검수와 품질 감사는 일상 기록별 검수와 별개다."
+  },
+  "externalComparison": {
+    "executed": false,
+    "reason": "기존 공식 OpenAI API 키 두 개의 확인 요청이 모두 401을 반환했다. 키나 권한은 변경하지 않았다.",
+    "privacyBoundary": "외부 LLM이 추가 가림을 맡으면 첫 외부 처리자는 초기 가림의 잔존 정보를 받는다. 최종 가림 결과가 그 앞선 전달을 없애지는 않는다."
+  },
+  "qualification": "24건의 기계 작성 합성 자료와 기계 검수는 S6 출시 자격 검증이나 사람의 독립 정답 검수를 대체하지 않는다. 맥락 단서의 완전 삭제 수치도 재식별 위험 감소율로 해석하지 않는다.",
+  "productChanged": false,
+  "productionDataAccessed": false,
+  "productionDatabaseWrites": 0,
+  "aiOrSttActivated": false,
+  "commitMergeOrDeployment": false
+}

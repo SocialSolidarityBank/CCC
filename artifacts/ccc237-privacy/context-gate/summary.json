@@ -1,0 +1,116 @@
+{
+  "attemptedCases": 24,
+  "baselineDirectCoverageAllAttemptedCases": {
+    "address": {
+      "fullyOpaqueSpans": 2,
+      "goldSpans": 3,
+      "nonOpaqueGoldCharacters": 1
+    },
+    "identifier": {
+      "fullyOpaqueSpans": 4,
+      "goldSpans": 5,
+      "nonOpaqueGoldCharacters": 13
+    },
+    "person": {
+      "fullyOpaqueSpans": 8,
+      "goldSpans": 9,
+      "nonOpaqueGoldCharacters": 1
+    }
+  },
+  "baselineInputsOverTokenizerLimit": [],
+  "caseLatencySeconds": {
+    "maximum": 139.10013058397453,
+    "median": 73.63974420854356
+  },
+  "contextualStrictOpacityNotPrivacyRecall": {
+    "baselineAllAttempted": {
+      "contextual": {
+        "fullyOpaqueSpans": 0,
+        "goldSpans": 5,
+        "nonOpaqueGoldCharacters": 68
+      }
+    },
+    "maskingCompletedOnly": {
+      "contextual": {
+        "fullyOpaqueSpans": 2,
+        "goldSpans": 4,
+        "nonOpaqueGoldCharacters": 26
+      }
+    }
+  },
+  "decision": "do_not_adopt_from_this_evidence",
+  "defectRows": {
+    "newMaskingInTargetNegativeRows": [],
+    "newNonGoldMaskingInPositiveRowsNeedsAdjudication": [
+      "cg-015"
+    ],
+    "protectedPhraseLossAfterCompletedMasking": [],
+    "protectedPhraseLossInBaseline": [],
+    "rejected": [
+      "cg-001",
+      "cg-002",
+      "cg-003",
+      "cg-004",
+      "cg-005",
+      "cg-006",
+      "cg-009",
+      "cg-010",
+      "cg-011",
+      "cg-012",
+      "cg-013",
+      "cg-023"
+    ],
+    "residualDirectIdentifiersAfterCompletedMasking": [
+      "cg-007"
+    ]
+  },
+  "finalDirectCoverageMaskingCompletedCasesOnly": {
+    "address": {
+      "fullyOpaqueSpans": 0,
+      "goldSpans": 0,
+      "nonOpaqueGoldCharacters": 0
+    },
+    "identifier": {
+      "fullyOpaqueSpans": 2,
+      "goldSpans": 2,
+      "nonOpaqueGoldCharacters": 0
+    },
+    "person": {
+      "fullyOpaqueSpans": 0,
+      "goldSpans": 1,
+      "nonOpaqueGoldCharacters": 1
+    }
+  },
+  "freezeHash": "3cb06357339cd4c4d503d7a5570af05099c7ed97b191a084bf3205d4e00d70f8",
+  "maskingCompletedCases": 12,
+  "measurementHash": "5312e82be85dbe3527ab684de937df7d49b8f253ac24e2e6bd78822f358117a9",
+  "plannedCases": 24,
+  "productChanged": false,
+  "protectedNonspaceCharactersLost": {
+    "afterMaskingCompletedOnly": 0,
+    "baselineAllAttempted": 0
+  },
+  "qualificationIssued": false,
+  "rejectedCases": 12,
+  "rejectionsByCode": {
+    "edit_overlaps_existing_mask": 12
+  },
+  "reportHash": "bc50dc0a9b3515d114dde04431ba4d7d51a03c77a0a15b11b47d07d573ea9c52",
+  "requestLatency": {
+    "maximumSeconds": 36.89191904198378,
+    "medianSeconds": 25.732421624998096
+  },
+  "requests": 62,
+  "runnerPeakRssBytes": 889208832,
+  "scopeLimits": [
+    "Rejected partial edits are not delivered text; final coverage denominator contains only completed masking phases.",
+    "Contextual component removal is not a validated re-identification-risk score.",
+    "Protected source phrases and exact summary evidence do not establish semantic summary fidelity.",
+    "Summary exact-gold-match counters mix direct and contextual spans and are not a confirmed leakage rate.",
+    "No human-adjudicated qualification, real participant data, Windows/user-PC usability or CCC gateway integration measured.",
+    "One CPU-only 4B quantized candidate with two threads does not represent all local LLMs.",
+    "External comparison was not executed because both existing credential checks returned401."
+  ],
+  "status": "diagnostic_only",
+  "unapprovedDraftsStaged": 12
+}

@@ -1,0 +1,443 @@
+{
+  "accounting": {
+    "attempted": 24,
+    "eligible": 24,
+    "eligiblePositive": 15,
+    "eligibleTargetNegative": 9,
+    "failed": 0,
+    "notAttempted": 0,
+    "successful": 24
+  },
+  "adoptionApproved": false,
+  "baselineReproducedCases": 24,
+  "candidate": {
+    "input": "Unchanged baseline-masked case text",
+    "mode": "native CPU, two threads, default calibrated typed decoder",
+    "name": "OpenAI Privacy Filter",
+    "sourceRevision": "f7f00ca7fb869683eb732c010299d901457f19c3",
+    "weightsRepository": "openai/privacy-filter",
+    "weightsRevision": "7ffa9a043d54d1be65afb281eddf0ffbe629385b"
+  },
+  "contextualGoldDescriptiveOnly": {
+    "eligibleSpans": 5,
+    "evaluableNonspaceChars": 71,
+    "evaluableSpans": 5,
+    "fullyOpaqueSpansAfter": 0,
+    "fullyOpaqueSpansBefore": 0,
+    "literalCharsAfter": 68,
+    "literalCharsBefore": 68,
+    "nonOpaqueCharsAfter": 68,
+    "nonOpaqueCharsBefore": 68
+  },
+  "coverage": {
+    "coreCases": 24,
+    "fullyCoveredCases": 24,
+    "insideExistingMaskPredictionsIgnored": 0,
+    "newCandidateSpans": 3
+  },
+  "directIdentifiers": {
+    "address": {
+      "eligibleSpans": 3,
+      "evaluableNonspaceChars": 64,
+      "evaluableSpans": 3,
+      "fullyOpaqueSpansAfter": 2,
+      "fullyOpaqueSpansBefore": 2,
+      "literalCharsAfter": 1,
+      "literalCharsBefore": 1,
+      "nonOpaqueCharsAfter": 1,
+      "nonOpaqueCharsBefore": 1
+    },
+    "identifier": {
+      "eligibleSpans": 5,
+      "evaluableNonspaceChars": 92,
+      "evaluableSpans": 5,
+      "fullyOpaqueSpansAfter": 4,
+      "fullyOpaqueSpansBefore": 4,
+      "literalCharsAfter": 13,
+      "literalCharsBefore": 13,
+      "nonOpaqueCharsAfter": 13,
+      "nonOpaqueCharsBefore": 13
+    },
+    "person": {
+      "eligibleSpans": 9,
+      "evaluableNonspaceChars": 32,
+      "evaluableSpans": 9,
+      "fullyOpaqueSpansAfter": 8,
+      "fullyOpaqueSpansBefore": 8,
+      "literalCharsAfter": 1,
+      "literalCharsBefore": 1,
+      "nonOpaqueCharsAfter": 1,
+      "nonOpaqueCharsBefore": 1
+    }
+  },
+  "directTotal": {
+    "eligibleSpans": 17,
+    "evaluableNonspaceChars": 188,
+    "evaluableSpans": 17,
+    "fullyOpaqueSpansAfter": 14,
+    "fullyOpaqueSpansBefore": 14,
+    "nonOpaqueCharsAfter": 15,
+    "nonOpaqueCharsBefore": 15
+  },
+  "engineeringProbes": [
+    {
+      "caseWallSeconds": 105.89799154095817,
+      "constructionHash": "56f563572403a06d2774ef5d7452506272b6b4a20e748e6128407099162d6e22",
+      "id": "engineering-24000",
+      "inferenceSeconds": 105.8979054170195,
+      "inputChars": 24000,
+      "metrics": {
+        "covered_token_count": 11261,
+        "duplicate_predictions_removed": 0,
+        "existing_mask_prediction_count_ignored": 0,
+        "existing_mask_token_count_ignored": 0,
+        "native_prediction_count": 0,
+        "overlap_observation_count": 0,
+        "overlap_token_count": 0,
+        "token_count": 11261,
+        "uncovered_token_count": 0,
+        "window_count": 3,
+        "window_token_counts": [
+          4096,
+          4096,
+          3069
+        ],
+        "window_token_observation_count": 11261
+      },
+      "qualityDenominator": false,
+      "seconds": 105.8979054170195,
+      "source": "Repeated baseline cg-007 plus synthetic neutral filler",
+      "spanCount": 0,
+      "status": "completed"
+    }
+  ],
+  "failures": [],
+  "freezeHash": "fee0fd55e671d2d3316af1e71ab29c64b7aeff6b2d0082ca7fcbc9503e70d1f2",
+  "leakageAudit": {
+    "independenceRequiredForQualification": "Independently collected and adjudicated unseen cases with role-only re-identification review; outside this experiment.",
+    "interpretation": "Paired diagnostic on unchanged annotations; neither zero execution failures nor extra contextual masks proves real-world privacy.",
+    "limitation": "Verifier/designer and reused synthetic corpus are not an independent qualification holdout. Human review covered selected cases only."
+  },
+  "limits": [
+    "Reused 24 synthetic diagnostic cases; not an independent holdout.",
+    "Original contextual-gold removal cannot prove that role-only workplace inference is resolved.",
+    "No Windows usability or production qualification evidence.",
+    "No external summary, database, or real participant stage."
+  ],
+  "meaningPreservation": {
+    "evaluableStrings": 48,
+    "extraNonGoldChars": 12,
+    "interpretation": "Extra non-gold masking is not automatically harmful. Protected phrases are fixed synthetic targets.",
+    "lostStringsAfter": 1,
+    "lostStringsBefore": 0
+  },
+  "measurementReportHash": "f24121cecb9b204a3635007099ee29bef9612fda47f410e61c8b4cea196cbefa",
+  "negativeCases": {
+    "eligible": 9,
+    "evaluable": 9,
+    "extraNonGoldChars": 9,
+    "newlyMaskedCases": 2,
+    "preserveStringsLostAfter": 1,
+    "preserveStringsLostBefore": 0
+  },
+  "network": {
+    "connectDeniedByOS": true,
+    "mechanism": "Darwin sandbox-exec deny network*"
+  },
+  "notAttemptedIds": [],
+  "perCase": [
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-001",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-002",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-003",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-004",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-005",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-006",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-007",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 1
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-008",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 26,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-009",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-010",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-011",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 22,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-012",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 1
+    },
+    {
+      "addedSpans": 1,
+      "extraNonGoldChars": 3,
+      "id": "cg-013",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-014",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 13
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-015",
+      "negative": false,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 20,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-016",
+      "negative": true,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-017",
+      "negative": true,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-018",
+      "negative": true,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-019",
+      "negative": true,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 1,
+      "extraNonGoldChars": 5,
+      "id": "cg-020",
+      "negative": true,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-021",
+      "negative": true,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 1,
+      "extraNonGoldChars": 4,
+      "id": "cg-022",
+      "negative": true,
+      "preserveStringsLostAfter": 1,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-023",
+      "negative": true,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    },
+    {
+      "addedSpans": 0,
+      "extraNonGoldChars": 0,
+      "id": "cg-024",
+      "negative": true,
+      "preserveStringsLostAfter": 0,
+      "preserveStringsLostBefore": 0,
+      "remainingContextualNonopaqueChars": 0,
+      "remainingDirectNonopaqueChars": 0
+    }
+  ],
+  "priorBlockedRun": "measurement-blocked-preflight.json",
+  "productChanged": false,
+  "recommendation": {
+    "action": "do_not_integrate_the_measured_configuration",
+    "approvedProductChange": false,
+    "basis": "All 24 cases completed, but direct-identifier opacity stayed 14/17 spans and 15 residual non-opaque characters. Additional masks occurred in 2/9 target-negative cases and damaged 1/48 protected phrases. No measured incremental masking benefit on annotated direct or contextual spans.",
+    "scope": "This baseline-plus-OPF calibrated default on the frozen diagnostic corpus, not a universal judgment of OPF standalone or other tasks."
+  },
+  "reportHash": "9a2e35f950a5f116f1b236a2dab7b66f1a33793b675206756a5081b33257c530",
+  "resourcePolicyAmendment": "resumption-amendment.json",
+  "roleOnlyWorkplaceGate": "mandatory_unadjudicated",
+  "runtime": {
+    "baselineProcessPeakGiB": 0.81219482421875,
+    "baselineProcessPeakRssBytes": 872087552,
+    "candidateLoadSeconds": 6.248636582982726,
+    "candidateProcessPeakGiB": 3.3198394775390625,
+    "candidateProcessPeakRssBytes": 3564650496,
+    "completedCaseInferenceMaxSeconds": 1.48534312506672,
+    "completedCaseInferenceMedianSeconds": 1.0846370829967782,
+    "completedCaseTimingDenominator": 24,
+    "coreInputCharacters": {
+      "max": 237,
+      "min": 141
+    },
+    "interpretation": "Darwin ru_maxrss is bytes. Candidate process peak includes imports, IPC traces, OPF load and inference. Baseline model runs in a separate exited subprocess with its own peak. Neither figure is incremental model RAM or Windows minimum specification.",
+    "memoryAfter": {
+      "checkedAt": "2026-09-07T04:35:34.762933+00:00",
+      "modelLoadAllowed": true,
+      "policy": "Inspect before loading; normal and warning permit a bounded sequential run. Critical or unknown pressure blocks. Never close unrelated applications.",
+      "pressureLevel": 2,
+      "status": "measured",
+      "swap": "total = 21504.00M  used = 20235.00M  free = 1269.00M  (encrypted)"
+    },
+    "memoryBeforeCandidateLoad": {
+      "checkedAt": "2026-09-07T04:33:15.932282+00:00",
+      "modelLoadAllowed": true,
+      "policy": "Inspect before loading; normal and warning permit a bounded sequential run. Critical or unknown pressure blocks. Never close unrelated applications.",
+      "pressureLevel": 2,
+      "status": "measured",
+      "swap": "total = 18432.00M  used = 18037.44M  free = 394.56M  (encrypted)"
+    },
+    "memoryBeforeNerLoad": {
+      "checkedAt": "2026-09-07T04:33:01.464187+00:00",
+      "modelLoadAllowed": true,
+      "policy": "Inspect before loading; normal and warning permit a bounded sequential run. Critical or unknown pressure blocks. Never close unrelated applications.",
+      "pressureLevel": 2,
+      "status": "measured",
+      "swap": "total = 18432.00M  used = 17891.25M  free = 540.75M  (encrypted)"
+    },
+    "platform": "macOS-26.6.2-arm64-arm-64bit"
+  },
+  "schema": "ccc237.opf-completed-diagnostic.v1",
+  "status": "diagnostic_complete_not_qualified"
+}

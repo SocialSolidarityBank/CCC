@@ -1,0 +1,577 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-06T07:48:59.428Z",
+  "branch": "e5-4-privacy-generalization",
+  "baseCommitAtStart": "99d7b41cd71713aa6cb7bfcc684d033582409781",
+  "workIsUncommitted": true,
+  "syntheticOnly": true,
+  "approvedImplementationVerified": true,
+  "e5_4Complete": false,
+  "issueState": "In Progress",
+  "tests": {
+    "pipeline": 172,
+    "evaluator": 11,
+    "dictionaryApi": 29,
+    "modesGatewayIntake": 59,
+    "total": 271
+  },
+  "runs": [
+    {
+      "name": "review-reproduction",
+      "cmd": [
+        "python3",
+        "-c",
+        "import json, subprocess, sys\nfrom ccc_pipeline.masking import mask_text, mask_text_with_report\ncases=[('mixed_offsets','구리시, 서울시 은평구','[지역], 서울시'),('ordinary_words','친구와 상담했다. 정리','친구와 상담했다. 정리')]\nrows=[{'id':i,'matchesContract':mask_text(s)==e} for i,s,e in cases]\nrows.append({'id':'partial_ner_address','matchesContract':mask_text_with_report('늘봄로 123', address_ner=lambda _: [(0,3)])[0]=='[주소]'})\ntry:\n subprocess.run([sys.executable,'-c',\"from ccc_pipeline.masking import mask_text; mask_text(('서울시 '*30)+'상담했다.')\"],check=True,timeout=3,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\n rows.append({'id':'bounded_address_scan','completedWithinSeconds':3})\nexcept subprocess.TimeoutExpired:\n rows.append({'id':'bounded_address_scan','timedOutSeconds':3})\nprint(json.dumps(rows))\nassert all(r.get('matchesContract', 'completedWithinSeconds' in r) for r in rows)\n"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T07:14:14.446Z",
+      "endedAt": "2026-09-06T07:14:17.510Z",
+      "exitCode": 1,
+      "path": "artifacts/ccc237-privacy/approved-review-reproduction.log",
+      "classification": "pre_fix_failure"
+    },
+    {
+      "name": "ner-health-v2",
+      "cmd": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--python",
+        "3.12",
+        "--with",
+        "torch==2.8.0",
+        "--with",
+        "transformers==4.53.3",
+        "python",
+        "scripts/privacy/qualify_ner.py",
+        "--kind",
+        "health",
+        "--corpus",
+        "scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json",
+        "--expected-corpus-hash",
+        "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+        "--output",
+        "artifacts/ccc237-privacy/install-health-v2.json"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T07:24:06.891Z",
+      "endedAt": "2026-09-06T07:24:10.494Z",
+      "exitCode": 2,
+      "path": "artifacts/ccc237-privacy/approved-ner-health-v2.log",
+      "classification": "measured_qualification_failure"
+    },
+    {
+      "name": "ner-release-v1",
+      "cmd": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--python",
+        "3.12",
+        "--with",
+        "torch==2.8.0",
+        "--with",
+        "transformers==4.53.3",
+        "python",
+        "scripts/privacy/qualify_ner.py",
+        "--kind",
+        "release",
+        "--corpus",
+        "scripts/privacy/fixtures/s6-release-ko-v1.json",
+        "--expected-corpus-hash",
+        "8fe927f79ad4e84d6ed1440b069e099e15c50618226c6727781e73f00ee321f4",
+        "--output",
+        "artifacts/ccc237-privacy/release-qualification-v1.json"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T07:25:42.363Z",
+      "endedAt": "2026-09-06T07:26:15.500Z",
+      "exitCode": 2,
+      "path": "artifacts/ccc237-privacy/approved-ner-release-v1.log",
+      "classification": "measured_qualification_failure"
+    },
+    {
+      "name": "dictionary-final",
+      "cmd": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "apps/api/vitest.config.ts",
+        "apps/api/test/agent-job-contract.test.ts",
+        "--maxWorkers=1"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T07:26:16.453Z",
+      "endedAt": "2026-09-06T07:26:42.883Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-dictionary-final.log",
+      "classification": "passed"
+    },
+    {
+      "name": "decoder-contract",
+      "cmd": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--python",
+        "3.12",
+        "--with",
+        "torch==2.8.0",
+        "--with",
+        "transformers==4.53.3",
+        "python",
+        "-c",
+        "import json\nfrom transformers import TokenClassificationPipeline\nlabels=['B-private_person','I-private_person','E-private_person','S-private_person']\nactual={label:TokenClassificationPipeline.get_tag(None,label) for label in labels}\nprint(json.dumps({'modelLoaded':False,'syntheticLabelsOnly':True,'transformersGetTag':actual,'bioesEndSharesEntityTag':actual[labels[2]][1]==actual[labels[0]][1],'measurementRerun':False,'decoderChanged':False}))\n"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T07:27:56.775Z",
+      "endedAt": "2026-09-06T07:27:59.112Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-decoder-contract.log",
+      "classification": "passed"
+    },
+    {
+      "name": "core-boundary",
+      "cmd": [
+        "pnpm",
+        "guard:core-imports"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T07:29:07.454Z",
+      "endedAt": "2026-09-06T07:29:07.765Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-core-boundary.log",
+      "classification": "passed"
+    },
+    {
+      "name": "db-boundary",
+      "cmd": [
+        "pnpm",
+        "guard:db"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T07:29:07.454Z",
+      "endedAt": "2026-09-06T07:29:07.788Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-db-boundary.log",
+      "classification": "passed"
+    },
+    {
+      "name": "api-types",
+      "cmd": [
+        "pnpm",
+        "--filter",
+        "@ccc/api",
+        "run",
+        "typecheck"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T07:29:07.452Z",
+      "endedAt": "2026-09-06T07:29:10.113Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-api-types.log",
+      "classification": "passed"
+    },
+    {
+      "name": "modes-and-vault",
+      "cmd": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "apps/api/vitest.config.ts",
+        "apps/api/test/agent-job-contract.modes.test.ts",
+        "apps/api/test/gateway-foundation.test.ts",
+        "apps/api/test/gateway-intake.test.ts",
+        "--maxWorkers=1"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T07:32:05.286Z",
+      "endedAt": "2026-09-06T07:32:43.345Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-modes-and-vault.log",
+      "classification": "passed"
+    },
+    {
+      "name": "review-confirmation",
+      "cmd": [
+        "python3",
+        "-c",
+        "import json, subprocess, sys\nfrom ccc_pipeline.masking import mask_text, mask_text_with_report\ncases=[('mixed_offsets','구리시, 서울시 은평구','[지역], 서울시'),('ordinary_words','친구와 상담했다. 정리','친구와 상담했다. 정리')]\nrows=[{'id':i,'matchesContract':mask_text(s)==e} for i,s,e in cases]\nrows.append({'id':'partial_ner_address','matchesContract':mask_text_with_report('늘봄로 123', address_ner=lambda _: [(0,3)])[0]=='[주소]'})\ntry:\n subprocess.run([sys.executable,'-c',\"from ccc_pipeline.masking import mask_text; mask_text(('서울시 '*30)+'상담했다.')\"],check=True,timeout=3,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\n rows.append({'id':'bounded_address_scan','completedWithinSeconds':3})\nexcept subprocess.TimeoutExpired:\n rows.append({'id':'bounded_address_scan','timedOutSeconds':3})\nprint(json.dumps(rows))\nassert all(r.get('matchesContract', 'completedWithinSeconds' in r) for r in rows)\n"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T07:39:02.832Z",
+      "endedAt": "2026-09-06T07:39:02.919Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-review-confirmation.log",
+      "classification": "passed"
+    },
+    {
+      "name": "locative-red",
+      "cmd": [
+        "python3",
+        "-c",
+        "from ccc_pipeline.masking import mask_text\nfor text in ('활동에 참여했다.', '목소리로 답했다.'):\n    assert mask_text(text) == text, 'non_location_word_overgeneralized'\nprint('locative_common_words_preserved')"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T07:44:57.540Z",
+      "endedAt": "2026-09-06T07:44:57.604Z",
+      "exitCode": 1,
+      "path": "artifacts/ccc237-privacy/approved-locative-red.log",
+      "classification": "pre_fix_failure"
+    },
+    {
+      "name": "locative-green",
+      "cmd": [
+        "python3",
+        "-c",
+        "from ccc_pipeline.masking import mask_text\nfor text in ('활동에 참여했다.', '목소리로 답했다.'):\n    assert mask_text(text) == text, 'non_location_word_overgeneralized'\nprint('locative_common_words_preserved')"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T07:46:00.254Z",
+      "endedAt": "2026-09-06T07:46:00.319Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-locative-green.log",
+      "classification": "passed"
+    },
+    {
+      "name": "evaluator-closure",
+      "cmd": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/privacy",
+        "-p",
+        "test_qualify_ner.py"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T07:46:00.259Z",
+      "endedAt": "2026-09-06T07:46:00.345Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-evaluator-closure.log",
+      "classification": "passed"
+    },
+    {
+      "name": "python-closure",
+      "cmd": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py"
+      ],
+      "cwd": "apps/pipeline",
+      "startedAt": "2026-09-06T07:46:00.255Z",
+      "endedAt": "2026-09-06T07:46:00.422Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-python-closure.log",
+      "classification": "passed"
+    },
+    {
+      "name": "doc-numbers-closure",
+      "cmd": [
+        "pnpm",
+        "guard:doc-numbers"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-06T07:47:20.809Z",
+      "endedAt": "2026-09-06T07:47:21.087Z",
+      "exitCode": 0,
+      "path": "artifacts/ccc237-privacy/approved-doc-numbers-closure.log",
+      "classification": "passed"
+    }
+  ],
+  "logs": [
+    {
+      "path": "artifacts/ccc237-privacy/approved-review-reproduction.log",
+      "bytes": 1458,
+      "sha256": "39da0cf76ee77a7596993741362172678e5d43d770a22da9449f8763964b7465"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-ner-health-v2.log",
+      "bytes": 1000,
+      "sha256": "641f061e8d4aa45cbcc315e96dd0a01ab72edcc4af9efd8a501cf887e992ff23"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-ner-release-v1.log",
+      "bytes": 1165,
+      "sha256": "eb05df8da68a2bb7d4749a9b8481d4a95361bc3cc75920460eaee851b15e741b"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-dictionary-final.log",
+      "bytes": 4118,
+      "sha256": "f077e4c2f122dd2b313c1fe800c3a7b8bfba1c57ca754f4d9986c4756bffc80a"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-decoder-contract.log",
+      "bytes": 906,
+      "sha256": "92254ff48e7b6bbe4c6cbdec946cb3bc028f409bce15e8197c2616c15a01273c"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-core-boundary.log",
+      "bytes": 99,
+      "sha256": "e1551c8c3ca1918005e8a8ecc38ea29503d146d38ab6075a8296d0c48ef96c4b"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-db-boundary.log",
+      "bytes": 86,
+      "sha256": "91da278542b9bac79ac198361db0432702d2cbe31d3acc046ff81d6c7523392c"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-api-types.log",
+      "bytes": 123,
+      "sha256": "33052cbf05641931f9e2f3f1918313aa9651476abd99cdecf95735b359a13c7e"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-modes-and-vault.log",
+      "bytes": 7163,
+      "sha256": "2066456c81327a0203588d003d4cebff6e9c82aa3e45693e185724cae96fb3cb"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-review-confirmation.log",
+      "bytes": 1200,
+      "sha256": "363bbb23e4cfc62e052a285f334479234ddc1abf9a7a5a89ddaff59645610964"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-locative-red.log",
+      "bytes": 477,
+      "sha256": "24b2536a3d2f50a6e310e1ffbee3563ae17c3afb70e91fd26018184fa72d9077"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-locative-green.log",
+      "bytes": 278,
+      "sha256": "3862162ed2caa93eb1fb78c2adca8c5edf3b8e8df78c97c7f641c4ce3dda4d73"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-evaluator-closure.log",
+      "bytes": 192,
+      "sha256": "f7f756c4b12df87ffdd18b06a122765885557c89035a43fbd080bd0a6005e5c2"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-python-closure.log",
+      "bytes": 963,
+      "sha256": "4de20e6ee9de9dee3d29523fc699f4a784ef60e778e9e6b004a85cbc62bfbf13"
+    },
+    {
+      "path": "artifacts/ccc237-privacy/approved-doc-numbers-closure.log",
+      "bytes": 145,
+      "sha256": "06c32fe944926c5e23070ad77b62ddde49d788bf0c611ad51ade1df21051cba8"
+    }
+  ],
+  "sourcesAtFinalVerification": [
+    {
+      "path": "apps/pipeline/ccc_pipeline/masking.py",
+      "bytes": 22271,
+      "sha256": "73729477bb25f4ec7a85044bc2bb73da97d68768db1fc0e57edcd1ca47526806"
+    },
+    {
+      "path": "apps/pipeline/ccc_pipeline/config.py",
+      "bytes": 11361,
+      "sha256": "a1fecc3974d6ff435fb9ce5e0cc5839d1b8a8d17a05762c9b11e8444969b76bb"
+    },
+    {
+      "path": "apps/pipeline/ccc_pipeline/worker.py",
+      "bytes": 25360,
+      "sha256": "854a7db31e19c0083817ab932ecf2c18d08b1b89c27015ac6587298b584eb9de"
+    },
+    {
+      "path": "apps/pipeline/ccc_pipeline/api_client.py",
+      "bytes": 11608,
+      "sha256": "f289f4a401925fe1d4d9f999f1f08b8d3c7749a7a156fdb5407df66f7ff4e501"
+    },
+    {
+      "path": "apps/pipeline/ccc_pipeline/secure_memory.py",
+      "bytes": 5613,
+      "sha256": "a2e6b89759c5ed7da1b2a163fdecfe51abd2089e8455be5ea95a392e12483fdd"
+    },
+    {
+      "path": "apps/pipeline/ccc_pipeline/results.py",
+      "bytes": 4440,
+      "sha256": "e1a3de5be90e1a25b79057196d56d53be3a84729c26992d8cf244b8ed28ba6c3"
+    },
+    {
+      "path": "apps/pipeline/tests/test_masking.py",
+      "bytes": 24384,
+      "sha256": "6238c299366a589e30b942236e9ecfc2870637b8ccd8ab5dee5a903abdfa689d"
+    },
+    {
+      "path": "packages/core/src/gateway.ts",
+      "bytes": 762021,
+      "sha256": "5153c0f22b7aec23d4fe0bac7d0df72a7b3a57287f2de0602c68116fe8087c8a"
+    },
+    {
+      "path": "apps/api/test/agent-job-contract.test.ts",
+      "bytes": 44350,
+      "sha256": "746dc50aab2d559a3191769386a115c13fca336a8a85a4e85fe09b768ccf12ec"
+    },
+    {
+      "path": "scripts/privacy/qualify_ner.py",
+      "bytes": 28101,
+      "sha256": "81c10ccd7e20eafd3940c08c50945930ed770a6be363d9c7e3fb9e505a6ae0d5"
+    },
+    {
+      "path": "scripts/privacy/test_qualify_ner.py",
+      "bytes": 5788,
+      "sha256": "64358201d2f200b749a60d1e142b58b35fd180f29aacf014d6b357dd1c16c68d"
+    },
+    {
+      "path": "scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json",
+      "bytes": 1059,
+      "sha256": "d39a4ce278316623bc046f9332e86e99e78f6f75d534e8390e359f375f116592"
+    },
+    {
+      "path": "scripts/privacy/fixtures/s6-release-ko-v1.json",
+      "bytes": 166306,
+      "sha256": "6e3cb9a53b07926d86a3ea701288e2b73553e07ab4433b91d12a2aee174d0ba1"
+    },
+    {
+      "path": "docs/specs/S6-privacy-packet.md",
+      "bytes": 45743,
+      "sha256": "76ab4b17e751923462551734688b2b0c0955cb9b64743111bb9c2a405d1b0fe2"
+    },
+    {
+      "path": "apps/pipeline/README.md",
+      "bytes": 17261,
+      "sha256": "533be9b1e3823703ad3ccea32f6763722fb84054bb1a0d505dc18dc226da4ed9"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-06-CCC-237-privacy-generalization.md",
+      "bytes": 37016,
+      "sha256": "4739fa5a5857e4f5e589f349cdebf6c7cea73c14c24a98a0cfb9ff9ce259b532"
+    }
+  ],
+  "runtime": {
+    "process": "ccc237-generalization-closure",
+    "exitCode": 0,
+    "evidence": "artifacts/ccc237-privacy/generalization-closure.json",
+    "actualWorker": true,
+    "attestationIsSynthetic": true,
+    "bodyEvidencePayloadHashesVerified": true,
+    "g1CodePoints": 147,
+    "g3CodePoints": 37,
+    "modelLoads": 0,
+    "nerQualificationProved": false,
+    "nerStubbed": true,
+    "postedResults": 2,
+    "providerCalls": 0,
+    "rejectedResults": 1,
+    "reportHash": "5c08434a2b478727d4ec893b65a4c7a86ca5e1827c1235eda70529e8a2839730",
+    "status": "passed",
+    "sttCalls": 0,
+    "syntheticOnly": true,
+    "temporaryFiles": 0,
+    "transport": "localhost HTTP",
+    "wholeProcessZeroizationQualified": false
+  },
+  "measurements": [
+    {
+      "kind": "health",
+      "status": "failed",
+      "modelExecuted": true,
+      "modelId": "FrameByFrame/korean-pii-e5-base",
+      "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+      "corpusCount": 7,
+      "negativeItemCount": 2,
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 4,
+          "fp": 20,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 4,
+          "fp": 8,
+          "tp": 0
+        }
+      },
+      "metrics": {
+        "addressPrecision": 0,
+        "addressRecall": 0,
+        "overgeneralizationRate": 1,
+        "personPrecision": 0,
+        "personRecall": 0
+      },
+      "corpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+      "resultHash": "7c49d82e1068b9543fea0153407f8033569a1a8d98894b0997b903b4c84209da",
+      "reportHash": "6d5a8254b11e97e0bf481a01b2cd654ad7c396790baa837f061392efa7aed64f",
+      "attestationIssued": false,
+      "releaseReceiptIssued": false
+    },
+    {
+      "kind": "release",
+      "status": "failed",
+      "modelExecuted": true,
+      "modelId": "FrameByFrame/korean-pii-e5-base",
+      "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+      "corpusCount": 601,
+      "negativeItemCount": 201,
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 250,
+          "fp": 1687,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 240,
+          "fp": 463,
+          "tp": 0
+        }
+      },
+      "metrics": {
+        "addressPrecision": 0,
+        "addressRecall": 0,
+        "overgeneralizationRate": 1,
+        "personPrecision": 0,
+        "personRecall": 0
+      },
+      "corpusHash": "8fe927f79ad4e84d6ed1440b069e099e15c50618226c6727781e73f00ee321f4",
+      "resultHash": "b57d27ee0e96b929ff5e471156459e9f2f8606cec76710ee6d8353e3140cd504",
+      "reportHash": "bf72f5c37684ef72cfb2fce227efefd9cf5ca7a70a1d353be045cace28bbe92c",
+      "attestationIssued": false,
+      "releaseReceiptIssued": false
+    }
+  ],
+  "independentIntegrity": "artifacts/ccc237-privacy/measurement-integrity.json",
+  "corpusProvenance": {
+    "reviewedHealthRows": 7,
+    "reviewedInitialReleaseRows": 610,
+    "totalReviewed": 617,
+    "releaseGoldCorrections": 10,
+    "releaseRowsExcludedBeforeInference": 9,
+    "frozenReleaseRows": 601,
+    "freezeEvidence": "artifacts/ccc237-privacy/release-corpus-freeze.json"
+  },
+  "boundaries": {
+    "nerDecoderChanged": false,
+    "modelOrGoldChangedAfterInference": false,
+    "deterministicLocativeFixAfterNerMeasurement": true,
+    "nerReportsQualifyFullPipeline": false,
+    "wholeProcessZeroizationQualified": false,
+    "windowsOrCloudRuntimeQualified": false,
+    "providerCalls": 0,
+    "activationPerformed": false,
+    "mergeOrDeploymentPerformed": false
+  },
+  "reviewClosure": {
+    "boundary": "Eight scoped boundary issues corrected; final locative counterexamples fail before and pass after the correction. No claim of perfect natural-language detection.",
+    "handoff": "Approval chronology, pre-implementation baseline, and 7+610-9 corpus accounting clarified."
+  },
+  "cleanup": {
+    "existingGuidanceUpdated": true,
+    "priorMeasurementReportsPreserved": true,
+    "smokeScriptRetainedAsRequestedReproductionEvidence": true,
+    "noNewChangelogFile": true
+  },
+  "evidenceHash": "66c33238efc5d7c5de7d8c59b39b5b34881b54f27709c62c7de48158d9ddfe5c"
+}

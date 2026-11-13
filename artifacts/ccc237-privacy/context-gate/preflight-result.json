@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-09-06T15:56:19.471230+00:00",
+  "host": "macOS-26.6.2-arm64-arm-64bit",
+  "weights": {
+    "status": "verified",
+    "bytes": 2497281120,
+    "sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597"
+  },
+  "memory": {
+    "status": "measured",
+    "pressureLevel": 1,
+    "swap": "total = 12288.00M  used = 11509.38M  free = 778.62M  (encrypted)",
+    "modelLoadAllowed": true,
+    "policy": "Load only at normal Darwin VM pressure (1); never close unrelated applications."
+  },
+  "externalArm": {
+    "status": "blocked_authentication",
+    "existingCredentialChecks": 2,
+    "httpStatuses": [
+      401,
+      401
+    ],
+    "credentialMutation": false,
+    "modelExecuted": false,
+    "boundary": "An external contextual masker would receive residual synthetic identifiers in baseline text. This cannot prove protection from disclosure to that first external processor."
+  },
+  "inferenceExecuted": false,
+  "productChanged": false,
+  "qualificationIssued": false
+}

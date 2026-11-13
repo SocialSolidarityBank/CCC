@@ -1,0 +1,100 @@
+{
+  "status": "passed",
+  "method": "JavaScript canonical hashing and independent Wilson quadratic roots",
+  "measurements": [
+    {
+      "kind": "health",
+      "rows": 7,
+      "status": "failed",
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 4,
+          "fp": 20,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 4,
+          "fp": 8,
+          "tp": 0
+        }
+      },
+      "pointMetrics": {
+        "addressPrecision": 0,
+        "addressRecall": 0,
+        "overgeneralizationRate": 1,
+        "personPrecision": 0,
+        "personRecall": 0
+      },
+      "resultHashVerified": true,
+      "reportHashVerified": true
+    },
+    {
+      "kind": "release",
+      "rows": 601,
+      "status": "failed",
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 250,
+          "fp": 1687,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 240,
+          "fp": 463,
+          "tp": 0
+        }
+      },
+      "pointMetrics": {
+        "addressPrecision": 0,
+        "addressRecall": 0,
+        "overgeneralizationRate": 1,
+        "personPrecision": 0,
+        "personRecall": 0
+      },
+      "resultHashVerified": true,
+      "reportHashVerified": true
+    }
+  ],
+  "wilsonBoundaries": [
+    {
+      "x": 0,
+      "n": 0,
+      "interval": [
+        null,
+        null
+      ]
+    },
+    {
+      "x": 0,
+      "n": 10,
+      "interval": [
+        0,
+        0.2775327998628892
+      ]
+    },
+    {
+      "x": 10,
+      "n": 10,
+      "interval": [
+        0.7224672001371111,
+        1
+      ]
+    },
+    {
+      "x": 5,
+      "n": 10,
+      "interval": [
+        0.23659309051256402,
+        0.7634069094874361
+      ]
+    }
+  ],
+  "releaseBounds": {
+    "personPrecisionLower": 0,
+    "personRecallLower": 0,
+    "addressPrecisionLower": 0,
+    "addressRecallLower": 0,
+    "overgeneralizationUpper": 1
+  },
+  "qualification": "failed"
+}

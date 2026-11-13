@@ -1,0 +1,61 @@
+{
+  "addressGoldCount": 4,
+  "attestationIssued": false,
+  "corpusCount": 7,
+  "corpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+  "expectedCorpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+  "kind": "health",
+  "labelSetHash": "b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc",
+  "modelExecuted": false,
+  "modelId": "FrameByFrame/korean-pii-e5-base",
+  "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+  "negativeItemCount": 2,
+  "personGoldCount": 4,
+  "releaseReceiptIssued": false,
+  "reportHash": "87ffe2d6aee67a7669d37ea57e354d4b5e8769841f7b2852b73d0e64bfb9a88f",
+  "rows": [
+    {
+      "id": "p01",
+      "status": "validated"
+    },
+    {
+      "id": "p02",
+      "status": "validated"
+    },
+    {
+      "id": "p03",
+      "status": "validated"
+    },
+    {
+      "id": "p04",
+      "status": "validated"
+    },
+    {
+      "id": "p05",
+      "status": "validated"
+    },
+    {
+      "id": "n01",
+      "status": "validated"
+    },
+    {
+      "id": "n02",
+      "status": "validated"
+    }
+  ],
+  "runtime": {
+    "aggregationStrategy": "simple",
+    "decoderPolicy": "uppercase entity_group prefix; exact code-point span",
+    "device": "cpu",
+    "modelLoaded": false,
+    "offline": true,
+    "python": "3.14.6",
+    "threads": 2,
+    "torch": null,
+    "transformers": null
+  },
+  "schemaVersion": 1,
+  "status": "validated",
+  "strataCount": 0,
+  "validatedAt": "2026-09-06T07:10:56.058591Z"
+}

@@ -1,0 +1,23 @@
+{
+  "samples": [
+    {
+      "event": "contextual_model_ready_after_ner",
+      "at": "2026-09-06T16:11:07.649Z",
+      "pid": 73373,
+      "rssBytes": 1353908224
+    },
+    {
+      "event": "during_contextual_inference",
+      "at": "2026-09-06T16:12:55.223Z",
+      "pid": 73373,
+      "rssBytes": 2552496128
+    },
+    {
+      "event": "after_all_24_cases",
+      "at": "2026-09-06T16:38:49.650Z",
+      "pid": 73373,
+      "rssBytes": 2658615296
+    }
+  ],
+  "scope": "Observed RSS snapshots, not process peak or user-PC evidence"
+}

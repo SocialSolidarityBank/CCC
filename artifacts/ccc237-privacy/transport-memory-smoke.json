@@ -1,0 +1,18 @@
+{
+  "syntheticOnly": true,
+  "modelLoads": 0,
+  "providerCalls": 0,
+  "windowsMeasured": false,
+  "sourceTransport": true,
+  "dictionaryTransport": true,
+  "errorSanitized": true,
+  "errorContextDetached": true,
+  "nativeLockSucceeded": true,
+  "independentNativeReadObservedZeroes": true,
+  "ownedMappingDumpExcluded": false,
+  "nativeLockFailureClosedBeforeRead": true,
+  "errorBodyLockFailurePreservesMaskingPhase": true,
+  "observerLimitRestored": true,
+  "wholeProcessZeroizationQualified": false,
+  "note": "Heap parser copies are wiped but not page-locked; immutable strings, HTTP/TLS/model internals, dumps and hibernation are outside this proof. RLIMIT fault injection affects only this temporary process and is restored."
+}

@@ -1,0 +1,23 @@
+{
+  "counts": {
+    "PRIVATE_ADDRESS": {
+      "fn": 4,
+      "fp": 11,
+      "tp": 0
+    },
+    "PRIVATE_PERSON": {
+      "fn": 0,
+      "fp": 0,
+      "tp": 4
+    }
+  },
+  "modelLoaded": true,
+  "providerCalls": 0,
+  "qualificationStatus": "failed",
+  "rows": 7,
+  "scope": "Actual runtime NER factories match evaluator; not qualification or worker activation",
+  "status": "passed",
+  "sttCalls": 0,
+  "syntheticOnly": true,
+  "workerStarted": false
+}

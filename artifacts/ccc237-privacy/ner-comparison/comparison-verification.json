@@ -1,0 +1,65 @@
+{
+  "activated": false,
+  "additionalModelLoaded": false,
+  "docNumberGuard": {
+    "exitCode": 0,
+    "log": "artifacts/ccc237-privacy/approved-comparison-doc-numbers.log"
+  },
+  "freezeHash": "a7f4cd4c1bbe3306a6f5e18cee782cb0d986fb82d19141c2c6a3804bf123a780",
+  "frozenFileHashesVerified": 12,
+  "productionModelUnchanged": true,
+  "qualificationIssued": false,
+  "reportHash": "8a660a112c2602287b498fc9566a22cda6e19a4f979b5c05703aeb6b01c82cc6",
+  "reports": [
+    {
+      "measuredRows": 600,
+      "numericGatePassed": false,
+      "path": "artifacts/ccc237-privacy/ner-comparison/development-baseline.json",
+      "reportHash": "69055cc942fa1ed41b045e1cf7677148b5ac27a6e8575338096c6c88f8e50b7d"
+    },
+    {
+      "measuredRows": 600,
+      "numericGatePassed": false,
+      "path": "artifacts/ccc237-privacy/ner-comparison/development-alternative.json",
+      "reportHash": "6e05f2c826587fea4b83c20002916981685922f48dfb6f663566340419f8ebc7"
+    },
+    {
+      "measuredRows": 600,
+      "numericGatePassed": false,
+      "path": "artifacts/ccc237-privacy/ner-comparison/heldout-baseline.json",
+      "reportHash": "d7eb04e1768017c17286000b6baa2be38ed3385ce2159b365d087579668092aa"
+    },
+    {
+      "measuredRows": 600,
+      "numericGatePassed": false,
+      "path": "artifacts/ccc237-privacy/ner-comparison/heldout-alternative.json",
+      "reportHash": "414d4505de2f45d3a0aa5ddc67dcf436f30d1d0f08a205ab3510bdfb4dfe11b4"
+    }
+  ],
+  "reviews": [
+    {
+      "findings": [],
+      "limitations": [
+        "Unkeyed hashes and local timestamps are not authentication",
+        "Standalone weight provenance is not a runner-enforced digest gate"
+      ],
+      "reviewer": "NerComparisonIntegrityReview",
+      "verified": "Independently reproduced row sums, point metrics, Wilson bounds, six report hashes, 12 frozen files, two corpus hashes and 11 cached model/config/tokenizer hashes"
+    },
+    {
+      "findings": [],
+      "limitations": [
+        "One eligible alternative",
+        "Correlated synthetic templates, no independent human adjudication or training-overlap audit",
+        "Different native dtypes and single CPU pass; no general speed claim"
+      ],
+      "recommendation": "No production replacement, activation or qualification from bounded synthetic comparison",
+      "reviewer": "NerComparisonReadinessReview"
+    }
+  ],
+  "schemaVersion": 1,
+  "selectionHash": "7b3b9bbd5f6502c93463cae2d8af8d84581dc734c6693d65fb25006d3c091c22",
+  "status": "evidence_consistency_passed_not_qualification",
+  "summarySha256": "e3f60a8694d9a94207090f220ba15e523cb7cae2a69c0c51ed2a1556f261c763",
+  "verifiedAt": "2026-09-06T11:18:14.360659+00:00"
+}

@@ -1,0 +1,39 @@
+{
+  "verifiedAt": "2026-09-06T16:50:23.415Z",
+  "frozenCodeAndCorpusUnchanged": true,
+  "measurementExitCode": 0,
+  "measuredCases": 24,
+  "modelRequests": 62,
+  "unapprovedDrafts": 12,
+  "rejectedWithoutSummaryOrDraft": 12,
+  "evidenceHashesChecked": [
+    "measurement.json",
+    "summary.json",
+    "checks.json",
+    "baseline-audit.json",
+    "boundary-counterexamples.json"
+  ],
+  "baselineScoresReproducedExactly": true,
+  "missedNameCase": {
+    "id": "cg-007",
+    "finalStoredSourceMatchesOriginalSyntheticSource": true,
+    "summaryContainsExactGoldSubstring": true,
+    "summarySemanticUseOfSubstring": "not_adjudicated"
+  },
+  "independentFinalReviews": [
+    {
+      "reviewer": "ContextOutcomeArithmetic",
+      "scope": "saved evidence arithmetic and denominators",
+      "findings": 0
+    },
+    {
+      "reviewer": "ContextOutcomeBoundary",
+      "scope": "privacy interpretation and adoption boundaries against S6",
+      "findings": 0
+    }
+  ],
+  "experimentProcessesStopped": true,
+  "productChanged": false,
+  "qualificationIssued": false,
+  "userAdoptionDecision": "pending"
+}

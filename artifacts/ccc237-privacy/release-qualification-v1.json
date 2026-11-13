@@ -1,0 +1,9676 @@
+{
+  "addressGoldCount": 250,
+  "attestationIssued": false,
+  "corpusCount": 601,
+  "corpusHash": "8fe927f79ad4e84d6ed1440b069e099e15c50618226c6727781e73f00ee321f4",
+  "counts": {
+    "PRIVATE_ADDRESS": {
+      "fn": 250,
+      "fp": 1687,
+      "tp": 0
+    },
+    "PRIVATE_PERSON": {
+      "fn": 240,
+      "fp": 463,
+      "tp": 0
+    }
+  },
+  "expectedCorpusHash": "8fe927f79ad4e84d6ed1440b069e099e15c50618226c6727781e73f00ee321f4",
+  "kind": "release",
+  "labelSetHash": "b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc",
+  "measuredAt": "2026-09-06T07:25:44.675260Z",
+  "metrics": {
+    "addressPrecision": 0.0,
+    "addressRecall": 0.0,
+    "overgeneralizationRate": 1.0,
+    "personPrecision": 0.0,
+    "personRecall": 0.0
+  },
+  "modelExecuted": true,
+  "modelId": "FrameByFrame/korean-pii-e5-base",
+  "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+  "negativeItemCount": 201,
+  "personGoldCount": 240,
+  "releaseReceiptIssued": false,
+  "reportHash": "bf72f5c37684ef72cfb2fce227efefd9cf5ca7a70a1d353be045cace28bbe92c",
+  "resultHash": "b57d27ee0e96b929ff5e471156459e9f2f8606cec76710ee6d8353e3140cd504",
+  "rows": [
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0001",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0002",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0003",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0004",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0005",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0006",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0007",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0008",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0009",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0010",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0011",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0012",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0013",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0014",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0015",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0016",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0017",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 3,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0018",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0019",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0020",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0021",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0022",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0023",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0024",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0025",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0026",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0027",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0028",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0029",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0030",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0031",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0032",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0033",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0034",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 4,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0035",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0036",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0037",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0038",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0039",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0040",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 3,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0041",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0042",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0043",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0044",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0045",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0046",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0047",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0048",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0049",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0050",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0051",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0052",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0053",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0054",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0055",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0056",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0057",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0058",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0059",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0060",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0061",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0062",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0063",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0064",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0065",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0066",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0067",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0068",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0069",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0070",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0071",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0072",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0073",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0074",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0075",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0076",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0077",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0078",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0079",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0080",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0081",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0082",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0083",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0084",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0085",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0086",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0087",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0088",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0089",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0090",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0091",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0092",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0093",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0094",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0095",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0096",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0097",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0098",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0099",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0100",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0101",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0102",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0103",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0104",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0105",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0106",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0107",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0108",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0109",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0110",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0111",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0112",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0113",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0114",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0115",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0116",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0117",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0118",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0119",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0120",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0121",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0122",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0123",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0124",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0125",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0126",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0127",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0128",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0129",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0130",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0131",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0132",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0133",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0134",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0135",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0136",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0137",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0138",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0139",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0140",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 2,
+          "fp": 4,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0141",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 2,
+          "fp": 4,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0142",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 2,
+          "fp": 4,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0143",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 2,
+          "fp": 4,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0144",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 2,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0145",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 2,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0146",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 2,
+          "fp": 4,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0147",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 2,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0148",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 2,
+          "fp": 4,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0149",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 2,
+          "fp": 4,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0150",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0151",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0152",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0153",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0154",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0155",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0156",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0157",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0158",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0159",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0160",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0161",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0162",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0163",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0164",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0165",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0166",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0167",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0168",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0169",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0170",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0171",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0172",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0173",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0174",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0175",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0176",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0177",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0178",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0179",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0180",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0181",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0182",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0183",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0184",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0185",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0186",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0187",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0188",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0189",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0190",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0191",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0192",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0193",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0194",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0195",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0196",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0197",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0198",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0199",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0200",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0201",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0202",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0203",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0204",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0205",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0206",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0207",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0208",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0209",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0210",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0211",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0212",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0213",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0214",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0215",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0216",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0217",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0218",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0219",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0220",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0221",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0222",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0223",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0224",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0225",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0226",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0227",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0228",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0229",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0230",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0231",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0232",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0233",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0234",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0235",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0236",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0237",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0238",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0239",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0240",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0241",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0242",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0243",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0244",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0245",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0246",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0247",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0248",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0249",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0250",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0251",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0252",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0253",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0254",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0255",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0256",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0257",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0258",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0259",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0260",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0261",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0262",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0263",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0264",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0265",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0266",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0267",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0268",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0269",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0270",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0271",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0272",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0273",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0274",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0275",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0276",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0277",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0278",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0279",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0280",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 9,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0281",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0282",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 10,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0283",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0284",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 9,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0285",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0286",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 10,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0287",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0288",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0289",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0290",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 9,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0291",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0292",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 10,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0293",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0294",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 9,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0295",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0296",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 10,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0297",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0298",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0299",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0300",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 10,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0301",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0302",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 10,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0303",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0304",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 9,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0305",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0306",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 10,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0307",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0308",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0309",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0310",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0311",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0312",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0313",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0314",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 5,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0315",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0316",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0317",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0318",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0319",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0320",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0321",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0322",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0323",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0324",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0325",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0326",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0327",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0328",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0329",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0330",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0331",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0332",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0333",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0334",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0335",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0336",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0337",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0338",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0339",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0340",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0341",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0342",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0343",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0344",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0345",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0346",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0347",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0348",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0349",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0350",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0351",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 4,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0352",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0353",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0354",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0355",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0356",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0357",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0358",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0359",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0360",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0361",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0362",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0363",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0364",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0365",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0366",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0367",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0368",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0369",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0370",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0371",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0372",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0373",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0374",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0375",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0376",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0377",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0378",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 8,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0379",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 7,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0380",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0381",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0382",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0383",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0384",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0385",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0386",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0387",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0388",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 4,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0389",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 6,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0390",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0391",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0392",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0393",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0394",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0395",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0396",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0397",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0398",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0399",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0400",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0401",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0402",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0403",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0404",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0405",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0406",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0407",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0408",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0409",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0410",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0411",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0412",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0413",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0414",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0415",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0416",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0417",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0418",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0419",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0420",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0421",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0422",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0423",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0424",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0425",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0426",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0427",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0428",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0429",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0430",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0431",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0432",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0433",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0434",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0435",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0436",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0437",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0438",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0439",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0440",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0441",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0442",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0443",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0444",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0445",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0446",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0447",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0448",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0449",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0450",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0451",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0452",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0453",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0454",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0455",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0456",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0457",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0458",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0459",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0460",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0461",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0462",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0463",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0464",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0465",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0466",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0467",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0468",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0469",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0470",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0471",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0472",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0473",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0474",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0475",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0476",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0477",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0478",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0479",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0480",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0481",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0482",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0483",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0484",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0485",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0486",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0487",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0488",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0489",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0490",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0491",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 1,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0492",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0493",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0494",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0495",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0496",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0497",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0499",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0500",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0501",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0502",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0503",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0504",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0505",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0506",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0507",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0508",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0509",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0510",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0511",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0512",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0513",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0514",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0516",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0517",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0518",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0520",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0521",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0522",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0523",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0524",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0525",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0526",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0527",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0528",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0529",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0530",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0531",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0532",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0533",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0534",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0535",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0536",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0537",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0538",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0539",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0540",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0541",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0542",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0543",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0544",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0545",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0546",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0547",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0548",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0549",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0550",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0551",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0552",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0553",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0554",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0555",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0557",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0558",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0559",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0560",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0561",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0562",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0563",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0564",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0565",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0567",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0568",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0570",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 1,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0571",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0572",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0573",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0574",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0575",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0576",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0577",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 2,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0578",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 1,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0579",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0580",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0581",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0582",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0583",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0584",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0585",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0588",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0589",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0591",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0592",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0593",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0594",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0595",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0596",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0597",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0598",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0599",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0600",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0601",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0602",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0603",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0604",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0605",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0606",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0607",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0608",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0609",
+      "status": "measured"
+    },
+    {
+      "counts": {
+        "PRIVATE_ADDRESS": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        },
+        "PRIVATE_PERSON": {
+          "fn": 0,
+          "fp": 0,
+          "tp": 0
+        }
+      },
+      "id": "release-ko-0610",
+      "status": "measured"
+    }
+  ],
+  "runtime": {
+    "aggregationStrategy": "simple",
+    "decoderPolicy": "uppercase entity_group prefix; exact code-point span",
+    "device": "cpu",
+    "modelLoaded": true,
+    "offline": true,
+    "python": "3.12.13",
+    "threads": 2,
+    "torch": "2.8.0",
+    "transformers": "4.53.3"
+  },
+  "schemaVersion": 1,
+  "status": "failed",
+  "strataCount": 11,
+  "wilsonBounds": {
+    "addressPrecisionLower": 0.0,
+    "addressRecallLower": 0.0,
+    "overgeneralizationUpper": 1.0,
+    "personPrecisionLower": 0.0,
+    "personRecallLower": 0.0
+  }
+}
