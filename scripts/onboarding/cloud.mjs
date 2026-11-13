@@ -307,7 +307,7 @@ export async function verifyCreatedInstallation(options) {
 
 /** The existing installer still owns signatures, baseline, SQL, locks, journal, signer and health. */
 export async function runCreatedInstallation(options) {
-  if (!['plan', 'apply', 'doctor'].includes(options.operation)) throw failure('CLOUD_REQUEST_INVALID');
+  if (!['plan', 'apply', 'doctor', 'reconcile-auth-config'].includes(options.operation)) throw failure('CLOUD_REQUEST_INVALID');
   if (options.operation === 'apply' && !options.approved) throw failure('CLOUD_INSTALLATION_CANCELLED');
   if (options.env !== undefined && options.env !== process.env) throw failure('CLOUD_REQUEST_INVALID');
   options = {
@@ -326,6 +326,17 @@ export async function runCreatedInstallation(options) {
     installApproval: options.installation.installApproval,
     manifestUrl: options.installation.manifestUrl,
   };
+  if (options.operation === 'reconcile-auth-config') {
+    // 승인된 Auth drift 정합화는 installer의 좁은 proof와 journal transaction만 쓴다.
+    const result = await runSupabaseBootstrap({
+      operation: 'reconcile-auth-config',
+      target: 'hosted',
+      projectRef: options.installation.projectRef,
+      installManifest: options.installation.installManifest,
+      installApproval: options.installation.installApproval,
+    }, { expectedAuthorizationSha256 });
+    return { result };
+  }
   if (options.operation === 'doctor') {
     const result = await runSupabaseBootstrap({ ...input, operation: 'doctor' }, { expectedAuthorizationSha256 });
     return { view: viewFromSupabaseResult('community-cloud', result), result };
@@ -400,14 +411,14 @@ async function main() {
   const [operation = 'plan', ...extra] = process.argv.slice(2);
   if (extra.length) throw failure('CLOUD_REQUEST_INVALID');
   if (operation === '--help') {
-    print('relayer Cloud 설치 도구\nnode scripts/onboarding/cloud.mjs [plan|create|resume|install-plan|install|doctor]\n');
+    print('relayer Cloud 설치 도구\nnode scripts/onboarding/cloud.mjs [plan|create|resume|install-plan|install|doctor|reconcile-auth-config]\n');
     print('입력: CCC_ONBOARDING_REQUEST(JSON), CCC_ONBOARDING_JOURNAL(기관 소유 비공개 디렉터리의 생성 기록)\n');
     print('설치 입력: CCC_ONBOARDING_INSTALLATION(JSON)과 기존 S11 주입 설정\n');
     print('create와 install은 요약 뒤 별도 승인을 받습니다. resume는 기록된 요청을 관찰할 뿐 다시 생성하지 않습니다.\n');
     print('이 도구는 Pro 결제 전환, ACA 자원 생성과 업무 API 배포를 실행하지 않습니다.\n');
     return;
   }
-  if (!['plan', 'create', 'resume', 'install-plan', 'install', 'doctor'].includes(operation)) {
+  if (!['plan', 'create', 'resume', 'install-plan', 'install', 'doctor', 'reconcile-auth-config'].includes(operation)) {
     throw failure('CLOUD_REQUEST_INVALID');
   }
   const options = {
@@ -427,6 +438,11 @@ async function main() {
     }
   } else {
     options.installation = jsonInput(process.env.CCC_ONBOARDING_INSTALLATION);
+    if (operation === 'reconcile-auth-config') {
+      const result = await runCreatedInstallation({ ...options, operation });
+      print(result.result);
+      return;
+    }
     const plan = await runCreatedInstallation({ ...options, operation: operation === 'doctor' ? 'doctor' : 'plan' });
     printResult(plan);
     if (operation === 'install' && plan.binding) {
@@ -439,6 +455,7 @@ async function main() {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try { await main(); }
   catch (error) {
+    if (process.env.CCC_DEBUG_CLOUD === '1') process.stderr.write(`${error?.stack ?? error}\n`);
     const code = typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/u.test(error.code)
       ? error.code : 'CLOUD_REQUEST_INVALID';
     process.stderr.write(`${JSON.stringify({ error: { code } })}\n`);

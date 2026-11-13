@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createHash } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
@@ -10,6 +11,7 @@ import {
 import { createLocalInspector } from './local-inspector.mjs';
 import {
   assertProviderBaselineCurrent,
+  buildAuthConfigReconciliationProof,
   buildSupabasePlan,
   buildSupabaseDoctor,
   PlanFailure,
@@ -26,6 +28,7 @@ import { withInstallerConnection } from './installer-connection.mjs';
 import {
   ensureAuthorization,
   readInstallState,
+  reconcileAuthConfigJournal,
   withInstallLock,
 } from './install-journal.mjs';
 import {
@@ -92,16 +95,28 @@ const exitCodes = Object.freeze({
   FIRST_ADMIN_EMAIL_TAKEN: 6,
   INSTITUTION_NOT_INSTALLED: 6,
   INSTITUTION_STATE_INCONSISTENT: 6,
+  AUTH_RECONCILE_TEMPLATE_MISMATCH: 6,
+  AUTH_RECONCILE_AUTH_STATE_MISMATCH: 6,
+  AUTH_RECONCILE_PRIOR_FINGERPRINT_MISMATCH: 6,
+  INSTALL_NOT_FOUND: 6,
+  INSTALL_INCOMPLETE: 6,
+  INSTALL_JOURNAL_INVALID: 6,
+  INSTALL_JOURNAL_MISSING: 6,
+  INSTALL_STEP_MISMATCH: 6,
+  PLAN_STATE_CHANGED: 6,
+  DRIFT_DETECTED: 6,
+  DRIFT_BLOCKED: 6,
+  AUTH_CONFIRMATION_REQUIRED: 6,
 });
 
 function parseArgs(argv) {
   const normalized = argv[0] === '--' ? argv.slice(1) : argv;
   const [operation = 'plan', ...rest] = normalized;
-  if (!['plan', 'apply', 'doctor', 'report', 'rollback', 'renew-authorization', 'create-institution', 'link-first-admin'].includes(operation)) throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if (!['plan', 'apply', 'doctor', 'report', 'rollback', 'renew-authorization', 'create-institution', 'link-first-admin', 'reconcile-auth-config'].includes(operation)) throw new PlanFailure('OPERATION_UNSUPPORTED');
   const options = {
     operation, target: 'hosted', projectRef: null, installManifest: null, installApproval: null,
     manifestUrl: null, renewAuthorization: operation === 'renew-authorization', to: null,
-    format: ['create-institution', 'link-first-admin'].includes(operation) ? 'json' : 'text',
+    format: ['create-institution', 'link-first-admin', 'reconcile-auth-config'].includes(operation) ? 'json' : 'text',
     workdir: process.cwd(), output: null,
     authSubject: null, email: null, name: null, timeZone: null, piiPurgeGraceDays: null,
   };
@@ -113,7 +128,7 @@ function parseArgs(argv) {
       seen.add(flag);
       continue;
     }
-    if (flag === '--json' && !seen.has('--format') && ['doctor', 'report'].includes(operation)) {
+    if (flag === '--json' && !seen.has('--format') && ['doctor', 'report', 'reconcile-auth-config'].includes(operation)) {
       options.format = 'json';
       seen.add('--format');
       continue;
@@ -156,6 +171,12 @@ function parseArgs(argv) {
     && operation !== 'link-first-admin') throw new PlanFailure('OPERATION_UNSUPPORTED');
   if ([options.timeZone, options.piiPurgeGraceDays].some(value => value !== null)
     && operation !== 'create-institution') throw new PlanFailure('OPERATION_UNSUPPORTED');
+  if (operation === 'reconcile-auth-config'
+    && (options.format !== 'json' || [...seen].some(flag => ![
+      '--target', '--project-ref', '--install-manifest', '--install-approval', '--format',
+    ].includes(flag)))) {
+    throw new PlanFailure('OPERATION_UNSUPPORTED');
+  }
   if (operation === 'create-institution') {
     if (options.format !== 'json') throw new PlanFailure('OPERATION_UNSUPPORTED');
     // 기본값은 D32의 1년 유예와 Seoul이다. 잘못된 값은 공급자 접근 전에 거부한다.
@@ -366,6 +387,59 @@ export async function runSupabaseBootstrap(options, {
       renewAuthorization: options.renewAuthorization,
       health: installationHealth,
     };
+    if (options.operation === 'reconcile-auth-config') {
+      // 승인된 Auth drift만 journal에 채택한다. provider와 email에는 쓰지 않는다.
+      const release = await loadReleaseIndexForDoctor({ now: new Date() });
+      const proof = await buildAuthConfigReconciliationProof({
+        target: options.target,
+        inspector,
+        authorization,
+        providerBaseline,
+        release,
+      });
+      const reconciled = await withInstallerConnection(authorization, sql =>
+        withInstallLock(sql, authorization.projectRefHash, async session => {
+          const fresh = await authorize();
+          const lockedProof = await buildAuthConfigReconciliationProof({
+            target: options.target,
+            inspector,
+            authorization: fresh,
+            providerBaseline,
+            release,
+          });
+          if (lockedProof.proofFingerprint !== proof.proofFingerprint
+            || await hashCanonical(lockedProof) !== await hashCanonical(proof)) {
+            throw new PlanFailure('PLAN_STATE_CHANGED');
+          }
+          const outcome = await reconcileAuthConfigJournal(session, fresh, {
+            priorStateFingerprint: lockedProof.priorStateFingerprint,
+            currentStateFingerprint: lockedProof.currentStateFingerprint,
+            inviteTemplateSha256: lockedProof.inviteTemplateSha256,
+          }, { authorize });
+          return { outcome, authorization: fresh };
+        }));
+      // 커밋 또는 정확한 readback 뒤 normal doctor를 한 번 더 실행한다. 기존
+      const doctor = await buildSupabaseDoctor({
+        ...planOptions,
+        authorization: reconciled.authorization,
+        release,
+      });
+      if (doctor.blockers.length > 0) throw installStepFailure(doctor.blockers[0].code);
+      return {
+        schemaVersion: 1,
+        operation: 'reconcile-auth-config',
+        target: 'hosted',
+        status: reconciled.outcome.changed ? 'reconciled' : 'already-reconciled',
+        code: reconciled.outcome.code,
+        changed: reconciled.outcome.changed,
+        installationIdSha256: createHash('sha256')
+          .update(reconciled.authorization.installationId, 'utf8').digest('hex'),
+        runtimeSequence: reconciled.authorization.runtimeSequence,
+        priorStateFingerprint: proof.priorStateFingerprint,
+        stateFingerprint: proof.currentStateFingerprint,
+        inviteTemplateSha256: proof.inviteTemplateSha256,
+      };
+    }
     let reportLedger = null;
     const diagnosisOptions = options.operation === 'report' ? {
       ...planOptions,
@@ -534,6 +608,7 @@ export async function runSupabaseBootstrap(options, {
     }
     return includeRelease ? { plan: result, releaseSha256: null } : result;
   } catch (error) {
+    if (process.env.CCC_DEBUG_CLOUD === '1') process.stderr.write(`${error?.stack ?? error}\n`);
     let code = 'OUTPUT_REDACTION_FAILED';
     try { code = JSON.parse(safeError(error, 'json').output).error.code; } catch {}
     throw Object.assign(new Error(code), { code });
@@ -547,7 +622,9 @@ async function main() {
     const result = await runSupabaseBootstrap(options);
     if (result === undefined) return;
     process.stdout.write(options.format === 'json' ? json(result) : text(result));
-    process.exitCode = result.ready ? 0 : 6;
+    process.exitCode = options.operation === 'reconcile-auth-config'
+      ? (result.status === 'reconciled' || result.status === 'already-reconciled' ? 0 : 6)
+      : (result.ready ? 0 : 6);
   } catch (error) {
     const format = options?.format === 'json'
       || process.argv.includes('json') || process.argv.includes('--json') ? 'json' : 'text';

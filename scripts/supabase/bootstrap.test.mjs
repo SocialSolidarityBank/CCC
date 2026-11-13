@@ -3,10 +3,13 @@ import { spawn } from 'node:child_process';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import tls from 'node:tls';
 import { pathToFileURL } from 'node:url';
+import postgres from 'postgres';
 import test from 'node:test';
 import {
   createHostedInspector,
@@ -18,7 +21,9 @@ import {
   assertProviderBaselineCurrent,
   buildSupabasePlan,
   buildSupabaseDoctor,
+  expectedSupabaseResources,
   installationStateFingerprint,
+  postgresMigrationPlan,
 } from './plan.mjs';
 import {
   BETA_TRUST_DOMAIN,
@@ -30,12 +35,24 @@ import {
   providerInventoryFingerprint,
   PROVIDER_INVENTORY_QUERY,
 } from './provider-inventory.mjs';
-import { hashDatabaseInstallFingerprint, INSTALL_METADATA_TABLES } from './install-journal.mjs';
-import { RELAYER_INVITE_TEMPLATE_HTML } from './auth-config.mjs';
+import {
+  bootstrapInstall,
+  hashDatabaseInstallFingerprint,
+  INSTALL_METADATA_TABLES,
+  updateInstallPhase,
+} from './install-journal.mjs';
+import { inspectAuthConfig, RELAYER_INVITE_TEMPLATE_HTML } from './auth-config.mjs';
 import { loadReleaseIndexForDoctor } from './apply.mjs';
 import { PINNED_RELEASE_ORIGIN } from '../release/release-origin.mjs';
 import { observationAuthorization } from './fixtures/authorization.mjs';
 import { canonicalizeJcs, sha256Jcs } from '../../apps/community-cloud/dist/install-manifest-verifier.js';
+import {
+  configuredInstallTrust,
+  hashCanonical,
+  requireSignedOwnerPreflight,
+} from './manifest-preflight.mjs';
+import { INSTALLER_SESSION_TIMEOUTS } from './installer-connection.mjs';
+import { runSupabaseBootstrap } from './bootstrap.mjs';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const cliPath = resolve(import.meta.dirname, 'bootstrap.mjs');
@@ -115,6 +132,22 @@ function grantRowForInspector() {
     is_grantable: false, provenance: 'supabase_managed',
   };
 }
+const AUTH_CONFIG_DEFAULT = Object.freeze({
+  disable_signup: true,
+  external_email_enabled: true,
+  jwt_exp: 3600,
+  mailer_autoconfirm: true,
+  mfa_max_enrolled_factors: 10,
+  mfa_totp_enroll_enabled: true,
+  mfa_totp_verify_enabled: true,
+  refresh_token_rotation_enabled: true,
+  security_captcha_enabled: true,
+  sessions_single_per_user: false,
+  site_url: 'https://must-not-escape.test',
+  smtp_pass: 'must-not-escape',
+  mailer_templates_invite_content: RELAYER_INVITE_TEMPLATE_HTML,
+});
+
 
 async function withManagementApi({
   region = 'ap-northeast-2',
@@ -123,18 +156,49 @@ async function withManagementApi({
   database = databaseSnapshot(),
   providerInventory = providerInventorySnapshot(),
   mutateAuth = false,
+  mutateAuthAfter = 1,
   autoconfirm = true,
   mutateData = false,
   installState = null,
+  journalSql = null,
+  installed = false,
+  health = false,
+  onAuthRead = null,
+  onInstallStateRead = null,
 }, run) {
   const requests = [];
+  const writeAttempts = [];
   let authReadCount = 0;
   let dataReadCount = 0;
+  let installStateReadCount = 0;
+  const installationId = 'synthetic-installation';
+  if (installed) {
+    database = {
+      ...database,
+      private_schema_exists: true,
+      private_install_metadata_exists: true,
+      private_table_names: [...INSTALL_METADATA_TABLES],
+    };
+  }
   const server = createServer(async (request, response) => {
     let body = '';
     for await (const chunk of request) body += chunk;
-    requests.push({ method: request.method, path: request.url, authorization: request.headers.authorization, body });
+    requests.push({ method: request.method, path: request.url, body });
 
+    if (health && request.url === '/readyz') {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ status: 'ready' }));
+      return;
+    }
+    if (health && request.url === '/functions/v1/ccc-storage-signer') {
+      response.writeHead(401, {
+        'content-type': 'application/json',
+        'x-ccc-installation-id': installationId,
+        'x-sb-edge-region': 'ap-northeast-2',
+      });
+      response.end(JSON.stringify({ code: 'UNAUTHORIZED' }));
+      return;
+    }
     if (request.headers.authorization !== `Bearer ${accessToken}`) {
       response.writeHead(401, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ message: `invalid ${accessToken}` }));
@@ -143,6 +207,17 @@ async function withManagementApi({
     if (status !== 200) {
       response.writeHead(status, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ message: `provider response contains ${accessToken}` }));
+      return;
+    }
+    const isReadRequest = request.method === 'GET'
+      || (request.method === 'POST' && request.url.endsWith('/database/query/read-only')
+        && (() => {
+          try { return JSON.parse(body).query.trimStart().startsWith('SELECT'); } catch { return false; }
+        })());
+    if (!isReadRequest) {
+      writeAttempts.push({ method: request.method, path: request.url });
+      response.writeHead(500, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ message: 'write attempt rejected by fixture' }));
       return;
     }
     response.writeHead(request.url.endsWith('/database/query/read-only') ? 201 : 200, {
@@ -164,21 +239,14 @@ async function withManagementApi({
     }
     if (request.url === '/v1/projects/test-project/config/auth') {
       authReadCount += 1;
-      response.end(JSON.stringify({
-        disable_signup: true,
-        external_email_enabled: true,
-        jwt_exp: 3600,
-        mailer_autoconfirm: mutateAuth === 'mailer_autoconfirm' && authReadCount > 1 ? !autoconfirm : autoconfirm,
-        mfa_max_enrolled_factors: mutateAuth === 'mfa_max_enrolled_factors' && authReadCount > 1 ? 9 : 10,
-        mfa_totp_enroll_enabled: true,
-        mfa_totp_verify_enabled: true,
-        refresh_token_rotation_enabled: true,
-        security_captcha_enabled: !(mutateAuth === 'security_captcha_enabled' && authReadCount > 1),
-        sessions_single_per_user: false,
-        site_url: mutateAuth === true && authReadCount > 1 ? 'https://changed-must-not-escape.test' : 'https://must-not-escape.test',
-        smtp_pass: 'must-not-escape',
-        mailer_templates_invite_content: RELAYER_INVITE_TEMPLATE_HTML,
-      }));
+      const mutated = mutateAuth !== false && authReadCount > mutateAuthAfter;
+      const authConfig = { ...AUTH_CONFIG_DEFAULT, mailer_autoconfirm: autoconfirm };
+      if (mutated && mutateAuth === 'mailer_autoconfirm') authConfig.mailer_autoconfirm = !autoconfirm;
+      if (mutated && mutateAuth === 'mfa_max_enrolled_factors') authConfig.mfa_max_enrolled_factors = 9;
+      if (mutated && mutateAuth === 'security_captcha_enabled') authConfig.security_captcha_enabled = false;
+      if (mutated && mutateAuth === true) authConfig.site_url = 'https://changed-must-not-escape.test';
+      response.end(JSON.stringify(authConfig));
+      if (onAuthRead !== null) await onAuthRead(authReadCount);
       return;
     }
     if (request.url === '/v1/projects/test-project/database/query/read-only') {
@@ -196,7 +264,17 @@ async function withManagementApi({
           return;
         }
         if (query.includes(' AS install_state')) {
-          response.end(JSON.stringify([{ install_state: installState }]));
+          installStateReadCount += 1;
+          if (journalSql !== null) {
+            response.end(JSON.stringify(await journalSql.unsafe(query)));
+          } else {
+            response.end(JSON.stringify([{ install_state: installState }]));
+          }
+          if (onInstallStateRead !== null) await onInstallStateRead(installStateReadCount, journalSql);
+          return;
+        }
+        if (query.includes('rolsuper, rolbypassrls')) {
+          response.end(JSON.stringify([{ rolsuper: false, rolbypassrls: false }]));
           return;
         }
         if (query.includes('catalog_state')) {
@@ -215,7 +293,7 @@ async function withManagementApi({
   const address = server.address();
   assert.ok(address && typeof address === 'object');
   try {
-    await run({ origin: `http://127.0.0.1:${address.port}`, requests });
+    await run({ origin: `http://127.0.0.1:${address.port}`, requests, writeAttempts });
   } finally {
     server.close();
     await once(server, 'close');
@@ -223,10 +301,10 @@ async function withManagementApi({
 }
 
 async function runCli(origin, {
-  token = accessToken, leadingSeparator = false, managementOrigin, operation = 'plan',
+  token = accessToken, leadingSeparator = false, managementOrigin, operation = 'plan', target = 'hosted',
   installManifest, manifestUrl, signedInput, extraArgs = [], format = 'json', cwd = repoRoot, runCode,
 } = {}) {
-  const args = [cliPath, ...(leadingSeparator ? ['--'] : []), operation, '--target', 'hosted', '--project-ref', 'test-project'];
+  const args = [cliPath, ...(leadingSeparator ? ['--'] : []), operation, '--target', target, '--project-ref', 'test-project'];
   if (format !== null) args.push('--format', format);
   if (manifestUrl !== undefined) args.push('--manifest-url', manifestUrl);
   args.push(...extraArgs);
@@ -249,6 +327,7 @@ async function runCli(origin, {
   delete childEnv.CCC_BETA_RELEASE_TRUST;
   delete childEnv.CCC_PROVIDER_BASELINE;
   delete childEnv.CCC_RELEASE_TRUST_STORE;
+  delete childEnv.CCC_INSTALL_DATABASE_URL;
   if (signedInput !== undefined) Object.assign(childEnv, signedInput);
   if (managementOrigin !== undefined) childEnv.CCC_SUPABASE_MANAGEMENT_ORIGIN = managementOrigin;
   const child = spawn(process.execPath, runCode === undefined ? args : ['--input-type=module', '-e', runCode], {
@@ -374,6 +453,9 @@ async function signedCliInputs(expectedOwnerOrgId = 'test-organization', {
   expiredTrust = false,
   expiredBaseline = false,
   baselineInventory = emptyProviderInventory,
+  sequence = 1,
+  apiBase = 'https://api.example.invalid/api',
+  authOrigin = 'https://test-project.supabase.co',
 } = {}) {
   const install = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   const root = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
@@ -393,20 +475,24 @@ async function signedCliInputs(expectedOwnerOrgId = 'test-organization', {
   });
   const now = Date.now();
   const manifestExpiresAt = new Date(now + 600_000).toISOString();
-  const manifest = await sign({
-    schemaVersion: 1, mode: 'community-cloud', apiBase: 'https://api.example.invalid/api',
-    clientOrigin: 'https://client.example.invalid', allowedOrigins: ['https://client.example.invalid'],
-    host: 'client.example.invalid', scheme: 'https', endpointDiscovery: 'static',
-    installationId: 'synthetic-installation', sequence: 1,
-    publishedAt: new Date(now - 60_000).toISOString(), expiresAt: manifestExpiresAt,
-    approvedSttEngineIds: [], supabaseProjectRef: 'test-project', supabaseAuthOrigin: 'https://test-project.supabase.co',
-    supabasePublishableKey: 'sb_publishable_synthetic', signingKeyId: 'synthetic-key',
-  });
-  const approval = await sign({
-    schemaVersion: 1, institutionId: 'synthetic-institution', projectRef: 'test-project', expectedOwnerOrgId,
-    installationId: manifest.installationId, runtimeManifestSha256: await sha256Jcs(manifest),
-    contractVersion: 'S11-install-approval-v1', expiresAt: manifest.expiresAt, signingKeyId: 'synthetic-key',
-  });
+  const pairFor = async runtimeSequence => {
+    const manifest = await sign({
+      schemaVersion: 1, mode: 'community-cloud', apiBase,
+      clientOrigin: 'https://client.example.invalid', allowedOrigins: ['https://client.example.invalid'],
+      host: 'client.example.invalid', scheme: 'https', endpointDiscovery: 'static',
+      installationId: 'synthetic-installation', sequence: runtimeSequence,
+      publishedAt: new Date(now - 60_000).toISOString(), expiresAt: manifestExpiresAt,
+      approvedSttEngineIds: [], supabaseProjectRef: 'test-project', supabaseAuthOrigin: authOrigin,
+      supabasePublishableKey: 'sb_publishable_synthetic', signingKeyId: 'synthetic-key',
+    });
+    const approval = await sign({
+      schemaVersion: 1, institutionId: 'synthetic-institution', projectRef: 'test-project', expectedOwnerOrgId,
+      installationId: manifest.installationId, runtimeManifestSha256: await sha256Jcs(manifest),
+      contractVersion: 'S11-install-approval-v1', expiresAt: manifest.expiresAt, signingKeyId: 'synthetic-key',
+    });
+    return { manifest, approval };
+  };
+  const { manifest, approval } = await pairFor(sequence);
   const projectRefSha256 = createHash('sha256').update('test-project').digest('hex');
   const ownerOrgIdSha256 = createHash('sha256').update(expectedOwnerOrgId).digest('hex');
   const trustExpiresAt = new Date(expiredTrust ? now - 1_000 : now + 300_000).toISOString();
@@ -453,7 +539,7 @@ async function signedCliInputs(expectedOwnerOrgId = 'test-organization', {
     expiresAt: baselineExpiresAt,
     signingKeyId: 'synthetic-beta-release',
   }, release, PROVIDER_BASELINE_DOMAIN);
-  return {
+  const inputs = {
     CCC_INSTALL_MANIFEST: JSON.stringify(manifest),
     CCC_INSTALL_APPROVAL: JSON.stringify(approval),
     CCC_ORGANIZATION_ID: 'synthetic-institution',
@@ -464,6 +550,8 @@ async function signedCliInputs(expectedOwnerOrgId = 'test-organization', {
     CCC_BETA_RELEASE_TRUST: JSON.stringify(releaseTrust),
     CCC_PROVIDER_BASELINE: JSON.stringify(providerBaseline),
   };
+  Object.defineProperty(inputs, 'pairFor', { value: pairFor, enumerable: false });
+  return inputs;
 }
 
 test('report CLI writes a private read-only diagnostic and preserves an existing report', async () => {
@@ -1854,5 +1942,642 @@ test('create-institution은 설치가 끝나지 않은 프로젝트에 기관을
       assert.equal(result.stdout, '');
       assertNoSensitiveOutput(result, origin);
     }
+  });
+});
+
+// ── Task 4: reconcile-auth-config 라우팅 (loopback disposable journal) ──────
+
+const RECONCILE_ENV_KEYS = [
+  'CCC_INSTALL_MANIFEST', 'CCC_INSTALL_APPROVAL', 'CCC_ORGANIZATION_ID',
+  'CCC_INSTALL_SIGNING_KEYS', 'CCC_INSTALL_REVOKED_KEY_IDS',
+  'CCC_BETA_TRUST_ROOT_KEYS', 'CCC_BETA_REVOKED_ROOT_KEY_IDS',
+  'CCC_BETA_RELEASE_TRUST', 'CCC_PROVIDER_BASELINE', 'CCC_RELEASE_TRUST_STORE',
+  'CCC_INSTALL_DATABASE_URL', 'SUPABASE_ACCESS_TOKEN', 'CCC_DATABASE_CA_FILE',
+];
+const RECONCILE_FIXTURE_LOCK = 4_117_404;
+
+
+function disposableJournalUrl() {
+  const value = process.env.CCC_INSTALL_JOURNAL_TEST_DATABASE_URL;
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error('MISSING_CCC_INSTALL_JOURNAL_TEST_DATABASE_URL');
+  }
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('INVALID_CCC_INSTALL_JOURNAL_TEST_DATABASE_URL');
+  }
+  const databaseName = decodeURIComponent(url.pathname.slice(1));
+  if (!['postgres:', 'postgresql:'].includes(url.protocol)
+    || !['127.0.0.1', 'localhost', '::1'].includes(url.hostname)
+    || databaseName === ''
+    || /prod|production/i.test(databaseName)
+    || !/test|fixture|disposable/i.test(databaseName)
+    || url.search !== '' || url.hash !== '') {
+    throw new Error('DISALLOWED_CCC_INSTALL_JOURNAL_TEST_DATABASE_URL');
+  }
+  return url;
+}
+
+async function withInstallerDatabase(run) {
+  const fixture = disposableJournalUrl();
+  const journalUrl = `postgres://${fixture.username}:${fixture.password}@${fixture.hostname}:${fixture.port}/postgres`;
+  const installerUrl = `postgres://${fixture.username}:${fixture.password}@db.test-project.supabase.co/postgres`;
+  const journalSql = postgres(journalUrl, { max: 4, onnotice: () => {} });
+  const fixtureLock = await journalSql.reserve();
+  try {
+    await fixtureLock.unsafe('SELECT pg_advisory_lock($1)', [RECONCILE_FIXTURE_LOCK]);
+    const [identity] = await journalSql`SELECT current_database() AS name`;
+    assert.equal(identity.name, 'postgres');
+    const [objects] = await journalSql`SELECT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_class AS relation
+      JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+      WHERE namespace.nspname = 'private'
+    ) OR EXISTS (
+      SELECT 1 FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+      WHERE namespace.nspname = 'private'
+    ) AS present`;
+    assert.equal(objects.present, false, 'disposable fixture must start without private objects');
+    await run({ journalSql, installerUrl, fixturePort: Number(fixture.port) });
+  } finally {
+    await journalSql.unsafe('DROP SCHEMA IF EXISTS private CASCADE').catch(() => {});
+    await fixtureLock.unsafe('SELECT pg_advisory_unlock($1)', [RECONCILE_FIXTURE_LOCK]).catch(() => {});
+    await fixtureLock.release();
+    await journalSql.end({ timeout: 5 }).catch(() => {});
+  }
+}
+
+function redirectInstallerSocket(fixturePort) {
+  const originalConnect = net.Socket.prototype.connect;
+  const originalTlsConnect = tls.connect;
+  net.Socket.prototype.connect = function connect(port, host) {
+    if (typeof host === 'string' && host.endsWith('.supabase.co')) {
+      return originalConnect.call(this, fixturePort, '127.0.0.1');
+    }
+    return originalConnect.apply(this, arguments);
+  };
+  tls.connect = options => {
+    if (typeof options?.servername === 'string' && options.servername.endsWith('.supabase.co')) {
+      const socket = options.socket;
+      queueMicrotask(() => socket.emit('secureConnect'));
+      return socket;
+    }
+    return originalTlsConnect(options);
+  };
+  return () => {
+    net.Socket.prototype.connect = originalConnect;
+    tls.connect = originalTlsConnect;
+  };
+}
+
+function redirectProviderFetch(origin, releaseDocument) {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (input, init) => {
+    const requested = new URL(input instanceof Request ? input.url : input);
+    if (requested.origin === 'https://api.supabase.com'
+      || requested.origin === 'https://api.example.invalid'
+      || requested.origin === 'https://test-project.supabase.co') {
+      return realFetch(new URL(`${requested.pathname}${requested.search}`, origin), init);
+    }
+    if (requested.origin === PINNED_RELEASE_ORIGIN) {
+      return Promise.resolve({
+        url: requested.href,
+        ok: true,
+        status: 200,
+        headers: new Headers({ date: new Date().toUTCString() }),
+        arrayBuffer: async () => new TextEncoder().encode(releaseDocument).buffer,
+        text: async () => releaseDocument,
+      });
+    }
+    return Promise.reject(new Error(`unexpected fetch origin ${requested.origin}`));
+  };
+  return () => { globalThis.fetch = realFetch; };
+}
+
+const FLOOR_PATH = '/Library/Application Support/CCC/update/release-floor.json';
+
+async function preserveReleaseFloor(run) {
+  const before = await readFile(FLOOR_PATH, 'utf8').catch(() => null);
+  try {
+    return await run();
+  } finally {
+    if (before === null) await rm(FLOOR_PATH, { force: true });
+    else await writeFile(FLOOR_PATH, before);
+  }
+}
+
+async function withReconcileEnv(signedInput, installerUrl, run) {
+  const saved = Object.fromEntries(RECONCILE_ENV_KEYS.map(key => [key, process.env[key]]));
+  try {
+    Object.assign(process.env, signedInput);
+    process.env.SUPABASE_ACCESS_TOKEN = accessToken;
+    process.env.CCC_INSTALL_DATABASE_URL = installerUrl;
+    delete process.env.CCC_DATABASE_CA_FILE;
+    return await run();
+  } finally {
+    for (const key of RECONCILE_ENV_KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  }
+}
+
+async function seedInstalledAuthDrift({
+  signedInput,
+  journalSql,
+  providerBaseline,
+  projectRef = 'test-project',
+  ownerOrgId = 'test-organization',
+  receipt = true,
+}) {
+  const pair = await signedInput.pairFor(1);
+  const initial = await requireSignedOwnerPreflight({
+    installManifest: JSON.stringify(pair.manifest),
+    installApproval: JSON.stringify(pair.approval),
+    trust: configuredInstallTrust({
+      organizationId: signedInput.CCC_ORGANIZATION_ID,
+      publicKeys: signedInput.CCC_INSTALL_SIGNING_KEYS,
+      revokedKeyIds: signedInput.CCC_INSTALL_REVOKED_KEY_IDS,
+    }),
+    organizationId: signedInput.CCC_ORGANIZATION_ID,
+    projectRef,
+  });
+  const migrations = postgresMigrationPlan();
+  const desired = {
+    resourcesSha256: await hashCanonical({
+      resources: expectedSupabaseResources,
+      providerBaselineVersion: providerBaseline.baselineVersion,
+      providerBaselineSha256: providerBaseline.baselineSha256,
+      providerObjectsSha256: providerBaseline.objectInventorySha256,
+      providerGrantsSha256: providerBaseline.grantInventorySha256,
+    }),
+    migrationsSha256: await hashCanonical(migrations),
+    planFingerprint: 'f'.repeat(64),
+  };
+  const session = await journalSql.reserve();
+  try {
+    await bootstrapInstall(session, initial, desired, { authorize: async () => initial });
+    await updateInstallPhase(session, initial, {
+      phase: 'installed',
+      stateFingerprint: await installationStateFingerprint({
+        project: {
+          region: 'ap-northeast-2',
+          ownerOrgIdHash: createHash('sha256').update(ownerOrgId, 'utf8').digest('hex'),
+        },
+        databaseFingerprint: hashDatabaseInstallFingerprint(
+          [{ catalog_state: 'synthetic-public-catalog' }],
+          normalizeProviderInventory(providerInventorySnapshot()),
+        ),
+        state: {
+          policyFingerprint: 'policy-empty',
+          bucketFingerprint: 'bucket-empty',
+          authFingerprint: inspectAuthConfig(AUTH_CONFIG_DEFAULT).priorAuthFingerprint,
+        },
+        cronJobCount: 0,
+        providerInventory: emptyProviderInventory,
+      }, providerBaseline),
+    }, { authorize: async () => initial });
+  } finally {
+    await session.release();
+  }
+  for (const migration of migrations) {
+    await journalSql`INSERT INTO private.ccc_schema_migrations (id, checksum, installation_id)
+      VALUES (${migration.id}, ${migration.checksum}, ${initial.installationId})`;
+  }
+  const schemaFingerprint = hashDatabaseInstallFingerprint(
+    [{ catalog_state: 'synthetic-public-catalog' }],
+    normalizeProviderInventory(providerInventorySnapshot()),
+  );
+  const receiptRow = {
+    contract: 'S11',
+    contractVersion: '0.3',
+    installationId: initial.installationId,
+    institutionIdHash: initial.institutionIdHash,
+    rollbackTarget: null,
+    expectedOwnerOrgIdHash: initial.expectedOwnerOrgIdHash,
+    observedOwnerOrgIdHash: createHash('sha256').update(ownerOrgId, 'utf8').digest('hex'),
+    releaseVersion: '0.9.0-dev.1',
+    releaseSequence: '7',
+    manifestDigest: 'a'.repeat(64),
+    artifactSetDigest: 'b'.repeat(64),
+    migrationHead: migrations.at(-1).id,
+    schemaFingerprint,
+    edgeRegionEvidence: {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'ap-northeast-2',
+      functionRegion: 'ap-northeast-2',
+      mismatch: false,
+    },
+    providerResourceDigests: {},
+    backupId: null,
+    backupDigest: null,
+    priorReceiptDigest: null,
+    recordedAt: '2026-09-11T12:00:00.000Z',
+    status: 'installed',
+  };
+  if (receipt) {
+    await journalSql`INSERT INTO private.ccc_install_receipt (
+      installation_id, contract, contract_version, institution_id_hash, rollback_target,
+      expected_owner_org_id_hash, observed_owner_org_id_hash, release_version, release_sequence,
+      manifest_digest, artifact_set_digest, migration_head, schema_fingerprint,
+      edge_region_evidence, provider_resource_digests, backup_id, backup_digest,
+      prior_receipt_digest, recorded_at, status
+    ) VALUES (
+      ${receiptRow.installationId}, ${receiptRow.contract}, ${receiptRow.contractVersion},
+      ${receiptRow.institutionIdHash}, ${receiptRow.rollbackTarget},
+      ${receiptRow.expectedOwnerOrgIdHash}, ${receiptRow.observedOwnerOrgIdHash},
+      ${receiptRow.releaseVersion}, ${receiptRow.releaseSequence},
+      ${receiptRow.manifestDigest}, ${receiptRow.artifactSetDigest}, ${receiptRow.migrationHead},
+      ${receiptRow.schemaFingerprint}, ${receiptRow.edgeRegionEvidence},
+      ${receiptRow.providerResourceDigests}, ${receiptRow.backupId}, ${receiptRow.backupDigest},
+      ${receiptRow.priorReceiptDigest}, ${receiptRow.recordedAt}, ${receiptRow.status}
+    )`;
+    await journalSql`INSERT INTO private.ccc_release_history (
+      installation_id, contract, contract_version, institution_id_hash, rollback_target,
+      expected_owner_org_id_hash, observed_owner_org_id_hash, release_version, release_sequence,
+      manifest_digest, artifact_set_digest, migration_head, schema_fingerprint,
+      edge_region_evidence, provider_resource_digests, backup_id, backup_digest,
+      prior_receipt_digest, recorded_at, status
+    ) VALUES (
+      ${receiptRow.installationId}, ${receiptRow.contract}, ${receiptRow.contractVersion},
+      ${receiptRow.institutionIdHash}, ${receiptRow.rollbackTarget},
+      ${receiptRow.expectedOwnerOrgIdHash}, ${receiptRow.observedOwnerOrgIdHash},
+      ${receiptRow.releaseVersion}, ${receiptRow.releaseSequence},
+      ${receiptRow.manifestDigest}, ${receiptRow.artifactSetDigest}, ${receiptRow.migrationHead},
+      ${receiptRow.schemaFingerprint}, ${receiptRow.edgeRegionEvidence},
+      ${receiptRow.providerResourceDigests}, ${receiptRow.backupId}, ${receiptRow.backupDigest},
+      ${receiptRow.priorReceiptDigest}, ${receiptRow.recordedAt}, ${receiptRow.status}
+    )`;
+  }
+  return {
+    initial,
+    priorStateFingerprint: await installationStateFingerprint({
+      project: {
+        region: 'ap-northeast-2',
+        ownerOrgIdHash: createHash('sha256').update(ownerOrgId, 'utf8').digest('hex'),
+      },
+      databaseFingerprint: schemaFingerprint,
+      state: {
+        policyFingerprint: 'policy-empty',
+        bucketFingerprint: 'bucket-empty',
+        authFingerprint: inspectAuthConfig(AUTH_CONFIG_DEFAULT).priorAuthFingerprint,
+      },
+      cronJobCount: 0,
+      providerInventory: emptyProviderInventory,
+    }, providerBaseline),
+    currentStateFingerprint: await installationStateFingerprint({
+      project: {
+        region: 'ap-northeast-2',
+        ownerOrgIdHash: createHash('sha256').update(ownerOrgId, 'utf8').digest('hex'),
+      },
+      databaseFingerprint: schemaFingerprint,
+      state: {
+        policyFingerprint: 'policy-empty',
+        bucketFingerprint: 'bucket-empty',
+        authFingerprint: inspectAuthConfig(AUTH_CONFIG_DEFAULT).currentAuthFingerprint,
+      },
+      cronJobCount: 0,
+      providerInventory: emptyProviderInventory,
+    }, providerBaseline),
+  };
+}
+
+async function snapshotJournalTables(journalSql) {
+  const snapshot = {};
+  for (const table of INSTALL_METADATA_TABLES) {
+    const [row] = await journalSql.unsafe(
+      `SELECT COALESCE(jsonb_agg(entry ORDER BY entry::text), '[]'::jsonb) AS rows
+       FROM (SELECT row_to_json(t) AS entry FROM private.${table} AS t) AS ordered`,
+    );
+    snapshot[table] = row.rows;
+  }
+  return snapshot;
+}
+
+async function runReconcileBootstrap(signedInput) {
+  return runSupabaseBootstrap({
+    operation: 'reconcile-auth-config',
+    target: 'hosted',
+    projectRef: 'test-project',
+    installManifest: signedInput.CCC_INSTALL_MANIFEST,
+    installApproval: signedInput.CCC_INSTALL_APPROVAL,
+    format: 'json',
+    workdir: repoRoot,
+  });
+}
+
+async function withReconcileFixture({
+  seed = {},
+  api = {},
+  run,
+}) {
+  const signedInput = await signedCliInputs('test-organization', { sequence: 2 });
+  const releaseFixture = pinnedOriginFixture();
+  const releaseDocument = await (await releaseFixture.options.fetchImpl(
+    `${PINNED_RELEASE_ORIGIN}/index.json`,
+  )).text();
+  await withInstallerDatabase(async ({ journalSql, installerUrl, fixturePort }) => {
+    const pair = await signedInput.pairFor(2);
+    const runAuthorization = await requireSignedOwnerPreflight({
+      installManifest: JSON.stringify(pair.manifest),
+      installApproval: JSON.stringify(pair.approval),
+      trust: configuredInstallTrust({
+        organizationId: signedInput.CCC_ORGANIZATION_ID,
+        publicKeys: signedInput.CCC_INSTALL_SIGNING_KEYS,
+        revokedKeyIds: signedInput.CCC_INSTALL_REVOKED_KEY_IDS,
+      }),
+      organizationId: signedInput.CCC_ORGANIZATION_ID,
+      projectRef: 'test-project',
+    });
+    const providerBaseline = await requireProviderBaseline({
+      releaseTrust: signedInput.CCC_BETA_RELEASE_TRUST,
+      providerBaseline: signedInput.CCC_PROVIDER_BASELINE,
+      rootKeys: JSON.parse(signedInput.CCC_BETA_TRUST_ROOT_KEYS),
+      revokedRootKeyIds: JSON.parse(signedInput.CCC_BETA_REVOKED_ROOT_KEY_IDS),
+      authorization: runAuthorization,
+      manifestExpiresAt: runAuthorization.expiresAt,
+    });
+    const seeded = await seedInstalledAuthDrift({
+      signedInput, journalSql, providerBaseline, ...seed,
+    });
+    await withManagementApi({ journalSql, installed: true, health: true, ...api }, async context => {
+      const restoreFetch = redirectProviderFetch(context.origin, releaseDocument);
+      const restoreSocket = redirectInstallerSocket(fixturePort);
+      try {
+        await withReconcileEnv({ ...signedInput, CCC_RELEASE_TRUST_STORE: releaseFixture.trustDocument }, installerUrl, async () => {
+          await run({ ...context, journalSql, signedInput, seeded, providerBaseline, releaseFixture, installerUrl,
+            runReconcile: () => preserveReleaseFloor(() => runReconcileBootstrap(signedInput)) });
+        });
+      } finally {
+        restoreSocket();
+        restoreFetch();
+      }
+    });
+  });
+}
+
+test('reconcile-auth-config rejects non-hosted targets before observation or writes', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const result = await runCli(origin, {
+      operation: 'reconcile-auth-config',
+      target: 'local',
+      signedInput: await signedCliInputs(),
+    });
+    assert.equal(result.exitCode, 2, result.stdout);
+    assert.equal(result.stdout, '');
+    assert.equal(JSON.parse(result.stderr).error.code, 'TARGET_UNSUPPORTED');
+    assert.equal(requests.length, 0);
+    assertNoSensitiveOutput(result, origin);
+  });
+});
+
+test('reconcile-auth-config rejects unrelated flags before observation or writes', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const result = await runCli(origin, {
+      operation: 'reconcile-auth-config',
+      signedInput: await signedCliInputs(),
+      extraArgs: ['--workdir', repoRoot],
+    });
+    assert.equal(result.exitCode, 2, result.stdout);
+    assert.equal(result.stdout, '');
+    assert.equal(JSON.parse(result.stderr).error.code, 'OPERATION_UNSUPPORTED');
+    assert.equal(requests.length, 0);
+  });
+});
+
+test('reconcile-auth-config reports first success and exact repeat with fixed redacted keys', async () => {
+  await withReconcileFixture({
+    run: async ({ journalSql, signedInput, seeded, requests, writeAttempts, runReconcile }) => {
+      const first = await runReconcile();
+      assert.deepEqual(Object.keys(first).sort(), [
+        'changed', 'code', 'installationIdSha256', 'inviteTemplateSha256', 'operation',
+        'priorStateFingerprint', 'runtimeSequence', 'schemaVersion', 'stateFingerprint',
+        'status', 'target',
+      ]);
+      assert.equal(first.schemaVersion, 1);
+      assert.equal(first.operation, 'reconcile-auth-config');
+      assert.equal(first.target, 'hosted');
+      assert.equal(first.status, 'reconciled');
+      assert.equal(first.code, 'AUTH_CONFIG_RECONCILED');
+      assert.equal(first.changed, true);
+      assert.equal(first.runtimeSequence, 2);
+      assert.equal(first.installationIdSha256,
+        createHash('sha256').update('synthetic-installation', 'utf8').digest('hex'));
+      assert.equal(first.priorStateFingerprint, seeded.priorStateFingerprint);
+      assert.equal(first.stateFingerprint, seeded.currentStateFingerprint);
+      assert.equal(first.inviteTemplateSha256, inspectAuthConfig(AUTH_CONFIG_DEFAULT).inviteTemplateSha256);
+
+      const repeat = await runReconcile();
+      assert.deepEqual(Object.keys(repeat), Object.keys(first));
+      assert.equal(repeat.status, 'already-reconciled');
+      assert.equal(repeat.code, 'AUTH_CONFIG_ALREADY_RECONCILED');
+      assert.equal(repeat.changed, false);
+      for (const key of [
+        'schemaVersion', 'operation', 'target', 'installationIdSha256', 'runtimeSequence',
+        'priorStateFingerprint', 'stateFingerprint', 'inviteTemplateSha256',
+      ]) {
+        assert.equal(repeat[key], first[key], key);
+      }
+
+
+      const journal = await journalSql`SELECT phase, runtime_sequence, state_fingerprint
+        FROM private.ccc_install_journal`;
+      assert.equal(journal.length, 1);
+      assert.equal(journal[0].phase, 'installed');
+      assert.equal(Number(journal[0].runtime_sequence), 2);
+      assert.equal(journal[0].state_fingerprint, first.stateFingerprint);
+      const authorizations = await journalSql`SELECT runtime_sequence FROM private.ccc_install_authorizations`;
+      assert.deepEqual(authorizations.map(row => Number(row.runtime_sequence)).sort(), [1, 2]);
+      const steps = await journalSql`SELECT step, status FROM private.ccc_install_steps`;
+      assert.deepEqual(steps.map(row => `${row.step}:${row.status}`), ['auth_config:completed']);
+      assert.equal(writeAttempts.length, 0);
+      assert.ok(requests.length > 0);
+      assert.ok(requests.every(({ method, path }) =>
+        method === 'GET' || (method === 'POST' && path.endsWith('/database/query/read-only'))
+        || path === '/readyz' || path.startsWith('/functions/v1/')));
+    },
+  });
+});
+
+test('reconcile-auth-config rechecks the complete proof after the advisory lock', async t => {
+  await t.test('journal movement', async () => {
+    await withReconcileFixture({
+      api: {
+        onInstallStateRead: async (count, journalSql) => {
+          if (count === 2) {
+            await journalSql.unsafe(
+              'UPDATE private.ccc_install_journal SET updated_at = clock_timestamp()',
+            );
+          }
+        },
+      },
+      run: async ({ journalSql, runReconcile }) => {
+        const before = await snapshotJournalTables(journalSql);
+        await assert.rejects(() => runReconcile(), { code: 'PLAN_STATE_CHANGED' });
+        const after = await snapshotJournalTables(journalSql);
+        for (const table of INSTALL_METADATA_TABLES) {
+          if (table === 'ccc_install_journal') {
+            assert.equal(after[table].length, before[table].length);
+            continue;
+          }
+          assert.deepEqual(after[table], before[table], table);
+        }
+      },
+    });
+  });
+
+  await t.test('signed pair invalidation', async () => {
+    await withReconcileFixture({
+      api: {
+        onAuthRead: async count => {
+          if (count === 2) {
+            process.env.CCC_INSTALL_REVOKED_KEY_IDS = JSON.stringify(['synthetic-key']);
+          }
+        },
+      },
+      run: async ({ journalSql, runReconcile }) => {
+        const before = await snapshotJournalTables(journalSql);
+        await assert.rejects(() => runReconcile(), { code: 'OWNER_EVIDENCE_MISSING' });
+        assert.deepEqual(await snapshotJournalTables(journalSql), before);
+      },
+    });
+  });
+
+  await t.test('Auth movement', async () => {
+    await withReconcileFixture({
+      api: { mutateAuth: true, mutateAuthAfter: 2 },
+      run: async ({ journalSql, runReconcile }) => {
+        const before = await snapshotJournalTables(journalSql);
+        await assert.rejects(() => runReconcile(), { code: 'PLAN_STATE_CHANGED' });
+        assert.deepEqual(await snapshotJournalTables(journalSql), before);
+      },
+    });
+  });
+});
+
+test('reconcile-auth-config reports the first unrelated doctor blocker without journal writes', async t => {
+  await t.test('provider baseline mismatch', async () => {
+    await withReconcileFixture({
+      api: {
+        providerInventory: providerInventorySnapshot({ objects: [objectRowForInspector()] }),
+        database: databaseSnapshot({ provider_object_count: 1 }),
+      },
+      run: async ({ journalSql, runReconcile }) => {
+        const before = await snapshotJournalTables(journalSql);
+        await assert.rejects(
+          () => runReconcile(),
+          { code: 'PROVIDER_BASELINE_MISMATCH' },
+        );
+        assert.deepEqual(await snapshotJournalTables(journalSql), before);
+      },
+    });
+  });
+
+  await t.test('missing install receipt', async () => {
+    await withReconcileFixture({
+      run: async ({ journalSql, runReconcile }) => {
+        await journalSql`DELETE FROM private.ccc_install_receipt`;
+        const before = await snapshotJournalTables(journalSql);
+        await assert.rejects(
+          () => runReconcile(),
+          { code: 'INSTALL_INCOMPLETE' },
+        );
+        assert.deepEqual(await snapshotJournalTables(journalSql), before);
+      },
+    });
+  });
+});
+
+test('reconcile-auth-config keeps provider and email write endpoints at zero', async () => {
+  await withReconcileFixture({
+    run: async ({ signedInput, requests, writeAttempts, runReconcile }) => {
+      const result = await runReconcile();
+      assert.equal(result.code, 'AUTH_CONFIG_RECONCILED');
+      assert.equal(writeAttempts.length, 0);
+      const providerRequests = requests.filter(({ path }) =>
+        path !== '/readyz' && !path.startsWith('/functions/v1/'));
+      assert.ok(providerRequests.length > 0);
+      assert.equal(providerRequests.filter(({ method, path }) =>
+        method === 'PATCH' || path.includes('/invite') || path.includes('/users')
+        || path.includes('/templates') || path.includes('/config/auth') && method !== 'GET').length, 0);
+      assert.equal(requests.filter(({ path }) =>
+        path.includes('/functions/v1/') && path !== '/functions/v1/ccc-storage-signer').length, 0);
+    },
+  });
+});
+
+test('reconcile-auth-config CLI emits one exact redacted reconciliation result', async () => {
+  await withReconcileFixture({
+    run: async ({ origin, signedInput, releaseFixture, installerUrl }) => {
+      const releaseDocument = await (await releaseFixture.options.fetchImpl(
+        `${PINNED_RELEASE_ORIGIN}/index.json`,
+      )).text();
+      const runCode = `
+        import net from 'node:net';
+        import tls from 'node:tls';
+        const releaseDocument = ${JSON.stringify(releaseDocument)};
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = (input, init) => {
+          const requested = new URL(input instanceof Request ? input.url : input);
+          if (requested.origin === 'https://api.supabase.com'
+            || requested.origin === 'https://api.example.invalid'
+            || requested.origin === 'https://test-project.supabase.co') {
+            return realFetch('https://api.supabase.com' + requested.pathname + requested.search, init);
+          }
+          if (requested.origin === ${JSON.stringify(PINNED_RELEASE_ORIGIN)}) {
+            return Promise.resolve({
+              url: requested.href,
+              ok: true,
+              status: 200,
+              headers: new Headers({ date: new Date().toUTCString() }),
+              arrayBuffer: async () => new TextEncoder().encode(releaseDocument).buffer,
+              text: async () => releaseDocument,
+            });
+          }
+          return realFetch(input, init);
+        };
+        const originalConnect = net.Socket.prototype.connect;
+        const originalTlsConnect = tls.connect;
+        net.Socket.prototype.connect = function connect(port, host) {
+          if (typeof host === 'string' && host.endsWith('.supabase.co')) {
+            return originalConnect.call(this, ${Number(disposableJournalUrl().port)}, '127.0.0.1');
+          }
+          return originalConnect.apply(this, arguments);
+        };
+        tls.connect = options => {
+          if (typeof options?.servername === 'string' && options.servername.endsWith('.supabase.co')) {
+            const socket = options.socket;
+            queueMicrotask(() => socket.emit('secureConnect'));
+            return socket;
+          }
+          return originalTlsConnect(options);
+        };
+        process.argv = [process.execPath, ${JSON.stringify(cliPath)},
+          'reconcile-auth-config', '--target', 'hosted', '--project-ref', 'test-project'];
+        await import(${JSON.stringify(pathToFileURL(cliPath).href)});
+      `;
+      const result = await preserveReleaseFloor(() => runCli(origin, {
+        runCode,
+        signedInput: {
+          ...signedInput,
+          CCC_RELEASE_TRUST_STORE: releaseFixture.trustDocument,
+          CCC_INSTALL_DATABASE_URL: installerUrl,
+        },
+      }));
+      assert.equal(result.exitCode, 0, result.stderr);
+      assert.equal(result.stderr, '');
+      const parsed = JSON.parse(result.stdout);
+      assert.deepEqual(Object.keys(parsed).sort(), [
+        'changed', 'code', 'installationIdSha256', 'inviteTemplateSha256', 'operation',
+        'priorStateFingerprint', 'runtimeSequence', 'schemaVersion', 'stateFingerprint',
+        'status', 'target',
+      ]);
+      assert.equal(parsed.status, 'reconciled');
+      assert.equal(parsed.code, 'AUTH_CONFIG_RECONCILED');
+      assert.equal(parsed.changed, true);
+      assertNoSensitiveOutput(result, origin);
+    },
   });
 });
