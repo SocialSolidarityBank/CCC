@@ -1,0 +1,269 @@
+{
+  "runtimeDir": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x",
+  "snapshot": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source",
+  "snapshotHashMismatch": [],
+  "trackedCount": 397,
+  "linkProof": [
+    {
+      "from": "node_modules/@types/node",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@types+node@24.13.3/node_modules/@types/node",
+      "workspace": false
+    },
+    {
+      "from": "node_modules/spdx-exceptions",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/spdx-exceptions@2.5.0/node_modules/spdx-exceptions",
+      "workspace": false
+    },
+    {
+      "from": "node_modules/miniflare",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/miniflare@4.20260706.0/node_modules/miniflare",
+      "workspace": false
+    },
+    {
+      "from": "node_modules/@cloudflare/vitest-pool-workers",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@cloudflare+vitest-pool-workers@0.16.20_@cloudflare+workers-types@5.20260708.1_@vitest+_cadb7e6040dfd26107fba6db70a017db/node_modules/@cloudflare/vitest-pool-workers",
+      "workspace": false
+    },
+    {
+      "from": "node_modules/@cloudflare/workers-types",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@cloudflare+workers-types@5.20260708.1/node_modules/@cloudflare/workers-types",
+      "workspace": false
+    },
+    {
+      "from": "node_modules/wrangler",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/wrangler@4.107.1_@cloudflare+workers-types@5.20260708.1/node_modules/wrangler",
+      "workspace": false
+    },
+    {
+      "from": "node_modules/vitest",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/vitest@4.1.10_@types+node@24.13.3_jsdom@26.1.0_vite@8.1.3_@types+node@24.13.3_esbuild@0.28.1_terser@5.16.9_yaml@2.9.0_/node_modules/vitest",
+      "workspace": false
+    },
+    {
+      "from": "node_modules/@ccc/core",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/core",
+      "workspace": true
+    },
+    {
+      "from": "node_modules/@ccc/db-postgres",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/adapters/db-postgres",
+      "workspace": true
+    },
+    {
+      "from": "node_modules/@ccc/contracts",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/contracts",
+      "workspace": true
+    },
+    {
+      "from": "node_modules/@ccc/db-d1",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/adapters/db-d1",
+      "workspace": true
+    },
+    {
+      "from": "node_modules/@ccc/secrets-env",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/adapters/secrets-env",
+      "workspace": true
+    },
+    {
+      "from": "node_modules/typescript",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript",
+      "workspace": false
+    },
+    {
+      "from": "node_modules/spdx-license-ids",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/spdx-license-ids@3.0.22/node_modules/spdx-license-ids",
+      "workspace": false
+    },
+    {
+      "from": "node_modules/postgres",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/postgres@3.4.9/node_modules/postgres",
+      "workspace": false
+    },
+    {
+      "from": "node_modules/spdx-expression-parse",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/spdx-expression-parse@3.0.1/node_modules/spdx-expression-parse",
+      "workspace": false
+    },
+    {
+      "from": "node_modules/tar",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/tar@7.5.22/node_modules/tar",
+      "workspace": false
+    },
+    {
+      "from": "apps/client/node_modules/@types/react-dom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@types+react-dom@19.2.3_@types+react@19.2.17/node_modules/@types/react-dom",
+      "workspace": false
+    },
+    {
+      "from": "apps/client/node_modules/@types/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@types+react@19.2.17/node_modules/@types/react",
+      "workspace": false
+    },
+    {
+      "from": "apps/client/node_modules/vitest",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/vitest@4.1.10_@types+node@24.13.3_jsdom@26.1.0_vite@8.1.3_@types+node@24.13.3_esbuild@0.28.1_terser@5.16.9_yaml@2.9.0_/node_modules/vitest",
+      "workspace": false
+    },
+    {
+      "from": "apps/client/node_modules/@ccc/wire",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/wire",
+      "workspace": true
+    },
+    {
+      "from": "apps/client/node_modules/@ccc/contracts",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/contracts",
+      "workspace": true
+    },
+    {
+      "from": "apps/client/node_modules/typescript",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript",
+      "workspace": false
+    },
+    {
+      "from": "apps/client/node_modules/react-dom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom",
+      "workspace": false
+    },
+    {
+      "from": "apps/client/node_modules/vite",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/vite@8.1.3_@types+node@24.13.3_esbuild@0.28.1_terser@5.16.9_yaml@2.9.0/node_modules/vite",
+      "workspace": false
+    },
+    {
+      "from": "apps/client/node_modules/@supabase/supabase-js",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+supabase-js@2.116.0/node_modules/@supabase/supabase-js",
+      "workspace": false
+    },
+    {
+      "from": "apps/client/node_modules/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react@19.2.7/node_modules/react",
+      "workspace": false
+    },
+    {
+      "from": "apps/client/node_modules/react-router",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/@types/react-dom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@types+react-dom@19.2.3_@types+react@19.2.17/node_modules/@types/react-dom",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/@types/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@types+react@19.2.17/node_modules/@types/react",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/@opennextjs/cloudflare",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@opennextjs+cloudflare@1.20.1_encoding@0.1.13_next@16.2.10_react-dom@19.2.7_react@19.2._c119f73e47d22932bf4d5f699fead588/node_modules/@opennextjs/cloudflare",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/next",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/next@16.2.10_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/next",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/react-day-picker",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-day-picker@10.0.1_@types+react@19.2.17_react@19.2.7/node_modules/react-day-picker",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/pretendard",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/pretendard@1.3.9/node_modules/pretendard",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/@ccc/wire",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/wire",
+      "workspace": true
+    },
+    {
+      "from": "apps/web/node_modules/@ccc/contracts",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/contracts",
+      "workspace": true
+    },
+    {
+      "from": "apps/web/node_modules/lucide-react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/lucide-react@1.24.0_react@19.2.7/node_modules/lucide-react",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/jsdom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/react-dom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/qrcode.react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/qrcode.react@4.2.0_react@19.2.7/node_modules/qrcode.react",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/@testing-library/dom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/@testing-library/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@testing-library+react@16.3.2_@testing-library+dom@10.4.1_@types+react-dom@19.2.3_@type_11d2d49f5a29711711a9ee76b83cb539/node_modules/@testing-library/react",
+      "workspace": false
+    },
+    {
+      "from": "apps/web/node_modules/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react@19.2.7/node_modules/react",
+      "workspace": false
+    },
+    {
+      "from": "packages/ai-runtime/node_modules/@ccc/contracts",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/contracts",
+      "workspace": true
+    },
+    {
+      "from": "packages/core/node_modules/@ccc/contracts",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/contracts",
+      "workspace": true
+    },
+    {
+      "from": "packages/http-api/node_modules/@ccc/core",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/core",
+      "workspace": true
+    },
+    {
+      "from": "packages/http-api/node_modules/@ccc/contracts",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/contracts",
+      "workspace": true
+    },
+    {
+      "from": "packages/http-api/node_modules/@ccc/ai-runtime",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/ai-runtime",
+      "workspace": true
+    },
+    {
+      "from": "packages/wire/node_modules/@types/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@types+react@19.2.17/node_modules/@types/react",
+      "workspace": false
+    },
+    {
+      "from": "packages/wire/node_modules/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react@19.2.7/node_modules/react",
+      "workspace": false
+    }
+  ],
+  "environment": {
+    "PATH": "/Users/seongqkim/.local/share/mise/installs/go/1.26.4/bin:/Users/seongqkim/.local/share/mise/installs/node/lts/bin:/Users/seongqkim/.local/share/mise/installs/python/latest/bin:/Users/seongqkim/.local/bin:/Users/seongqkim/.local/bin:/Users/seongqkim/.bun/bin:/Users/seongqkim/.local/bin:/Users/seongqkim/.antigravity/antigravity/bin:/Users/seongqkim/.volta/bin:/Users/seongqkim/.opencode/bin:/Users/seongqkim/.local/bin:/Users/seongqkim/.bun/bin:/Users/seongqkim/.dotfiles/scripts:/opt/homebrew/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/seongqkim/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/seongqkim/.bun/bin:/Users/seongqkim/.antigravity/antigravity/bin:/Users/seongqkim/.volta/bin:/Users/seongqkim/.opencode/bin:/Users/seongqkim/.dotfiles/scripts:/Users/seongqkim/.cargo/bin:/Users/seongqkim/.config/kaku/zsh/bin:/Users/seongqkim/.grok/bin:/opt/homebrew/opt/rustup/bin:/Users/seongqkim/.config/kaku/zsh/bin:/Users/seongqkim/.grok/bin:/opt/homebrew/opt/rustup/bin",
+    "HOME": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/home",
+    "TMPDIR": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/tmp",
+    "TMP": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/tmp",
+    "TEMP": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/tmp",
+    "XDG_CACHE_HOME": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/cache",
+    "CI": "1",
+    "NO_COLOR": "1"
+  },
+  "gitArchiveSha256": "9a60346e4a758fcf341e6f08079fb0b76d9eacc8cd57a96528bb7ec1b8df7160"
+}

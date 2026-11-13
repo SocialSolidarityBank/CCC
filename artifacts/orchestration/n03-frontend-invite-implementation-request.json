@@ -1,0 +1,74 @@
+{
+  "assignmentId": "n03-frontend-invite-implementation-20260914",
+  "ticket": "CCC-276",
+  "owner": "FRONTEND",
+  "goal": "Implement the frozen first-admin /auth/invite callback and remove all currently executable browser staff sign-up and raw-link paths while preserving participant request links.",
+  "freeze": {
+    "path": "artifacts/orchestration/n03-frontend-invite-contract-result.json",
+    "sha256": "4d37d0c7b59756d7cdab4ab26f6c4c69e81741561fbfda8bcc527ea0eb68839b",
+    "readyForImplementation": true,
+    "semanticDecisionsRemainingForThisFrontendSeam": []
+  },
+  "worktree": {
+    "decision": "reuse",
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+    "branch": "client/relayer-domain-beta",
+    "requiredHead": "d49449dab92e5e7691c008b21fb65ecfa4dd5c78",
+    "state": "clean",
+    "rule": "Preserve the completed CCC-212 error and trust commits. No reset, rebase, switch, stash or clean. Re-read app.tsx after the trust commit and layer only the frozen callback work."
+  },
+  "allowedWrites": [
+    "apps/client/src/main.tsx",
+    "apps/client/src/app.tsx",
+    "apps/client/src/business/auth.ts",
+    "apps/client/src/business/session.ts",
+    "apps/client/src/business/invites.ts",
+    "apps/client/src/business/transport.ts",
+    "apps/client/src/screens/invites.tsx",
+    "apps/client/src/business/auth.test.ts",
+    "apps/client/src/screens/invites.test.ts"
+  ],
+  "readOnly": [
+    "apps/client/src/business/auth-view.tsx",
+    "apps/client/src/business/errors.ts",
+    "apps/client/src/business/installation.ts",
+    "all shared Wire components and CSS",
+    "onboarding commit 217e752f816dedf1f6c535b073039ab596ef046f",
+    "accepted backend identity binding aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d"
+  ],
+  "excluded": [
+    "apps/client/src/stt-trial/**",
+    "packages/contracts/**",
+    "apps/api/**",
+    "packages/core/**",
+    "packages/http-api/**",
+    "scripts/onboarding/**",
+    "scripts/supabase/**",
+    "DESIGN.md, DESIGN-RULES.md, shared UI, CSS, tokens and design artifacts",
+    "new dependency, endpoint, storage, compatibility alias, marker, query field, provider fallback or UI component",
+    "Auth setting changes, credentials, live invitation send, deployment, push or merge"
+  ],
+  "implementation": [
+    "Follow the frozen data types, functions, closed fragment parser, failure mapping, route state machine, first-admin separation, fail-closed staff cutover, exact paths and implementation order.",
+    "captureInviteUrlBeforeRender runs synchronously before router creation or any network and removes callback query/hash. The legacy /staff/join search/hash is scrubbed and discarded before render.",
+    "Use one existing CloudAuth client with memory-only invitation state. Never put token, subject, email, password or provider text in React state, errors, logs, URL/history, browser storage, non-Auth requests or DOM.",
+    "After updateUser confirms password success, local-scope signout is best-effort, local cleanup is mandatory, and the result is complete. provider_unavailable is retryable only when preparation or updateUser itself is unconfirmed and the unexpired invitation session remains retained.",
+    "The callback never calls a business API or claims users row, role, invite consumption, binding or business access. It tells the user to wait for installer resume, then use a later fresh login.",
+    "Delete signUpWithPassword, PublicSession.signUp, public staff lookup/accept client paths, PublicTransport bearer support for public calls, InvitesApi.create and raw /staff/join link creation. Keep staff list/revoke with a fixed not-ready callout. Keep legacy /staff/join as a zero-network fail-closed screen.",
+    "Do not change participant /join#t request-link behavior, public_signup, disclosures or completion."
+  ],
+  "uiWorkflow": [
+    "Before editing, read skill://frontend-lane, skill://design-lane and DESIGN-RULES.md. This frontend-owned screen must reuse existing Wire components and CSS; no design-lane file write is needed unless a missing shared component is proven, in which case stop and hand off.",
+    "Use one PageTitle h1, existing hierarchy components, visible labels for the two password inputs, autocomplete=new-password and existing action layout. No new style class or design token.",
+    "After functional gates, obtain a separate read-only design review of the rendered callback and fail-closed legacy screen. Apply only findings within the allowed files and rerun affected gates."
+  ],
+  "verification": [
+    "Use LSP references before exported symbol deletions when available and migrate every caller. If no server, record exact caller search and zero residual forbidden symbol/path occurrences.",
+    "Run targeted tests with direct selection: pnpm --filter @ccc/client exec vitest run --config vitest.config.ts src/business/auth.test.ts src/screens/invites.test.ts. Do not use the package test wrapper with a literal --.",
+    "Run pnpm --filter @ccc/client run typecheck and pnpm --filter @ccc/client run build after targeted tests.",
+    "Run the frozen actual-browser scenarios on a disposable local synthetic installation/Auth fixture, inspect URL/history/referrer/storage/console/analytics/network/React-visible state/DOM, and close all tabs and services.",
+    "Commit only allowed explicit paths locally with configured hooks. Do not bypass hooks, push, merge, deploy or contact external services."
+  ],
+  "completionMarker": "FRONTEND_RESULT N03-FRONTEND-INVITE-20260914",
+  "report": "Print marker, parent and commit SHA, exact paths, targeted test/typecheck/build counts, browser leak matrix, design review result, clean state and blockers."
+}

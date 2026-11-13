@@ -1,0 +1,267 @@
+{
+  "assignmentId": "CCC289-CORE-CONTRACT-FREEZE-20260914",
+  "ticket": "CCC-289",
+  "artifactSchemaVersion": 1,
+  "status": "TECHNICAL_CONTRACT_FROZEN_WITH_TWO_SCOPED_PRODUCT_QUESTIONS",
+  "readOnlyFreeze": true,
+  "freezeScope": "This file records the subsequent implementation contract. It grants no write slot and performs no product mutation.",
+  "producerCommit": "b429d93dc45365cf2550de8d3b1b5268a808a94d",
+  "producerFields": {
+    "manualRecordV2": [
+      {
+        "fields": ["memo", "details.schemaVersion", "details.method", "details.reason", "details.urgency", "details.changes[].area", "details.changes[].text", "details.counselorOpinion", "details.nextQuestions[].id", "details.nextQuestions[].body"],
+        "consumers": ["report", "aiMaterials"],
+        "source": {"path": "packages/contracts/src/manual-record.ts", "lines": "30-59", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"},
+        "classification": "observed"
+      },
+      {
+        "fields": ["actionItems[].id", "actionItems[].revision", "actionItems[].description", "actionItems[].owner", "actionItems[].dueDate", "actionItems[].resolutionStatus", "actionItems[].resolutionNote", "actionItems[].resolvedAt", "actionItems[].stopReason", "actionOutcomes[].sessionId", "actionOutcomes[].heldAt", "actionOutcomes[].sourceRevision", "actionOutcomes[].outcome", "actionOutcomes[].continuation", "actionOutcomes[].reason"],
+        "consumers": ["report", "aiMaterials"],
+        "source": {"path": "packages/contracts/src/manual-record.ts", "lines": "70-101", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"},
+        "classification": "observed"
+      },
+      {
+        "fields": ["questions[].kind", "questions[].id", "questions[].sourceId", "questions[].sourceRevision", "questions[].sourceSessionId", "questions[].sourceHeldAt", "questions[].sourceScheduledAt", "questions[].createdAt", "questions[].body", "questions[].state", "questions[].outcomes[].sessionId", "questions[].outcomes[].heldAt", "questions[].outcomes[].outcome", "questions[].outcomes[].answer", "questions[].outcomes[].sourceRevision", "questions[].outcomes[].sourceText"],
+        "consumers": ["report", "aiMaterials"],
+        "source": {"path": "packages/contracts/src/manual-record.ts", "lines": "103-142", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"},
+        "classification": "observed"
+      }
+    ],
+    "intakeQuestionIdentity": {
+      "fields": ["questionLifecycle.items[].id", "questionLifecycle.items[].revision", "questionLifecycle.items[].sourceRevision", "questionLifecycle.items[].sourceRowIndex", "questionLifecycle.items[].createdAt", "questionLifecycle.items[].withdrawn", "saved.revision", "saved.history[].questionLifecycle"],
+      "consumers": ["report", "manualContext", "aiMaterials"],
+      "source": {"path": "packages/contracts/src/intake.ts", "lines": "95-138,352-375", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"},
+      "classification": "observed"
+    },
+    "projectionSource": {
+      "description": "loadManualWork resolves action items separately and resolves schedule, record and intake questions into one ManualPendingQuestion shape, then attaches outcomes before splitting open, confirmed and withdrawn arrays. There are no action-derived questions.",
+      "source": {"path": "packages/core/src/gateway.ts", "lines": "18539-18675", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"},
+      "classification": "observed"
+    }
+  },
+  "reportProjection": {
+    "wireContract": {
+      "path": "packages/contracts/src/report.ts",
+      "symbol": "SupportCaseReport",
+      "currentLines": "13-42",
+      "change": "Raise SupportCaseReport.schemaVersion from 1 to 2. Keep the five existing sections unless Q explicitly amends this freeze for practitioner opinions. Add SupportCaseReport.nextConfirmations[].questionRef as null or { kind: 'schedule' | 'record' | 'intake', questionId: string, sourceId: string, sourceRevision: number }. null is only for unbound legacy intake rows because GET must not allocate identity. Bound entries always carry the four members together.",
+      "classification": "decision",
+      "evidence": [
+        {"path": "packages/contracts/src/report.ts", "lines": "13-42", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"},
+        {"path": "artifacts/orchestration/ccc299-consumer-handoff.json", "lines": "47-57,65-72"}
+      ]
+    },
+    "gateway": {
+      "path": "packages/core/src/gateway.ts",
+      "symbol": "getSupportCaseReport",
+      "currentLines": "19736-19898",
+      "changes": [
+        {
+          "kind": "replace-obsolete-read",
+          "description": "For regular records, consume record.manual.details produced by listCounselingRecords instead of reparsing record_details and reading obsolete changeSinceLast and safetyNote keys.",
+          "evidence": [{"path": "packages/core/src/gateway.ts", "lines": "19471-19595,19762-19768,19794-19795,19846-19847", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}]
+        },
+        {
+          "kind": "situation-projection",
+          "description": "Project each manual v2 details.changes entry to sections.situationChanges with source record_details.changes.<index>.text. Preserve array order and stored area code; do not infer a change when the array is empty.",
+          "evidence": [{"path": "packages/contracts/src/manual-record.ts", "lines": "29,51-59", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}, {"path": "docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md", "lines": "223-231"}]
+        },
+        {
+          "kind": "risk-projection",
+          "description": "Project only explicitly stored non-null details.urgency to sections.riskSignals with source record_details.urgency. Omission remains absence and never becomes stable. Existing confirmed flags remain unchanged.",
+          "evidence": [{"path": "packages/contracts/src/manual-record.ts", "lines": "35-47,51-59", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}, {"path": "docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md", "lines": "227-231"}]
+        },
+        {
+          "kind": "open-question-projection",
+          "description": "Build SupportCaseReport.nextConfirmations once from loadManualWork questions whose state is open. The only sources are intake, record and schedule questions; action items remain in sections.actionItems. Include bound intake, record and completed-schedule questions. Exclude confirmed and withdrawn questions. Keep the existing unbound legacy intake fallback with questionRef null and immutable intake revision/path evidence.",
+          "evidence": [{"path": "packages/core/src/gateway.ts", "lines": "18581-18607,18637-18653,19717-19841", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}, {"path": "artifacts/orchestration/ccc299-consumer-handoff.json", "lines": "47-57,65-72"}]
+        },
+        {
+          "kind": "action-projection",
+          "description": "Keep the existing action_items report projection. It already carries current resolutionStatus and sourced resolution text. Do not duplicate action outcomes into a second report section.",
+          "evidence": [{"path": "packages/core/src/gateway.ts", "lines": "19744-19747,19868-19897", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}, {"path": "packages/contracts/src/report.ts", "lines": "47-55", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}]
+        }
+      ]
+    },
+    "httpRoute": {
+      "path": "packages/http-api/src/request-handler.ts",
+      "symbol": "handleRequest GET /support-cases/:id/report",
+      "currentLines": "2813-2818",
+      "change": "No product change required. The route already rejects query parameters, calls the gateway projection directly and emits Cache-Control no-store.",
+      "classification": "observed"
+    }
+  },
+  "aiMaterials": {
+    "enqueue": {
+      "path": "packages/core/src/gateway.ts",
+      "symbols": ["enqueueTextWorkItem", "textWorkEnqueueStatements"],
+      "currentLines": "7317-7398",
+      "change": "No change. The existing officialization hook and one-open-row queue remain the seam.",
+      "classification": "observed"
+    },
+    "sourceAssembly": {
+      "path": "packages/core/src/gateway.ts",
+      "symbol": "buildAgentJobSourceText",
+      "currentLines": "7532-7627",
+      "change": "Extend the existing session-scoped source query to read manual_schema_version, manual_revision, action_items created by this session, manual_action_outcomes for this session and manual_question_outcomes for this session. Join each action outcome to its action description and owner. For manual schema 2, append deterministic labeled lines for method, non-null reason, non-null urgency, changes in stored order, non-null counselorOpinion, nextQuestions in stored order, created action items, action outcomes and question outcomes. Preserve current goal and intake context before the session record. Do not include opaque IDs, actor IDs or revisions in text. Do not infer values for omitted fields. Legacy schema 1 keeps the current memo-only behavior.",
+      "deterministicOrder": ["overall goal", "active detail goals", "intake selected context", "linked session goals", "memo", "manual method", "manual reason if present", "manual urgency if present", "manual changes in array order", "counselor opinion if present", "next questions in array order", "created action items ordered by created_at and id", "action outcomes ordered by action_item_id", "question outcomes ordered by kind and question_id", "approved summary if present", "walk-in session goal note if present"],
+      "outcomeRendering": {
+        "action": "Render stored action description and owner with outcome, continuation and non-null reason. The description is the association key in provider text; do not emit actionItemId or revision.",
+        "question": "Render stored sourceText with kind, outcome and non-null answer. sourceText is the association key in provider text; do not emit questionId, sourceId or revision.",
+        "absence": "Do not emit a label for an omitted optional field, an absent outcome row or an empty array."
+      },
+      "classification": "decision",
+      "evidence": [{"path": "packages/core/src/gateway.ts", "lines": "7532-7627", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}, {"path": "docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md", "lines": "223-231"}]
+    },
+    "agentSourceRoute": {
+      "paths": ["packages/core/src/gateway.ts", "packages/http-api/src/request-handler.ts"],
+      "symbols": ["getAgentJobSource", "GET /pipeline/jobs/:jobId/source"],
+      "currentLines": "gateway 9328-9340; request-handler 3397-3401",
+      "change": "No wire change. SourceResponse remains { sessionId, text }, claim-bound and no-store. Structured source identity remains in core storage and snapshot lineage, not in provider text.",
+      "classification": "decision",
+      "evidence": [{"path": "docs/specs/S5-agent-job-contract-v2.md", "lines": "307-308,384-421"}, {"path": "packages/contracts/src/agent-jobs.ts", "lines": "241-244"}]
+    },
+    "maskingAndEgress": {
+      "change": "No change to snapshot tables, TextResult, material type or egress. The enlarged official text must still pass first-party replacement, Agent masking, snapshot storage and complete S6 material verification before OpenAI authorization.",
+      "classification": "observed",
+      "evidence": [{"path": "docs/specs/S6-privacy-packet.md", "lines": "101-113,167-220,233-245"}, {"path": "docs/specs/S5-agent-job-contract-v2.md", "lines": "307-308,384-421"}]
+    }
+  },
+  "wireChanges": {
+    "report": {
+      "schemaVersion": 2,
+      "newFields": ["SupportCaseReport.nextConfirmations[].questionRef", "SupportCaseReport.nextConfirmations[].questionRef.kind", "SupportCaseReport.nextConfirmations[].questionRef.questionId", "SupportCaseReport.nextConfirmations[].questionRef.sourceId", "SupportCaseReport.nextConfirmations[].questionRef.sourceRevision"],
+      "questionRefType": "null | { kind: 'schedule' | 'record' | 'intake'; questionId: string; sourceId: string; sourceRevision: number }",
+      "questionRefRule": "questionRef is either null or a complete object. Partial identity is invalid. null is limited to preserved unbound legacy intake rows.",
+      "perKindMapping": {
+        "schedule": "questionId is schedule_custom_questions.id; sourceId is schedule_custom_questions.schedule_id; sourceRevision is the stable question revision.",
+        "record": "questionId is ManualRecordDetails.nextQuestions[].id; sourceId is the source session ID; sourceRevision is the source manual-record revision.",
+        "intake": "questionId is IntakeQuestionLifecycleItem.id; sourceId is the intake session ID; sourceRevision is the stable intake-question revision, not the intake form revision."
+      },
+      "consistencyRules": [
+        "A bound entry whose source object, question ID or revision cannot be resolved in the authorized support case returns 409 conflict.",
+        "A bound intake pointer must resolve its immutable intake revision and row in the same intake session.",
+        "A question with state confirmed or withdrawn is excluded from nextConfirmations, not returned with a changed label.",
+        "An unbound legacy intake row may be returned only with questionRef null and immutable ReportEvidence intakeRevision and source path."
+      ],
+      "rejectionCodes": [
+        {"http": 400, "error": "invalid_request", "when": "malformed support-case ID or unexpected query parameter"},
+        {"http": 403, "error": "forbidden", "when": "actor lacks support-case read access"},
+        {"http": 409, "error": "conflict", "when": "stored bound lifecycle, revision or source pointer is internally inconsistent; do not silently drop the entry"}
+      ],
+      "evidence": [{"path": "packages/http-api/src/request-handler.ts", "lines": "2176-2212,2813-2818", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}, {"path": "packages/contracts/src/report.ts", "lines": "13-42", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}]
+    },
+    "agentSource": {
+      "newFields": [],
+      "newRejectionCodes": [],
+      "preservedCodes": ["authentication_required", "forbidden", "job_not_found", "lease_expired", "stale_claim", "consent_not_effective", "route_mismatch"],
+      "rule": "CCC-289 must not add a second source endpoint or widen the fixed S5 JobError union.",
+      "evidence": [{"path": "docs/specs/S5-agent-job-contract-v2.md", "lines": "307-308,386-421"}]
+    }
+  },
+  "migration": {
+    "required": false,
+    "reason": "All required manual v2 details, action outcomes, question outcomes, intake lifecycle pointers, queue rows and snapshots already exist at the accepted producer base. CCC-289 is a read projection and source-text assembly change.",
+    "acceptedProducerDirectoryState": {
+      "sqliteLatest": "migrations/sqlite/0064_intake_question_lifecycle.sql",
+      "postgresLatest": "migrations/postgres/0020_intake_question_lifecycle.sql",
+      "nextIfAStorageRequirementIsLaterApproved": {"sqlite": "0065", "postgres": "0021"}
+    },
+    "evidence": [{"path": "artifacts/orchestration/ccc299-core-implementation-result.json", "lines": "196-207"}, {"path": "artifacts/orchestration/ccc299-core-freeze-result.json", "lines": "434-445"}]
+  },
+  "ownedFiles": {
+    "stageRule": "No file below is writable during this read-only freeze. subsequentImplementationWrites becomes active only after the core writer slot is explicitly restored or transferred.",
+    "subsequentImplementationWrites": [
+      "packages/contracts/src/report.ts",
+      "packages/core/src/gateway.ts",
+      "apps/api/test/support-case-report.contract.test.ts",
+      "apps/api/test/text-work-materials.test.ts"
+    ],
+    "readOnlyDependencies": [
+      "packages/contracts/src/manual-record.ts",
+      "packages/contracts/src/intake.ts",
+      "packages/contracts/src/agent-jobs.ts",
+      "packages/http-api/src/request-handler.ts",
+      "apps/api/test/manual-record.contract.test.ts",
+      "apps/api/test/agent-job-contract.test.ts"
+    ],
+    "excluded": ["migrations/**", "migrations/parity.yaml", "apps/client/**", "apps/web/**", "packages/ai-runtime/**"],
+    "evidence": [{"path": "docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md", "lines": "223-231"}, {"path": "artifacts/orchestration/ccc299-consumer-handoff.json", "lines": "36-72,102-110"}]
+  },
+  "writerSlot": {
+    "state": "NOT_CURRENTLY_OBSERVABLE",
+    "recordedOwner": "existing Mac mini BACKEND single writer",
+    "recordedPane": "w14:p2",
+    "recordedBranch": "core/relayer-domain-beta",
+    "runtimeObservation": "ORCHESTRATOR observed agent_not_found for w14:p2 when issuing this freeze assignment.",
+    "recommendation": "Do not create a second core writer. Re-establish the existing Mac mini core pane or explicitly transfer the single writer slot, verify its branch contains accepted producer commit b429d93d, then assign the four implementation-write files as one serialized CCC-289 unit.",
+    "evidence": [{"path": "docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md", "lines": "3231-3258"}]
+  },
+  "conflicts": {
+    "ticket": "CCC-301",
+    "overlappingFiles": ["packages/core/src/gateway.ts"],
+    "potentialSharedFile": "packages/http-api/src/request-handler.ts",
+    "serializationRequired": true,
+    "decision": "CCC-289 and CCC-301 implementation must not run under separate core writers. CCC-301 contract research may run in parallel, but gateway mutation waits for the same single writer after CCC-289 or for an explicit reordered handoff.",
+    "nonOverlaps": ["packages/contracts/src/report.ts", "apps/api/test/support-case-report.contract.test.ts", "apps/api/test/text-work-materials.test.ts"],
+    "evidence": [{"path": "docs/superpowers/plans/2026-09-13-planner-handoff.md", "lines": "187-195"}, {"path": "docs/specs/S3-screen-api-map.md", "lines": "108-109,133-135,267-268"}]
+  },
+  "targetedTests": {
+    "existing": [
+      {
+        "path": "apps/api/test/support-case-report.contract.test.ts",
+        "purpose": "Report authorization, stored-evidence projection, intake identity and open-only nextConfirmations.",
+        "evidenceLines": "450-481 at accepted producer commit"
+      },
+      {
+        "path": "apps/api/test/text-work-materials.test.ts",
+        "purpose": "Claim-bound official source text, deterministic material order, omission semantics and first-party PII replacement.",
+        "evidenceLines": "200-284 at accepted producer commit"
+      },
+      {
+        "path": "apps/api/test/manual-record.contract.test.ts",
+        "purpose": "Producer-side manual v2 action, question and intake lifecycle semantics remain the source contract.",
+        "evidenceLines": "144-224,403-504 at accepted producer commit"
+      },
+      {
+        "path": "apps/api/test/agent-job-contract.test.ts",
+        "purpose": "Existing source claim and S5 refusal behavior stays unchanged.",
+        "evidenceLines": "122-124,325-370 in current source"
+      }
+    ],
+    "addToExistingFiles": [
+      "support-case-report.contract.test.ts: manual v2 changes and explicit urgency project with exact source paths; omitted urgency does not become stable; bound record/intake/completed-schedule open questions carry complete questionRef; confirmed and withdrawn questions are absent; legacy unbound intake remains visible with questionRef null.",
+      "text-work-materials.test.ts: the same manual v2 values appear once in deterministic order; omitted optional values create no labels; action and question outcomes are limited to the claimed session; opaque IDs and revisions are absent from text; registered PII in every newly included field is replaced before SourceResponse.",
+      "support-case-report.contract.test.ts plus text-work-materials.test.ts: a manual v2 fixture proves report and AI source use the same stored values while keeping their different interfaces and privacy obligations."
+    ],
+    "newTestFiles": [],
+    "projectWideCommandsDuringImplementation": false
+  },
+  "openQuestions": [
+    {
+      "id": "Q-CCC289-REPORT-OPINION",
+      "question": "경과 리포트의 기존 다섯 구획 중 어디에도 사실과 구별된 실무자 의견 자리가 없습니다. counselorOpinion을 새 구획으로 노출할지, 경과 리포트에서는 제외할지 Q 판단이 필요합니다. situationChanges에 섞는 것은 금지합니다. 새 구획을 선택하면 SupportCaseReport의 다섯 구획 동결을 명시적으로 개정해야 합니다.",
+      "blockingScope": "report projection of counselorOpinion only; AI material may include it with an explicit practitioner-opinion label. The rest of CCC-289 is not blocked.",
+      "evidence": [{"path": "packages/contracts/src/manual-record.ts", "lines": "51-59", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}, {"path": "packages/contracts/src/report.ts", "lines": "44-71", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}]
+    },
+    {
+      "id": "Q-CCC289-FUTURE-SCHEDULE-QUESTION",
+      "question": "아직 완료 회차가 없는 미래 일정의 schedule_custom_questions를 경과 리포트 nextConfirmations에 넣을지 Q 판단이 필요합니다. 현재 ReportEvidence는 회차 ID, 회차 번호와 heldAt을 필수로 요구하므로 미래 일정까지 넣으려면 별도 비회차 근거 계약이 필요합니다.",
+      "blockingScope": "future schedule questions only; intake, record and completed-schedule questions can proceed.",
+      "evidence": [{"path": "packages/contracts/src/report.ts", "lines": "1-11,33-42", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}, {"path": "packages/core/src/gateway.ts", "lines": "18551-18556,18581-18587", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d"}]
+    }
+  ],
+  "evidence": [
+    {"claim": "W04 requires manual record, action, intake-question and schedule-question state to survive from save through official read and the next session.", "path": "docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md", "lines": "223-231", "classification": "observed"},
+    {"claim": "Accepted producer manual context has schemaVersion 3 and separate open, confirmed and withdrawn arrays.", "path": "packages/contracts/src/manual-record.ts", "lines": "111-142", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d", "classification": "observed"},
+    {"claim": "Accepted producer report currently reads obsolete legacy detail keys and projects only intake follow-up questions.", "path": "packages/core/src/gateway.ts", "lines": "19762-19847", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d", "classification": "observed"},
+    {"claim": "Accepted producer AI source currently includes memo, approved summary, goals and intake context but omits manual v2 structured fields and outcome tables.", "path": "packages/core/src/gateway.ts", "lines": "7532-7627", "revision": "b429d93dc45365cf2550de8d3b1b5268a808a94d", "classification": "observed"},
+    {"claim": "Text source remains claim-bound, first-party replaced and no-store before Agent masking.", "path": "docs/specs/S5-agent-job-contract-v2.md", "lines": "307-308,384-421", "classification": "observed"},
+    {"claim": "Every enlarged text material still requires a complete attested snapshot and full pre-egress verification.", "path": "docs/specs/S6-privacy-packet.md", "lines": "101-113,167-220,233-245", "classification": "observed"},
+    {"claim": "CCC-299 is accepted and consumer work remains separate from this core freeze.", "path": "artifacts/orchestration/ccc299-consumer-handoff.json", "lines": "1-10,102-110", "classification": "observed"},
+    {"claim": "CodeGraph was not used as line evidence because its index belongs to the root worktree rather than this worktree. Exact lines were read from accepted producer commit b429d93d.", "path": "artifacts/orchestration/ccc299-final-acceptance-result.json", "lines": "210-230", "classification": "observed"}
+  ],
+  "sourceMutationCount": 0,
+  "newDocumentationCount": 0,
+  "completionMarker": "EXECUTOR_RESULT CCC289-CORE-CONTRACT-FREEZE-20260914"
+}

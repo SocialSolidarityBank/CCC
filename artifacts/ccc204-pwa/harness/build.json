@@ -1,0 +1,36 @@
+{
+  "startedAt": "2026-09-13T14:58:15.121Z",
+  "finishedAt": "2026-09-13T14:58:15.428Z",
+  "exitCode": 0,
+  "publicTrustOnly": true,
+  "assets": {
+    "/assets/index-DmXLclX2.css": {
+      "sha256": "8e476e8d67f7105be1d18fc3dd0fc9204a0437d513ebcfb8421358fe9f1867f2",
+      "bytes": 105116
+    },
+    "/assets/index-zo7xrKjL.js": {
+      "sha256": "eecd0bf51404946dd361a7667ff1a26ef531d920341081fbc6584c00dc6925f4",
+      "bytes": 769292
+    },
+    "/ccc-bootstrap.json.example": {
+      "sha256": "e79ea8f688d72a35085b083829f85e4e899edbbe16a27897924fe5ab34edda7b",
+      "bytes": 34
+    },
+    "/icon.svg": {
+      "sha256": "4a8f9171f344758f6926925eaf5551f600bf9d27b3aeec2709951fd53424ea67",
+      "bytes": 468
+    },
+    "/index.html": {
+      "sha256": "1ca6eacd608c9aaa5c173d5c925685d00c00c65778cd95f724be7de6da3c04a0",
+      "bytes": 560
+    },
+    "/manifest.webmanifest": {
+      "sha256": "d623db37bb720152060922aabf7d3eaf501446a62b485701aa6e640013f8f4cf",
+      "bytes": 330
+    },
+    "/sw.js": {
+      "sha256": "5a77bc23f3e6765b4e4ec86ae71dcafb84f5f88b1e8b7e1d4adcb17e1c6122c8",
+      "bytes": 1869
+    }
+  }
+}

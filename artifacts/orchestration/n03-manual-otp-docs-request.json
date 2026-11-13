@@ -1,0 +1,47 @@
+{
+  "assignmentId": "n03-manual-otp-docs-20260914",
+  "ticket": "CCC-276",
+  "owner": "onboarding ORCHESTRATOR",
+  "goal": "Replace every canonical implicit-fragment callback statement with the verified Q-approved manual six-digit invitation-code contract, without changing operational approval state.",
+  "startCondition": "Assign only after the FRONTEND manual OTP implementation commit and literal zero-retention browser evidence are controller-reviewed.",
+  "contract": {
+    "path": "artifacts/orchestration/n03-manual-otp-contract-result.json",
+    "sha256": "d07f8ca15ed9fb7e9f1b9052a01bab91f73e81b2e61b9671b0a99aafb675b029"
+  },
+  "installerEvidence": {
+    "commit": "bf456337d2f952b124ddf923524a4e65ecee2892",
+    "test": "scripts/onboarding/first-admin.test.mjs 33/33 passed",
+    "behavior": "exact manual-code template readiness; mismatch sends zero invitations; no hosted template mutation"
+  },
+  "worktree": {
+    "decision": "reuse",
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/onboarding",
+    "branch": "feat/relayer-onboarding",
+    "requiredHead": "bf456337d2f952b124ddf923524a4e65ecee2892",
+    "state": "clean",
+    "rule": "Commit only the six documentation paths after controller supplies the verified frontend commit. Do not edit installer scripts again."
+  },
+  "allowedWrites": [
+    "docs/adr/0050-relayer-assisted-onboarding.md",
+    "docs/superpowers/specs/2026-09-13-relayer-onboarding-design.md",
+    "docs/superpowers/plans/2026-09-13-relayer-onboarding-implementation.md",
+    "docs/superpowers/plans/2026-09-13-relayer-onboarding-handoff.md",
+    "CONTEXT.md",
+    "CLAUDE.md"
+  ],
+  "requiredDocumentation": [
+    "Record the 2026-09-14 Q follow-up that manual one-time code supersedes implicit success/error fragments and that no Chrome diagnostic-retention exception was approved.",
+    "The exact invite email uses a clean {{ .RedirectTo }} link and visibly displays {{ .Token }}. It excludes ConfirmationURL, TokenHash, Email, Data, query, fragment and session credentials. The clean redirect remains signed clientOrigin /auth/invite.",
+    "The client asks for email, six-digit code, password and confirmation, calls verifyOtp with email/token/type invite, validates matching provider session/user, updates the password, disposes the invite session and keeps business access locked until installer resume binds users.auth_subject.",
+    "A password-only retry may retain only the verified memory session. Reload requires a new code when the consumed code is no longer valid. No browser persistence, public signUp, identity/link, business-API admin key or raw staff token link returns.",
+    "The installer source now fails closed unless the hosted template exactly matches, but code verification does not mean the hosted template was changed. Template mutation, credentials, live invitation, deployment and operational acceptance remain unapproved.",
+    "Keep N03 In Review until the separately approved real template check, one non-sensitive invitation, installer resume, fresh aal1 login and institution setup entry all pass. N04 remains blocked behind N03."
+  ],
+  "verification": [
+    "Run node scripts/guard-doc-numbers.mjs, git diff --check and added Unicode long-dash check.",
+    "Cold-read the six changed docs for one consistent manual OTP contract and no stale implicit-fragment acceptance statement.",
+    "Commit only the six allowed paths with configured hooks. Do not push, merge, deploy, change Auth, use credentials or send an invite."
+  ],
+  "completionMarker": "POLICY_DOC_RESULT N03-MANUAL-OTP-20260914",
+  "report": "Print marker, parent/commit SHA, changed paths and hashes, guard results, clean state and remaining operational blockers."
+}

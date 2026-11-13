@@ -1,0 +1,10 @@
+{
+  "status": "FAILED",
+  "stage": "valid credential real SDK session",
+  "errorClass": "Jw",
+  "networkCode": null,
+  "errors": {
+    "pageErrors": 0,
+    "consoleErrors": 3
+  }
+}

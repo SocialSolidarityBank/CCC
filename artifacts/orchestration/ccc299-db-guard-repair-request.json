@@ -1,0 +1,49 @@
+{
+  "assignmentId": "ccc299-db-guard-repair-20260914",
+  "ticket": "CCC-299",
+  "owner": "existing Mac mini BACKEND single writer",
+  "goal": "Remove the final direct Database access from scripts/seed/scenario.ts without changing the verified seed behavior, then bind the DB gateway guard and full scenario proof to a new final candidate.",
+  "base": {
+    "branch": "core/relayer-domain-beta",
+    "requiredHead": "ae8604435745ad4c042da70f175318402ecfbe37",
+    "state": "clean",
+    "rule": "Same writer and same ticket. Preserve every accepted commit. No reset, rebase, switch, stash or clean."
+  },
+  "evidence": {
+    "finalReviewPath": "artifacts/orchestration/ccc299-final-acceptance-result.json",
+    "finalReviewSha256": "f361ae76648cde5ec688d0f6a986009d4aeb76a63fd047ff57673a976edabd10",
+    "gap": "scripts/seed/scenario.ts line 139 calls installConsentProviderRegistry(env.DB, ...); scripts/guard-db-gateway.mjs scans that non-allowlisted file and rejects env.DB. All fourteen behavior criteria otherwise bind."
+  },
+  "allowedWrites": [
+    "scripts/seed/harness.ts",
+    "scripts/seed/scenario.ts"
+  ],
+  "requiredChange": [
+    "Move the existing synthetic provider-registry installation helper and exact registry input from scenario.ts into scripts/seed/harness.ts, which is already an explicit DB gateway guard allowlist fixture boundary.",
+    "Export a narrowly named preview-fixture helper from harness.ts that accepts Env and calls installConsentProviderRegistry(env.DB, exactExistingInput). Do not expose Database or raw SQL to scenario.ts.",
+    "Have runScenario call that helper at the same sequential point before disclosures/program registrations. Remove installConsentProviderRegistry and consent registry constants/imports that scenario.ts no longer owns.",
+    "Preserve exact provider rows, approval metadata, capture ordering, admission program, six-domain disclosures/events, 100-participant/550-session output and replay behavior. No raw SQL, guard allowlist expansion or new interface/factory."
+  ],
+  "verification": [
+    "Run pnpm guard:db and require scripts/seed/scenario.ts has zero env.DB, prepare, batch or driver access.",
+    "Rerun the same unreduced disposable createCaptureHarness plus runScenario smoke with SEED_PROFILE=preview and an in-process random synthetic PII key. Assert the same 100 participants, 550 sessions, 600 consent events, 5 registry entries, ready financial-support program, unchanged off/off policy, no preview output and cleanup. A long timeout is allowed; do not reduce the fixture or assertions.",
+    "Do not rerun unrelated tests, parity, database matrix, typecheck, formatter or project-wide suites. Their exact blobs remain unchanged and prior evidence is already bound.",
+    "Delete the temporary smoke file, commit only harness.ts and scenario.ts with configured hooks, and report exact commit/tree/hashes. Do not bypass hooks, push, merge, deploy, repair Docker or contact external services."
+  ],
+  "excluded": [
+    "scripts/guard-db-gateway.mjs and its allowlist",
+    "scripts/seed/preload-data.ts, migrations, parity and every core/contracts/http/test file",
+    "frontend/design, preview generation, operational data, credentials, Docker/Colima and external services"
+  ],
+  "result": {
+    "path": "/tmp/ccc299-db-guard-repair-result.json",
+    "completionMarker": "BACKEND_RESULT CCC299-DB-GUARD-REPAIR-20260914",
+    "mustContain": [
+      "parent and candidate commit/tree",
+      "two-path hashes and zero forbidden DB access",
+      "guard result and full seed smoke counts",
+      "temporary/output cleanup and clean worktree",
+      "ownedJobs 0 and allResultsCollected true"
+    ]
+  }
+}

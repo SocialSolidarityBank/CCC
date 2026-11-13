@@ -1,0 +1,69 @@
+{
+  "assignmentId": "ccc204-s2-docs-20260913",
+  "ticket": "CCC-204 approved-document prerequisite",
+  "controllerPane": "w1N:p6",
+  "workerPane": "w1N:p1",
+  "workerSessionId": "01a09abb-04c7-74ae-8ced-1e06185b4396",
+  "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+  "branch": "orchestrate/beta-0.9",
+  "resultPath": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/orchestration/ccc204-s2-docs-result.json",
+  "goal": "Apply only the mechanically missing propagation of two independently verified Q decisions. This is documentation correction, not a new MFA decision, runtime configuration change or CCC-204 implementation.",
+  "approvalEvidence": {
+    "optionalCloudMfa": "866013936edf3b6ca64846850eb1c4f6a41e49f2: CLAUDE.md dated 2026-09-12 Q decision and S2 diff, independently checked by controller",
+    "independentApi": "docs/adr/0048-independent-cloud-api-runtime.md:3-8,44-49, accepted 2026-09-09, independently checked by controller"
+  },
+  "readFirst": [
+    "artifacts/orchestration/ccc204-s2-provenance-result.json",
+    "docs/specs/S2-auth-capability-manifest.md",
+    "docs/superpowers/plans/2026-09-02-SG2-auth.md"
+  ],
+  "ownedPaths": [
+    "docs/specs/S2-auth-capability-manifest.md",
+    "docs/superpowers/plans/2026-09-02-SG2-auth.md"
+  ],
+  "beforeHashes": {
+    "docs/specs/S2-auth-capability-manifest.md": "c3740bddae0075083c269eee63d5b81c12742c531f4e7853b9aa04d325bfe6dd",
+    "docs/superpowers/plans/2026-09-02-SG2-auth.md": "7e79984a7d67ad7eb443954f97b20c5dba3a54cf0f876fa2c7371fffba0cf4a7"
+  },
+  "steps": [
+    "In the current worktree S2, record the 2026-09-12 optional-MFA approval by exact commit and title. Explicitly scope its supersession to compulsory Community Cloud MFA in the earlier D82/D86 and preserved-MFA prose; keep Local Office/Single and ordinary authorization unchanged. Distinguish this reused D89 label from ADR-0048/D89 independent API runtime. Do not allocate or renumber decisions.",
+    "Reconcile every Cloud assurance occurrence in S2 sections 2.2, 2.3, 3, the completion checklist and section 5 fixture expectations. Accept valid provisioned human aal1/aal2 sessions without forced enrollment; preserve actual assurance, enrolled-user verification and invalid/unprovisioned/revoked/role-denied behavior. Do not leave the old aal2-only row or checklist beside the new paragraph.",
+    "Preserve the current worktree S2 section 2.7 independent-API and installer-authorization binding, plus its section 3 API-origin row, from 2fb4440d and beabc126. Do not replace the whole file with either sibling worktree copy or infer common API/Auth hosting from a shared D89 label.",
+    "In the SG2 execution plan, replace the blanket Cloud MFA and cloud-admin-aal1 rejection instructions with references to the reconciled S2 assurance contract. Preserve Office privileged MFA, Single lock, JWT validation, signed installation and storage/CORS/CSP constraints.",
+    "Return a bounded document-diff/evidence result to the controller. The controller alone decides integration into other lanes and whether to assign CCC-204 afterward; this prerequisite does not itself start CCC-204."
+  ],
+  "acceptance": [
+    "Both claims cite their explicit approval sources and chronology independently; no document is chosen merely because of worktree name, mtime or matching code.",
+    "Within the two owned files there is no remaining blanket Cloud aal2 requirement or unconditional rejection of a valid provisioned Cloud aal1 session. Office privileged MFA and Single app-lock requirements are unchanged.",
+    "S2 retains the independent signed HTTPS API, Auth-origin/project-ref check, unchanged public manifest/bootstrap shape, installer-only authorization linkage and all exact equality/signature/CORS/CSP guards.",
+    "The duplicate D89 labels are disambiguated by date, title and commit; neither decision silently replaces the other.",
+    "Only the two assigned documentation paths change. No product code, tests, auth setting, live resource, credential, permission, external service or other-worktree file is changed.",
+    "Validate documentation consistency and cited Git provenance only; do not rerun CCC-201 probes, formatters, linters, builds, tests or project-wide checks for this documentation-only prerequisite."
+  ],
+  "constraints": [
+    "Only the two owned documentation paths and this assignment result JSON may change. Controller alone writes canonical orchestration state.",
+    "Keep all existing dirty work, sibling worktrees, ADRs and decision indices untouched. Do not replace a whole sibling S2 or allocate new D/ADR numbers.",
+    "No product source/auth/role/consent/migration/fixture/design/CSS/runtime changes, no API or credential calls, no ticket status changes, commits, branches, merges, pushes or deployments.",
+    "Skip all formatters, linters, builds, tests and project-wide checks. Controller will run the existing documentation guard after your result. Inline source/date/citation and document consistency checking is required.",
+    "Use surgical edits after reading the complete affected sections; avoid opportunistic prose changes or new abstractions. Preserve Office privileged MFA, Single app lock, revocation, signed manifest and exact origin checks.",
+    "Do not create additional agents, prompt any other pane, use /new or take another ticket. After results are collected end your response; the existing completion monitor wakes controller C."
+  ],
+  "resultContract": {
+    "assignmentId": "ccc204-s2-docs-20260913",
+    "workerPaneId": "w1N:p1",
+    "workerSessionId": "01a09abb-04c7-74ae-8ced-1e06185b4396",
+    "status": "ready_for_review or blocked",
+    "ownedJobs": 0,
+    "allResultsCollected": true,
+    "requiredEvidenceFields": [
+      "identityEvidence",
+      "changedFiles",
+      "beforeHashes",
+      "afterHashes",
+      "approvalCitations",
+      "preservedInvariants",
+      "remainingBlockers",
+      "unverified"
+    ]
+  }
+}

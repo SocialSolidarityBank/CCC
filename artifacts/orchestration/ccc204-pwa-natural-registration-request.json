@@ -1,0 +1,56 @@
+{
+  "assignmentId": "ccc204-pwa-natural-registration-20260913",
+  "ticket": "CCC-204",
+  "controllerPane": "w1N:p6",
+  "workerPane": "w1N:p1",
+  "workerSessionId": "01a09acb-883e-7562-88b7-ec7db8a87ef8",
+  "sameTicketFollowup": true,
+  "resultPath": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/orchestration/ccc204-pwa-natural-registration-result.json",
+  "sourceWorktreeReadOnly": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+  "sourceCommit": "f7194dc88064455f3eb6be02abb5aae836981612",
+  "acceptedPriorResult": "artifacts/orchestration/ccc204-pwa-acceptance-result.json",
+  "controllerFinding": "The first audit honestly proves the emitted worker and public router, but manual navigator.serviceWorker.register does not prove the app's BusinessShell/useEffect/registerShellWorker registration path. Keep CCC-204 In Progress pending the smallest natural-integration evidence. Do not make CCC-212 completion a prerequisite for CCC-204, because CCC-212 depends on CCC-204.",
+  "goal": "Close only the missing natural application-triggered service-worker registration and business routing-boundary evidence in an isolated synthetic environment, preserving all first-audit evidence. Real hosted authentication certification belongs to CCC-212; it is not required here.",
+  "allowedSyntheticConfiguration": [
+    "Use existing repository-supported signed installation and authentication contract fixtures/harnesses that exercise the actual client verification and actual backend Identity verification path.",
+    "Disposable non-production signing keys and synthetic users/tokens are permitted solely for this local isolated verification. Private keys and token values must remain memory-only and must not be printed or put in artifacts, source, saved browser profiles or logs. Publish only public-key fingerprints, status codes and non-sensitive verdicts.",
+    "Build-time public trust-key configuration and a correctly signed fixture manifest are normal test configuration, not permission to disable signature/origin checks. Use only the unmodified application and real validation paths.",
+    "If no supported synthetic runtime can satisfy the real guards, return the exact missing seam and smallest owner-scoped remedy. Do not search for production credentials or demand live provider access just to test PWA wiring."
+  ],
+  "readFirst": [
+    "The prior result and retained probe/source-pin scripts; do not re-read old orchestration history",
+    "Pinned apps/client/src/app.tsx:123-188 and apps/client/src/business/service-worker.ts:12-35",
+    "Existing apps/client/src/business/auth.test.ts and build/trial-fixtures.mjs only as candidate fixture references; their existence alone does not authorize or prove a runtime",
+    "Existing signed-manifest/Identity/synthetic API harnesses discovered through direct source references",
+    "Current reconciled S2 and CCC_OPEN_PILOT_PLAN.md E2-2 versus E2-3 scope boundaries"
+  ],
+  "acceptance": [
+    "Fresh isolated browser profile begins with no service-worker registration. Reach the real business shell using supported valid synthetic installation/authentication context without gate bypass.",
+    "The application itself invokes registration. Do not call navigator.serviceWorker.register manually, inject React/router/session state, replace source modules, or intercept auth or /me to fabricate successful responses. Observe /sw.js request, actual activated controller and emitted-worker identity from browser evidence.",
+    "Observe a relevant business route and its navigation/reload boundary under the synthetic context. Do not claim full business functionality or live Supabase login from synthetic results.",
+    "Confirm naturally registered worker still caches only emitted static assets/app shell. Reuse prior cache-policy evidence; rerun only what the new natural-registration scenario needs.",
+    "No original source/WIP/config/guard/test changes and no live resources or external AI/STT calls. Stop only owned services and browser contexts; retain inspectable sanitized supplemental evidence.",
+    "If a guard or missing runtime prevents this, record blocked evidence with exact source path, reason and owner. Never convert an unrun scenario into PASS."
+  ],
+  "ownedWrites": [
+    "artifacts/ccc204-pwa/supplemental/** only for non-sensitive verification code and JSON evidence",
+    "artifacts/orchestration/ccc204-pwa-natural-registration-result.json"
+  ],
+  "forbidden": [
+    "No product, app, shared UI/CSS, design harness, auth policy, signature guard, schema, migration or original worktree changes.",
+    "No replacement auth implementation, arbitrary-login preview, fixed fake /me success, test-only source condition or bypass of valid signature/token/role verification.",
+    "No new dependencies, credential discovery, live provider calls, global trust-store changes, production configuration, commits, pushes, deployments, worktrees, extra agents/panes, /new or other ticket work.",
+    "Do not overwrite first-audit evidence or rerun all previously passing guards/suites as activity proof.",
+    "Do not mutate Linear or canonical control state, and do not prompt another pane."
+  ],
+  "completion": "Write the result, collect all owned results/jobs, stop owned runtime, then end the turn. The existing monitor notifies controller C once you are idle.",
+  "resultContract": {
+    "assignmentId": "ccc204-pwa-natural-registration-20260913",
+    "workerPaneId": "w1N:p1",
+    "workerSessionId": "01a09acb-883e-7562-88b7-ec7db8a87ef8",
+    "status": "ready_for_review or blocked",
+    "ownedJobs": 0,
+    "allResultsCollected": true,
+    "requiredFields": ["identityEvidence", "sourceAndFixtureProvenance", "actualGuardPath", "naturalRegistrationEvidence", "routingEvidence", "commandsAndExitCodes", "preservedEvidenceHashes", "gapsWithOwners", "cleanup", "unverified"]
+  }
+}

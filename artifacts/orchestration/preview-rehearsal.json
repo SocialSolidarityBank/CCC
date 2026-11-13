@@ -1,0 +1,306 @@
+{
+  "entry": {
+    "url": "https://ccc-preview.account-855.workers.dev",
+    "success": true,
+    "role": "담당 실무자",
+    "visibleAccount": "ai00@ggbss.or.kr",
+    "gateHeading": "미리보기 접속",
+    "gateButton": "실무자로 입장",
+    "codeSource": "Infisical project 78d6f149-5ef7-43f2-b20c-4c89c3dc473c, env prod, path /PREVIEW, PREVIEW_ACCESS_CODE",
+    "secretValueWrittenToReport": false,
+    "observedNotice": "이 미리보기는 가상 시드 데이터만 담고 있으며 실제 당사자 정보와 연결되어 있지 않습니다."
+  },
+  "buildStamp": {
+    "observed": true,
+    "text": "빌드 main @ ad218e8 · 2026-09-12T07:33Z",
+    "screen": "미리보기 접속"
+  },
+  "menu": {
+    "role": "담당 실무자",
+    "header": [
+      "기관 사회연대은행",
+      "사업 마이크로크레딧 씬파일러 금융지원·멘토링",
+      "설정",
+      "다크 모드",
+      "로그아웃"
+    ],
+    "groups": [
+      {
+        "name": "일정",
+        "items": [
+          "상담 일정 보기",
+          "상담 일정 등록"
+        ]
+      },
+      {
+        "name": "당사자",
+        "items": [
+          "당사자 목록",
+          "당사자 등록",
+          "당사자 초대"
+        ]
+      }
+    ],
+    "adminMenuObserved": false,
+    "adminMenuBlocker": "PREVIEW_ADMIN_ACCESS_CODE를 기관 관리자 미리보기 접속 화면에 넣으면 '코드가 올바르지 않습니다. 다시 확인하세요.'가 표시된다. PREVIEW_ACCESS_CODE는 통과하지만 설정 화면에 '역할 담당 실무자'로 남는다. PREVIEW_E2E_ACCESS_CODE는 설정 화면에서 '설정 정보를 확인할 수 없습니다. 접근 권한을 확인하세요.'를 표시한다."
+  },
+  "steps": [
+    {
+      "order": 1,
+      "name": "기관 초기 설정 확인",
+      "screenAndControl": {
+        "screen": "설정",
+        "control": "설정"
+      },
+      "result": "부분 확인. 실무자 설정 화면에는 '내 계정', 이메일, 역할만 보이고 기관 초기 설정 항목은 없다. 관리자 미리보기 진입도 실패하여 기관 초기 설정 완료 여부는 확인하지 못했다.",
+      "exactError": "코드가 올바르지 않습니다. 다시 확인하세요.",
+      "cleanup": "입력하거나 저장한 데이터 없음. 삭제 불필요."
+    },
+    {
+      "order": 2,
+      "name": "당사자 등록과 동의 체크",
+      "screenAndControl": {
+        "screen": "당사자 등록",
+        "controls": [
+          "개인정보 수집·이용 동의 (필수)",
+          "등록하기"
+        ]
+      },
+      "result": "실패. 가상 이름, example.com 이메일, 미사용 형식 연락처, 무응답 성별, 가상 생년월일·지역을 채우고 필수 동의를 체크했다. 브라우저 폼 checkValidity()는 true였지만 '등록하기'를 누르면 네트워크 요청 없이 폼이 초기화되었다.",
+      "exactError": "입력한 정보를 다시 확인하세요.",
+      "cleanup": "등록 행이 만들어지지 않았고 폼이 자동으로 비워졌다. 삭제할 항목 없음."
+    },
+    {
+      "order": 3,
+      "name": "담당 배정",
+      "screenAndControl": {
+        "screens": [
+          "기관 관리자 미리보기 접속",
+          "당사자 목록"
+        ],
+        "controls": [
+          "기관 관리자로 입장",
+          "당사자 정보"
+        ]
+      },
+      "result": "진행 불가. 담당 배정은 실무자 메뉴에 없고 관리자 미리보기 진입이 되지 않았다. 기존 가상 시드 당사자 '홍은수'의 '당사자 정보' 진입도 서버 오류로 실패했다.",
+      "exactError": [
+        "코드가 올바르지 않습니다. 다시 확인하세요.",
+        "This page couldn’t load",
+        "A server error occurred. Reload to try again.",
+        "ERROR 4085206980"
+      ],
+      "cleanup": "배정 변경 없음. 삭제 또는 되돌림 불필요."
+    },
+    {
+      "order": 4,
+      "name": "인테이크 기록",
+      "screenAndControl": {
+        "screen": "15초 페이지",
+        "control": "2026년 5월 26일 인테이크 인테이크 질문지 작성 회차"
+      },
+      "result": "진행 불가. 15초 페이지에서 기존 가상 시드 인테이크 회차가 보였으나 링크를 누르면 기록 상세가 서버 오류로 열리지 않았다. 새 인테이크 기록 작성 경로도 같은 기록 계열 오류 때문에 확인하지 못했다.",
+      "exactError": [
+        "This page couldn’t load",
+        "A server error occurred. Reload to try again.",
+        "ERROR 3181986217"
+      ],
+      "cleanup": "새 인테이크 기록 없음. 삭제 불필요."
+    },
+    {
+      "order": 5,
+      "name": "상담 일정 등록",
+      "screenAndControl": {
+        "screens": [
+          "상담 일정 등록",
+          "이번 상담의 목표는 무엇인가요?",
+          "등록을 완료했어요"
+        ],
+        "controls": [
+          "다음: 이번 상담의 목표",
+          "완료",
+          "일정으로"
+        ]
+      },
+      "result": "성공. 기존 가상 시드 당사자 홍은수에게 기본 상담 일정을 등록했고, 세션 목표 '가상 상담 흐름 점검'과 맞춤형 질문 '가상 질문입니다'가 저장되어 15초 페이지에도 보였다. 다만 2026-09-16 16:30으로 입력한 일정이 주간 일정과 15초 페이지에서 2026-09-17 오전 1:30으로 표시되었다.",
+      "exactError": null,
+      "cleanup": "15초 페이지와 일정 상세에 취소 또는 삭제 버튼이 보이지 않았다. 관리자 진입도 실패하여 화면으로 지우지 못했고 가상 시드 환경에 일정 1건이 남았다."
+    },
+    {
+      "order": 6,
+      "name": "상담 기록 작성",
+      "screenAndControl": {
+        "screen": "15초 페이지",
+        "control": "상담 기록"
+      },
+      "result": "진행 불가. '상담 기록'을 누르면 기록 작성 화면이 렌더되기 전에 서버 오류가 발생했다. 따라서 칸 목록, 필수 칸, 긴 글 입력, 저장 후 공식 기록 전환을 확인할 수 없었다. Reload로 재시도해도 같았다.",
+      "exactError": [
+        "This page couldn’t load",
+        "A server error occurred. Reload to try again.",
+        "ERROR 325730910"
+      ],
+      "cleanup": "새 상담 기록 없음. 삭제 불필요."
+    },
+    {
+      "order": 7,
+      "name": "15초 페이지 확인",
+      "screenAndControl": {
+        "screen": "일정",
+        "control": "홍은수, 2026년 9월 17일 오전 1:30 기본상담"
+      },
+      "result": "성공. '15초 페이지'가 열렸고 당사자, 사업, 상담일, 상담 방식, 최근 상담 회차, 전체 목표, 세부 목표, 세션 목표, 맞춤형 질문, AI 제안, 상담 내용 회차별 정리, 내용 불일치, 미해결 액션이 보였다. 새 일정의 세션 목표와 맞춤형 질문도 즉시 나타났다.",
+      "exactError": null,
+      "cleanup": "페이지 확인 자체는 데이터 변경 없음. 이 화면에는 생성한 일정 삭제 버튼이 보이지 않았다."
+    },
+    {
+      "order": 8,
+      "name": "기록 확인",
+      "screenAndControl": {
+        "screen": "15초 페이지",
+        "control": "상담 기록 확인"
+      },
+      "result": "진행 불가. '상담 기록 확인'을 누르면 기록 확인 화면이 렌더되기 전에 서버 오류가 발생했다. 기존 회차 링크도 같은 오류로 열리지 않았다.",
+      "exactError": [
+        "This page couldn’t load",
+        "A server error occurred. Reload to try again.",
+        "ERROR 3181986217"
+      ],
+      "cleanup": "확인 화면에서 변경한 데이터 없음. 삭제 불필요."
+    },
+    {
+      "order": 9,
+      "name": "경과 리포트와 CSV 반출",
+      "screenAndControl": {
+        "screen": "기관 관리자 미리보기 접속",
+        "controls": [
+          "기관 관리자로 입장"
+        ],
+        "missingControls": [
+          "경과 리포트",
+          "CSV 내려받기"
+        ]
+      },
+      "result": "진행 불가. 실무자 메뉴에 경과 리포트와 CSV 반출이 없고 관리자 미리보기 진입이 되지 않아 버튼까지 도달하지 못했다. CSV 다운로드는 실행하지 못했고 파일도 생성되지 않았다.",
+      "exactError": "코드가 올바르지 않습니다. 다시 확인하세요.",
+      "cleanup": "CSV 파일 생성 0건, 내용 열람 0건, 삭제할 다운로드 파일 없음."
+    }
+  ],
+  "recordWriting": {
+    "screenReached": false,
+    "entryControl": "상담 기록",
+    "fields": [],
+    "requiredFields": "확인 불가",
+    "longText": {
+      "attempted": false,
+      "result": "기록 작성 화면이 서버 오류로 렌더되지 않아 긴 글을 입력할 수 없었다."
+    },
+    "save": {
+      "attempted": false,
+      "becomesOfficialImmediately": "확인 불가"
+    },
+    "appearsOn15SecondPage": "확인 불가. 새 기록을 만들지 못했다.",
+    "appearsOnRecordConfirmation": "확인 불가. 기록 확인 화면도 서버 오류로 열리지 않았다.",
+    "exactError": "ERROR 325730910"
+  },
+  "csvCheck": {
+    "downloadAttempted": false,
+    "result": "관리자 미리보기 인증 실패로 CSV 내려받기 버튼까지 도달하지 못했다.",
+    "fileCreated": false,
+    "rowCount": null,
+    "openedWithoutCorruption": "확인 불가",
+    "contentRecordedInReport": false,
+    "exactError": "코드가 올바르지 않습니다. 다시 확인하세요."
+  },
+  "blockers": [
+    {
+      "name": "당사자 등록이 클라이언트에서 중단됨",
+      "impact": "새 당사자 등록과 동의 확인 후 다음 단계로 진행할 수 없다.",
+      "evidenceScreen": "당사자 등록",
+      "evidence": "완전한 가상 데이터와 필수 동의 체크 후 브라우저 폼은 valid=true였지만 '등록하기' 클릭 시 POST 없이 폼이 초기화되고 '입력한 정보를 다시 확인하세요.'가 표시되었다.",
+      "cause": "[추정] 제출 핸들러가 화면의 유효한 FormData와 다른 상태를 읽거나, 클라이언트 제출 검증에서 필드 오류를 사용자에게 드러내지 않고 공통 오류로 떨어진다."
+    },
+    {
+      "name": "당사자 상세 서버 오류",
+      "impact": "담당 배정, 당사자 세부 확인, 관련 후속 업무로 진입할 수 없다.",
+      "evidenceScreen": "당사자 목록에서 홍은수 링크 클릭 후 당사자 상세",
+      "evidence": "Reload 후에도 'This page couldn’t load', 'A server error occurred. Reload to try again.', 'ERROR 4085206980'이 반복되었다.",
+      "cause": "[추정] 현재 배포된 서버가 당사자 상세 조회 또는 해당 상세의 렌더 데이터를 만들다가 예외를 낸다."
+    },
+    {
+      "name": "상담 기록 작성 서버 오류",
+      "impact": "16일 핵심인 상담 기록 작성, 필수 칸 확인, 긴 글 입력, 저장과 공식 기록 전환을 전혀 수행할 수 없다.",
+      "evidenceScreen": "15초 페이지에서 상담 기록 클릭 후 records/new",
+      "evidence": "Reload 후에도 'This page couldn’t load', 'A server error occurred. Reload to try again.', 'ERROR 325730910'이 반복되었다.",
+      "cause": "[추정] 새 기록 작성 라우트의 서버 렌더 또는 필요한 조회가 예외를 낸다."
+    },
+    {
+      "name": "상담 기록 확인과 인테이크 상세 서버 오류",
+      "impact": "저장 기록 승인·확인, 기존 상담 회차와 인테이크 상세 검토를 수행할 수 없다.",
+      "evidenceScreen": "15초 페이지에서 상담 기록 확인 또는 기존 회차 링크 클릭",
+      "evidence": "'This page couldn’t load', 'A server error occurred. Reload to try again.', 'ERROR 3181986217'이 표시되었다.",
+      "cause": "[추정] 기록 상세·확인 라우트의 공통 서버 조회 또는 렌더 경로가 예외를 낸다."
+    },
+    {
+      "name": "기관 관리자 미리보기 인증 불일치",
+      "impact": "기관 초기 설정, 담당 배정, 경과 리포트, CSV 반출을 실제로 검증할 수 없다.",
+      "evidenceScreen": "기관 관리자 미리보기 접속",
+      "evidence": "Infisical /PREVIEW의 PREVIEW_ADMIN_ACCESS_CODE는 '코드가 올바르지 않습니다. 다시 확인하세요.'로 거절되었다. 일반 PREVIEW_ACCESS_CODE는 통과하지만 역할은 담당 실무자로 남았다. E2E 코드는 설정 권한 오류를 냈다.",
+      "cause": "[추정] 배포된 preview가 참조하는 관리자 코드 또는 관리자 세션 매핑이 Infisical 현재 값·역할과 맞지 않는다."
+    }
+  ],
+  "oddities": [
+    {
+      "name": "상담 일시가 9시간 뒤로 표시됨",
+      "evidence": "상담 일정 등록에서 2026-09-16 16:30을 입력했는데 일정과 15초 페이지 모두 2026-09-17 오전 1:30으로 표시했다.",
+      "cause": "[추정] 입력한 로컬 시간을 UTC처럼 저장한 뒤 다시 한국 시간으로 표시하여 9시간을 더한다."
+    },
+    {
+      "name": "당사자 등록 실패 시 입력 전체 소실",
+      "evidence": "일반 오류가 표시되는 동시에 이름, 이메일, 연락처, 선택값과 동의 체크가 모두 초기화되었다. 필드별 오류 문구는 없었다."
+    },
+    {
+      "name": "메뉴에서 관리자 업무 발견 불가",
+      "evidence": "담당 실무자 메뉴는 일정 2개와 당사자 3개 항목뿐이고 기관 설정, 배정, 리포트, CSV 항목이 없다. 관리자 인증 실패 시 대체 경로 안내도 없다."
+    },
+    {
+      "name": "연락처가 가상 시드임을 목록 안에서는 알기 어려움",
+      "evidence": "접속 화면은 가상 시드 전용임을 안내하지만 당사자 목록 카드에는 가상 또는 시드 배지가 없고 이름과 연락처가 실제처럼 표시된다."
+    }
+  ],
+  "ok": [
+    {
+      "name": "실무자 preview 진입",
+      "evidence": "Infisical PREVIEW_ACCESS_CODE를 주입해 '실무자로 입장' 후 일정 화면이 열렸다."
+    },
+    {
+      "name": "가상 시드 전용 안내와 빌드 도장",
+      "evidence": "접속 화면에서 가상 시드 안내와 빌드 main @ ad218e8 · 2026-09-12T07:33Z가 보였다."
+    },
+    {
+      "name": "상담 일정 등록 마법사",
+      "evidence": "가상 시드 당사자 선택, 상담 유형, 일시, 세션 목표, 맞춤형 질문을 입력하고 '등록을 완료했어요'까지 진행했다."
+    },
+    {
+      "name": "15초 페이지",
+      "evidence": "새 일정이 열렸고 저장한 세션 목표와 맞춤형 질문, 기존 목표·회차·불일치·미해결 액션이 보였다."
+    }
+  ],
+  "asideSessionDeleted": true,
+  "mutations": {
+    "codeModified": false,
+    "deploymentPerformed": false,
+    "previewRedeployed": false,
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "migrationApplied": false,
+    "realPersonalDataEntered": false,
+    "realPersonNameEntered": false,
+    "inUsePhoneNumberEntered": false,
+    "secretValueRecorded": false,
+    "csvContentRecorded": false,
+    "previewParticipantRowsCreated": 0,
+    "previewConsultationRecordsCreated": 0,
+    "previewSchedulesCreated": 1,
+    "previewScheduleCleanup": "삭제 또는 취소 UI를 찾지 못했고 관리자 진입도 실패하여 가상 시드 일정 1건이 남았다. 입력 2026-09-16 16:30, 화면 표시 2026-09-17 오전 1:30, 당사자 홍은수, 목표 가상 상담 흐름 점검."
+  }
+}

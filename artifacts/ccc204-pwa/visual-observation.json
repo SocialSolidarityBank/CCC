@@ -1,0 +1,14 @@
+{
+  "observedSurface": "/welcome",
+  "viewport": {
+    "width": 390,
+    "height": 900
+  },
+  "theme": "dark",
+  "modelVisualConfirmation": true,
+  "observed": "Readable heading, canonical wire card/callout/button and no horizontal clipping.",
+  "helperCreatedTemporaryScreenshot": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/omp-sshots-157e03c59741d60a.png",
+  "temporaryScreenshotSha256": "ef58ee4682b3627aca9a3f2410124e3342eae0aff12e07a70619f6ed6081f129",
+  "temporaryScreenshotRemoved": true,
+  "savedVisualEvidence": "visual.json"
+}

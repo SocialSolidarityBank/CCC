@@ -1,0 +1,619 @@
+{
+  "stage": "verified_correspondence_evidence",
+  "sourceCommit": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+  "snapshot": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww",
+  "archiveSha256": "7f3ee83b88f29015728a600d29322dcb9e9b8d746c8ac3fafed4dd3bea4c7ce5",
+  "archivedFilesVerified": 1337,
+  "node": "v24.18.0",
+  "frozenOwnedPaths": {
+    "docs/specs/S3-screen-api-map.md": "2e87bcec8e0e609c09aec67df0fd81fbeb9a6aa601bc3aff7403ecf5833ffe2b",
+    "docs/superpowers/plans/2026-09-13-CCC-201-screen-api-probe.md": "2db2aa1503b81b51d9881ea50f6022a02046fcd3b310a618ca002c16f2065a1b",
+    "artifacts/ccc201-screen-api/contracts.json": "f065fc1716c56880c862f25e0dc231a9b75ce8e32b74d03e3ae3890c1e5236c2",
+    "artifacts/ccc201-screen-api/coverage.mjs": "80e8b1bd2d73341f37ee101afe04efcf08e005831e0d5a3fb294146945710f21",
+    "artifacts/ccc201-screen-api/variants.test.ts": "ef53d70421b35ba88c4fcc1ad13ae75507712b3f3339a0d1a1d776652cfe8363",
+    "artifacts/ccc201-screen-api/variants.json": "dd73d82f94356430cce367171277ce04d9d2fa857f81f463768c25f67365ec50",
+    "artifacts/ccc201-screen-api/web.mjs": "1cf9695ad053962e2d39e776320a5a7adc458be9597a80de04a0847412663bd5",
+    "artifacts/ccc201-screen-api/web.json": "85fa8ab6ef19062616bc7f70009254e45b33055615d4e05f516e472340823c87",
+    "artifacts/ccc201-screen-api/browser-actions.json": "889b50e330ec8a54044561a1f8f658e55aeaf8abc2a88afeef28d9f47f350bc5",
+    "artifacts/ccc201-screen-api/negative-control.json": "1d35bcff71b94a73b2a698a89dec5df8a155cddbf82aba8d787a1f4fa8fcbfbb"
+  },
+  "dependencyLinks": [
+    {
+      "link": "node_modules/.pnpm",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/@types/node",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@types+node@24.13.3/node_modules/@types/node",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/.modules.yaml",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.modules.yaml",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/spdx-exceptions",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/spdx-exceptions@2.5.0/node_modules/spdx-exceptions",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/miniflare",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/miniflare@4.20260706.0/node_modules/miniflare",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/@cloudflare/vitest-pool-workers",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@cloudflare+vitest-pool-workers@0.16.20_@cloudflare+workers-types@5.20260708.1_@vitest+_cadb7e6040dfd26107fba6db70a017db/node_modules/@cloudflare/vitest-pool-workers",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/@cloudflare/workers-types",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@cloudflare+workers-types@5.20260708.1/node_modules/@cloudflare/workers-types",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/wrangler",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/wrangler@4.107.1_@cloudflare+workers-types@5.20260708.1/node_modules/wrangler",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/vitest",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/vitest@4.1.10_@types+node@24.13.3_jsdom@26.1.0_vite@8.1.3_@types+node@24.13.3_esbuild@0.28.1_terser@5.16.9_yaml@2.9.0_/node_modules/vitest",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/@ccc/core",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/core",
+      "workspace": true
+    },
+    {
+      "link": "node_modules/@ccc/db-postgres",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/db-postgres",
+      "workspace": true
+    },
+    {
+      "link": "node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "node_modules/@ccc/db-d1",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/db-d1",
+      "workspace": true
+    },
+    {
+      "link": "node_modules/@ccc/secrets-env",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/secrets-env",
+      "workspace": true
+    },
+    {
+      "link": "node_modules/typescript",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/spdx-license-ids",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/spdx-license-ids@3.0.22/node_modules/spdx-license-ids",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/.pnpm-workspace-state-v1.json",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm-workspace-state-v1.json",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/postgres",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/postgres@3.4.9/node_modules/postgres",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/spdx-expression-parse",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/spdx-expression-parse@3.0.1/node_modules/spdx-expression-parse",
+      "workspace": false
+    },
+    {
+      "link": "node_modules/tar",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/tar@7.5.22/node_modules/tar",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/@types/react-dom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@types+react-dom@19.2.3_@types+react@19.2.17/node_modules/@types/react-dom",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/@types/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@types+react@19.2.17/node_modules/@types/react",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/@opennextjs/cloudflare",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@opennextjs+cloudflare@1.20.1_encoding@0.1.13_next@16.2.10_react-dom@19.2.7_react@19.2._c119f73e47d22932bf4d5f699fead588/node_modules/@opennextjs/cloudflare",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/next",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/next@16.2.10_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/next",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/react-day-picker",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/react-day-picker@10.0.1_@types+react@19.2.17_react@19.2.7/node_modules/react-day-picker",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/pretendard",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/pretendard@1.3.9/node_modules/pretendard",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/@ccc/wire",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/wire",
+      "workspace": true
+    },
+    {
+      "link": "apps/web/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "apps/web/node_modules/lucide-react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/lucide-react@1.24.0_react@19.2.7/node_modules/lucide-react",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/jsdom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/react-dom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/qrcode.react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/qrcode.react@4.2.0_react@19.2.7/node_modules/qrcode.react",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/@testing-library/dom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/@testing-library/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@testing-library+react@16.3.2_@testing-library+dom@10.4.1_@types+react-dom@19.2.3_@type_11d2d49f5a29711711a9ee76b83cb539/node_modules/@testing-library/react",
+      "workspace": false
+    },
+    {
+      "link": "apps/web/node_modules/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/react@19.2.7/node_modules/react",
+      "workspace": false
+    },
+    {
+      "link": "apps/community-cloud/node_modules/@ccc/identity-supabase",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/identity-supabase",
+      "workspace": true
+    },
+    {
+      "link": "apps/community-cloud/node_modules/@ccc/core",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/core",
+      "workspace": true
+    },
+    {
+      "link": "apps/community-cloud/node_modules/@ccc/http-api",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/http-api",
+      "workspace": true
+    },
+    {
+      "link": "apps/community-cloud/node_modules/@ccc/db-postgres",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/db-postgres",
+      "workspace": true
+    },
+    {
+      "link": "apps/community-cloud/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "apps/community-cloud/node_modules/@ccc/audio-signer",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/audio-signer",
+      "workspace": true
+    },
+    {
+      "link": "apps/community-cloud/node_modules/@ccc/secrets-env",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/secrets-env",
+      "workspace": true
+    },
+    {
+      "link": "apps/community-cloud/node_modules/typescript",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript",
+      "workspace": false
+    },
+    {
+      "link": "apps/community-cloud/node_modules/esbuild",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/esbuild@0.28.1/node_modules/esbuild",
+      "workspace": false
+    },
+    {
+      "link": "apps/api/node_modules/@ccc/core",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/core",
+      "workspace": true
+    },
+    {
+      "link": "apps/api/node_modules/@ccc/http-api",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/http-api",
+      "workspace": true
+    },
+    {
+      "link": "apps/api/node_modules/@ccc/db-postgres",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/db-postgres",
+      "workspace": true
+    },
+    {
+      "link": "apps/api/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "apps/api/node_modules/@ccc/audio-r2",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/audio-r2",
+      "workspace": true
+    },
+    {
+      "link": "apps/api/node_modules/@ccc/db-sqlite",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/db-sqlite",
+      "workspace": true
+    },
+    {
+      "link": "apps/api/node_modules/@ccc/db-d1",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/db-d1",
+      "workspace": true
+    },
+    {
+      "link": "apps/api/node_modules/@ccc/identity-access",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/identity-access",
+      "workspace": true
+    },
+    {
+      "link": "apps/api/node_modules/@ccc/ai-runtime",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/ai-runtime",
+      "workspace": true
+    },
+    {
+      "link": "apps/api/node_modules/@ccc/secrets-env",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/adapters/secrets-env",
+      "workspace": true
+    },
+    {
+      "link": "apps/client/node_modules/@types/react-dom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@types+react-dom@19.2.3_@types+react@19.2.17/node_modules/@types/react-dom",
+      "workspace": false
+    },
+    {
+      "link": "apps/client/node_modules/@types/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@types+react@19.2.17/node_modules/@types/react",
+      "workspace": false
+    },
+    {
+      "link": "apps/client/node_modules/vitest",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/vitest@4.1.10_@types+node@24.13.3_jsdom@26.1.0_vite@8.1.3_@types+node@24.13.3_esbuild@0.28.1_terser@5.16.9_yaml@2.9.0_/node_modules/vitest",
+      "workspace": false
+    },
+    {
+      "link": "apps/client/node_modules/@ccc/wire",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/wire",
+      "workspace": true
+    },
+    {
+      "link": "apps/client/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "apps/client/node_modules/typescript",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript",
+      "workspace": false
+    },
+    {
+      "link": "apps/client/node_modules/react-dom",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom",
+      "workspace": false
+    },
+    {
+      "link": "apps/client/node_modules/vite",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/vite@8.1.3_@types+node@24.13.3_esbuild@0.28.1_terser@5.16.9_yaml@2.9.0/node_modules/vite",
+      "workspace": false
+    },
+    {
+      "link": "apps/client/node_modules/@supabase/supabase-js",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@supabase+supabase-js@2.116.0/node_modules/@supabase/supabase-js",
+      "workspace": false
+    },
+    {
+      "link": "apps/client/node_modules/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/react@19.2.7/node_modules/react",
+      "workspace": false
+    },
+    {
+      "link": "apps/client/node_modules/react-router",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router",
+      "workspace": false
+    },
+    {
+      "link": "packages/core/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "packages/wire/node_modules/@types/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@types+react@19.2.17/node_modules/@types/react",
+      "workspace": false
+    },
+    {
+      "link": "packages/wire/node_modules/react",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/react@19.2.7/node_modules/react",
+      "workspace": false
+    },
+    {
+      "link": "packages/http-api/node_modules/@ccc/core",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/core",
+      "workspace": true
+    },
+    {
+      "link": "packages/http-api/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "packages/http-api/node_modules/@ccc/ai-runtime",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/ai-runtime",
+      "workspace": true
+    },
+    {
+      "link": "packages/ai-runtime/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "adapters/identity-supabase/node_modules/@ccc/core",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/core",
+      "workspace": true
+    },
+    {
+      "link": "adapters/identity-supabase/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "adapters/db-postgres/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "adapters/db-postgres/node_modules/postgres",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/postgres@3.4.9/node_modules/postgres",
+      "workspace": false
+    },
+    {
+      "link": "adapters/audio-r2/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "adapters/db-sqlite/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "adapters/db-sqlite/node_modules/better-sqlite3-multiple-ciphers",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/better-sqlite3-multiple-ciphers@13.0.3/node_modules/better-sqlite3-multiple-ciphers",
+      "workspace": false
+    },
+    {
+      "link": "adapters/secrets-dpapi/node_modules/@primno/dpapi",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/@primno+dpapi@2.0.1_patch_hash=03f4823889c4d12a19791a67a037718510599fc171748e4495956a20448e325d/node_modules/@primno/dpapi",
+      "workspace": false
+    },
+    {
+      "link": "adapters/secrets-dpapi/node_modules/node-addon-api",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/node-addon-api@8.9.2/node_modules/node-addon-api",
+      "workspace": false
+    },
+    {
+      "link": "adapters/secrets-dpapi/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "adapters/secrets-dpapi/node_modules/node-gyp",
+      "target": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity/node_modules/.pnpm/node-gyp@11.0.0/node_modules/node-gyp",
+      "workspace": false
+    },
+    {
+      "link": "adapters/audio-file/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "adapters/db-d1/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "adapters/identity-access/node_modules/@ccc/core",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/core",
+      "workspace": true
+    },
+    {
+      "link": "adapters/identity-access/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "adapters/audio-signer/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "adapters/secrets-env/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    },
+    {
+      "link": "adapters/scheduler-node/node_modules/@ccc/contracts",
+      "target": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/packages/contracts",
+      "workspace": true
+    }
+  ],
+  "scope": "Existing source snapshot is unchanged; static inventory and actual runtime have separate evidence. No source installation or activation.",
+  "runtimeRefreeze": {
+    "path": "artifacts/ccc201-screen-api/runtime.test.ts",
+    "sha256": "1ae1e5978e78d66ea4372737a0af5592e0a00c3a3318897073747aea36a92196",
+    "reason": "Use existing ephemeral signedManifest helper to supply the real capabilities prerequisite, retain missing-manifest 503 check; no product edit",
+    "initialRuntimeEvidence": "runtime-initial.json",
+    "initialFailures": [
+      "sanitized PATH did not include installed Node; no runtime started",
+      "probe expected off/null before installing its synthetic manifest input; actual API correctly returned503"
+    ]
+  },
+  "webProbeFreeze": {
+    "path": "artifacts/ccc201-screen-api/web.mjs",
+    "sha256": "6eeefa84d30738ec696ee41a9ca9bb62c0d5937192d73b9401af11bb9dfb7fea",
+    "scope": "Native HTTP form adapter plus all30 Next server render responses and actual backend requests; no browser interaction claim"
+  },
+  "reviewFreeze": {
+    "observedAt": "2026-09-13T10:08:25.638135+00:00",
+    "ownedFiles": {
+      "docs/specs/S3-screen-api-map.md": "ebd3d7727fa7d08f2993fe77d799a3c200d6348e100cfe06c34471974bde3c20",
+      "docs/superpowers/plans/2026-09-13-CCC-201-screen-api-probe.md": "2db2aa1503b81b51d9881ea50f6022a02046fcd3b310a618ca002c16f2065a1b",
+      "artifacts/ccc201-screen-api/coverage.mjs": "c850fdcf59b832909b15b35f1a50a92d6f19f69fbb06f94c95a20504171ae06c",
+      "artifacts/ccc201-screen-api/runtime.test.ts": "1ae1e5978e78d66ea4372737a0af5592e0a00c3a3318897073747aea36a92196",
+      "artifacts/ccc201-screen-api/web.mjs": "6eeefa84d30738ec696ee41a9ca9bb62c0d5937192d73b9401af11bb9dfb7fea",
+      "artifacts/ccc201-screen-api/endpoints.json": "3d9366e38925bd8e2c2f61b7e45e7373ee7a91b94a250285fff3ebfc07a28165",
+      "artifacts/ccc201-screen-api/scr.json": "ec537193ab5872732f470f4b8e6b821130daa2a209e03435a23eb30ac8c42826"
+    },
+    "runtime": {
+      "testFilesPassed": 1,
+      "testsPassed": 1,
+      "exitCode": 0,
+      "durationSeconds": 530.96,
+      "observedResponses": 140,
+      "nextRoutesRequested": 30,
+      "productErrorsRemain": true
+    }
+  },
+  "comparisonProbeFreeze": {
+    "sha256": "7ad954eb842359d0f2ece75ae9a3993026e47508a3f06387a93ef60baba52406",
+    "documentSha256": "ebd3d7727fa7d08f2993fe77d799a3c200d6348e100cfe06c34471974bde3c20",
+    "command": "node artifacts/ccc201-screen-api/coverage.mjs /var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww artifacts/ccc201-screen-api/coverage.json docs/specs/S3-screen-api-map.md"
+  },
+  "edgeAndRenderFreeze": {
+    "observedAt": "2026-09-13T10:30:48.322590+00:00",
+    "files": {
+      "artifacts/ccc201-screen-api/coverage.mjs": "80e8b1bd2d73341f37ee101afe04efcf08e005831e0d5a3fb294146945710f21",
+      "artifacts/ccc201-screen-api/web.mjs": "f30095fc666dae12a4bdea6a5d8d41f4a91918e40771d5d54ed8b642cee3ecd8",
+      "docs/specs/S3-screen-api-map.md": "cf72f7bd28d941ce089584f527f1c20e0c0d81a22b8c484de640f1c874bf83b2",
+      "artifacts/ccc201-screen-api/endpoints.json": "ee64d744c6985e5bc625e1ed1ec4bf34adf6bf0e22a5024cb3cb231750cbffb9",
+      "artifacts/ccc201-screen-api/scr.json": "20baadfc39c752fe437595a36c30cc4b50dc1587d46c9aa6e0201e46bbcb1a4b"
+    },
+    "scope": "Per-route/action bindings, independent source return predicates, actual sidebar selector, streamed error markers and safe rendered server-action forms"
+  },
+  "finalWebProbeFreeze": {
+    "sha256": "1cf9695ad053962e2d39e776320a5a7adc458be9597a80de04a0847412663bd5",
+    "reason": "Correct actual sidebar selector and retain error markers; classify 307/404 separately from streamed200 error. Action proof is the actual isolated browser, not the failed native attempt."
+  },
+  "variantFreeze": {
+    "sourceCommit": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+    "files": {
+      "variants.test.ts": "ef53d70421b35ba88c4fcc1ad13ae75507712b3f3339a0d1a1d776652cfe8363",
+      "variants.config.mts": "6d9f8672c9be624fd49799458d90d3319ff35cd1a7586b5d6884a2b45a2021b2"
+    },
+    "correctionsBeforeRun": [
+      "Imported existing seedProviderRegistry helper referenced by writer",
+      "Record observed response key/type structure without values",
+      "Assert exact issued/used/signup/staff public envelopes instead of incidental at-sign or truthy checks",
+      "Assert used-link contact equals its own issuer, not merely any string"
+    ],
+    "writerDidNotRunRuntime": true
+  },
+  "contractFinalReviewFreeze": {
+    "observedAt": "2026-09-13T11:10:41.243229+00:00",
+    "files": {
+      "docs/specs/S3-screen-api-map.md": "e251db4c19c9a2dd83c3993a75bd424a60aaf1f437a0089441b756b01f805f2d",
+      "artifacts/ccc201-screen-api/contracts.json": "6b50d57ad9c62b819bcfe5972ff8b05cfa737b57445bd2ea0aef1e1dd2fceaba",
+      "artifacts/ccc201-screen-api/variants.test.ts": "d9a445ec850b6a1d363198c3bbd26cc167f85ea8d5632858f308f772f159e643",
+      "artifacts/ccc201-screen-api/variants.json": "541947359d1dd47fa7d040664327be9e91098fa8a2b5d4656d23b41a747e5227",
+      "artifacts/ccc201-screen-api/web.mjs": "1cf9695ad053962e2d39e776320a5a7adc458be9597a80de04a0847412663bd5",
+      "artifacts/ccc201-screen-api/web.json": "85fa8ab6ef19062616bc7f70009254e45b33055615d4e05f516e472340823c87",
+      "artifacts/ccc201-screen-api/browser-actions.json": "889b50e330ec8a54044561a1f8f658e55aeaf8abc2a88afeef28d9f47f350bc5",
+      "artifacts/ccc201-screen-api/negative-control.json": "1d35bcff71b94a73b2a698a89dec5df8a155cddbf82aba8d787a1f4fa8fcbfbb"
+    }
+  },
+  "finalEvidenceFreeze": {
+    "observedAt": "2026-09-13T11:16:38.775575+00:00",
+    "files": {
+      "docs/specs/S3-screen-api-map.md": "2e87bcec8e0e609c09aec67df0fd81fbeb9a6aa601bc3aff7403ecf5833ffe2b",
+      "docs/superpowers/plans/2026-09-13-CCC-201-screen-api-probe.md": "2db2aa1503b81b51d9881ea50f6022a02046fcd3b310a618ca002c16f2065a1b",
+      "artifacts/ccc201-screen-api/contracts.json": "f065fc1716c56880c862f25e0dc231a9b75ce8e32b74d03e3ae3890c1e5236c2",
+      "artifacts/ccc201-screen-api/coverage.mjs": "80e8b1bd2d73341f37ee101afe04efcf08e005831e0d5a3fb294146945710f21",
+      "artifacts/ccc201-screen-api/variants.test.ts": "ef53d70421b35ba88c4fcc1ad13ae75507712b3f3339a0d1a1d776652cfe8363",
+      "artifacts/ccc201-screen-api/variants.json": "dd73d82f94356430cce367171277ce04d9d2fa857f81f463768c25f67365ec50",
+      "artifacts/ccc201-screen-api/web.mjs": "1cf9695ad053962e2d39e776320a5a7adc458be9597a80de04a0847412663bd5",
+      "artifacts/ccc201-screen-api/web.json": "85fa8ab6ef19062616bc7f70009254e45b33055615d4e05f516e472340823c87",
+      "artifacts/ccc201-screen-api/browser-actions.json": "889b50e330ec8a54044561a1f8f658e55aeaf8abc2a88afeef28d9f47f350bc5",
+      "artifacts/ccc201-screen-api/negative-control.json": "1d35bcff71b94a73b2a698a89dec5df8a155cddbf82aba8d787a1f4fa8fcbfbb"
+    }
+  },
+  "initialProbeFreeze": {
+    "stage": "initial_probe_freeze",
+    "frozenOwnedPaths": {
+      "artifacts/ccc201-screen-api/coverage.mjs": "b0bd7f3e05c2e5a805b726fdaedf4c3f924b6d3eb5abf976a769b8606664cca0",
+      "artifacts/ccc201-screen-api/runtime.test.ts": "2a0fa54f4beaa53f9825d501e557941e1645a19e0f86204b8aee7a6a295f248b",
+      "artifacts/ccc201-screen-api/vitest.config.mts": "f3cfe51a53569da98a84d6e090b6ad682152654e4b1c7f1da76d7127a9161b78",
+      "docs/specs/S3-screen-api-map.md": "d95da47a879aea1d79a3e9bf43e4b90835408402866b55804e9375353116afbe",
+      "docs/superpowers/plans/2026-09-13-CCC-201-screen-api-probe.md": "2db2aa1503b81b51d9881ea50f6022a02046fcd3b310a618ca002c16f2065a1b"
+    }
+  },
+  "latestFreezeField": "finalEvidenceFreeze",
+  "historyRule": "initialProbeFreeze, reviewFreeze and intermediate refreeze objects preserve historical inputs; frozenOwnedPaths and finalEvidenceFreeze identify current artifacts.",
+  "verification": {
+    "docNumberGuard": {
+      "command": "node scripts/guard-doc-numbers.mjs",
+      "exitCode": 0
+    },
+    "localLinks": 14,
+    "linkErrors": 0,
+    "routeEdges": 30,
+    "orphanActions": 4,
+    "liveDispatchOperations": 144,
+    "staticRetiredGateOperations": 1,
+    "sourceLedgerDifferences": 0,
+    "registryOperationDifferences": 0,
+    "registryReferences": 619,
+    "baselineSourceFilesUnchanged": 1337,
+    "nextRoutesObserved": 30,
+    "variantResponses": 30,
+    "browserServerActions": 3,
+    "externalAiSttCalls": 0,
+    "productChanges": 0
+  },
+  "finalReviews": {
+    "CoverageFinalReview": {
+      "overall_correctness": "correct",
+      "findings": 0
+    },
+    "ContractFinalReview": {
+      "overall_correctness": "correct",
+      "findings": 0
+    }
+  },
+  "cleanup": {
+    "evidence": "cleanup.json",
+    "sourceInputsRetained": true,
+    "generatedRuntimeRemoved": true
+  }
+}

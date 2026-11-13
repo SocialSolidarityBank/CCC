@@ -1,0 +1,21 @@
+{
+  "observedAt": "2026-09-13T15:37:34.324Z",
+  "pane": "w1N:p1",
+  "sessionId": "01a09b5b-5952-7215-9127-ef3ed91e7261",
+  "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+  "foregroundCwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+  "branch": "orchestrate/beta-0.9",
+  "processes": [
+    {
+      "pid": 96081,
+      "name": "gh",
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator"
+    },
+    {
+      "pid": 85024,
+      "name": "omp",
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator"
+    }
+  ],
+  "matches": true
+}

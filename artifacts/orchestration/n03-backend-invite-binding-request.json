@@ -1,0 +1,59 @@
+{
+  "assignmentId": "n03-backend-invite-binding-20260914",
+  "ticket": "CCC-276",
+  "owner": "BACKEND",
+  "goal": "Make staff invitation acceptance fail closed unless both a verified Auth subject and matching verified Auth email claim are present, without restoring public sign-up or identity linking.",
+  "worktree": {
+    "decision": "reuse",
+    "host": "mini",
+    "path": "/Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND",
+    "branch": "core/relayer-domain-beta",
+    "requiredHead": "6ff75d272ca0ca7c81f8161a9ec118dd1807d67b",
+    "originMain": "ad218e8eafa646a524674fe4ef8cf9c20c0b68bb",
+    "divergence": {"behind": 0, "ahead": 5},
+    "state": "clean",
+    "rule": "Preserve all current commits. Do not reset, rebase, switch, stash or clean. This runs before the later CCC-299 gateway/request-handler assignment so the same CORE writer owns the overlap serially."
+  },
+  "authority": [
+    "Q-approved invitation-only policy recorded in onboarding commit 217e752f816dedf1f6c535b073039ab596ef046f",
+    "../onboarding/docs/superpowers/plans/2026-09-13-relayer-onboarding-implementation.md lines 222-252",
+    "../onboarding/docs/adr/0050-relayer-assisted-onboarding.md 2026-09-14 Q partial amendment",
+    "D90 identity binding and existing invite-token concealment"
+  ],
+  "allowedWrites": [
+    "packages/core/src/gateway.ts at acceptStaffInvite and its exact type boundary only",
+    "packages/http-api/src/request-handler.ts at POST /staff-invites/token/:token/accept only",
+    "apps/api/test/invite-identity-binding.test.ts",
+    "apps/api/test/staff-invites.contract.test.ts only where unauthenticated acceptance behavior changes"
+  ],
+  "readOnly": [
+    "all other gateway and request-handler routes",
+    "packages/http-api/src/identity.ts and Supabase JWT verification",
+    "apps/api/test/identity-supabase.test.ts",
+    "apps/client/**",
+    "scripts/onboarding/**",
+    "onboarding documents"
+  ],
+  "excluded": [
+    "POST /identity/link restoration",
+    "public signUp, PUBLIC_SIGNUP_ENABLED and participant public_signup policy",
+    "Auth invitation issuance, service-role credentials, settings, email templates, TTL changes and orphan cleanup",
+    "first-admin scripts, callback UI, installation trust, migrations, dependencies, lockfile, deployment and external services",
+    "all CCC-299 question lifecycle work"
+  ],
+  "requiredBehavior": [
+    "The accept route requires the existing signed Bearer verification path. It passes a subject to the gateway only when a nonblank verified subject exists and the verified Auth email claim equals the normalized invitation email.",
+    "No credential or a verified email mismatch must produce no users row, no role grant and no invite consumption. Preserve public token concealment by returning the existing not_found-shaped failure rather than revealing which check failed.",
+    "A forged or invalid credential remains an authentication failure from the verifier and also creates or consumes nothing.",
+    "acceptStaffInvite no longer accepts or defaults a nullable subject for successful registration. It rechecks a nonblank opaque subject before the atomic batch. Keep invite token, expiry, issuer, duplicate email, role and audit checks unchanged.",
+    "Successful matching verified subject and email still atomically creates one active user with auth_subject, grants only invited roles and consumes the invite once. Replay remains rejected.",
+    "Do not log or return subject, token, provider body or verification detail. Preserve the existing successful 201 response's normalized email because the current client contract consumes it; refusal bodies and logs must not include email."
+  ],
+  "verification": [
+    "Use LSP references on acceptStaffInvite before changing its exported signature when available and migrate every current caller.",
+    "Run only invite-identity-binding.test.ts and the affected staff-invites.contract.test.ts cases. Prove matching success, missing credential refusal, email mismatch refusal, forged credential refusal and no user/role/invite mutation on every refusal.",
+    "Commit only allowed explicit paths locally. Do not bypass configured hooks; if a hook requires out-of-scope work, stop before commit and report it. Do not push, merge, deploy or contact external services."
+  ],
+  "completionMarker": "BACKEND_RESULT N03-INVITE-BINDING-20260914",
+  "report": "Print marker, parent and commit SHA, changed paths, exact checks, zero-mutation evidence and blocker."
+}

@@ -1,0 +1,18 @@
+[
+  {"command":"node artifacts/ccc212-browser-auth/harness/setup.mjs","exitCode":0,"result":"initial 900-file pinned snapshot"},
+  {"command":"pnpm exec vitest run --config <owned config>","exitCode":1,"innerExitCode":254,"result":"fixture did not start; snapshot omitted committed patches/@primno__dpapi@2.0.1.patch"},
+  {"command":"node node_modules/vitest/vitest.mjs run --config <owned config>","exitCode":1,"result":"4/5 audit tests passed; release builder hit the same omitted patch"},
+  {"command":"bun apps/client/tools/build-release.mjs --config <public synthetic config>","exitCode":1,"result":"diagnostic reproduction of omitted patch before Vite"},
+  {"command":"node artifacts/ccc212-browser-auth/harness/setup.mjs","exitCode":0,"result":"corrected 901-file pinned snapshot including committed patches directory"},
+  {"command":"node node_modules/vitest/vitest.mjs run --config <owned config>","exitCode":0,"result":"5/5 custom contract and runtime probes passed"},
+  {"command":"node ../../node_modules/vitest/vitest.mjs run four client contract files","exitCode":0,"result":"4 files, 34 tests passed"},
+  {"command":"node ../../node_modules/vitest/vitest.mjs run four API files from apps/api cwd","exitCode":1,"result":"no files selected because config include is repo-root-relative; no tests ran"},
+  {"command":"node node_modules/vitest/vitest.mjs run four API contract files from snapshot root","exitCode":0,"result":"4 files, 94 tests passed"},
+  {"command":"node --check browser fixture, probe, and config","exitCode":0,"result":"all three owned scripts parsed"},
+  {"command":"first isolated Chromium browser scenario","exitCode":1,"result":"failed at service worker activation; release inherited Vitest NODE_ENV=test, so application correctly skipped production-only registration"},
+  {"command":"node node_modules/vitest/vitest.mjs run --config <owned config> with nested NODE_ENV=production","exitCode":0,"result":"5/5 custom probes passed and production release rebuilt"},
+  {"command":"second isolated Chromium browser scenario","exitCode":0,"result":"credential login, optional aal1, actual static CSP, storage/cache, revocation, logout, and reload boundaries passed"},
+  {"command":"which electron","exitCode":1,"result":"no Electron executable"},
+  {"command":"node require.resolve('electron') in pinned snapshot","exitCode":1,"result":"no Electron module"},
+  {"command":"deno --version","exitCode":0,"result":"Deno 2.8.3 available and used for actual static release server"}
+]

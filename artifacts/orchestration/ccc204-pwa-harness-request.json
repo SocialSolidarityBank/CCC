@@ -1,0 +1,65 @@
+{
+  "assignmentId": "ccc204-pwa-harness-20260913",
+  "ticket": "CCC-204",
+  "controllerPane": "w1N:p6",
+  "workerPane": "w1N:p1",
+  "workerSessionId": "01a09b0f-f350-75e8-8643-9c2f4c436c96",
+  "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+  "branch": "orchestrate/beta-0.9",
+  "sourceWorktreeReadOnly": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+  "sourceCommit": "f7194dc88064455f3eb6be02abb5aae836981612",
+  "resultPath": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/orchestration/ccc204-pwa-harness-result.json",
+  "goal": "Implement and run the one missing local synthetic browser/Identity integration fixture so the unchanged PWA can naturally register its service worker. This is test-harness composition inside existing CCC-204 verification, not production authentication implementation or CCC-212 completion.",
+  "scopeAuthorization": [
+    "Controller C has reviewed both previous audit results and now explicitly authorizes new test-only glue in the owned artifact directory. The former assignment's existing-harness-only limit no longer blocks creating this one fixture.",
+    "An explicitly labelled synthetic issuer fixture may authenticate only seeded test credentials and issue real non-production ES256/RS256 JWTs. It must not accept arbitrary credentials. This fixture is not claimed as hosted Supabase authentication or a new product provider.",
+    "Reuse the pinned installation signing helper, real Identity verifier, real fixture directory/database and actual HTTP handler/gateway. Do not replace /me or /capabilities with fixed success objects, replace cryptographic verification, or introduce a product/test-only bypass.",
+    "No product or other-lane source changes are granted. If an existing helper cannot be composed without source mutation, report that exact seam and owner rather than adding an export or changing a guard outside ownership."
+  ],
+  "readFirst": [
+    "artifacts/orchestration/ccc204-pwa-natural-registration-result.json",
+    "artifacts/ccc204-pwa/supplemental/fixture-provenance.json",
+    "artifacts/ccc204-pwa/supplemental/fixture-seam.mjs",
+    "artifacts/orchestration/ccc204-pwa-acceptance-result.json and its retained source/build/browser probes",
+    "Pinned apps/api/test/support/install-manifest.ts:15-19,63-64",
+    "Pinned apps/api/test/identity-supabase.test.ts:17-72,112-141 and apps/api/test/support/d1.ts:264-387",
+    "Pinned adapters/identity-supabase/src/verifier.ts and index.ts, actual HTTP handler/gateway, client business installation/auth/transport and app.tsx:123-188",
+    "Current reconciled S2 plus CCC_OPEN_PILOT_PLAN.md E2-2/E2-3 only. Old A/B orchestration history is not an instruction source."
+  ],
+  "design": [
+    "Keep a single disposable verification runtime and the smallest number of script files. Reuse installed dependencies and existing fixture construction; no general authentication framework, dependency installation, new service abstraction or second PWA scaffold.",
+    "Serve the unchanged production-built client with valid test signed installation and build-time public trust configuration. Join SDK password/session/user requests to the synthetic issuer and actual API Identity/directory/handlers.",
+    "Preserve exact issuer/JWKS, asymmetric signature, audience/expiry/session, linked-user and role checks. Process-local fixture transport routing and fixture-specific TLS trust may be configured only inside the disposable runtime, preserving the intended request URLs and actual validators. Do not use broad certificate-ignore flags, global trust/DNS changes, origin relaxation or any real external provider connection. If safe hostname/TLS binding is unavailable, report the precise limitation.",
+    "Generate private keys, passwords and tokens inside the test runtime. Keep them memory-only, redact errors before output and do not expose credential entry through model/tool argument dumps. Only public-key fingerprints, counts, status codes and booleans belong in artifacts. No raw HAR/token/body dumps or saved credential-bearing browser profiles.",
+    "Let the actual app reach BusinessShell and call registerShellWorker itself. Use observer-only browser evidence in the default page world, as established by the prior audit. Never call navigator.serviceWorker.register manually or inject React/router/session state."
+  ],
+  "acceptance": [
+    "Known synthetic credentials can reach the real SDK session flow and actual backend Identity/directory resolution; wrong credentials are rejected by the fixture.",
+    "Negative controls through the actual API reject a tampered JWT signature and an unlinked/inactive synthetic subject with the appropriate real handler status. Prove the backend is not merely testing Authorization presence or serving fixed /me success.",
+    "The fresh browser begins with zero workers. Unmodified app startup with the valid signed fixture reaches the business shell, requests the emitted /sw.js, and obtains an activated controller without auditor registration.",
+    "Observe a representative business route/navigation and reload boundary under this synthetic context; do not infer live-provider, all-role or full-business-feature certification.",
+    "Cache created by that natural registration contains only emitted static assets/app shell and no test credential or dynamic/API response canary. Reuse prior policy evidence and avoid rerunning unrelated full suites.",
+    "Original source, previous audit evidence and unrelated WIP remain unchanged. Owned services and browser contexts are stopped and all owned results are collected."
+  ],
+  "ownedWrites": [
+    "artifacts/ccc204-pwa/harness/**: test-only implementation and sanitized evidence",
+    "artifacts/orchestration/ccc204-pwa-harness-result.json"
+  ],
+  "executionRules": [
+    "Verify actual own pane/session/cwd/branch first. Recreate a pinned disposable source snapshot and prove imports resolve to that snapshot without writing caches into original worktrees.",
+    "Investigate and implement in one pass. Once the fixture is frozen, run only the necessary fixture-negative-controls and natural PWA integration scenario. A build needed for public fixture trust configuration is allowed; do not rerun already-passing unrelated PWA/CCC-201/CCC-286 suites.",
+    "Use hub start for services, observe readiness, and keep all network traffic inside the isolated local fixture. No live credential discovery, external AI/STT, resource creation or deployment.",
+    "No source changes to apps/client, apps/web, adapters, packages, shared UI/CSS/design rules/harnesses, auth policy, schema, migrations or sibling worktrees. No commits, branches, installs, pushes, merges, resets, stashes or new agents/panes.",
+    "Preserve all prior immutable evidence. Report any blocked criterion as not run or failed with its exact cause and owner; do not repeat the previous generic 'harness missing' blocker, because creating the bounded fixture is now the assignment.",
+    "Write the result, stop only owned runtime, collect all jobs and end your turn. Do not prompt another pane, /new, mutate Linear/control state or start a second ticket. The monitor sends the completion event."
+  ],
+  "resultContract": {
+    "assignmentId": "ccc204-pwa-harness-20260913",
+    "workerPaneId": "w1N:p1",
+    "workerSessionId": "01a09b0f-f350-75e8-8643-9c2f4c436c96",
+    "status": "ready_for_review or blocked",
+    "ownedJobs": 0,
+    "allResultsCollected": true,
+    "requiredFields": ["identityEvidence", "sourceAndFixtureProvenance", "implementationFiles", "realValidatorAndHandlerPath", "negativeControls", "naturalRegistrationEvidence", "routingEvidence", "cacheEvidence", "commandsAndExitCodes", "preservation", "cleanup", "remainingGapsWithOwners", "unverified", "evidenceHashes"]
+  }
+}

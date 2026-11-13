@@ -1,0 +1,152 @@
+{
+  "csvSha256": "87b71fdf2fe80193193ff77ae02fe9b37b75cf3bf95d8e0834e75a032ef64d76",
+  "records": [
+    {
+      "id": "SCR-001",
+      "route": "/welcome; /는 STT trial",
+      "source": "app.tsx:234-240,267-270",
+      "correspondence": "공개 소개는 최소 진입 카드, apps/site 없음",
+      "owner": "E2-6/CCC-219; W11"
+    },
+    {
+      "id": "SCR-002",
+      "route": "기존 web /preview, /preview/admin",
+      "source": "app.tsx:265-300; tools/synthetic-preview.mjs",
+      "correspondence": "client 제품 demo route 없음. synthetic-api는 backend 증거가 아님",
+      "owner": "E2-6/CCC-219, W11/W12"
+    },
+    {
+      "id": "SCR-006",
+      "route": "/onboarding",
+      "source": "screens/institution.tsx:44-227; business/institution.ts:115-167",
+      "correspondence": "`POST /organization/onboarding` → OrganizationOnboardingResponse, `GET /programs` → ProgramListResponse, `PATCH /programs/:id` → ProgramMutationResponse. 기관 관리자; N02 설치와 별도",
+      "owner": "E2-5a/CCC-209, W03/W11"
+    },
+    {
+      "id": "SCR-007",
+      "route": "/settings?module=institution-profile",
+      "source": "business/api.ts:403-415; business/settings-modules.tsx:189-220",
+      "correspondence": "GET/PATCH organization/profile. 선택지 관리 G8 미결 유지",
+      "owner": "E2-5a/CCC-209, W11"
+    },
+    {
+      "id": "SCR-011",
+      "route": "/settings?module=system; web /admin/ai-provider",
+      "source": "app.tsx:150; screens/settings.tsx:441-457",
+      "correspondence": "GET capabilities. 사업별 실제 상태와 미실행 구별은 후속, 새 AI 페이지 신설 아님",
+      "owner": "CCC-291, E2-5a/CCC-209"
+    },
+    {
+      "id": "SCR-017",
+      "route": "/settings?module=account",
+      "source": "business/api.ts:375-389; business/settings-modules.tsx:63-185",
+      "correspondence": "GET me/assignment-requests, POST accept. 기관 memory와 별도",
+      "owner": "E2-5a/CCC-209"
+    },
+    {
+      "id": "SCR-022",
+      "route": "/participants/:beneficiaryId",
+      "source": "screens/participants.tsx:314-428; business/participants.ts:185-211,271-273; business/consent.ts",
+      "correspondence": "`GET /participants/:id/hub`; ConsentPanel의 `GET /support-cases/:id/consent`, `GET /support-cases/:id/consent/disclosures`, `POST /support-cases/:id/consent-events`; 비담당 요청은 `POST /support-cases/:id/assignment-requests`. 각 현재 계약과 사례 권한을 따름. restricted 분리, 4탭 미구현",
+      "owner": "E2-5b/CCC-206, W11"
+    },
+    {
+      "id": "SCR-024",
+      "route": "/schedule; web /programs/:programType/schedule",
+      "source": "screens/schedules.tsx:67-183; business/schedules.ts:298-301",
+      "correspondence": "GET schedules/month. 새로운 할 일 띠의 수량/검사 상태는 기존 목록과 별도",
+      "owner": "E2-4b/CCC-210, CCC-291/295"
+    },
+    {
+      "id": "SCR-025",
+      "route": "/schedules/new",
+      "source": "screens/schedules.tsx:185-279; business/schedules.ts:303-329",
+      "correspondence": "GET candidates, POST schedules. 현 create는 customQuestions를 보내지 않음",
+      "owner": "E2-4b/CCC-210, W04/W11"
+    },
+    {
+      "id": "SCR-026",
+      "route": "/schedules/:scheduleId/plan",
+      "source": "screens/schedules.tsx:281-365; business/schedules.ts:331-348",
+      "correspondence": "GET/PUT plan. 현 save는 sessionGoals만; 질문 수정과 잠금 별도 계약",
+      "owner": "E2-4b/CCC-210, W04"
+    },
+    {
+      "id": "SCR-027",
+      "route": "/participants/:id/programs/:case/briefing",
+      "source": "screens/schedules.tsx:366-440; business/schedules.ts:350-366; business/records.ts",
+      "correspondence": "`GET /participants/:id/programs/:case/briefing`, `PUT /support-cases/:id/overall-goal`, `PUT /support-cases/:id/discrepancies/:id/resolution`, `POST /cases/:id/action-items`. 조회와 담당 쓰기를 구별하며 새 읽기 전용 소비는 미완료",
+      "owner": "CCC-291/295/296, 화면 E2-4b/CCC-210; 사례 쓰기 E2-5b/CCC-206"
+    },
+    {
+      "id": "SCR-028",
+      "route": "/participants/:id/programs/:case/records/intake",
+      "source": "business/intake.ts:114-131; screens/intake.tsx; contracts/intake.ts",
+      "correspondence": "GET/POST/PUT intake schema2. 공통21+선택장기목표1, 모듈 응답. 추가 질문 lifecycle은 미발행",
+      "owner": "CCC-288/299, E2-5b/CCC-206"
+    },
+    {
+      "id": "SCR-029",
+      "route": "/participants/:id/programs/:case/records/new",
+      "source": "screens/records.tsx:19-40,305-423; business/records.ts:142-186",
+      "correspondence": "useRecordList의 `GET /support-cases/:id/records?official=true`, `POST /support-cases/:id/records`. 현 client는 구 details/actions이며 새 schema2 소비 전환이 남음",
+      "owner": "CCC-290, E2-4c/CCC-211"
+    },
+    {
+      "id": "SCR-030",
+      "route": "/participants/:id/programs/:case/records/:sessionId/review",
+      "source": "business/ai-review.ts:14-26,107-143; screens/records.tsx:424-611",
+      "correspondence": "`GET /sessions/:id/ai`, `POST /sessions/:id/ai/generate`, `POST /sessions/:id/ai/drafts/:version/review`, `POST /cases/:id/action-items`. 실제 draft/할 일 계약과 human 검토/담당 쓰기. 올바른 축 이름은 새 근거 생산자 완료가 아님",
+      "owner": "CCC-300/291/293, E2-4c/CCC-211"
+    },
+    {
+      "id": "SCR-031",
+      "route": "/participants/:id/programs/:case/records",
+      "source": "screens/records.tsx:43-174,248-303; business/records.ts:283-327",
+      "correspondence": "`GET /support-cases/:id/records?official=true`; GoalTreeCard의 `GET /participants/:id/goal-tree`, `POST /cases/:id/goals`, `PUT /goals/:id/title`, `GET /goals/:id/upcoming-links`, `POST /goals/:id/close`. ClosureCard는 SCR-036의 GET/POST도 상속. manual 투영과 4탭 미완료",
+      "owner": "CCC-290/295, E2-4c/CCC-211; 목표/종결 E2-5b/CCC-206"
+    },
+    {
+      "id": "SCR-032",
+      "route": "/participants/:id/programs/:case/report",
+      "source": "business/report.ts:170-175; screens/report.tsx:30-176",
+      "correspondence": "GET report 5섹션과 근거. 실제 인쇄/JSON/HWPX/DOCX/CSV 버튼은 미연결",
+      "owner": "CCC-289/295/298, E2-5b/CCC-206"
+    },
+    {
+      "id": "SCR-033",
+      "route": "/settings?module=assignments",
+      "source": "screens/settings.tsx:334-433; business/api.ts:530-535; business/participants.ts:336-360",
+      "correspondence": "`GET /settings/assignments/cases`, `GET /settings/assignments/cases/:id`, `POST /support-cases/:id/assignment-requests/:assignmentId/review`. 기관 관리자와 실제 options/assignees/review 계약. 이관 안내의 새 수량 미연결",
+      "owner": "E2-5a/CCC-209, W11"
+    },
+    {
+      "id": "SCR-034",
+      "route": "/settings?module=accounts",
+      "source": "screens/settings.tsx:175-259; business/api.ts:473-502",
+      "correspondence": "GET accounts, PATCH roles, POST deactivate. 초대는 별도 staff-invites",
+      "owner": "E2-5a/CCC-209; 역할 별도 PR 범위 보존"
+    },
+    {
+      "id": "SCR-036",
+      "route": "records 안 ClosureCard; web .../close",
+      "source": "screens/records.tsx:176-247; business/records.ts:362-383",
+      "correspondence": "GET closure, POST close(reason). 일/목표 통합 정리와 파생자료 파기 미완료",
+      "owner": "E2-5b/CCC-206, CCC-297"
+    },
+    {
+      "id": "SCR-052",
+      "route": "/settings?module=audit",
+      "source": "screens/settings.tsx:30-67; business/api.ts:428-448",
+      "correspondence": "GET audit-log. 월간 집계/점검 보고서의 세부 계약은 미확정",
+      "owner": "CCC-301, E2-5a/CCC-209"
+    },
+    {
+      "id": "SCR-037",
+      "route": "/settings?module=retention-policy; module=retention",
+      "source": "screens/settings.tsx:69-172,262-327; business/api.ts:450-518",
+      "correspondence": "GET/PUT retention-policy, GET/POST reviews. 보유기간≠파기시점, 최신 파기 복원 미구현",
+      "owner": "E2-5a/CCC-209, CCC-297, E3-7"
+    }
+  ]
+}

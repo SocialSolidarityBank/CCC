@@ -1,0 +1,120 @@
+{
+  "assignmentId": "CCC292-PARITY-MEM-PG-20260914",
+  "status": "PARITY_VERIFIED_AND_MANIFEST_COMMITTED",
+  "summary": "Both commits merged with zero conflicts, the PostgreSQL provider domain check is restored, parity passed with manifest regeneration, and the new memory proof contract test passed.",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "branch": "integrate/ccc291-parity",
+    "cleanAtEnd": true,
+    "tip": "89f932f61ed894d9bcbd013ae9ed3f02088dc835"
+  },
+  "observedBaseTip": {
+    "observedBy": "git branch --show-current, git rev-parse HEAD, git status --short, git log --oneline -1",
+    "branch": "integrate/ccc291-parity",
+    "commit": "72d3f7cc684add552b2037a40926f1d086a2eeb1",
+    "subject": "Merge branch 'design/w03-intake-v2' into integrate/ccc291-parity",
+    "clean": true
+  },
+  "fetchedTip": {
+    "command": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "0b8e649036388c254b153285cdde68cb2a49fc59",
+    "subject": "PostgreSQL provider 값 영역 검사 복원",
+    "chain": [
+      {"commit": "0b8e649036388c254b153285cdde68cb2a49fc59", "parent": "d9c60f9f5b1511335a838898189fda707ca60f85", "subject": "PostgreSQL provider 값 영역 검사 복원"},
+      {"commit": "d9c60f9f5b1511335a838898189fda707ca60f85", "parent": "533966888221833b1d8c1fab0edd9a4c35f96b67", "subject": "메모리 자료 증명 재검증 강화"},
+      {"commit": "533966888221833b1d8c1fab0edd9a4c35f96b67", "alreadyMerged": true, "note": "merged in INTEGRATION-F4CLOSE-NAMES-20260914"}
+    ],
+    "matchedAssignment": true
+  },
+  "migrationFilesInRange": {
+    "verifiedBy": "git show --stat 5339668..FETCH_HEAD, read directly rather than taken from the mini report",
+    "newMigrationFiles": [],
+    "modifiedMigrationFiles": [{"path": "migrations/postgres/0026_openai_egress.sql", "commit": "0b8e6490", "diff": "2 insertions"}],
+    "memoryCommitAddsMigration": false,
+    "memoryCommitFiles": [
+      {"path": "apps/api/test/entity-memory-proof.contract.test.ts", "change": "A", "lines": 337},
+      {"path": "packages/core/src/gateway.ts", "change": "M"},
+      {"path": "packages/http-api/src/counseling-memory-runner.ts", "change": "M"}
+    ],
+    "fact": "d9c60f9f contains no migration file at all. The only migration touched in the range is the two-line edit to the already merged 0026. The checkpoint targets 0070 and 0026 and openai-egress were introduced by 5339668, which this line merged in the previous slot.",
+    "restoredCheck": "migrations/postgres/0026_openai_egress.sql lines 10 and 11 now read ALTER TABLE agent_job_egress_records ADD CONSTRAINT agent_job_egress_records_provider_check CHECK (provider IN ('azure','openai')), exactly as reported"
+  },
+  "coreMergeCommit": {
+    "commit": "766803a427b126bcb6282d431839f61ca35628dd",
+    "mergedCommit": "0b8e649036388c254b153285cdde68cb2a49fc59",
+    "conflicts": 0,
+    "diffStat": "4 files changed, 390 insertions(+), 8 deletions(-)"
+  },
+  "conflicts": [],
+  "parityCommand": "env CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+  "parityCommandExecutions": 1,
+  "exitStatus": 0,
+  "parityTests": {"testFilesPassed": 1, "testsPassed": 1, "durationSeconds": 12.29},
+  "previousFailureResolved": {
+    "was": "agent_job_egress_records checks: expected 7 to be 8 at apps/api/test/support/migration-parity.ts:590, because PostgreSQL 0026 dropped the provider domain check without replacing it",
+    "nowPasses": true,
+    "resolvedBy": "0b8e6490 re-adds the provider domain check on the PostgreSQL side. No assertion, threshold or baseline was changed.",
+    "residualEightVersusSevenGap": false
+  },
+  "checkpointsPresent": {
+    "verified": true,
+    "entries": [
+      {"id": "openai-egress", "manifestLine": 77892, "sqliteSource": "0070_openai_egress.sql", "sqliteSourceManifestLine": 77896, "postgresSource": "0026_openai_egress.sql", "postgresSourceManifestLine": 77905},
+      {"id": "masked-source-proof", "manifestLine": 74437, "stillPresent": true},
+      {"id": "entity-source-invalidation", "manifestLine": 70982, "stillPresent": true},
+      {"id": "entity-registration-binding", "manifestLine": 67527, "stillPresent": true},
+      {"id": "case-entity-mapping", "manifestLine": 64101, "stillPresent": true},
+      {"id": "agent-text-source-fence", "manifestLine": 60675, "stillPresent": true}
+    ],
+    "totalCheckpointIds": 26,
+    "previousTotal": 25
+  },
+  "manifestSha256": "7343a9bd534a42fff7b45895d65bf8e7751a7683542108aaeb355afe891d2861",
+  "manifestPreviousSha256": "7ec4b1b3896f5f2b2ef37c7ac63d3aa5fc45f3e6f3f5f6543c535ee8a8786a17",
+  "manifestRegenerated": true,
+  "manifestRegenerationAuthorized": true,
+  "parityCommit": {
+    "commit": "89f932f61ed894d9bcbd013ae9ed3f02088dc835",
+    "subject": "외부 호출 원장 checkpoint 를 parity manifest 에 반영",
+    "files": ["migrations/parity.yaml"],
+    "diffStat": "1 file changed, 3455 insertions(+)",
+    "hooks": "normal configured hooks ran and passed",
+    "hooksBypassed": false
+  },
+  "typecheck": {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "executions": 1},
+  "testedFiles": {
+    "derivedFrom": "git diff --name-status 72d3f7cc 766803a4",
+    "apiTestFilesAddedOrChanged": [{"path": "apps/api/test/entity-memory-proof.contract.test.ts", "change": "A", "isTheNewMemoryProofCheck": true}],
+    "pythonChanged": [],
+    "otherChanged": ["migrations/postgres/0026_openai_egress.sql", "packages/core/src/gateway.ts", "packages/http-api/src/counseling-memory-runner.ts"]
+  },
+  "testResults": [
+    {"command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/entity-memory-proof.contract.test.ts", "exitStatus": 0, "result": "PASS", "testFilesPassed": 1, "testsPassed": 9, "durationSeconds": 64.82, "executions": 1}
+  ],
+  "pythonResult": {"run": false, "reason": "the merged range changed no file under apps/pipeline", "changedPythonFiles": 0},
+  "notRerun": {"reason": "already passed on earlier ranges of this integration line", "items": ["the nine web test files, 169 tests", "entity-provider-proof.contract.test.ts, 14 tests", "the F4 and F3 api test files", "apps/pipeline tests.test_api_client_worker"]},
+  "stillOpenFromPreviousSlot": {
+    "note": "the two failures reported in CCC292-F4-PARITY-20260914 were not in scope here and were not re-run, so their state is unchanged and unverified in this slot",
+    "items": ["apps/api/test/agent-job-contract.test.ts F3 lease redistribution, expected attempt 2 and received undefined", "apps/api/test/recording-result.e2e.test.ts unmasked sensitive pattern, expected status 400 and received 422"]
+  },
+  "unmet": [],
+  "guardrails": {
+    "productSourceModified": false,
+    "testOrSupportFilesModifiedByThisSlot": false,
+    "migrationsModified": false,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "conflictsResolved": 0,
+    "commitsMade": 1,
+    "commitContents": ["migrations/parity.yaml"],
+    "projectWideTestsLintOrBuildRuns": 0,
+    "rebaseOrReset": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "otherWorktreesTouched": false,
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/ccc292-parity-mem-pg-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT CCC292-PARITY-MEM-PG-20260914"
+}

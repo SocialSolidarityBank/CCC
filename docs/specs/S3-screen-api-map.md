@@ -1,449 +1,333 @@
-# S3: 화면·서버 액션·API 대응표
+# S3: 화면, 서버 액션, API 대응표
 
-- 상태: 확정 (2026-09-03)
-- 근거: ADR-0041 D76~D82, ADR-0042, ADR-0039 D75, ADR-0038, `CCC_OPEN_PILOT_PLAN.md` E2-1
-- 입력: `scripts/design/route-inventory.json`, `apps/web/app/**/page.tsx`, `apps/web/app/actions.ts`, `apps/web/app/{logout-action,theme-action}.ts`, `apps/web/app/lib/api.ts`, `apps/web/app/preview/unlock/route.ts`, `apps/api/src/index.ts`, `adapters/identity-access/src/{index,access-jwt}.ts`, `packages/http-api/src/{request-handler,preview-gate,identity}.ts`, `packages/core/src/gateway.ts`, `docs/adr/0042-supabase-read-only-preflight.md`
-- 산출: 현재 Next route, 화면 분류, 인증 표면, `Actor`, 화면별 API·DTO·서버 액션과 E2 소유권의 단일 대응표. 구현은 E2 티켓이 소유한다.
-- 관련 티켓: E2-1, E2-2, E2-3, E2-4a, E2-4b, E2-4c, E2-5a, E2-5b, E2-5c, E2-7
+- 상태: SG3의 승인된 안전 계약을 유지한 현행 대응표. CCC-201의 전체 완료 판정은 §7의 실제 증거와 미검증 범위를 따른다.
+- 제품 기준: `beta-core-parity@7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07`. 실행용 임시 사본은 이 커밋의 archive 바이트와 일치한다. 제품 checkout에는 쓰지 않았다.
+- 요구 정본: [Master E2](../../CCC_OPEN_PILOT_PLAN.md), [완료된 SG3](../superpowers/plans/2026-09-02-SG3-screen-api.md), [Relayer 적용 계획](../superpowers/plans/2026-09-12-relayer-domain-ai-replan.md), [카드 계약](../superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md).
+- 증거: [동결 입력](../../artifacts/ccc201-screen-api/freeze.json), [정적 심벌 경로](../../artifacts/ccc201-screen-api/coverage.json), [실제 API 응답](../../artifacts/ccc201-screen-api/runtime.json), [Next 30경로](../../artifacts/ccc201-screen-api/web.json), [공개 middleware](../../artifacts/ccc201-screen-api/public.json).
+- `현재 호출됨`, `계약에 맞음`, `실제로 검증함`은 다른 판정이다. 소스의 결함을 기대값으로 바꾸지 않는다. 문서 대응 누락 0건을 제품 결함 0건으로 보고하지 않는다.
 
-## 1. 목적
+## 1. 바뀌지 않는 안전 계약
 
-현재 Next 화면을 정적 클라이언트로 옮길 때 빠지는 route, API, DTO 또는 권한이 없도록 기계적으로 대조할 계약을 정한다. 화면의 비즈니스 데이터는 Bearer/Access 인증 API에서만 읽고, 공개 가입 화면은 업무 셸과 인증 헤더를 사용하지 않는다. 화면 수와 redirect를 같은 방식으로 세어 E2-1의 probe 결과가 재현되게 한다.
+1. 업무 DB의 권한, 기관/사례 범위와 감사는 gateway가 검사한다. 셸 역할 필터나 보이지 않는 버튼은 서버의 거부를 대신하지 않는다. 수기는 저장 즉시 공식이며 AI 출력은 해당 초안 승인 전 공식 조회에 들어오지 않는다(R1/R2).
+2. 사람의 역할 합과 담당/감독 관계를 구별한다(D74). 기관 관리자의 상담 읽기 권한은 비담당 쓰기 권한이 아니다. 담당 실무자의 쓰기, 기술 관리자 비노출, restricted 허브의 최소 정보 범위를 유지한다. 아래 구 Next 행의 `admin/counselor`는 잔존 코드의 경로 표기이지 D74의 권한을 축소하거나 확대하는 새 결정이 아니다.
+3. 공개 화면에는 업무 sidebar/header/back-link와 기관 profile/새 가입 수를 렌더하지 않는다. middleware는 모든 요청에서 `x-ccc-public`을 직접 세우거나 지워야 한다. 외부 입력의 표식을 신뢰하지 않는다.
+4. 당사자 요청 링크의 자격은 token이다. 일반 업무 Bearer/Access를 전달하지 않는다. Preview에서는 먼저 preview Actor를 검증하며 web client는 `ccc_preview`만 API에 전달해야 한다. 현재 그 전달이 없는 결함은 E2-5c/CCC-215에 남긴다.
+5. D86의 실무자 초대는 `staff-invites`다. 공개 수락에서 선택적인 Auth 증거는 검증된 subject를 본인 이메일에 결합하는 별도 경계다. 이를 공개 페이지의 업무 셸 인증이나 임의 Bearer 허용으로 확대하지 않는다. 폐기된 worker/signup 자기 확인 경로를 되살리지 않는다.
+6. nullable 필드는 존재하며 null일 수 있다. optional 필드는 생략될 수 있다. envelope를 배열로 평탄화한 client DTO는 원래 wire와 같은 형식이 아니다. 실제 serializer와 decoder가 다르면 차이를 기록하고 해당 소비자를 고쳐야 한다.
+7. AI-off, `sttEngine=null`, 실제 동의/NER/서명 registry, 미승인 제외와 외부 전송 제한은 유지한다. S5/S6 문서 존재만으로 집행을 증명하지 않는다. CCC-237/238/239의 FAIL과 CCC-292/299 차단은 이 티켓으로 해소되지 않는다.
 
-## 2. 인터페이스와 규칙
+## 2. 경로 개수와 상속
 
-### 2.1 인증·Actor 표면
+현재 Next page는 30개이며 inventory와 1:1이다. 인증 운영 화면 22개, 공개 page 5개, redirect-only 2개, `/kit` 1개다. 계획의 ‘29개 + kit’은 공개/redirect를 포함한 page entry 집합이지 운영 화면 29개라는 관찰이 아니다. `/preview/unlock`은 별도 Route Handler 1개다. SCR CSV 21레코드와 client route 수는 별도 집합이다.
 
-| 표면 | 헤더·자격 | `Actor` 요구 | 적용 |
-|---|---|---|---|
-| `access` | 웹은 `CF_Authorization` 쿠키 또는 `cf-access-jwt-assertion`을 API로 전달한다. 로컬 개발 헤더는 운영 번들에 없다. | E4-1 `adapters/identity-access`가 Access JWT의 email/common_name을 canonical `Actor`로 해석하고 app composition boundary가 현행 gateway role로 투영한다. `service`는 화면에 금지한다. | `permission.state=allowed`인 모든 행, 단 `/`·`schedule/all` redirect도 포함 |
-| `public-join` | 정상 운영에서는 Access 헤더·업무 쿠키·Bearer 없음. participant/worker 초대 token이 business auth 자격이다. Preview mode에서는 먼저 `ccc_preview` cookie가 있어야 `/join/*`에 도달하고, API도 그 cookie를 받아 preview `Actor`를 해석한다. 현재 `apps/web/app/lib/api.ts` 공개 client는 이 cookie를 API로 포워딩하지 않는 gap이다. E2-5c가 이 gap의 owner이며, 기대 상태는 `ccc_preview`만 포워딩하는 것이다. business Bearer는 어느 mode에서도 보내지 않는다. `PUBLIC_SIGNUP_ENABLED=1`이 아니면 API와 middleware 모두 404다. | 정상 운영의 token API는 `Actor` 없음; Preview mode는 별도 `ccc_preview` 자격과 preview `Actor`가 필요하다. | `/join/participant/:token`, `/join/worker/:token` |
-| `public-preview` | 최초 GET은 자격 없음. 코드 POST는 web adapter가 API JSON 응답을 받아 `ccc_preview` HttpOnly cookie를 발급한다. | `/preview/unlock`은 `Actor` 없음; 이후 미리보기 업무 API는 preview resolver가 선택한 사람 `Actor`를 쓴다. | `/preview`, `/preview/admin` |
-| `public-welcome` | 자격 없음 | `Actor` 없음 | `/welcome` |
-| `kit` | route 자체의 데이터 API는 없지만 `/kit`은 `x-ccc-public` 표식이 없어 RootLayout 업무 셸을 탄다. | 사람 `Actor` 필요(셸의 `/organization/profile`, `/participants/new-signup-count` 포함) | `/kit` |
+- RootLayout: `apps/web/app/layout.tsx:1271-1335`. 비공개 분기는 `getDisplayLabels`를 통한 `GET /organization/profile`과 `GET /participants/new-signup-count`를 시도한다. `AppHeader`, `AppSidebar`, `BackLink`, `NextLinkProvider`가 렌더 경로다. `+shell-actions`는 `toggleThemeAction`, `logoutAction`이다.
+- AdminLayout: `apps/web/app/admin/layout.tsx:12-39`. `GET /me`의 `roles`를 사용해 메뉴가 없으면 notFound다. `+admin-layout`은 이 조회/역할 검사를 뜻한다.
+- 공개 RootLayout 분기는 위 호출과 셸을 건너뛴다. 정적 import closure에는 양쪽 분기가 모두 잡히므로 `withLayouts`만 보고 공개에서 실행됐다고 판정하지 않는다.
+- redirect는 화면 HTML을 남기지 않지만, Next가 조상 layout을 실행하면서 셸 API를 시도할 수 있다. 실제 `/`는 profile/me/count 세 호출 뒤 307, `schedule/all`은 profile/count 두 호출 뒤 307이었다. 선언된 목적지 선택의 `/me`와 조상 실행을 별도로 센다. 이것을 렌더된 화면 데이터로 세지 않는다.
+- `coverage.json`은 page별 direct closure와 조상 layout closure, 참조의 원본 파일/줄, API helper, action, 호출 표현식과 source hash를 보존한다. 30개 page의 실제 렌더 호출은 `web.json`의 별도 `apiCalls`에 있다. query는 page 수를 늘리지 않는다.
+- server action은 `actions.ts`의 34 exports, logout/theme 두 exports와 records/new의 내부 `submitRecord` 1개를 구별한다. orphan 4개도 삭제하지 않고 §5에 기록한다.
 
-`admin`은 `apps/web/app/admin/layout.tsx`의 `getMyIdentity()`와 gateway role guard가 함께 요구한다. 케이스 내용 API의 기본 규칙은 `admin` 또는 해당 케이스의 활성 `counselor` 배정이며, 전체 목표 수정은 담당 실무자만 허용한다. 표의 fixture actor가 `assigned-practitioner`인 행은 `counselor + active assignment`를 뜻하고, gateway가 허용하는 `admin` 접근을 숨기지 않는다.
+## 3. Next page별 실제 호출 대응
 
-### 2.2 화면 수와 유일성 규칙
-
-`route-inventory.json`의 `routes` 배열을 입력 집합으로 삼고, `page` 값이 같은 항목은 하나로만 센다. `routePattern`은 `:param`으로 정규화한 문자열을 유일 키로 삼으며, query string은 화면을 늘리지 않는다. 모든 inventory 항목은 아래 네 분류 중 정확히 하나다.
-
-| 분류 | 결정적 판정 | 수 |
-|---|---|---:|
-| 실제 인증 운영 화면 | inventory `permission.state=allowed`, `page.tsx`가 데이터/폼 화면을 렌더하고, redirect-only가 아님 | 22 |
-| 공개 화면 | inventory `permission.state=public`이고 `/join`, `/preview`, `/welcome` 중 하나 | 5 |
-| non-screen redirect | `page.tsx`의 반환이 redirect/notFound뿐인 canonicalizer: `/`, `/programs/:programType/schedule/all` | 2 |
-| `/kit` | `routePattern=/kit`인 component-kit 화면. 운영 화면에서 제외 | 1 |
-| **합계** | inventory page entry의 유일 키 합계 | **30** |
-
-따라서 계획의 “운영 화면 29개, `/kit` 1개”는 **kit을 뺀 29개 route entry**를 뜻한다. 그 29개는 실제 인증 운영 화면 22개 + 공개 화면 5개 + non-screen redirect 2개로 세분화한다. `/preview/unlock`은 `page.tsx`가 아닌 Route Handler이므로 30개에 넣지 않고 §2.4에서 별도로 센다. action 내부의 성공·실패 redirect, `notFound`, query별 view 변형, `/records/new` 같은 redirect 목적지는 독립 route로 세지 않는다.
-
-E2-1 probe의 누락 판정은 다음과 같다.
-
-1. inventory의 각 `routePattern`이 이 문서 §3 표에 정확히 한 번 있어야 한다.
-2. 실제 화면 행은 page loader와 모든 렌더링 component가 호출하는 API와 submit하는 server action을 모두 가져야 한다. `+shell-actions`와 `+admin-layout`은 §2.3의 상속 규칙으로 확장한다.
-3. action의 API endpoint와 응답 DTO는 §4의 endpoint catalog에 존재해야 한다.
-4. 공개 행에는 `+shell-actions`와 Access/Bearer가 있으면 실패다. redirect 행에는 렌더링 화면 API/DTO가 있으면 실패한다. 단 `/`의 `GET /me`는 목적지 선택에 필요한 선언된 prerequisite라 허용한다.
-5. 위 조건을 만족하지 않는 action/API는 §5의 계약 행으로 남긴다. 이를 구현 TODO로 해석하지 않는다.
-
-### 2.3 공통 업무 셸 API
-
-비공개 route는 RootLayout이 다음을 공통으로 읽는다. `GET /organization/profile -> OrganizationProfile`, `GET /participants/new-signup-count -> { count: number }`, 그리고 `getDisplayLabels()`가 사용하는 `OrganizationProfile`이다. `getNewSignupCount` 실패는 셸의 숫자만 0으로 낮춘다. 공개 행은 이 두 호출을 하지 않으며 `AppHeader`, `AppSidebar`, `BackLink`를 렌더하지 않는다.
-모든 `access`/`kit` 행은 `+shell-actions`를 상속한다. scanner는 이를 `toggleThemeAction`(쿠키 쓰기)과 `logoutAction`(미리보기 cookie 삭제 또는 Cloudflare Access logout redirect)으로 확장한다. §3의 개별 행에는 화면 고유 action만 적고, marker 자체를 두 action으로 다시 복제하지 않는다. 모든 `/admin*` 행의 `+admin-layout`은 admin layout의 inherited `GET /me -> MyIdentity` role guard를 확장한다.
-`/preview/unlock`은 같은 method/path라도 두 경계를 혼동하지 않는다. Web Next Route Handler(`apps/web/app/preview/unlock/route.ts`)는 HTML form `{ mode, code }`를 받아 API JSON adapter를 호출하고 web `ccc_preview` cookie와 `303`을 만든다. 현재 web adapter/client는 wire `expiresAt`을 소비·검증하지 않는 gap이며, E2-3가 cookie를 쓰기 전에 유효한 `expiresAt`을 검증하는 기대 상태를 소유한다. API request-handler(`apps/api/src/index.ts`의 `handlePreviewUnlock`, `apps/api/src/preview-gate.ts`)의 JSON `POST /preview/unlock`은 `{ code }`를 받아 `200 { token, maxAgeSeconds, expiresAt }`와 API `Set-Cookie`를 반환한다.
-
-### 2.4 Route Handler 공개 진입
-
-`POST /preview/unlock -> PreviewUnlockWire { token, maxAgeSeconds, expiresAt }`는 코드만 받고 API 응답과 web adapter cookie를 각각 설정한 뒤 `303 /`(counselor) 또는 `303 /settings`(admin)로 보낸다. 이 handler는 `Actor`를 해석하지 않는다. 공개 초대 API는 production에서는 token-only라 `Actor`를 해석하지 않고, Preview mode에서는 `ccc_preview`를 검증하는 preview resolver가 `Actor`를 해석한 뒤 같은 token API를 실행한다: `GET /invites/participant/:token -> PublicInviteInfo`, `GET /invites/participant/:token/me -> ParticipantSelfCheck`, `POST /signup/participant -> PublicSignupResult`, `GET /invites/worker/:token -> PublicWorkerInviteInfo`, `POST /invites/worker -> WorkerSignupResult`. middleware가 공개 표식을 붙이는 정확한 `/join` 자체는 `page.tsx`가 없어 framework 404이고, 화면·API count에 넣지 않는다.
-Route discovery는 정적 `page.tsx`만 읽지 않는다. E2-1은 각 inventory `page`에서 시작해 모든 조상·중첩 Next `layout.tsx`와 렌더링되는 import closure를 순회한다. RootLayout의 `AppHeader`, `AppSidebar`, `BackLink`와 `apps/web/app/admin/layout.tsx`의 admin guard, 그 하위 import의 API/action도 해당 route에 상속한다. 따라서 `page.tsx`에 직접 import가 없는 client component의 server action, 공통 또는 중첩 layout의 API도 §3에 기록한다. 순회 결과가 route row나 §4 endpoint row에 없으면 실패다.
-| route-handler route | 인증 표면, Actor | API·DTO | E2 owner |
-|---|---|---|---|
-| `/preview/unlock` (page entry 아님) | `public-preview`; no `Actor`, code input only | Web form adapter: `POST /preview/unlock` → API `PreviewUnlockWire` `{ token,maxAgeSeconds,expiresAt }` + API `Set-Cookie`, then web cookie + 303. 현재 `expiresAt` 검증은 없음, E2-3가 기대 상태를 소유 | E2-3 |
-Exact-key rule: `wire response exact shape`의 객체는 추가·누락 key를 허용하지 않는다. nullable key는 `null`, optional key는 `?`로만 표시하며 서로 바꾸지 않는다. Envelope(`results`, `candidates`, `assignees`, `requests`, `cases`, `jobs`, `reviews`)는 envelope 자체를 DTO와 동일시하지 않고 안쪽 배열 DTO를 별도로 검증한다. client projection이 wire 필드를 버리거나 합치는 경우에는 ledger에 그 변환을 적는다.
-
-
-## 3. route·screen·API·DTO·E2 소유자 대응표
-
-API 표기의 `GET`, `POST`, `PUT`, `PATCH`는 request-handler의 method/path이고, 괄호 안은 응답 DTO다. `action → endpoint`는 Next server action을 거쳐 같은 API를 호출한다. `+shell-actions`와 `+admin-layout`은 §2.3의 공통 호출 상속 marker다.
+행의 API/DTO 이름은 §4의 현행 serializer/계약을 가리킨다. 폐기된 endpoint를 호출하는 잔존 action도 숨기지 않는다. 비공개 행은 §2의 공통 호출을 상속하고, 공개 행은 실제 RootLayout의 공개 분기를 따른다. action별 request parser와 반환은 아래 endpoint ledger의 고정 소스를 따른다.
 
 | # | route pattern, 화면 분류 | 인증 표면, Actor | 화면 API와 DTO | server action → API, DTO | E2 owner |
 |---:|---|---|---|---|---|
 | 1 | `/` non-screen redirect | `access`; human `admin\|counselor` | declared prerequisite `GET /me` (wire `MeWire`, required nullable `lastProgramType` selects destination) | 없음; `+shell-actions` | E2-1 |
 | 2 | `/admin` 관리자 기관 홈 | `access`; `admin` `+admin-layout` | `GET /organization/profile` (`OrganizationProfile`), `GET /users` (`DirectoryUser[]`) | 없음; `+shell-actions` | E2-5a |
-| 3 | `/admin/ai-provider` AI 사업자 | `access`; `admin` `+admin-layout` | `GET /ai/provider/status` (`AiProviderStatus`) | `activateAiProviderRuntimeAction` → `POST /ai/provider/activate-runtime` (`void`); `+shell-actions` | E2-5a |
+| 3 | `/admin/ai-provider` AI 사업자 | `access`; `admin` `+admin-layout` | `GET /ai/provider/status` (`AiProviderStatus`), `GET /capabilities` (전체 CapabilityManifest → SttStatus 투영) | `activateAiProviderRuntimeAction` → `POST /ai/provider/activate-runtime` (`void`); `+shell-actions` | E2-5a |
 | 4 | `/admin/assign` 배정 | `access`; `admin` `+admin-layout` | `GET /schedules/candidates` (wire `{candidates: ScheduleCandidate[]}`), `GET /users` (`DirectoryUser[]`), 선택 시 `GET /support-cases/:id/assignees` (wire `{assignees: SupportCaseAssigneeWire[]}`) | `addSupportCaseAssigneeAction` → `POST /support-cases/:id/assignees` (`SupportCaseAssignee`); `+shell-actions` | E2-5a |
-| 5 | `/admin/invite` 실무자 초대·등록 | `access`; `admin` `+admin-layout` | 없음 | `registerCounselorAction` → `POST /users` (`DirectoryUser`); `createWorkerInviteAction` → `POST /invites/counselor` (`WorkerInvite`); `+shell-actions` | E2-5a |
+| 5 | `/admin/invite` 실무자 초대·등록 | `access`; `admin` `+admin-layout` | 없음 | `registerCounselorAction` → `POST /users` (`DirectoryUser`); `createWorkerInviteAction` → 폐기된 `POST /invites/counselor` (404; 후속은 staff-invites); `+shell-actions` | E2-5a |
 | 6 | `/admin/users` 사용자 목록 | `access`; `admin` `+admin-layout` | `GET /users` (`DirectoryUser[]`), 선택 시 `GET /users/:id/assignments` (`CounselorAssignments`) | 없음; `+shell-actions` | E2-5a |
 | 7 | `/admin/users/:id` 사용자 상세 | `access`; `admin` `+admin-layout` | `GET /users` (`DirectoryUser[]`), `GET /users/:id/assignments` (`CounselorAssignments`) | 없음; `+shell-actions` | E2-5a |
-| 8 | `/join/participant/:token` 공개 participant 가입·자기 확인 | `public-join`; token only, no `Actor` | 가입 전 `GET /invites/participant/:token` (`PublicInviteInfo`), 소비 후 `GET /invites/participant/:token/me` (`ParticipantSelfCheck`) | `signupParticipantAction` → `POST /signup/participant` (`PublicSignupResult`) | E2-5c |
-| 9 | `/join/worker/:token` 공개 실무자 가입 | `public-join`; token only, no `Actor` | `GET /invites/worker/:token` (`PublicWorkerInviteInfo`) | `signupWorkerAction` → `POST /invites/worker` (`WorkerSignupResult`) | E2-5c |
+| 8 | `/join/participant/:token` 공개 participant 요청 링크 | `public-join`; production token, Preview 별도 Actor | `GET /invites/participant/:token`의 issued/used 합집합. web은 구 PublicInviteInfo의 programType만 요구 | `signupParticipantAction` → `POST /signup/participant`; 구 `consent:{privacy,recordingAi}`는 현 consentEvents parser와 불일치해 거부됨 | E2-5c |
+| 9 | `/join/worker/:token` 공개 실무자 가입 | `public-join`; 폐기된 worker API를 호출하는 잔존 공개 page | `GET /invites/worker/:token` (`PublicWorkerInviteInfo`) | `signupWorkerAction` → 폐기된 `POST /invites/worker` (404) | E2-5c |
 | 10 | `/kit` component kit, 운영 화면 아님 | `kit`; human `admin\|counselor` because business shell | route API 없음 | `+shell-actions` | E2-1 |
 | 11 | `/onboarding` 기관·사업 이름 | `access`; `admin` | `GET /me` (`MyIdentity`), `GET /organization/profile` (`OrganizationProfile`) | `completeOrganizationOnboardingAction` → `POST /organization/onboarding` (`OrganizationProfile`); `+shell-actions` | E2-5a |
 | 12 | `/participants` 당사자 목록, 인증 운영 화면 | `access`; human `admin\|counselor` | `GET /participants` (wire `{results: AssignedParticipantWire[]}` → client `AssignedParticipant[]`) | 없음; `+shell-actions`. 검색은 수신 목록의 client filter이며 `GET /participants/search`를 부르지 않는다 | E2-4a |
 | 13 | `/participants/invite` 당사자 초대 | `access`; human `admin\|counselor` (gateway가 발급 권한 판정) | 없음 | `createParticipantInviteAction` → `POST /invites/participant` (`ParticipantInvite`); `+shell-actions` | E2-4a |
-| 14 | `/participants/new` 당사자·첫 참여사업 등록 | `access`; human `admin\|counselor` | `GET /me` (`MyIdentity`) | `createInitialParticipantProgramAction` → `POST /participants` (`ParticipantProgramCreation`), 성공 시 `/schedules/new?target=...`; `+shell-actions` | E2-4a |
-| 15 | `/participants/:beneficiaryId` 당사자 정보 허브 | `access`; human, 최소 1개 담당 케이스 또는 `admin` | `GET /participants/:id/hub` (`ParticipantHubDetail`), `GET /participants/:id/goal-tree` (wire `{cases: ParticipantGoalTreeCaseWire[]}` → client `ParticipantGoalTreeCase[]`) | `updateParticipantConsentAction` → `PUT /support-cases/:id/consent` (`ParticipantConsent`); `+shell-actions` | E2-5b |
+| 14 | `/participants/new` 당사자·첫 참여사업 등록 | `access`; human `admin\|counselor` | `GET /me` (`MyIdentity`) | `createInitialParticipantProgramAction` → 내부 `GET /me` 후 `POST /participants` (`ParticipantProgramCreation`), 성공 시 `/schedules/new?target=...`; `+shell-actions` | E2-4a |
+| 15 | `/participants/:beneficiaryId` 당사자 정보 허브 | `access`; human, 최소 1개 담당 케이스 또는 `admin` | `GET /participants/:id/hub` (`ParticipantHubDetail`), `GET /participants/:id/goal-tree` (wire `{cases: ParticipantGoalTreeCaseWire[]}` → client `ParticipantGoalTreeCase[]`) | `updateParticipantConsentAction` → 폐기된 `PUT /support-cases/:id/consent` (404; 새 계약은 consent-events); `+shell-actions` | E2-5b |
 | 16 | `/participants/:beneficiaryId/edit` 기본정보 수정 | `access`; `admin` 또는 해당 당사자의 활성 담당 `counselor` | `GET /participants/:id/basic-info` (`ParticipantBasicInfo`) | `updateParticipantBasicInfoAction` → `PUT /participants/:id/basic-info` (`void`); `+shell-actions` | E2-5b |
-| 17 | `/participants/:beneficiaryId/programs/:supportCaseId/briefing` 15초 페이지 | `access`; `admin` 또는 케이스 활성 담당 `counselor` | `GET /participants/:id/programs/:case/briefing` (`ParticipantBriefing`) | `updateOverallGoalAction` → `PUT /support-cases/:id/overall-goal` (`{ supportCaseId, overallGoal }`); `resolveDiscrepancyAction` → `PUT /support-cases/:id/discrepancies/:discrepancyId/resolution` (`SessionDiscrepancy`, 응답 body는 action이 무시); `+shell-actions` | E2-5b |
+| 17 | `/participants/:beneficiaryId/programs/:supportCaseId/briefing` 15초 페이지 | `access`; 사례 읽기 권한, 쓰기는 별도 담당 검사 | `GET /participants/:id/programs/:case/briefing` (`ParticipantBriefing`) | `updateOverallGoalAction` → `PUT /support-cases/:id/overall-goal`; `resolveDiscrepancyAction` → `PUT /support-cases/:id/discrepancies/:discrepancyId/resolution`; `+shell-actions` | 화면 E2-4b/CCC-210; 목표/사례 쓰기 E2-5b/CCC-206 |
 | 18 | `/participants/:beneficiaryId/programs/:supportCaseId/close` 케이스 종결 | `access`; `admin` 또는 케이스 활성 담당 `counselor` | `GET /support-cases/:id/closure` (`SupportCaseClosureInfo`), `GET /participants/:id/programs/:case/briefing` (`ParticipantBriefing`), `GET /participants/:id/goal-tree` (wire `{cases: ParticipantGoalTreeCaseWire[]}` → client `ParticipantGoalTreeCase[]`) | `closeSupportCaseAction` → `POST /support-cases/:id/close` (`SupportCase` wire, close response projection `{ id,status,closedAt }`); `+shell-actions` | E2-5b |
 | 19 | `/participants/:beneficiaryId/programs/:supportCaseId/records` 전체 상담 기록 | `access`; `admin` 또는 케이스 활성 담당 `counselor` | `GET /support-cases/:id/records?official=true` (`SupportCaseRecords`), `GET /participants/:id/support-cases` (wire `ParticipantProgram[]` → screen `ParticipantDetail`) | `+shell-actions` | E2-4c |
 | 20 | `/participants/:beneficiaryId/programs/:supportCaseId/records/:sessionId/review` AI 초안 검토 | `access`; `admin` 또는 케이스 활성 담당 `counselor`, AI review는 human만 | `GET /support-cases/:id/records?official=true` (`SupportCaseRecords`), `GET /participants/:id/support-cases` (wire `ParticipantProgram[]` → screen `ParticipantDetail`), `GET /sessions/:sessionId/ai` (`AiDraft`) | `reviewAiDraftAction` → precheck `GET /sessions/:id` (`ManualSession`), then `POST /sessions/:id/ai/drafts/:version/review` (`AiDraftMutationWire`); `generateAiDraftAction` → precheck `GET /sessions/:id` (`ManualSession`), then `POST /sessions/:id/ai/generate` (`AiDraftMutationWire`); `createActionItemFromAiClaimAction` → precheck `GET /sessions/:id` (`ManualSession`), then `POST /cases/:id/action-items` (`OpenActionItem`); `+shell-actions` | E2-4c |
 | 21 | `/participants/:beneficiaryId/programs/:supportCaseId/records/intake` 인테이크 | `access`; `admin` 또는 케이스 활성 담당 `counselor` | `GET /support-cases/:id/records/intake` (`IntakeRecordContext`), `GET /me` (`MyIdentity`, optional recorder label) | `createIntakeRecordAction` → precheck `GET /participants/:id/support-cases` (`ParticipantProgram[]`), then `POST /support-cases/:id/records/intake` (`CreateIntakeRecordResult`); `updateIntakeRecordAction` → precheck same `GET /participants/:id/support-cases` (`ParticipantProgram[]`), then `PUT /support-cases/:id/records/intake` (`{ record: CreatedIntakeRecord }`); changed overall goal only → `PUT /support-cases/:id/overall-goal` (`{ supportCaseId, overallGoal }`); `+shell-actions` | E2-5b |
-| 22 | `/participants/:beneficiaryId/programs/:supportCaseId/records/new` 정기 기록 작성 | `access`; `admin` 또는 케이스 활성 담당 `counselor` | `GET /support-cases/:id/records?official=true` (`SupportCaseRecords`), `GET /participants/:id/support-cases` (wire `ParticipantProgram[]` → screen `ParticipantDetail`), 내부 `GET /schedules/:scheduleId/plan` (`ScheduleSessionPlan`) | `createCounselingRecordAction` → precheck `GET /participants/:id/support-cases` (`ParticipantProgram[]`), then `POST /support-cases/:id/records` (`CreateCounselingRecordResult`); goal UI: `createGoalAction` → precheck same `GET /participants/:id/support-cases`, then `POST /cases/:id/goals` (`Goal`); `updateGoalTitleAction` → precheck same `GET /participants/:id/support-cases`, then `PUT /goals/:id/title` (`Goal`); `countGoalUpcomingLinksAction` → precheck same `GET /participants/:id/support-cases`, then `GET /goals/:id/upcoming-links` (`{ upcomingCount }`); `closeGoalAction` → precheck same `GET /participants/:id/support-cases`, then `POST /goals/:id/close` (`Goal`); `+shell-actions` | E2-4c, E2-5b |
+| 22 | `/participants/:beneficiaryId/programs/:supportCaseId/records/new` 정기 기록 작성 | `access`; 사례 읽기와 담당 쓰기 구별 | `GET /support-cases/:id/records?official=true`, `GET /participants/:id/support-cases`, `GET /schedules/:scheduleId/plan` | `submitRecord` → `createCounselingRecordAction` → 사전 `GET /participants/:id/support-cases`, `POST /support-cases/:id/records`; `createGoalAction` → `POST /cases/:id/goals`; `updateGoalTitleAction` → `PUT /goals/:id/title`; `countGoalUpcomingLinksAction` → `GET /goals/:id/upcoming-links`; `closeGoalAction` → `POST /goals/:id/close`. 목표 actions도 같은 참여사업 사전 조회를 사용; `+shell-actions` | E2-4c, E2-5b |
 | 23 | `/preview` 공개 preview 코드 입력 | `public-preview`; no `Actor` | route API 없음 | HTML form `POST /preview/unlock` (web adapter, `PreviewUnlockWire`) → cookie/303 | E2-3 |
 | 24 | `/preview/admin` 공개 관리자 preview 코드 입력 | `public-preview`; no `Actor` | route API 없음 | HTML form `POST /preview/unlock` (web adapter, `PreviewUnlockWire`) → cookie/303, 성공 목적지는 `/settings` | E2-3 |
 | 25 | `/programs/:programType/schedule` 일정 통합 화면 | `access`; human `admin\|counselor` | `GET /schedules/today` 또는 `GET /schedules/upcoming` 또는 `GET /schedules/month` (`TodaySchedulesWire` → `TodaySchedules`), `PUT /me/last-program` (`{ok:true}`) | 없음; `+shell-actions` | E2-4b |
 | 26 | `/programs/:programType/schedule/all` non-screen redirect | `access`; human `admin\|counselor` | 없음 | 없음; `+shell-actions`. `?month=`을 보존해 canonical `/programs/:programType/schedule?view=month`로 redirect | E2-1 |
 | 27 | `/schedules/new` 상담 일정 등록 wizard | `access`; human `admin\|counselor` | `GET /schedules/candidates` (wire `{candidates: ScheduleCandidate[]}` → client `ScheduleCandidate[]`) | `loadScheduleContextAction` → `GET /cases/:id/goals` (`Goal[]`) + `GET /participants/:id/programs/:case/briefing` (`ParticipantBriefing`); `createSchedulePlanAction` → `POST /schedules` (`CounselingScheduleWire` → `CounselingSchedule`); `+shell-actions` | E2-4b |
 | 28 | `/schedules/:scheduleId/plan` 세션 목표 수정 | `access`; `admin` 또는 일정 케이스 활성 담당 `counselor` | `GET /schedules/:id/plan` (`ScheduleSessionPlanWire` → `ScheduleSessionPlan`), `GET /cases/:id/goals` (`Goal[]`) | `updateScheduleSessionGoalsAction` → `PUT /schedules/:id/plan` (`{scheduleId,version}`); `+shell-actions` | E2-4b |
-| 29 | `/settings` 설정·배정 요청 | `access`; human `admin\|counselor` | `GET /me` (`MyIdentity`), `GET /assignment-requests` (wire `{requests: AssignmentRequestWire[]}` → client `AssignmentRequest[]`), admin이면 `GET /users` (`DirectoryUser[]`) | `acceptSupportCaseAssignmentAction` → `POST /support-cases/:id/assignees/:assignmentId/accept` (`{accepted:true}`); `+shell-actions` | E2-5a |
+| 29 | `/settings` 설정·배정 요청 | `access`; human `admin\|counselor` | `GET /me` (`MyIdentity`), `GET /assignment-requests` (wire `{requests: AssignmentRequestWire[]}` → client `AssignmentRequest[]`), admin이면 `GET /users` (`DirectoryUser[]`), institution-admin이면 `GET /settings/counseling-memory` (`MemorySettingsView`) | `acceptSupportCaseAssignmentAction` → `POST /support-cases/:id/assignees/:assignmentId/accept` (`{accepted:true}`); `setCounselingMemorySettingsAction` → `PUT /settings/counseling-memory`, `refreshCounselingMemorySettingsAction` → 같은 GET; `+shell-actions` | E2-5a |
 | 30 | `/welcome` 공개 안내 | `public-welcome`; no `Actor` | API 없음 | 없음 | E2-5c |
 
-### 3.1 public route 불변 조건
+## 4. 현재 HTTP dispatch와 wire 경계
 
-Preview mode의 `/join/*` 공개 page/API는 현재 production token-only 경계와 preview-cookie 경계를 함께 만족하지 못한다. middleware가 cookie 없는 진입을 막는 것과 별개로, `getPublicInviteInfo`, `getParticipantSelfCheck`, `signupParticipant`, `getPublicWorkerInviteInfo`, `signupWorker`는 `accessHeaders()`를 쓰지 않아 `ccc_preview`를 API에 전달하지 않는다. E2-5c는 preview mode에서 `ccc_preview`만 포워딩하고 business Bearer는 보내지 않는 상태를 목표로 한다.
-`/join/*`, `/preview*`, `/welcome`은 middleware가 요청에 `x-ccc-public=1`을 저작하고 RootLayout은 셸 없이 렌더한다. 정상 운영의 공개 page/API client는 Access/Bearer와 `accessHeaders()`를 호출하지 않고 participant/worker token만 전송한다. Preview mode의 `/join/*`는 별도 `ccc_preview` cookie를 API에 직접 포워딩해야 하며 현재 그 포워딩이 없어 E2-5c gap이다. 이름·연락처·이메일 등 공개 응답은 token 범위로만 내려가며, 공개 route에 `OrganizationProfile`, 새 가입 수, `CF_Authorization`, 업무 sidebar 링크가 있으면 계약 위반이다.
+정본 소스는 `packages/http-api/src/request-handler.ts`의 고정 SHA다. 아래 줄은 그 파일 기준이다. 각 행의 parser/serializer 또는 계약 타입 참조는 실제 입력/출력 정의로 이동하는 경로이며 복사한 DTO가 runtime 증거라는 뜻이 아니다. 실행한 응답의 중첩 key/type/배열 변형은 `runtime.json`과 `web.json`에 별도로 보존한다. 미실행 분기의 optional/null/enum 전체를 이 샘플이 증명하지 않는다.
 
-## 4. DTO·endpoint catalog
+이 문서의 `*Wire`와 일부 화면 DTO 이름은 설명용 이름이며 새로운 TypeScript 계약이 아니다. [완전한 계약 참조 색인](../../artifacts/ccc201-screen-api/contracts.json)이 각 이름의 실제 producer, serializer, request parser, consumer와 타입 정의의 파일/전체 줄 범위 및 SHA-256을 연결한다. `typeIndex`는 중첩 타입을 따라가는 색인이다. 삭제된 wire는 dead consumer로, 이름 없는 반환값은 실제 inline literal로 구분하며 가짜 공개 타입을 발행하지 않는다. 파일/줄/hash 검사는 의미 검토나 runtime 검증을 대신하지 않는다.
 
-### 4.1 Endpoint ledger: wire response와 client projection
+| 설명용 이름 | 실제 입력/출력 정의의 시작점 |
+|---|---|
+| AiDraftMutationWire / AiDraftGetWire | `request-handler.ts:1534-1563`의 parseAiDraftGeneration/Edit/Review, `aiDraftResponse:1565-1593`; GET만 `3175-3181`의 regenerate/transcript 필드를 추가한다. 중첩 AiDraftVersion은 `gateway.ts:2883-2922` |
+| SupportCaseRecordsWire / SupportCaseRecords | `request-handler.ts:2999-3025`의 공식 조회와 inline envelope, `counselingRecordDetailsResponse:1173-1218`; manual 원천의 실제 타입은 contracts/manual-record.ts |
+| CounselingScheduleWire | `scheduleResponse`, `request-handler.ts:959-970`. 코어 CounselingSchedule 전체와 같지 않다 |
+| ScheduleSessionPlanWire / TodaySchedulesWire | `scheduleSessionPlanResponse:972-997` 및 `gateway.ts`의 AuthoritativeDayInterval/TodayScheduleCard. 각 정의와 소비자는 계약 색인에서 따로 연결한다 |
+| ParticipantBriefingWire / ParticipantProgramWire / ParticipantHubDetail | `normalizeParticipantBriefing:999-1112`, `participantProgramResponse:870-896`, `participantHubResponse:898-924`. restricted와 nullable/optional 분기는 합치지 않는다 |
+| SessionWire | `sessionResponse:291-294`, 실제 Session에서 audioR2Key를 제외한 반환. client ManualSession은 그중 일부만 소비한다 |
 
-`wire`는 `apps/api/src/request-handler.ts`가 실제 JSON으로 내보내는 최상위 shape이고, `client`는 `apps/web/app/lib/api.ts`가 화면에 넘기는 projection이다. Envelope는 생략하거나 배열로 평탄화하지 않는다. E2-1은 method와 path를 이 표의 한 행과 exact match하고, response key가 wire 열과 다르면 실패시킨다.
+pipeline/jobs와 pipeline/memory의 각 operation도 계약 색인의 별도 entry에서 실제 S5 타입, parser, 반환 producer를 따라간다. STT 내부 시험의 실제 producer는 business handler가 아니라 `apps/pipeline/ccc_pipeline/trial_server.py:601-650`이다. TypeScript 파일만 검색해 producer가 없다고 한 조사 오류를 바로잡았으며, client build/trial-fixtures.mjs의 응답 fixture와 혼동하지 않는다.
 
-| method, path | wire response exact shape | client DTO 또는 소비 |
+이 내부 시험 서버는 업무 `Actor`를 쓰지 않는다. `trial_server.py:671-680`은 Host를 loopback으로 제한하고 Origin이 있으면 그 Host와 같은 Origin인지 검사한다. `684-709`는 엔진, 본인 소유 시험 녹음 선언, Azure의 별도 외부 업로드 확인, 형식/크기/설정과 단일 실행 경계를 검사한다. 이 경로의 source 대조는 제품 STT 활성화·품질·동의 집행 완료가 아니며 이번 CCC-201에서는 원음 제출이나 STT 실행을 하지 않았다.
+
+Actor 기호: **H**는 현재 사람이 인증된 뒤에도 gateway의 기관/사례/역할 검사가 필요한 경계다. **P**는 `PUBLIC_SIGNUP_ENABLED=1`의 당사자 token 경계, **T**는 그 스위치 밖의 실무자 token 경계다. P/T는 Preview에서 먼저 preview Actor를 검증한다. system, service, 사람의 권한은 호환 별칭이 아니다.
+
+현재 `apps/api/src/index.ts:49-71`의 선택 순서는 preview resolver, 이중 잠금된 local-dev resolver, Agent Bearer를 앞에 둔 Access identity다. 일반 업무의 세 모드 인증은 이 잔존 Workers entry와 동일하지 않다. `/me`, `/capabilities`, 계정 관리처럼 원래 IdentityActor를 쓰는 지점과 gatewayActor 투영 뒤의 지점을 구별한다.
+
+| method/path | handler 줄 | request와 실제 return 경계 | Actor 조건 | 기존 소유 |
+|---|---|---|---|---|
+| `GET /health` | 2226 | {status,service} | 무자격 | E2-7 |
+| `GET /invites/participant/:token` | 2262-2271 | `getParticipantRequestLinkInfo`, gateway:21105-21153. issued `{status,programId,programType,orgName,expiresAt}` 또는 used `{status,counselorName,message}`. counselorName은 null 가능하며 발급자 email로 폴백 가능 | P, token 범위만 | E2-5c |
+| `GET /invites/participant/:token/consent/disclosures` | 2272-2282 | {disclosures:ConsentDisclosure[]} | P | E2-5c |
+| `POST /signup/participant` | 2283-2301 | token/name/phone?/email?/consentEvents → completeParticipantSignup의 201 결과 | P | E2-5c |
+| `GET /staff-invites/token/:token` | 2302-2310 | getStaffInvitePublicInfo; 200/no-store | T | E2-5c |
+| `POST /staff-invites/token/:token/accept` | 2311-2332 | name/email → acceptStaffInvite의 201 결과; 검증된 Auth subject만 결합 | T | E2-5c |
+| `POST /agents/pair`; `POST /agents/token` | 2336-2344 | pairingCode 또는 refreshToken → AgentCredentialGrant; 실패401 | 교환 자격 | E6-4 |
+| `POST /internal/scheduler/run` | 2354-2376 | 빈 body 또는 {} → {ranAt,jobs}; Origin 거부 | system/scheduler-secret/scheduler:run | S11 실행 소유자 |
+| `POST /internal/storage/authorize` | 2377-2406 | StorageSignerRequest → StorageSignerDecision; Origin 거부 | system/검증된 Bearer/Cloud manifest | S11 실행 소유자 |
+| `POST /auth/logout` | 2407-2419 | {} → 204 빈 본문 | human + 검증된 sessionId | E2-3 |
+| `GET /capabilities` | 2420-2426 | CapabilityManifest + x-ccc-installation-id; manifest 없으면503 | human; Agent403 | E1-7/E2-3 |
+| `GET /me` | 2427-2441 | MeResponse {id,orgId,email,role,active,name,lastProgramType,roles,institution} | 현재 본인 | E2-3 |
+| `GET /settings/accounts` | 2442-2450 | DirectoryAccountPage; cursor | 원래 resolvedActor를 보존한 역할 검사 | E2-5a |
+| `PATCH /settings/accounts/:userId/roles` | 2456-2462 | roles/expectedRoles → updateDirectoryRoles | 원래 resolvedActor를 보존한 역할 검사 | E2-5a |
+| `POST /settings/accounts/:userId/deactivate` | 2463-2467 | reason → deactivateDirectoryAccount | 원래 resolvedActor를 보존한 역할 검사 | E2-5a |
+| `GET /program-options` | 2472-2475 | {programs:ProgramOption[]} | H | E2-4a |
+| `GET /programs`; `POST /programs`; `PATCH /programs/:id` | 2476-2504 | listPrograms 또는 {program}; 저장/처리 선택, confirmation, staff, financialSupportEnabled를 실제 parser가 검사 | H, 쓰기 기관 관리자 | E2-5a |
+| `GET /audit-log` | 2505-2508 | limit/cursor/actorId/from/to/supportCaseId → AuditLogPage {items,nextCursor} | 기관 관리자 | E2-5a; 월간 집계 CCC-301 |
+| `POST /schedules` | 2509-2516 | parseScheduleCreate → scheduleResponse | H, 사례 쓰기 | E2-4b |
+| `GET /settings/counseling-memory`; `PUT /settings/counseling-memory` | 2517-2530 | MemorySettingsView; PUT은 현 MemorySettingsInput | 기관 관리자 | E2-5a/CCC-291 |
+| `GET /organization/profile`; `PATCH /organization/profile` | 2531-2545 | OrganizationProfile; PATCH orgName/expectedOrgName | H, PATCH 기관 관리자 | E2-5a |
+| `POST /organization/onboarding` | 2546-2558 | orgName/programDisplayName/financialSupportEnabled → OrganizationOnboardingResponse | 기관 관리자 | E2-5a |
+| `PUT /me/last-program` | 2559-2567 | programType → {ok:true} | 현재 본인 | E2-4b |
+| `GET /schedules/today`; `GET /schedules/upcoming`; `GET /schedules/month` | 2568-2583 | 날짜 query → AuthoritativeDayInterval + schedules:TodayScheduleCard[] | H, 조회 범위 | E2-4b |
+| `GET /schedules/candidates` | 2584-2589 | {candidates:ScheduleCandidate[]} | H, 조회 범위 | E2-4b |
+| `PATCH /schedules/:id/reschedule`; `POST /schedules/:id/cancel`; `POST /schedules/:id/no-show` | 2590-2615 | 현 transition parser/expectedVersion → scheduleResponse | H, 사례 쓰기 | E2-4b/E2-7 |
+| `GET /schedules/:id/plan`; `PUT /schedules/:id/plan` | 2617-2631 | GET scheduleSessionPlanResponse; PUT {scheduleId,version,sessionGoals} | H, PUT 시각/버전/사례 쓰기 | E2-4b |
+| `POST /invites/participant` | 2633-2643 | programId → InviteToken; switch 닫힘404 | H, 발급 권한 | E2-4a |
+| `GET /staff-invites`; `POST /staff-invites`; `POST /staff-invites/:id/revoke` | 2644-2665 | GET `{invites}`, POST email/roles → `{invite,token}`, revoke `{invite}`. token은 발급 응답 한 번에만 반환 | 초대 권한의 합 | E2-5a/E2-5c |
+| `GET /programs/:id/consent/disclosures` | 2666-2672 | {disclosures} | H, 등록 고지 범위 | E2-4a |
+| `POST /participants`; `POST /beneficiaries` | 2674-2686 | parseInitialParticipantCreation → SupportCaseCreationResult | H, 등록 권한/사업 확인/6영역 동의 | E2-4a |
+| `GET /participants/search`; `GET /beneficiaries/search` | 2687-2698 | q → {results:ParticipantSearchResult[]} | H, 조회 범위 | E2-7 |
+| `GET /participants/new-signup-count` | 2699-2709 | {count} | H | E2-4a |
+| `GET /participants`; `GET /beneficiaries` | 2710-2719 | {results:assignedParticipantResponse[]} | H, 조회 범위 | E2-4a |
+| `GET /consent/follow-ups` | 2721-2724 | {results:PrivacyConsentFollowUp[]} | H, 조회 범위 | E2-7 |
+| `GET /participants/:id/hub` | 2727-2738 | participantHubResponse: restricted에 따라 다른 필드 집합 | H; D86 축소 허브와 사례 접근 구별 | E2-5b |
+| `GET /participants/:id/support-cases`; `GET /participants/:id/programs` | 2739-2747 | participantProgramResponse[]; programs는 잔존 별칭 | H | E2-5b/E2-7 |
+| `POST /participants/:id/support-cases`; `POST /participants/:id/programs` | 2748-2760 | 현 생성 parser → SupportCaseCreationResult | H, 사례 생성 권한 | E2-4a/E2-7 |
+| `GET /participants/:id/goal-tree` | 2762-2765 | {cases:participantGoalTreeResponse[]} | H, 사례 조회 | E2-5b |
+| `GET /participants/:id/basic-info`; `PUT /participants/:id/basic-info` | 2769-2787 | ParticipantBasicInfo; PUT contextId/expectedVersion/허용 PII → ParticipantPiiVault | H, 별도 PII/쓰기 검사 | E2-5b |
+| `GET /participants/:id/briefing`; `GET /participants/:id/programs/:case/briefing` | 2788-2804 | focusSupportCaseId query 또는 path → normalizeParticipantBriefing | H, 사례 조회 | E2-5b/E2-7 |
+| `GET /exports/cases` | 2806-2809 | cursor → listSettingsSupportCaseOptions assigned scope | H, 반출 가능 사례 | E2-5a/CCC-298 |
+| `GET /support-cases/:id/report` | 2812-2815 | SupportCaseReport; no-store | H, 사례 조회 | E2-5b/CCC-289 |
+| `POST /support-cases/:id/export`; `GET /support-cases/:id/export-history` | 2816-2823 | CaseExportResponse 또는 ExportHistoryPage | H, 반출 권한/감사 | CCC-298/E2-5a |
+| `GET /support-cases/:id/memory/trial`; `POST /support-cases/:id/memory/trial` | 2824-2840 | 시험 스위치 꺼짐404; POST confirmExternalAi → 실제 trial work | H, 내부 시험 | CCC-291 |
+| `GET /support-cases/:id/memory`; `POST /support-cases/:id/memory/corrections` | 2841-2857 | 현 memory view; itemId/expectedRevision/body → 정정 | H, 사례/기억 권한 | CCC-291 |
+| `POST /support-cases/:id/close`; `GET /support-cases/:id/closure` | 2858-2869 | reason → SupportCase; GET SupportCaseClosureInfo | H, POST 사례 쓰기 | E2-5b |
+| `POST /support-cases/:id/assignment-requests`; `POST /support-cases/:id/assignment-requests/:assignmentId/review` | 2870-2890 | 요청 및 decision → 현 배정 요청 결과 | 요청자/검토 관리자 | E2-5a/E2-5b |
+| `POST /support-cases/:id/force-transfer` | 2891-2903 | toUserId/reason/participantNotified → {transferred:true} | 기관 관리자 | E2-7 |
+| `GET /support-cases/:id/assignees`; `POST /support-cases/:id/assignees`; `POST /support-cases/:id/assignees/:assignmentId/accept` | 2904-2935 | {assignees}; SupportCaseAssignee; {accepted:true} | H, 각 배정 권한 | E2-5a |
+| `GET /support-cases/:id/consent`; `GET /support-cases/:id/consent/events`; `GET /support-cases/:id/consent/disclosures`; `POST /support-cases/:id/consent-events` | 2936-2967 | {consent}; {events}; {disclosures}; AppendConsentEventInput → event | H, 사례/동의 권한 | E2-4a/E2-5b |
+| `PUT /support-cases/:id/overall-goal` | 2968-2979 | overallGoal → {supportCaseId,overallGoal} | H, 담당 실무자 쓰기 | E2-5b |
+| `PUT /support-cases/:id/discrepancies/:discrepancyId/resolution` | 2980-2994 | resolution parser → SessionDiscrepancyWire | H, 담당 실무자 쓰기 | E2-5b |
+| `GET /support-cases/:id/records/context` | 2995-2998 | ManualRecordContext | H, 읽기와 canWrite 구별 | CCC-290/E2-4c |
+| `GET /support-cases/:id/records` | 2999-3025 | official query → SupportCaseRecordsWire, manual 투영 포함 | H, 사례 조회/승인 경계 | E2-4c |
+| `POST /support-cases/:id/records` | 3026-3036 | 현 manual schema2 parser → {record,replayed} | H, 담당 쓰기/동의/사업 검사 | CCC-290/E2-4c |
+| `GET /support-cases/:id/records/intake` | 3038-3041 | intakeContextResponse | H, canWrite를 별도 계산 | E2-5b/CCC-288 |
+| `POST /support-cases/:id/records/intake`; `PUT /support-cases/:id/records/intake` | 3043-3061 | schema2/expectedRevision → {schemaVersion,revision,record,replayed}; PUT replayed=false | H, 담당 쓰기 | E2-5b/CCC-288 |
+| `GET /cases`; `POST /cases`; `GET /cases/:id` | 3063-3082 | 현 gateway listCases/createCase/getCase; 구 CaseRecord 축소형과 동일하지 않음 | H | E2-7 |
+| `GET /cases/:id/briefing`; `GET /cases/:id/pilot-text-ai-consent` | 3083-3086 | Briefing 또는 PilotTextAiConsentStatus | H, 사례 조회 | E2-7 |
+| `GET /cases/:id/goals`; `POST /cases/:id/goals`; `POST /cases/:id/action-items` | 3087-3114 | Goal[]; Goal; OpenActionItemWire | H, 쓰기는 담당 | E2-5b |
+| `GET /cases/:id/sessions`; `POST /cases/:id/sessions` | 3115-3138 | SessionWire[] 또는 SessionWire + replayed | H, 쓰기는 담당 | E2-7 |
+| `POST /goals/:id/close`; `GET /goals/:id/upcoming-links`; `PUT /goals/:id/title` | 3140-3162 | Goal; {upcomingCount}; Goal | H, 쓰기는 담당 | E2-5b |
+| `GET /sessions/:id`; `POST /sessions/:id/approve` | 3163-3233 | SessionWire; 승인 경계는 실제 handler/gateway 검사 | H, 사례/승인 권한 | E2-4c/E2-7 |
+| `GET /sessions/:id/ai`; `POST /sessions/:id/ai/generate`; `POST /sessions/:id/ai/drafts/:version/edit`; `POST /sessions/:id/ai/drafts/:version/review` | 3163-3233 | AiDraftGetWire 또는 AiDraftMutationWire; 근거/초안 version 검사 | H, human 검토 권한 | E2-4c/CCC-293 |
+| `PUT /sessions/:id/audio`; `POST /sessions/:id/audio-upload-target`; `POST /sessions/:id/audio-upload-target/:audioObjectId/complete` | 3163-3233 | 실제 audio upload/target/complete 계약; S8 참조 | H, 현재 동의/Agent/입장 조건 | E5-6/E2-4c |
+| `GET /ai/provider/status`; `POST /ai/provider/activate-runtime` | 3234-3311 | AiProviderStatus; activation 결과 {enabled,adapterId,adapterVersion,configHash,replayed} | 기관 관리자 | E2-5a |
+| `POST /pipeline/readiness`; `GET /pipeline/health` | 3313-3324 | recordSttReadiness 또는 PipelineHealth | service readiness/관리자 health | E5-1a/STT 준비 소유자 |
+| `GET /audio-lifecycle/manual-notes`; `POST /audio-lifecycle/manual-notes/:id/ack` | 3325-3343 | 실제 manual-notes view/ack | H, 사례 권한 | E5-6 |
+| `POST /pipeline/memory/claim`; `GET /pipeline/memory/:jobId/source`; `POST /pipeline/memory/:jobId/mask-dictionary`; `POST /pipeline/memory/:jobId/result`; `POST /pipeline/memory/:jobId/release` | 3344-3370 | S5 MemoryMaskJob/source/dictionary; result/release204 | service, claim-bound | CCC-291/E5-1a |
+| `POST /pipeline/jobs/claim`; `POST /pipeline/jobs/:jobId/heartbeat`; `POST /pipeline/jobs/:jobId/release`; `POST /pipeline/jobs/:jobId/mask-dictionary`; `GET /pipeline/jobs/:jobId/source`; `GET /pipeline/jobs/:jobId/audio`; `POST /pipeline/jobs/:jobId/audio/verify`; `POST /pipeline/jobs/:jobId/egress/authorize`; `POST /pipeline/jobs/:jobId/egress/in-flight`; `POST /pipeline/jobs/:jobId/result` | 3372-3564 | S5 실제 job/attempt/claim 계약; result/release204, audio는 bytes/전송 경계 | service, claim-bound | E5-1a; CCC-292 차단 유지 |
+| `GET /settings/retention-policy`; `PUT /settings/retention-policy` | 3565-3578 | {orgId,piiPurgeGraceDays,version}; PUT expectedVersion | 기관 관리자 | E2-5a |
+| `GET /pii-retention/reviews`; `POST /pii-retention/reviews/:id` | 3579-3592 | {reviews}; 실제 보존/파기 결정 결과 | 기관 관리자/파기 이중 게이트 | E2-5a |
+| `GET /assignment-requests` | 3594-3598 | {requests:AssignmentRequestWire[]} | H, 본인 요청 범위 | E2-5a |
+| `GET /settings/assignments/cases`; `GET /settings/assignments/cases/:id` | 3599-3608 | 사례 options 또는 {assignees} | 기관 관리자 | E2-5a |
+| `POST /agents/pairing-codes`; `POST /agents/:installationId/revoke` | 3609-3629 | AgentPairingCode 또는 {installationId,revokedAt} | 기관 관리자 | E6-4 |
+| `GET /users`; `POST /users`; `POST /users/:id/deactivate`; `GET /users/:id/assignments` | 3630-3663 | DirectoryUser[]; DirectoryUser; DirectoryUser; CounselorAssignments | 기관 관리자 | E2-5a |
+
+### 4.1 DTO 필드와 투영의 핵심 차이
+
+동일 이름의 구 S3 표를 그대로 validator로 쓰지 않는다. 현재 wire 변경의 승인 근거는 D74/D86/D88과 각 versioned 계약이며, 소비 실패는 결함으로 남긴다.
+
+| 경계 | 현재 wire와 nullable/optional | 실제 소비 차이와 증거 |
 |---|---|---|
-| `GET /me` | object `{id,orgId,email,role,active,name,lastProgramType}` where `lastProgramType` is required and nullable | `MyIdentity`; root은 `lastProgramType`만 읽음 |
-| `GET /organization/profile` | `{orgId,orgName,programDisplayName}` | `OrganizationProfile` |
-| `GET /participants/new-signup-count` | `{count}` | number |
-| `GET /users` | `DirectoryUser[]` | `DirectoryUser[]` |
-| `POST /users` | `DirectoryUser` | `DirectoryUser` |
-| `GET /ai/provider/status` | `{enabled,adapterId,adapterVersion,configHash,runtime:{configured,adapterId,adapterVersion,configHash,matches}}` | `AiProviderStatus` |
-| `POST /ai/provider/activate-runtime` | `{enabled,adapterId,adapterVersion,configHash,replayed}` | action은 response를 사용하지 않음 |
-| `GET /schedules/candidates` | envelope `{candidates: ScheduleCandidate[]}` | `ScheduleCandidate[]` |
-| `GET /support-cases/:id/assignees` | envelope `{assignees: SupportCaseAssigneeWire[]}` | `SupportCaseAssignee[]` |
-| `POST /support-cases/:id/assignees` | `SupportCaseAssigneeWire` | `SupportCaseAssignee` |
-| `GET /users/:id/assignments` | `{userId,participants: AdminAssignmentParticipantWire[]}` | `CounselorAssignments` |
-| `GET /invites/participant/:token` | `{programType}` | `PublicInviteInfo` |
-| `GET /invites/participant/:token/me` | `{name,phone,email,programs,upcomingSchedules,pastSchedules}` | `ParticipantSelfCheck` |
-| `POST /signup/participant` | `{beneficiaryId,supportCaseId}` | `PublicSignupResult` |
-| `GET /invites/worker/:token` | `{orgName}` | `PublicWorkerInviteInfo` |
-| `POST /invites/worker` | `{userId,email}` | `WorkerSignupResult` |
-| `POST /invites/counselor` | `InviteTokenWire` `{token,kind,orgId,programType,issuedBy,status,issuedAt,usedAt,revokedAt,usedByBeneficiaryId}` | `WorkerInvite` client projection |
-| `POST /invites/participant` | `InviteTokenWire` `{token,kind,orgId,programType,issuedBy,status,issuedAt,usedAt,revokedAt,usedByBeneficiaryId}` | `ParticipantInvite` client projection |
-| `POST /organization/onboarding` | `{orgId,orgName,programDisplayName}` | `OrganizationProfile` |
-| `GET /participants` | envelope `{results: AssignedParticipantWire[]}` | `AssignedParticipant[]` |
-| `POST /participants` | `{beneficiaryId,supportCaseId,assignmentRole,replayed}` | `ParticipantProgramCreation` |
-| `GET /participants/:id/support-cases` | `ParticipantProgramWire[]` | `ParticipantProgram[]`; `getParticipantDetail` additionally projects first `participantName/participantPhone` to `ParticipantDetail` |
-| `POST /participants/:id/support-cases` | `{beneficiaryId,supportCaseId,assignmentRole,replayed}` | `ParticipantProgramCreation` |
-| `GET /participants/:id/hub` | `{beneficiaryId,participantName,participantPhone,participantEmail,programs:ParticipantProgramWire[]}` | `ParticipantHubDetail` |
-| `GET /participants/:id/goal-tree` | envelope `{cases: ParticipantGoalTreeCaseWire[]}` | `ParticipantGoalTreeCase[]` |
-| `PUT /support-cases/:id/consent` | `{privacy,recordingAi}` | `ParticipantConsent` |
-| `GET /participants/:id/basic-info` | `ParticipantBasicInfo` keys below | `ParticipantBasicInfo` |
-| `PUT /participants/:id/basic-info` | `ParticipantPiiVault` `{beneficiaryId,version,purgeDue,purgedAt}` | void; action ignores response |
-| `GET /participants/:id/programs/:case/briefing` | `ParticipantBriefingWire` keys below | `ParticipantBriefing` |
-| `PUT /support-cases/:id/overall-goal` | `{supportCaseId,overallGoal}` | same inline object |
-| `PUT /support-cases/:id/discrepancies/:discrepancyId/resolution` | `SessionDiscrepancyWire` | action ignores body, revalidation reads records |
-| `GET /support-cases/:id/closure` | `SupportCaseClosureInfo` | `SupportCaseClosureInfo` |
-| `POST /support-cases/:id/close` | full `SupportCase` wire object | action/client uses `{id,status,closedAt}` projection |
-| `GET /support-cases/:id/records?official=true` | `SupportCaseRecordsWire` | `SupportCaseRecords` |
-| `POST /support-cases/:id/records` | `{record:{id,heldAt,channel,memo},replayed}` | `CreateCounselingRecordResult` |
-| `GET /support-cases/:id/records/intake` | `IntakeRecordContextWire` | `IntakeRecordContext` |
-| `POST /support-cases/:id/records/intake` | `{record:{id,heldAt,channel,kind},replayed}` | `CreateIntakeRecordResult` |
-| `PUT /support-cases/:id/records/intake` | `{record:{id,heldAt,channel,kind}}` | `{record:CreatedIntakeRecord}` |
-| `POST /cases/:id/action-items` | `OpenActionItemWire` | `OpenActionItem` |
-| `GET /sessions/:id` | `SessionWire` without `audioR2Key` | `ManualSession` client projection for action precheck |
-| `GET /sessions/:id/ai` | `AiDraftGetWire` | `AiDraft` |
-| `POST /sessions/:id/ai/generate` | `AiDraftMutationWire` | `AiDraft` client cast currently expects GET-only fields; action ignores response |
-| `POST /sessions/:id/ai/drafts/:version/review` | `AiDraftMutationWire` | `AiDraft` client cast currently expects GET-only fields; action ignores response |
-| `POST /cases/:id/goals` | `Goal` | `Goal` |
-| `PUT /goals/:id/title` | `Goal` | `Goal` |
-| `GET /goals/:id/upcoming-links` | `{upcomingCount}` | number |
-| `POST /goals/:id/close` | `Goal` | `Goal` |
-| `GET /schedules/today` | `TodaySchedulesWire` | `TodaySchedules` |
-| `GET /schedules/upcoming` | `TodaySchedulesWire` | `TodaySchedules` |
-| `GET /schedules/month` | `TodaySchedulesWire` | `TodaySchedules` |
-| `POST /schedules` | `CounselingScheduleWire` | `CounselingSchedule` |
-| `GET /schedules/:id/plan` | `ScheduleSessionPlanWire` including `channel` | `ScheduleSessionPlan` (client ignores extra `channel`) |
-| `PUT /schedules/:id/plan` | `{scheduleId,version}` | `{scheduleId,version}` |
-| `GET /assignment-requests` | envelope `{requests: AssignmentRequestWire[]}` | `AssignmentRequest[]` |
-| `POST /support-cases/:id/assignees/:assignmentId/accept` | `{accepted:true}` | action ignores response |
-| `PUT /me/last-program` | `{ok:true}` | void |
-| `POST /preview/unlock` (API JSON boundary) | `{token,maxAgeSeconds,expiresAt}` with status 200 and API `Set-Cookie` | `PreviewUnlockResult` client currently consumes token/maxAge; `expiresAt` remains wire evidence |
-| `GET /health` | `{status:'ok',service:'ccc-api'}` | liveness, no client |
-| `GET /participants/search` | `{results:ParticipantSearchResultWire[]}` | no current page |
-| `GET /consent/follow-ups` | `{results:PrivacyConsentFollowUp[]}` | no current page |
-| `PATCH /schedules/:id/reschedule` | `CounselingScheduleWire` | no current page |
-| `POST /schedules/:id/cancel` | `CounselingScheduleWire` | no current page |
-| `POST /schedules/:id/no-show` | `CounselingScheduleWire` | no current page |
-| `POST /support-cases/:id/force-transfer` | `{transferred:true}` | no current page |
-| `PUT /sessions/:id/audio` | `SessionWire` | no current page |
-| `POST /sessions/:id/approve` | `SessionWire` | legacy approval |
-| `GET /pipeline/health` | `PipelineHealth` | admin, no current page |
-| `POST /pipeline/jobs/claim` | `ClaimResponse` (S5) | service, no current page |
-| `POST /pipeline/jobs/:jobId/heartbeat` | `HeartbeatResponse` (S5) | service, no current page |
-| `POST /pipeline/jobs/:jobId/release` | 204 empty | service, no current page |
-| `POST /pipeline/jobs/:jobId/mask-dictionary` | `MaskDictionaryResponse` (S5) | service, no current page |
-| `GET /pipeline/jobs/:jobId/source` | `SourceResponse` `{sessionId,text}` | service, no current page |
-| `GET /pipeline/jobs/:jobId/audio` | audio bytes; missing `{error:'audio_object_missing',jobId}` | service, no current page |
-| `POST /pipeline/jobs/:jobId/audio/verify` | `AudioVerifyResponse` (S5) | service, no current page |
-| `POST /pipeline/jobs/:jobId/egress/authorize` | `AzureEgressAuthorization` (S5) | service, no current page |
-| `POST /pipeline/jobs/:jobId/egress/in-flight` | `EgressInFlightResponse` (S5) | service, no current page |
-| `POST /pipeline/jobs/:jobId/result` | 204 empty | service, no current page |
-| `GET /pii-retention/reviews` | `{reviews:ParticipantPiiRetentionReview[]}` | admin, no current page |
-| `POST /pii-retention/reviews/:id` | `ParticipantPiiRetentionReview` | admin, no current page |
-| `POST /users/:id/deactivate` | `DirectoryUser` | admin, no current page |
-| `GET /cases` | `CaseRecord[]` | legacy, no current page |
-| `POST /cases` | `CaseRecord` | legacy, no current page |
-| `GET /cases/:id` | `CaseRecord` | legacy, no current page |
-| `GET /cases/:id/briefing` | `Briefing` | legacy, no current page |
-| `GET /cases/:id/pilot-text-ai-consent` | `PilotTextAiConsent` | legacy, no current page |
-| `POST /cases/:id/pilot-text-ai-consent` | `PilotTextAiConsent` | orphan action |
-| `GET /cases/:id/goals` | `Goal[]` | schedule context and goal prechecks |
-| `GET /cases/:id/sessions` | `SessionWire[]` | legacy, no current page |
-| `POST /cases/:id/sessions` | `SessionWire` plus `replayed` | legacy, no current page |
-| `GET /participants/:id/programs` | `ParticipantProgramWire[]` | alias, no current page |
-| `POST /participants/:id/programs` | `ParticipantProgramCreation` | alias, no current page |
-| `POST /sessions/:id/ai/drafts/:version/edit` | `AiDraftMutationWire` | orphan action |
-| `GET /participants/:id/briefing?focusSupportCaseId=:case` | `ParticipantBriefingWire` | alias, no current page |
-| `GET /beneficiaries` | `{results:AssignedParticipantWire[]}` | alias, no current page |
-| `POST /beneficiaries` | `ParticipantProgramCreation` | alias, no current page |
-| `GET /beneficiaries/search` | `{results:ParticipantSearchResultWire[]}` | alias, no current page |
+| MeResponse | `packages/contracts/src/institution.ts:35-44`의 실제 정의. `email`, `name`, `lastProgramType`은 required nullable이다. institution은 readiness 객체 | web `decodeDirectoryUser`가 email을 string으로 요구하고 `/me`에도 재사용한다(api.ts:2110-2128). null-email 소비 불일치는 E2-3/CCC-212 |
+| DirectoryUser | `gateway.ts:12393-12410`의 serializer와 User 정의를 따른다. email/name은 nullable이며 목록은 토큰을 반환하지 않는다 | web은 nullable email을 거부한다. E2-5a/CCC-209가 소비자를 소유하며 빈 배열은 행 shape 검증이 아니다 |
+| AssignedParticipantWire | `beneficiaryId,status,programCount,name,phone,email,programNames,newSignup`; name/phone/email null 가능 | D88의 목록 이메일은 허브 전용 제한의 승인된 예외다. 실제 목록 200은 이 필드를 포함한다 |
+| ParticipantProgramWire | `id,beneficiaryId,programType,status,intakeAt,creationKind,sourceSupportCase,participantName,participantPhone,authorized,assigneeNames,consentRecordedAt,upcomingSchedule`; 구 `consent` 객체는 없음. upcomingSchedule은 null 또는 일정 표시 객체 | web `decodeParticipantProgram`은 여전히 consent 객체를 요구한다. 허브/기록/검토의 실제 렌더 실패로 확인했다. 구 객체를 임의 복원하지 않는다 |
+| ParticipantHubDetail | `restricted`가 분기자다. 최소 name/phone/email/programs와 허용된 전체 허브의 birthDate/status/closedAt/sessionCount/lastSessionAt을 구별한다 | optional 개인정보를 restricted 응답에 추가하지 않는다. variants.json에서 담당/비담당의 실제 두 응답 shape와 birthDate 제외를 확인했다. 모든 자료 조합의 검증은 아님 |
+| 일정 4종 | scheduleResponse와 plan, today, briefing upcoming은 `allDay`, `displayColor`를 가진다. channel은 해당 serializer에 실제 포함되는 자리에서만 센다 | `00:00`을 종일로 해석하지 않는다. PUT plan 응답에는 `sessionGoals`도 있다. 실제 schedule/plan 응답 shape 별도 기록 |
+| InviteToken/공개 링크 정보 | InviteToken은 programId/expiresAt을 포함한다. 공개 조회는 `ParticipantRequestLinkInfo`와 `ParticipantRequestLinkUsedInfo` 합집합이다(gateway.ts:21105-21153) | used의 counselorName/email 폴백/message는 token 범위의 연락 안내이며 폐기된 자기 확인 API가 아니다. web의 programType 고정 기대는 E2-5c/CCC-215의 별도 결함 |
+| 등록 결과 | SupportCaseCreationResult의 `canWriteIntake` 등 실제 필드는 HTTP 생성 응답에 있다 | client가 쓰기 권한을 hub 조회로 추정하거나 누락을 true로 채우지 않는다 |
+| 수기 기록 | schema2 입력은 `contracts/manual-record.ts`. 생성 응답 `{record,replayed}`의 record에 `manual`이 포함된다. 공식 records에도 manual 원천/결과 투영이 있다 | web 및 현재 client의 구 details/actions 쓰기를 새 schema2 성공으로 가장하지 않는다. 실제 backend schema2 생성/조회만 별도 확인했다 |
+| IntakeRecordContext | `canWrite,writeSchemaVersion,moduleSnapshot` 포함. `consent`는 6영역 상태 배열. saved는 null 또는 원문 schema1/2, revision, questionnaire/legacyDetailsJson/history의 실제 계약 | web은 구 consent 객체/평탄 saved를 요구해 실제 500. 새 lifecycle proposal의 schema3/추가 필드는 미발행이며 이 표에 넣지 않는다 |
+| IntakeMutationResponse | POST/PUT 모두 `{schemaVersion,revision,record,replayed}`. PUT의 replayed는 false | POST 실제 201을 확인했다. 복사된 questionnaire round-trip만으로 handler 검증이라 하지 않는다 |
+| AI draft | GET은 `AiDraftMutationWire`에 regenerateAvailable, regenerateSourceSnapshotId, transcriptQuality를 추가한다. mutation에는 GET 전용 필드가 없다 | web mutation의 AiDraft cast 불일치는 남는다. AI-off의 draft404는 생성/검토 성공 증거가 아니다 |
+| CapabilityManifest | mode/sttMode/sttEngine/llmMode/agentStatus/options/features와 schemaVersion. sttEngine은 null 가능. 설치 ID는 별도 header | 실제 검증된 합성 manifest에서 off/null, manifest 부재503을 확인했다. 기관 설치나 STT 자격 승인으로 확대하지 않는다 |
+| S5 job source/result | source의 현재 `sessionId/text`, claim/attempt와 result의 실제 S5 타입을 따른다 | source revision과 대응표 freshness, final-egress 집행은 CCC-292/291의 열린 경계다. richer source가 이미 있다고 쓰지 않는다 |
+| preview unlock | API JSON `{token,maxAgeSeconds,expiresAt}`, web form `{mode,code}` → HttpOnly cookie와303 | web은 expiresAt을 검사하지 않는 기존 E2-3 결함이다. 유효 응답으로 cookie를 받았다는 사실은 잘못된 expiresAt 거부 증거가 아니다 |
 
-### 4.2 Exact DTO key registry
+### 4.2 PII와 권한 필드 대응
 
-The following names are the wire/client key contracts used above. `?` means the key is optional; `| null` means it is present and nullable. Nested rows are part of the exact shape, not prose examples.
+| 필드 묶음 | 허용 경계와 기존 규칙 | 검증 상태 |
+|---|---|---|
+| `/me`의 name/email/roles | 현재 본인. 다른 사용자의 조회 권한이 아니다 | 합성 본인 200 |
+| directory name/email 및 배정 이름 | 해당 관리자 기능 또는 D36/D86이 허용한 기관 내 식별/담당 표시 | 관리자 users 200; 모든 역할 합은 미검증 |
+| 목록 name/phone/email/programNames | D24/D88이 허용한 목록 응답과 감사 fields. 임의 다른 응답 재사용 금지 | 실제 목록 shape 확인 |
+| 허브 기본 식별정보/참여 사업 | D86 restricted 분기. 상담 내용과 birthDate/기록 수는 비담당 최소 허브에 넣지 않는다 | 실제 합성 담당/비담당 응답, technical-only 접근 거부를 variants.json에 보존 |
+| basic-info의 account/birthDate/region/gender 및 intake extendedPii/emergencyContact | 기존 PII 권한/감사와 사례 경계. 기술 관리자에게 상담자료를 새로 열지 않는다 | 담당 basic-info/intake 응답; 타 기관/비담당/서비스 기록 조회403 |
+| briefing/records/goal revisions의 이름, 상담 내용과 인용 | 기관/사례 읽기, 담당/감독 관계와 허용된 관리자 읽기. AI 미승인 제외 | 현재 합성 공식 수기 조회. 모든 승인/감독 조합은 미검증 |
+| 공개 request-info/가입 결과/실무자 수락의 이름/email | 실제 유효 token 범위와 D86의 1회 사용. 폐기된 자기 확인 API로 재공개하지 않는다 | participant token-only200, switch-off404, preview 무쿠키401. 별도 실제 Worker에서 participant signup201과 switch 없는 staff accept201을 확인 |
+| 사용된 participant 링크의 counselorName/message | 원래 token 보유자에게 발급 담당자의 이름 또는 email 폴백만 제공한다(gateway.ts:21117-21140). 다른 상담/개인정보를 다시 공개하지 않는다 | used의 정확한 key 집합, null과 자기 발급자 email 폴백을 실제 응답으로 확인. issued 응답으로 대신하지 않음 |
+| staff 발급 응답의 token | 발급 권한을 가진 사람에게 POST 응답 한 번만 제공한다. GET 목록과 revoke에는 포함하지 않는다 | 실제 발급 `{invite,token}`, 목록/revoke의 token 부재를 확인. token 값은 evidence/log에 저장하지 않음 |
+| Agent 원천/사전 | service claim에 필요한 원천만. 일반 ResultRequest와 외부 AI에 원문/대응표를 넣지 않는다 | 이번 실행에서 외부 AI/STT/Agent claim을 시작하지 않음. S5/S6 집행 완료를 주장하지 않음 |
 
-```text
-OrganizationProfile = {orgId,orgName|null,programDisplayName|null}
-MeWire = {id,orgId,email,role,active,name|null,lastProgramType|null}
-MyIdentity/DirectoryUser = {id,orgId,email,role,active,name|null}
-AssignedParticipantWire = {beneficiaryId,status,programCount,name|null,phone|null,newSignup}
-ParticipantProgramWire = {id,beneficiaryId,programType,status,intakeAt|null,creationKind,
-  sourceSupportCase:{id,programType,status}|null,participantName|null,participantPhone|null,
-  authorized,assigneeNames:string[],consent:{privacy,recordingAi},consentRecordedAt|null,
-  upcomingSchedule:{id,scheduledAt,sessionKind}|null}
-ParticipantDetail = {beneficiaryId,name|null,phone|null,programs:ParticipantProgram[]}
-ParticipantHubDetail = {beneficiaryId,participantName|null,participantPhone|null,
-  participantEmail|null,programs:ParticipantProgramWire[]} → client {beneficiaryId,name|null,phone|null,email|null,programs}
-SourceSupportCase = {id,programType,status}
-ParticipantGoalTreeCaseWire = {sourceSupportCase,overallGoal|null,
-  overallGoalRevisions:GoalRevisionEntry[],goals:ParticipantGoalTreeGoal[]}
-ParticipantGoalTreeGoal = {id,title,status,closedReason|null,closedAt|null,
-  revisions:GoalRevisionEntry[],sessionGoals:{id,body,scheduledAt,scheduleStatus}[],
-  linkedSessions:{sessionId,heldAt,oneLiner|null}[]}
-GoalRevisionEntry = {title|null,editedByName|null,editedAt}
-ParticipantBriefingWire = {beneficiaryId,focusSupportCaseId,overallGoal|null,
-  activeGoals:{id,title}[],canEditOverallGoal,participant:{name|null,phone|null},
-  sections:ParticipantBriefingSection[],focusUpcomingSchedule:BriefingUpcomingSchedule|null}
-ParticipantBriefingSection = {sourceSupportCase,gasTrend:{goalId,goalTitle,status,closedAt|null,
-  points:{heldAt,score}[]}[],lastSessionSummary:{source,text,pendingApprovalCount}|null,
-  pendingReviewSessionIds:string[],openActionItems:{id,description,owner,dueDate|null,sessionId|null}[],
-  flags:{id,flagType,source,reviewStatus,sessionId|null,quote|null}[],
-  aiSuggestions:{title,reason|null,sessionId,heldAt|null,sourceQuotes:string[]}[],
-  sessionRows:{sessionId,heldAt,kind,aiOneLiner|null,memoExcerpt|null}[],
-  discrepancies:{id,kind,left:{sessionId,heldAt,quote},right:{sessionId,heldAt,quote},
-    detectedAt,resolution:{status,resolvedAt}|null}[]}
-BriefingUpcomingSchedule = {id,scheduledAt,sessionKind,channel,
-  sessionGoals:{body,caseGoalId|null,caseGoalTitle|null,caseGoalStatus|null}[],customQuestions:string[]}
-SupportCaseRecordsWire = {records:SupportCaseRecord[],goals:SupportCaseRecordGoal[],
-  schedule:CounselingSchedule|null,recordErrorSessionIds:string[],overallGoal|null,caseStatus,programType}
-SupportCaseRecord = {id,heldAt,channel,memo,managerOpinion|null,
-  gasScores:{goalId,goalTitle,score}[],actionItems:{id,description,owner,dueDate|null,resolved}[],
-  flags:{id,flagType,source,reviewStatus,quote|null}[],
-  lifeAreaSnapshot:{areaKey,status,note|null}[],kind,createdAt,aiOneLiner|null,memoExcerpt|null,
-  sessionGoals:string[],discrepancies:{id,kind,leftSessionId,rightSessionId,resolutionStatus|null}[]}
-SupportCaseRecordGoal = {id,title,status,closedReason|null}
-IntakeRecordContextWire = {beneficiaryId,supportCaseId,participant:{name|null,phone|null,email|null},
-  sessionSequence,hasIntake,extendedPii:{birthDate|null,region|null,emergencyContact|null,gender|null},
-  consent:{privacy,recordingAi},saved:IntakeSavedRecord|null,overallGoal|null,schedule:CounselingSchedule|null}
-IntakeSavedRecord = {sessionId,heldAt,channel,answers,debts,linkedOrgs,additionalItems,managerOpinion|null}
-AiDraftMutationWire = {version,origin,creationMode,summaryText,claims,oneLiner|null,
-  reviewDecision,questions,evidence:{id,claimKey,quote}[],contrast}
-AiDraftGetWire = AiDraftMutationWire + {regenerateAvailable,
-  regenerateSourceSnapshotId|null,transcriptQuality:
-  {transcriptReliable,warnings:{startSeconds,endSeconds,reason}[]}|null}
-AiDraftClientProjection = AiDraftGetWire
-TodaySchedulesWire = {date,timeZone,startUtc,endUtc,schedules:TodayScheduleWire[]}
-TodayScheduleWire = {id,beneficiaryId,supportCaseId,scheduledAt,programType,status,
-  participantName|null,participantPhone|null,sessionKind,completedSessionId|null}
-ScheduleCandidate = {beneficiaryId,supportCaseId,programType,participantName|null,
-  participantPhone|null,participantEmail|null,intakeAt|null}
-ScheduleSessionPlanWire = {scheduleId,beneficiaryId,supportCaseId,scheduledAt,status,version,
-  sessionKind,channel,sessionGoals:{id,body,caseGoalId|null,caseGoalTitle|null,ordinal}[],
-  customQuestions:{id,body,ordinal}[]}
-CounselingScheduleWire = {id,beneficiaryId,supportCaseId,scheduledAt,status,version}
-SupportCaseClosureInfo = {supportCaseId,beneficiaryId,status,closedAt|null,closedReason|null,
-  purgeDue|null,purgedAt|null,hasOtherActiveSupportCase}
-AssignmentRequestWire = {id,supportCaseId,beneficiaryId,participantName|null,programType,
-  role,status:'requested',requestedAt}
-SupportCaseAssigneeWire = {id,supportCaseId,userId,role,status,acceptanceRequestedBy|null,
-  acceptedAt|null,transferReason|null,notifiedBy|null,notifiedAt|null,assignedAt}
-CounselorAssignments = {userId,participants:{beneficiaryId,supportCaseId,programType,status,
-  assignmentRole,participantName|null,participantPhone|null}[]}
-ParticipantSelfCheck = {name|null,phone|null,email|null,
-  programs:{programType,counselorName|null,consent:{privacy,recordingAi}}[],
-  upcomingSchedules:{id,scheduledAt,status}[],pastSchedules:{id,scheduledAt,status}[]}
-PublicInviteInfo = {programType}
-PublicWorkerInviteInfo = {orgName|null}
-PublicSignupResult = {beneficiaryId,supportCaseId}
-WorkerSignupResult = {userId,email}
-InviteTokenWire = {token,kind,orgId,programType|null,issuedBy,status,issuedAt,
-  usedAt|null,revokedAt|null,usedByBeneficiaryId|null}
-PreviewUnlockWire = {token,maxAgeSeconds,expiresAt}
-PreviewUnlockResultClient = {token,maxAgeSeconds}; web adapter currently drops expiresAt
-ParticipantProgramCreation = {beneficiaryId,supportCaseId,assignmentRole,replayed}
-CreateCounselingRecordResult = {record:{id,heldAt,channel,memo},replayed}
-CreateIntakeRecordResult = {record:{id,heldAt,channel,kind},replayed}
-CreatedIntakeRecord = {id,heldAt,channel,kind}
-ParticipantConsent = {privacy,recordingAi}
-ParticipantBasicInfo = {beneficiaryId,supportCaseContextId,version,name|null,phone|null,
-  email|null,account|null,birthDate|null,region|null,gender|null}
-ParticipantPiiVault = {beneficiaryId,version,purgeDue|null,purgedAt|null}
-Goal = {id,caseId,title,status,closedAt|null,closedReason|null}
-OpenActionItemWire = {id,caseId,sessionId|null,description,owner,dueDate|null,resolvedAt|null}
-OpenActionItem = {id,description,owner,dueDate|null}
-SessionWire = {id,caseId,counselorId,heldAt,channel,memo|null,aiStatus,transcript|null,
-  aiSummary|null,aiSchema|null,aiContrast|null,emotionScores|null,speakerMappingConfirmedAt|null,
-  approvedAt|null,approvedBy|null,extra|null,aiGasEvidence?,lifeAreaSnapshot?}
-SessionDiscrepancyWire = {id,supportCaseId,kind,triggerSessionId,leftSessionId,leftQuote,
-  rightSessionId,rightQuote,detectedAt,resolutionStatus|null,resolvedBy|null,resolvedAt|null}
-SupportCase = {id,orgId,beneficiaryId,legacyCaseId|null,programType,status,intakeAt|null,
-  consentRecordingAt|null,consentTextAiAt|null,consentPrivacyAt|null,overallGoal|null,
-  closedAt|null,closedReason|null,creationKind,createdAt|null,updatedAt|null}
-PilotTextAiConsent = {caseId,status,evidenceId|null,noticeVersion|null,noticeHash|null,
-  evidenceHash|null,effectiveAt|null}
-ParticipantSearchResultWire = {beneficiaryId,status,programCount,name|null}
-PrivacyConsentFollowUp = {supportCaseId,beneficiaryId,programType,status,
-  emergencyRegistrationAt|null,consentPrivacyDueAt|null,overdue}
-PipelineJob = {id,caseId,status,audioAvailable}
-PipelineHealth = {orgId,lastPolledAt|null,lastCompletedAt|null,stale,status,staleReasons,
-  pendingJobCount,pendingTextWorkCount,pendingTotalCount,oldestPendingSince|null,
-  oldestPendingHours|null,thresholdHours,queueThresholdHours}
-TextWorkItem = {id,sessionId,reason,enqueuedAt,leaseExpiresAt,attemptCount}
-TextWorkSource = {sessionId,text}
-MaskedSourceSnapshot = {id,caseId,sessionId,maskedText,sha256,maskingPipelineVersion,
-  createdAt,evidence:{id,sourceRef,sourceSha256,evidenceQuote,sourceStart,sourceEnd}[]}
-MaskedSourceAck = {sourceSnapshotId,sha256,maskingPipelineVersion,evidenceIds:string[]}
-ParticipantPiiRetentionReview = {beneficiaryId,status,archivedAt,reviewDueAt,retentionCapDueAt,
-  reasonKind|null,retainUntil|null}
-Briefing = {caseId,gasTrend,lastSessionSummary|null,openActionItems,flags,questions}
-CaseRecord = {id,programType,status,intakeAt|null}
+## 5. 현재 page가 없는 경로와 실제 결함
 
+`unmapped-by-current-page`는 구현 TODO를 임의 발행하는 말이 아니다. §4의 모든 현재 경로는 Next 행에서 사용되거나 아래 client/service/legacy 영역에 남는다. 최종 삭제/이식은 해당 소유자가 한다.
+
+- 실제 client 호출: capabilities/auth/logout, program-options, 6영역 consent, staff-invites, settings/accounts/assignments/retention, audit-log, report와 기관 memory 설정이다. 아래 보충표가 non-SCR 경로와 추가 호출을 구별한다.
+- Agent/system 호출: agents 자격 교환, internal scheduler/storage, pipeline/jobs, pipeline/memory와 readiness다. `audio-lifecycle/manual-notes`는 이 묶음과 달리 사람의 사례 권한 경계이며 현재 화면 연결은 없다.
+- `GET /exports/cases`, `POST /support-cases/:id/export`, `GET /support-cases/:id/export-history`는 현재 client screen 호출이 없다. transport allowlist만으로 소비자가 있다고 하지 않는다. `InstitutionApi.createProgram`도 현 screen 호출자가 없으며 테스트 호출과 구별한다.
+- removed dispatch: `GET /invites/participant/:token/me`, `GET /invites/worker/:token`, `POST /invites/worker`, `POST /invites/counselor`, `PUT /support-cases/:id/consent`, `POST /cases/:id/pilot-text-ai-consent`, `POST /sessions/:id/ai/source`, `GET /pipeline/jobs`, `GET /pipeline/text-jobs`, `GET /pipeline/text-jobs/:item/source`, `POST /pipeline/text-jobs/:item/complete`. worker 경로와 자기 확인은 인증 전404이며, 나머지 미등록 경로는 먼저 인증 거부를 받을 수도 있다. ‘아직 호출하는 web 코드’와 ‘현재 존재하는 API’를 같은 것으로 표시하지 않는다.
+- `GET /pipeline/jobs/:sessionId/audio`와 `POST /pipeline/jobs/:sessionId/result`의 파라미터 의미는 현재 jobId다. 별도의 `POST /pipeline/jobs/:sessionId/audio/result`는 다섯 segment의 미등록 경로이며 현재 네 segment `POST /pipeline/jobs/:jobId/result`와 같지 않다. removed-dispatch로 남기고 별칭을 만들지 않는다.
+
+| orphan action | 실제 API와 serializer/소비 | Actor와 현재 page caller | 기존 소유 |
+|---|---|---|---|
+| `recordPilotTextAiConsentAction` | `POST /cases/:id/pilot-text-ai-consent`, 현재 dispatch 없음. 과거 PilotTextAiConsent 투영을 성공 계약으로 쓰지 않음 | human, page caller 0 | E2-7/CCC-217 |
+| `editAiDraftAction` | 사전 `GET /sessions/:id`, `POST /sessions/:id/ai/drafts/:version/edit` → 실제 `aiDraftResponse`; client AiDraft cast는 GET 전용 필드까지 기대 | human/초안 권한, page caller 0 | E2-7/CCC-217 |
+| `createSubsequentParticipantProgramAction` | `POST /participants/:id/support-cases` → 실제 SupportCaseCreationResult와 client 투영 | human/사례 생성 권한, page caller 0 | E2-7/CCC-217 |
+| `createCounselingScheduleAction` | `POST /schedules` → `scheduleResponse`; 현재 화면은 createSchedulePlanAction을 사용 | human/사례 쓰기, page caller 0 | E2-7/CCC-217 |
+
+inline `submitRecord`는 records/new 안에서 createCounselingRecordAction을 감싸는 실제 서버 제출 경계다.
+
+| ID | 실제 차이 또는 막힌 부분 | 기존 소유 | 완료로 표시하지 않는 것 |
+|---|---|---|---|
+| G-MAP-01 | settings의 memory GET/PUT와 두 actions, admin/ai-provider의 GET capabilities가 구 S3에서 빠짐 | 문서 CCC-201, 제품 E2-5a/CCC-209 | 문서 추가는 제품 동작 변경이 아님 |
+| G-WEB-01 | web ParticipantProgram decoder의 구 consent 기대와 현재 응답 불일치 | E2-4c/CCC-211, E2-5b/CCC-206, DESIGN | records/new/list 500; hub/review는 스트림200 안의 렌더 오류 |
+| G-WEB-02 | web intake의 구 동의/원문 형식과 schema2 불일치 | CCC-288, E2-5b/CCC-206 | 실제 intake page500, 새 형식 전체 소비 미완료 |
+| G-WEB-03 | participant preview cookie 포워딩 부재 | E2-5c/CCC-215 | API401 뒤 page404. 안전 기대는 cookie만 전달하는 그대로 |
+| G-WEB-04 | retired worker/consent API를 호출하는 잔존 page/action | E2-5c/CCC-215, E2-5a/CCC-209, E2-7/CCC-217 | 폐기 API 복원이나 compatibility alias 금지 |
+| G-WEB-05 | unlock expiresAt 검증 부재, AI mutation GET DTO cast | E2-3/CCC-212, E2-4c/CCC-211 | 유효 응답 수신은 malformed 응답 거부 증거가 아님 |
+| G-WEB-06 | public signup action의 구 consent 객체, used 링크의 programType 기대 | E2-5c/CCC-215 | 실제 consentEvents/used 합집합을 낮추거나 자기 확인 API를 복원하지 않음 |
+| G-WEB-07 | nullable email을 거부하는 web directory/identity decoder | E2-3/CCC-212, E2-5a/CCC-209 | null을 가짜 이메일로 채우지 않음 |
+| G-CLIENT-01 | 수기 schema2 생산자와 구 client records 쓰기/읽기 | CCC-290/289, E2-4c/CCC-211 | synthetic-api가 대신 만든 응답은 실제 계약 통과가 아님 |
+| G-CLIENT-02 | 4탭/새 상태/약속/리포트 소비 미완료 | E2-5b/CCC-206, CCC-291/295/296/298 | 새 표시명만으로 W 전체 완료 금지 |
+| G-CLIENT-03 | staff 초대 화면은 supervisor 선택지를 만들지만 core의 DirectoryStoredRole 3종에는 없음. client invites.ts:13-24/screens:102-106과 gateway:12454-12458,21448-21454가 다름 | E2-5a/CCC-209, 별도 역할 변경 범위 보존 | 합성 POST가 supervisor400을 반환함. 팀 감독 grant의 읽기 권한과 초대 가능 역할을 합치거나 서버 검사를 완화하지 않음 |
+| G-PROTECTED-01 | CCC-299/292의 소유 경로/출고 단위 부족 | 해당 티켓과 정본 인계 | 제안 버전/필드/마이그레이션 미발행 유지 |
+| G-VERIFY-01 | 모든 endpoint의 모든 nullable/optional/역할/오류/수락 분기를 실행한 것은 아님 | CCC-201 증거 및 해당 계약 소유자 | 일부 응답과 정적 참조만으로 전 API PASS 금지 |
+| G-VERIFY-02 | production Auth/세 모드 identity, client hydration/상호작용 전체는 실행하지 않음 | E2-3 및 각 모드/화면 소유자 | preview Actor로 Supabase MFA나 Local 암호화/인증 성공을 대신하지 않음 |
+
+## 6. Relayer SCR 21행과 현재 client
+
+CSV는 UTF-8 BOM과 여러 줄 quoted field를 CSV parser로 읽는다. 21개 record ID를 독립적으로 대조하며 물리줄 수를 화면 수로 쓰지 않는다. CSV의 이전 ‘논의 중’, ‘28문항’, 탭 질문은 승인 적용 계획/G1~G8을 다시 열지 않는다. 아래 source는 모두 고정 제품 소스다. 화면 구현 완료 표가 아니다.
+
+Client는 `app.tsx:265-301`의 RouterRoot → RuntimeBoundary → 공개 token 또는 AuthBoundary → BusinessShell 경로다. 공통 준비는 서명 설치 정보와 `/me`, `/capabilities`이며 BusinessTransport/PublicTransport를 구별한다. `/`는 STT trial이다. `/welcome`, `/k/:code`, `/login`, `/join`, `/staff/join`, `/staff-invites`, 당사자 목록/등록/초대/기본정보 수정, `*` 오류 route도 별도 존재한다. `/k/:code`의 연결 준비 안내를 동작하는 기관 discovery로 보고하지 않는다.
+
+Client 메뉴 역할: account는 네 사람 역할, system/staff-invites는 institution-admin 또는 technical-admin, schedule/participants 및 그 상세/records/report/plan은 institution-admin/supervisor/worker, 등록은 institution-admin/worker, 기관 설정/계정/배정/감사/보존은 institution-admin이다(`navigation.ts:14-32,62-92`). 이것은 화면 진입 조건이며 쓰기 허용은 API가 따로 정한다.
+
+| SCR | 현재 route/module | 실제 client source | API/DTO와 승인 요구의 차이 | 기존 소유 |
+|---|---|---|---|---|
+| SCR-001 | /welcome; /는 STT trial | app.tsx:234-240,267-270 | 공개 소개는 최소 진입 카드, apps/site 없음 | E2-6/CCC-219; W11 |
+| SCR-002 | 기존 web /preview, /preview/admin | app.tsx:265-300; tools/synthetic-preview.mjs | client 제품 demo route 없음. synthetic-api는 backend 증거가 아님 | E2-6/CCC-219, W11/W12 |
+| SCR-006 | /onboarding | screens/institution.tsx:44-227; business/institution.ts:115-167 | `POST /organization/onboarding` → OrganizationOnboardingResponse, `GET /programs` → ProgramListResponse, `PATCH /programs/:id` → ProgramMutationResponse. 기관 관리자; N02 설치와 별도 | E2-5a/CCC-209, W03/W11 |
+| SCR-007 | /settings?module=institution-profile | business/api.ts:403-415; business/settings-modules.tsx:189-220 | GET/PATCH organization/profile. 선택지 관리 G8 미결 유지 | E2-5a/CCC-209, W11 |
+| SCR-011 | /settings?module=system; web /admin/ai-provider | app.tsx:150; screens/settings.tsx:441-457 | GET capabilities. 사업별 실제 상태와 미실행 구별은 후속, 새 AI 페이지 신설 아님 | CCC-291, E2-5a/CCC-209 |
+| SCR-017 | /settings?module=account | business/api.ts:375-389; business/settings-modules.tsx:63-185 | GET me/assignment-requests, POST accept. 기관 memory와 별도 | E2-5a/CCC-209 |
+| SCR-022 | /participants/:beneficiaryId | screens/participants.tsx:314-428; business/participants.ts:185-211,271-273; business/consent.ts | `GET /participants/:id/hub`; ConsentPanel의 `GET /support-cases/:id/consent`, `GET /support-cases/:id/consent/disclosures`, `POST /support-cases/:id/consent-events`; 비담당 요청은 `POST /support-cases/:id/assignment-requests`. 각 현재 계약과 사례 권한을 따름. restricted 분리, 4탭 미구현 | E2-5b/CCC-206, W11 |
+| SCR-024 | /schedule; web /programs/:programType/schedule | screens/schedules.tsx:67-183; business/schedules.ts:298-301 | GET schedules/month. 새로운 할 일 띠의 수량/검사 상태는 기존 목록과 별도 | E2-4b/CCC-210, CCC-291/295 |
+| SCR-025 | /schedules/new | screens/schedules.tsx:185-279; business/schedules.ts:303-329 | GET candidates, POST schedules. 현 create는 customQuestions를 보내지 않음 | E2-4b/CCC-210, W04/W11 |
+| SCR-026 | /schedules/:scheduleId/plan | screens/schedules.tsx:281-365; business/schedules.ts:331-348 | GET/PUT plan. 현 save는 sessionGoals만; 질문 수정과 잠금 별도 계약 | E2-4b/CCC-210, W04 |
+| SCR-027 | /participants/:id/programs/:case/briefing | screens/schedules.tsx:366-440; business/schedules.ts:350-366; business/records.ts | `GET /participants/:id/programs/:case/briefing`, `PUT /support-cases/:id/overall-goal`, `PUT /support-cases/:id/discrepancies/:id/resolution`, `POST /cases/:id/action-items`. 조회와 담당 쓰기를 구별하며 새 읽기 전용 소비는 미완료 | CCC-291/295/296, 화면 E2-4b/CCC-210; 사례 쓰기 E2-5b/CCC-206 |
+| SCR-028 | /participants/:id/programs/:case/records/intake | business/intake.ts:114-131; screens/intake.tsx; contracts/intake.ts | GET/POST/PUT intake schema2. 공통21+선택장기목표1, 모듈 응답. 추가 질문 lifecycle은 미발행 | CCC-288/299, E2-5b/CCC-206 |
+| SCR-029 | /participants/:id/programs/:case/records/new | screens/records.tsx:19-40,305-423; business/records.ts:142-186 | useRecordList의 `GET /support-cases/:id/records?official=true`, `POST /support-cases/:id/records`. 현 client는 구 details/actions이며 새 schema2 소비 전환이 남음 | CCC-290, E2-4c/CCC-211 |
+| SCR-030 | /participants/:id/programs/:case/records/:sessionId/review | business/ai-review.ts:14-26,107-143; screens/records.tsx:424-611 | `GET /sessions/:id/ai`, `POST /sessions/:id/ai/generate`, `POST /sessions/:id/ai/drafts/:version/review`, `POST /cases/:id/action-items`. 실제 draft/할 일 계약과 human 검토/담당 쓰기. 올바른 축 이름은 새 근거 생산자 완료가 아님 | CCC-300/291/293, E2-4c/CCC-211 |
+| SCR-031 | /participants/:id/programs/:case/records | screens/records.tsx:43-174,248-303; business/records.ts:283-327 | `GET /support-cases/:id/records?official=true`; GoalTreeCard의 `GET /participants/:id/goal-tree`, `POST /cases/:id/goals`, `PUT /goals/:id/title`, `GET /goals/:id/upcoming-links`, `POST /goals/:id/close`. ClosureCard는 SCR-036의 GET/POST도 상속. manual 투영과 4탭 미완료 | CCC-290/295, E2-4c/CCC-211; 목표/종결 E2-5b/CCC-206 |
+| SCR-032 | /participants/:id/programs/:case/report | business/report.ts:170-175; screens/report.tsx:30-176 | GET report 5섹션과 근거. 실제 인쇄/JSON/HWPX/DOCX/CSV 버튼은 미연결 | CCC-289/295/298, E2-5b/CCC-206 |
+| SCR-033 | /settings?module=assignments | screens/settings.tsx:334-433; business/api.ts:530-535; business/participants.ts:336-360 | `GET /settings/assignments/cases`, `GET /settings/assignments/cases/:id`, `POST /support-cases/:id/assignment-requests/:assignmentId/review`. 기관 관리자와 실제 options/assignees/review 계약. 이관 안내의 새 수량 미연결 | E2-5a/CCC-209, W11 |
+| SCR-034 | /settings?module=accounts | screens/settings.tsx:175-259; business/api.ts:473-502 | GET accounts, PATCH roles, POST deactivate. 초대는 별도 staff-invites | E2-5a/CCC-209; 역할 별도 PR 범위 보존 |
+| SCR-036 | records 안 ClosureCard; web .../close | screens/records.tsx:176-247; business/records.ts:362-383 | GET closure, POST close(reason). 일/목표 통합 정리와 파생자료 파기 미완료 | E2-5b/CCC-206, CCC-297 |
+| SCR-052 | /settings?module=audit | screens/settings.tsx:30-67; business/api.ts:428-448 | GET audit-log. 월간 집계/점검 보고서의 세부 계약은 미확정 | CCC-301, E2-5a/CCC-209 |
+| SCR-037 | /settings?module=retention-policy; module=retention | screens/settings.tsx:69-172,262-327; business/api.ts:450-518 | GET/PUT retention-policy, GET/POST reviews. 보유기간≠파기시점, 최신 파기 복원 미구현 | E2-5a/CCC-209, CCC-297, E3-7 |
+
+### 6.1 SCR 밖의 현재 client 경계
+
+각 행은 공통 Runtime/Auth/BusinessShell 준비를 필요한 범위에서 상속한다. 도달 가능한 helper만 있고 screen이 없는 경우를 따로 적는다.
+
+| route/module 또는 잔여 표면 | 실제 호출과 DTO 경로 | Actor/소유와 분류 |
+|---|---|---|
+| `/` | `stt-trial/api.ts:59-87`: `GET /internal/stt/status`, `POST /internal/stt/trials`, `GET /internal/stt/trials/:trialId`, `GET /internal/stt/trials/:trialId/transcript`, `DELETE /internal/stt/trials/:trialId`; 응답은 같은 폴더 contract.ts. 일반 업무 API와 분리된 내부 시험 경계 | STT 전용 레인; 이번에는 호출/업로드/활성화하지 않음 |
+| `/k/:code` | PublicScreen의 연결 준비 안내만 있으며 API 호출 없음 | 공개, E2-3/CCC-212; 성공한 기관 discovery가 아님 |
+| `/login` | RuntimeBoundary/AuthBoundary 뒤 `/settings` 이동. installation/auth/transport의 검증과 `GET /me`, `GET /capabilities` | 본인 Auth, E2-3/CCC-212 |
+| `/join` | PublicJoinApi의 `GET /invites/participant/:token`, `GET /invites/participant/:token/consent/disclosures`, `POST /signup/participant` | token-only, E2-5c/CCC-215; issued/used 합집합 |
+| `/staff/join` | `GET /staff-invites/token/:token`, `POST /staff-invites/token/:token/accept`; `business/invites.ts`의 공개 decoder | token 및 선택적 본인 Auth 결합, E2-5c/CCC-215 |
+| `/staff-invites` | `GET /staff-invites`, `POST /staff-invites`, `POST /staff-invites/:id/revoke`; InvitesApi/StaffInvite와 발급 응답 token | 기관 관리자/기술 관리자 초대 범위, E2-5a/CCC-209 |
+| `/participants` | `GET /participants`; ParticipantsApi list decoder. GET program-options는 이 화면의 호출이 아님 | 사람 목록 범위, E2-4a/CCC-205 |
+| `/participants/new` | `GET /program-options`, `GET /programs/:id/consent/disclosures`, `POST /participants`; 기관 관리자는 activeWorkerOptions를 통해 `GET /settings/accounts`의 cursor 페이지를 조회하고 활성 worker 선택지로 투영한다(`business/participants.ts:366-390`) | 기관 관리자 또는 worker의 등록 권한, E2-4a/CCC-205 |
+| `/participants/invite` | `GET /program-options`, `POST /invites/participant`; InvitesApi 발급 응답과 public_signup capability | 기관 관리자/worker의 발급 권한, E2-4a/CCC-205 |
+| `/participants/:beneficiaryId/edit` | `GET /participants/:id/basic-info`, `PUT /participants/:id/basic-info`; ParticipantBasicInfo/PiiVault와 expectedVersion | 사례 PII/담당 쓰기, E2-5b/CCC-206 |
+| `/settings?module=memory` | `GET /settings/counseling-memory`, `PUT /settings/counseling-memory`; MemorySettingsInput/View | 기관 관리자, E2-5a/CCC-209, CCC-291 |
+| `*` | PublicScreen missing, 업무 API 호출 없음 | 공개 오류 표시, E2-3/CCC-212 |
+| `InstitutionApi.createProgram` | `POST /programs`; callable helper와 테스트만, 현재 screen caller 0 | 기관 관리자 API, E2-5a/CCC-209 |
+| export API 3종 | `GET /exports/cases`, `POST /support-cases/:id/export`, `GET /support-cases/:id/export-history`; 현재 screen caller 0 | 사람 반출 권한, CCC-298/E2-5a. transport allowlist는 호출 증거 아님 |
+| audio-lifecycle/manual-notes | `GET /audio-lifecycle/manual-notes`, `POST /audio-lifecycle/manual-notes/:id/ack`; 현재 screen caller 0 | 사람의 사례 권한, E5-6. service/system-only로 분류하지 않음 |
+
+## 7. 실제 검증과 남은 범위
+
+### 재현 경로
+
+임시 snapshot에는 새 worktree/Git branch를 만들지 않았다. archive 1,337파일의 원본 바이트를 대조했고, workspace 의존성 링크는 snapshot 내부로 다시 연결했다. 외부 패키지는 기존 설치를 읽기만 한다. Node `v24.18.0`, Vitest `4.1.10`, Next `16.2.10`을 사용했다. 생성물/캐시는 task 또는 임시 경로에만 두었다. 실제 명령과 지문은 `freeze.json` 및 실행 계획을 따른다.
+
+```sh
+node artifacts/ccc201-screen-api/coverage.mjs <고정 snapshot> artifacts/ccc201-screen-api/coverage.json docs/specs/S3-screen-api-map.md
+# 고정 snapshot, 허용 목록만 남긴 환경변수, 기존 Node 절대경로
+node node_modules/vitest/vitest.mjs run --config artifacts/ccc201-screen-api/vitest.config.mts
+# 같은 snapshot의 apps/web. 동시에 같은 .next를 쓰지 않고 직렬 실행한다.
+node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 43982
+node artifacts/ccc201-screen-api/web.mjs <고정 snapshot> artifacts/ccc201-screen-api/web.json
+# CCC_PREVIEW/PUBLIC_SIGNUP_ENABLED 미설정의 별도 실행은 port43983
+node scripts/guard-doc-numbers.mjs
 ```
 
-### 4.3 PII field authorization matrix
+### 관측 결과
 
-This is an allowlist, not a statement that a role may read every field in the database. A field may be serialized only in the listed DTO, route and Actor condition.
+- 정적 probe: page30/inventory30, 경로 누락/중복0, Route Handler1. route별 실제 helper/action/operation edge와 orphan4개의 연결도 비교한다. HTTP return predicate에서 독립 추출한145종은 현행 ledger144종과 retired 자기 확인 거부1종으로 대응되며 양쪽 차집합0이다. `/admin/ai-provider` 행의 capabilities 연결만 지운 반례는 endpoint catalog가 남아 있어도 정확히 실패했다([반례 근거](../../artifacts/ccc201-screen-api/negative-control.json)).
+- 보완된 API/loopback collection은261응답(직접 Request/Response44, Next 통신217)을 보존한다. 독립 합성 DB와 실제 handler/Worker를 썼다. collection test1/1, exit0은 수집기 성공이지 모든 응답 PASS가 아니다. 최초140응답은 runtime-before-review.json에 보존했고, logger 보완 뒤 같은 source에서 재수집했다.
+- HTTP 생성: 당사자, intake schema2, 수기 schema2, 일정, 초대가 각각201. 담당 공식 조회200, 비담당/타기관/service의 사례 records403. public participant token-only200, switch-off404, preview cookie 없음401, 사람 자격 없음401을 구별했다.
+- 합성 서명 manifest의 `/capabilities`는200, STT off/null을 확인했다. manifest를 주지 않은 경우503이다. 실제 설치나 key/registry 변경은 없다.
+- Next30경로: `web.json`은 HTTP status와 renderOutcome을 구별하고 실제 `#app-sidebar.sidebar`, h1, HTML SHA-256, 정제한 error marker/digest와 API 호출/자격 존재 여부/응답 shape를 보존한다. HTML 수신21, 스트림200 오류2, HTTP500 3, redirect2, 공개 거부2다. 오류 marker는 [renderer 로그](../../artifacts/ccc201-screen-api/renderer-log.txt)와도 대조할 수 있다. 이 숫자는 제품 완주율이 아니다.
+- preview/admin HTML form POST는 실제 web adapter에서303과 HttpOnly cookie를 반환했다. root/schedule-all의307과 layout API 실행을 별도 기록했다. cookie 없는 preview의 welcome/kit/join/joinX는307이다.
+- preview를 끈 별도 실행: welcome/preview/preview-admin은200이며 셸이 없다. 가입 스위치가 없으면 join은404다. 위조한 x-ccc-public을 보낸 joinX는404/업무 셸, kit은200/업무 셸로 공개 표식을 신뢰하지 않는 분기를 확인했다.
+- headless에서 `/preview`, `/welcome`의 실제 렌더를 screenshot으로 확인했다. 초기 browser helper의 target 불일치/입력 timeout 뒤 별도 격리 BrowserContext에서 실제 목표 editor 열기 → 입력 → 저장, 다크 모드 클릭, 로그아웃 클릭을 실행했다. 목표 PUT200과 재조회, dark 표시, `/preview` 복귀/셸 없음이 모두 확인됐다([실제 브라우저 근거](../../artifacts/ccc201-screen-api/browser-actions.json)). 세 actions 외의 전체 UI나 production Auth 성공을 뜻하지 않는다.
 
-| DTO.field | authorized Actor | route |
-|---|---|---|
-| `MyIdentity.name` | authenticated actor itself | `GET /me` on `/`, any `/admin/**` layout route, `/settings`, `/onboarding`, `/participants/new`, `/participants/:id/programs/:case/records/intake` |
-| `DirectoryUser.name` | `admin` for directory, self for own identity | `GET /users`, `POST /users`, `/settings` directory |
-| `ParticipantProgramWire.assigneeNames` | `admin` or `counselor` with at least one assigned case for beneficiary; names are display-only | `GET /participants/:id/hub`, `GET /participants/:id/support-cases`, `GET /participants/:id/programs` alias |
-| `GoalRevisionEntry.editedByName` | `admin` or active case-assigned `counselor` | `GET /participants/:id/goal-tree` |
-| `ParticipantSelfCheck.programs.counselorName` | production: participant token holder, no Actor/Bearer; Preview: token plus preview `Actor` from `ccc_preview` | `GET /invites/participant/:token/me` |
-| `WorkerSignupResult.email` | production: valid worker invite token holder, no Actor/Bearer; Preview: token plus preview `Actor` from `ccc_preview` | `POST /invites/worker` |
-| `ParticipantSearchResultWire.name` | `admin` or assigned `counselor` | `GET /participants/search`, `GET /beneficiaries/search` |
-| `AssignedParticipantWire.name`, `.phone` | `admin` or assigned `counselor` | `GET /participants`, `GET /beneficiaries` alias |
-| `ParticipantProgramWire.participantName`, `.participantPhone` | `admin` or case-authorized human | `GET /participants/:id/support-cases`, `GET /participants/:id/programs` alias |
-| `MyIdentity.email` | authenticated actor itself | `GET /me` on `/`, any `/admin/**` layout route, `/settings`, `/onboarding`, `/participants/new`, `/participants/:id/programs/:case/records/intake` |
-| `DirectoryUser.email` | `admin` for directory, self for own settings response | `GET /users`, `POST /users`, `/settings` directory |
-| `AssignmentRequest.participantName` | authenticated requesting `counselor` or `admin` | `GET /assignment-requests` |
-| `ParticipantBriefingWire.participant.name`, `.phone` | `admin` or active case-assigned `counselor` | canonical `GET /participants/:id/programs/:case/briefing`, alias `GET /participants/:id/briefing?focusSupportCaseId=:case` |
-| `ParticipantDetail.name`, `.phone` | `admin` or active case-assigned `counselor` | `GET /participants/:id/support-cases` as consumed by records/new/review |
-| `ParticipantHubDetail.name`, `.phone`, `.email` | `admin` or human with at least one assigned case for beneficiary | `GET /participants/:id/hub` |
-| `ParticipantBasicInfo.name`, `.phone`, `.email`, `.account`, `.birthDate`, `.region`, `.gender` | `admin` or active case-assigned `counselor` | `GET/PUT /participants/:id/basic-info` |
-| `IntakeRecordContextWire.participant.{name,phone,email}` | `admin` or active case-assigned `counselor` | `GET /support-cases/:id/records/intake` |
-| `IntakeRecordContextWire.extendedPii.birthDate`, `.region`, `.emergencyContact`, `.gender` | `admin` or active case-assigned `counselor` | `GET /support-cases/:id/records/intake` |
-| `ScheduleCandidate.participantName`, `.participantPhone`, `.participantEmail` | `admin` or assigned `counselor` | `GET /schedules/candidates` |
-| `TodayScheduleWire.participantName`, `.participantPhone` | `admin` or assigned `counselor` | `GET /schedules/today`, `/upcoming`, `/month` |
-| `ParticipantSelfCheck.name`, `.phone`, `.email` | production: participant represented by consumed token, no Actor/Bearer; Preview: same token plus preview `Actor` from `ccc_preview` | `GET /invites/participant/:token/me` |
-| `PublicInviteInfo.programType` | production: valid participant invite token, no Actor/Bearer; Preview: token plus preview `Actor` from `ccc_preview` | `GET /invites/participant/:token` |
-| `PublicWorkerInviteInfo.orgName` | production: valid worker invite token, no Actor/Bearer; Preview: token plus preview `Actor` from `ccc_preview` | `GET /invites/worker/:token` |
-| `CounselorAssignments.participants.participantName`, `.participantPhone` | `admin` | `GET /users/:id/assignments` |
+- [보충 variant probe](../../artifacts/ccc201-screen-api/variants.json)는 실제 HTTP 응답30건과 key/type shape를 보존한다. 두 token 발급자의 issued→legacy consent body400→정상 signup201→used, 직원 초대 발급/목록/수락/회수, null-email `/me`/계정 목록, restricted/full 허브, 감독자의 읽기200/쓰기403, 비담당/기술 관리자 거부, 초대의 supervisor400을 확인했다. test1/1, exit0, 7.63초다. 사람 Actor 주입 검사는 실제 로그인 검증이 아니며, public 검사는 실제 Worker의 token 경계를 사용했다.
 
-No other route may add a PII field by reusing a broader gateway object. In particular, `ParticipantHubDetail.email` is hub-only, public join is token-only, and service `Actor` never satisfies a human PII row.
+### 실패 이력과 해석 제한
 
-## 5. 현재 화면과 직접 연결되지 않는 계약 행
+최초 launch는 정리한 PATH에 설치된 Node가 없어127로 끝났다. 절대 Node 경로를 사용했다. 첫 API collection은 합성 install manifest를 준비하지 않은 채 off/null을 단언해 실패했다. API가503으로 닫힌 원본은 `runtime-initial.json`에 보존하고 기존 test signer로 manifest 입력을 준비한 뒤 같은 off/null 단언과 부재503을 확인했다. 두 번째 Next 시작은 기존 dev lock으로 종료됐고, 첫 renderer 종료 뒤 직렬로 실행했다. 제품 결함이나 검사 기준을 고친 것이 아니다.
 
-These are explicit `unmapped-by-current-page` rows. They are not implementation TODOs. E2-1 records them so E2-7 can either remove the legacy surface or preserve its caller deliberately.
+URL-encoded native server-action 시도는 cookie 변경과 업무 PUT을 입증하지 못했고, SSR에 없는 목표 form도 찾지 못했다. 이 보조 시도는 web-action-attempt-history.json에 남기고 수집기에서 제거했다. 실제 격리 브라우저가 hydration 뒤 목표 form을 열어 위 세 actions를 검증했다. HTTP200만으로 그 시도를 성공 처리하지 않았다.
 
-| kind | exact method/path or symbol | wire DTO / Actor | current mapping and owner |
-|---|---|---|---|
-| contract observation | AI mutation client cast | `POST /sessions/:id/ai/generate`, `/ai/drafts/:version/review`, `/ai/drafts/:version/edit` return `AiDraftMutationWire`, while current client cast names `AiDraft` and therefore expects GET-only regenerate/source/transcript fields; all three server actions ignore the response body | E2-1 mismatch probe |
-| server action | `recordPilotTextAiConsentAction` → `POST /cases/:id/pilot-text-ai-consent` | `PilotTextAiConsent`, human Actor | page caller 0; E2-7 legacy deletion |
-| server action | `editAiDraftAction` → `GET /sessions/:id`, `POST /sessions/:id/ai/drafts/:version/edit` | `SessionWire`, `AiDraftMutationWire`, human Actor | page caller 0; E2-7 legacy deletion |
-| server action | `createSubsequentParticipantProgramAction` → `POST /participants/:id/support-cases` | `ParticipantProgramCreation`, human Actor | page caller 0; E2-7 legacy deletion |
-| server action | `createCounselingScheduleAction` → `POST /schedules` | `CounselingScheduleWire`, human Actor | replaced by `createSchedulePlanAction`; E2-7 legacy deletion |
-| API | `GET /health` | `{status:'ok',service:'ccc-api'}`, no Actor | liveness only; E2-7 deletion/relocation |
-| API | `GET /participants/search` | `{results:ParticipantSearchResultWire[]}`, human Actor | current list uses client filtering; E2-7 legacy deletion |
-| API | `GET /consent/follow-ups` | `{results:PrivacyConsentFollowUp[]}`, `admin` or assigned `counselor` | legacy consent report; E2-7 legacy deletion |
-| API | `PATCH /schedules/:id/reschedule` | `CounselingScheduleWire`, human case-authorized Actor | no current page; E2-7 legacy deletion |
-| API | `POST /schedules/:id/cancel` | `CounselingScheduleWire`, human case-authorized Actor | no current page; E2-7 legacy deletion |
-| API | `POST /schedules/:id/no-show` | `CounselingScheduleWire`, human case-authorized Actor | no current page; E2-7 legacy deletion |
-| API | `POST /support-cases/:id/force-transfer` | `{transferred:true}`, `admin` Actor | no current page; E2-7 legacy deletion |
-| API | `POST /sessions/:id/ai/source` | `MaskedSourceAck` `{sourceSnapshotId,sha256,maskingPipelineVersion,evidenceIds}`; `service` Actor only | Agent ingestion; E2-7 relocation |
-| API | `PUT /sessions/:id/audio` | `SessionWire`, human case-authorized Actor | recording upload API; E2-7 relocation |
-| API | `POST /sessions/:id/approve` | `SessionWire`, human Actor | legacy approval endpoint; E2-7 legacy deletion |
-| API | `GET /pipeline/health` | `PipelineHealth`, `admin` Actor | admin watchdog API, no current page; E2-7 relocation |
-| API | `GET /pipeline/jobs` | `{jobs:PipelineJob[]}`, `service` Actor | service queue API, no current page; E2-7 relocation |
-| API | `GET /pipeline/text-jobs` | `{jobs:TextWorkItem[]}`, `service` Actor | service queue API, no current page; E2-7 relocation |
-| API | `GET /pipeline/text-jobs/:item/source` | `TextWorkSource`, `service` Actor | service queue API, no current page; E2-7 relocation |
-| API | `POST /pipeline/text-jobs/:item/complete` | 204 empty, `service` Actor | service queue API, no current page; E2-7 relocation |
-| API | `GET /pipeline/jobs/:sessionId/audio` | audio bytes or `{error:'audio_object_missing',jobId}`, `service` Actor | service queue API, no current page; E2-7 relocation |
-| API | `POST /pipeline/jobs/:sessionId/result` | 204 empty, `service` Actor | service queue API, no current page; E2-7 relocation |
-| API | `GET /pii-retention/reviews` | `{reviews:ParticipantPiiRetentionReview[]}`, `admin` Actor | retention queue, no current page; E2-7 relocation |
-| API | `POST /pii-retention/reviews/:id` | `ParticipantPiiRetentionReview`, `admin` Actor | retention queue, no current page; E2-7 relocation |
-| API | `POST /users/:id/deactivate` | `DirectoryUser`, `admin` Actor | no current page; E2-7 legacy deletion |
-| legacy API | `GET /cases` | `CaseRecord[]`, human Actor | no current page; E2-7 legacy deletion |
-| legacy API | `POST /cases` | `CaseRecord`, human Actor | no current page; E2-7 legacy deletion |
-| legacy API | `GET /cases/:id` | `CaseRecord`, human Actor | no current page; E2-7 legacy deletion |
-| legacy API | `GET /cases/:id/briefing` | `Briefing`, human case-authorized Actor | superseded by participant briefing; E2-7 legacy deletion |
-| legacy API | `GET /cases/:id/pilot-text-ai-consent` | `PilotTextAiConsent`, human Actor | no current page; E2-7 legacy deletion |
-| legacy API | `POST /cases/:id/pilot-text-ai-consent` | `PilotTextAiConsent`, human Actor | orphan action only; E2-7 legacy deletion |
-| legacy API | `GET /cases/:id/sessions` | `SessionWire[]`, human Actor | no current page; E2-7 legacy deletion |
-| legacy API | `POST /cases/:id/sessions` | `SessionWire` + `replayed`, human Actor | no current page; E2-7 legacy deletion |
-| API alias | `GET /participants/:id/programs` | `ParticipantProgramWire[]`, human Actor | `/support-cases` is canonical; E2-7 alias deletion |
-| API alias | `POST /participants/:id/programs` | `ParticipantProgramCreation`, human Actor | `/support-cases` is canonical; E2-7 alias deletion |
-| API alias | `GET /participants/:id/briefing?focusSupportCaseId=:case` | `ParticipantBriefingWire`, human Actor | `/programs/:case/briefing` is canonical; E2-7 alias deletion |
-| API alias | `GET /beneficiaries` | `{results:AssignedParticipantWire[]}`, human Actor | `/participants` is canonical; E2-7 alias deletion |
-| API alias | `POST /beneficiaries` | `ParticipantProgramCreation`, human Actor | `/participants` is canonical; E2-7 alias deletion |
-| API alias | `GET /beneficiaries/search` | `{results:ParticipantSearchResultWire[]}`, human Actor | `/participants/search` is canonical; E2-7 alias deletion |
-
-
-
-## 6. 세 모드에서 어떻게 다른가
-
-| | Community Cloud | Local Single | Local Office |
-|---|---|---|---|
-| 업무 화면 route | 동일한 30개 inventory와 동일한 screen/API/DTO map | 동일 | 동일 |
-| 인증 표면 | Cloudflare Access JWT → `Actor` | OS 사용자·앱 잠금이 local identity adapter에서 `Actor`로 변환 | Argon2id 계정·관리자 MFA가 local identity adapter에서 `Actor`로 변환 |
-| 공개 route | 공개 join은 `PUBLIC_SIGNUP_ENABLED=1`일 때만; preview/welcome은 셸 없음 | 같은 route 계약, 단 local bootstrap/identity | 같은 route 계약, 단 local bootstrap/identity |
-| API transport | 정적 client가 Bearer API를 호출, Cloudflare service binding 가능 | loopback HTTPS/Bearer | 내부망 HTTPS/Bearer |
-| DTO·권한 | 차이 없음. 저장소·identity 경계만 다름 | 차이 없음 | 차이 없음 |
-`docs/adr/0042-supabase-read-only-preflight.md`의 `pnpm supabase:bootstrap -- plan`은 화면/API 대응표를 바꾸지 않는 배포 전 read-only 확인이다. `apply`, `verify`, `status`를 이 표의 화면 operation으로 세지 않으며, plan의 시크릿·기존 데이터·리전 검사는 Cloud 자원 확인 계약으로만 남긴다.
-
-## 7. 완료 조건
-
-- [ ] `route-inventory.json`의 30개 page entry가 §3에 정확히 한 번 있고, 합계가 22 authenticated operating + 5 public + 2 redirect + 1 kit으로 재현된다.
-- [ ] `access`, `public-join`, `public-preview`, `public-welcome`, `kit`의 credential·Actor 규칙과 공개 셸 제외가 문서에 고정되어 있다.
-- [ ] 각 화면 행에 API method/path, DTO, server action과 E2 owner가 있다. redirect 행에는 렌더링 화면 API/DTO를 두지 않으며, `/`의 선언된 `GET /me` prerequisite만 예외다.
-- [ ] §4의 DTO key 집합과 §5의 orphan action/service API 계약 행으로 E2-1 probe가 누락·중복을 판정할 수 있다.
-- [ ] Community Cloud, Local Single, Local Office에서 route와 DTO는 같고 identity/transport만 다르다는 규칙이 고정되어 있다.
-- [ ] `확정`은 계약 문서 완결 상태이며 실제 client 이식·probe 실행 결과를 뜻하지 않는다.
-
-## 8. 검증 방법
-
-구현 검증 시 저장소 루트에서 E2-1 probe를 실행한다.
-
-- route inventory의 `routePattern` set과 §3 route key set을 비교한다. 차집합 또는 중복이 있으면 실패다.
-- `page.tsx`의 API client import/call, JSX `action`, `actions.ts`의 exported action, request-handler method/path를 추출해 §3·§4와 비교한다. 화면 API 또는 DTO가 표에 없으면 실패다.
-- 공개 route에서 `CF_Authorization`, `accessHeaders`, `OrganizationProfile`, `new-signup-count`, 업무 셸 import가 발견되면 실패다.
-- 22/5/2/1 subtotal, `/preview/unlock` 별도 행, §5 orphan 행 수가 기대값과 다르면 실패다.
-- 각 API response key가 §4 DTO key 집합과 다르면 실패다. PII 허용 여부는 단순 경로 목록이 아니라 §4.3의 DTO.field·Actor·route matrix와 exact match해야 한다.
-
-실행 명령과 실제 probe·runtime 증거는 E2-1 구현 검증 때 기록한다. 이 문서의 `확정` 판정은 명령 정의와 기대 실패 조건이 닫힌 것으로 충분하다.
-
-## 9. 이번에 안 하는 것
-
-Vite client 이식, API decoder 구현, route 삭제, public site 분리, 세 모드의 실제 인증 어댑터 구현은 각각 E2-2~E2-7과 E1-7의 소유다. request-handler의 service-only API에 화면을 새로 만들지 않으며, §5의 현재 미연결 행을 임의 화면이나 가짜 DTO로 채우지 않는다.
+샘플이 비어 있는 배열의 미등장 행 shape, 모든 optional/null 조합, 나머지 server action submit, 세 모드의 실제 Auth/DB/전체 화면 완주, 외부 AI/STT 및 설치/파기 실행은 이 근거가 증명하지 않는다. 금지된 활성화나 운영 쓰기로 채우지 않는다. 현재 source와 실제 관측 실패를 기록하는 일과 해당 기능을 완성하는 일은 별도다. CCC-201의 최종 판정은 독립 coverage/contract 검토에서 전체 대응 수용 기준과 이 증거를 함께 대조한 결과로 기록한다.

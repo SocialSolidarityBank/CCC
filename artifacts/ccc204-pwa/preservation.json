@@ -1,0 +1,10 @@
+{
+  "observedAt": "2026-09-13T13:09:52.162Z",
+  "sourceFileCount": 397,
+  "sourceChanges": [],
+  "snapshotSourceChanges": [],
+  "unrelatedWipFileCount": 38,
+  "unrelatedWipChanges": [],
+  "controllerOwnedLiveHandoffExcluded": true,
+  "reason": "Controller may maintain its own handoff; the executor never opens or writes its historical/control JSON."
+}

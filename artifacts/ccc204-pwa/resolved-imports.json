@@ -1,0 +1,26 @@
+{
+  "vite": {
+    "file": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/vite@8.1.3_@types+node@24.13.3_esbuild@0.28.1_terser@5.16.9_yaml@2.9.0/node_modules/vite/dist/node/index.js",
+    "sha256": "4892d68c0d1e7a55dd76c10962370136fb49887d7145942c2220d87ce9c9f24b"
+  },
+  "react": {
+    "file": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react@19.2.7/node_modules/react/index.js",
+    "sha256": "60caffdecbdc5db3bc4ec4e83df9488345ccb271d07533b9210bf5750918d97e"
+  },
+  "react-dom": {
+    "file": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/index.js",
+    "sha256": "ba1a3e33489f868371561777607e3ee5091df0f7ea3f1a10f789d6b86e4c1505"
+  },
+  "react-router": {
+    "file": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/index.js",
+    "sha256": "f2e32d8c3c5c70ccb64c4eb9d0b75cb64c1e3c5a0139f7f25a1d8a09630fac57"
+  },
+  "@ccc/wire": {
+    "file": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/wire/src/index.ts",
+    "sha256": "63fbbb3aa88d709ed00cf71a4a108b2500c49503b85001758438ee77cbd67a45"
+  },
+  "@ccc/contracts/runtime": {
+    "file": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source/packages/contracts/src/runtime.ts",
+    "sha256": "15cdd4550f9e4e7b7bd666bdc465d5ba0ad4de565b58f3d34eada484151b5e1a"
+  }
+}

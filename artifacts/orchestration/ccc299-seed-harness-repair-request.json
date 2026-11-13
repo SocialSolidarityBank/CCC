@@ -1,0 +1,50 @@
+{
+  "assignmentId": "ccc299-seed-harness-repair-20260914",
+  "ticket": "CCC-299",
+  "owner": "existing Mac mini BACKEND single writer",
+  "goal": "Initialize the existing preview capture harness with the installation policy state already required by the current program-admission gateway, then prove runScenario reaches and completes the current registration flow.",
+  "base": {
+    "branch": "core/relayer-domain-beta",
+    "requiredHead": "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db",
+    "state": "clean",
+    "rule": "Same writer and same ticket. Preserve every accepted commit. No reset, rebase, switch, stash or clean."
+  },
+  "evidence": {
+    "resultPath": "artifacts/orchestration/ccc299-source-repair-result.json",
+    "resultSha256": "5095c3e5e5cf52e0a5c50430ddc7e32b8cc449e7e3934f7026b2863d1f62e4b5",
+    "blocker": "createCaptureHarness preloads organization_settings but no program_admission_policies row and returns Env with installationMode null, so listPrograms fails installation_unavailable before program creation."
+  },
+  "allowedWrites": [
+    "scripts/seed/preload-data.ts",
+    "scripts/seed/harness.ts",
+    "scripts/seed/scenario.ts only if the corrected harness reaches a new directly observed current-contract failure"
+  ],
+  "requiredChanges": [
+    "Extend preloadStatements with one fixed preview-only program_admission_policies row for ORG_ID, version 1, stt_mode off, llm_mode off, created_at PRELOAD_AT and updated_at PRELOAD_AT. Keep the existing organization, users and pending stubs byte-deterministic and in valid FK/order sequence.",
+    "Extend buildSeedEnv with installationMode community-cloud and explicit CCC_STT_MODE off plus CCC_LLM_MODE off so programAdmissionContext reads the persisted policy against the matching deployment mode. Preserve PII_KEY_VERSION and the injected in-process PII key boundary.",
+    "Do not call createOrganizationSettings on an existing organization, add raw policy SQL inside scenario.ts, bypass requireProgramAdmission, hard-code a program ID or fabricate confirmation hashes.",
+    "After the harness state is current, runScenario must use its already committed gateway-based createProgram, trusted provider registry, issued disclosure events, per-participant idempotency keys and current createBeneficiaryWithInitialSupportCase input unchanged unless the smoke exposes another exact caller defect."
+  ],
+  "verification": [
+    "Create one disposable apps/api/test/ccc299-seed-harness-smoke.test.ts that calls createCaptureHarness and runScenario with SEED_PROFILE=preview and a random in-process synthetic PII key. Assert participants, sessions and virtual counselors equal the current content fixture, the admitted financial-support program exists, and no scripts/seed/out or preview output was created. Delete the smoke file after capture.",
+    "Do not rerun participant-p3.contract.test.ts; its 21 passing tests are already valid evidence on the direct parent.",
+    "Do not run Docker, migration parity, project-wide suites, formatters or unrelated checks on mini.",
+    "Commit only the actually changed allowed files with configured hooks. Do not bypass hooks, push, merge, deploy or contact external services."
+  ],
+  "excluded": [
+    "packages/core, packages/contracts, packages/http-api, migrations and parity manifest",
+    "apps/client, apps/web, design files, actual preview generation, operational seed data, credentials, live databases, Docker/Colima repair and all external services"
+  ],
+  "result": {
+    "path": "/tmp/ccc299-seed-harness-repair-result.json",
+    "completionMarker": "BACKEND_RESULT CCC299-SEED-HARNESS-REPAIR-20260914",
+    "mustContain": [
+      "parent and candidate commit/tree",
+      "exact changed paths and hashes",
+      "direct runScenario smoke counts and current program/policy facts",
+      "temporary file/output cleanup",
+      "remaining central checks",
+      "ownedJobs 0 and allResultsCollected true"
+    ]
+  }
+}

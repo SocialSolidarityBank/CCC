@@ -1,0 +1,31 @@
+[
+  {
+    "label": "Configured Vite production build with read-only module observer",
+    "command": [
+      "/Users/seongqkim/.local/share/mise/installs/node/lts/bin/node",
+      "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/build.mjs",
+      "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa"
+    ],
+    "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source",
+    "startedAt": "2026-09-13T12:54:11.183Z",
+    "finishedAt": "2026-09-13T12:54:12.720Z",
+    "exitCode": 0,
+    "signal": null,
+    "stdout": "vite v8.1.3 building client environment for production...\n\u001b[2K\rtransforming...✓ 183 modules transformed.\nrendering chunks...\ncomputing gzip size...\napps/client/dist/manifest.webmanifest         0.33 kB\napps/client/dist/icon.svg                     0.46 kB │ gzip:   0.30 kB\napps/client/dist/index.html                   0.56 kB │ gzip:   0.32 kB\napps/client/dist/sw.js                        1.86 kB\napps/client/dist/assets/index-DmXLclX2.css  105.11 kB │ gzip:  17.14 kB\napps/client/dist/assets/index-DMZgAHU2.js   769.22 kB │ gzip: 212.26 kB\n\n✓ built in 468ms\n",
+    "stderr": "[plugin builtin:vite-reporter] \n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\n"
+  },
+  {
+    "label": "Existing supported guard:tokens",
+    "command": [
+      "/Users/seongqkim/.local/share/mise/installs/node/lts/bin/node",
+      "scripts/design/token-audit.mjs"
+    ],
+    "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source",
+    "startedAt": "2026-09-13T12:54:12.729Z",
+    "finishedAt": "2026-09-13T12:54:13.002Z",
+    "exitCode": 0,
+    "signal": null,
+    "stdout": "token-audit: 위반 0\n",
+    "stderr": ""
+  }
+]

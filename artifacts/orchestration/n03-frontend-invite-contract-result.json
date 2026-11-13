@@ -1,0 +1,326 @@
+{
+  "assignmentId": "n03-frontend-invite-contract-20260914",
+  "ticket": "CCC-276",
+  "workerPaneId": "w1N:p1",
+  "status": "ready_for_implementation_after_trust_repair",
+  "readyForImplementation": true,
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "scopeDecision": "Implement one first-admin Auth acceptance callback and remove every currently executable browser path that creates or accepts a staff account without the unresolved later-staff issuer contract. Keep participant request links unchanged.",
+  "startCondition": {
+    "required": "The separate frontend installation-trust owner must first commit its current app.tsx work and leave /Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend clean.",
+    "observedFrontendHead": "0eef9ec0e175d356143016fcdd1073d37e8c400e",
+    "observedState": "dirty installation-trust repair in progress, including apps/client/src/app.tsx",
+    "serialization": [
+      "Do not edit app.tsx until the trust repair has a clean commit.",
+      "After that commit, re-read app.tsx and add only the /auth/invite route and its RuntimeBoundary child. Preserve the committed trust input and loadInstallation call exactly; do not restore the 0eef9ec0 version.",
+      "Base all other edits on that same clean frontend commit. Before deleting exported symbols, run LSP references on that commit and reconcile any caller added by the trust repair. Do not switch, reset, rebase, stash or clean the permanent frontend lane."
+    ]
+  },
+  "authorityConsumed": [
+    "onboarding commit 217e752f816dedf1f6c535b073039ab596ef046f",
+    "docs/adr/0050-relayer-assisted-onboarding.md 2026-09-14 Q partial amendment",
+    "docs/superpowers/specs/2026-09-13-relayer-onboarding-design.md lines 161-175",
+    "docs/superpowers/plans/2026-09-13-relayer-onboarding-implementation.md lines 222-264",
+    "accepted BACKEND identity-binding boundary aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d"
+  ],
+  "sourceFindings": {
+    "currentCallback": "No /auth/invite route exists. main.tsx creates the router before rendering, RuntimeBoundary fetches installation state, and CloudAuth uses one Supabase client with persistSession=false and detectSessionInUrl=false.",
+    "currentUnsafeStaffCreation": "CloudAuth.signUpWithPassword calls sdk.auth.signUp, PublicSession exposes signUp, StaffJoinScreen invokes it and then calls the public staff accept endpoint.",
+    "currentRawLinkIssuance": "StaffInviteScreen calls InvitesApi.create and renders /staff/join#t=<CCC token> through IssuedLink.",
+    "currentPublicTransport": "PublicTransport allowlists staff invite lookup and accept paths and can attach an optional bearer. The participant request-link paths share this class but do not need that bearer parameter.",
+    "participantBoundary": "ParticipantInviteScreen, ParticipantJoinScreen, InvitesApi.createRequestLink, PublicJoinApi.requestLink, requestLinkDisclosures and completeSignup are independent and remain unchanged."
+  },
+  "dataTypes": {
+    "InviteFailureCode": [
+      "invite_missing",
+      "invite_invalid",
+      "invite_expired",
+      "invite_session_conflict",
+      "password_rejected",
+      "provider_unavailable"
+    ],
+    "CapturedInvite": {
+      "visibility": "module-private, never exported and never placed in React data",
+      "shape": "{ accessToken: string; refreshToken: string; deadlineMs: number }",
+      "invariants": [
+        "accessToken and refreshToken are nonempty ASCII strings of at most 16384 characters with no control or whitespace characters; the provider remains the token validator",
+        "deadlineMs is the earlier of capturedAtMs + expires_in * 1000 and expires_at * 1000 when expires_at is present",
+        "the value exists only in the one-shot module handoff and then in private CloudAuth fields"
+      ]
+    },
+    "CapturedInviteResult": "module-private union: { kind: 'none' } | { kind: 'failure'; code: InviteFailureCode } | { kind: 'credentials'; value: CapturedInvite }",
+    "InvitePreparationResult": "exported safe union: { status: 'password' } | { status: 'failure'; code: InviteFailureCode }",
+    "InviteCompletionResult": "exported safe union: { status: 'complete' } | { status: 'failure'; code: InviteFailureCode }",
+    "InviteScreenState": "React-safe union only: 'checking' | 'password' | 'submitting' | 'complete' | InviteFailureCode. It contains no token, subject, email, password, provider text or provider response."
+  },
+  "functions": [
+    {
+      "path": "apps/client/src/business/auth.ts",
+      "signature": "captureInviteUrlBeforeRender(location: Pick<Location, 'pathname' | 'search' | 'hash'>, history: Pick<History, 'state' | 'replaceState'>, capturedAtMs?: number): void",
+      "contract": [
+        "Called synchronously once from main.tsx before createBrowserRouter, createRoot, loadInstallation or any Auth call.",
+        "For /auth/invite, copy location.hash to a function-local string, immediately call history.replaceState(history.state, '', location.pathname), then parse the local copy. Any nonempty location.search makes the captured result invite_invalid and is also removed.",
+        "For legacy /staff/join, immediately replace the URL with location.pathname and discard both search and fragment without parsing or retaining either value.",
+        "For every other pathname, do nothing.",
+        "Store only one module-private CapturedInviteResult. A second call never replaces a previously captured result.",
+        "If replaceState fails, discard the local fragment, store invite_invalid and throw a fixed token-free bootstrap error before router creation or network."
+      ]
+    },
+    {
+      "path": "apps/client/src/business/auth.ts",
+      "signature": "discardCapturedInvite(): void",
+      "contract": "Zero the module-private handoff. RuntimeBoundary calls it on installation failure before exposing the existing safe installation error."
+    },
+    {
+      "path": "apps/client/src/business/auth.ts",
+      "signature": "CloudAuth.prepareFirstAdminInvite(): Promise<InvitePreparationResult>",
+      "contract": [
+        "Claim the one-shot CapturedInviteResult into private CloudAuth fields. No returned value contains credentials or subject.",
+        "Return the captured missing, invalid or expired state without creating the Supabase client when credentials are absent or the deadline has passed.",
+        "Use CloudAuth.client(), the one existing Supabase client configured with persistSession=false and detectSessionInUrl=false. Do not create a second client.",
+        "Read the current memory session. If one exists, validate its access token with provider getUser; separately validate the invitation access token with provider getUser. Compare only those provider-validated user.id values. A current subject different from the invitation subject returns invite_session_conflict without replacing or signing out the existing session.",
+        "Call setSession only after that comparison. Require the returned session subject to equal the validated invitation subject and keep invite mode locked so onAuthStateChange cannot publish ready, start inspect, expose getToken or open VerifiedSession.",
+        "Do not decode an unverified JWT for identity and do not read or return the Auth email claim in this first-admin seam."
+      ]
+    },
+    {
+      "path": "apps/client/src/business/auth.ts",
+      "signature": "CloudAuth.setFirstAdminPassword(password: string): Promise<InviteCompletionResult>",
+      "contract": [
+        "Accept the password only as the call argument. Call sdk.auth.updateUser({ password }) against the prepared invitation session.",
+        "After updateUser confirms password success, call Supabase Auth signOut({ scope: 'local' }) on a best-effort basis, then always clear the private invitation credentials, subject and session, stop refresh, abort the Auth lifetime, dispose the client and publish the ordinary signed-out snapshot. Local cleanup and disposal are mandatory even when local signout reports an error.",
+        "Never construct BusinessTransport and never call /auth/revoke, /identity/link, /me or any other business API from this callback.",
+        "Return complete after confirmed updateUser success and mandatory local cleanup. A local-scope signout error does not change complete to provider_unavailable because the one-shot credentials and session have already been disposed and cannot support a retry.",
+        "A provider password-policy 4xx returns password_rejected and keeps the prepared invitation session only for another password submission on the same cleaned page. provider_unavailable is returned only when updateUser itself lacks a confirmed provider result and the retained, unexpired invitation session can safely retry. The password is not retained."
+      ]
+    }
+  ],
+  "closedFragmentParser": {
+    "commonRules": [
+      "The route accepts fragment parameters only. Any query string, duplicate key, empty required value, unknown key, malformed numeric field or mixed success/error set is invite_invalid.",
+      "URLSearchParams decoding is permitted only after history.replaceState has removed the source URL.",
+      "No parser error includes the raw fragment, key value or provider description."
+    ],
+    "success": {
+      "requiredKeys": [
+        "access_token",
+        "refresh_token",
+        "expires_in",
+        "token_type",
+        "type"
+      ],
+      "optionalKeys": [
+        "expires_at"
+      ],
+      "exactValues": {
+        "token_type": "bearer",
+        "type": "invite"
+      },
+      "numericRules": [
+        "expires_in is an ASCII base-10 positive safe integer with no sign, decimal point or exponent.",
+        "expires_at, when present, is an ASCII base-10 positive safe integer with no sign, decimal point or exponent."
+      ],
+      "expiry": [
+        "Compute the conservative deadline defined by CapturedInvite.",
+        "Check it after capture, before provider validation, before setSession and before updateUser.",
+        "A reached deadline is invite_expired. Provider codes otp_expired, invite_not_found and session_expired at any stage are also invite_expired."
+      ]
+    },
+    "error": {
+      "requiredExactKeys": [
+        "error",
+        "error_code",
+        "error_description"
+      ],
+      "mapping": "otp_expired, invite_not_found or session_expired in error_code maps to invite_expired. Every other well-formed provider error fragment maps to invite_invalid. error and error_description are never displayed, logged or retained."
+    },
+    "explicitlyRejectedKeys": [
+      "provider_token",
+      "provider_refresh_token",
+      "code",
+      "sb_flow_id",
+      "token_hash"
+    ]
+  },
+  "providerFailureMapping": {
+    "providerValidationOrSetSession": {
+      "expiryCodes": "invite_expired",
+      "other safe 4xx": "invite_invalid",
+      "timeout, network failure, 429, 5xx or response without a safely verified session": "provider_unavailable"
+    },
+    "passwordUpdate": {
+      "expiryCodes": "invite_expired",
+      "other safe 4xx": "password_rejected",
+      "updateUser timeout, network failure, 429, 5xx or response without confirmed password-update completion, while the unexpired prepared invite session is retained for retry": "provider_unavailable"
+    },
+    "redaction": "Map only stage, numeric status class and allowlisted expiry code. Provider message, response body, URL, token, subject and email never enter BusinessError, InviteScreenState, console or serialization."
+  },
+  "routeAndScreenStateMachine": {
+    "route": "/auth/invite",
+    "placement": "A direct child of the existing RuntimeBoundary and a sibling of PublicJoinBoundary and AuthBoundary. It is not inside AuthBoundary or BusinessShell.",
+    "screen": "FirstAdminInviteScreen in apps/client/src/screens/invites.tsx, built only from existing GridContainer/PageTitle/WireCard/WireCallout/WireEmpty/WireError/WireFormField/WireButton and existing CSS classes.",
+    "transitions": [
+      "captured credentials -> checking -> password",
+      "no fragment -> invite_missing",
+      "closed-parser rejection or non-expiry provider 4xx before password -> invite_invalid",
+      "local deadline or allowlisted expiry code -> invite_expired",
+      "different current and invitation subjects -> invite_session_conflict",
+      "password form submit -> submitting -> complete",
+      "password form submit -> password_rejected -> password form remains available for a new uncontrolled value",
+      "preparation or updateUser lacks a confirmed provider result while the unexpired invite session remains retained -> provider_unavailable; retry repeats only that failed operation and never reloads credentials from URL. A local-scope signout error after confirmed updateUser success still transitions to complete after mandatory cleanup"
+    ],
+    "formRules": [
+      "The callback asks only for password and password confirmation. It has no email, name, role or institution input.",
+      "Both password inputs are uncontrolled, use autocomplete=new-password, are read with FormData only on submit, are compared locally, and the form is reset before awaiting Auth.",
+      "A local mismatch uses the existing password_mismatch message and performs zero provider calls. It is not a seventh callback failure code."
+    ],
+    "fixedFailureActions": {
+      "invite_missing": "No form. Tell the user to reopen the original invitation email.",
+      "invite_invalid": "No form. Tell the user that this invitation link cannot be used and to reopen the original invitation email.",
+      "invite_expired": "No form. Tell the user to ask the installation operator for a new invitation.",
+      "invite_session_conflict": "No form. Tell the user to finish or sign out the other account, then reopen the original invitation email. Do not sign out the other account automatically.",
+      "password_rejected": "Keep the form, show fixed password guidance and allow another entry.",
+      "provider_unavailable": "Show fixed unavailable guidance and a retry action only while the retained invite session is unexpired and preparation or updateUser can safely repeat. Never show it for a local-scope signout error after confirmed password success; that path completes after mandatory cleanup."
+    },
+    "success": [
+      "After confirmed password update, best-effort local-scope signout and mandatory local cleanup, show complete with no business data and no automatic navigation. A local signout error does not reopen the disposed one-shot flow.",
+      "Copy: the password is set; wait for the installation operator to finish administrator connection. The login action is labelled for use only after that completion notice.",
+      "A later /login visit creates a fresh password session. The callback session is never reused for business access."
+    ]
+  },
+  "firstAdminSeparation": {
+    "implementedNow": [
+      "The current /auth/invite callback performs only Supabase Auth acceptance, provider subject validation, password update and signout.",
+      "The first-admin installer remains the only producer allowed to send a current product invitation and the only process that observes its private marker and calls linkFirstAdmin during resume.",
+      "The callback creates no users row, assigns no role, consumes no CCC staff invite and performs no identity binding.",
+      "Auth acceptance and users.auth_subject binding remain separate facts. Success means only password update plus callback-session disposal."
+    ],
+    "deferredOutsideThisSeam": [
+      "the first-admin-afterward staff invitation trigger and authorized issuer command",
+      "the private marker binding a CCC staff invite to its Supabase Auth invite",
+      "alignment of the CCC token TTL and Auth invitation TTL",
+      "cleanup or reconciliation of an Auth user that never binds to a CCC invitation"
+    ],
+    "laterStaffRule": "Do not add a mode flag, marker, query parameter, token field, fallback issuer or guessed accept call. The accepted aa0bdb1 backend subject/email boundary remains unused by the browser until the producer and marker contract is approved."
+  },
+  "currentStaffSurfaceFailClosedCutover": [
+    {
+      "symbol": "CloudAuth.signUpWithPassword",
+      "action": "Delete it and its /auth/v1/signup test fixture branches. No replacement public signUp method exists."
+    },
+    {
+      "symbol": "PublicSession.signUp",
+      "action": "Delete the field. PublicSession keeps only PublicJoinApi for participant request-link behavior."
+    },
+    {
+      "symbol": "PublicJoinApi.staffInvite, PublicJoinApi.acceptStaffInvite, StaffInvitePublicInfo, StaffInviteAccepted",
+      "action": "Delete them. Preserve requestLink, requestLinkDisclosures and completeSignup unchanged."
+    },
+    {
+      "symbol": "PublicTransport PUBLIC_PATHS and request token parameter",
+      "action": "Remove both /staff-invites/token patterns and remove the optional bearer parameter and Authorization branch. Preserve all participant public paths, credentials=omit, no-store, redirect=error and referrerPolicy=no-referrer."
+    },
+    {
+      "symbol": "InvitesApi.create",
+      "action": "Delete the browser raw-token issuance method. Preserve list, revoke and createRequestLink."
+    },
+    {
+      "symbol": "StaffInviteScreen",
+      "action": "Remove email/role/create form, issued staff link state and /staff/join URL construction. Keep the screen route, fixed not-ready callout, existing invite list and revoke actions so already-issued raw CCC invitations can be observed and revoked but no new one can be created."
+    },
+    {
+      "symbol": "StaffJoinScreen and /staff/join route",
+      "action": "Keep a fixed fail-closed screen for old bookmarks, with no token parsing, form, PublicJoinApi call, Auth call or business link. main.tsx scrubs its search and hash before render."
+    },
+    {
+      "symbol": "ParticipantInviteScreen and ParticipantJoinScreen",
+      "action": "No behavior change. Their #t participant request-link handling, public_signup capability, disclosures and completion calls remain intact."
+    }
+  ],
+  "exactPaths": {
+    "allowedWritesAfterStartCondition": [
+      "apps/client/src/main.tsx: call captureInviteUrlBeforeRender before createBrowserRouter",
+      "apps/client/src/app.tsx: after trust repair only, import FirstAdminInviteScreen/discardCapturedInvite, preserve RuntimeBoundary trust loading, discard capture on installation failure, and add /auth/invite as a RuntimeBoundary child",
+      "apps/client/src/business/auth.ts: closed capture/parser/handoff, invite-only CloudAuth lifecycle, invite event lock, invite cleanup, and deletion of signUpWithPassword",
+      "apps/client/src/business/session.ts: remove PublicSession.signUp only",
+      "apps/client/src/business/invites.ts: remove staff creation/public acceptance types and methods only",
+      "apps/client/src/business/transport.ts: remove staff public paths and PublicTransport bearer support only",
+      "apps/client/src/screens/invites.tsx: FirstAdminInviteScreen, disabled staff creation and legacy join surfaces; preserve participant surfaces",
+      "apps/client/src/business/auth.test.ts: replace public signup coverage with invite Auth lifecycle and redaction coverage",
+      "apps/client/src/screens/invites.test.ts: replace staff signup/accept coverage with callback state and staff fail-closed coverage"
+    ],
+    "explicitlyUnchanged": [
+      "apps/client/src/business/auth-view.tsx",
+      "apps/client/src/business/errors.ts",
+      "apps/client/src/business/installation.ts except the separate trust owner's committed work",
+      "apps/client/src/business/participants.ts",
+      "apps/client/src/business/consent.ts",
+      "all shared Wire components, globals.css, design tokens and design artifacts",
+      "participant request-link endpoints and public_signup capability",
+      "accepted backend identity-binding implementation"
+    ],
+    "excluded": [
+      "apps/client/src/stt-trial/**",
+      "packages/contracts/**",
+      "apps/api/**",
+      "packages/core/**",
+      "packages/http-api/**",
+      "scripts/onboarding/**",
+      "scripts/supabase/**",
+      "canonical docs and tickets",
+      "new dependency, backend endpoint, storage, compatibility alias, UI component or CSS",
+      "Auth configuration changes, provider fallback, credentials, live invitation send, deployment, push, merge or external service call"
+    ]
+  },
+  "implementationOrder": [
+    "Wait for and record the clean installation-trust commit; re-read app.tsx.",
+    "Add the synchronous capture and one-shot private handoff before touching the route.",
+    "Add the CloudAuth invite lock, provider validation, password update and invite-only cleanup; delete signUpWithPassword.",
+    "Add the RuntimeBoundary child route and FirstAdminInviteScreen without entering AuthBoundary.",
+    "Cut over every current staff public/signup/raw-link caller and keep participant paths unchanged.",
+    "Replace only the targeted tests, then run the targeted commands and actual-browser leak acceptance."
+  ],
+  "targetedUnitAcceptance": {
+    "command": "pnpm --filter @ccc/client run test -- src/business/auth.test.ts src/screens/invites.test.ts",
+    "cases": [
+      "Capture removes /auth/invite search and hash through replaceState before any supplied fetch spy can run; back navigation cannot restore them.",
+      "Missing fragment maps to invite_missing.",
+      "Every exact success key set parses once; optional expires_at works; token_type or type mismatch, duplicate, unknown, mixed, empty and explicitly rejected keys map to invite_invalid.",
+      "Exact error set maps only the three expiry codes to invite_expired and never serializes error_description.",
+      "Local deadlines are checked before every Auth operation.",
+      "prepareFirstAdminInvite uses one CloudAuth SDK client, validates provider subject, rejects a different current subject without setSession, and never exposes ready or getToken.",
+      "Confirmed updateUser success triggers best-effort local-scope Auth signout, mandatory invite-state disposal and complete; a simulated local signout error still returns complete, leaves no retry action and makes no BusinessTransport or business API request.",
+      "Preparation failures map expiry and unavailable responses to invite_expired and provider_unavailable; updateUser failures map password 4xx, expiry and unconfirmed provider results to password_rejected, invite_expired and provider_unavailable respectively, with the unexpired invite session retained only for safe retry and no provider detail exposed.",
+      "The callback screen has no email/name/role input, retains no password after submit, and complete does not auto-navigate.",
+      "StaffInviteScreen performs list/revoke only, has no creation form or raw link, and legacy /staff/join performs zero network/Auth calls.",
+      "No /auth/v1/signup request exists in any test. Participant request-link issue, lookup, disclosure and completion tests remain unchanged and passing."
+    ]
+  },
+  "staticAcceptance": [
+    "pnpm --filter @ccc/client run typecheck",
+    "pnpm --filter @ccc/client run build",
+    "A source search under apps/client/src returns zero signUpWithPassword, sdk.auth.signUp, PublicSession.signUp, /staff/join#t=, public staff lookup caller and public staff accept caller occurrences. The literal /staff/join may remain only as the fail-closed route and pre-render scrub case.",
+    "A source search confirms participant /join#t=, public_signup, requestLink, requestLinkDisclosures and completeSignup remain present."
+  ],
+  "actualBrowserAcceptance": {
+    "surface": "Built @ccc/client served from a disposable local origin with synthetic signed installation/Auth fixtures only",
+    "requiredScenarios": [
+      "Open a valid synthetic /auth/invite success fragment. The first screenshot and first DOM observation already show a hash-free and query-free URL. Password entry appears only after provider subject validation.",
+      "Use browser back, refresh and a new tab after capture. No fragment returns; refresh/new tab show invite_missing and perform no password update.",
+      "Exercise all six fixed states and complete. No state claims users row creation, role assignment, invite consumption, binding or business access.",
+      "Open a legacy /staff/join#t=<synthetic> URL. The first rendered frame has a clean URL, fixed unavailable copy, no form and zero staff lookup, accept or Auth signup requests.",
+      "Open and complete a synthetic participant /join#t=<synthetic> request link. Its existing public_signup behavior still works."
+    ],
+    "leakInspection": [
+      "At capture, after password submit, after complete, after back, after refresh and after new-tab open, inspect location.href, browser history behavior, document.referrer, localStorage, sessionStorage, IndexedDB database names and contents, CacheStorage keys and response bodies, console messages, analytics calls and every network request URL/header/body visible to the harness.",
+      "Search those observations for the exact synthetic access token, refresh token, invitation token, email and password. Required count is zero outside the minimum Supabase Auth protocol fields needed for getUser, setSession, password update and local signout. Tokens must never appear in request URLs, non-Auth requests or browser persistence; the first-admin callback makes no business API request.",
+      "Inspect serialized React-visible state and rendered DOM for the same values and provider-private text. Required count is zero.",
+      "Confirm the Supabase client options observed by the fixture remain persistSession=false and detectSessionInUrl=false and that only one client instance is created."
+    ],
+    "notExecutedByThisContractTask": "Product source was intentionally read-only. These checks are mandatory for the implementation owner after the serialized trust commit."
+  },
+  "semanticDecisionsRemainingForThisFrontendSeam": [],
+  "deferredContractsDoNotBlockReadyForImplementation": true,
+  "completionMarker": "EXECUTOR_RESULT N03-FRONTEND-INVITE-CONTRACT-20260914"
+}

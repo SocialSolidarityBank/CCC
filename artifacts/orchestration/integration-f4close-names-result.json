@@ -1,0 +1,120 @@
+{
+  "assignmentId": "INTEGRATION-F4CLOSE-NAMES-20260914",
+  "status": "BOTH_MERGES_CLEAN_ALL_TESTS_PASS_BUT_PARITY_FAILS",
+  "summary": "Both merges landed with zero conflicts and every typecheck and targeted test passed. The read-only parity check fails on a genuine two-DB logical difference introduced by the new 0070 and 0026 pair, which the assignment did not expect to exist.",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "branch": "integrate/ccc291-parity",
+    "cleanAtEnd": true,
+    "tip": "72d3f7cc684add552b2037a40926f1d086a2eeb1"
+  },
+  "observedBaseTip": {
+    "observedBy": "git branch --show-current, git rev-parse HEAD, git status --short, git log --oneline -1",
+    "branch": "integrate/ccc291-parity",
+    "commit": "512c908df27f982bded1ce69baf9d7c178ac4b8b",
+    "subject": "가림 원천 증명 checkpoint 를 parity manifest 에 반영",
+    "clean": true
+  },
+  "coreFetchedTip": {
+    "command": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "533966888221833b1d8c1fab0edd9a4c35f96b67",
+    "fetchHeadParent": "4c5fe47bb990fdaedaff7f42f818d7ab4d06784e",
+    "subject": "fix: 결과 증명 재검증과 외부 호출 경계 복원",
+    "tipAndParentMatchedAssignment": true,
+    "assignmentClaimCorrected": {
+      "assignmentSaid": "새 마이그레이션은 없다",
+      "actual": "the commit adds migrations/sqlite/0070_openai_egress.sql and migrations/postgres/0026_openai_egress.sql and registers a new checkpoint openai-egress at apps/api/test/support/migration-parity.ts line 43",
+      "consequence": "the read-only parity check was still run exactly as instructed, with no update environment variable and no manifest commit"
+    }
+  },
+  "coreMergeCommit": {
+    "commit": "3604cb318151a9d3d80609c4683c6ddd4cb7c3c2",
+    "mergedCommit": "533966888221833b1d8c1fab0edd9a4c35f96b67",
+    "conflicts": 0,
+    "diffStat": "7 files changed, 1056 insertions(+), 161 deletions(-)"
+  },
+  "designMergeCommit": {
+    "commit": "72d3f7cc684add552b2037a40926f1d086a2eeb1",
+    "mergedRef": "design/w03-intake-v2",
+    "mergedCommit": "dbde609fc9c4015b019a64c6cf3f1dcef91754f1",
+    "subject": "refactor: 화면 목적지 이름을 통일한다",
+    "conflicts": 0,
+    "diffStat": "25 files changed, 85 insertions(+), 63 deletions(-)",
+    "fileCountMatchedAssignment": true
+  },
+  "conflicts": [],
+  "parityCheck": {
+    "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+    "updateEnvironmentVariableUsed": false,
+    "exitStatus": 1,
+    "result": "FAIL",
+    "testName": "S1 live migration parity > verifies every checkpoint read-only, or explicitly generates only after semantic proofs pass",
+    "failingAssertionFile": "apps/api/test/support/migration-parity.ts",
+    "failingAssertionLine": 590,
+    "calledFrom": "apps/api/test/migration-parity.test.ts:757 via assertLogicalParity",
+    "assertion": "expect(right.checks.length, `${left.name} checks`).toBe(left.checks.length)",
+    "message": "agent_job_egress_records checks: expected 7 to be 8",
+    "expected": 8,
+    "received": 7,
+    "side": "left is SQLite with 8 checks, right is PostgreSQL with 7",
+    "rootCauseFact": "migrations/postgres/0026_openai_egress.sql line 9 drops agent_job_egress_records_provider_check, which migrations/postgres/0004_agent_jobs.sql line 54 created as provider text NOT NULL CHECK (provider='azure'), and never adds a replacement provider domain check. The SQLite counterpart migrations/sqlite/0070_openai_egress.sql line 12 keeps provider TEXT NOT NULL CHECK (provider IN ('azure','openai')). Both files carry the same provider shape check, so the single missing constraint is the provider value domain on the PostgreSQL side.",
+    "attributedTo": "the core merge 3604cb31, not the DESIGN merge",
+    "notTheManifest": "this is not the missing-checkpoint class of failure seen in F3. The checkpoint openai-egress is registered and the failure is a real semantic difference between the two dialects.",
+    "diagnosticRerun": "one extra read-only run was made because the first tail did not show the table name. Same failure both times.",
+    "nothingRelaxed": true,
+    "manifestCommitted": false,
+    "manifestUnchanged": true
+  },
+  "apiTypecheck": {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "executions": 1},
+  "webTypecheck": {"command": "pnpm --filter @ccc/web run typecheck", "exitStatus": 0, "result": "PASS", "executions": 1},
+  "testedFiles": {
+    "derivedFrom": "git diff --name-status 512c908d 72d3f7cc, 32 files total",
+    "apiTestFilesAddedOrChanged": [{"path": "apps/api/test/entity-provider-proof.contract.test.ts", "change": "A", "fromMerge": "core"}],
+    "webTestFilesChanged": [
+      {"path": "apps/web/app/components/wire/app-sidebar.test.tsx", "change": "M", "fromMerge": "design"},
+      {"path": "apps/web/app/kit/hierarchy-harness.test.tsx", "change": "M", "fromMerge": "design"},
+      {"path": "apps/web/app/onboarding/onboarding-wizard.test.tsx", "change": "M", "fromMerge": "design"},
+      {"path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards.test.tsx", "change": "M", "fromMerge": "design"},
+      {"path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/fixture-draft-view.test.tsx", "change": "M", "fromMerge": "design"},
+      {"path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/page.test.tsx", "change": "M", "fromMerge": "design"},
+      {"path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.test.tsx", "change": "M", "fromMerge": "design"},
+      {"path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.test.tsx", "change": "M", "fromMerge": "design"},
+      {"path": "apps/web/app/schedules/[scheduleId]/plan/session-plan-editor.test.tsx", "change": "M", "fromMerge": "design"}
+    ],
+    "supportFileChangedByCoreNotRunDirectly": ["apps/api/test/support/migration-parity.ts"],
+    "pythonChanged": [],
+    "newMigrationsFromCore": ["migrations/sqlite/0070_openai_egress.sql", "migrations/postgres/0026_openai_egress.sql"]
+  },
+  "testResults": [
+    {"command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/entity-provider-proof.contract.test.ts", "exitStatus": 0, "result": "PASS", "testFilesPassed": 1, "testsPassed": 14, "durationSeconds": 58.64, "executions": 1},
+    {"command": "pnpm --filter @ccc/web exec vitest run with the nine changed web test files", "exitStatus": 0, "result": "PASS", "testFilesPassed": 9, "testsPassed": 169, "durationSeconds": 8.07, "executions": 1}
+  ],
+  "pythonResult": {"run": false, "reason": "neither merge changed a file under apps/pipeline", "changedPythonFiles": 0},
+  "notRerun": {"reason": "already passed on earlier ranges of this integration line", "items": ["the five F4 api test files", "the three F3 entity contract test files", "apps/pipeline tests.test_api_client_worker"]},
+  "stillOpenFromPreviousSlot": {
+    "note": "the two F4 failures reported in CCC292-F4-PARITY-20260914 were not re-run in this slot, so their state is unchanged and unverified here",
+    "items": ["apps/api/test/agent-job-contract.test.ts F3 lease redistribution", "apps/api/test/recording-result.e2e.test.ts unmasked sensitive pattern status 400 versus 422"]
+  },
+  "unmet": ["read-only parity check passing"],
+  "requiredFromCore": "Decide on the PostgreSQL side whether agent_job_egress_records should keep a provider value domain check after 0026 drops agent_job_egress_records_provider_check. If yes, add the equivalent of the SQLite CHECK (provider IN ('azure','openai')) so both dialects carry eight checks, then hand the commit back and this line will run parity again, with manifest regeneration if you authorize it since 0070 and 0026 are new checkpoints not yet in the manifest.",
+  "guardrails": {
+    "productSourceModified": false,
+    "testOrSupportFilesModifiedByThisSlot": false,
+    "migrationsModified": false,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "conflictsResolved": 0,
+    "commitsMade": 0,
+    "mergeCommitsMade": 2,
+    "projectWideTestsLintOrBuildRuns": 0,
+    "rebaseOrReset": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "otherWorktreesTouched": false,
+    "designWorktreeUnchanged": "read the design/w03-intake-v2 branch by name only; the DESIGN worktree checkout was not touched",
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/integration-f4close-names-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT INTEGRATION-F4CLOSE-NAMES-20260914"
+}

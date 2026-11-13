@@ -1,0 +1,56 @@
+{
+  "assignmentId": "ccc212-repair-contracts-20260914",
+  "ticket": "CCC-212",
+  "controllerPane": "w1N:p6",
+  "workerPane": "w1N:p1",
+  "workerSessionId": "01a09b5b-5952-7215-9127-ef3ed91e7261",
+  "sameTicketFollowup": true,
+  "resultPath": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/orchestration/ccc212-repair-contracts-result.json",
+  "goal": "Prepare complete owner-scoped repair contracts for the three proved CCC-212 findings. This is read-only preparation at the normal audit boundary, not product implementation or a new policy decision.",
+  "baseline": {
+    "auditSource": "f7194dc88064455f3eb6be02abb5aae836981612",
+    "freshOriginMain": "ad218e8eafa646a524674fe4ef8cf9c20c0b68bb",
+    "controllerComparedPaths": ["apps/client/src/business/errors.ts", "apps/client/src/business/installation.ts", "apps/community-cloud/src/runtime.ts", "docs/specs/S2-auth-capability-manifest.md"],
+    "comparisonResult": "No diff between those two commits for the listed paths. Do not rerun the old failing probes just to confirm the report. Other callers and newer decisions still need exact provenance checks.",
+    "currentContract": "Use the reconciled S2 in this orchestrator worktree and its dated approval sources; do not choose a whole branch as the policy authority."
+  },
+  "readFirst": [
+    "artifacts/orchestration/ccc212-browser-auth-result.json",
+    "artifacts/ccc212-browser-auth/source-defects.json",
+    "artifacts/ccc212-browser-auth/error-code-coverage.json",
+    "artifacts/ccc212-browser-auth/bootstrap-allowlist.json",
+    "artifacts/ccc212-browser-auth/actual-headers.json",
+    "Current reconciled S2, E2-3/E6-2/E7-2 plan rows and exact caller/contract references needed for the three findings"
+  ],
+  "requiredPreparation": [
+    "Error cutover: map each of the thirteen lost approved names to actual backend producers and screen recovery actions. Distinguish intentional later renames from lost meaning; retain newer valid installation/auth/error names. Provide exact producer/consumer paths, desired behavior and targeted regression cases, not a request to force dictionary size to 21.",
+    "Installation state: identify the trusted source, owner, mode-specific lifecycle and delivery mechanism for revoked keys, sequence floor and expected installation identity. Never derive expected state from the manifest being checked, default a missing trust floor into success, or store forbidden bearer/PII/API responses in browser storage. If an actual policy/contract choice is unresolved, give the narrow question and conservative current boundary without choosing it.",
+    "CORS: trace current request and response header consumers, including If-Match, ETag, X-Request-ID, idempotency-key and x-region. Reconcile actual requirements and approved S2 evolution before proposing constants. Do not delete a required newer header merely to match an older table or treat header case differences as semantic failures.",
+    "Keep Electron verification blocked until a real product runtime and owner exist. Windows singandmong is an approved future candidate, not permission to connect, install, restart measurements or launch work now.",
+    "Separate FRONTEND and BACKEND mutation ownership, identify any shared gateway/request-handler/contracts/lockfile slots, and define a central integration order. Preserve all other WIP; do not assign implementation to another session.",
+    "Note overlaps with onboarding /auth/invite and the staff invitation binding paths, but do not absorb them or choose public-signup policy. N03 remains In Review, N04 is blocked, and Q's policy decision is pending."
+  ],
+  "output": {
+    "repairPackets": "One packet per finding with exact paths/symbols, approval references, current producer/consumer behavior, minimal change, preserved behavior, regression acceptance, writer and prerequisites.",
+    "sharedSlots": "Explicit proposed writers and serialization boundaries; proposal only, no slot is granted by your output.",
+    "unresolvedDecisions": "Only real surviving policy/authority questions; distinguish them from implementation details that existing sources already settle.",
+    "integrationPlan": "Source bases, existing unmerged prerequisites, exact handoff recipient role and minimal central validation. No branch/worktree modification or new status ledger."
+  },
+  "allowedWrites": ["artifacts/orchestration/ccc212-repair-contracts-result.json only"],
+  "forbidden": [
+    "No product, test, policy, ADR, S2, design, migration, branch, dependency, credential, external resource, deployment or original worktree changes.",
+    "No tests/builds/linters/formatters or replays of already observed failures. Use source/provenance and available LSP for references only.",
+    "No other agent/pane instructions, new agents/sessions/worktrees, /new, Linear writes or canonical control-state edits.",
+    "Do not read or modify the PLANNER requirements handoff file. The separate PLANNER analysis dialogue owns only the CCC-299 preparation slice."
+  ],
+  "resultContract": {
+    "assignmentId": "ccc212-repair-contracts-20260914",
+    "workerPaneId": "w1N:p1",
+    "workerSessionId": "01a09b5b-5952-7215-9127-ef3ed91e7261",
+    "status": "ready_for_review or blocked",
+    "ownedJobs": 0,
+    "allResultsCollected": true,
+    "requiredFields": ["identityEvidence", "sourceProvenance", "repairPackets", "sharedSlots", "unresolvedDecisions", "integrationPlan", "touchedFiles", "unverified"]
+  },
+  "completion": "Finish reachable preparation, write the result, collect owned jobs and end the turn. The existing monitor notifies controller C once you are idle; do not start implementation or another ticket."
+}

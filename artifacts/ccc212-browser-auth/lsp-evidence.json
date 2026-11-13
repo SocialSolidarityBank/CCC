@@ -1,0 +1,5 @@
+{
+  "attempted": true,
+  "available": false,
+  "diagnostic": "No language server found for references on pinned source worktree; direct imports and source hash tracing used instead."
+}

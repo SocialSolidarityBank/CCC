@@ -1,0 +1,10 @@
+{
+  "status": "FAILED",
+  "stage": "natural cache and credential boundary",
+  "errorClass": "AssertionError",
+  "networkCode": null,
+  "errors": {
+    "pageErrors": 0,
+    "consoleErrors": 1
+  }
+}

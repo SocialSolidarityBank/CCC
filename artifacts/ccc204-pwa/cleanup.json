@@ -1,0 +1,46 @@
+{
+  "observedAt": "2026-09-13T13:13:00.986Z",
+  "ownedServices": [
+    {
+      "name": "ccc204-pwa-preview",
+      "initialPid": 2625,
+      "restartedPid": 46282,
+      "state": "exited",
+      "exitCode": 0,
+      "reason": "Stopped for real origin-unavailable proof, restarted only to correct isolated-world observer, stopped again."
+    },
+    {
+      "name": "ccc204-pwa-chromium",
+      "pid": 2622,
+      "state": "exited",
+      "exitCode": 143,
+      "reason": "Intentional owned process termination after page/cache cleanup"
+    }
+  ],
+  "browser": {
+    "unregistered": [
+      true
+    ],
+    "deletedCaches": [
+      true
+    ],
+    "remainingRegistrations": 0,
+    "remainingCaches": [],
+    "ownedPageClosed": true
+  },
+  "runtimeDir": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x",
+  "runtimeRemoved": true,
+  "originalAfterCleanup": [],
+  "wipAfterCleanup": [],
+  "originalSourceFilesVerified": 397,
+  "unrelatedWipFilesVerified": 38,
+  "portsClosed": {
+    "46173": true,
+    "46174": true
+  },
+  "temporaryScreenshotRemoved": true,
+  "ownedJobs": 0,
+  "otherProcessesStopped": false,
+  "otherWorktreesWritten": false,
+  "controlOrLinearMutated": false
+}

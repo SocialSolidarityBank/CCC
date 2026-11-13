@@ -1,0 +1,111 @@
+{
+  "handoffId": "ccc299-consumers-20260914",
+  "ticket": "CCC-299",
+  "producer": {
+    "commit": "b429d93dc45365cf2550de8d3b1b5268a808a94d",
+    "tree": "9c1d4d6c6221f8484f3938fd2ad01e7f1ba1f8ab",
+    "verified": true,
+    "producerContractFullyVerified": true,
+    "acceptancePath": "artifacts/orchestration/ccc299-final-acceptance-result.json",
+    "acceptanceSha256": "2127d44551aed3e383d14a7115079bf47c4c5b921380040735e315c9b75e68ab"
+  },
+  "frontendFirstIntake": {
+    "owner": "FRONTEND",
+    "writeGranted": false,
+    "prerequisiteForProducerImplementation": false,
+    "paths": [
+      "apps/client/src/business/intake.ts",
+      "apps/client/src/business/intake-form.ts",
+      "apps/client/src/screens/intake.tsx"
+    ],
+    "fields": [
+      "context.writeSchemaVersion = 3",
+      "context.saved.schemaVersion = 1 | 2",
+      "context.saved.revision",
+      "context.saved.questionLifecycle",
+      "context.saved.history[].questionLifecycle",
+      "submission.schemaVersion = 3",
+      "submission.additionalItemRefs[] = { rowIndex, questionId, expectedRevision, legacySourceRowIndex? }",
+      "submission.questionWithdrawals[] = { questionId, expectedRevision }",
+      "submission.conversion? = { confirmed: true, sourceRevision }",
+      "mutationResponse.schemaVersion = 3, revision, record, replayed"
+    ],
+    "behavior": "Decode lifecycle without dropping unknown-as-invalid checks; keep an ID/revision with each editable row, preserve omitted retained questions, send deletion only as questionWithdrawals, support explicit v1/unbound-v2 conversion, and reject old/missing writeSchemaVersion or lifecycle fields instead of defaulting them.",
+    "handoffStatus": "delivered read-only to relayer-frontend-beta on 2026-09-14; no write slot or acknowledgement requested because preserved N03 WIP owns the lane"
+  },
+  "frontendCCC290": {
+    "owner": "FRONTEND",
+    "ticket": "CCC-290",
+    "writeGranted": false,
+    "prerequisiteForProducerImplementation": false,
+    "additionalDependency": "CCC-289",
+    "paths": [
+      "apps/client/src/business/records.ts",
+      "apps/client/src/business/records.test.ts",
+      "apps/client/src/screens/records.tsx"
+    ],
+    "fields": [
+      "manualContext.schemaVersion = 3",
+      "manualContext.questions[]",
+      "manualContext.confirmedQuestions[]",
+      "manualContext.withdrawnQuestions[]",
+      "question.kind = schedule | record | intake",
+      "question.id, sourceId, sourceRevision, sourceSessionId, sourceHeldAt, sourceScheduledAt, createdAt, body, state, outcomes",
+      "questionAnswer = { kind: 'intake', questionId, sourceId: intakeSessionId, expectedRevision: questionRevision, answer }",
+      "records[].manual.questionOutcomes[].kind includes intake"
+    ],
+    "behavior": "Decode the server manual projection and context, submit explicit later answers without changing manual request schema 2, keep confirmed answers readable after withdrawal, and never infer completion from omission or withdrawal.",
+    "handoffStatus": "delivered read-only to relayer-frontend-beta on 2026-09-14; CCC-289 and a released clean FRONTEND slot remain required"
+  },
+  "syntheticApi": {
+    "owner": "FRONTEND",
+    "writeGranted": false,
+    "prerequisiteForProducerImplementation": false,
+    "path": "apps/client/tools/synthetic-api.mjs",
+    "fields": [
+      "GET intake context exposes writeSchemaVersion 3 and saved/history lifecycle",
+      "POST/PUT intake accepts only envelope 3 refs/withdrawals and returns mutation response schemaVersion 3",
+      "GET records/context exposes manual context schemaVersion 3 and all three question-state arrays",
+      "GET records includes manual.questionOutcomes with intake kind",
+      "GET report exposes only open nextConfirmations with immutable evidence revision/path"
+    ],
+    "behavior": "Fixture identity and revisions must be stable across edit/reorder, explicit withdrawal must differ from omission/nonanswer, and 400/403/409 cases must mirror the real server. A permissive fixture is not compatibility evidence.",
+    "handoffStatus": "delivered read-only to relayer-frontend-beta on 2026-09-14; no source write granted"
+  },
+  "designCCC288": {
+    "owner": "DESIGN",
+    "ticket": "CCC-288",
+    "writeGranted": false,
+    "prerequisiteForProducerImplementation": false,
+    "paths": [
+      "apps/web/app/lib/api.ts",
+      "apps/web/app/actions.ts",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.tsx",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-draft.test.tsx",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.test.tsx",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.test.tsx"
+    ],
+    "fields": [
+      "writeSchemaVersion 3",
+      "saved.revision and saved.questionLifecycle/history lifecycle",
+      "envelope schemaVersion 3",
+      "additionalItemRefs and questionWithdrawals",
+      "conversion confirmation for schema 1 or unbound schema 2",
+      "mutation response schemaVersion 3 and revision",
+      "400 invalid_request, 403 forbidden, 409 conflict"
+    ],
+    "behavior": "Replace positional delete/omit writes with stable row bindings and explicit withdrawal, preserve literal source schemas 1/2, and show retained/withdrawn/confirmed history without treating response codes as withdrawal. The legacy web remains explicitly unsupported against the new writer until CCC-288 ships; no alias is added.",
+    "handoffStatus": "delivered read-only to ccc-design on 2026-09-14; CCC-288 was not started and no source write or preview deployment was granted"
+  },
+  "deliveryRules": [
+    "This is a verified producer contract handoff, not a source-write instruction.",
+    "FRONTEND first-intake and synthetic API work require a separately released clean writer slot; the current frontend worktree has preserved N03 callback WIP.",
+    "CCC-290 additionally requires CCC-289. DESIGN CCC-288 retains the DESIGN worktree ownership lock and follows the design lane.",
+    "No consumer may add an envelope-2 alias, infer question identity from text/order, or claim compatibility before its actual tests and browser checks pass.",
+    "All execution questions and results return only to relayer-orchestrator."
+  ],
+  "consumerCompletionClaimed": false,
+  "sourceWritesGranted": false
+}

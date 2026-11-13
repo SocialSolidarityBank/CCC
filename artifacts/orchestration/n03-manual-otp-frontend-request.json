@@ -1,0 +1,49 @@
+{
+  "assignmentId": "n03-manual-otp-frontend-20260914",
+  "ticket": "CCC-276",
+  "owner": "FRONTEND",
+  "goal": "Revise the preserved implicit-fragment callback WIP in place to the Q-approved manual six-digit invitation-code flow and prove literal zero credential retention.",
+  "startCondition": "Assign only after the onboarding installer readiness commit is reviewed. Preserve the same nine modified unstaged files on frontend HEAD d49449d; do not reset or discard the reusable invite lock, disposal, staff fail-closed and participant-separation work.",
+  "contract": {
+    "path": "artifacts/orchestration/n03-manual-otp-contract-result.json",
+    "sha256": "d07f8ca15ed9fb7e9f1b9052a01bab91f73e81b2e61b9671b0a99aafb675b029"
+  },
+  "worktree": {
+    "decision": "reuse dirty owned WIP",
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+    "branch": "client/relayer-domain-beta",
+    "requiredHead": "d49449dab92e5e7691c008b21fb65ecfa4dd5c78",
+    "requiredModifiedPaths": [
+      "apps/client/src/main.tsx",
+      "apps/client/src/app.tsx",
+      "apps/client/src/business/auth.ts",
+      "apps/client/src/business/session.ts",
+      "apps/client/src/business/invites.ts",
+      "apps/client/src/business/transport.ts",
+      "apps/client/src/screens/invites.tsx",
+      "apps/client/src/business/auth.test.ts",
+      "apps/client/src/screens/invites.test.ts"
+    ],
+    "rule": "No reset, rebase, switch, stash or clean. Commit only after the revised contract and all gates pass."
+  },
+  "requiredRevision": [
+    "Remove all fragment credential parsing, CapturedInvite credential handoff, prepareFirstAdminInvite, setSession/getUser URL-token flow, invite_missing state and fragment deadline logic from the WIP.",
+    "Keep synchronous startup capture but only classify exact clean /auth/invite versus nonempty query/hash. Dirty URL is scrubbed without parsing and terminates invite_invalid before Auth/network. Keep legacy /staff/join scrubbing and participant /join untouched.",
+    "Render one initial uncontrolled form for email, exact six-digit ASCII code, password and confirmation with the frozen autocomplete/inputMode/pattern/length contracts. Read FormData only on submit, validate locally and reset before awaiting Auth.",
+    "Use one existing CloudAuth client. Lock invite mode before getSession. Existing ordinary session returns invite_session_conflict without verifyOtp or signout. Clean flow calls exactly verifyOtp({email, token: code, type:'invite'}), validates returned session/user subject and email, then updateUser({password}) without unlocking business access.",
+    "Password rejection or unconfirmed password response keeps only the verified memory session and shows password-only retry. Completion uses best-effort local signout plus mandatory disposal. No business API, staff acceptance or identity binding runs in the callback.",
+    "Keep the previously reviewed staff list/revoke-only screen, raw-link/public-signUp deletion, legacy staff fail-closed route and unchanged participant request-link flow. Use existing Wire components/CSS and the corrected WireError accessibility behavior.",
+    "No email, code, password, session, subject or marker in React state/errors/logs/URL/history/storage/non-Auth requests. The only transient protocol values are the uncontrolled inputs before reset and Auth request bodies after reset."
+  ],
+  "verification": [
+    "Before editing, read skill://frontend-lane, skill://design-lane and DESIGN-RULES.md; use no shared UI/CSS/token change.",
+    "Use LSP references for exported symbol cutover when available; otherwise prove zero forbidden residual symbols and current participant paths remain.",
+    "Run direct targeted tests: pnpm --filter @ccc/client exec vitest run --config vitest.config.ts src/business/auth.test.ts src/screens/invites.test.ts.",
+    "Run client typecheck and build.",
+    "Run the exact actualBrowserZeroRetentionMatrix in the frozen contract with synthetic signed installation/Auth responses only. Inspect Chrome diagnostic DocumentURL/UserTypedURL metadata and require zero matches because the clean invitation URL carries no credential.",
+    "Obtain separate read-only security and design reviews of the final nine-file diff and rendered screens. Apply in-scope findings, rerun affected checks, close all tabs/services and delete unsanitized fixture evidence.",
+    "Commit only the nine explicit paths with configured hooks. Do not bypass hooks, change Auth templates, use credentials, send an invite, push, merge or deploy."
+  ],
+  "completionMarker": "FRONTEND_RESULT N03-MANUAL-OTP-20260914",
+  "report": "Print marker, parent/commit SHA, exact paths, tests/typecheck/build, browser zero-retention matrix, review verdicts, clean state and blockers."
+}

@@ -1,0 +1,62 @@
+{
+  "assignmentId": "n03-manual-otp-contract-20260914",
+  "ticket": "CCC-276",
+  "workerPaneId": "w1N:p1",
+  "goal": "Replace the rejected implicit-fragment callback with one exact manual six-digit invitation-code contract that preserves literal zero URL retention and the existing first-admin identity boundary.",
+  "decision": {
+    "source": "Q explicit selection after measured Chrome diagnostic retention",
+    "choice": "manual_one_time_code",
+    "literalZeroRetention": true,
+    "diagnosticRetentionExceptionApproved": false,
+    "supersedes": "the implicit success/error fragment contract in onboarding commit 217e752 and n03-frontend-invite-contract-result.json"
+  },
+  "groundedProviderFacts": [
+    "Supabase official email-template documentation says {{ .Token }} is a six-digit OTP usable instead of {{ .ConfirmationURL }} and recommends a clean custom link plus email/token verification.",
+    "Installed @supabase/auth-js 2.116.0 defines VerifyEmailOtpParams as { email, token, type: EmailOtpType } and EmailOtpType includes invite.",
+    "GoTrueClient.verifyOtp accepts user-supplied email OTP and type invite; GoTrueAdminApi states inviteUserByEmail does not support PKCE because invitation issuance and acceptance often use different browsers.",
+    "Current first-admin issuer already passes redirect_to equal to the exact signed clientOrigin /auth/invite and reads mailer_otp_exp while enforcing disable_signup=true."
+  ],
+  "sourceState": {
+    "frontendBase": "d49449dab92e5e7691c008b21fb65ecfa4dd5c78",
+    "frontendWip": "nine modified unstaged files from the blocked fragment implementation; preserve and revise in place, never reset/stash/clean",
+    "onboardingDocsBase": "217e752f816dedf1f6c535b073039ab596ef046f",
+    "backendIdentityBinding": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d"
+  },
+  "contractRequirements": [
+    "The invite email contains a clean link to {{ .RedirectTo }} and visibly displays {{ .Token }}. It must not include ConfirmationURL, TokenHash, access/refresh token, email, marker or any credential in a URL. The configured redirect remains the exact signed clientOrigin /auth/invite.",
+    "The /auth/invite page starts with one form for email, six-digit ASCII code, new password and confirmation. Inputs are uncontrolled, email uses autocomplete=email, code uses autocomplete=one-time-code and inputMode=numeric, password fields use autocomplete=new-password. FormData is read only on submit and sensitive inputs are reset before awaiting Auth.",
+    "Before any Auth request, reject a nonempty query or fragment after synchronously removing it from the visible URL. Clean navigation itself carries no credential, so Chrome diagnostic metadata contains only /auth/invite.",
+    "Use the one existing CloudAuth/Supabase client with persistSession=false and detectSessionInUrl=false. If an ordinary current session exists, do not consume the OTP; return invite_session_conflict.",
+    "Call verifyOtp({ email: normalizedEmail, token: sixDigitCode, type: 'invite' }). Require a returned session/user with a nonblank provider subject and returned normalized email equal to the entered email. Do not decode JWTs or put email/code/session/subject in React state or errors.",
+    "Keep invite mode locked during verifyOtp and password update so auth events cannot expose getToken, run inspect, open VerifiedSession or call business APIs. Then call updateUser({ password }) in the same submit flow.",
+    "If password policy rejects after OTP success, retain only the in-memory invite session and show a password-only retry form; the consumed email/code are discarded. If the page reloads before password completion, return to the email/code form and require a new provider code when the old code is no longer valid. No browser persistence is added.",
+    "After confirmed password update, best-effort local-scope signout and mandatory local disposal produce complete. Success still means only Auth acceptance/password set; installer resume separately observes the private marker and binds users.auth_subject.",
+    "Keep provider failure redaction and the existing safe states where meaningful. Define exact local validation, expiry, session-conflict, password-rejected and provider-unavailable transitions; remove fragment-only invite_missing behavior if it no longer has an observable contract.",
+    "Keep the approved fail-closed staff browser cutover: no public signUp, no raw CCC invite link, no public staff accept client; participant request links remain unchanged.",
+    "Current N03 implementation is synthetic only. Auth template mutation, credential injection, live invite, deployment and operational acceptance remain separately unapproved."
+  ],
+  "owners": {
+    "FRONTEND": "Revise the preserved nine-file WIP and its tests/browser evidence after the contract is accepted.",
+    "onboardingORCHESTRATOR": "Update ADR-0050, onboarding design/implementation/handoff, CONTEXT/CLAUDE decision references from implicit fragment to manual OTP; commit docs only after controller verification.",
+    "onboardingInstallerWriter": "Update first-admin template readiness validation and test expectations in scripts/onboarding/first-admin.mjs and its tests only after an exact writer slot; do not mutate a live Auth template.",
+    "BACKEND": "No new change; aa0bdb1 verified subject/email staff acceptance remains the later staff boundary and is not called by the first-admin callback."
+  },
+  "output": {
+    "path": "artifacts/orchestration/n03-manual-otp-contract-result.json",
+    "mustContain": [
+      "exact email-template contract and installer readiness check",
+      "exact frontend data types/functions/state machine and delta from preserved WIP",
+      "exact allowed paths for docs, installer and frontend serialized owners",
+      "targeted unit/typecheck/build and actual-browser zero-retention matrix",
+      "first-admin versus later-staff separation and operational non-approval",
+      "readyForImplementation true only with no semantic decision remaining",
+      "ownedJobs 0 and allResultsCollected true"
+    ]
+  },
+  "constraints": [
+    "Read-only except the result JSON in controller artifacts.",
+    "Do not edit product/docs, commit, reset/stash/clean any worktree, mutate Auth, send an invite, use credentials, deploy or contact external services.",
+    "Use current source and installed SDK/official provider facts. Do not reopen Q's selected manual-code approach or add PKCE/token_hash fallback."
+  ],
+  "completionMarker": "EXECUTOR_RESULT N03-MANUAL-OTP-CONTRACT-20260914"
+}

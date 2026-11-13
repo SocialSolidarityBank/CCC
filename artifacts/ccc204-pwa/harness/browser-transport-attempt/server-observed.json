@@ -1,0 +1,99 @@
+{
+  "counts": {
+    "passwordAccepted": 0,
+    "passwordRejected": 1,
+    "userVerified": 0,
+    "refreshAccepted": 0,
+    "jwks": 1,
+    "actualApi": 11,
+    "deniedProxy": 0,
+    "externalConnections": 0,
+    "runtimeErrors": 0
+  },
+  "requests": [
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/.well-known/jwks.json",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/settings/accounts",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/capabilities",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "POST",
+      "status": 400
+    }
+  ]
+}

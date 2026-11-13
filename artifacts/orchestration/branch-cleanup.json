@@ -2559,7 +2559,14 @@
     {
       "name": "feat/frontend-adjustments",
       "reason": "unique content = .gitignore '/.superpowers/' line; absent on main, covered on this machine only by ~/.config/git/ignore; Q to decide whether to add to main",
-      "backup": "refs/backup/feat/frontend-adjustments"
+      "backup": "refs/backup/feat/frontend-adjustments",
+      "decision": "Q 2026-09-16: add line to main, then backup+delete branch after push",
+      "main_commit": {
+        "sha": "60b8b58f",
+        "parent": "59d911e6 (#338)",
+        "pushed": false,
+        "note": "push held until other session's deploy finishes; Q decides timing"
+      }
     }
   ],
   "after": {
@@ -2583,5 +2590,248 @@
       "stt-internal-client"
     ],
     "note": "local-only, no worktree; not deleted"
+  },
+  "round2": {
+    "status": "SURVEY, approval PENDING",
+    "live_lanes_untouched": [
+      "auth-direct",
+      "DESIGN",
+      "frontend",
+      "backend",
+      "onboarding",
+      "beta-0.9-orchestrator"
+    ],
+    "survey": [
+      {
+        "worktree": "/private/tmp/ccc-roles",
+        "branch": "auth/invite-role-cap",
+        "dirty": 0,
+        "dirty_files": [],
+        "last_commit": "2026-09-12",
+        "tip": "5d540f1e",
+        "tip_moved_since_round1": false,
+        "round1_class": "KEEP",
+        "round1_reason": "열린 PR #335",
+        "content_in_main": false,
+        "merged_pr": [],
+        "remote": true,
+        "unmerged_files": 6,
+        "round2_class": "KEEP",
+        "round2_reason": "auth/invite-role-cap: PR #335 OPEN"
+      },
+      {
+        "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/API",
+        "branch": "release/s12-recovery",
+        "dirty": 0,
+        "dirty_files": [],
+        "last_commit": "2026-09-12",
+        "tip": "7e195217",
+        "tip_moved_since_round1": false,
+        "round1_class": "KEEP",
+        "round1_reason": "살아 있는 레인 워크트리 API",
+        "content_in_main": true,
+        "merged_pr": [
+          328
+        ],
+        "remote": true,
+        "unmerged_files": 27,
+        "round2_class": "REMOVE-CANDIDATE",
+        "round2_reason": "release/s12-recovery: PR #328 머지, tip==PR head, 미커밋 0. 원격 있음"
+      },
+      {
+        "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity",
+        "branch": "integrate/relayer-domain-beta",
+        "dirty": 0,
+        "dirty_files": [],
+        "last_commit": "2026-09-13",
+        "tip": "7c7b632d",
+        "tip_moved_since_round1": false,
+        "round1_class": "KEEP",
+        "round1_reason": "살아 있는 레인 워크트리 beta-core-parity",
+        "content_in_main": false,
+        "merged_pr": [],
+        "remote": false,
+        "unmerged_files": 44,
+        "round2_class": "KEEP",
+        "round2_reason": "integrate/relayer-domain-beta: 미커밋 0 이나 main 에 없는 파일 44, 원격·백업 없음(단일 사본)"
+      },
+      {
+        "worktree": "/Users/seongqkim/developer/PROJECTS/CCC-new/.worktrees/e2-1-screen-api-probe",
+        "branch": "e2-1-screen-api-probe",
+        "dirty": 4,
+        "dirty_files": [
+          "M docs/superpowers/plans/2026-09-03-E2-1-screen-api-probe.md",
+          " M scripts/fixtures/e2-1-screen-api-fixture.json",
+          " M scripts/verify-screen-api-map.mjs",
+          " M scripts/verify-screen-api-map.test.mjs"
+        ],
+        "last_commit": "2026-09-03",
+        "tip": "ead49ecf",
+        "tip_moved_since_round1": false,
+        "round1_class": "KEEP",
+        "round1_reason": "워크트리 e2-1-screen-api-probe 미커밋 4건",
+        "content_in_main": false,
+        "merged_pr": [],
+        "remote": true,
+        "unmerged_files": 4,
+        "round2_class": "KEEP",
+        "round2_reason": "미커밋 4 (plan·fixture·verify 스크립트)"
+      },
+      {
+        "worktree": "/Users/seongqkim/developer/PROJECTS/CCC-new/.worktrees/e5-4-privacy-generalization",
+        "branch": "e5-4-privacy-generalization",
+        "dirty": 16,
+        "dirty_files": [
+          "M apps/api/test/agent-job-contract.test.ts",
+          " M apps/pipeline/README.md",
+          " M apps/pipeline/ccc_pipeline/api_client.py",
+          " M apps/pipeline/ccc_pipeline/config.py",
+          " M apps/pipeline/ccc_pipeline/masking.py",
+          " M apps/pipeline/ccc_pipeline/worker.py",
+          " M apps/pipeline/tests/test_api_client_worker.py",
+          " M apps/pipeline/tests/test_masking.py",
+          " M docs/specs/S5-agent-job-contract-v2.md",
+          " M docs/specs/S6-privacy-packet.md",
+          " M packages/core/src/gateway.ts",
+          "?? apps/pipeline/ccc_pipeline/secure_memory.py",
+          "?? apps/pipeline/tests/test_secure_memory.py",
+          "?? artifacts/ccc237-privacy/",
+          "?? docs/superpowers/plans/2026-09-06-CCC-237-privacy-generalization.md",
+          "?? scripts/privacy/"
+        ],
+        "last_commit": "2026-09-05",
+        "tip": "99d7b41c",
+        "tip_moved_since_round1": false,
+        "round1_class": "KEEP",
+        "round1_reason": "워크트리 e5-4-privacy-generalization 미커밋 16건",
+        "content_in_main": true,
+        "merged_pr": [],
+        "remote": false,
+        "unmerged_files": 0,
+        "round2_class": "KEEP",
+        "round2_reason": "브랜치 내용은 main 에 있으나 미커밋 16. 수정 11 + secure_memory.py·테스트·plan·scripts/privacy 는 archive/ccc237-input 브랜치와 blob 동일, artifacts/ccc237-privacy/ 로그 179개는 어디에도 없음"
+      },
+      {
+        "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+        "branch": "integrate/ccc291-parity",
+        "dirty": 14,
+        "dirty_files": [
+          "?? artifacts/orchestration/consent-notion.json",
+          "?? artifacts/orchestration/first-admin-decision.json",
+          "?? artifacts/orchestration/install-apply-gate.json",
+          "?? artifacts/orchestration/install-inputs-draft.json",
+          "?? artifacts/orchestration/install-preflight.json",
+          "?? artifacts/orchestration/install-readiness-probe.json",
+          "?? artifacts/orchestration/mini-agent-prepare.json",
+          "?? artifacts/orchestration/release-gap-audit.json",
+          "?? artifacts/orchestration/release-gap-audit.md",
+          "?? artifacts/orchestration/rotation-breakage-notice.json",
+          "?? artifacts/orchestration/rotation-breakage-notice.md",
+          "?? artifacts/orchestration/secret-consumer-map.json",
+          "?? artifacts/orchestration/secret-reuse-audit.json",
+          "?? scripts/install/variant-sha.mjs"
+        ],
+        "last_commit": "2026-09-16",
+        "tip": "84d721d9",
+        "tip_moved_since_round1": false,
+        "round1_class": "KEEP",
+        "round1_reason": "워크트리 parity-291 미커밋 14건",
+        "content_in_main": false,
+        "merged_pr": [],
+        "remote": false,
+        "unmerged_files": 57,
+        "round2_class": "KEEP",
+        "round2_reason": "integrate/ccc291-parity: 미커밋 14 (orchestration 산출물 13 + scripts/install/variant-sha.mjs), main 에 없는 커밋 53 (qlzwas 설치·CSV 내보내기·파기 원장 등), 원격·백업 없음(단일 사본)"
+      },
+      {
+        "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/PLANNER",
+        "branch": "docs/privacy-stt-prerequisites",
+        "dirty": 1,
+        "dirty_files": [
+          "M docs/superpowers/plans/2026-09-13-planner-handoff.md"
+        ],
+        "last_commit": "2026-09-16",
+        "tip": "b843aee0",
+        "tip_moved_since_round1": false,
+        "round1_class": "KEEP",
+        "round1_reason": "워크트리 PLANNER 미커밋 1건",
+        "content_in_main": false,
+        "merged_pr": [],
+        "remote": false,
+        "unmerged_files": 6,
+        "round2_class": "KEEP",
+        "round2_reason": "docs/privacy-stt-prerequisites: 개시 판정 문서 docs/ops/release-0916-gate.md 는 main 과 동일(cherry-pick 확인). 그러나 planner-handoff.md 가 main 에 없고 +228줄 미커밋, CONTEXT.md·ADR-0010·S10·S13·legal-review 도 브랜치 쪽 추가분 있음"
+      },
+      {
+        "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/release-16",
+        "branch": "release/0916",
+        "dirty": 2,
+        "dirty_files": [
+          "?? artifacts/orchestration/production-release.json",
+          "?? artifacts/release/"
+        ],
+        "last_commit": "2026-09-16",
+        "tip": "386d67dc",
+        "tip_moved_since_round1": false,
+        "round1_class": "KEEP",
+        "round1_reason": "워크트리 release-16 미커밋 2건",
+        "content_in_main": true,
+        "merged_pr": [
+          336
+        ],
+        "remote": true,
+        "unmerged_files": 17,
+        "round2_class": "KEEP",
+        "round2_reason": "release/0916: PR #336 머지, tip==PR head. 미커밋 2: artifacts/orchestration/production-release.json + artifacts/release/0.9.0-dev.3 번들(tar.gz·manifest·release-bundle·release-floor)·component-root signer index.js. main 에 없음"
+      },
+      {
+        "worktree": "/Users/seongqkim/developer/PROJECTS/CCC-new/.worktrees/sg15-long-ai",
+        "branch": "sg15-long-ai",
+        "dirty": 1,
+        "dirty_files": [
+          "M docs/specs/S15-long-ai-packet.md"
+        ],
+        "last_commit": "2026-09-03",
+        "tip": "09d6e01b",
+        "tip_moved_since_round1": false,
+        "round1_class": "KEEP",
+        "round1_reason": "워크트리 sg15-long-ai 미커밋 1건",
+        "content_in_main": false,
+        "merged_pr": [],
+        "remote": true,
+        "unmerged_files": 2,
+        "round2_class": "KEEP",
+        "round2_reason": "sg15-long-ai: S15-long-ai-packet.md +19/-3 미커밋, 브랜치의 S15 스펙·SG15 plan 이 main 에 없음, 원격 있음"
+      },
+      {
+        "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/VALIDATION",
+        "branch": "verify/beta-backend",
+        "dirty": 1,
+        "dirty_files": [
+          "?? apps/api/test/tools/real-backend-preview.mjs"
+        ],
+        "last_commit": "2026-09-11",
+        "tip": "1faffd23",
+        "tip_moved_since_round1": false,
+        "round1_class": "KEEP",
+        "round1_reason": "워크트리 VALIDATION 미커밋 1건",
+        "content_in_main": false,
+        "merged_pr": [],
+        "remote": false,
+        "unmerged_files": 182,
+        "round2_class": "KEEP",
+        "round2_reason": "verify/beta-backend: 미커밋 1 (apps/api/test/tools/real-backend-preview.mjs 187줄), main 에 없는 파일 57 (apps/local-service/** 등) 포함 182 파일, 원격·백업 없음(단일 사본)"
+      }
+    ],
+    "removal_candidates": [
+      "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/API"
+    ],
+    "single_copy_warning": [
+      "integrate/relayer-domain-beta",
+      "e5-4-privacy-generalization",
+      "integrate/ccc291-parity",
+      "docs/privacy-stt-prerequisites",
+      "verify/beta-backend"
+    ]
   }
 }

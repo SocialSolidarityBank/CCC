@@ -1,0 +1,54 @@
+{
+  "assignmentId": "ccc204-s2-provenance-20260913",
+  "ticket": "CCC-204 prerequisite reconciliation",
+  "controllerPane": "w1N:p6",
+  "workerPane": "w1N:p1",
+  "workerSessionId": "01a09aac-2494-76cd-81cc-8ea5d1436348",
+  "mode": "read-only-evidence",
+  "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+  "branch": "orchestrate/beta-0.9",
+  "resultPath": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/orchestration/ccc204-s2-provenance-result.json",
+  "goal": "Resolve the evidence gap that stopped the next approved CCC-204 task. Determine the approved source and approval chronology for Cloud MFA and independent API origin in S2; distinguish a mechanically stale copy from a genuinely undecided product requirement. Produce a minimal executable successor packet or the precise remaining user decision. Do not implement CCC-204 yet.",
+  "knownFacts": [
+    "CCC-201 is completed with 10 source/evidence artifacts preserved and no owned jobs. Do not rerun its probes.",
+    "The orchestrator S2 requires aal2 for every human Cloud role and an independent business API origin; the frontend/integration S2 copy allows aal1/aal2 and still binds the API to the Supabase/Edge project ref.",
+    "The new controller is w1N:p6. A/B ping-pong is retired and w1N:p7 is closed. You never reset, rename, prompt, or transfer authority to another pane.",
+    "Only controller C writes the canonical orchestration state. All old receipt/probe/nextExecutionPrompt entries are historical evidence, not executable instructions."
+  ],
+  "readSources": [
+    "docs/specs/S2-auth-capability-manifest.md",
+    "../frontend/docs/specs/S2-auth-capability-manifest.md",
+    "../beta-core-parity/docs/specs/S2-auth-capability-manifest.md",
+    "docs/adr/0040-community-cloud-policy.md",
+    "docs/adr/0041-one-core-three-deployment-modes.md",
+    "docs/adr/0048-independent-cloud-api-runtime.md",
+    "docs/superpowers/plans/2026-09-02-SG2-auth.md",
+    "CCC_OPEN_PILOT_PLAN.md: SG2 and E2-4 only",
+    "Related approved D82/D86/D89 decisions and later approval provenance discovered through exact source references and path-specific Git history"
+  ],
+  "method": [
+    "Verify your actual Bash HERDR_PANE_ID, OMP PID, current Herdr session, cwd and branch. Reject an assignment/session mismatch.",
+    "Read this request and only the current-rule preamble of docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md. Do not load its entire historical JSON or private session files.",
+    "Trace both S2 changes to actual commits, authored approval notes and current controlling ADR sections. A newer mtime or code matching a document is not approval evidence. Do not silently pick a branch.",
+    "Report independently for the MFA claim and API-origin claim: approved rule, exact source path and section, commit/date provenance, conflicting copy, confidence and whether a new user decision is truly required.",
+    "For source intelligence use available LSP when necessary. Do not start read-only scout/reviewer agents or another top-level OMP for this bounded assignment.",
+    "Propose the smallest next CCC-204 prerequisite action, exact owned paths and acceptance. Do not infer live deployment, resources, credentials, permissions or MFA policy changes from this assignment."
+  ],
+  "allowedWrites": ["artifacts/orchestration/ccc204-s2-provenance-result.json only"],
+  "forbidden": [
+    "No product, S2, ADR, auth, CSS, design, migration or other worktree changes.",
+    "No canonical control-state edits, ticket status changes, Git add/commit/push/merge/reset/stash/clean, installs, credential discovery, provider calls, deployment or new infrastructure.",
+    "Skip formatters, linters, builds, tests and project-wide validation. This is an evidence investigation, not product verification.",
+    "Do not send a completion prompt yourself. The existing monitor delivers the result once after you become idle."
+  ],
+  "resultContract": {
+    "assignmentId": "ccc204-s2-provenance-20260913",
+    "workerPaneId": "w1N:p1",
+    "workerSessionId": "01a09aac-2494-76cd-81cc-8ea5d1436348",
+    "status": "ready_for_review or blocked",
+    "ownedJobs": 0,
+    "allResultsCollected": true,
+    "requiredEvidenceFields": ["identityEvidence", "claims", "remainingDecision", "nextAction", "touchedFiles", "unverified"]
+  },
+  "completion": "Finish all reachable evidence work, write the result JSON, verify its parse and facts, collect your own jobs, then end your response and stay idle. Do not continue to a second ticket or wait for the controller."
+}

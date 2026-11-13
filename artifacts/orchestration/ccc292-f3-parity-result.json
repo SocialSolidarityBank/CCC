@@ -1,0 +1,95 @@
+{
+  "assignmentId": "CCC292-F3-PARITY-RERUN-20260914",
+  "supersedes": "CCC292-F3-PARITY-20260914 in this same file",
+  "ticket": "CCC-292",
+  "scope": "F3",
+  "status": "PARITY_VERIFIED_AND_MANIFEST_COMMITTED",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "reused": true,
+    "branch": "integrate/ccc291-parity",
+    "cleanAtEnd": true,
+    "tip": "fc4b2ef4afe5c7febaa4bc3ac77ad8c5632dc4f0"
+  },
+  "baseTipCorrection": {
+    "assignmentStated": "c86cc5bcc76b4328da0e6829e5b616699af606a2, on the premise that the previous merge 3990ce37 was not committed",
+    "actual": "3990ce371f7162312d730718db6cef901536de73",
+    "fact": "The previous run's merge was committed on the branch. The prior report said the manifest was not committed, which was true, but the merge commit itself existed. git log showed 3990ce37 as the tip with ed57787e and 33cd1940 beneath it, and the tree was clean.",
+    "handling": "Reset is forbidden for this slot, so the registration commit was merged on top of 3990ce37 instead of re-merging from c86cc5b. ed57787e is already an ancestor of the tip, so the fetched commit contributed only its own single file and the resulting content equals what merging onto c86cc5b would have produced.",
+    "contentEquivalence": true
+  },
+  "fetchedTip": {
+    "command": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "4924569cfd4a4f138597f37085fb2b8e258dcd8d",
+    "fetchHeadParent": "ed57787efc4b7b048a38b18cd59a86cf89de12ea",
+    "subject": "원천 무효화 마이그레이션의 패리티 체크포인트를 등록",
+    "matchedAssignment": true,
+    "paths": ["apps/api/test/support/migration-parity.ts"]
+  },
+  "coreMergeCommit": {
+    "commit": "f215f79f7dbb433877435b2724880975e9672851",
+    "mergedCommit": "4924569cfd4a4f138597f37085fb2b8e258dcd8d",
+    "conflicts": 0,
+    "diffStat": "1 file changed, 1 insertion(+)",
+    "registeredEntry": "apps/api/test/support/migration-parity.ts:41 { id: 'entity-source-invalidation', sqlite: '0068_entity_source_invalidation.sql', postgres: '0024_entity_source_invalidation.sql' }",
+    "previousMergeOnThisLine": {"commit": "3990ce371f7162312d730718db6cef901536de73", "mergedCommit": "ed57787efc4b7b048a38b18cd59a86cf89de12ea", "conflicts": 0, "diffStat": "9 files changed, 950 insertions(+), 209 deletions(-)"}
+  },
+  "conflicts": [],
+  "parityCommand": "env CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+  "parityCommandExecutions": 1,
+  "exitStatus": 0,
+  "parityTests": {"testFilesPassed": 1, "testsPassed": 1, "durationSeconds": 17.63},
+  "previousFailureResolved": {
+    "was": "apps/api/test/support/migration-parity.ts:75 exact-match assertion failed because 0024_entity_source_invalidation.sql was present in the postgres directory but absent from the checkpoints array",
+    "nowPasses": true,
+    "resolvedBy": "4924569c added the missing checkpoint entry; no assertion, baseline or threshold was changed"
+  },
+  "checkpointsPresent": {
+    "verified": true,
+    "entries": [
+      {"id": "entity-source-invalidation", "manifestLine": 70982, "sqliteSource": "0068_entity_source_invalidation.sql", "sqliteSourceManifestLine": 70986, "postgresSource": "0024_entity_source_invalidation.sql", "postgresSourceManifestLine": 70995},
+      {"id": "entity-registration-binding", "manifestLine": 67527, "stillPresent": true},
+      {"id": "case-entity-mapping", "manifestLine": 64101, "stillPresent": true},
+      {"id": "agent-text-source-fence", "manifestLine": 60675, "stillPresent": true}
+    ],
+    "totalCheckpointIds": 24,
+    "previousTotal": 23
+  },
+  "manifestSha256": "03f223d3fd624a6d47028fab40175a80ae5cb7e233ec8b57dbc3af94505b30ca",
+  "manifestPreviousSha256": "fff25a187e1c7d06ffe3918965d3c3cc706bd9a2695e48b818c1ba687f33c6fa",
+  "manifestRegenerated": true,
+  "parityCommit": {
+    "commit": "fc4b2ef4afe5c7febaa4bc3ac77ad8c5632dc4f0",
+    "subject": "원천 무효화 checkpoint 를 parity manifest 에 반영",
+    "files": ["migrations/parity.yaml"],
+    "diffStat": "1 file changed, 3455 insertions(+)",
+    "hooks": "normal configured hooks ran and passed: secret guard, token-audit, align-audit, hierarchy audit with 0 new violations, hierarchy audit test",
+    "hooksBypassed": false
+  },
+  "typecheck": {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "detail": "tsc --noEmit --project apps/api/tsconfig.json, no diagnostics, run once because the registration commit touched the support file", "executions": 1},
+  "notRerun": {
+    "reason": "the merged range beyond the registration commit is identical to the previous run, which already passed these",
+    "items": [
+      {"command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/entity-registration.contract.test.ts apps/api/test/entity-source-binding.contract.test.ts apps/api/test/entity-source-invalidation.contract.test.ts", "previousResult": "PASS, 3 files, 25 tests"},
+      {"command": "python3 -m unittest tests.test_api_client_worker", "cwd": "apps/pipeline", "previousResult": "PASS, 68 tests"}
+    ]
+  },
+  "unmet": [],
+  "guardrails": {
+    "productSourceModified": false,
+    "testOrSupportFilesModifiedByThisSlot": false,
+    "migrationsModified": false,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "conflictsResolved": 0,
+    "projectWideTestsLintOrBuildRuns": 0,
+    "rebaseOrReset": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "otherWorktreesTouched": false,
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/ccc292-f3-parity-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT CCC292-F3-PARITY-RERUN-20260914"
+}

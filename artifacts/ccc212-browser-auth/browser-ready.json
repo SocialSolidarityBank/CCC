@@ -1,0 +1,18 @@
+{
+  "clientOrigin": "https://ccc.example.org",
+  "apiBase": "https://api.example.invalid/api",
+  "authOrigin": "https://abcdefghijklmnopqrst.supabase.co",
+  "tlsPort": 51096,
+  "proxyPort": 51097,
+  "socketPath": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc212-browser-auth/.runtime-xTXNN9/ccc212-control.sock",
+  "spki": "5kWSMJ4OdUQ2XSD+xQnn3qRxXYiL95UofHLUU9bpqp4=",
+  "issuer": "https://abcdefghijklmnopqrst.supabase.co/auth/v1",
+  "jwksUri": "https://abcdefghijklmnopqrst.supabase.co/auth/v1/.well-known/jwks.json",
+  "staticReleasePort": 41821,
+  "staticHeaderSource": "apps/client/tools/serve-release.mjs via Deno runtime",
+  "installPublicKeyFingerprints": {
+    "ccc212-release-public-key": "4c8483ee93c3baaa9a4fafaff4a9d13ec87132f7d3d8ebe3d9b06d687e750745"
+  },
+  "jwtPublicKeyFingerprint": "b4d27733aa7637bc0e9a8a559c5a5cc403ec632bf4d888e413e2979c0776d6bf",
+  "privateKeysAndTokensPersisted": false
+}

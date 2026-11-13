@@ -1,0 +1,70 @@
+{
+  "assignmentId": "n03-frontend-invite-contract-20260914",
+  "ticket": "CCC-276",
+  "workerPaneId": "w1N:p1",
+  "goal": "Freeze the smallest complete FRONTEND contract for the first-admin /auth/invite callback and fail-closed staff invitation UI under Q's approved invitation-only policy.",
+  "authority": [
+    "onboarding commit 217e752f816dedf1f6c535b073039ab596ef046f",
+    "../onboarding/docs/adr/0050-relayer-assisted-onboarding.md 2026-09-14 Q partial amendment",
+    "../onboarding/docs/superpowers/specs/2026-09-13-relayer-onboarding-design.md lines 161-175",
+    "../onboarding/docs/superpowers/plans/2026-09-13-relayer-onboarding-implementation.md lines 222-264",
+    "accepted BACKEND identity-binding commit aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d"
+  ],
+  "source": {
+    "frontendWorktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+    "branch": "client/relayer-domain-beta",
+    "baseBeforeTrustRepair": "0eef9ec0e175d356143016fcdd1073d37e8c400e",
+    "trustRepair": "currently active and owns app.tsx; callback implementation must start only after its clean commit",
+    "readOnlyFiles": [
+      "apps/client/src/main.tsx",
+      "apps/client/src/app.tsx",
+      "apps/client/src/business/auth.ts",
+      "apps/client/src/business/auth-view.tsx",
+      "apps/client/src/business/invites.ts",
+      "apps/client/src/business/session.ts",
+      "apps/client/src/screens/invites.tsx",
+      "apps/client/src/business/errors.ts",
+      "apps/client/src/business/installation.ts",
+      "apps/client/src/business/transport.ts",
+      "apps/client/src/business/auth.test.ts",
+      "apps/client/src/screens/invites.test.ts"
+    ]
+  },
+  "decisionsToClose": [
+    "Exact synchronous pre-render fragment capture and history.replaceState seam before React, router, installation fetch or Auth network activity.",
+    "Exact closed success/error fragment parser, expiry handling, memory-only handoff into the existing CloudAuth instance, subject conflict check, password update and post-update session disposition.",
+    "Exact /auth/invite route and screen states for invite_missing, invite_invalid, invite_expired, invite_session_conflict, password_rejected and provider_unavailable without provider text or credentials.",
+    "Whether first-admin success signs out and waits for installer resume before the user's separate first business login. Preserve the approved distinction between Auth acceptance and users.auth_subject binding.",
+    "Remove or fail closed every current public staff signUp path and raw CCC-only invitation-link action that contradicts disable_signup=true, while preserving participant public_signup and without inventing the unresolved later-staff Auth issuer marker/TTL/orphan-cleanup contract.",
+    "Exact files, symbols, tests and real-browser leak checks. Use existing Wire components and CSS only; no design-lane writes."
+  ],
+  "requiredBoundaries": [
+    "Success keys exactly access_token, refresh_token, expires_in, optional expires_at, token_type and type. token_type must be bearer and type invite.",
+    "Error keys exactly error, error_code and error_description. Mixed sets, unknown keys, provider tokens, code, sb_flow_id and token_hash are invalid.",
+    "Tokens are removed from the visible URL and history before first render or network. Never enter React state/snapshot, router location, browser storage, logs, analytics, referrer, error objects or request URLs.",
+    "Use one existing CloudAuth/Supabase client with persistSession false and detectSessionInUrl false. No second client or persistence.",
+    "No users row, role, invite consumption or business entry occurs in the callback. The installer resume remains the first-admin binding step; later staff accept still requires the accepted aa0bdb1 server boundary.",
+    "No POST /identity/link, public signUp, business-API administrator credential, provider fallback, Auth setting change, actual invite send or deployment.",
+    "Keep participant request-link behavior and public_signup capability unchanged.",
+    "Operational mailbox, CCC_ONBOARDING_FIRST_ADMIN injection and one live invitation remain separate Q approvals."
+  ],
+  "output": {
+    "path": "artifacts/orchestration/n03-frontend-invite-contract-result.json",
+    "mustContain": [
+      "exact data types, functions, lifecycle and route/screen state machine",
+      "exact allowed and excluded paths with app.tsx serialization after trust repair",
+      "exact first-admin versus later-staff separation",
+      "exact removal or fail-closed treatment of current signUpWithPassword and raw /staff/join link flow",
+      "targeted unit and actual-browser acceptance including URL/history/storage/console/network/referrer leak checks",
+      "readyForImplementation true only if no semantic decision remains",
+      "ownedJobs 0 and allResultsCollected true"
+    ]
+  },
+  "constraints": [
+    "Read-only except the result JSON in this orchestrator worktree.",
+    "Do not edit product or canonical docs, tickets, branches, commits, remote systems, credentials or live services.",
+    "Do not repeat the policy decision. Resolve only the implementation seam and current fail-closed cutover against source.",
+    "No new dependency, service, backend endpoint, storage, compatibility alias, UI component or CSS."
+  ],
+  "completionMarker": "EXECUTOR_RESULT N03-FRONTEND-INVITE-CONTRACT-20260914"
+}

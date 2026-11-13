@@ -1,0 +1,38 @@
+{
+  "observedAt": "2026-09-13T22:05:18Z",
+  "operation": "n03-input-readiness",
+  "authorization": "Q approved read-only input readiness inspection only",
+  "readOnly": true,
+  "writes": 0,
+  "emailsSent": 0,
+  "ready": false,
+  "passed": [
+    "SUPABASE_ACCESS_TOKEN",
+    "CCC_ONBOARDING_REQUEST",
+    "CCC_ONBOARDING_JOURNAL"
+  ],
+  "failed": [
+    { "name": "SUPABASE_SERVICE_ROLE_KEY", "code": "MISSING" },
+    { "name": "CCC_INSTALL_SIGNING_KEYS", "code": "MISSING" },
+    { "name": "CCC_BETA_TRUST_ROOT_KEYS", "code": "MISSING" },
+    { "name": "CCC_BETA_RELEASE_TRUST", "code": "MISSING" },
+    { "name": "CCC_PROVIDER_BASELINE", "code": "MISSING" },
+    { "name": "CCC_RELEASE_TRUST_STORE", "code": "MISSING" },
+    { "name": "CCC_INSTALL_DATABASE_URL", "code": "MISSING" },
+    { "name": "CCC_ONBOARDING_INSTALLATION", "code": "MISSING" },
+    { "name": "CCC_ONBOARDING_FIRST_ADMIN", "code": "MISSING" },
+    { "name": "CCC_ORGANIZATION_ID", "code": "MISSING" }
+  ],
+  "cloudResourceHandoff": {
+    "cloudJournalValid": true,
+    "cloudJournalPhase": "observed",
+    "targetCandidateCount": 1,
+    "projectObserved": true,
+    "projectMatchesJournal": true,
+    "installationInputPresent": false,
+    "readyForN03Input": false,
+    "code": "N02_INPUT_HANDOFF_UNREADY"
+  },
+  "code": "FIRST_ADMIN_INPUTS_UNREADY",
+  "interpretation": "These names were not injected from the approved Infisical prod root path. This does not prove they do not exist in another approved store or path. No credential discovery beyond fixed-name checks was performed."
+}

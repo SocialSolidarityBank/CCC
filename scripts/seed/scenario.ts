@@ -305,8 +305,10 @@ export async function runScenario(env: Env, capture: D1Capture): Promise<Scenari
   await provisionVirtualCounselors(env, adminActor, capture);
 
   let sessions = 0;
+  const t0 = Date.now(); // TEMP-DIAG
   for (let index = 0; index < PARTICIPANTS.length; index += 1) {
     sessions += await runParticipant(env, adminActor, capture, PARTICIPANTS[index]!, index);
+    console.error(`[seed-diag] participant ${index + 1}/${PARTICIPANTS.length} elapsed=${Date.now() - t0}ms`); // TEMP-DIAG
   }
 
   return {

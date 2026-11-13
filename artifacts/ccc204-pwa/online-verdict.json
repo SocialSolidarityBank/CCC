@@ -1,0 +1,71 @@
+{
+  "guardPassed": true,
+  "workerRegistration": "manual observer only",
+  "cacheEntryCount": 5,
+  "cacheKeysUnchanged": true,
+  "noSensitiveCanaries": true,
+  "networkProbeResponses": [
+    {
+      "pathname": "/__ccc204_audit__/api",
+      "method": "GET",
+      "syntheticAuthorizationSent": false,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": false
+    },
+    {
+      "pathname": "/__ccc204_audit__/private-pii",
+      "method": "GET",
+      "syntheticAuthorizationSent": true,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": true
+    },
+    {
+      "pathname": "/__ccc204_audit__/auth",
+      "method": "POST",
+      "syntheticAuthorizationSent": false,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": false
+    },
+    {
+      "pathname": "/__ccc204_audit__/audio",
+      "method": "GET",
+      "syntheticAuthorizationSent": true,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": true
+    },
+    {
+      "pathname": "/__ccc204_audit__/denied",
+      "method": "GET",
+      "syntheticAuthorizationSent": true,
+      "status": 401,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": true
+    },
+    {
+      "pathname": "/__ccc204_audit__/unlisted.js",
+      "method": "GET",
+      "syntheticAuthorizationSent": false,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": false
+    },
+    {
+      "pathname": "/__ccc204_audit__/unlisted.css",
+      "method": "GET",
+      "syntheticAuthorizationSent": false,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": false
+    }
+  ],
+  "staticResponseMatchesBuild": true,
+  "installationManifestNotProvided": true,
+  "manifestValidationErrors": [],
+  "installabilityErrors": [],
+  "observationLimitation": "Network probes used an isolated evaluate world that bypasses service-worker fetch interception; superseded by main-world probes.",
+  "bootstrap200DoesNotEstablishProvisioning": true
+}

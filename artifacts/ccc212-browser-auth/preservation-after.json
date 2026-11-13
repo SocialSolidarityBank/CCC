@@ -1,0 +1,18 @@
+{
+  "sourceHead": "f7194dc88064455f3eb6be02abb5aae836981612",
+  "sourceStatus": "",
+  "sourceFilesVerified": 1332,
+  "sourceMismatches": [],
+  "orchestratorFilesVerified": 147,
+  "orchestratorMismatches": [
+    "docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md"
+  ],
+  "controllerOwnedConcurrentChanges": [
+    "docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md"
+  ],
+  "unexpectedOrchestratorMismatches": [],
+  "priorCcc204EvidenceMismatches": [],
+  "noProductOrOtherLaneSourceChanged": true,
+  "noUnexpectedPreexistingFileChanged": true,
+  "noAcceptedCcc204EvidenceOverwritten": true
+}

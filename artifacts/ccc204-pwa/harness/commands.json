@@ -1,0 +1,76 @@
+[
+  {
+    "command": "node --check fixture.test.mjs && node --check vitest.config.mjs",
+    "exitCode": 0
+  },
+  {
+    "command": "hub start ccc204-harness-fixture (Vitest single fixture)",
+    "exitCode": 1,
+    "stage": "module loading",
+    "cause": "require.resolve(vitest) selected the CommonJS rejection entry before any fixture initialized"
+  },
+  {
+    "command": "hub restart ccc204-harness-fixture",
+    "exitCode": 1,
+    "stage": "module loading",
+    "cause": "snapshot selection omitted apps/api/package.json, so fixture support/d1.ts lacked the existing apps/api node_modules workspace links"
+  },
+  {
+    "command": "hub restart ccc204-harness-fixture",
+    "stage": "pre-browser build validation",
+    "fixtureNegativeControls": 13,
+    "fixtureNegativeControlsPassed": 13,
+    "buildExitCode": 0,
+    "buildRejected": true,
+    "reason": "Vitest NODE_ENV=test affected nested Vite build"
+  },
+  {
+    "command": "browser.open / incognito scenario",
+    "status": "failed",
+    "stage": "fresh browser transport",
+    "code": "net::ERR_PROXY_CONNECTION_FAILED",
+    "credentialsEntered": false
+  },
+  {
+    "command": "hub start ccc204-harness-browser (seatbelt policy)",
+    "exitCode": 65,
+    "stage": "policy compilation",
+    "cause": "macOS policy accepts localhost rather than literal 127.0.0.1"
+  },
+  {
+    "command": "hub start ccc204-harness-browser (nested sandbox)",
+    "exitCode": 133,
+    "stage": "browser startup",
+    "cause": "nested Chromium GPU sandbox initialization denied; no browser credentials entered"
+  },
+  {
+    "command": "sandboxed browser natural-registration scenario",
+    "status": "failed",
+    "stage": "business bootstrap",
+    "cause": "fixture CSP used exact API base path rather than its descendant directory",
+    "seededPasswordSdkFlowStatus": 200,
+    "userVerifiedStatus": 200,
+    "cspIndependentProbeConfirmed": true
+  },
+  {
+    "command": "sandboxed browser natural-registration scenario (first complete pass)",
+    "status": "observer assertion failed after all browser stages",
+    "stage": "natural cache and credential boundary",
+    "cause": "observer expected committed /ccc-bootstrap.json.example placeholder; emitted worker never lists it. Browser evidence preserved under browser-first-pass/",
+    "naturalRegistration": "activated",
+    "cacheMatchedWorkerList": true
+  },
+  {
+    "command": "hub restart ccc204-harness-fixture (clean pass)",
+    "exitCode": 1,
+    "stage": "control socket bind",
+    "cause": "stale owned control.sock left by 30-minute Vitest timeout of prior long-lived fixture"
+  },
+  {
+    "command": "sandboxed browser natural-registration scenario (clean pass)",
+    "status": "PASS",
+    "consoleErrors": 1,
+    "consoleErrorAttribution": "wrong-password 400 resource line",
+    "pageErrors": 0
+  }
+]

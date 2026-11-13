@@ -1,0 +1,392 @@
+{
+  "assignmentId": "ccc299-central-verification-20260914",
+  "ticket": "CCC-299",
+  "status": "BLOCKED_SOURCE_FAILURES",
+  "completionMarker": "EXECUTOR_RESULT CCC299-CENTRAL-VERIFICATION-20260914",
+  "candidate": {
+    "commit": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+    "tree": "f188a8f136a4de2147b9d5a36e9f2b535a990d89",
+    "parent": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+    "paths": [
+      "apps/api/test/gateway-intake.test.ts",
+      "apps/api/test/manual-record.contract.test.ts",
+      "apps/api/test/migration-parity.test.ts",
+      "apps/api/test/routes.test.ts",
+      "apps/api/test/support-case-report.contract.test.ts",
+      "apps/api/test/support/intake.ts",
+      "apps/api/test/support/migration-parity.ts",
+      "migrations/postgres/0020_intake_question_lifecycle.sql",
+      "migrations/sqlite/0064_intake_question_lifecycle.sql",
+      "packages/contracts/src/intake.ts",
+      "packages/contracts/src/manual-record.ts",
+      "packages/core/src/gateway.ts",
+      "scripts/seed/scenario.ts"
+    ],
+    "pathCount": 13,
+    "pathsMatch": true,
+    "changedFileHashesMatch": true,
+    "fetchHeadExists": null,
+    "expectedTree": "f188a8f136a4de2147b9d5a36e9f2b535a990d89",
+    "expectedParent": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+    "identityMatch": true,
+    "remoteObjectSource": "ssh://mini/Users/barq/DEVELOPER/PROJECTS/CCC",
+    "fetchCommand": "git fetch --no-write-fetch-head ssh://mini/Users/barq/DEVELOPER/PROJECTS/CCC 4a2070e6cf04bb04bd3a734a92150168932dd406",
+    "gitReferenceMutations": 0
+  },
+  "inputArtifacts": {
+    "implementationResult": {
+      "path": "artifacts/orchestration/ccc299-core-implementation-result.json",
+      "expectedSha256": "50ac2406d0525cc4a0de9861e6315854c8c477137730308b21b332a8a8644858",
+      "actualSha256": "50ac2406d0525cc4a0de9861e6315854c8c477137730308b21b332a8a8644858",
+      "match": true
+    },
+    "freezeResult": {
+      "path": "artifacts/orchestration/ccc299-core-freeze-result.json",
+      "expectedSha256": "8f0e235965659b35c7d3b71331a6a70551f1908ea5e131c9b2c9a4f3e0034da2",
+      "actualSha256": "8f0e235965659b35c7d3b71331a6a70551f1908ea5e131c9b2c9a4f3e0034da2",
+      "match": true
+    }
+  },
+  "isolation": {
+    "method": "Fetch the exact commit object with --no-write-fetch-head, export it with git archive into one unique /tmp sandbox, then run pnpm install --offline --frozen-lockfile inside that sandbox so workspace symlinks point to sandbox sources.",
+    "sandbox": "/tmp/ccc299-central-verification-gt2y3_a5",
+    "sandboxRemoved": true,
+    "offlineInstall": {
+      "command": "pnpm install --offline --frozen-lockfile",
+      "cwd": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "exitCode": 0,
+      "sandbox": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "lockfileSha256": "cab41f837e3bd73cbad2b010fa268bfa92ff981db75208ff1f87ffb10164579e",
+      "candidateLockfileSha256": "cab41f837e3bd73cbad2b010fa268bfa92ff981db75208ff1f87ffb10164579e",
+      "lockfileUnchanged": true
+    },
+    "sourceImmutability": {
+      "trackedFileCount": 1334,
+      "trackedMismatches": [
+        {
+          "path": "migrations/parity.yaml",
+          "kind": "content",
+          "expectedBlob": "3fdd84b967cd01a6cbd0e22989bdef136c691c2d",
+          "actualBlob": "30512c6c220582b57ce7877026b7a73a31174552"
+        }
+      ],
+      "onlyGeneratedParityChanged": true
+    },
+    "permittedControllerArtifacts": [
+      "artifacts/orchestration/ccc299-generated-parity.yaml",
+      "artifacts/orchestration/ccc299-central-verification-result.json"
+    ],
+    "worktreeMutationCount": 0,
+    "worktreeStatusDeltaCount": 0
+  },
+  "docker": {
+    "infoCommand": "docker info --format '{{json .ServerErrors}}'",
+    "serverErrors": null,
+    "exitCode": 0,
+    "imageCommand": "docker image inspect postgres@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73 --format '{{.Id}} {{index .RepoDigests 0}}'",
+    "pinnedImage": "postgres@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+    "imagePresent": true,
+    "imagePulled": false,
+    "containersBefore": 48,
+    "containersAfter": 48,
+    "remainingCreatedContainerIds": [],
+    "preexistingContainerIdsMissing": [],
+    "cleanupComplete": true
+  },
+  "parityManifest": {
+    "sourcePath": "migrations/parity.yaml",
+    "controllerPath": "artifacts/orchestration/ccc299-generated-parity.yaml",
+    "beforeSha256": "c6e20e950eebd3b2167a8256cadb0c2de8e4164dc52f64e4c00b75c7cbaa3c0d",
+    "generatedSha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0",
+    "beforeCheckpointCount": 18,
+    "generatedCheckpointCount": 20,
+    "priorCheckpointBytesSemanticallyPreserved": true,
+    "physicalRulesPreserved": true,
+    "newCheckpointId": "intake-question-lifecycle",
+    "newCheckpointSqliteLastSource": "0064_intake_question_lifecycle.sql",
+    "newCheckpointPostgresLastSource": "0020_intake_question_lifecycle.sql",
+    "addedCheckpointIds": [
+      "manual-record-lifecycle",
+      "intake-question-lifecycle"
+    ],
+    "copiedByteForByte": true,
+    "nonUpdateBeforeSha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0",
+    "nonUpdateAfterSha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0",
+    "nonUpdateByteIdentical": true
+  },
+  "commands": [
+    {
+      "command": "CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+      "cwd": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "exitCode": 0,
+      "output": "Scope: all 21 workspace projects\nLockfile is up to date, resolution step is skipped\nAlready up to date\n\nDone in 2.1s using pnpm v11.5.3\n\n RUN  v4.1.10 /private/tmp/ccc299-central-verification-gt2y3_a5\n\n ✓ apps/api/test/migration-parity.test.ts (1 test) 11493ms\n     ✓ verifies every checkpoint read-only, or explicitly generates only after semantic proofs pass  8984ms\n\n Test Files  1 passed (1)\n      Tests  1 passed (1)\n   Start at  03:48:02\n   Duration  12.10s (transform 105ms, setup 0ms, import 535ms, tests 11.49s, environment 0ms)\n\n",
+      "counts": {
+        "testFilesPassed": 1,
+        "testFilesFailed": 0,
+        "testsPassed": 1,
+        "testsFailed": 0,
+        "testsSkipped": 0,
+        "totalTests": 1
+      },
+      "classification": "writer parity update"
+    },
+    {
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/gateway-intake.test.ts apps/api/test/manual-record.contract.test.ts apps/api/test/support-case-report.contract.test.ts apps/api/test/new-signup-badge.test.ts apps/api/test/participant-p3.contract.test.ts --maxWorkers 1",
+      "cwd": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "exitCode": 1,
+      "output": "\n RUN  v4.1.10 /private/tmp/ccc299-central-verification-gt2y3_a5\n\n ✓ apps/api/test/gateway-intake.test.ts (28 tests) 36538ms\n     ✓ stores manual answers immediately without creating goals, actions, consent or legacy baselines  6226ms\n     ✓ replays identical submissions but rejects changed answers, tables and second intakes  1071ms\n     ✓ requires explicit version and applicable responses, independent of UI collapse state  1015ms\n     ✓ rejects unknown keys, duplicate answers, response payload collisions and malformed table rows  726ms\n     ✓ requires the program financial module and selected economy area together, rejecting stale snapshots  1958ms\n     ✓ rechecks module state inside the mutation transaction  1130ms\n     ✓ requires human confirmation to convert legacy values and retains exact prior records  1468ms\n     ✓ rechecks practitioner-role before updating and preserves the previous date on denial  942ms\n     ✓ rechecks active-assignment before updating and preserves the previous date on denial  960ms\n     ✓ atomically completes a linked appointment and rejects its stale version  1356ms\n     ✓ reports hasIntake and increments the session sequence  1226ms\n     ✓ carries the next scheduled appointment, and null when there is none  1147ms\n     ✓ picks the same appointment as getNextCounselingScheduleForSupportCase  1059ms\n     ✓ denies an unassigned counselor  722ms\n     ✓ encrypts birth date, region, and gender at registration and shows them on the intake screen  916ms\n     ✓ reports the six canonical consent states for the read-only first step  2184ms\n     ✓ lets an admin fix birth date, region, and gender after registration  934ms\n     ✓ lets the assigned counselor edit the vault and the intake screen shows it  962ms\n     ✓ rejects a counselor who does not hold the case  754ms\n     ✓ rejects a malformed birth date  707ms\n     ✓ returns the seven vault fields, the write context, and one audit row  876ms\n     ✓ refuses a counselor who does not hold any case for the participant  707ms\n     ✓ keeps UUID identity through editing, reordering, omission, last-row withdrawal and later create replay  3000ms\n     ✓ requires explicit one-to-one adoption of unbound schema 1 without rewriting historical bytes  1599ms\n     ✓ requires explicit one-to-one adoption of unbound schema 2 without rewriting historical bytes  1594ms\n     ✓ requires human conversion even when the legacy source has zero eligible rows  1294ms\n ✓ apps/api/test/manual-record.contract.test.ts (19 tests) 32190ms\n     ✓ round-trips a memo and six human-confirmed flags with AI off and no assessment defaults  4391ms\n     ✓ distinguishes human completion, stop, continuation and omission on the same original action IDs  1496ms\n     ✓ requires an explicit continuation choice and stop reason without recording a failed request  1296ms\n     ✓ retains old hold wording and version while omitted and then continued in new records  1525ms\n     ✓ carries all unanswered questions oldest-first and confirms only the selected source identity  1568ms\n     ✓ replays concurrent answers and action updates once without re-closing or duplicating their histories  1410ms\n     ✓ limits a backdated record to earlier business origins, including late-entered and rescheduled sources  2617ms\n     ✓ returns the selected record revisions during an interleaved create and sees new records on the next read  1422ms\n     ✓ keeps manual context sources, histories and outcomes in the initial selection during an interleaved commit  1666ms\n     ✓ rejects a concurrent action revision without partial officialization  1498ms\n     ✓ rejects a concurrent schedule-question revision without partial officialization  1491ms\n     ✓ rejects a concurrent record-source revision without partial officialization  1524ms\n     ✓ rechecks practitioner-role inside the atomic write boundary  1000ms\n     ✓ rechecks active-assignment inside the atomic write boundary  1019ms\n     ✓ rejects a different case question even when its text and revision match  1671ms\n     ✓ keeps a confirmed answer readable after source editing and withdrawal without reopening it  2152ms\n     ✓ rolls back a late confirmation after concurrent intake withdrawal  1415ms\n     ✓ rolls back a late confirmation after concurrent intake date-correction  1440ms\n     ✓ does not replace the selected intake source or consume outcomes from later regular sessions  1587ms\n ❯ apps/api/test/participant-p3.contract.test.ts (21 tests | 6 failed) 29864ms\n     ✓ returns email and participation names through the list, with one PII audit even for email-only contacts  3922ms\n     ✓ exposes authorized hub birth date and record progress without widening generic record responses  1252ms\n     ✓ returns only the restricted hub identification and participation shape to an unassigned worker  1123ms\n     ✓ lists other participation names but excludes unauthorized and draft-only records from hub progress  2022ms\n     ✓ requires administrator review for coassign and never lets the requester self-accept  1438ms\n     ✓ requires administrator review for transfer and never lets the requester self-accept  1418ms\n     ✓ records rejection without granting access and refuses malformed or foreign requests  1125ms\n     ✓ commits only one competing review and rechecks the requested worker before approval  1122ms\n     ✓ uses an active canonical worker directory ID for registration and rejects it after deactivation  938ms\n     × keeps saved intake readable with one PII audit for writer 1134ms\n     × keeps saved intake readable with one PII audit for admin-only 1147ms\n     × keeps saved intake readable with one PII audit for nonassigned-admin-practitioner 1120ms\n     × keeps saved intake readable with one PII audit for supervisor 1171ms\n     × keeps saved intake readable with one PII audit for closed 1249ms\n     × keeps saved intake readable with one PII audit for closed-program 1324ms\n     ✓ does not grant intake read access to an unassigned practitioner or a foreign administrator  1009ms\n     ✓ returns writable initial and subsequent creation results for the assigned active practitioner without reading PII  1350ms\n     ✓ keeps initial creation retries non-writable after program closure without reading PII  1154ms\n     ✓ keeps subsequent creation retries non-writable after program closure without reading PII  1535ms\n     ✓ recomputes initial creation replay permission after assignment and independent role changes  1613ms\n     ✓ recomputes subsequent creation replay permission after assignment and independent role changes  1698ms\n ✓ apps/api/test/support-case-report.contract.test.ts (6 tests) 12497ms\n     ✓ returns chronological sourced evidence for all five sections without replacing the first intake plan  4321ms\n     ✓ keeps the nine-area intake meaning and omits retained but inapplicable responses from reports  1062ms\n     ✓ reports only open intake identities with their immutable evidence revision after omission and later answers  2162ms\n     ✓ keeps an evidence-free intake session while omitting every fabricated section and summary  957ms\n     ✓ excludes an unapproved AI draft and selects its approved one-liner only after approval  2838ms\n     ✓ allows assigned and administrative reads, denies wider actors, rejects queries, and audits a no-store response  1156ms\n ✓ apps/api/test/new-signup-badge.test.ts (7 tests) 57823ms\n     ✓ 새로 개설된 인테이크 전 케이스는 새 가입으로 보인다  3780ms\n     ✓ 인테이크 일정을 등록하면 새 가입 배지가 소멸한다  816ms\n     ✓ 허브 열람(케이스 읽기 감사) 후에는 새 가입 배지가 소멸한다  755ms\n     ✓ 인테이크가 완료되면 새 가입 배지가 소멸한다  861ms\n     ✓ 담당이 아닌 실무자의 목록에는 새 가입으로 세지 않는다 (D7)  792ms\n     ✓ 기관 관리자 범위에서는 기관 전체를 센다  747ms\n     ✓ 당사자 100명도 D1 바인딩 상한을 넘지 않고 목록에 보인다  50072ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  apps/api/test/participant-p3.contract.test.ts > server-authoritative intake write permission > keeps saved intake readable with one PII audit for writer\nAssertionError: expected 400 to be 200 // Object.is equality\n\n- Expected\n+ Received\n\n- 200\n+ 400\n\n ❯ apps/api/test/participant-p3.contract.test.ts:255:30\n    253|       const updated = await http(reader, path, edit, 'PUT');\n    254|       const closed = access === 'closed' || access === 'closed-program…\n    255|       expect(updated.status).toBe(access === 'writer' ? 200 : closed ?…\n       |                              ^\n    256|       if (access !== 'writer') {\n    257|         const post = await http(reader, path, { ...input, submissionId…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯\n\n FAIL  apps/api/test/participant-p3.contract.test.ts > server-authoritative intake write permission > keeps saved intake readable with one PII audit for admin-only\n FAIL  apps/api/test/participant-p3.contract.test.ts > server-authoritative intake write permission > keeps saved intake readable with one PII audit for nonassigned-admin-practitioner\n FAIL  apps/api/test/participant-p3.contract.test.ts > server-authoritative intake write permission > keeps saved intake readable with one PII audit for supervisor\nAssertionError: expected 400 to be 403 // Object.is equality\n\n- Expected\n+ Received\n\n- 403\n+ 400\n\n ❯ apps/api/test/participant-p3.contract.test.ts:255:30\n    253|       const updated = await http(reader, path, edit, 'PUT');\n    254|       const closed = access === 'closed' || access === 'closed-program…\n    255|       expect(updated.status).toBe(access === 'writer' ? 200 : closed ?…\n       |                              ^\n    256|       if (access !== 'writer') {\n    257|         const post = await http(reader, path, { ...input, submissionId…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯\n\n FAIL  apps/api/test/participant-p3.contract.test.ts > server-authoritative intake write permission > keeps saved intake readable with one PII audit for closed\n FAIL  apps/api/test/participant-p3.contract.test.ts > server-authoritative intake write permission > keeps saved intake readable with one PII audit for closed-program\nAssertionError: expected 400 to be 409 // Object.is equality\n\n- Expected\n+ Received\n\n- 409\n+ 400\n\n ❯ apps/api/test/participant-p3.contract.test.ts:255:30\n    253|       const updated = await http(reader, path, edit, 'PUT');\n    254|       const closed = access === 'closed' || access === 'closed-program…\n    255|       expect(updated.status).toBe(access === 'writer' ? 200 : closed ?…\n       |                              ^\n    256|       if (access !== 'writer') {\n    257|         const post = await http(reader, path, { ...input, submissionId…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯\n\n\n Test Files  1 failed | 4 passed (5)\n      Tests  6 failed | 75 passed (81)\n   Start at  03:49:05\n   Duration  171.97s (transform 413ms, setup 0ms, import 2.67s, tests 168.91s, environment 0ms)\n\n",
+      "counts": {
+        "testFilesPassed": 4,
+        "testFilesFailed": 1,
+        "testsPassed": 75,
+        "testsFailed": 6,
+        "testsSkipped": 0,
+        "totalTests": 81
+      },
+      "classification": "targeted API contracts"
+    },
+    {
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/routes.test.ts --maxWorkers 1 -t intake",
+      "cwd": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "exitCode": 0,
+      "output": "\n RUN  v4.1.10 /private/tmp/ccc299-central-verification-gt2y3_a5\n\n ✓ apps/api/test/routes.test.ts (85 tests | 78 skipped) 14933ms\n     ✓ shows one overall goal to both the intake context and the 15-second page (D62 · CCC-68)  4234ms\n     ✓ carries the linked appointment on the intake context and completes it on POST (CCC-57)  1743ms\n     ✓ serves the intake context and stores an intake record once, replaying identical resubmissions (CCC-7)  1985ms\n     ✓ returns 400 for nonstring intake channels on POST without mutation  1278ms\n     ✓ returns 400 for nonstring intake channels on PUT without mutation  1569ms\n     ✓ returns versioned intake history, rejects stale edits, and preserves read-only access  2084ms\n     ✓ keeps intake 400, 403 and 409 refusals distinct and leaves every failed write unchanged  2039ms\n\n Test Files  1 passed (1)\n      Tests  7 passed | 78 skipped (85)\n   Start at  03:52:05\n   Duration  15.84s (transform 362ms, setup 0ms, import 840ms, tests 14.93s, environment 0ms)\n\n",
+      "counts": {
+        "testFilesPassed": 1,
+        "testFilesFailed": 0,
+        "testsPassed": 7,
+        "testsFailed": 0,
+        "testsSkipped": 78,
+        "totalTests": 85
+      },
+      "classification": "intake route filter"
+    },
+    {
+      "command": "pnpm --filter @ccc/api run typecheck",
+      "cwd": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "exitCode": 0,
+      "output": "$ pnpm --workspace-root exec tsc --noEmit --project apps/api/tsconfig.json\n",
+      "counts": {
+        "testFilesPassed": 0,
+        "testFilesFailed": 0,
+        "testsPassed": 0,
+        "testsFailed": 0,
+        "testsSkipped": 0,
+        "totalTests": 0
+      },
+      "classification": "API typecheck"
+    },
+    {
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts artifacts/orchestration/ccc299-core-lifecycle-smoke.test.ts --maxWorkers 1",
+      "cwd": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "exitCode": 1,
+      "output": "\n RUN  v4.1.10 /private/tmp/ccc299-central-verification-gt2y3_a5\n\nNo test files found, exiting with code 1\n\nfilter: artifacts/orchestration/ccc299-core-lifecycle-smoke.test.ts\ninclude: apps/api/test/**/*.test.ts\nexclude:  **/node_modules/**, **/.git/**\n\n",
+      "counts": {
+        "testFilesPassed": 0,
+        "testFilesFailed": 0,
+        "testsPassed": 0,
+        "testsFailed": 0,
+        "testsSkipped": 0,
+        "totalTests": 0
+      },
+      "classification": "original frozen smoke path: harness-placement failure"
+    },
+    {
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts apps/api/test/database-parity.test.ts --maxWorkers 1",
+      "cwd": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "exitCode": 0,
+      "output": "\n RUN  v4.1.10 /private/tmp/ccc299-central-verification-gt2y3_a5\n\n ✓ apps/api/test/migration-parity.test.ts (1 test) 9484ms\n     ✓ verifies every checkpoint read-only, or explicitly generates only after semantic proofs pass  7978ms\n ✓ apps/api/test/database-parity.test.ts (1 test) 6814ms\n     ✓ persists, re-reads, audits and rolls back identical business operations on all three real engines  5410ms\n\n Test Files  2 passed (2)\n      Tests  2 passed (2)\n   Start at  03:58:11\n   Duration  17.67s (transform 299ms, setup 0ms, import 1.23s, tests 16.30s, environment 0ms)\n\n",
+      "counts": {
+        "testFilesPassed": 2,
+        "testFilesFailed": 0,
+        "testsPassed": 2,
+        "testsFailed": 0,
+        "testsSkipped": 0,
+        "totalTests": 2
+      },
+      "classification": "non-update migration and database parity"
+    },
+    {
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/ccc299-core-lifecycle-smoke.test.ts --maxWorkers 1",
+      "cwd": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "exitCode": 1,
+      "output": "\n RUN  v4.1.10 /private/tmp/ccc299-central-verification-gt2y3_a5\n\n ❯ apps/api/test/ccc299-core-lifecycle-smoke.test.ts (0 test)\n\n⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  apps/api/test/ccc299-core-lifecycle-smoke.test.ts [ apps/api/test/ccc299-core-lifecycle-smoke.test.ts ]\nError: [seed] SEED_PROFILE=preview 가 필요합니다. 가상 시드는 로컬 disposable preview와 ccc-preview 전용입니다.\n ❯ scripts/seed/content.ts:529:9\n    527|\n    528| if (process.env.SEED_PROFILE !== 'preview') {\n    529|   throw new Error(\n       |         ^\n    530|     '[seed] SEED_PROFILE=preview 가 필요합니다. 가상 시드는 로컬 disposable preview…\n    531|   );\n ❯ scripts/seed/scenario.ts:43:1\n ❯ apps/api/test/ccc299-core-lifecycle-smoke.test.ts:16:1\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed (1)\n      Tests  no tests\n   Start at  03:59:28\n   Duration  885ms (transform 336ms, setup 0ms, import 0ms, tests 0ms, environment 0ms)\n\n",
+      "classification": "corrected included-path smoke: missing required preview profile",
+      "counts": {
+        "testFilesPassed": 0,
+        "testFilesFailed": 1,
+        "testsPassed": 0,
+        "testsFailed": 0,
+        "testsSkipped": 0,
+        "totalTests": 0
+      }
+    },
+    {
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/ccc299-core-lifecycle-smoke.test.ts --maxWorkers 1",
+      "cwd": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "exitCode": 1,
+      "output": "\n RUN  v4.1.10 /private/tmp/ccc299-central-verification-gt2y3_a5\n\nstdout | apps/api/test/ccc299-core-lifecycle-smoke.test.ts > CCC-299 central lifecycle smoke > matches the frozen lifecycle over encrypted SQLite and PostgreSQL\nCCC299_LIFECYCLE_MATRIX [{\"profile\":\"sqlite\",\"createStatus\":201,\"getStatus\":200,\"editStatus\":200,\"reorderStatus\":200,\"omissionStatus\":200,\"withdrawalStatus\":200,\"confirmationStatus\":201,\"contextStatus\":200,\"recordsStatus\":200,\"reportStatus\":200,\"intakeSessionId\":\"9724d16c-0037-479a-abc0-5e75d72b9914\",\"firstQuestionId\":\"4b17010c-9796-4a33-b809-af45c1b955bf\",\"withdrawnQuestionId\":\"6f8e0266-8a03-4a63-b151-1f53e43ffb82\",\"intakeRevision\":5,\"openQuestionCount\":0,\"confirmedQuestionCount\":1,\"withdrawnQuestionCount\":1,\"officialRecordCount\":2,\"reportNextConfirmationCount\":0},{\"profile\":\"postgres\",\"createStatus\":201,\"getStatus\":200,\"editStatus\":200,\"reorderStatus\":200,\"omissionStatus\":200,\"withdrawalStatus\":200,\"confirmationStatus\":201,\"contextStatus\":200,\"recordsStatus\":200,\"reportStatus\":200,\"intakeSessionId\":\"6f4ddddb-325f-4aba-a6aa-7c72a561b5ba\",\"firstQuestionId\":\"8ffd730e-abd3-478f-9a50-509423b341a0\",\"withdrawnQuestionId\":\"9515803b-9270-4390-8ced-2f60f9a95649\",\"intakeRevision\":5,\"openQuestionCount\":0,\"confirmedQuestionCount\":1,\"withdrawnQuestionCount\":1,\"officialRecordCount\":2,\"reportNextConfirmationCount\":0}]\n\n ❯ apps/api/test/ccc299-core-lifecycle-smoke.test.ts (2 tests | 1 failed) 6363ms\n     × runs the real seed producer without generator output 3152ms\n     ✓ matches the frozen lifecycle over encrypted SQLite and PostgreSQL  1803ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  apps/api/test/ccc299-core-lifecycle-smoke.test.ts > CCC-299 central lifecycle smoke > runs the real seed producer without generator output\nError: input is invalid\n ❯ assertExactKeys packages/core/src/gateway.ts:13416:11\n    13414|   const expectedKeys = [...expected].sort();\n    13415|   if (keys.length !== expectedKeys.length || keys.some((key, index) =>…\n    13416|     throw new ValidationError('input is invalid');\n       |           ^\n    13417|   }\n    13418| }\n ❯ createBeneficiaryWithInitialSupportCase packages/core/src/gateway.ts:14765:3\n ❯ runParticipant scripts/seed/scenario.ts:136:20\n ❯ runScenario scripts/seed/scenario.ts:317:17\n ❯ apps/api/test/ccc299-core-lifecycle-smoke.test.ts:247:23\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed (1)\n      Tests  1 failed | 1 passed (2)\n   Start at  03:59:45\n   Duration  7.25s (transform 353ms, setup 0ms, import 824ms, tests 6.36s, environment 0ms)\n\n",
+      "classification": "corrected included-path smoke with required preview profile",
+      "environmentKeys": [
+        "SEED_PROFILE"
+      ],
+      "counts": {
+        "testFilesPassed": 0,
+        "testFilesFailed": 1,
+        "testsPassed": 1,
+        "testsFailed": 1,
+        "testsSkipped": 0,
+        "totalTests": 2
+      }
+    },
+    {
+      "command": "pnpm guard:db",
+      "cwd": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "exitCode": 0,
+      "output": "$ node scripts/guard-db-gateway.mjs\nDB gateway guard passed.\n",
+      "counts": {
+        "testFilesPassed": 0,
+        "testFilesFailed": 0,
+        "testsPassed": 0,
+        "testsFailed": 0,
+        "testsSkipped": 0,
+        "totalTests": 0
+      },
+      "classification": "database gateway guard"
+    },
+    {
+      "command": "pnpm guard:core-imports",
+      "cwd": "/tmp/ccc299-central-verification-gt2y3_a5",
+      "exitCode": 0,
+      "output": "$ node scripts/guard-core-imports.mjs\ncore import guard passed.\n",
+      "counts": {
+        "testFilesPassed": 0,
+        "testFilesFailed": 0,
+        "testsPassed": 0,
+        "testsFailed": 0,
+        "testsSkipped": 0,
+        "totalTests": 0
+      },
+      "classification": "core import guard"
+    }
+  ],
+  "observableScenarioMatrix": [
+    {
+      "profile": "sqlite",
+      "createStatus": 201,
+      "getStatus": 200,
+      "editStatus": 200,
+      "reorderStatus": 200,
+      "omissionStatus": 200,
+      "withdrawalStatus": 200,
+      "confirmationStatus": 201,
+      "contextStatus": 200,
+      "recordsStatus": 200,
+      "reportStatus": 200,
+      "intakeSessionId": "9724d16c-0037-479a-abc0-5e75d72b9914",
+      "firstQuestionId": "4b17010c-9796-4a33-b809-af45c1b955bf",
+      "withdrawnQuestionId": "6f8e0266-8a03-4a63-b151-1f53e43ffb82",
+      "intakeRevision": 5,
+      "openQuestionCount": 0,
+      "confirmedQuestionCount": 1,
+      "withdrawnQuestionCount": 1,
+      "officialRecordCount": 2,
+      "reportNextConfirmationCount": 0
+    },
+    {
+      "profile": "postgres",
+      "createStatus": 201,
+      "getStatus": 200,
+      "editStatus": 200,
+      "reorderStatus": 200,
+      "omissionStatus": 200,
+      "withdrawalStatus": 200,
+      "confirmationStatus": 201,
+      "contextStatus": 200,
+      "recordsStatus": 200,
+      "reportStatus": 200,
+      "intakeSessionId": "6f4ddddb-325f-4aba-a6aa-7c72a561b5ba",
+      "firstQuestionId": "8ffd730e-abd3-478f-9a50-509423b341a0",
+      "withdrawnQuestionId": "9515803b-9270-4390-8ced-2f60f9a95649",
+      "intakeRevision": 5,
+      "openQuestionCount": 0,
+      "confirmedQuestionCount": 1,
+      "withdrawnQuestionCount": 1,
+      "officialRecordCount": 2,
+      "reportNextConfirmationCount": 0
+    }
+  ],
+  "observableScenarioSummary": {
+    "encryptedSqliteLifecyclePassed": true,
+    "postgresLifecyclePassed": true,
+    "crossDatabaseNormalizedObservationsMatched": true,
+    "seedProducerPassed": false,
+    "generatorOutputCreated": false
+  },
+  "harnessFailures": [
+    {
+      "code": "SMOKE_PATH_OUTSIDE_VITEST_INCLUDE",
+      "commandIndex": 4,
+      "observed": "exit 1, no test files found",
+      "cause": "apps/api/vitest.config.ts includes only apps/api/test/**/*.test.ts",
+      "disposition": "Preserved as the requested harness-placement failure; corrected path run recorded separately."
+    },
+    {
+      "code": "SMOKE_PREVIEW_PROFILE_MISSING",
+      "commandIndex": 6,
+      "observed": "exit 1, suite import failed before tests",
+      "cause": "scripts/seed/content.ts requires SEED_PROFILE=preview at module load",
+      "disposition": "Reran the identical corrected command with only SEED_PROFILE present; no credential value was used."
+    }
+  ],
+  "sourceFailures": [
+    {
+      "code": "PARTICIPANT_P3_STALE_INTAKE_UPDATE_ENVELOPE",
+      "evidence": {
+        "path": "apps/api/test/participant-p3.contract.test.ts",
+        "lines": "251-252",
+        "observed": "six cases returned HTTP 400 before permission-specific 200/403/409 assertions",
+        "cause": "the unchanged test still sends schemaVersion 2 and omits mandatory envelope-3 additionalItemRefs and questionWithdrawals"
+      },
+      "backendHandback": "Migrate only the participant-p3 intake PUT fixture to schemaVersion 3 with explicit additionalItemRefs: [] and questionWithdrawals: [], then rerun the frozen targeted command. The current CCC-299 freeze excludes this path, so controller ownership expansion or refreeze is required before BACKEND edits it."
+    },
+    {
+      "code": "SEED_PRODUCER_STALE_PARTICIPANT_REGISTRATION_CALL",
+      "evidence": {
+        "path": "scripts/seed/scenario.ts",
+        "lines": "136-151",
+        "observed": "runScenario failed in assertExactKeys before creating the first participant",
+        "cause": "the seed producer still passes legacy programType and a discarded fifth consent argument, while createBeneficiaryWithInitialSupportCase requires programId, idempotencyKey, and consentEvents in the input object"
+      },
+      "backendHandback": "Cut the seed producer over to the current registration contract and ensure createCaptureHarness provisions the required synthetic admitted program and disclosure inputs, without invoking scripts/seed/generate.ts. Then rerun the corrected included-path smoke. Any needed path beyond scripts/seed/scenario.ts requires controller refreeze."
+    }
+  ],
+  "backendHandbackRequired": true,
+  "gateSummary": {
+    "writerParityUpdate": "PASS",
+    "targetedApiContracts": "FAIL_6_OF_81",
+    "intakeRouteFilter": "PASS_7_SKIPPED_78",
+    "apiTypecheck": "PASS",
+    "originalSmokeInvocation": "HARNESS_PLACEMENT_FAIL_NO_TESTS",
+    "correctedLifecycleMatrix": "PASS_2_DATABASES",
+    "correctedSeedProducer": "FAIL_BEFORE_FIRST_PARTICIPANT",
+    "nonUpdateMigrationAndDatabaseParity": "PASS_2_OF_2",
+    "databaseGatewayGuard": "PASS",
+    "coreImportGuard": "PASS",
+    "allEnumeratedGateResultsCollected": true,
+    "candidateVerified": false
+  },
+  "cleanup": {
+    "sandboxExists": false,
+    "remainingCreatedContainerIds": [],
+    "preexistingContainerIdsMissing": [],
+    "worktreeStatusDeltaCountBeforeResultWrite": 0,
+    "worktreeStatusDeltasBeforeResultWrite": {},
+    "controllerParitySha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0",
+    "controllerParityMatchesGenerated": true
+  },
+  "sourceEditsMade": false,
+  "deployed": false,
+  "pushed": false,
+  "ownedJobs": 0,
+  "allResultsCollected": true
+}

@@ -1,0 +1,42 @@
+{
+  "observedAt": "2026-09-13T12:50:54.344Z",
+  "bashEnvironment": {
+    "HERDR_PANE_ID": "w1N:p1",
+    "WEZTERM_PANE": "1"
+  },
+  "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+  "branch": "orchestrate/beta-0.9",
+  "head": "3dff4d0ceb7cf2458a23f349afe31230400aefe0",
+  "paneId": "w1N:p1",
+  "session": {
+    "agent": "omp",
+    "kind": "path",
+    "source": "herdr:omp",
+    "value": "/Users/seongqkim/.omp/agent/sessions/-DEVELOPER-PROJECTS-CCC-new-.worktrees-beta-0.9-orchestrator/2026-09-13T12-43-45-087Z_01a09acb-883e-7562-88b7-ec7db8a87ef8.jsonl"
+  },
+  "agentStatus": "working",
+  "foregroundCwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+  "shellPid": 68086,
+  "foregroundProcessGroupId": 85024,
+  "processes": [
+    {
+      "pid": 80430,
+      "name": "gh",
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator"
+    },
+    {
+      "pid": 85024,
+      "name": "omp",
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator"
+    }
+  ],
+  "sessionId": "01a09acb-883e-7562-88b7-ec7db8a87ef8",
+  "matches": {
+    "bashPane": true,
+    "livePane": true,
+    "session": true,
+    "cwd": true,
+    "branch": true,
+    "ompProcess": true
+  }
+}

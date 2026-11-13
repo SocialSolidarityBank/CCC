@@ -1,0 +1,48 @@
+{
+  "observedAt": "2026-09-13T13:43:58.739Z",
+  "ownedFiniteCommands": [
+    {
+      "command": [
+        "/Users/seongqkim/.local/share/mise/installs/node/lts/bin/node",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source/node_modules/vitest/vitest.mjs",
+        "run",
+        "--config",
+        "apps/api/vitest.config.ts",
+        "apps/api/test/identity-supabase.test.ts",
+        "--maxWorkers=1",
+        "-t",
+        "verifies both asymmetric algorithms and takes identity/roles|rejects absent/malformed Bearer, algorithm downgrade|rejects unsafe installation endpoints"
+      ],
+      "exitCode": 0,
+      "finishedAt": "2026-09-13T13:36:40.811Z"
+    },
+    {
+      "command": [
+        "/Users/seongqkim/.bun/bin/bun",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/fixture-seam.mjs",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental"
+      ],
+      "exitCode": 0,
+      "finishedAt": "2026-09-13T13:38:18.261Z"
+    }
+  ],
+  "allFiniteCommandsCollected": true,
+  "backgroundJobs": 0,
+  "hubJobReadback": "No background jobs.",
+  "ownedBrowserContextsStarted": 0,
+  "ownedAuthOrHttpServicesStarted": 0,
+  "manualWorkerRegistrations": 0,
+  "testMiniflareLifecycle": "Existing fixture awaits context and template disposal; original targeted Vitest process exited 0.",
+  "runtime": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv",
+  "runtimeRemoved": true,
+  "originalSourceFilesUnchanged": 457,
+  "acceptedFirstAuditHashesUnchanged": 32,
+  "acceptedPriorResultUnchanged": true,
+  "originalWipFilesUnchanged": 38,
+  "privateKeysOrTokensPersisted": false,
+  "unownedProcessesStopped": false,
+  "globalOrProductConfigurationChanged": false,
+  "postCleanupSourceHashMismatches": [],
+  "postCleanupAcceptedEvidenceHashMismatches": []
+}

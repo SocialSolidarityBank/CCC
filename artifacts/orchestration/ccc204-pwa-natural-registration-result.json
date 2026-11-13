@@ -1,0 +1,392 @@
+{
+  "assignmentId": "ccc204-pwa-natural-registration-20260913",
+  "workerPaneId": "w1N:p1",
+  "workerSessionId": "01a09acb-883e-7562-88b7-ec7db8a87ef8",
+  "status": "blocked",
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "ticket": "CCC-204",
+  "sameTicketFollowup": true,
+  "ticketDone": false,
+  "priorResultPreserved": "artifacts/orchestration/ccc204-pwa-acceptance-result.json",
+  "correctionToPriorRecommendation": "Natural application-triggered registration remains CCC-204 acceptance work. CCC-212 completion and production credentials are not prerequisites. The actual blocker is a missing supported synthetic browser/Identity integration harness.",
+  "identityEvidence": {
+    "observedAt": "2026-09-13T13:31:06.863Z",
+    "pane": "w1N:p1",
+    "sessionId": "01a09acb-883e-7562-88b7-ec7db8a87ef8",
+    "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+    "foregroundCwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+    "branch": "orchestrate/beta-0.9",
+    "processes": [
+      {
+        "pid": 34831,
+        "name": "gh",
+        "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator"
+      },
+      {
+        "pid": 85024,
+        "name": "omp",
+        "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator"
+      }
+    ],
+    "sourceHead": "f7194dc88064455f3eb6be02abb5aae836981612",
+    "matches": true,
+    "path": "artifacts/ccc204-pwa/supplemental/identity.json",
+    "sameOmpPid": 85024,
+    "noSessionReset": true
+  },
+  "sourceAndFixtureProvenance": {
+    "sourceWorktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+    "sourceCommit": "f7194dc88064455f3eb6be02abb5aae836981612",
+    "sourceFilesPinned": 457,
+    "hashes": "artifacts/ccc204-pwa/supplemental/source-pin.json",
+    "candidateAssessment": "artifacts/ccc204-pwa/supplemental/fixture-provenance.json",
+    "signedInstallation": {
+      "fixture": "apps/api/test/support/install-manifest.ts:15-19,63-64",
+      "clientVerification": "apps/client/src/business/installation.ts:38-77",
+      "outcome": "PASS: existing fixture creates a valid ephemeral Ed25519-signed installation accepted through the actual client verifier and bootstrap match.",
+      "publicKeyFingerprints": {
+        "test-key-2026-09": "9ac906d46221e8576224cdea1c9a5f2b01f2fd6152bca5940f49b96cee214481"
+      },
+      "evidence": "artifacts/ccc204-pwa/supplemental/fixture-seam.json"
+    },
+    "backendIdentity": {
+      "fixture": "apps/api/test/identity-supabase.test.ts:17-56,63-72,112-141",
+      "directory": "apps/api/test/support/d1.ts:264-336,362-387",
+      "outcome": "PASS: 7 selected original tests. ES256 and RS256 credentials pass actual verification and linked-directory role resolution; invalid algorithms and unsafe endpoint configurations are rejected.",
+      "notClaimed": "These unit/adapter paths are not a browser HTTP authentication runtime or natural PWA registration."
+    },
+    "ineligibleBrowserCandidates": [
+      {
+        "source": "apps/client/src/business/auth.test.ts:24-93",
+        "reason": "Private unit helper injects a fetcher and returns placeholder HS256 sessions, not a browser-facing cryptographically valid issuer."
+      },
+      {
+        "source": "apps/client/tools/synthetic-api.mjs:175-233,291-316",
+        "reason": "Arbitrary-login preview emits placeholder HS256; API checks only presence of Authorization and manufactures /capabilities and /me. No actual Identity/directory verification."
+      },
+      {
+        "source": "apps/client/tools/synthetic-preview.mjs:28-30,52-60,94-105",
+        "reason": "Loopback Auth origin with a port is also rejected by the real adapter issuer constraint."
+      },
+      {
+        "source": "apps/api/test/community-cloud-runtime.test.ts:19-50,110-133",
+        "reason": "The unit runtime deliberately substitutes an attestation-only database. Its valid-token /me case expects 503, so it cannot provide the needed real business-shell response."
+      }
+    ],
+    "readOnlySearchScope": [
+      "apps",
+      "adapters",
+      "packages",
+      "scripts"
+    ],
+    "scopeReferences": [
+      "CCC_OPEN_PILOT_PLAN.md:277-285",
+      "docs/specs/S2-auth-capability-manifest.md:65-78,259-288,342-358"
+    ]
+  },
+  "actualGuardPath": [
+    {
+      "step": "Client installation trust",
+      "source": "apps/client/src/app.tsx:68-94 -> business/installation.ts:19-35,38-77",
+      "rule": "Trusted build key, Ed25519 signature, expiry, exact client/API/Auth origins and bootstrap match. Existing signed fixture passes."
+    },
+    {
+      "step": "SDK authentication state",
+      "source": "apps/client/src/business/auth.ts:69-128,137-185",
+      "rule": "Real SDK password grant, memory-only session, actual assurance/factors; no React/session injection. Supported browser-facing valid synthetic issuer is missing."
+    },
+    {
+      "step": "Backend credential and directory",
+      "source": "adapters/identity-supabase/src/verifier.ts:48-61,175-205 -> index.ts:52-69",
+      "rule": "Canonical HTTPS Supabase issuer/JWKS, ES256/RS256 signature/claims, linked active human and roles from directory. Original fixture tests pass; arbitrary preview format/origin fails."
+    },
+    {
+      "step": "Business session data",
+      "source": "apps/client/src/app.tsx:123-167; business/transport.ts:91-106; apps/community-cloud/src/runtime.ts:64-75,147-160",
+      "rule": "Bearer-protected decoded capabilities with installation binding, real /me and non-empty directory roles are required."
+    },
+    {
+      "step": "Natural registration trigger",
+      "source": "apps/client/src/app.tsx:182-188 -> business/service-worker.ts:12-35",
+      "rule": "Only mounted BusinessShell useEffect calls registerShellWorker in a production build. Not reached in this supplement; no manual call substituted."
+    }
+  ],
+  "naturalRegistrationEvidence": {
+    "status": "NOT_RUN_BLOCKED",
+    "evidence": "artifacts/ccc204-pwa/supplemental/natural-registration.json",
+    "freshBrowserProfileOpened": false,
+    "initialRegistrationCount": null,
+    "businessShellReached": false,
+    "applicationRegisterCallObserved": null,
+    "workerRequestObserved": null,
+    "activatedControllerObserved": null,
+    "workerIdentity": null,
+    "manualRegisterCalls": 0,
+    "reactRouterSessionInjection": false,
+    "authOrMeResponseInterception": false,
+    "reason": "The qualified HTTP authentication-to-real-Identity integration seam is absent. The eligible cryptographic fixtures work individually, but no approved existing browser runtime joins them."
+  },
+  "routingEvidence": {
+    "status": "NOT_RUN_BLOCKED",
+    "businessNavigationObserved": false,
+    "reloadBoundaryObserved": false,
+    "reason": "No compliant synthetic authenticated BusinessShell context was reached. Prior public routing evidence was preserved, not rerun or relabelled as business routing proof."
+  },
+  "commandsAndExitCodes": [
+    {
+      "command": [
+        "/Users/seongqkim/.local/share/mise/installs/node/lts/bin/node",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source/node_modules/vitest/vitest.mjs",
+        "run",
+        "--config",
+        "apps/api/vitest.config.ts",
+        "apps/api/test/identity-supabase.test.ts",
+        "--maxWorkers=1",
+        "-t",
+        "verifies both asymmetric algorithms and takes identity/roles|rejects absent/malformed Bearer, algorithm downgrade|rejects unsafe installation endpoints"
+      ],
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source",
+      "startedAt": "2026-09-13T13:36:35.824Z",
+      "finishedAt": "2026-09-13T13:36:40.811Z",
+      "exitCode": 0,
+      "signal": null,
+      "stdoutSha256": "50e4cad4cd01a4ab7d3ef20b7b165d9b963f290370cdc4f6933e335bec80392d",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "summary": [
+        " Test Files  1 passed (1)",
+        "      Tests  7 passed | 29 skipped (36)",
+        "   Start at  22:36:36",
+        "   Duration  4.61s (transform 295ms, setup 0ms, import 847ms, tests 3.67s, environment 0ms)"
+      ],
+      "rawOutputPersisted": false
+    },
+    {
+      "command": [
+        "/Users/seongqkim/.bun/bin/bun",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/fixture-seam.mjs",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental"
+      ],
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source",
+      "startedAt": "2026-09-13T13:38:18.121Z",
+      "finishedAt": "2026-09-13T13:38:18.261Z",
+      "exitCode": 0,
+      "summary": {
+        "executedAgainst": "unmodified pinned fixture helper, client installation verifier and backend JWT verifier",
+        "signedInstallationAccepted": true,
+        "manifestReads": 1,
+        "bootstrapReads": 1,
+        "publicKeyFingerprints": {
+          "test-key-2026-09": "9ac906d46221e8576224cdea1c9a5f2b01f2fd6152bca5940f49b96cee214481"
+        },
+        "previewTokenShapeRejected": true,
+        "previewTokenError": "ActorAuthenticationError",
+        "jwksReads": 0,
+        "previewLoopbackIssuerRejected": true,
+        "previewOriginError": "IdentityStoreUnavailableError",
+        "privateKeysAndTokensPersisted": false,
+        "browserOrAuthServerStarted": false,
+        "naturalRegistrationObserved": false
+      },
+      "rawSecretsPersisted": false
+    }
+  ],
+  "preservedEvidenceHashes": {
+    "evidenceCount": 32,
+    "allUnchanged": true,
+    "verification": "artifacts/ccc204-pwa/supplemental/preservation.json",
+    "acceptedHashes": {
+      "artifacts/ccc204-pwa/cleanup.json": "b48feba9e93479083eb4cd24035e740260ef0c011beaa7851a8adce4be641034",
+      "artifacts/ccc204-pwa/runtime-inventory.json": "0e87602881d7da8e76e3aaff38417d3abb55ea5359f28760877e17ff512b1d2d",
+      "artifacts/ccc204-pwa/preservation.json": "68c617e7b2bac9604c5c27cda5da4d927c83c788f9263d079402ac5033f59b9e",
+      "artifacts/ccc204-pwa/browser-cleanup.json": "66bd24e7280f53019c2cb9f26a30c69a458e7dc2182287fac0060c0561f546bb",
+      "artifacts/ccc204-pwa/acceptance-checks.json": "ccac49a49b6cb254eaa7baab98598e1d9e247209e3a55b9d0fc449420c9c3d46",
+      "artifacts/ccc204-pwa/worker-offline.json": "8aed7dd8a40fb555d32b16e208470e6d79bdf11a47f8a4b83be712768eab6b88",
+      "artifacts/ccc204-pwa/worker-online.json": "3df5a37d538fcf9d4b621cac4d3671430738cfbcb9d860d71494b0f6fd754ef1",
+      "artifacts/ccc204-pwa/offline-check.mjs": "e0bd3e571581087841cbfa88aab8dea7f5f9ed48dcc0d844f0a908cb591df81d",
+      "artifacts/ccc204-pwa/cache-check.mjs": "9799139df2f7e245ffc4880825288eaa0cb26d326f1341afcb7f0c2a0ce65945",
+      "artifacts/ccc204-pwa/online-verdict.json": "79f17149152fd58900e579eab7ba9d58bd0016199a1721804ef33137b50a8f78",
+      "artifacts/ccc204-pwa/offline-observer-error.json": "943a253f118977716917de7f61d2ad6e6eb24c48865d7e48492e429c338f2a3b",
+      "artifacts/ccc204-pwa/worker-online-isolated-observer.json": "ae78c7a04913d776dd20e3cfa8ad7165989a786f74126f8a2dfcc7d8c5818bd1",
+      "artifacts/ccc204-pwa/browser-module-cache-error.json": "9e0a089b2aeff7451082236921b27db6207c6cddd3b00a5d321839c5854fa182",
+      "artifacts/ccc204-pwa/worker-ready-main-world.json": "3b9993d2ac2605694f0fefdf91d7e56b35007b562bd2b0253223395303ece9ce",
+      "artifacts/ccc204-pwa/worker-observer-error.json": "776a21d853c49553914be722392bcbbcfe696df7e5de40d43666e1f0bd1fa14c",
+      "artifacts/ccc204-pwa/visual-observation.json": "73d964205bb52260ac7d3d0a6110c09b3f9b71b6235f1cf97be9dc78660b58c4",
+      "artifacts/ccc204-pwa/visual.json": "7d1077b7533a433b54a9e3a0d93c70507e678a9ff07e76d31c84e0146b0213fa",
+      "artifacts/ccc204-pwa/direct-routes.json": "9ba9355e529c1eb56d86c6ce741b1944b00a6b05eb4c288c2d44c445c52db29d",
+      "artifacts/ccc204-pwa/router-navigation.json": "df8f2a915c1930b4f1a9ae1dd845f4319380118e8f7f2a2fbbfcf65b61ac3875",
+      "artifacts/ccc204-pwa/browser-baseline.json": "b338a6e95915c6b8c414a485863bc49e73601239e64f9262c2ec686f15dad7a4",
+      "artifacts/ccc204-pwa/source-findings.json": "ddbbf4d15a4ffdb104279e5771f67491b7ca18215e91508b2e9ac9e96779dc62",
+      "artifacts/ccc204-pwa/server.mjs": "287144e47b7927231c53274ffb295ccf2012b7d3bbfdea77e91eb11a6ceef07b",
+      "artifacts/ccc204-pwa/commands.json": "948a5be57d96b5801346b003489337b0d065ece9ba10f3eea345ba7adf7c755b",
+      "artifacts/ccc204-pwa/import-closure.json": "be4956fbb7a8f3877aada2b00fd32c7f16bdd4661eb101bbc1381b81a3f48afe",
+      "artifacts/ccc204-pwa/resolved-imports.json": "95cf5f85405cc79fe920721175a7854b0296cc3e3d788229c31a19d08b8c6b88",
+      "artifacts/ccc204-pwa/build.mjs": "596fab8a769c97263c4c9b70ca431c72a1249fa44850eb07bbda2a029c5dedc1",
+      "artifacts/ccc204-pwa/runtime-setup.json": "272134be1f27184c0e3f385789de9a7260fae7c9102fa025531486f9673eb963",
+      "artifacts/ccc204-pwa/source-pin.json": "0a9da08805908b8213a9ebffc397bb70a0320c3efc4fcdcf9b1d474dffe5b9ee",
+      "artifacts/ccc204-pwa/identity.json": "aa1e1a0de5fd638ed67e5cfed4e2c9bcd9b9219050e0b3f37281191f1b9643bd",
+      "artifacts/ccc204-pwa/identity.mjs": "22939cd5c6e6cbd277d383e89a699102a9b41ace434063b6be145c3002758cc4",
+      "artifacts/ccc204-pwa/review.json": "24d187e1e3b05934faddfaa6ef141bf77e564b00f375e9284361ae67e2816b8e",
+      "docs/superpowers/plans/2026-09-13-CCC-204-vite-pwa-verification.md": "476f3c1f35de0e7cbd443c0f776e9ab17a039022935e582ce533c6cbf65fd376"
+    },
+    "priorResultSha256": "56f9d94f38092a5655e2d77429d1571a493579340d74f9a538552e91fa81b876",
+    "priorResultUnchanged": true,
+    "postCleanupMismatchCount": 0
+  },
+  "gapsWithOwners": [
+    {
+      "id": "supported-synthetic-http-auth-identity-seam",
+      "owner": "Existing frontend integration fixture owner w1M:p2, with the existing API/Identity harness owner",
+      "blockingAcceptance": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "exactMissingSeam": "Browser password/session/user endpoints issuing valid non-production ES256/RS256 credentials, joined to actual backend Identity, a real fixture directory and handleRequest/gateway /capabilities and /me, under a valid signed installation.",
+      "sourceEvidence": [
+        "apps/client/src/business/auth.ts:69-128,137-185",
+        "apps/client/src/app.tsx:123-188",
+        "apps/client/tools/synthetic-api.mjs:175-233,291-316",
+        "adapters/identity-supabase/src/verifier.ts:48-61,175-205",
+        "apps/api/test/identity-supabase.test.ts:17-72"
+      ],
+      "runtimeEvidence": "Existing preview-shaped HS256 is rejected with ActorAuthenticationError without fetching JWKS; its loopback issuer is rejected with IdentityStoreUnavailableError. Valid signed installation and real Identity fixtures separately pass.",
+      "smallestOwnerScopedRemedy": "Supply an owner-reviewed browser-facing integration fixture connecting the existing cryptographic and directory fixtures. Validate fixture credentials, preserve issuer/signature/role verification, and route /me through the actual handler instead of a fixed response. Then rerun only natural registration and business navigation/cache observations for CCC-204.",
+      "notNeeded": [
+        "Live production keys or accounts",
+        "Completion of CCC-212",
+        "A second PWA scaffold",
+        "Signature/issuer relaxations or product code edits"
+      ],
+      "whyNotImplemented": "The assignment explicitly forbids a replacement/new auth implementation and arbitrary-login preview. No conformant existing network issuer/harness was found to reuse; writing one here would exceed the assigned scope."
+    }
+  ],
+  "acceptance": [
+    {
+      "criterion": 1,
+      "text": "Fresh isolated browser profile begins with no service-worker registration. Reach the real business shell using supported valid synthetic installation/authentication context without gate bypass.",
+      "status": "BLOCKED_NOT_RUN",
+      "evidence": "artifacts/ccc204-pwa/supplemental/natural-registration.json"
+    },
+    {
+      "criterion": 2,
+      "text": "The application itself invokes registration. Do not call navigator.serviceWorker.register manually, inject React/router/session state, replace source modules, or intercept auth or /me to fabricate successful responses. Observe /sw.js request, actual activated controller and emitted-worker identity from browser evidence.",
+      "status": "BLOCKED_NOT_RUN",
+      "evidence": "artifacts/ccc204-pwa/supplemental/natural-registration.json"
+    },
+    {
+      "criterion": 3,
+      "text": "Observe a relevant business route and its navigation/reload boundary under the synthetic context. Do not claim full business functionality or live Supabase login from synthetic results.",
+      "status": "BLOCKED_NOT_RUN",
+      "evidence": "artifacts/ccc204-pwa/supplemental/natural-registration.json"
+    },
+    {
+      "criterion": 4,
+      "text": "Confirm naturally registered worker still caches only emitted static assets/app shell. Reuse prior cache-policy evidence; rerun only what the new natural-registration scenario needs.",
+      "status": "BLOCKED_NOT_RUN",
+      "evidence": "artifacts/ccc204-pwa/supplemental/natural-registration.json"
+    },
+    {
+      "criterion": 5,
+      "text": "No original source/WIP/config/guard/test changes and no live resources or external AI/STT calls. Stop only owned services and browser contexts; retain inspectable sanitized supplemental evidence.",
+      "status": "PASS",
+      "evidence": "artifacts/ccc204-pwa/supplemental/cleanup.json"
+    },
+    {
+      "criterion": 6,
+      "text": "If a guard or missing runtime prevents this, record blocked evidence with exact source path, reason and owner. Never convert an unrun scenario into PASS.",
+      "status": "PASS",
+      "evidence": "artifacts/ccc204-pwa/supplemental/fixture-provenance.json"
+    }
+  ],
+  "cleanup": {
+    "observedAt": "2026-09-13T13:43:58.739Z",
+    "ownedFiniteCommands": [
+      {
+        "command": [
+          "/Users/seongqkim/.local/share/mise/installs/node/lts/bin/node",
+          "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source/node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "apps/api/vitest.config.ts",
+          "apps/api/test/identity-supabase.test.ts",
+          "--maxWorkers=1",
+          "-t",
+          "verifies both asymmetric algorithms and takes identity/roles|rejects absent/malformed Bearer, algorithm downgrade|rejects unsafe installation endpoints"
+        ],
+        "exitCode": 0,
+        "finishedAt": "2026-09-13T13:36:40.811Z"
+      },
+      {
+        "command": [
+          "/Users/seongqkim/.bun/bin/bun",
+          "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/fixture-seam.mjs",
+          "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source",
+          "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental"
+        ],
+        "exitCode": 0,
+        "finishedAt": "2026-09-13T13:38:18.261Z"
+      }
+    ],
+    "allFiniteCommandsCollected": true,
+    "backgroundJobs": 0,
+    "hubJobReadback": "No background jobs.",
+    "ownedBrowserContextsStarted": 0,
+    "ownedAuthOrHttpServicesStarted": 0,
+    "manualWorkerRegistrations": 0,
+    "testMiniflareLifecycle": "Existing fixture awaits context and template disposal; original targeted Vitest process exited 0.",
+    "runtime": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv",
+    "runtimeRemoved": true,
+    "originalSourceFilesUnchanged": 457,
+    "acceptedFirstAuditHashesUnchanged": 32,
+    "acceptedPriorResultUnchanged": true,
+    "originalWipFilesUnchanged": 38,
+    "privateKeysOrTokensPersisted": false,
+    "unownedProcessesStopped": false,
+    "globalOrProductConfigurationChanged": false,
+    "postCleanupSourceHashMismatches": [],
+    "postCleanupAcceptedEvidenceHashMismatches": []
+  },
+  "unverified": [
+    "Fresh-profile natural worker registration, activated control and exact emitted-worker identity in the unmodified business application.",
+    "Business-route navigation and reload under valid synthetic authentication.",
+    "Cache entries produced by natural registration; prior emitted-worker policy proof is still preserved but does not substitute for this scenario.",
+    "Browser TLS/local hostname binding for a future conformant synthetic network runtime. No browser trust-store or hostname settings were changed.",
+    "Live hosted Supabase authentication and full CCC-212 behavior remain outside this CCC-204 supplement.",
+    "29 tests in the selected Identity file were not selected by the focused name filter. No full project suite, previously passing PWA build or design guard was repeated."
+  ],
+  "touchedFiles": [
+    "artifacts/ccc204-pwa/supplemental/cleanup.json",
+    "artifacts/ccc204-pwa/supplemental/commands.json",
+    "artifacts/ccc204-pwa/supplemental/fixture-provenance.json",
+    "artifacts/ccc204-pwa/supplemental/fixture-seam.json",
+    "artifacts/ccc204-pwa/supplemental/fixture-seam.mjs",
+    "artifacts/ccc204-pwa/supplemental/guard-path.json",
+    "artifacts/ccc204-pwa/supplemental/identity.json",
+    "artifacts/ccc204-pwa/supplemental/natural-registration.json",
+    "artifacts/ccc204-pwa/supplemental/preservation.json",
+    "artifacts/ccc204-pwa/supplemental/review.json",
+    "artifacts/ccc204-pwa/supplemental/runtime-inventory.json",
+    "artifacts/ccc204-pwa/supplemental/scope.json",
+    "artifacts/ccc204-pwa/supplemental/source-pin.json",
+    "artifacts/orchestration/ccc204-pwa-natural-registration-result.json"
+  ],
+  "supplementalEvidenceHashes": {
+    "artifacts/ccc204-pwa/supplemental/cleanup.json": "ad33968731dd27fed9ae8f817dca646b5c4fb7dbf48ef632066410a3904e8a64",
+    "artifacts/ccc204-pwa/supplemental/review.json": "b3842e14e7da71a631b4005da98d71ed18d40c6c4870f814fe8d6a52bd948069",
+    "artifacts/ccc204-pwa/supplemental/runtime-inventory.json": "41a15b880d41156bc804bb2a2c5a68413404bea3a9212264646f3aaf0bba2726",
+    "artifacts/ccc204-pwa/supplemental/preservation.json": "e795687d95db2c4463b1ca0a61ef013679d1f3a599ebae9d08e7b0de9e2c79ad",
+    "artifacts/ccc204-pwa/supplemental/fixture-provenance.json": "2fb1c615ae6ad685f3fa516f218771c3bf7c6da9fdc78b793e18e31878075533",
+    "artifacts/ccc204-pwa/supplemental/guard-path.json": "492a12f1af506718f891235a8dd8ec67fa1e20116b8bebb36b6213974529992b",
+    "artifacts/ccc204-pwa/supplemental/natural-registration.json": "7e729ec3f98695374b168f3aeca953efca715a2838edcbb675763eab4289d233",
+    "artifacts/ccc204-pwa/supplemental/commands.json": "1c78ada193b7bf2d0b90bb1eb1482afcbb19b5c9ea25abcbbc529318eaab2e70",
+    "artifacts/ccc204-pwa/supplemental/fixture-seam.json": "943e406d4b1072aaecab7951ef1f64b64609fe1960fc1903120694a1f5a4fb94",
+    "artifacts/ccc204-pwa/supplemental/fixture-seam.mjs": "35a365c17b2d2626004b08b9efc9c63ef0e094f5dee2aedfb136b78c61d696b8",
+    "artifacts/ccc204-pwa/supplemental/source-pin.json": "09fbb5e06414c7a3868f1512821f662a57b9c2ad7cec940ec8f9051a9d9eee3b",
+    "artifacts/ccc204-pwa/supplemental/scope.json": "9d9b3898864577302fca27a7028ada29eddbe91c438bfb51bdb2bb7430a75da5",
+    "artifacts/ccc204-pwa/supplemental/identity.json": "b03a87a42167f9c2b84668988250fa078fec06e4996db92e8a000bc3dad4c909"
+  },
+  "recommendedNextAction": "Controller C assigns the one missing synthetic integration-harness seam to the existing frontend/API fixture owners, without creating a CCC-212 prerequisite or changing product gates. Preserve both audits and keep CCC-204 In Progress until the unmodified app naturally registers its worker."
+}

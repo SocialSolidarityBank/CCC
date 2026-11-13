@@ -1,0 +1,17 @@
+{
+  "executedAgainst": "unmodified pinned fixture helper, client installation verifier and backend JWT verifier",
+  "signedInstallationAccepted": true,
+  "manifestReads": 1,
+  "bootstrapReads": 1,
+  "publicKeyFingerprints": {
+    "test-key-2026-09": "9ac906d46221e8576224cdea1c9a5f2b01f2fd6152bca5940f49b96cee214481"
+  },
+  "previewTokenShapeRejected": true,
+  "previewTokenError": "ActorAuthenticationError",
+  "jwksReads": 0,
+  "previewLoopbackIssuerRejected": true,
+  "previewOriginError": "IdentityStoreUnavailableError",
+  "privateKeysAndTokensPersisted": false,
+  "browserOrAuthServerStarted": false,
+  "naturalRegistrationObserved": false
+}

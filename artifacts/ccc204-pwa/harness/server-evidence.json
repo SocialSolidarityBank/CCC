@@ -1,0 +1,377 @@
+{
+  "counts": {
+    "passwordAccepted": 2,
+    "passwordRejected": 3,
+    "userVerified": 2,
+    "refreshAccepted": 0,
+    "jwks": 1,
+    "actualApi": 18,
+    "deniedProxy": 0,
+    "externalConnections": 0,
+    "runtimeErrors": 0
+  },
+  "requests": [
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/.well-known/jwks.json",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/settings/accounts",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/capabilities",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "POST",
+      "status": 400
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/settings",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/assets/index-zo7xrKjL.js",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/assets/index-DmXLclX2.css",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-install-manifest.json",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-bootstrap.json",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "POST",
+      "status": 400
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/user",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/user",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/capabilities",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/capabilities",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/assignment-requests",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/sw.js",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/assets/index-DmXLclX2.css",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/assets/index-zo7xrKjL.js",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/icon.svg",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/index.html",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/manifest.webmanifest",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/assignment-requests",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/schedules/month",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/schedules/month",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/schedule",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-install-manifest.json",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-bootstrap.json",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/user",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/user",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/capabilities",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/capabilities",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/schedules/month",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/schedules/month",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/sw.js",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/settings",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/assets/index-zo7xrKjL.js",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/assets/index-DmXLclX2.css",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-install-manifest.json",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-bootstrap.json",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "POST",
+      "status": 400
+    }
+  ],
+  "seededAccounts": 1,
+  "privateKeysAndTokensPersisted": false
+}

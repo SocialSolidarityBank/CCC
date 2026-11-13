@@ -1,0 +1,86 @@
+{
+  "controls": [
+    {
+      "name": "valid-linked-worker",
+      "status": 200,
+      "expectedStatus": 200,
+      "passed": true,
+      "linkedWorker": true,
+      "responseCanaryPresent": true
+    },
+    {
+      "name": "missing-bearer",
+      "status": 401,
+      "expectedStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "tampered-signature",
+      "status": 401,
+      "expectedStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "unlinked-subject",
+      "status": 403,
+      "expectedStatus": 403,
+      "passed": true
+    },
+    {
+      "name": "inactive-subject",
+      "status": 403,
+      "expectedStatus": 403,
+      "passed": true
+    },
+    {
+      "name": "wrong-issuer",
+      "status": 401,
+      "expectedStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "wrong-audience",
+      "status": 401,
+      "expectedStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "expired-token",
+      "status": 401,
+      "expectedStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "empty-session-id",
+      "status": 401,
+      "expectedStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "token-role-escalation",
+      "status": 403,
+      "expectedStatus": 403,
+      "passed": true
+    },
+    {
+      "name": "untrusted-browser-origin",
+      "status": 403,
+      "expectedStatus": 403,
+      "passed": true
+    },
+    {
+      "name": "real-capabilities-installation-binding",
+      "status": 200,
+      "expectedStatus": 200,
+      "passed": true
+    },
+    {
+      "name": "wrong-seeded-password",
+      "status": 400,
+      "expectedStatus": 400,
+      "passed": true
+    }
+  ],
+  "actualHandlers": true,
+  "noFixedMeOrCapabilities": true
+}

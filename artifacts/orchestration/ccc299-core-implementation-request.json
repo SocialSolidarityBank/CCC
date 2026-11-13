@@ -1,0 +1,86 @@
+{
+  "assignmentId": "ccc299-core-implementation-20260914",
+  "ticket": "CCC-299",
+  "owner": "existing Mac mini BACKEND single writer",
+  "goal": "Implement the frozen intake-question lifecycle producer contract completely on the existing CORE branch, preserving the accepted CORS and N03 prerequisite commits.",
+  "freeze": {
+    "localPath": "artifacts/orchestration/ccc299-core-freeze-result.json",
+    "remoteStagedPath": "/tmp/ccc299-core-freeze-result.json",
+    "sha256": "8f0e235965659b35c7d3b71331a6a70551f1908ea5e131c9b2c9a4f3e0034da2",
+    "readyForImplementation": true,
+    "semanticDecisionsRemaining": []
+  },
+  "worktree": {
+    "decision": "reuse",
+    "host": "mini",
+    "path": "/Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND",
+    "branch": "core/relayer-domain-beta",
+    "requiredHead": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+    "state": "clean",
+    "rule": "No reset, rebase, merge, branch switch, stash, clean or writer reassignment. Verify the frozen ownerBaseRule before the first write. Build gateway and request-handler changes on aa0bdb1 without reverting N03."
+  },
+  "contract": "The staged freeze JSON is exact and complete. Implement its contract, migrations, allowedWriterPaths, pathRestrictions, producerCutover and refusal table without aliases, placeholders or scope additions.",
+  "allowedWrites": [
+    "packages/contracts/src/intake.ts",
+    "packages/contracts/src/manual-record.ts",
+    "packages/core/src/gateway.ts",
+    "packages/http-api/src/request-handler.ts",
+    "migrations/sqlite/0064_intake_question_lifecycle.sql",
+    "migrations/postgres/0020_intake_question_lifecycle.sql",
+    "migrations/parity.yaml",
+    "scripts/seed/scenario.ts",
+    "apps/api/test/support/intake.ts",
+    "apps/api/test/gateway-intake.test.ts",
+    "apps/api/test/manual-record.contract.test.ts",
+    "apps/api/test/routes.test.ts only intake route cases",
+    "apps/api/test/support-case-report.contract.test.ts",
+    "apps/api/test/support/migration-parity.ts",
+    "apps/api/test/migration-parity.test.ts",
+    "apps/api/test/database-parity.test.ts"
+  ],
+  "readOnly": [
+    "packages/contracts/src/report.ts",
+    "all FRONTEND, DESIGN and synthetic client consumers",
+    "accepted CORS and N03 tests except as regression inputs",
+    "approved decision and design documents"
+  ],
+  "excluded": [
+    "CCC-297 as prerequisite",
+    "CCC-292, G7, S5/S6, Agent transport, provider egress, purge/restore",
+    "screens, CSS, shared UI, design artifacts, deployment, preview, credentials, AI/STT activation",
+    "new question table, duplicated question text, text/hash/order identity, compatibility alias, automatic legacy conversion or reopen behavior",
+    "packages/contracts/src/report.ts and every unlisted path"
+  ],
+  "implementationClarifications": [
+    "The Database port accepts a prebound atomic batch and has no transaction callback. Preserve that port. After strict parsing, authorization, active-state checks and exact replay lookup, generate nonpersistent UUID candidates in memory, bind them into the one atomic batch, and persist them only when every CAS and guard succeeds. A failed batch leaves no ID, lifecycle, revision, outcome, audit or officialization row. Exact replay returns before candidate generation."
+  ],
+  "execution": [
+    "Use the existing seams and the shortest complete implementation. No second canonical question store, no new endpoint, no new dependency.",
+    "Use LSP references before exported-symbol changes when a server is available. If unavailable, trace every caller and include the exact migration list in the result.",
+    "Develop against the frozen observable contract. Do not run project-wide suites, formatters or unrelated validation during implementation.",
+    "When the complete producer diff and semantic migration tests are ready, run exactly the writer-only parity update command from freeze.verification.commands. It must add the 0064/0020 checkpoint only after semantic proofs pass.",
+    "Record the resulting candidate commit and tree, complete changed path set, 0064/0020/parity SHA-256 values, parity-update output and any remaining unrun central checks.",
+    "Commit only explicit allowed paths locally. Do not bypass configured hooks. If hooks require an out-of-scope mutation, stop before commit and report. Do not push, merge, deploy or contact external services."
+  ],
+  "centralVerificationReserved": [
+    "targeted gateway/manual/report/routes tests",
+    "API typecheck",
+    "disposable artifacts/orchestration/ccc299-core-lifecycle-smoke.test.ts",
+    "non-update migration and database parity",
+    "guard:db and guard:core-imports"
+  ],
+  "result": {
+    "remotePath": "/tmp/ccc299-core-implementation-result.json",
+    "controllerPath": "artifacts/orchestration/ccc299-core-implementation-result.json",
+    "mustContain": [
+      "assignmentId, ticket, status and completion marker",
+      "base, candidate commit and tree",
+      "complete changed paths and file SHA-256 values",
+      "migration checkpoint and parity update command result",
+      "implemented observable contract matrix and explicit unrun central checks",
+      "consumer handoff map copied from the freeze without claiming delivery",
+      "ownedJobs 0 and allResultsCollected true"
+    ]
+  },
+  "completionMarker": "BACKEND_RESULT CCC299-CORE-IMPLEMENTATION-20260914"
+}

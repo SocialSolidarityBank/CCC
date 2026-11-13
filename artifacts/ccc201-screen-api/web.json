@@ -1,0 +1,2983 @@
+{
+  "evidenceKind": "actual_next_http_render_and_worker_network",
+  "nextOrigin": "http://127.0.0.1:43982",
+  "results": [
+    {
+      "boundary": "actual-web-form-adapter",
+      "role": "counselor",
+      "status": 303,
+      "location": "http://localhost:43982/",
+      "cookieIssued": true,
+      "httpOnly": true
+    },
+    {
+      "boundary": "actual-web-form-adapter",
+      "role": "admin",
+      "status": 303,
+      "location": "http://localhost:43982/settings",
+      "cookieIssued": true,
+      "httpOnly": true
+    },
+    {
+      "route": "/",
+      "role": "counselor",
+      "status": 307,
+      "location": "/programs/financial_support_v1/schedule",
+      "shell": false,
+      "sidebar": false,
+      "renderOutcome": "redirect_or_refusal",
+      "renderErrorMarkers": [
+        "D\\\"$56\\\"\\n18:D\\\"$57\\\"\\n18:D\\\"$5b\\\"\\n18:D\\\"$5d\\\"\\n18:D\\\"$5e\\\"\\n18:D\\\"$76\\\"\\n18:E{\\\"digest\\\":\\\"NEXT_REDIRECT;replace;/programs/financial_support_v1/schedule;307;\\\",\\\"name\\\":\\\"Error\\\",\\\"message\\\":\\\"NEXT_REDIRECT\\\",\\\"stack\\\":[[\\\"HomePage\\\",\\\"webpack-internal:///(rsc)/./app/"
+      ],
+      "renderedH1": [],
+      "serverActionForms": 0,
+      "htmlSha256": "9e9a7054f22a96e14dbabd94ffaadd70d9597306a18e2dd180a627b87d3ae1f8",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "string",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/admin",
+      "role": "admin",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "기관"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "fdbcbc60e909b4169e0a4fda6799f0765af6787a938a5a164b4017c0b5a65385",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/users",
+          "status": 200,
+          "shape": {
+            "array": [
+              {
+                "active": "boolean",
+                "email": "string",
+                "id": "string",
+                "name": "null",
+                "orgId": "string",
+                "role": "string"
+              }
+            ]
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "null",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/admin/ai-provider",
+      "role": "admin",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [],
+      "serverActionForms": 4,
+      "htmlSha256": "96a2b15ee8a45a1e7a335c0b8fbe56706c7d68fb0ae26e9cd0cb1f7a071abb33",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/ai/provider/status",
+          "status": 200,
+          "shape": {
+            "adapterId": "null",
+            "adapterVersion": "null",
+            "configHash": "null",
+            "enabled": "boolean",
+            "runtime": {
+              "adapterId": "null",
+              "adapterVersion": "null",
+              "configHash": "null",
+              "configured": "boolean",
+              "matches": "null"
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "null",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/capabilities",
+          "status": 200,
+          "shape": {
+            "agentStatus": "string",
+            "features": {
+              "ai_draft": "boolean",
+              "cloud_audio_temp": "boolean",
+              "multi_user": "boolean",
+              "offline": "boolean",
+              "public_signup": "boolean",
+              "recording": "boolean"
+            },
+            "llmMode": "string",
+            "llmOptions": {
+              "array": [
+                {
+                  "disabledReason": "null",
+                  "enabled": "boolean",
+                  "mode": "string"
+                },
+                {
+                  "disabledReason": "string",
+                  "enabled": "boolean",
+                  "mode": "string"
+                }
+              ]
+            },
+            "mode": "string",
+            "schemaVersion": "number",
+            "sttEngine": "null",
+            "sttMode": "string",
+            "sttOptions": {
+              "array": [
+                {
+                  "disabledReason": "null",
+                  "enabled": "boolean",
+                  "mode": "string"
+                },
+                {
+                  "disabledReason": "string",
+                  "enabled": "boolean",
+                  "mode": "string"
+                }
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/admin/assign",
+      "role": "admin",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "배정"
+      ],
+      "serverActionForms": 5,
+      "htmlSha256": "55b3b547fde2434fe8a117d76de54a6bc905e426aee4c3355a068f4c312b251a",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/users",
+          "status": 200,
+          "shape": {
+            "array": [
+              {
+                "active": "boolean",
+                "email": "string",
+                "id": "string",
+                "name": "null",
+                "orgId": "string",
+                "role": "string"
+              }
+            ]
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "null",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/candidates",
+          "status": 200,
+          "shape": {
+            "candidates": {
+              "array": [
+                {
+                  "beneficiaryId": "string",
+                  "intakeAt": "string",
+                  "participantEmail": "string",
+                  "participantName": "string",
+                  "participantPhone": "null",
+                  "programType": "string",
+                  "supportCaseId": "string"
+                }
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/support-cases/f14a9aa1-7a26-4b5e-a5ea-dfe349f0ab25/assignees",
+          "status": 200,
+          "shape": {
+            "assignees": {
+              "array": [
+                {
+                  "acceptanceRequestedBy": "null",
+                  "acceptedAt": "null",
+                  "assignedAt": "string",
+                  "id": "string",
+                  "notifiedAt": "null",
+                  "notifiedBy": "null",
+                  "role": "string",
+                  "status": "string",
+                  "supportCaseId": "string",
+                  "transferReason": "null",
+                  "userId": "string"
+                }
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/admin/invite",
+      "role": "admin",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "실무자 초대"
+      ],
+      "serverActionForms": 5,
+      "htmlSha256": "c47c633aa980e244054cd08ed1b0953b39a1e86c28af39a0d13e1768e2cc5a15",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "null",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/admin/users",
+      "role": "admin",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "사용자"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "391d6a9cd162e2b8c02af9c71190893fb01760c14daa232d67826ac5e5513703",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/users",
+          "status": 200,
+          "shape": {
+            "array": [
+              {
+                "active": "boolean",
+                "email": "string",
+                "id": "string",
+                "name": "null",
+                "orgId": "string",
+                "role": "string"
+              }
+            ]
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "null",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/admin/users/:id",
+      "role": "admin",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "실무자 상세"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "fea8fa5a55902043d9abd15a0765109077b1c6d2f83654d015a9a66fe8d845dd",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/users",
+          "status": 200,
+          "shape": {
+            "array": [
+              {
+                "active": "boolean",
+                "email": "string",
+                "id": "string",
+                "name": "null",
+                "orgId": "string",
+                "role": "string"
+              }
+            ]
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "null",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/users/admin%40example.invalid/assignments",
+          "status": 200,
+          "shape": {
+            "participants": {
+              "array": []
+            },
+            "userId": "string"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/join/participant/:token",
+      "role": "counselor",
+      "status": 404,
+      "location": null,
+      "shell": false,
+      "sidebar": false,
+      "renderOutcome": "redirect_or_refusal",
+      "renderErrorMarkers": [
+        "self.__next_f.push([1,\"23:D\\\"$5b\\\"\\n23:D\\\"$5d\\\"\\n23:D\\\"$5e\\\"\\n23:D\\\"$6a\\\"\\n23:E{\\\"digest\\\":\\\"NEXT_HTTP_ERROR_FALLBACK;404\\\",\\\"name\\\":\\\"Error\\\",\\\"message\\\":\\\"NEXT_HTTP_ERROR_FALLBACK;404\\\",\\\"stack\\\":[[\\\"JoinParticipantPage\\\",\\\"webpack-internal:///(rsc)/./app/join/partici"
+      ],
+      "renderedH1": [],
+      "serverActionForms": 0,
+      "htmlSha256": "5305c2727a48fe38bd2978806b29a49424226490a579babffafe8f92bf0a8be4",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/invites/participant/:token",
+          "status": 401,
+          "shape": {
+            "error": "string"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": false,
+            "access": false
+          },
+          "error": "actor_authentication_required"
+        }
+      ]
+    },
+    {
+      "route": "/join/worker/:token",
+      "role": "counselor",
+      "status": 404,
+      "location": null,
+      "shell": false,
+      "sidebar": false,
+      "renderOutcome": "redirect_or_refusal",
+      "renderErrorMarkers": [
+        "self.__next_f.push([1,\"23:D\\\"$5b\\\"\\n23:D\\\"$5d\\\"\\n23:D\\\"$5e\\\"\\n23:D\\\"$6a\\\"\\n23:E{\\\"digest\\\":\\\"NEXT_HTTP_ERROR_FALLBACK;404\\\",\\\"name\\\":\\\"Error\\\",\\\"message\\\":\\\"NEXT_HTTP_ERROR_FALLBACK;404\\\",\\\"stack\\\":[[\\\"JoinWorkerPage\\\",\\\"webpack-internal:///(rsc)/./app/join/worker/[toke"
+      ],
+      "renderedH1": [],
+      "serverActionForms": 0,
+      "htmlSha256": "92e5d24efc271c5629c97bb911c421a86495c1d555b89a38597f3a628620d88b",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/invites/worker/:token",
+          "status": 404,
+          "shape": {
+            "error": "string"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": false,
+            "access": false
+          },
+          "error": "not_found"
+        }
+      ]
+    },
+    {
+      "route": "/kit",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "컴포넌트 킷"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "7d68b3c95be48caef8df1715cb6c539a178172bb45c8efc8448f1b4f1033cf74",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/onboarding",
+      "role": "admin",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "기관 온보딩"
+      ],
+      "serverActionForms": 5,
+      "htmlSha256": "c6b16ae5a1d2ba33f64957f3da759adb06c2ffb59dfb6d2f8f008945bd500930",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "null",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/participants",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "당사자"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "cc9e46a6734a60c2e9a242e116b2b479288b16bb425683a4b599328877861c4f",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants",
+          "status": 200,
+          "shape": {
+            "results": {
+              "array": [
+                {
+                  "beneficiaryId": "string",
+                  "email": "string",
+                  "name": "string",
+                  "newSignup": "boolean",
+                  "phone": "null",
+                  "programCount": "number",
+                  "programNames": {
+                    "array": [
+                      "string"
+                    ]
+                  },
+                  "status": "string"
+                }
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/participants/invite",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "당사자 초대"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "09e5b8125de7780e44f02d00ee2dfb99227ff1c4746d1dd15bd0567766918d34",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/participants/new",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "당사자 등록"
+      ],
+      "serverActionForms": 5,
+      "htmlSha256": "26fa3cf7ff4f4cbad548357b34d34eb0ffe3ae45205e3a91195ede3a0db13c3d",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "string",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/participants/:beneficiaryId",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "stream_error",
+      "renderErrorMarkers": [
+        "\\\"$f4\\\"\\n80:D\\\"$f5\\\"\\n80:D\\\"$f9\\\"\\n80:D\\\"$fb\\\"\\n80:D\\\"$fc\\\"\\n80:D\\\"$105\\\"\\n80:E{\\\"digest\\\":\\\"678385119\\\",\\\"name\\\":\\\"Error\\\",\\\"message\\\":\\\"API response did not match the declared contract.\\\",\\\"stack\\\":[[\\\"contractViolation\\\",\\\"webpack-internal:///(rsc)/./app/lib/api.ts\\\"",
+        "8385119\",\"Switched to client rendering because the server rendering errored:\\n\\nAPI response did not match the declared contract.\",\"Switched to client rendering because the server rendering errored:\\n\\nError: API response did not match the declared contract.\\n    at contractViolation (about://React/Server/w"
+      ],
+      "renderedH1": [
+        "당사자 정보"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "ff457bc45f2b9f9848b3e4155c29ba49261057a798f3fa829f18a1fbe0439b65",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/swallow-001/goal-tree",
+          "status": 200,
+          "shape": {
+            "cases": {
+              "array": [
+                {
+                  "goals": {
+                    "array": []
+                  },
+                  "overallGoal": "string",
+                  "overallGoalRevisions": {
+                    "array": [
+                      {
+                        "editedAt": "string",
+                        "editedByName": "null",
+                        "title": "string"
+                      }
+                    ]
+                  },
+                  "sourceSupportCase": {
+                    "id": "string",
+                    "programType": "string",
+                    "status": "string"
+                  }
+                }
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/swallow-001/hub",
+          "status": 200,
+          "shape": {
+            "beneficiaryId": "string",
+            "closedAt": "null",
+            "lastSessionAt": "string",
+            "participantBirthDate": "null",
+            "participantEmail": "string",
+            "participantName": "string",
+            "participantPhone": "null",
+            "programs": {
+              "array": [
+                {
+                  "assigneeNames": {
+                    "array": []
+                  },
+                  "authorized": "boolean",
+                  "beneficiaryId": "string",
+                  "closedAt": "null",
+                  "consentRecordedAt": "string",
+                  "creationKind": "string",
+                  "id": "string",
+                  "intakeAt": "string",
+                  "participantName": "string",
+                  "participantPhone": "null",
+                  "programId": "string",
+                  "programName": "string",
+                  "programType": "string",
+                  "sourceSupportCase": "null",
+                  "status": "string",
+                  "upcomingSchedule": {
+                    "allDay": "boolean",
+                    "displayColor": "null",
+                    "id": "string",
+                    "scheduledAt": "string",
+                    "sessionKind": "string"
+                  }
+                }
+              ]
+            },
+            "restricted": "boolean",
+            "sessionCount": "number",
+            "status": "string"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/participants/:beneficiaryId/edit",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "기본정보 수정",
+        "기본정보 수정"
+      ],
+      "serverActionForms": 5,
+      "htmlSha256": "1e40173a43b5cb6a8258180b1f0757da9a44865831025c9a662f93953e53cbf2",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/swallow-001/basic-info",
+          "status": 200,
+          "shape": {
+            "account": "null",
+            "beneficiaryId": "string",
+            "birthDate": "null",
+            "email": "string",
+            "gender": "null",
+            "name": "string",
+            "phone": "null",
+            "region": "null",
+            "supportCaseContextId": "string",
+            "version": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/participants/:beneficiaryId/programs/:supportCaseId/briefing",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "15초 페이지",
+        "15초 페이지"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "496c3299bffb78640c380b7ee593cac098c028a6088a4a0cb462154e6ac3f921",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/swallow-001/programs/f14a9aa1-7a26-4b5e-a5ea-dfe349f0ab25/briefing",
+          "status": 200,
+          "shape": {
+            "activeGoals": {
+              "array": []
+            },
+            "beneficiaryId": "string",
+            "canEditOverallGoal": "boolean",
+            "focusSupportCaseId": "string",
+            "focusUpcomingSchedule": {
+              "allDay": "boolean",
+              "channel": "string",
+              "customQuestions": {
+                "array": [
+                  "string"
+                ]
+              },
+              "displayColor": "null",
+              "id": "string",
+              "scheduledAt": "string",
+              "sessionGoals": {
+                "array": []
+              },
+              "sessionKind": "string"
+            },
+            "overallGoal": "string",
+            "participant": {
+              "name": "string",
+              "phone": "null"
+            },
+            "sections": {
+              "array": [
+                {
+                  "aiSuggestions": {
+                    "array": []
+                  },
+                  "discrepancies": {
+                    "array": []
+                  },
+                  "flags": {
+                    "array": []
+                  },
+                  "gasTrend": {
+                    "array": []
+                  },
+                  "lastSessionSummary": {
+                    "pendingApprovalCount": "number",
+                    "source": "string",
+                    "text": "string"
+                  },
+                  "openActionItems": {
+                    "array": []
+                  },
+                  "pendingReviewSessionIds": {
+                    "array": []
+                  },
+                  "sessionRows": {
+                    "array": [
+                      {
+                        "aiOneLiner": "null",
+                        "heldAt": "string",
+                        "kind": "string",
+                        "memoExcerpt": "string",
+                        "sessionId": "string"
+                      },
+                      {
+                        "aiOneLiner": "null",
+                        "heldAt": "string",
+                        "kind": "string",
+                        "memoExcerpt": "null",
+                        "sessionId": "string"
+                      }
+                    ]
+                  },
+                  "sourceSupportCase": {
+                    "id": "string",
+                    "programType": "string",
+                    "status": "string"
+                  }
+                }
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/participants/:beneficiaryId/programs/:supportCaseId/close",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "케이스 종결",
+        "케이스 종결"
+      ],
+      "serverActionForms": 5,
+      "htmlSha256": "2e3ea8ef5e3727291f6b18b37a5c312536d3d59ed010457096100fc80396ec5e",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/support-cases/f14a9aa1-7a26-4b5e-a5ea-dfe349f0ab25/closure",
+          "status": 200,
+          "shape": {
+            "beneficiaryId": "string",
+            "closedAt": "null",
+            "closedReason": "null",
+            "hasOtherActiveSupportCase": "boolean",
+            "purgedAt": "null",
+            "purgeDue": "null",
+            "status": "string",
+            "supportCaseId": "string"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/swallow-001/goal-tree",
+          "status": 200,
+          "shape": {
+            "cases": {
+              "array": [
+                {
+                  "goals": {
+                    "array": []
+                  },
+                  "overallGoal": "string",
+                  "overallGoalRevisions": {
+                    "array": [
+                      {
+                        "editedAt": "string",
+                        "editedByName": "null",
+                        "title": "string"
+                      }
+                    ]
+                  },
+                  "sourceSupportCase": {
+                    "id": "string",
+                    "programType": "string",
+                    "status": "string"
+                  }
+                }
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/swallow-001/programs/f14a9aa1-7a26-4b5e-a5ea-dfe349f0ab25/briefing",
+          "status": 200,
+          "shape": {
+            "activeGoals": {
+              "array": []
+            },
+            "beneficiaryId": "string",
+            "canEditOverallGoal": "boolean",
+            "focusSupportCaseId": "string",
+            "focusUpcomingSchedule": {
+              "allDay": "boolean",
+              "channel": "string",
+              "customQuestions": {
+                "array": [
+                  "string"
+                ]
+              },
+              "displayColor": "null",
+              "id": "string",
+              "scheduledAt": "string",
+              "sessionGoals": {
+                "array": []
+              },
+              "sessionKind": "string"
+            },
+            "overallGoal": "string",
+            "participant": {
+              "name": "string",
+              "phone": "null"
+            },
+            "sections": {
+              "array": [
+                {
+                  "aiSuggestions": {
+                    "array": []
+                  },
+                  "discrepancies": {
+                    "array": []
+                  },
+                  "flags": {
+                    "array": []
+                  },
+                  "gasTrend": {
+                    "array": []
+                  },
+                  "lastSessionSummary": {
+                    "pendingApprovalCount": "number",
+                    "source": "string",
+                    "text": "string"
+                  },
+                  "openActionItems": {
+                    "array": []
+                  },
+                  "pendingReviewSessionIds": {
+                    "array": []
+                  },
+                  "sessionRows": {
+                    "array": [
+                      {
+                        "aiOneLiner": "null",
+                        "heldAt": "string",
+                        "kind": "string",
+                        "memoExcerpt": "string",
+                        "sessionId": "string"
+                      },
+                      {
+                        "aiOneLiner": "null",
+                        "heldAt": "string",
+                        "kind": "string",
+                        "memoExcerpt": "null",
+                        "sessionId": "string"
+                      }
+                    ]
+                  },
+                  "sourceSupportCase": {
+                    "id": "string",
+                    "programType": "string",
+                    "status": "string"
+                  }
+                }
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/participants/:beneficiaryId/programs/:supportCaseId/records",
+      "role": "counselor",
+      "status": 500,
+      "location": null,
+      "shell": false,
+      "sidebar": false,
+      "renderOutcome": "http_error",
+      "renderErrorMarkers": [
+        "D\\\"$d6\\\"\\n29:D\\\"$d7\\\"\\n29:D\\\"$db\\\"\\n29:D\\\"$dd\\\"\\n29:D\\\"$de\\\"\\n29:D\\\"$e7\\\"\\n29:E{\\\"digest\\\":\\\"1336876088\\\",\\\"name\\\":\\\"Error\\\",\\\"message\\\":\\\"API response did not match the declared contract.\\\",\\\"stack\\\":[[\\\"contractViolation\\\",\\\"webpack-internal:///(rsc)/./app/lib/api.ts\\"
+      ],
+      "renderedH1": [],
+      "serverActionForms": 0,
+      "htmlSha256": "9332c8f05f01bd9523fedc19203d859b02b08deaef9d4e6083dfb682d0004f80",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/swallow-001/support-cases",
+          "status": 200,
+          "shape": {
+            "array": [
+              {
+                "assigneeNames": {
+                  "array": []
+                },
+                "authorized": "boolean",
+                "beneficiaryId": "string",
+                "consentRecordedAt": "string",
+                "creationKind": "string",
+                "id": "string",
+                "intakeAt": "string",
+                "participantName": "string",
+                "participantPhone": "null",
+                "programType": "string",
+                "sourceSupportCase": "null",
+                "status": "string",
+                "upcomingSchedule": {
+                  "allDay": "boolean",
+                  "displayColor": "null",
+                  "id": "string",
+                  "scheduledAt": "string",
+                  "sessionKind": "string"
+                }
+              }
+            ]
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/participants/:beneficiaryId/programs/:supportCaseId/records/:sessionId/review",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "stream_error",
+      "renderErrorMarkers": [
+        "3\\\"\\n8f:D\\\"$104\\\"\\n8f:D\\\"$108\\\"\\n8f:D\\\"$10a\\\"\\n8f:D\\\"$10b\\\"\\n8f:D\\\"$114\\\"\\n8f:E{\\\"digest\\\":\\\"1315288652\\\",\\\"name\\\":\\\"Error\\\",\\\"message\\\":\\\"API response did not match the declared contract.\\\",\\\"stack\\\":[[\\\"contractViolation\\\",\\\"webpack-internal:///(rsc)/./app/lib/api.ts\\",
+        "5288652\",\"Switched to client rendering because the server rendering errored:\\n\\nAPI response did not match the declared contract.\",\"Switched to client rendering because the server rendering errored:\\n\\nError: API response did not match the declared contract.\\n    at contractViolation (about://React/Server/w"
+      ],
+      "renderedH1": [
+        "AI 초안 검토"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "ad35f8d8af8c1fd4b2ac12fb692deac4b8c793e50added20cd9f1dcdfc69d96a",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/swallow-001/support-cases",
+          "status": 200,
+          "shape": {
+            "array": [
+              {
+                "assigneeNames": {
+                  "array": []
+                },
+                "authorized": "boolean",
+                "beneficiaryId": "string",
+                "consentRecordedAt": "string",
+                "creationKind": "string",
+                "id": "string",
+                "intakeAt": "string",
+                "participantName": "string",
+                "participantPhone": "null",
+                "programType": "string",
+                "sourceSupportCase": "null",
+                "status": "string",
+                "upcomingSchedule": {
+                  "allDay": "boolean",
+                  "displayColor": "null",
+                  "id": "string",
+                  "scheduledAt": "string",
+                  "sessionKind": "string"
+                }
+              }
+            ]
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/swallow-001/support-cases",
+          "status": 200,
+          "shape": {
+            "array": [
+              {
+                "assigneeNames": {
+                  "array": []
+                },
+                "authorized": "boolean",
+                "beneficiaryId": "string",
+                "consentRecordedAt": "string",
+                "creationKind": "string",
+                "id": "string",
+                "intakeAt": "string",
+                "participantName": "string",
+                "participantPhone": "null",
+                "programType": "string",
+                "sourceSupportCase": "null",
+                "status": "string",
+                "upcomingSchedule": {
+                  "allDay": "boolean",
+                  "displayColor": "null",
+                  "id": "string",
+                  "scheduledAt": "string",
+                  "sessionKind": "string"
+                }
+              }
+            ]
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/participants/:beneficiaryId/programs/:supportCaseId/records/intake",
+      "role": "counselor",
+      "status": 500,
+      "location": null,
+      "shell": false,
+      "sidebar": false,
+      "renderOutcome": "http_error",
+      "renderErrorMarkers": [
+        "D\\\"$d9\\\"\\n2c:D\\\"$da\\\"\\n2c:D\\\"$de\\\"\\n2c:D\\\"$e0\\\"\\n2c:D\\\"$e1\\\"\\n2c:D\\\"$ea\\\"\\n2c:E{\\\"digest\\\":\\\"4210741137\\\",\\\"name\\\":\\\"Error\\\",\\\"message\\\":\\\"API response did not match the declared contract.\\\",\\\"stack\\\":[[\\\"contractViolation\\\",\\\"webpack-internal:///(rsc)/./app/lib/api.ts\\"
+      ],
+      "renderedH1": [],
+      "serverActionForms": 0,
+      "htmlSha256": "d610ecd15aac6b0f7d4c5eec540f0d39803a8dca6cad2e1965fcb2bd3296c35f",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "string",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/support-cases/f14a9aa1-7a26-4b5e-a5ea-dfe349f0ab25/records/intake",
+          "status": 200,
+          "shape": {
+            "beneficiaryId": "string",
+            "canWrite": "boolean",
+            "consent": {
+              "array": [
+                {
+                  "domain": "string",
+                  "effectiveAt": "string",
+                  "eventId": "string",
+                  "eventSequence": "number",
+                  "provider": "string",
+                  "providerCountry": "string",
+                  "providerLegalRecipient": "string",
+                  "purpose": "string",
+                  "retentionDuration": "null",
+                  "revision": "number",
+                  "state": "string"
+                },
+                {
+                  "domain": "string",
+                  "effectiveAt": "string",
+                  "eventId": "string",
+                  "eventSequence": "number",
+                  "provider": "null",
+                  "providerCountry": "null",
+                  "providerLegalRecipient": "null",
+                  "purpose": "null",
+                  "retentionDuration": "null",
+                  "revision": "number",
+                  "state": "string"
+                }
+              ]
+            },
+            "extendedPii": {
+              "birthDate": "null",
+              "emergencyContact": "null",
+              "gender": "null",
+              "region": "null"
+            },
+            "hasIntake": "boolean",
+            "moduleSnapshot": {
+              "financialSupportEnabled": "boolean",
+              "programId": "string",
+              "programVersion": "number"
+            },
+            "overallGoal": "string",
+            "participant": {
+              "email": "string",
+              "name": "string",
+              "phone": "null"
+            },
+            "saved": {
+              "channel": "string",
+              "heldAt": "string",
+              "history": {
+                "array": []
+              },
+              "legacyDetailsJson": "null",
+              "questionnaire": {
+                "additionalItems": {
+                  "response": "string"
+                },
+                "answers": {
+                  "array": [
+                    {
+                      "key": "string",
+                      "response": "string"
+                    }
+                  ]
+                },
+                "debts": "null",
+                "linkedOrgs": {
+                  "response": "string"
+                },
+                "moduleSnapshot": {
+                  "financialSupportEnabled": "boolean",
+                  "programId": "string",
+                  "programVersion": "number"
+                },
+                "schemaVersion": "number"
+              },
+              "revision": "number",
+              "schemaVersion": "number",
+              "sessionId": "string"
+            },
+            "schedule": {
+              "allDay": "boolean",
+              "beneficiaryId": "string",
+              "completedSessionId": "null",
+              "displayColor": "null",
+              "id": "string",
+              "scheduledAt": "string",
+              "status": "string",
+              "supportCaseId": "string",
+              "version": "number"
+            },
+            "sessionSequence": "number",
+            "supportCaseId": "string",
+            "writeSchemaVersion": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/participants/:beneficiaryId/programs/:supportCaseId/records/new",
+      "role": "counselor",
+      "status": 500,
+      "location": null,
+      "shell": false,
+      "sidebar": false,
+      "renderOutcome": "http_error",
+      "renderErrorMarkers": [
+        "D\\\"$d2\\\"\\n2c:D\\\"$d3\\\"\\n2c:D\\\"$d7\\\"\\n2c:D\\\"$d9\\\"\\n2c:D\\\"$da\\\"\\n2c:D\\\"$e3\\\"\\n2c:E{\\\"digest\\\":\\\"2390613377\\\",\\\"name\\\":\\\"Error\\\",\\\"message\\\":\\\"API response did not match the declared contract.\\\",\\\"stack\\\":[[\\\"contractViolation\\\",\\\"webpack-internal:///(rsc)/./app/lib/api.ts\\"
+      ],
+      "renderedH1": [],
+      "serverActionForms": 0,
+      "htmlSha256": "01d82cc2c61e8208b04a54eed4dd92dff3a568ac0153ca1782efa2488e68c3bc",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/swallow-001/support-cases",
+          "status": 200,
+          "shape": {
+            "array": [
+              {
+                "assigneeNames": {
+                  "array": []
+                },
+                "authorized": "boolean",
+                "beneficiaryId": "string",
+                "consentRecordedAt": "string",
+                "creationKind": "string",
+                "id": "string",
+                "intakeAt": "string",
+                "participantName": "string",
+                "participantPhone": "null",
+                "programType": "string",
+                "sourceSupportCase": "null",
+                "status": "string",
+                "upcomingSchedule": {
+                  "allDay": "boolean",
+                  "displayColor": "null",
+                  "id": "string",
+                  "scheduledAt": "string",
+                  "sessionKind": "string"
+                }
+              }
+            ]
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/preview",
+      "role": "anonymous",
+      "status": 200,
+      "location": null,
+      "shell": false,
+      "sidebar": false,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "미리보기 접속"
+      ],
+      "serverActionForms": 0,
+      "htmlSha256": "72eb3f8fccc6900312ef28fef0b0ee65ea3ce88791206137f407c1e6bd63f861",
+      "apiCalls": []
+    },
+    {
+      "route": "/preview/admin",
+      "role": "anonymous",
+      "status": 200,
+      "location": null,
+      "shell": false,
+      "sidebar": false,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "기관 관리자 미리보기 접속"
+      ],
+      "serverActionForms": 0,
+      "htmlSha256": "bf8a65cd1423915a55649801118b53e5f8596ad08f2e0c72a32d53597c58d92e",
+      "apiCalls": []
+    },
+    {
+      "route": "/programs/:programType/schedule",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "일정"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "c300709496d1151da4e11f55ebbf76dcae492374f001135b548cf4775d78fd6a",
+      "apiCalls": [
+        {
+          "method": "PUT",
+          "path": "/me/last-program",
+          "status": 200,
+          "shape": {
+            "ok": "boolean"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/today",
+          "status": 200,
+          "shape": {
+            "date": "string",
+            "endUtc": "string",
+            "schedules": {
+              "array": []
+            },
+            "startUtc": "string",
+            "timeZone": "string"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/upcoming",
+          "status": 200,
+          "shape": {
+            "date": "string",
+            "endUtc": "string",
+            "schedules": {
+              "array": []
+            },
+            "startUtc": "string",
+            "timeZone": "string"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/programs/:programType/schedule/all",
+      "role": "counselor",
+      "status": 307,
+      "location": "/programs/financial_support_v1/schedule?view=month",
+      "shell": false,
+      "sidebar": false,
+      "renderOutcome": "redirect_or_refusal",
+      "renderErrorMarkers": [
+        "self.__next_f.push([1,\"26:D\\\"$5e\\\"\\n26:D\\\"$60\\\"\\n26:D\\\"$61\\\"\\n26:D\\\"$62\\\"\\n26:E{\\\"digest\\\":\\\"NEXT_REDIRECT;replace;/programs/financial_support_v1/schedule?view=month;307;\\\",\\\"name\\\":\\\"Error\\\",\\\"message\\\":\\\"NEXT_REDIRECT\\\",\\\"stack\\\":[[\\\"ProgramScheduleAllPage\\\",\\\"webpack"
+      ],
+      "renderedH1": [],
+      "serverActionForms": 0,
+      "htmlSha256": "69a20c8db80f309cce1eb7b0273455a23e142884177c9cd0cf271739cd6ce20a",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/schedules/new",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "상담 일정 등록"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "a1f78393e37220c183f3a35f0cafd16e7ee24b281a31a932ee315383a265d411",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/candidates",
+          "status": 200,
+          "shape": {
+            "candidates": {
+              "array": [
+                {
+                  "beneficiaryId": "string",
+                  "intakeAt": "string",
+                  "participantEmail": "string",
+                  "participantName": "string",
+                  "participantPhone": "null",
+                  "programType": "string",
+                  "supportCaseId": "string"
+                }
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/schedules/:scheduleId/plan",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "세션 목표 수정"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "467d3350e718c8e653e4f024d182137e9bcd44c5907f2cbd5063bd9a1d50d16a",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/8f8dbb98-48d9-4ca5-8858-d171c3e7b10f/plan",
+          "status": 200,
+          "shape": {
+            "allDay": "boolean",
+            "beneficiaryId": "string",
+            "channel": "string",
+            "customQuestions": {
+              "array": [
+                {
+                  "body": "string",
+                  "id": "string",
+                  "ordinal": "number"
+                }
+              ]
+            },
+            "displayColor": "null",
+            "scheduledAt": "string",
+            "scheduleId": "string",
+            "sessionGoals": {
+              "array": []
+            },
+            "sessionKind": "string",
+            "status": "string",
+            "supportCaseId": "string",
+            "version": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/cases/f14a9aa1-7a26-4b5e-a5ea-dfe349f0ab25/goals",
+          "status": 200,
+          "shape": {
+            "array": []
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/settings",
+      "role": "admin",
+      "status": 200,
+      "location": null,
+      "shell": true,
+      "sidebar": true,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "설정"
+      ],
+      "serverActionForms": 4,
+      "htmlSha256": "9c0f2273b3070dd4aae9072f1f0d58f3019f9e6b685a74031737563b28762deb",
+      "apiCalls": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "null",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "shape": {
+            "count": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/users",
+          "status": 200,
+          "shape": {
+            "array": [
+              {
+                "active": "boolean",
+                "email": "string",
+                "id": "string",
+                "name": "null",
+                "orgId": "string",
+                "role": "string"
+              }
+            ]
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/assignment-requests",
+          "status": 200,
+          "shape": {
+            "requests": {
+              "array": []
+            }
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        },
+        {
+          "method": "GET",
+          "path": "/settings/counseling-memory",
+          "status": 200,
+          "shape": {
+            "blockedCases": "number",
+            "enabled": "boolean",
+            "failedCases": "number",
+            "lastSuccessAt": "null",
+            "pendingCases": "number",
+            "version": "number"
+          },
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "route": "/welcome",
+      "role": "counselor",
+      "status": 200,
+      "location": null,
+      "shell": false,
+      "sidebar": false,
+      "renderOutcome": "html_received",
+      "renderErrorMarkers": [],
+      "renderedH1": [
+        "CCC 사례관리"
+      ],
+      "serverActionForms": 0,
+      "htmlSha256": "3078a8b9d8d9fcae0648ba48415c038f3303ba67b327605534e58d242a8f2853",
+      "apiCalls": []
+    },
+    {
+      "boundary": "preview-middleware-without-cookie",
+      "path": "/welcome",
+      "status": 307,
+      "location": "/preview"
+    },
+    {
+      "boundary": "preview-middleware-without-cookie",
+      "path": "/kit",
+      "status": 307,
+      "location": "/preview"
+    },
+    {
+      "boundary": "preview-middleware-without-cookie",
+      "path": "/join",
+      "status": 307,
+      "location": "/preview"
+    },
+    {
+      "boundary": "preview-middleware-without-cookie",
+      "path": "/joinX",
+      "status": 307,
+      "location": "/preview"
+    }
+  ],
+  "limitations": [
+    "No browser hydration or click success is inferred from HTTP-rendered HTML.",
+    "Unknown worker token exercises the public error branch, not successful worker signup.",
+    "Public join business credentials are inspected at the actual backend; production Access/Supabase login is not exercised."
+  ]
+}

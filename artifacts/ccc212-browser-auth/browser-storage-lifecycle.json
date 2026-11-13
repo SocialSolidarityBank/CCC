@@ -1,0 +1,93 @@
+{
+  "baseline": {
+    "registrations": 0,
+    "controlled": false,
+    "cacheCount": 0,
+    "businessShellVisible": false,
+    "secureContext": true
+  },
+  "wrongCredentials": {
+    "stillLogin": true,
+    "shellAbsent": true,
+    "passwordCleared": true
+  },
+  "optionalCloudMfa": {
+    "aal1ReachedBusinessShell": true,
+    "promptAbsent": true
+  },
+  "worker": {
+    "registrationCount": 1,
+    "scope": "https://ccc.example.org/",
+    "activeScript": "https://ccc.example.org/sw.js",
+    "activeState": "activated",
+    "controlled": false
+  },
+  "authenticated": {
+    "storageEmpty": true,
+    "credentialFound": false,
+    "piiCanaryFound": false,
+    "cache": [
+      {
+        "cache": "ccc-shell-45102ead",
+        "path": "/assets/index-C-lWucsB.js",
+        "sameOrigin": true,
+        "queryPresent": false,
+        "hasAuthorization": false,
+        "sha256": "369440684f7800253018c3a185238cc9160abe94aefaf4c3011d7b3184e2d0df",
+        "matchesReleaseAsset": true
+      },
+      {
+        "cache": "ccc-shell-45102ead",
+        "path": "/assets/index-DmXLclX2.css",
+        "sameOrigin": true,
+        "queryPresent": false,
+        "hasAuthorization": false,
+        "sha256": "8e476e8d67f7105be1d18fc3dd0fc9204a0437d513ebcfb8421358fe9f1867f2",
+        "matchesReleaseAsset": true
+      },
+      {
+        "cache": "ccc-shell-45102ead",
+        "path": "/icon.svg",
+        "sameOrigin": true,
+        "queryPresent": false,
+        "hasAuthorization": false,
+        "sha256": "4a8f9171f344758f6926925eaf5551f600bf9d27b3aeec2709951fd53424ea67",
+        "matchesReleaseAsset": true
+      },
+      {
+        "cache": "ccc-shell-45102ead",
+        "path": "/index.html",
+        "sameOrigin": true,
+        "queryPresent": false,
+        "hasAuthorization": false,
+        "sha256": "909abc1b1d498b290a7a007c60f4df1e785851ec6f39a7b1331cae9d44d39c8a",
+        "matchesReleaseAsset": true
+      },
+      {
+        "cache": "ccc-shell-45102ead",
+        "path": "/manifest.webmanifest",
+        "sameOrigin": true,
+        "queryPresent": false,
+        "hasAuthorization": false,
+        "sha256": "d623db37bb720152060922aabf7d3eaf501446a62b485701aa6e640013f8f4cf",
+        "matchesReleaseAsset": true
+      }
+    ]
+  },
+  "logout": {
+    "loginRequired": true,
+    "businessShellAbsent": true,
+    "businessRevocationRequests": 1,
+    "authLogoutRequests": 1,
+    "storageEmpty": true,
+    "credentialFound": false,
+    "piiCanaryFound": false
+  },
+  "reloadAfterLogout": {
+    "loginRequired": true,
+    "businessShellAbsent": true,
+    "controllerScript": "https://ccc.example.org/sw.js"
+  },
+  "tokenOrPiiBodiesPersisted": false,
+  "rawStorageOrResponseBodiesWrittenToEvidence": false
+}

@@ -1,0 +1,14 @@
+{
+  "validSeparateApiAndAuthOriginsAccepted": true,
+  "tamperedSignedApiRejectedBeforeBootstrap": true,
+  "canonicalRevokedKeyRejected": true,
+  "canonicalSequenceReplayRejected": true,
+  "canonicalWrongInstallationRejected": true,
+  "unsignedBootstrapRedirectRejected": true,
+  "browserTransportOriginAndPathEscapesRejected": true,
+  "consumerStateBinding": {
+    "status": "FAILED",
+    "observed": "loadInstallation accepted a validly signed sequence 0 manifest with a different installationId because its public API accepts no revokedKeyIds, minSequence, or expectedInstallationId state.",
+    "canonicalValidatorSupportsStateChecks": true
+  }
+}

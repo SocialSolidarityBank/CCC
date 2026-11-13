@@ -1,0 +1,74 @@
+{
+  "assignmentId": "ccc212-browser-auth-audit-20260914",
+  "ticket": "CCC-212",
+  "issueId": "20875701-ce14-4b5a-ac17-403179692849",
+  "title": "[E2-3] 브라우저 API와 인증",
+  "controllerPane": "w1N:p6",
+  "workerPane": "w1N:p1",
+  "workerSessionId": "01a09b5b-5952-7215-9127-ef3ed91e7261",
+  "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+  "branch": "orchestrate/beta-0.9",
+  "sourceWorktreeReadOnly": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+  "sourceCommit": "f7194dc88064455f3eb6be02abb5aae836981612",
+  "resultPath": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/orchestration/ccc212-browser-auth-result.json",
+  "mode": "existing-source-contract-and-runtime-audit",
+  "goal": "Verify the existing E2-3 implementation against its complete approved contract, reusing the real synthetic integration bridge instead of rebuilding auth or a client. Expose exact source defects and ownership gaps before any product-source repair. This assignment does not grant source ownership or Done authority.",
+  "readiness": {
+    "linearState": "In Progress",
+    "openBlockers": 0,
+    "completedPredecessors": ["CCC-204 E2-2", "CCC-180 E1-7"],
+    "blockerReadbackLog": "log_lL2JUumyKdaX",
+    "progressCommentId": "dff0e436-06da-417e-ad06-3fca40b78e55",
+    "sourceReadback": "frontend f7194dc88064455f3eb6be02abb5aae836981612, client/relayer-domain-beta, clean",
+    "priorCompletion": "CCC-204 is Done for E2-2 only; its final synthetic natural-registration proof is not E2-3 or hosted Supabase certification."
+  },
+  "acceptance": [
+    "Inventory the approved 21 error codes and map them to the actual Browser transport and consumer behavior. Map every required code; report additions, missing codes or changed semantics explicitly rather than truncating to 21 or inventing an oracle.",
+    "Trace canonical DTOs and actual decoders across browser API boundaries. Exercise meaningful valid, nullable/optional, malformed and unauthorized/error responses through real consumer code, with deterministic synthetic inputs and actual error behavior.",
+    "Exercise actual Browser transport behavior, authenticated requests, cancellation/stale-session handling, and error/revocation/logout boundaries required by S2 and existing E2-3 contracts. Distinguish client protocol behavior with a synthetic issuer from hosted provider guarantees.",
+    "Verify token and PII storage boundaries in the real browser, including the relevant lifecycle transitions. Never serialize credentials or sensitive page/cache bodies into evidence.",
+    "Verify signed bootstrap/installation allowlisting and actual URL/origin rejection through unchanged validators and consumers. Preserve independent API/Auth binding and the approved optional Cloud MFA policy.",
+    "Verify Electron same-origin/protocol/navigation contract with the actual available Electron runtime or existing real-runtime harness. A Chrome mock of Electron or a source-string check is not runtime proof. If unavailable, report exact missing capability and finish other reachable criteria.",
+    "Evaluate actual applicable response-header/CSP/CORS implementation, not the fixture's hand-authored headers. In particular, the CCC-204 fixture needed apiBase plus a trailing slash for descendant API requests. Determine what the actual runtime emits and whether it matches the intended S2 contract; do not silently relax production policy."
+  ],
+  "readFirst": [
+    "This request and only the current-rules preamble of docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md",
+    "CCC_OPEN_PILOT_PLAN.md E2-3 and current reconciled docs/specs/S2-auth-capability-manifest.md",
+    "Pinned apps/client/src/business installation/auth/transport/API/decoder/error modules and their direct references; use available LSP for symbol intelligence",
+    "Pinned packages/contracts canonical DTO/error definitions, actual HTTP error mapping and community-cloud runtime response handling",
+    "Existing desktop/Electron origin and navigation guards reached by direct source references",
+    "artifacts/orchestration/ccc204-pwa-harness-result.json, artifacts/ccc204-pwa/harness/fixture.test.mjs, browser-check.mjs, vitest.config.mjs and source/import evidence"
+  ],
+  "preservedPriorEvidence": {
+    "PWA": "Build, router, shared token/wire, design guard and natural service-worker registration passed. Do not rerun those full suites as activity proof.",
+    "realBridge": "Seeded credential-validating synthetic issuer -> unchanged ES256 Identity -> real D1 directory -> actual handleRequest/gateway. Keep invalid signature/issuer/role rejection, no fixed /me or capabilities success.",
+    "limitations": "Hosted Supabase, MFA/aal2, long-running refresh, revocation/logout, other roles, Electron and actual deployed/runtime CSP/CORS were not established by CCC-204. Its fixture exposed only a scoped synthetic boundary.",
+    "metadataCorrection": "Public signing/JWK fingerprints are retained in artifacts/ccc204-pwa/harness/ready.json despite contrary prose in the prior result. Use the actual file as metadata evidence."
+  },
+  "ownedWrites": [
+    "docs/superpowers/plans/2026-09-14-CCC-212-browser-api-auth-verification.md: concise ticket-specific execution/acceptance plan",
+    "artifacts/ccc212-browser-auth/**: bounded test-only adapters/glue and sanitized evidence",
+    "artifacts/orchestration/ccc212-browser-auth-result.json"
+  ],
+  "executionRules": [
+    "Verify actual own pane/session/cwd/branch. Only controller w1N:p6 assigns work, changes ticket status or resets sessions. Do not read full old orchestration history or private session files.",
+    "Inspect the exact current contracts and build a finite acceptance matrix before runtime work. Work from a commit-pinned disposable snapshot; prove imports resolve to that snapshot and original worktree/WIP remain unchanged.",
+    "Reuse installed dependencies and prior fixture construction. Copy or adapt only the minimal test glue inside the new owned evidence directory so running it never overwrites the immutable CCC-204 artifacts. No new packages, worktrees, agents or application scaffold.",
+    "Test-only fixture extensions needed to exercise E2-3 are permitted, but they must drive actual validators/handlers/consumers. Malformed error/DTO test inputs are valid boundary tests; arbitrary successful authentication, React/session injection and fixed /me success are not.",
+    "Keep keys/passwords/tokens memory-only, use only synthetic users/data, and allow only fixture-local network and runtime writes. Fixture-specific TLS trust may be reused; broad TLS-ignore flags, global trust/DNS changes, credential discovery and real external providers are forbidden. Do not capture credential/OTP/QR screens or raw auth/body/HAR dumps.",
+    "Use actual existing targeted contract/security commands where suitable, once after fixture/source freeze. Preserve tests and assertions; report name-filtered exclusions precisely. Do not rerun unrelated CCC-201/CCC-204/CCC-286 or project-wide suites.",
+    "Services must use hub start with readiness evidence. Browser scenarios must use the real surface and default page execution context where service-worker observations require it. Do not add placeholders to satisfy a test.",
+    "A source defect does not grant source ownership. Report exact path, violated contract, actual reproduction, existing owner and minimal repair packet. Do not fix apps/client, apps/web, adapters, packages, shared UI/CSS/design guards, auth policy, schema or migrations here.",
+    "Do not demand production access just because a provider is synthetic; separate independently testable protocol/validation behavior from real-hosted/OS guarantees. If a required real capability is absent, record that criterion blocked with concrete evidence, then finish other independent reachable criteria without repeating the same failure indefinitely.",
+    "Stop only owned runtime, collect all results, write the contracted JSON, end the turn and remain idle. The existing completion monitor notifies controller once. No Linear/control-state writes, other-pane prompts, /new, commits, pushes, deployments or second ticket."
+  ],
+  "resultContract": {
+    "assignmentId": "ccc212-browser-auth-audit-20260914",
+    "workerPaneId": "w1N:p1",
+    "workerSessionId": "01a09b5b-5952-7215-9127-ef3ed91e7261",
+    "status": "ready_for_review or blocked",
+    "ownedJobs": 0,
+    "allResultsCollected": true,
+    "requiredFields": ["identityEvidence", "sourceProvenance", "acceptanceMatrix", "errorCodeCoverage", "decoderAndTransportEvidence", "browserStorageAndLifecycleEvidence", "bootstrapAllowlistEvidence", "electronOriginEvidence", "actualHeaderEvidence", "commandsAndExitCodes", "sourceDefectsWithOwners", "preservation", "cleanup", "unverified", "evidenceHashes", "recommendedNextAction"]
+  }
+}

@@ -1,0 +1,3936 @@
+{
+  "sourceCommit": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+  "snapshot": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww",
+  "evidenceKind": "static_source_registry_not_runtime",
+  "documentSha256": "2e87bcec8e0e609c09aec67df0fd81fbeb9a6aa601bc3aff7403ecf5833ffe2b",
+  "endpointsSha256": "ee64d744c6985e5bc625e1ed1ec4bf34adf6bf0e22a5024cb3cb231750cbffb9",
+  "fileSha256": {
+    "packages/http-api/src/request-handler.ts": "71796b3ab71226bfa03f42c9aec7844d2411783d87d43cf3fc0b5451b27db827",
+    "packages/core/src/gateway.ts": "d0a6174cbcdb50f2beae3c79efc3388acc03617ff7ef3a21788e44f3de7f5af3",
+    "packages/contracts/src/agent-jobs.ts": "f98f85f337a95221f43924b9719ae7fc752895b339dd97c923cb5b61e1d60e55",
+    "packages/contracts/src/audio.ts": "c33e84613a615553af27d9d4411b38f2bdbb03d0e5084a86364da6bcd0a9a0e3",
+    "packages/contracts/src/consent.ts": "0dbf3364f994d471b8b46b511d6c169bfa817abf577c7610bf7d28d370655660",
+    "packages/contracts/src/counseling-memory.ts": "1e6418c5a1e32c2929b3fc6895cd96a364038f459bfffd85a388b281d42835da",
+    "packages/contracts/src/institution.ts": "d549581b770023aeaa2ea621f8d19e0afdbb9cb2d5c5d53a6d90f2a70e2e3076",
+    "packages/contracts/src/intake.ts": "782be8f08ec0fbed77c0b04330d2e887a89ebb6d451e1f9bbe3dddf4ec35cc22",
+    "packages/contracts/src/manual-record.ts": "03d9ae1524a596b9689936101679523d78ea8bec6793605ea0e1c8a0ce3dbd18",
+    "packages/contracts/src/program-admission.ts": "98768ab622cb8be6ca2b55af077caf6dda678022c68d32089fee0dfdad462b5d",
+    "packages/contracts/src/report.ts": "68da3d65e656419cf48645f1bacf41918768e1d809abae0301119388503e13bb",
+    "packages/contracts/src/runtime.ts": "15cdd4550f9e4e7b7bd666bdc465d5ba0ad4de565b58f3d34eada484151b5e1a",
+    "packages/contracts/src/stt-readiness.ts": "4bc5c4d1b395fe7c1f16f598897c20b931d8e0bd33a034e0d0798effad1f6d45",
+    "packages/http-api/src/preview-gate.ts": "e819c77431fec8bf5462f23d55acde7a17641188a4b12a0588d09889d4e38ad2",
+    "packages/http-api/src/capabilities.ts": "74d1f50f0c528dcd868cac3ba12be61fba5680a98bc2524f82eb29ec597b0652",
+    "packages/http-api/src/counseling-memory-trial.ts": "cb3af489cf8c9a8e92a431b82c3780c52c8f97bea767ecc08eb4ec8f4fe46a6f",
+    "packages/http-api/src/counseling-memory-runner.ts": "3645d27cc81669d00b6e9045e00fca703b57883f5b9e81ece8be4a839bc571a8",
+    "packages/core/src/scheduled-job-runner.ts": "2db6c00f0a9e3190e0cf61ee9aa206317a6785b78db967d17fcbe48c8a271a04",
+    "apps/web/app/lib/api.ts": "b024210bf773aa9a30e2ba2fc05a6df89b5fedf32c49e6b2a4ae718c48b7511d",
+    "apps/web/app/actions.ts": "94906b193843f401330459de69eb0f38d0dab9d8c4b1d94884adb6dd61273a6a",
+    "apps/client/src/stt-trial/api.ts": "d88635848e188e5e2b8f8132be2cdb6770fbe6402a33232cb30e8491049d848a",
+    "apps/client/src/stt-trial/contract.ts": "a116595546b783af6dc7eca2032b6ae4311df8d5c1f9c06ebf270166194981f6",
+    "apps/web/app/preview/unlock/route.ts": "82b38ba431e6da96c5f17c2833f8d1c7c721a457caedec85d845859e0919485f",
+    "apps/web/app/lib/preview-cookie.ts": "f4ea0dd805e746f767665bf19d09119865c0852fe60987041efbe394c682c8c4",
+    "apps/pipeline/ccc_pipeline/trial_server.py": "8bf83b24ed1901ef7077469a8c8ebb1931dbd12e742b8690129739b9e04767b3"
+  },
+  "labels": [
+    {
+      "label": "{status,service}",
+      "kind": "literal",
+      "endpoints": [
+        "GET /health"
+      ],
+      "producer": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2226",
+        "symbol": "handleRequest inline literal"
+      },
+      "fields": "{status:'ok', service:'ccc-api'}"
+    },
+    {
+      "label": "ParticipantRequestLinkInfo|ParticipantRequestLinkUsedInfo",
+      "kind": "union",
+      "endpoints": [
+        "GET /invites/participant/:token"
+      ],
+      "definition": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "21109-21115",
+          "symbol": "ParticipantRequestLinkInfo"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "21117-21121",
+          "symbol": "ParticipantRequestLinkUsedInfo"
+        }
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "21124-21149",
+        "symbol": "getParticipantRequestLinkInfo"
+      },
+      "notes": "issued: {status:'issued',programId,programType,orgName:string|null,expiresAt}. used: {status:'used',counselorName:string|null,message}. Discriminator=status."
+    },
+    {
+      "label": "ConsentDisclosure",
+      "kind": "alias",
+      "endpoints": [
+        "GET /invites/participant/:token/consent/disclosures",
+        "GET /programs/:id/consent/disclosures",
+        "GET /support-cases/:id/consent/disclosures"
+      ],
+      "resolvesTo": {
+        "file": "packages/contracts/src/consent.ts",
+        "lines": "60-67",
+        "symbol": "ConsentDisclosureSnapshot"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "21152-21161",
+          "symbol": "issueParticipantRequestLinkDisclosures"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "7772-7782",
+          "symbol": "issueRegistrationConsentDisclosures"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "7763-7770",
+          "symbol": "issueSupportCaseConsentDisclosures"
+        }
+      ],
+      "notes": "envelope {disclosures: ConsentDisclosureSnapshot[]}; scopeBinding.supportCaseId nullable; provider/purpose nullable."
+    },
+    {
+      "label": "ParticipantSignupResult",
+      "kind": "type",
+      "endpoints": [
+        "POST /signup/participant"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "21203-21206",
+        "symbol": "ParticipantSignupResult"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "21214-21375",
+        "symbol": "completeParticipantSignup"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2283-2301",
+        "symbol": "inline requireOnlyKeys(token,name,phone,email,consentEvents)+parseInitialConsentEvents(555-565)"
+      },
+      "fields": "{beneficiaryId,supportCaseId}; 201."
+    },
+    {
+      "label": "StaffInvitePublicInfo",
+      "kind": "type",
+      "endpoints": [
+        "GET /staff-invites/token/:token"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "21509-21513",
+        "symbol": "StaffInvitePublicInfo"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "21515-21521",
+        "symbol": "getStaffInvitePublicInfo"
+      },
+      "fields": "{orgName:string|null, roles:DirectoryStoredRole[], expiresAt}"
+    },
+    {
+      "label": "StaffInviteAcceptResult",
+      "kind": "type",
+      "endpoints": [
+        "POST /staff-invites/token/:token/accept"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "21523-21527",
+        "symbol": "StaffInviteAcceptResult"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "21537-21603",
+        "symbol": "acceptStaffInvite"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2311-2332",
+        "symbol": "inline requireOnlyKeys(name,email)"
+      },
+      "fields": "{userId,email,roleWaiting:boolean}; 201."
+    },
+    {
+      "label": "AgentCredentialGrant",
+      "kind": "type",
+      "endpoints": [
+        "POST /agents/pair",
+        "POST /agents/token"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12641-12647",
+        "symbol": "AgentCredentialGrant"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "12799-12809",
+          "symbol": "redeemAgentPairingCode"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "12816-12843",
+          "symbol": "rotateAgentRefreshCredential"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2336-2344",
+        "symbol": "inline requireOnlyKeys(pairingCode|refreshToken)"
+      },
+      "fields": "{installationId,bearerToken,bearerExpiresAt,refreshToken,refreshExpiresAt}; 201."
+    },
+    {
+      "label": "{ranAt,jobs}",
+      "kind": "literal",
+      "endpoints": [
+        "POST /internal/scheduler/run"
+      ],
+      "producer": [
+        {
+          "file": "packages/core/src/scheduled-job-runner.ts",
+          "lines": "117-127",
+          "symbol": "createScheduledJobRunner.run"
+        },
+        {
+          "file": "packages/core/src/scheduled-job-runner.ts",
+          "lines": "22-32",
+          "symbol": "dueScheduledJobKinds"
+        },
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "2354-2376",
+          "symbol": "dispatch"
+        }
+      ],
+      "definition": {
+        "file": "packages/contracts/src/runtime.ts",
+        "lines": "117-124",
+        "symbol": "JobReport"
+      },
+      "fields": "{ranAt:string, jobs:JobReport[]}; body empty or {} only."
+    },
+    {
+      "label": "StorageSignerRequest",
+      "kind": "type",
+      "endpoints": [
+        "POST /internal/storage/authorize"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/audio.ts",
+        "lines": "195-205",
+        "symbol": "StorageSignerRequest"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "313-330",
+        "symbol": "storageAuthorizationBody"
+      },
+      "notes": "union context: upload|claim|deletion; action upload|agent_read|delete|head|absence."
+    },
+    {
+      "label": "StorageSignerDecision",
+      "kind": "type",
+      "endpoints": [
+        "POST /internal/storage/authorize"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/audio.ts",
+        "lines": "207-214",
+        "symbol": "StorageSignerDecision"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "9628-9722",
+        "symbol": "authorizeStorageSignerOperation"
+      },
+      "fields": "{allowed:true,requestSha256,generationId,authorizedAt,authorizationExpiresAt,expiresAt:string|null}"
+    },
+    {
+      "label": "logout 204",
+      "kind": "literal",
+      "endpoints": [
+        "POST /auth/logout"
+      ],
+      "producer": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2407-2419",
+        "symbol": "dispatch; revokeIdentitySession"
+      },
+      "fields": "empty body, 204."
+    },
+    {
+      "label": "MeResponse",
+      "kind": "type",
+      "aliases": [
+        "MeWire",
+        "MyIdentity"
+      ],
+      "endpoints": [
+        "GET /me"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/institution.ts",
+        "lines": "35-45",
+        "symbol": "MeResponse"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "13029-13039",
+          "symbol": "getMyIdentity"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "13107-13114",
+          "symbol": "getLastProgramType"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "13047-13070",
+          "symbol": "listMyRoles"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "14481-14568",
+          "symbol": "getInstitutionReadiness"
+        }
+      ],
+      "serializer": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2427-2441",
+        "symbol": "inline literal assembly"
+      },
+      "consumer": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "246-256",
+        "symbol": "MyIdentity (web)"
+      },
+      "notes": "email,name,lastProgramType required-nullable; institution:InstitutionReadiness(IN 12-33)."
+    },
+    {
+      "label": "CapabilityManifest",
+      "kind": "type",
+      "endpoints": [
+        "GET /capabilities"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/runtime.ts",
+        "lines": "217-227",
+        "symbol": "CapabilityManifest"
+      },
+      "producer": [
+        {
+          "file": "packages/http-api/src/capabilities.ts",
+          "lines": "54-84",
+          "symbol": "buildCapabilities"
+        },
+        {
+          "file": "packages/http-api/src/capabilities.ts",
+          "lines": "36-52",
+          "symbol": "verifiedInstallManifest"
+        }
+      ],
+      "notes": "schemaVersion:1; sttEngine:SttEngine|null(RT 206); installationId in x-ccc-installation-id header, not body."
+    },
+    {
+      "label": "DirectoryAccountPage",
+      "kind": "alias",
+      "endpoints": [
+        "GET /settings/accounts"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "22577-22581",
+        "symbol": "DirectoryAccountsView"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "22655-22663",
+        "symbol": "listDirectoryAccounts"
+      },
+      "notes": "{accounts:DirectoryAccountView[](GW 22573-22576), permissions{canManageRoles,canManageAccounts}, nextCursor:string|null}; email/name nullable."
+    },
+    {
+      "label": "DirectoryUser",
+      "kind": "alias",
+      "endpoints": [
+        "GET /users",
+        "POST /users",
+        "POST /users/:id/deactivate"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12393-12400",
+        "symbol": "User"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "12897-12904",
+          "symbol": "listUsers"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "12915-12958",
+          "symbol": "upsertUser"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "12966-13007",
+          "symbol": "deactivateUser"
+        }
+      ],
+      "consumer": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "259-267",
+        "symbol": "DirectoryUser (web, rejects null email — G-WEB-07)"
+      },
+      "notes": "email/name nullable; no token in list."
+    },
+    {
+      "label": "CounselorAssignments",
+      "kind": "type",
+      "endpoints": [
+        "GET /users/:id/assignments"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "20887-20890",
+        "symbol": "CounselorAssignments"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "20901-20959",
+        "symbol": "listCounselorAssignments"
+      },
+      "serializer": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "926-939",
+        "symbol": "counselorAssignmentResponse"
+      },
+      "notes": "participants[] serialized as {beneficiaryId,supportCaseId,programType,status,assignmentRole,participantName,participantPhone}."
+    },
+    {
+      "label": "updateDirectoryRoles result",
+      "kind": "alias",
+      "endpoints": [
+        "PATCH /settings/accounts/:userId/roles"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "22573-22576",
+        "symbol": "DirectoryAccountView"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "22735-22762",
+        "symbol": "updateDirectoryRoles"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2456-2462",
+        "symbol": "inline requireOnlyKeys(roles,expectedRoles)"
+      }
+    },
+    {
+      "label": "deactivateDirectoryAccount result",
+      "kind": "alias",
+      "endpoints": [
+        "POST /settings/accounts/:userId/deactivate"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "22573-22576",
+        "symbol": "DirectoryAccountView"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "22763-22784",
+        "symbol": "deactivateDirectoryAccount"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2463-2467",
+        "symbol": "inline requireOnlyKeys(reason)"
+      }
+    },
+    {
+      "label": "ProgramOption",
+      "kind": "type",
+      "endpoints": [
+        "GET /program-options"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/program-admission.ts",
+        "lines": "162-167",
+        "symbol": "ProgramOption"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "14194-14209",
+        "symbol": "listProgramOptions"
+      },
+      "notes": "envelope {programs:ProgramOption[]} satisfies ProgramOptionsResponse(PA 169-171); displayName nullable."
+    },
+    {
+      "label": "ProgramListResponse",
+      "kind": "type",
+      "endpoints": [
+        "GET /programs"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/program-admission.ts",
+        "lines": "173-188",
+        "symbol": "ProgramListResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "14173-14192",
+        "symbol": "listPrograms"
+      }
+    },
+    {
+      "label": "ProgramMutationResponse",
+      "kind": "type",
+      "endpoints": [
+        "POST /programs",
+        "PATCH /programs/:id"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/program-admission.ts",
+        "lines": "190-192",
+        "symbol": "ProgramMutationResponse"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "14211-14241",
+          "symbol": "createProgram"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "14243-14287",
+          "symbol": "updateProgram"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "796-816",
+        "symbol": "parseProgramChoices + inline requireOnlyKeys"
+      },
+      "notes": "{program:ProgramView(PA 157-160)}; ProgramAdmissionDeniedResponse(PA 95-98) on denial."
+    },
+    {
+      "label": "AuditLogPage",
+      "kind": "type",
+      "endpoints": [
+        "GET /audit-log"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "11930-11933",
+        "symbol": "AuditLogPage"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "11977-12090",
+        "symbol": "listAuditLog"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "756-785",
+        "symbol": "parseAuditLogQuery"
+      },
+      "notes": "{items:AuditLogItem[](GW 11919-11928), nextCursor:string|null}."
+    },
+    {
+      "label": "OrganizationProfile",
+      "kind": "type",
+      "endpoints": [
+        "GET /organization/profile",
+        "PATCH /organization/profile"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/institution.ts",
+        "lines": "5-9",
+        "symbol": "OrganizationProfile"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "14461-14474",
+          "symbol": "getOrganizationProfile"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "14570-14622",
+          "symbol": "updateOrganizationProfile"
+        }
+      ],
+      "notes": "orgName/programDisplayName nullable; PATCH keys orgName/expectedOrgName."
+    },
+    {
+      "label": "OrganizationOnboardingResponse",
+      "kind": "type",
+      "endpoints": [
+        "POST /organization/onboarding"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/institution.ts",
+        "lines": "53-55",
+        "symbol": "OrganizationOnboardingResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "14628-14693",
+        "symbol": "completeOrganizationOnboarding"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2546-2558",
+        "symbol": "inline requireOnlyKeys(orgName,programDisplayName,financialSupportEnabled)"
+      },
+      "notes": "extends OrganizationProfile + institution:InstitutionReadiness; input=OrganizationOnboardingInput(IN 47-51, financialSupportEnabled optional)."
+    },
+    {
+      "label": "{ok:true}",
+      "kind": "literal",
+      "endpoints": [
+        "PUT /me/last-program"
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "13086-13101",
+        "symbol": "rememberLastProgramType"
+      },
+      "fields": "{ok:true}"
+    },
+    {
+      "label": "TodaySchedulesWire",
+      "kind": "alias",
+      "endpoints": [
+        "GET /schedules/today",
+        "GET /schedules/upcoming",
+        "GET /schedules/month"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "17298-17303",
+        "symbol": "AuthoritativeDayInterval & {schedules:TodayScheduleCard[]}"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "17511-17594",
+          "symbol": "getTodaySchedules"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "17604-17613",
+          "symbol": "getUpcomingSchedules"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "17638-17648",
+          "symbol": "getMonthSchedules"
+        }
+      ],
+      "consumer": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "366-372",
+        "symbol": "TodaySchedules (web)"
+      },
+      "notes": "TodayScheduleCard GW 17305-17324: participantName/Phone/completedSessionId nullable; extends ScheduleDisplay(13207-13210: allDay,displayColor)."
+    },
+    {
+      "label": "ScheduleCandidate",
+      "kind": "type",
+      "endpoints": [
+        "GET /schedules/candidates"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "17650-17665",
+        "symbol": "ScheduleCandidate"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "17673-17736",
+        "symbol": "listScheduleCandidates"
+      },
+      "notes": "envelope {candidates:[]}; participantName/Phone/Email/intakeAt nullable."
+    },
+    {
+      "label": "CounselingScheduleWire",
+      "kind": "alias",
+      "endpoints": [
+        "POST /schedules",
+        "PATCH /schedules/:id/reschedule",
+        "POST /schedules/:id/cancel",
+        "POST /schedules/:id/no-show"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "959-970",
+        "symbol": "scheduleResponse"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "17841-17936",
+          "symbol": "createCounselingSchedule"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "18108-18115",
+          "symbol": "rescheduleCounselingSchedule"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "18117-18124",
+          "symbol": "cancelCounselingSchedule"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "18126-18133",
+          "symbol": "markCounselingScheduleNoShow"
+        }
+      ],
+      "parser": [
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "693-714",
+          "symbol": "parseScheduleCreation"
+        },
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "716-723",
+          "symbol": "parseScheduleReschedule"
+        },
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "725-728",
+          "symbol": "parseScheduleTransition"
+        }
+      ],
+      "consumer": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "867-874",
+        "symbol": "CounselingSchedule (web)"
+      },
+      "notes": "wire fields {id,beneficiaryId,supportCaseId,scheduledAt,allDay,displayColor,status,version} — NOT full CounselingSchedule(GW 13212-13228)."
+    },
+    {
+      "label": "ScheduleSessionPlanWire",
+      "kind": "alias",
+      "endpoints": [
+        "GET /schedules/:id/plan"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "972-997",
+        "symbol": "scheduleSessionPlanResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "18188-18218",
+        "symbol": "getScheduleSessionPlan"
+      },
+      "consumer": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "2013-2023",
+        "symbol": "ScheduleSessionPlan (web)"
+      },
+      "notes": "source type ScheduleSessionPlan GW 17276-17287; sessionGoals[]={id,body,caseGoalId,caseGoalTitle,ordinal}; customQuestions[]={id,body,ordinal}."
+    },
+    {
+      "label": "PUT /schedules/:id/plan result",
+      "kind": "literal",
+      "endpoints": [
+        "PUT /schedules/:id/plan"
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "18238-18330",
+        "symbol": "updateScheduleSessionGoals"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "732-740",
+        "symbol": "parseScheduleSessionGoalsUpdate"
+      },
+      "fields": "{scheduleId,version,sessionGoals:ScheduleSessionGoal[](GW 17257-17265)}"
+    },
+    {
+      "label": "InviteToken",
+      "kind": "type",
+      "endpoints": [
+        "POST /invites/participant"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "20970-20987",
+        "symbol": "InviteToken"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "21020-21042",
+        "symbol": "createParticipantInvite"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2633-2643",
+        "symbol": "inline requireOnlyKeys(programId)"
+      },
+      "notes": "status:'issued'|'used'; programId/programType/expiresAt/usedAt/revokedAt/usedByBeneficiaryId nullable; 201."
+    },
+    {
+      "label": "StaffInvite list/create/revoke",
+      "kind": "type",
+      "endpoints": [
+        "GET /staff-invites",
+        "POST /staff-invites",
+        "POST /staff-invites/:id/revoke"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "21388-21397",
+        "symbol": "StaffInvite"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "21473-21484",
+          "symbol": "listStaffInvites"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "21436-21471",
+          "symbol": "createStaffInvite"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "21486-21507",
+          "symbol": "revokeStaffInvite"
+        }
+      ],
+      "notes": "GET {invites:StaffInvite[]}; POST {invite:StaffInvite,token:string} — token only in create response; revoke {invite:StaffInvite}. status 'issued'|'used'|'revoked'; usedAt/revokedAt nullable."
+    },
+    {
+      "label": "SupportCaseCreationResult",
+      "kind": "type",
+      "endpoints": [
+        "POST /participants",
+        "POST /beneficiaries",
+        "POST /participants/:id/support-cases",
+        "POST /participants/:id/programs"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "14378-14385",
+        "symbol": "SupportCaseCreationResult"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "14742-14948",
+          "symbol": "createBeneficiaryWithInitialSupportCase"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "15158-15373",
+          "symbol": "createSupportCase"
+        }
+      ],
+      "parser": [
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "504-553",
+          "symbol": "parseInitialParticipantCreation"
+        },
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "567-594",
+          "symbol": "parseSubsequentParticipantCreation"
+        }
+      ],
+      "fields": "{beneficiaryId,supportCaseId,assignmentRole:'primary',replayed,canWriteIntake}; 200 if replayed else 201."
+    },
+    {
+      "label": "ParticipantSearchResult",
+      "kind": "type",
+      "endpoints": [
+        "GET /participants/search",
+        "GET /beneficiaries/search"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "16111-16118",
+        "symbol": "ParticipantSearchResult"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "16138-16234",
+        "symbol": "searchParticipants"
+      },
+      "serializer": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "845-853",
+        "symbol": "participantSearchResultResponse"
+      },
+      "notes": "envelope {results:[]}; name nullable; no phone/email on wire."
+    },
+    {
+      "label": "{count}",
+      "kind": "literal",
+      "endpoints": [
+        "GET /participants/new-signup-count"
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "16081-16083",
+        "symbol": "countNewSignups"
+      }
+    },
+    {
+      "label": "AssignedParticipantWire",
+      "kind": "alias",
+      "endpoints": [
+        "GET /participants",
+        "GET /beneficiaries"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "855-868",
+        "symbol": "assignedParticipantResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "15930-16020",
+        "symbol": "listAssignedParticipants"
+      },
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "16094-16109",
+        "symbol": "AssignedParticipant"
+      },
+      "notes": "envelope {results:[]}; name/phone/email nullable; newSignup:boolean."
+    },
+    {
+      "label": "PrivacyConsentFollowUp",
+      "kind": "type",
+      "endpoints": [
+        "GET /consent/follow-ups"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "14967-14979",
+        "symbol": "PrivacyConsentFollowUp"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "15004-15056",
+        "symbol": "listPrivacyConsentFollowUps"
+      },
+      "notes": "envelope {results:[]}; emergencyRegistrationAt/consentPrivacyDueAt nullable."
+    },
+    {
+      "label": "ParticipantHubDetail",
+      "kind": "alias",
+      "endpoints": [
+        "GET /participants/:id/hub"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "898-924",
+        "symbol": "participantHubResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "15566-15666",
+        "symbol": "listSupportCasesForBeneficiary"
+      },
+      "consumer": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "327-329",
+        "symbol": "ParticipantHubDetail (web)"
+      },
+      "notes": "restricted:boolean discriminator; restricted=true → only {beneficiaryId,restricted,participantName,participantPhone,participantEmail,programs:[identification]}; false adds participantBirthDate+progress{status,closedAt,sessionCount,lastSessionAt} and full program rows."
+    },
+    {
+      "label": "ParticipantProgramWire",
+      "kind": "alias",
+      "endpoints": [
+        "GET /participants/:id/support-cases",
+        "GET /participants/:id/programs"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "870-896",
+        "symbol": "participantProgramResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "15566-15666",
+        "symbol": "listSupportCasesForBeneficiary"
+      },
+      "consumer": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "287-311",
+        "symbol": "ParticipantProgram (web — requires removed consent object; G-WEB-01)"
+      },
+      "notes": "fields {id,beneficiaryId,programType,status,intakeAt,creationKind,sourceSupportCase:null,participantName,participantPhone,authorized,assigneeNames,consentRecordedAt,upcomingSchedule}; upcomingSchedule null|(ScheduleDisplay&{id,scheduledAt,sessionKind})."
+    },
+    {
+      "label": "ParticipantGoalTreeCaseWire",
+      "kind": "alias",
+      "endpoints": [
+        "GET /participants/:id/goal-tree"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1115-1131",
+        "symbol": "participantGoalTreeResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "15731-15864",
+        "symbol": "getParticipantGoalTree"
+      },
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "15712-15718",
+        "symbol": "ParticipantGoalTreeCase"
+      },
+      "notes": "envelope {cases:[]}; overallGoal nullable; goals[]={id,title,status,closedReason,closedAt,revisions,sessionGoals,linkedSessions}."
+    },
+    {
+      "label": "ParticipantBasicInfo",
+      "kind": "type",
+      "endpoints": [
+        "GET /participants/:id/basic-info"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "16399-16412",
+        "symbol": "ParticipantBasicInfo"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "16422-16470",
+        "symbol": "getParticipantBasicInfo"
+      },
+      "notes": "name/phone/email/account/birthDate/region/gender all nullable; version=optimistic lock."
+    },
+    {
+      "label": "ParticipantPiiVault",
+      "kind": "type",
+      "endpoints": [
+        "PUT /participants/:id/basic-info"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "13195-13200",
+        "symbol": "ParticipantPiiVault"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "16322-16391",
+        "symbol": "updateParticipantPii"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2769-2787",
+        "symbol": "inline requireOnlyKeys(supportCaseContextId,expectedVersion,+PII fields)"
+      },
+      "fields": "{beneficiaryId,version,purgeDue:string|null,purgedAt:string|null}"
+    },
+    {
+      "label": "ParticipantBriefingWire",
+      "kind": "alias",
+      "endpoints": [
+        "GET /participants/:id/briefing",
+        "GET /participants/:id/programs/:case/briefing"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "999-1112",
+        "symbol": "normalizeParticipantBriefing"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "19858-20222",
+        "symbol": "getParticipantBriefing"
+      },
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "19754-19780",
+        "symbol": "ParticipantBriefing"
+      },
+      "notes": "wire={beneficiaryId,focusSupportCaseId,overallGoal:null|string,activeGoals[{id,title}],canEditOverallGoal,participant:ParticipantNameContact(16561-16564),sections[{sourceSupportCase,gasTrend,lastSessionSummary|null,pendingReviewSessionIds,openActionItems,flags,aiSuggestions,sessionRows,discrepancies}],focusUpcomingSchedule|null}."
+    },
+    {
+      "label": "ExportCaseOption page",
+      "kind": "alias",
+      "endpoints": [
+        "GET /exports/cases",
+        "GET /settings/assignments/cases"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12330-12338",
+        "symbol": "ExportCaseOption"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12340-12386",
+        "symbol": "listSettingsSupportCaseOptions"
+      },
+      "fields": "{items:ExportCaseOption[], nextCursor:string|null}; scope 'assigned'|'organization'."
+    },
+    {
+      "label": "SupportCaseReport",
+      "kind": "type",
+      "endpoints": [
+        "GET /support-cases/:id/report"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/report.ts",
+        "lines": "13-66",
+        "symbol": "SupportCaseReport"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "19519-19667",
+        "symbol": "getSupportCaseReport"
+      },
+      "notes": "schemaVersion:1; optional fields intakeSchemaVersion/intakeRevision/summary/firstIntakeGoal/nextConfirmations."
+    },
+    {
+      "label": "CaseExportResponse",
+      "kind": "type",
+      "endpoints": [
+        "POST /support-cases/:id/export"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12096-12109",
+        "symbol": "CaseExportResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12111-12223",
+        "symbol": "exportCase"
+      }
+    },
+    {
+      "label": "ExportHistoryPage",
+      "kind": "type",
+      "endpoints": [
+        "GET /support-cases/:id/export-history"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12235-12238",
+        "symbol": "ExportHistoryPage"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12265-12328",
+        "symbol": "listCaseExportHistory"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "742-754",
+        "symbol": "parseExportHistoryQuery"
+      }
+    },
+    {
+      "label": "memory trial readiness",
+      "kind": "literal",
+      "endpoints": [
+        "GET /support-cases/:id/memory/trial",
+        "POST /support-cases/:id/memory/trial"
+      ],
+      "producer": [
+        {
+          "file": "packages/http-api/src/counseling-memory-trial.ts",
+          "lines": "12-33",
+          "symbol": "memoryTrialReadiness"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "21742-21795",
+          "symbol": "getCounselingMemoryTrialState"
+        },
+        {
+          "file": "packages/http-api/src/counseling-memory-runner.ts",
+          "lines": "51-53",
+          "symbol": "runCounselingMemoryTrial"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2824-2840",
+        "symbol": "inline requireOnlyKeys(confirmExternalAi)"
+      },
+      "notes": "GET={supportCaseId,status,generation,appliedGeneration,revision,updatedAt,nextCheckAt,backfillDone,dirtySources,pendingMasks,itemCount,blockers:string[],ready,providerMode:'unavailable'|'fixture'|'openai',draftMode}. POST 200 adds counters{claimed,updated,failed,superseded}; 409 returns readiness without counters."
+    },
+    {
+      "label": "CaseMemoryView",
+      "kind": "type",
+      "endpoints": [
+        "GET /support-cases/:id/memory",
+        "POST /support-cases/:id/memory/corrections"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/counseling-memory.ts",
+        "lines": "64-74",
+        "symbol": "CaseMemoryView"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "21676-21718",
+          "symbol": "getCounselingMemory"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "22283-22305",
+          "symbol": "correctCounselingMemory"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2841-2857",
+        "symbol": "inline requireOnlyKeys(itemId,expectedRevision,body) → MemoryCorrectionInput(CM 76-80)"
+      },
+      "notes": "reason/updatedAt nullable; status:MemoryStatus(CM 53-62)."
+    },
+    {
+      "label": "MemorySettingsView",
+      "kind": "type",
+      "endpoints": [
+        "GET /settings/counseling-memory",
+        "PUT /settings/counseling-memory"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/counseling-memory.ts",
+        "lines": "87-94",
+        "symbol": "MemorySettingsView"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "21719-21725",
+          "symbol": "getCounselingMemorySettings"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "21726-21739",
+          "symbol": "setCounselingMemorySettings"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2517-2530",
+        "symbol": "inline requireOnlyKeys(enabled,expectedVersion) → MemorySettingsInput(CM 82-85)"
+      },
+      "notes": "lastSuccessAt nullable."
+    },
+    {
+      "label": "SupportCase",
+      "kind": "type",
+      "endpoints": [
+        "POST /support-cases/:id/close"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "13147-13167",
+        "symbol": "SupportCase"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "16706-16792",
+        "symbol": "closeSupportCase"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2858-2869",
+        "symbol": "inline requireOnlyKeys(reason)"
+      },
+      "notes": "many nullable: legacyCaseId/intakeAt/consent*/overallGoal/closedAt/closedReason/createdAt/updatedAt."
+    },
+    {
+      "label": "SupportCaseClosureInfo",
+      "kind": "type",
+      "endpoints": [
+        "GET /support-cases/:id/closure"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "16795-16806",
+        "symbol": "SupportCaseClosureInfo"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "16814-16848",
+        "symbol": "getSupportCaseClosureInfo"
+      }
+    },
+    {
+      "label": "SupportCaseAssigneeWire",
+      "kind": "alias",
+      "endpoints": [
+        "POST /support-cases/:id/assignment-requests",
+        "POST /support-cases/:id/assignment-requests/:id/review",
+        "GET /support-cases/:id/assignees",
+        "POST /support-cases/:id/assignees",
+        "GET /settings/assignments/cases/:id"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "941-957",
+        "symbol": "supportCaseAssigneeResponse"
+      },
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "13169-13182",
+        "symbol": "SupportCaseAssignee"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "20357-20392",
+          "symbol": "requestOwnSupportCaseAssignment"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "20406-20471",
+          "symbol": "reviewSupportCaseAssignmentRequest"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "20804-20826",
+          "symbol": "listSupportCaseAssignees"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "20289-20354",
+          "symbol": "requestSupportCaseAssignment"
+        }
+      ],
+      "notes": "wire drops unassignedAt; acceptanceRequestedBy/acceptedAt/transferReason/notifiedBy/notifiedAt nullable; review decision parser inline RH 2870-2890."
+    },
+    {
+      "label": "{transferred:true}",
+      "kind": "literal",
+      "endpoints": [
+        "POST /support-cases/:id/force-transfer"
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "20554-20638",
+        "symbol": "forceTransferSupportCase (void)"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2891-2903",
+        "symbol": "inline requireOnlyKeys(toUserId,reason,participantNotified)"
+      }
+    },
+    {
+      "label": "{accepted:true}",
+      "kind": "literal",
+      "endpoints": [
+        "POST /support-cases/:id/assignees/:assignmentId/accept"
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "20474-20545",
+        "symbol": "acceptSupportCaseAssignment (void)"
+      }
+    },
+    {
+      "label": "CurrentConsentState",
+      "kind": "type",
+      "endpoints": [
+        "GET /support-cases/:id/consent"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/consent.ts",
+        "lines": "75-80",
+        "symbol": "CurrentConsentState"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "7720-7727",
+        "symbol": "getSupportCaseConsent"
+      },
+      "notes": "envelope {consent:[]}; provider/purpose/retentionDuration/effectiveAt/eventId/revision/eventSequence nullable; state union 'unconfirmed'|'granted'|'not_granted'."
+    },
+    {
+      "label": "ConsentEvent",
+      "kind": "type",
+      "endpoints": [
+        "GET /support-cases/:id/consent/events",
+        "POST /support-cases/:id/consent-events"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/consent.ts",
+        "lines": "50-58",
+        "symbol": "ConsentEvent"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "7751-7761",
+          "symbol": "listSupportCaseConsentEvents"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "8263-8287",
+          "symbol": "appendSupportCaseConsentEvent"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1465-1517",
+        "symbol": "parseConsentEventInput → AppendConsentEventInput(CO 82-88)"
+      },
+      "notes": "GET envelope {events:[]}; POST returns event 201. provider/purpose/retentionDuration/correctionOfEventId nullable; expectedRevision nullable in input."
+    },
+    {
+      "label": "{supportCaseId,overallGoal}",
+      "kind": "literal",
+      "endpoints": [
+        "PUT /support-cases/:id/overall-goal"
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "15109-15151",
+        "symbol": "setSupportCaseOverallGoal"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2968-2979",
+        "symbol": "inline requireOnlyKeys(overallGoal)"
+      }
+    },
+    {
+      "label": "SessionDiscrepancyWire",
+      "kind": "alias",
+      "endpoints": [
+        "PUT /support-cases/:id/discrepancies/:discrepancyId/resolution"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "5420-5434",
+        "symbol": "SessionDiscrepancy"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "5796-5842",
+        "symbol": "resolveSessionDiscrepancy"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2980-2994",
+        "symbol": "inline requireOnlyKeys(status)"
+      },
+      "notes": "resolutionStatus/resolvedBy/resolvedAt nullable; kind:DiscrepancyKind(5417); resolutionStatus:DiscrepancyResolutionStatus(5418)."
+    },
+    {
+      "label": "ManualRecordContext",
+      "kind": "type",
+      "endpoints": [
+        "GET /support-cases/:id/records/context"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/manual-record.ts",
+        "lines": "132-141",
+        "symbol": "ManualRecordContext"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "18637-18656",
+        "symbol": "getManualRecordContext"
+      },
+      "notes": "schemaVersion:2; defaults.heldAt/channel/scheduleId/scheduleVersion nullable, reason always null."
+    },
+    {
+      "label": "SupportCaseRecordsWire",
+      "kind": "alias",
+      "endpoints": [
+        "GET /support-cases/:id/records"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "3013-3024",
+        "symbol": "inline literal"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "19254-19505",
+          "symbol": "listCounselingRecords"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "6274-6287",
+          "symbol": "listGoals"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "17477-17501",
+          "symbol": "getNextCounselingScheduleForSupportCase"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "5856-5873",
+          "symbol": "listRecordErrorSessionIds"
+        }
+      ],
+      "serializer": [
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "1173-1218",
+          "symbol": "counselingRecordDetailsResponse"
+        },
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "1220-1235",
+          "symbol": "nextCounselingScheduleResponse"
+        }
+      ],
+      "consumer": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "573-588",
+        "symbol": "SupportCaseRecords (web)"
+      },
+      "notes": "wire={records:CounselingRecordDetails-serialized[](GW 18369-18396), goals[{id,title,status,closedReason}], schedule|null, recordErrorSessionIds:string[], overallGoal:string|null, caseStatus, programType}. ?official=true only accepted value."
+    },
+    {
+      "label": "CounselingRecordResult",
+      "kind": "type",
+      "endpoints": [
+        "POST /support-cases/:id/records"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "18453-18456",
+        "symbol": "CounselingRecordResult"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "18664-18867",
+        "symbol": "createCounselingRecord"
+      },
+      "parser": [
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "601-608",
+          "symbol": "parseRecordCreation"
+        },
+        {
+          "file": "packages/contracts/src/manual-record.ts",
+          "lines": "165-224",
+          "symbol": "parseCreateManualRecord → CreateManualRecordInput(MR 29-49)"
+        }
+      ],
+      "serializer": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1133-1141",
+        "symbol": "counselingRecordResponse"
+      },
+      "notes": "wire={record:{id,heldAt,channel,memo,manual:ManualRecordProjection(MR 123-131)},replayed}."
+    },
+    {
+      "label": "IntakeRecordContext",
+      "kind": "type",
+      "endpoints": [
+        "GET /support-cases/:id/records/intake"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "18919-18950",
+        "symbol": "IntakeRecordContext"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "19013-19098",
+        "symbol": "getIntakeRecordContext"
+      },
+      "serializer": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1152-1171",
+        "symbol": "intakeContextResponse"
+      },
+      "notes": "saved:IntakeSavedRecord|null(IT 219-225, schemaVersion 1|2 union); schedule serialized via nextCounselingScheduleResponse|null; consent:CurrentConsentState[]; participant fields nullable."
+    },
+    {
+      "label": "IntakeMutationResponse",
+      "kind": "type",
+      "endpoints": [
+        "POST /support-cases/:id/records/intake",
+        "PUT /support-cases/:id/records/intake"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/intake.ts",
+        "lines": "240-245",
+        "symbol": "IntakeMutationResponse"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "19131-19194",
+          "symbol": "createIntakeRecord"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "19197-19252",
+          "symbol": "updateIntakeRecord"
+        }
+      ],
+      "parser": [
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "616-621",
+          "symbol": "parseIntakeCreation"
+        },
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "623-628",
+          "symbol": "parseIntakeUpdate"
+        },
+        {
+          "file": "packages/contracts/src/intake.ts",
+          "lines": "190-197",
+          "symbol": "parseIntakeCreateRequest → IntakeCreateRequest(IT 93-101)"
+        },
+        {
+          "file": "packages/contracts/src/intake.ts",
+          "lines": "198-206",
+          "symbol": "parseIntakeUpdateRequest → IntakeUpdateRequest(IT 102-109)"
+        }
+      ],
+      "serializer": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1143-1150",
+        "symbol": "intakeRecordResponse"
+      },
+      "notes": "{schemaVersion:2,revision,record:{id,heldAt,channel,kind:'intake'},replayed}; PUT replayed=false."
+    },
+    {
+      "label": "Case",
+      "kind": "type",
+      "endpoints": [
+        "GET /cases",
+        "POST /cases",
+        "GET /cases/:id"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "2514-2526",
+        "symbol": "Case"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "5911-5939",
+          "symbol": "listCases"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "5880-5895",
+          "symbol": "createCase"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "5901-5905",
+          "symbol": "getCase"
+        }
+      ],
+      "notes": "intakeAt/consentRecordingAt/consentTextAiAt/closedAt/closedReason/purgeDue/extra nullable."
+    },
+    {
+      "label": "Briefing",
+      "kind": "type",
+      "endpoints": [
+        "GET /cases/:id/briefing"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "2629-2648",
+        "symbol": "Briefing"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "11418-11510",
+        "symbol": "getBriefing"
+      },
+      "notes": "lastSessionSummary nullable."
+    },
+    {
+      "label": "PilotTextAiConsentStatus",
+      "kind": "type",
+      "endpoints": [
+        "GET /cases/:id/pilot-text-ai-consent"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "3039-3047",
+        "symbol": "PilotTextAiConsentStatus"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "3427-3476",
+        "symbol": "getLatestPilotTextAiConsentStatus"
+      },
+      "notes": "status 'recorded'|'missing'; evidenceId/noticeVersion/noticeHash/evidenceHash/effectiveAt nullable."
+    },
+    {
+      "label": "Goal",
+      "kind": "type",
+      "endpoints": [
+        "GET /cases/:id/goals",
+        "POST /cases/:id/goals",
+        "POST /goals/:id/close",
+        "PUT /goals/:id/title"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "2537-2546",
+        "symbol": "Goal"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "6274-6287",
+          "symbol": "listGoals"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "6134-6185",
+          "symbol": "createGoal"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "6244-6271",
+          "symbol": "closeGoal"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "6193-6235",
+          "symbol": "updateGoalTitle"
+        }
+      ],
+      "notes": "scaleCriteria/closedReason/closedAt/replacedByGoalId nullable."
+    },
+    {
+      "label": "{upcomingCount}",
+      "kind": "literal",
+      "endpoints": [
+        "GET /goals/:id/upcoming-links"
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "6297-6322",
+        "symbol": "countUpcomingSchedulesLinkedToGoal"
+      }
+    },
+    {
+      "label": "OpenActionItemWire",
+      "kind": "alias",
+      "endpoints": [
+        "POST /cases/:id/action-items"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "2596-2604",
+        "symbol": "ActionItem"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "11581-11632",
+        "symbol": "createActionItem"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "3087-3114",
+        "symbol": "inline requireOnlyKeys(description,owner,dueDate,sessionId)"
+      },
+      "notes": "sessionId/dueDate/resolvedAt nullable; owner 'counselor'|'beneficiary'|'org'."
+    },
+    {
+      "label": "SessionWire",
+      "kind": "alias",
+      "endpoints": [
+        "GET /cases/:id/sessions",
+        "POST /cases/:id/sessions",
+        "GET /sessions/:id",
+        "POST /sessions/:id/approve",
+        "PUT /sessions/:id/audio",
+        "POST /sessions/:id/audio-upload-target/:audioObjectId/complete"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "291-294",
+        "symbol": "sessionResponse = Omit<Session,'audioR2Key'>"
+      },
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "2550-2579",
+        "symbol": "Session"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "11383-11410",
+          "symbol": "listSessions"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "11346-11376",
+          "symbol": "getSession"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "11246-11340",
+          "symbol": "approveSession"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "6737-6927",
+          "symbol": "registerRecording"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "415-425",
+        "symbol": "parseApproval"
+      },
+      "consumer": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "79-86",
+        "symbol": "ManualSession (web)"
+      },
+      "notes": "POST /cases/:id/sessions returns sessionResponse+{replayed}; memo/transcript/aiSummary/approvedAt etc nullable; aiGasEvidence/lifeAreaSnapshot optional on getSession only."
+    },
+    {
+      "label": "AiDraftMutationWire",
+      "kind": "alias",
+      "endpoints": [
+        "POST /sessions/:id/ai/generate",
+        "POST /sessions/:id/ai/drafts/:version/edit",
+        "POST /sessions/:id/ai/drafts/:version/review"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1565-1593",
+        "symbol": "aiDraftResponse"
+      },
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "2883-2922",
+        "symbol": "AiDraftVersion"
+      },
+      "producer": [
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "1884-1999",
+          "symbol": "generateAiDraft"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "5227-5259",
+          "symbol": "editAiDraftForSession"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "5263-5305",
+          "symbol": "reviewAiDraftForSession"
+        }
+      ],
+      "parser": [
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "1534-1537",
+          "symbol": "parseAiDraftGeneration {sourceSnapshotId}"
+        },
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "1539-1545",
+          "symbol": "parseAiDraftEdit {expectedVersion,evidenceIds}"
+        },
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "1547-1563",
+          "symbol": "parseAiDraftReview → AiDraftReviewInput(GW 3000-3005)"
+        }
+      ],
+      "notes": "wire={version,origin,creationMode,summaryText,claims:AiDraftClaim[](2820-2824),oneLiner:string|null,reviewDecision:null|'approved'|'rejected'|'superseded',questions:AiBriefingSuggestion[](2808-2811),evidence[{id,claimKey,quote}],contrast[{axis,status,findings[{description,materialKind,quote}]}]}. No id/sessionId on wire."
+    },
+    {
+      "label": "AiDraftGetWire",
+      "kind": "alias",
+      "endpoints": [
+        "GET /sessions/:id/ai"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "3175-3181",
+        "symbol": "aiDraftResponse + inline extras"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "5064-5074",
+          "symbol": "getCurrentAiDraftForSession"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "5089-5125",
+          "symbol": "getAiDraftRegenerationAvailability"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "6990-7001",
+          "symbol": "getTranscriptQualityForSession"
+        }
+      ],
+      "notes": "= AiDraftMutationWire fields + {regenerateAvailable:boolean, regenerateSourceSnapshotId:string|null (AiDraftRegenerationAvailability GW 5077-5080), transcriptQuality:TranscriptQuality|null (GW 2772-2775)}. 404 when no draft."
+    },
+    {
+      "label": "audio upload target",
+      "kind": "literal",
+      "endpoints": [
+        "POST /sessions/:id/audio-upload-target"
+      ],
+      "producer": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2073-2138",
+        "symbol": "handleAudioUploadTarget"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "2082-2091",
+        "symbol": "inline requireOnlyKeys(contentLength,contentType,clientAssertedSha256)"
+      },
+      "fields": "{audioObjectId,url,expiresAt}; 201; cloud-only (protected-get)."
+    },
+    {
+      "label": "audio upload/complete",
+      "kind": "alias",
+      "endpoints": [
+        "PUT /sessions/:id/audio",
+        "POST /sessions/:id/audio-upload-target/:audioObjectId/complete"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "291-294",
+        "symbol": "sessionResponse"
+      },
+      "producer": [
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "2006-2071",
+          "symbol": "handleAudioUpload"
+        },
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "2140-2174",
+          "symbol": "handleAudioUploadCompletion"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "8437-8466",
+          "symbol": "admitRecordingUpload → RecordingUploadAdmission(8428-8435)"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "6533-6552",
+          "symbol": "getPendingRecordingUpload"
+        }
+      ],
+      "notes": "PUT streams bytes (api-stream mode); complete registers stored object → Session wire."
+    },
+    {
+      "label": "AiProviderStatus",
+      "kind": "alias",
+      "endpoints": [
+        "GET /ai/provider/status"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "3050-3055",
+        "symbol": "ActiveAiProviderStatus"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "3217-3254",
+        "symbol": "getActiveAiProviderStatus"
+      },
+      "consumer": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "2412-2424",
+        "symbol": "AiProviderStatus (web)"
+      },
+      "notes": "wire={enabled,adapterId|null,adapterVersion|null,configHash|null,runtime} — runtime key added at RH ~3240."
+    },
+    {
+      "label": "provider activation result",
+      "kind": "literal",
+      "endpoints": [
+        "POST /ai/provider/activate-runtime"
+      ],
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "3261-3313",
+          "symbol": "registerAiProviderConfiguration"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "3316-3397",
+          "symbol": "activateAiProviderConfiguration"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "3234-3311",
+        "symbol": "inline requireOnlyKeys(approvalRef)"
+      },
+      "fields": "{enabled,adapterId,adapterVersion,configHash,replayed?}"
+    },
+    {
+      "label": "SttReadinessReport",
+      "kind": "type",
+      "endpoints": [
+        "POST /pipeline/readiness"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/stt-readiness.ts",
+        "lines": "5-6",
+        "symbol": "SttReadinessReport (3-variant union)"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "8313-8334",
+        "symbol": "recordSttReadiness → {accepted:true}"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1460-1463",
+        "symbol": "parseSttReadinessReport"
+      }
+    },
+    {
+      "label": "PipelineHealth",
+      "kind": "type",
+      "endpoints": [
+        "GET /pipeline/health"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "2676-2690",
+        "symbol": "PipelineHealth"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "11160-11181",
+        "symbol": "getPipelineHealth"
+      },
+      "notes": "lastPolledAt/lastCompletedAt/oldestPendingSince/oldestPendingHours nullable; status 'ok'|'stale'|'inactive'."
+    },
+    {
+      "label": "manual-notes view",
+      "kind": "alias",
+      "endpoints": [
+        "GET /audio-lifecycle/manual-notes",
+        "POST /audio-lifecycle/manual-notes/:id/ack"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "10936-10944",
+        "symbol": "AudioLifecycleOutboxItem"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "10985-11004",
+          "symbol": "listAudioManualNoteFallbacks"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "11006-11031",
+          "symbol": "acknowledgeAudioManualNoteFallback"
+        }
+      ],
+      "fields": "GET {manualNotes:AudioLifecycleOutboxItem[]}; ack → 204."
+    },
+    {
+      "label": "MemoryMaskJob",
+      "kind": "type",
+      "endpoints": [
+        "POST /pipeline/memory/claim"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/agent-jobs.ts",
+        "lines": "336-352",
+        "symbol": "MemoryMaskJob"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "21964-21993",
+        "symbol": "claimCounselingMemorySources"
+      },
+      "parser": [
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "1373-1399",
+          "symbol": "parseClaimRequest → ClaimRequest(AJ 138-142)"
+        }
+      ],
+      "notes": "envelope {schemaVersion:2,jobs:MemoryMaskJob[]}; sessionId nullable; sttEngine/sttEngineId always null."
+    },
+    {
+      "label": "memory source",
+      "kind": "literal",
+      "endpoints": [
+        "GET /pipeline/memory/:jobId/source"
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "22008-22020",
+        "symbol": "getCounselingMemorySource"
+      },
+      "fields": "{text:string, sessionId:string|null}"
+    },
+    {
+      "label": "MaskDictionaryResponse",
+      "kind": "type",
+      "endpoints": [
+        "POST /pipeline/memory/:jobId/mask-dictionary",
+        "POST /pipeline/jobs/:jobId/mask-dictionary"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/agent-jobs.ts",
+        "lines": "130-136",
+        "symbol": "MaskDictionaryResponse"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "22021-22028",
+          "symbol": "issueCounselingMemoryDictionary"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "9857-9912",
+          "symbol": "issueAgentJobMaskDictionary"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1358-1361",
+        "symbol": "parseClaimCredentials {claimToken,attempt}"
+      },
+      "notes": "oneTime:true literal; entries:MaskDictionaryEntry[](AJ 119-123)."
+    },
+    {
+      "label": "memory result/release 204",
+      "kind": "literal",
+      "endpoints": [
+        "POST /pipeline/memory/:jobId/result",
+        "POST /pipeline/memory/:jobId/release"
+      ],
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "22047-22066",
+          "symbol": "acceptCounselingMemorySource"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "22067-22070",
+          "symbol": "releaseCounselingMemorySource"
+        }
+      ],
+      "parser": [
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "1325-1356",
+          "symbol": "parseAgentResultRequest → ResultRequest(AJ 232-239)"
+        },
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "1401-1416",
+          "symbol": "parseReleaseRequest → ReleaseRequest(AJ 194-195)"
+        }
+      ],
+      "fields": "204 empty."
+    },
+    {
+      "label": "ClaimResponse",
+      "kind": "type",
+      "endpoints": [
+        "POST /pipeline/jobs/claim"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/agent-jobs.ts",
+        "lines": "177-180",
+        "symbol": "ClaimResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "8836-9111",
+        "symbol": "claimAgentJobs"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1373-1399",
+        "symbol": "parseClaimRequest"
+      },
+      "notes": "jobs:AgentJob[](AJ 144-175); AgentJob.audio nullable object; sttEngineId/terminalFailureCode nullable."
+    },
+    {
+      "label": "HeartbeatResponse",
+      "kind": "type",
+      "endpoints": [
+        "POST /pipeline/jobs/:jobId/heartbeat"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/agent-jobs.ts",
+        "lines": "187-192",
+        "symbol": "HeartbeatResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "9156-9173",
+        "symbol": "heartbeatAgentJob"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1358-1361",
+        "symbol": "parseClaimCredentials"
+      }
+    },
+    {
+      "label": "job release 204",
+      "kind": "literal",
+      "endpoints": [
+        "POST /pipeline/jobs/:jobId/release"
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "9186-9316",
+        "symbol": "releaseAgentJob → audioObjectId|null"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1401-1416",
+        "symbol": "parseReleaseRequest"
+      }
+    },
+    {
+      "label": "SourceResponse",
+      "kind": "type",
+      "endpoints": [
+        "GET /pipeline/jobs/:jobId/source"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/agent-jobs.ts",
+        "lines": "241-244",
+        "symbol": "SourceResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "9327-9338",
+        "symbol": "getAgentJobSource"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1364-1371",
+        "symbol": "claimCredentialsFromHeaders"
+      }
+    },
+    {
+      "label": "SignedGetResponse|bytes",
+      "kind": "union",
+      "endpoints": [
+        "GET /pipeline/jobs/:jobId/audio"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/agent-jobs.ts",
+        "lines": "246-250",
+        "symbol": "SignedGetResponse"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "9361-9411",
+          "symbol": "getAgentJobAudioDelivery"
+        },
+        {
+          "file": "packages/http-api/src/request-handler.ts",
+          "lines": "3408-3470",
+          "symbol": "dispatch: protected-get → signed-get JSON; api-stream → raw bytes"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1364-1371",
+        "symbol": "claimCredentialsFromHeaders"
+      },
+      "notes": "two wire shapes by runtime.audioDelivery; 404 {error:'audio_object_missing',jobId,retryable:false} possible."
+    },
+    {
+      "label": "job result 204",
+      "kind": "literal",
+      "endpoints": [
+        "POST /pipeline/jobs/:jobId/result"
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "10362-10528",
+        "symbol": "acceptAgentJobResult → AgentJobResultAcceptance(GW 10249-10256)"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1325-1356",
+        "symbol": "parseAgentResultRequest → ResultRequest(AJ 232-239; result: AudioResult|TextResult union AJ 221-230)"
+      },
+      "fields": "204 empty; acceptance internal only."
+    },
+    {
+      "label": "AudioVerifyResponse",
+      "kind": "type",
+      "endpoints": [
+        "POST /pipeline/jobs/:jobId/audio/verify"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/agent-jobs.ts",
+        "lines": "259-264",
+        "symbol": "AudioVerifyResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "9918-10048",
+        "symbol": "verifyAgentJobAudio"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1428-1435",
+        "symbol": "parseAudioVerifyRequest → AudioVerifyRequest(AJ 252-257)"
+      }
+    },
+    {
+      "label": "AzureEgressAuthorization",
+      "kind": "type",
+      "endpoints": [
+        "POST /pipeline/jobs/:jobId/egress/authorize"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/agent-jobs.ts",
+        "lines": "64-77",
+        "symbol": "AzureEgressAuthorization"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "10051-10125",
+        "symbol": "authorizeAgentJobEgress"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1437-1445",
+        "symbol": "parseEgressAuthorizationRequest → EgressAuthorizationRequest(AJ 99-104)"
+      }
+    },
+    {
+      "label": "EgressInFlightResponse",
+      "kind": "type",
+      "endpoints": [
+        "POST /pipeline/jobs/:jobId/egress/in-flight"
+      ],
+      "definition": {
+        "file": "packages/contracts/src/agent-jobs.ts",
+        "lines": "112-117",
+        "symbol": "EgressInFlightResponse"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "10128-10195",
+        "symbol": "markAgentJobEgressInFlight"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1447-1453",
+        "symbol": "parseEgressInFlightRequest → EgressInFlightRequest(AJ 106-110)"
+      }
+    },
+    {
+      "label": "RetentionPolicy",
+      "kind": "type",
+      "endpoints": [
+        "GET /settings/retention-policy",
+        "PUT /settings/retention-policy"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "22455-22459",
+        "symbol": "RetentionPolicy"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "22482-22492",
+          "symbol": "getRetentionPolicy"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "22505-22567",
+          "symbol": "updateRetentionPolicy"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "3565-3578",
+        "symbol": "inline requireOnlyKeys(expectedVersion,piiPurgeGraceDays)"
+      }
+    },
+    {
+      "label": "ParticipantPiiRetentionReview",
+      "kind": "type",
+      "endpoints": [
+        "GET /pii-retention/reviews",
+        "POST /pii-retention/reviews/:id"
+      ],
+      "definition": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "16866-16874",
+        "symbol": "ParticipantPiiRetentionReview"
+      },
+      "producer": [
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "17069-17087",
+          "symbol": "listParticipantPiiRetentionReviews"
+        },
+        {
+          "file": "packages/core/src/gateway.ts",
+          "lines": "17089-17210",
+          "symbol": "reviewParticipantPiiRetention"
+        }
+      ],
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "359-381",
+        "symbol": "parseParticipantPiiRetentionReview → ParticipantPiiRetentionReviewInput(GW 16855-16861)"
+      },
+      "notes": "GET envelope {reviews:[]}; status 'pending'|'retained'|'purged'; reasonKind/retainUntil nullable; input decision 'purge'|('retain'+reasonKind+reason+retainUntil)."
+    },
+    {
+      "label": "AssignmentRequestWire",
+      "kind": "alias",
+      "endpoints": [
+        "GET /assignment-requests"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "13184-13193",
+        "symbol": "SupportCaseAssignmentRequest"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "20833-20873",
+        "symbol": "listMySupportCaseAssignmentRequests"
+      },
+      "consumer": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "2219-2228",
+        "symbol": "AssignmentRequest (web)"
+      },
+      "notes": "envelope {requests:[]}; participantName nullable; status always 'requested'."
+    },
+    {
+      "label": "AgentPairingCode",
+      "kind": "alias",
+      "endpoints": [
+        "POST /agents/pairing-codes"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12633-12639",
+        "symbol": "AgentPairingCodeIssue"
+      },
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12759-12793",
+        "symbol": "issueAgentPairingCode"
+      },
+      "parser": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "3609-3629",
+        "symbol": "inline requireOnlyKeys(actorUserId)"
+      },
+      "notes": "pairingCode plaintext only in this response."
+    },
+    {
+      "label": "agent revoke result",
+      "kind": "literal",
+      "endpoints": [
+        "POST /agents/:installationId/revoke"
+      ],
+      "producer": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12873-12894",
+        "symbol": "revokeAgentInstallation"
+      },
+      "fields": "{installationId,revokedAt}"
+    },
+    {
+      "label": "PreviewUnlockWire",
+      "kind": "alias",
+      "endpoints": [
+        "POST /preview/unlock"
+      ],
+      "resolvesTo": {
+        "file": "packages/http-api/src/preview-gate.ts",
+        "lines": "243-276",
+        "symbol": "handlePreviewUnlock"
+      },
+      "producer": [
+        {
+          "file": "packages/http-api/src/preview-gate.ts",
+          "lines": "192-196",
+          "symbol": "mintToken"
+        },
+        {
+          "file": "packages/http-api/src/preview-gate.ts",
+          "lines": "214-216",
+          "symbol": "previewCookie"
+        },
+        {
+          "file": "packages/http-api/src/preview-gate.ts",
+          "lines": "156-169",
+          "symbol": "resolveSigningCode"
+        }
+      ],
+      "consumer": [
+        {
+          "file": "apps/web/app/lib/api.ts",
+          "lines": "2339-2342",
+          "symbol": "PreviewUnlockResult (web)"
+        },
+        {
+          "file": "apps/web/app/preview/unlock/route.ts",
+          "symbol": "form adapter {mode,code} → cookie/303"
+        }
+      ],
+      "fields": "API JSON {token,maxAgeSeconds:604800,expiresAt} + set-cookie HttpOnly; web form posts {mode,code}."
+    },
+    {
+      "label": "STT internal trial 5 ops",
+      "kind": "server-and-client-contract",
+      "endpoints": [
+        "GET /internal/stt/status",
+        "POST /internal/stt/trials",
+        "GET /internal/stt/trials/:id",
+        "GET /internal/stt/trials/:id/transcript",
+        "DELETE /internal/stt/trials/:id"
+      ],
+      "consumer": [
+        {
+          "file": "apps/client/src/stt-trial/api.ts",
+          "lines": "59-88",
+          "symbol": "fetchStatus/submitTrial/fetchTrial/fetchTranscript/deleteTrial"
+        }
+      ],
+      "definition": [
+        {
+          "file": "apps/client/src/stt-trial/contract.ts",
+          "lines": "32-42",
+          "symbol": "StatusResponse"
+        },
+        {
+          "file": "apps/client/src/stt-trial/contract.ts",
+          "lines": "44-47",
+          "symbol": "TrialCreated"
+        },
+        {
+          "file": "apps/client/src/stt-trial/contract.ts",
+          "lines": "49-62",
+          "symbol": "TrialResponse"
+        },
+        {
+          "file": "apps/client/src/stt-trial/contract.ts",
+          "lines": "81-86",
+          "symbol": "TranscriptResponse"
+        }
+      ],
+      "notes": "Dedicated Python trial server, separate from business request-handler. GET status/trial/transcript also accept HEAD; POST trials and DELETE terminal trial use the guarded local trial boundary. Client build/trial-fixtures.mjs is a separate response fixture, not this producer. No STT execution or activation in CCC-201.",
+      "producer": {
+        "file": "apps/pipeline/ccc_pipeline/trial_server.py",
+        "lines": "601-650",
+        "symbol": "TrialRequestHandler._dispatch"
+      },
+      "actorBoundary": {
+        "file": "apps/pipeline/ccc_pipeline/trial_server.py",
+        "lines": "671-709",
+        "symbol": "TrialRequestHandler._guard_boundary / _submit",
+        "notes": "No business Actor. Exact loopback Host; optional Origin must equal Host origin. Explicit owned-recording header and Azure external-upload confirmation; no trial execution in CCC-201."
+      }
+    },
+    {
+      "label": "AiDraft",
+      "kind": "alias",
+      "endpoints": [
+        "GET /sessions/:id/ai",
+        "POST /sessions/:id/ai/generate",
+        "POST /sessions/:id/ai/drafts/:version/edit",
+        "POST /sessions/:id/ai/drafts/:version/review"
+      ],
+      "resolvesTo": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "173-195",
+        "symbol": "AiDraft (web)"
+      },
+      "notes": "web consumer cast; expects GET-only fields on mutation responses (G-WEB-05). Server wire = aiDraftResponse."
+    },
+    {
+      "label": "ParticipantDetail",
+      "kind": "alias",
+      "endpoints": [
+        "GET /participants/:id/support-cases"
+      ],
+      "resolvesTo": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "287-311",
+        "symbol": "ParticipantProgram (web) → screen ParticipantDetail"
+      },
+      "notes": "screen projection of ParticipantProgram; requires removed consent object (G-WEB-01)."
+    },
+    {
+      "label": "ParticipantInvite",
+      "kind": "alias",
+      "endpoints": [
+        "POST /invites/participant"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "20970-20987",
+        "symbol": "InviteToken"
+      }
+    },
+    {
+      "label": "ParticipantProgramCreation",
+      "kind": "alias",
+      "endpoints": [
+        "POST /participants"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "14378-14385",
+        "symbol": "SupportCaseCreationResult"
+      }
+    },
+    {
+      "label": "PilotTextAiConsent",
+      "kind": "alias",
+      "endpoints": [
+        "GET /cases/:id/pilot-text-ai-consent"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "3039-3047",
+        "symbol": "PilotTextAiConsentStatus"
+      },
+      "notes": "POST variant removed (no dispatch); action recordPilotTextAiConsentAction is orphan."
+    },
+    {
+      "label": "CaseRecord",
+      "kind": "alias",
+      "endpoints": [
+        "GET /cases",
+        "POST /cases",
+        "GET /cases/:id"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "2514-2526",
+        "symbol": "Case"
+      },
+      "notes": "S3: '구 CaseRecord 축소형과 동일하지 않음' — current wire is full Case."
+    },
+    {
+      "label": "OpenActionItem",
+      "kind": "alias",
+      "endpoints": [
+        "POST /cases/:id/action-items"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "2596-2604",
+        "symbol": "ActionItem"
+      }
+    },
+    {
+      "label": "SttStatus",
+      "kind": "alias",
+      "endpoints": [
+        "GET /capabilities"
+      ],
+      "resolvesTo": {
+        "file": "packages/contracts/src/runtime.ts",
+        "lines": "217-227",
+        "symbol": "CapabilityManifest"
+      },
+      "notes": "web projects manifest → SttStatus; not a wire type."
+    },
+    {
+      "label": "DirectoryAccountsPage",
+      "kind": "alias",
+      "endpoints": [
+        "GET /settings/accounts"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "22577-22581",
+        "symbol": "DirectoryAccountsView"
+      }
+    },
+    {
+      "label": "AssignmentCasePage",
+      "kind": "alias",
+      "endpoints": [
+        "GET /settings/assignments/cases",
+        "GET /exports/cases"
+      ],
+      "resolvesTo": {
+        "file": "packages/core/src/gateway.ts",
+        "lines": "12330-12338",
+        "symbol": "ExportCaseOption page {items,nextCursor}"
+      }
+    },
+    {
+      "label": "PublicInviteInfo",
+      "kind": "alias",
+      "endpoints": [
+        "GET /invites/participant/:token"
+      ],
+      "resolvesTo": {
+        "file": "apps/web/app/lib/api.ts",
+        "lines": "2385-2387",
+        "symbol": "PublicInviteInfo (web)"
+      },
+      "notes": "web expects programType always; used-union lacks it (G-WEB-06)."
+    },
+    {
+      "label": "CreateSubsequentParticipantProgramInput",
+      "kind": "type",
+      "endpoints": [
+        "POST /participants/:id/support-cases"
+      ],
+      "definition": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "567-594",
+        "symbol": "parseSubsequentParticipantCreation return literal"
+      },
+      "notes": "no exported named type; parser returns inline {schemaVersion,submissionId,programId,sourceSupportCaseId|initialAssigneeUserId,consentEvents,emergencyReason?}."
+    },
+    {
+      "label": "AiDraftEditInput",
+      "kind": "type",
+      "endpoints": [
+        "POST /sessions/:id/ai/drafts/:version/edit"
+      ],
+      "definition": {
+        "file": "packages/http-api/src/request-handler.ts",
+        "lines": "1539-1545",
+        "symbol": "parseAiDraftEdit return literal {expectedVersion,evidenceIds}"
+      }
+    }
+  ],
+  "unresolved": [],
+  "typeIndex": {
+    "ActionItem": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2596-2604"
+    },
+    "ActiveAiProviderConfiguration": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "3016-3020"
+    },
+    "ActiveAiProviderStatus": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "3050-3055"
+    },
+    "Actor": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "153-157"
+    },
+    "ActorRole": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "140-140"
+    },
+    "AgentCredentialGrant": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "12641-12647"
+    },
+    "AgentJob": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "144-175"
+    },
+    "AgentJobResultAcceptance": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "10249-10256"
+    },
+    "AgentPairingCodeIssue": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "12633-12639"
+    },
+    "AgentStatus": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "207-207"
+    },
+    "AiBriefingSuggestion": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2808-2811"
+    },
+    "AiCallFailureReason": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "11832-11841"
+    },
+    "AiCallMaterial": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "3842-3845"
+    },
+    "AiCallOutcome": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "11811-11822"
+    },
+    "AiContrastFinding": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2849-2855"
+    },
+    "AiDraft": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "173-195"
+    },
+    "AiDraftClaim": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2820-2824"
+    },
+    "AiDraftContrastAxis": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2857-2861"
+    },
+    "AiDraftCreationMode": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2792-2792"
+    },
+    "AiDraftGroundingStatus": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2790-2790"
+    },
+    "AiDraftOrigin": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2789-2789"
+    },
+    "AiDraftRegenerationAvailability": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "5077-5080"
+    },
+    "AiDraftReviewInput": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "3000-3005"
+    },
+    "AiDraftSourceMaterialRef": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2864-2868"
+    },
+    "AiDraftVersion": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2883-2922"
+    },
+    "AiEvidenceLink": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2871-2881"
+    },
+    "AiProviderStatus": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2412-2424"
+    },
+    "AiReviewDecision": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2791-2791"
+    },
+    "AiStatus": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2548-2548"
+    },
+    "AppendConsentEventInput": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "82-88"
+    },
+    "ApprovedAiBriefing": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2925-2941"
+    },
+    "ApprovedSttEngineEntry": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "230-233"
+    },
+    "AssignedParticipant": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "16094-16109"
+    },
+    "AssignmentRequest": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2219-2228"
+    },
+    "AudioDeletionEnqueue": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "266-279"
+    },
+    "AudioLifecycleOutboxItem": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "10936-10944"
+    },
+    "AudioResult": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "221-226"
+    },
+    "AudioVerifyRequest": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "252-257"
+    },
+    "AudioVerifyResponse": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "259-264"
+    },
+    "AuditLogItem": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "11919-11928"
+    },
+    "AuditLogPage": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "11930-11933"
+    },
+    "AuthoritativeDayInterval": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "17298-17303"
+    },
+    "AzureEgressAuthorization": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "64-77"
+    },
+    "AzureEngineInfo": {
+      "file": "apps/client/src/stt-trial/contract.ts",
+      "lines": "18-25"
+    },
+    "Briefing": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2629-2648"
+    },
+    "BriefingUpcomingSchedule": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "19727-19734"
+    },
+    "Briefing_web": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "95-113"
+    },
+    "CapabilityFeature": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "209-209"
+    },
+    "CapabilityManifest": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "217-227"
+    },
+    "CapabilityOption": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "211-215"
+    },
+    "Case": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2514-2526"
+    },
+    "CaseExportResponse": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "12096-12109"
+    },
+    "CaseMemoryView": {
+      "file": "packages/contracts/src/counseling-memory.ts",
+      "lines": "64-74"
+    },
+    "ClaimRequest": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "138-142"
+    },
+    "ClaimResponse": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "177-180"
+    },
+    "ConsentDecision": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "12-12"
+    },
+    "ConsentDisclosureSnapshot": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "60-67"
+    },
+    "ConsentDomain": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "11-11"
+    },
+    "ConsentEvent": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "50-58"
+    },
+    "ConsentGateReceipt": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "73-73"
+    },
+    "ConsentGateReceiptEntry": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "69-72"
+    },
+    "ConsentScope": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "21-21"
+    },
+    "ConsentState": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "74-74"
+    },
+    "ContrastResult": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2582-2586"
+    },
+    "CounselingRecord": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "18336-18348"
+    },
+    "CounselingRecordCompletedSchedule": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "18354-18359"
+    },
+    "CounselingRecordDetails": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "18369-18396"
+    },
+    "CounselingRecordDiscrepancy": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "18361-18367"
+    },
+    "CounselingRecordGasScore": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "18349-18352"
+    },
+    "CounselingRecordResult": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "18453-18456"
+    },
+    "CounselingSchedule": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "13212-13228"
+    },
+    "CounselingScheduleChannel": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "13205-13205"
+    },
+    "CounselingScheduleKind": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "13204-13204"
+    },
+    "CounselingScheduleStatus": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "13202-13202"
+    },
+    "CounselingSchedule_web": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "867-874"
+    },
+    "CounselorAssignmentParticipant": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "20876-20885"
+    },
+    "CounselorAssignments": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "20887-20890"
+    },
+    "CounselorAssignments_web": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2205-2208"
+    },
+    "CreateBeneficiaryWithInitialSupportCaseInput": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "14289-14313"
+    },
+    "CreateIntakeRecordResult": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "862-865"
+    },
+    "CreateManualRecordInput": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "29-49"
+    },
+    "CreateProgramInput": {
+      "file": "packages/contracts/src/program-admission.ts",
+      "lines": "117-124"
+    },
+    "CreatedIntakeRecord": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "855-860"
+    },
+    "CurrentConsentState": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "75-80"
+    },
+    "DeploymentMode": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "136-136"
+    },
+    "DirectoryAccountView": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "22573-22576"
+    },
+    "DirectoryAccountsView": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "22577-22581"
+    },
+    "DirectoryRole": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "22569-22569"
+    },
+    "DirectoryStoredRole": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "22568-22568"
+    },
+    "DirectoryUser": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "259-267"
+    },
+    "DiscrepancyKind": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "5417-5417"
+    },
+    "DiscrepancyResolutionStatus": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "5418-5418"
+    },
+    "EgressAuthorizationRequest": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "99-104"
+    },
+    "EgressInFlightRequest": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "106-110"
+    },
+    "EgressInFlightResponse": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "112-117"
+    },
+    "EgressRecordStatus": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "97-97"
+    },
+    "EngineId": {
+      "file": "apps/client/src/stt-trial/contract.ts",
+      "lines": "4-4"
+    },
+    "ExportCaseOption": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "12330-12338"
+    },
+    "ExportHistoryItem": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "12225-12233"
+    },
+    "ExportHistoryPage": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "12235-12238"
+    },
+    "Flag": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2609-2619"
+    },
+    "FlagType": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2607-2607"
+    },
+    "GasScore": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2588-2594"
+    },
+    "Goal": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2537-2546"
+    },
+    "GoalRevisionEntry": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "15669-15678"
+    },
+    "Goal_web": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "70-77"
+    },
+    "HeartbeatRequest": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "182-185"
+    },
+    "HeartbeatResponse": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "187-192"
+    },
+    "InstalledAiPolicy": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "13899-13903"
+    },
+    "InstitutionReadiness": {
+      "file": "packages/contracts/src/institution.ts",
+      "lines": "12-33"
+    },
+    "IntakeAnswer": {
+      "file": "packages/contracts/src/intake.ts",
+      "lines": "73-73"
+    },
+    "IntakeArea": {
+      "file": "packages/contracts/src/intake.ts",
+      "lines": "11-11"
+    },
+    "IntakeCreateRequest": {
+      "file": "packages/contracts/src/intake.ts",
+      "lines": "93-101"
+    },
+    "IntakeExtendedPii": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "18892-18892"
+    },
+    "IntakeModuleSnapshot": {
+      "file": "packages/contracts/src/intake.ts",
+      "lines": "84-84"
+    },
+    "IntakeMutationResponse": {
+      "file": "packages/contracts/src/intake.ts",
+      "lines": "240-245"
+    },
+    "IntakeQuestionnaire": {
+      "file": "packages/contracts/src/intake.ts",
+      "lines": "85-92"
+    },
+    "IntakeRecordContext": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "18919-18950"
+    },
+    "IntakeRecordContext_web": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "717-736"
+    },
+    "IntakeRecordResult": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "18911-18916"
+    },
+    "IntakeRevision": {
+      "file": "packages/contracts/src/intake.ts",
+      "lines": "207-218"
+    },
+    "IntakeSavedRecord": {
+      "file": "packages/contracts/src/intake.ts",
+      "lines": "219-225"
+    },
+    "IntakeUpdateRequest": {
+      "file": "packages/contracts/src/intake.ts",
+      "lines": "102-109"
+    },
+    "InviteKind": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "20968-20968"
+    },
+    "InviteToken": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "20970-20987"
+    },
+    "JobError": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "306-310"
+    },
+    "JobErrorCode": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "304-304"
+    },
+    "JobKind": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "18-18"
+    },
+    "JobReport": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "117-124"
+    },
+    "LifeAreaSnapshotEntry": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "18446-18450"
+    },
+    "LlmMode": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "201-201"
+    },
+    "LocalEngineInfo": {
+      "file": "apps/client/src/stt-trial/contract.ts",
+      "lines": "7-16"
+    },
+    "ManualActionOutcomeInput": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "12-16"
+    },
+    "ManualActionOwner": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "10-10"
+    },
+    "ManualAreaChange": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "28-28"
+    },
+    "ManualNextAction": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "11-11"
+    },
+    "ManualOpenAction": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "89-101"
+    },
+    "ManualPendingQuestion": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "110-122"
+    },
+    "ManualQuestionAnswerInput": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "21-27"
+    },
+    "ManualRecordContext": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "132-141"
+    },
+    "ManualRecordDetails": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "50-58"
+    },
+    "ManualRecordMethod": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "7-7"
+    },
+    "ManualRecordProjection": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "123-131"
+    },
+    "ManualRecordReason": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "8-8"
+    },
+    "ManualRecordUrgency": {
+      "file": "packages/contracts/src/manual-record.ts",
+      "lines": "9-9"
+    },
+    "ManualSession": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "79-86"
+    },
+    "MaskDictionaryEntry": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "119-123"
+    },
+    "MaskDictionaryRequest": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "125-128"
+    },
+    "MaskDictionaryResponse": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "130-136"
+    },
+    "MaskedEvidence": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "199-206"
+    },
+    "MaskedSource": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "208-219"
+    },
+    "MaskedSourceEvidenceItem": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2718-2727"
+    },
+    "MaskedSourceEvidenceItemInput": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2741-2746"
+    },
+    "MaskedSourceSnapshot": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2730-2739"
+    },
+    "MeResponse": {
+      "file": "packages/contracts/src/institution.ts",
+      "lines": "35-45"
+    },
+    "MemoryCorrectionInput": {
+      "file": "packages/contracts/src/counseling-memory.ts",
+      "lines": "76-80"
+    },
+    "MemoryItem": {
+      "file": "packages/contracts/src/counseling-memory.ts",
+      "lines": "35-46"
+    },
+    "MemoryItemState": {
+      "file": "packages/contracts/src/counseling-memory.ts",
+      "lines": "2-2"
+    },
+    "MemoryItemUpdate": {
+      "file": "packages/contracts/src/counseling-memory.ts",
+      "lines": "104-113"
+    },
+    "MemoryMaskJob": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "336-352"
+    },
+    "MemorySettingsInput": {
+      "file": "packages/contracts/src/counseling-memory.ts",
+      "lines": "82-85"
+    },
+    "MemorySettingsView": {
+      "file": "packages/contracts/src/counseling-memory.ts",
+      "lines": "87-94"
+    },
+    "MemorySourceBody": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "21623-21623"
+    },
+    "MemoryStatus": {
+      "file": "packages/contracts/src/counseling-memory.ts",
+      "lines": "53-62"
+    },
+    "MemorySummaryLine": {
+      "file": "packages/contracts/src/counseling-memory.ts",
+      "lines": "48-51"
+    },
+    "MyIdentity": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "246-256"
+    },
+    "NerAttestation": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "48-58"
+    },
+    "NerReleaseQualificationReceipt": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "60-62"
+    },
+    "OpenAiEgressAuthorization": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "79-94"
+    },
+    "OrganizationOnboardingInput": {
+      "file": "packages/contracts/src/institution.ts",
+      "lines": "47-51"
+    },
+    "OrganizationOnboardingResponse": {
+      "file": "packages/contracts/src/institution.ts",
+      "lines": "53-55"
+    },
+    "OrganizationProfile": {
+      "file": "packages/contracts/src/institution.ts",
+      "lines": "5-9"
+    },
+    "OrganizationProfile_web": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2133-2137"
+    },
+    "ParticipantBasicInfo": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "16399-16412"
+    },
+    "ParticipantBasicInfo_web": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "1784-1797"
+    },
+    "ParticipantBriefing": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "19754-19780"
+    },
+    "ParticipantBriefingAction": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "19695-19698"
+    },
+    "ParticipantBriefingDiscrepancy": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "19740-19752"
+    },
+    "ParticipantBriefingFlag": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "19700-19703"
+    },
+    "ParticipantBriefingGasTrend": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "19669-19673"
+    },
+    "ParticipantBriefingSessionRow": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "19685-19693"
+    },
+    "ParticipantBriefingSuggestion": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "19710-19718"
+    },
+    "ParticipantBriefingSummary": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "19675-19681"
+    },
+    "ParticipantDetailContact": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "16567-16570"
+    },
+    "ParticipantGoalTreeCase": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "15712-15718"
+    },
+    "ParticipantGoalTreeGoal": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "15696-15709"
+    },
+    "ParticipantHubDetail": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "327-329"
+    },
+    "ParticipantNameContact": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "16561-16564"
+    },
+    "ParticipantPiiRetentionReasonKind": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "16850-16853"
+    },
+    "ParticipantPiiRetentionReview": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "16866-16874"
+    },
+    "ParticipantPiiRetentionReviewInput": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "16855-16861"
+    },
+    "ParticipantPiiVault": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "13195-13200"
+    },
+    "ParticipantProgram": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "287-311"
+    },
+    "ParticipantProgramEntry": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "15489-15509"
+    },
+    "ParticipantProgramList": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "15511-15516"
+    },
+    "ParticipantRequestLinkInfo": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "21109-21115"
+    },
+    "ParticipantRequestLinkUsedInfo": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "21117-21121"
+    },
+    "ParticipantSearchResult": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "16111-16118"
+    },
+    "ParticipantSignupResult": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "21203-21206"
+    },
+    "PermanentReleaseReason": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "46-46"
+    },
+    "PilotTextAiConsentStatus": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "3039-3047"
+    },
+    "PipelineHealth": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2676-2690"
+    },
+    "PipelineStaleReason": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2651-2651"
+    },
+    "PreviewUnlockResult": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2339-2342"
+    },
+    "PrivacyConsentFollowUp": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "14967-14979"
+    },
+    "ProcessingRoute": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "19-19"
+    },
+    "ProgramAdmissionDeniedResponse": {
+      "file": "packages/contracts/src/program-admission.ts",
+      "lines": "95-98"
+    },
+    "ProgramAdmissionState": {
+      "file": "packages/contracts/src/program-admission.ts",
+      "lines": "89-92"
+    },
+    "ProgramListResponse": {
+      "file": "packages/contracts/src/program-admission.ts",
+      "lines": "173-188"
+    },
+    "ProgramMutationResponse": {
+      "file": "packages/contracts/src/program-admission.ts",
+      "lines": "190-192"
+    },
+    "ProgramOption": {
+      "file": "packages/contracts/src/program-admission.ts",
+      "lines": "162-167"
+    },
+    "ProgramOptionsResponse": {
+      "file": "packages/contracts/src/program-admission.ts",
+      "lines": "169-171"
+    },
+    "ProgramRecord": {
+      "file": "packages/contracts/src/program-admission.ts",
+      "lines": "144-155"
+    },
+    "ProgramView": {
+      "file": "packages/contracts/src/program-admission.ts",
+      "lines": "157-160"
+    },
+    "ProviderId": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "13-13"
+    },
+    "PublicBootstrap": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "238-241"
+    },
+    "PublicInviteInfo": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2385-2387"
+    },
+    "PublicSignupResult": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2500-2503"
+    },
+    "PublicWorkerInviteInfo": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2556-2558"
+    },
+    "PurposeLiteral": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "14-14"
+    },
+    "RecordingResultCommit": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2777-2786"
+    },
+    "RecordingUploadAdmission": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "8428-8435"
+    },
+    "ReleaseReason": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "36-45"
+    },
+    "ReleaseRequest": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "194-195"
+    },
+    "RepetitionWarning": {
+      "file": "apps/client/src/stt-trial/contract.ts",
+      "lines": "74-79"
+    },
+    "ReportEvidence": {
+      "file": "packages/contracts/src/report.ts",
+      "lines": "2-11"
+    },
+    "ResultRequest": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "232-239"
+    },
+    "RetentionDuration": {
+      "file": "packages/contracts/src/consent.ts",
+      "lines": "15-15"
+    },
+    "RetentionPolicy": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "22455-22459"
+    },
+    "Role": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "146-157"
+    },
+    "ScheduleCandidate": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "17650-17665"
+    },
+    "ScheduleCandidate_web": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "643-656"
+    },
+    "ScheduleCustomQuestion": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "17267-17271"
+    },
+    "ScheduleDisplay": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "13207-13210"
+    },
+    "ScheduleSessionGoal": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "17257-17265"
+    },
+    "ScheduleSessionPlan": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "17276-17287"
+    },
+    "ScheduleSessionPlan_web": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2013-2023"
+    },
+    "Session": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2550-2579"
+    },
+    "SessionDiscrepancy": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "5420-5434"
+    },
+    "SessionKind": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "18334-18334"
+    },
+    "SignedGetResponse": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "246-250"
+    },
+    "SourceResponse": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "241-244"
+    },
+    "SourceSupportCase": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "13230-13234"
+    },
+    "StaffInvite": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "21388-21397"
+    },
+    "StaffInviteAcceptResult": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "21523-21527"
+    },
+    "StaffInvitePublicInfo": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "21509-21513"
+    },
+    "StatusResponse": {
+      "file": "apps/client/src/stt-trial/contract.ts",
+      "lines": "32-42"
+    },
+    "StorageSignerDecision": {
+      "file": "packages/contracts/src/audio.ts",
+      "lines": "207-214"
+    },
+    "StorageSignerRequest": {
+      "file": "packages/contracts/src/audio.ts",
+      "lines": "195-205"
+    },
+    "SttEngine": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "206-206"
+    },
+    "SttEngineId": {
+      "file": "packages/contracts/src/stt-readiness.ts",
+      "lines": "2-2"
+    },
+    "SttEngine_agentjobs": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "20-20"
+    },
+    "SttMode": {
+      "file": "packages/contracts/src/runtime.ts",
+      "lines": "200-200"
+    },
+    "SttReadinessRecord": {
+      "file": "packages/contracts/src/stt-readiness.ts",
+      "lines": "10-15"
+    },
+    "SttReadinessReport": {
+      "file": "packages/contracts/src/stt-readiness.ts",
+      "lines": "5-6"
+    },
+    "SupportCase": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "13147-13167"
+    },
+    "SupportCaseAssignee": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "13169-13182"
+    },
+    "SupportCaseAssignee_web": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2210-2217"
+    },
+    "SupportCaseAssignmentRequest": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "13184-13193"
+    },
+    "SupportCaseClosureInfo": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "16795-16806"
+    },
+    "SupportCaseClosureInfo_web": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "1380-1391"
+    },
+    "SupportCaseCreationResult": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "14378-14385"
+    },
+    "SupportCaseRecords": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "573-588"
+    },
+    "SupportCaseReport": {
+      "file": "packages/contracts/src/report.ts",
+      "lines": "13-66"
+    },
+    "TextResult": {
+      "file": "packages/contracts/src/agent-jobs.ts",
+      "lines": "228-230"
+    },
+    "TodayScheduleCard": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "17305-17324"
+    },
+    "TodaySchedules": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "366-372"
+    },
+    "TranscriptQuality": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2772-2775"
+    },
+    "TranscriptQualityWarning": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "2766-2770"
+    },
+    "TranscriptResponse": {
+      "file": "apps/client/src/stt-trial/contract.ts",
+      "lines": "81-86"
+    },
+    "TranscriptSegment": {
+      "file": "apps/client/src/stt-trial/contract.ts",
+      "lines": "64-72"
+    },
+    "TrialCreated": {
+      "file": "apps/client/src/stt-trial/contract.ts",
+      "lines": "44-47"
+    },
+    "TrialResponse": {
+      "file": "apps/client/src/stt-trial/contract.ts",
+      "lines": "49-62"
+    },
+    "TrialStatus": {
+      "file": "apps/client/src/stt-trial/contract.ts",
+      "lines": "5-5"
+    },
+    "UpdateProgramInput": {
+      "file": "packages/contracts/src/program-admission.ts",
+      "lines": "126-135"
+    },
+    "UploadLimits": {
+      "file": "apps/client/src/stt-trial/contract.ts",
+      "lines": "27-30"
+    },
+    "User": {
+      "file": "packages/core/src/gateway.ts",
+      "lines": "12393-12400"
+    },
+    "WorkerInvite": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2538-2541"
+    },
+    "WorkerSignupResult": {
+      "file": "apps/web/app/lib/api.ts",
+      "lines": "2590-2593"
+    }
+  },
+  "nonNamedOrRetired": [
+    {
+      "label": "PublicWorkerInviteInfo / WorkerInvite / WorkerSignupResult (web)",
+      "missing": "Wire removed: GET /invites/worker/:token and POST /invites/worker return pre-auth 404 (request-handler.ts:2246); POST /invites/counselor unregistered. Web types api.ts:2538-2541,2556-2558,2590-2593 have no live producer.",
+      "evidence": "request-handler.ts:2246 'invites worker → not_found 404'"
+    },
+    {
+      "label": "getCounselingMemoryTrialState return type name",
+      "missing": "Function returns inline literal (gateway.ts:21788-21795); no named exported type. Registry records literal fields instead.",
+      "evidence": "gateway.ts:21742-21795"
+    }
+  ],
+  "corrections": [
+    {
+      "finding": "Incorrect no-STT-server claim caused by TypeScript-only source search",
+      "source": "apps/pipeline/ccc_pipeline/trial_server.py:601-650",
+      "confirmedByOriginalWriter": true
+    },
+    {
+      "finding": "Removed worker wire and unnamed literal are explicit residual/literal references, not missing producer facts",
+      "classification": "Retained under nonNamedOrRetired; no public type or alias created"
+    }
+  ],
+  "referenceValidation": {
+    "referenceCount": 619,
+    "referenceErrors": [],
+    "sourceHashErrors": [],
+    "kind": "file/range/hash checks only, independent semantic review required"
+  },
+  "originalDocumentSha256": "ebd3d7727fa7d08f2993fe77d799a3c200d6348e100cfe06c34471974bde3c20",
+  "integrationNotes": "Main connected all descriptive labels to this registry, corrected the actual Python STT producer, and preserved retired/inline-literal observations. Current document hash records integration, not a claim that static references are runtime proof.",
+  "operationValidation": {
+    "unknown": [],
+    "liveWithoutRegistry": []
+  },
+  "sourceGaps": [
+    {
+      "topic": "Staff invite supervisor option",
+      "producer": "packages/core/src/gateway.ts:12454-12458,21448-21454 accepts3stored roles, not supervisor",
+      "consumer": "apps/client/src/business/invites.ts:13-24 and screens/invites.tsx:102-106 expose supervisor",
+      "owner": "E2-5a/CCC-209; separate role change scope preserved",
+      "status": "Observed synthetic POST /staff-invites with supervisor returns400; no product fix"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "configuredCommands": {
+    "clientBuild": "vite build",
+    "guardTokens": "node scripts/design/token-audit.mjs"
+  },
+  "packageVersions": {
+    "name": "@ccc/client",
+    "version": "0.6.1",
+    "private": true,
+    "type": "module",
+    "scripts": {
+      "dev": "vite",
+      "build": "vite build",
+      "typecheck": "tsc --noEmit",
+      "test": "vitest run --config vitest.config.ts",
+      "build:release": "bun tools/build-release.mjs"
+    },
+    "dependencies": {
+      "@ccc/contracts": "workspace:*",
+      "@ccc/wire": "workspace:*",
+      "@supabase/supabase-js": "2.116.0",
+      "react": "19.2.7",
+      "react-dom": "19.2.7",
+      "react-router": "8.3.1"
+    },
+    "devDependencies": {
+      "@types/react": "19.2.17",
+      "@types/react-dom": "19.2.3",
+      "typescript": "5.9.3",
+      "vite": "8.1.3",
+      "vitest": "4.1.10"
+    }
+  },
+  "closureCount": 182,
+  "pinnedSourceCount": 63,
+  "closureMismatch": [],
+  "buildAssets": {
+    "index.html": "c055c1f7dda4f3681621d8bf77dc229313b7fb9fd671754df501696317f60049",
+    "sw.js": "a56e7629c8349e4e1bab98729ef27a355dd8f27c43606d9792c5bd3a13d1e4bd",
+    "manifest.webmanifest": "d623db37bb720152060922aabf7d3eaf501446a62b485701aa6e640013f8f4cf",
+    "icon.svg": "4a8f9171f344758f6926925eaf5551f600bf9d27b3aeec2709951fd53424ea67",
+    "assets/index-DMZgAHU2.js": "b9115c6c51ceb2411f0491d422a035f6c85de53847bd679d552a2e9bfaf02d02",
+    "assets/index-DmXLclX2.css": "8e476e8d67f7105be1d18fc3dd0fc9204a0437d513ebcfb8421358fe9f1867f2"
+  },
+  "guardCoverage": {
+    "css": [
+      "apps/web/app/layout.tsx",
+      "packages/wire/src/wire-styles.ts",
+      "apps/client/src/business/business.css"
+    ],
+    "markup": [
+      "apps/web/app",
+      "apps/client/src",
+      "packages/wire/src"
+    ],
+    "references": [
+      "scripts/design/token-audit.mjs:21-25",
+      "scripts/design/token-audit.mjs:194-206"
+    ]
+  },
+  "registrationBoundary": "apps/client/src/app.tsx:182-188: BusinessShell only after VerifiedSession"
+}

@@ -1,0 +1,26 @@
+{
+  "checks": {
+    "buildSucceeded": true,
+    "guardSucceeded": true,
+    "actualImportedSourceMatchesPin": true,
+    "allDirectRoutesMounted": true,
+    "routerClickWasSpa": true,
+    "routerReloadWasNewDocument": true,
+    "routerBackRestoredWelcome": true,
+    "realWorkerControlled": true,
+    "fiveStaticCacheEntries": true,
+    "canariesAbsent": true,
+    "cacheKeysUnchanged": true,
+    "noWebStorage": true,
+    "realOriginUnavailable": true,
+    "offlineShellRoutes": true,
+    "offlineAssetsMatchBuild": true,
+    "networkOnlyRequestsRejectOffline": true,
+    "defaultWorldStaticFetchIntercepted": true,
+    "syntheticResponsesBypassWorker": true,
+    "manifestValid": true,
+    "chromeInstallabilityNoErrors": true
+  },
+  "allObservedChecksPass": true,
+  "limitation": "Manual registration tests emitted worker, not authenticated application-triggered registration. No authenticated business body, token lifetime or live provider was tested."
+}

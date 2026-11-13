@@ -1,0 +1,15 @@
+{
+  "requestCount": 9,
+  "writeAttempts": 1,
+  "noWriteRetry": true,
+  "beforeCapabilityRejected": true,
+  "bearerAttachedFromMemory": true,
+  "credentialsOmitted": true,
+  "noStore": true,
+  "redirectsRejectedByPolicy": true,
+  "pathEscapesRejectedBeforeFetch": true,
+  "errorBodiesRedacted": true,
+  "logout204Accepted": true,
+  "tokenChangeDiscardedOldResponse": true,
+  "disposedTransportRejects": true
+}

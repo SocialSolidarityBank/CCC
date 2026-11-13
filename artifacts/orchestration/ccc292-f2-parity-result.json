@@ -1,0 +1,128 @@
+{
+  "assignmentId": "CCC292-F2-PARITY-20260914",
+  "ticket": "CCC-292",
+  "scope": "F2 closed, F3 partial preserved, not connected to the product AI path",
+  "status": "PARITY_VERIFIED_AND_MANIFEST_COMMITTED",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "reused": true,
+    "branch": "integrate/ccc291-parity",
+    "cleanAtEnd": true,
+    "tip": "c86cc5bcc76b4328da0e6829e5b616699af606a2"
+  },
+  "baseTip": {
+    "commit": "fc5c9ed4a76e023e222dde784fba816f64d952a3",
+    "preflightClean": true,
+    "preflightMatchedAssignment": true
+  },
+  "fetch": {
+    "command": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "6f6e334cb4e5e693f7aede38240f9ca0b8443562",
+    "fetchHeadParent": "9a09f9443a87f569c691f86c2c26046324076204",
+    "subject": "개체 등록 F2를 마감하고 F3 부분 진행을 보존",
+    "changedPathCount": 25,
+    "localBranchCreated": false
+  },
+  "coreMergeCommit": {
+    "commit": "76cb4d125bc395289df9ad5eb282f47b16aeff51",
+    "mergedCommit": "6f6e334cb4e5e693f7aede38240f9ca0b8443562",
+    "conflicts": 0,
+    "diffStat": "25 files changed, 4350 insertions(+), 64 deletions(-)",
+    "newMigrations": ["migrations/sqlite/0067_entity_registration_binding.sql", "migrations/postgres/0023_entity_registration_binding.sql"],
+    "newContracts": ["packages/contracts/src/entity-registration.ts"],
+    "newTests": ["apps/api/test/entity-registration.contract.test.ts", "apps/api/test/entity-registration.routes.test.ts"]
+  },
+  "conflicts": [],
+  "parityCommand": "env CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+  "parityCommandExecutions": 1,
+  "exitStatus": 0,
+  "parityTests": {"testFilesPassed": 1, "testsPassed": 1, "durationSeconds": 12.54},
+  "checkpointsPresent": {
+    "verified": true,
+    "newCheckpointId": "entity-registration-binding",
+    "newCheckpointNameSource": "apps/api/test/support/migration-parity.ts:40 registers entity-registration-binding with 0067 and 0023; the assignment did not state the checkpoint name",
+    "entries": [
+      {"id": "entity-registration-binding", "manifestLine": 67527, "sqliteSource": "0067_entity_registration_binding.sql", "sqliteSourceManifestLine": 67531, "postgresSource": "0023_entity_registration_binding.sql", "postgresSourceManifestLine": 67540},
+      {"id": "case-entity-mapping", "manifestLine": 64101, "stillPresent": true},
+      {"id": "agent-text-source-fence", "manifestLine": 60675, "stillPresent": true}
+    ],
+    "totalCheckpointIds": 23,
+    "previousTotal": 22
+  },
+  "manifestSha256": "fff25a187e1c7d06ffe3918965d3c3cc706bd9a2695e48b818c1ba687f33c6fa",
+  "manifestPreviousSha256": "a696d8561faf0f9db7b99646c1cbcb6fd466877d385ed3103139f0eb8fed0e94",
+  "manifestRegenerated": true,
+  "parityCommit": {
+    "commit": "c86cc5bcc76b4328da0e6829e5b616699af606a2",
+    "subject": "chore: 개체 등록 결합 checkpoint 를 parity manifest 에 반영",
+    "files": ["migrations/parity.yaml"],
+    "diffStat": "1 file changed, 3455 insertions(+)",
+    "hooks": "normal configured hooks ran and passed: secret guard, token-audit, align-audit, hierarchy audit with 0 new violations and 2 preexisting baseline entries, hierarchy audit test",
+    "hooksBypassed": false
+  },
+  "typecheck": {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "detail": "tsc --noEmit --project apps/api/tsconfig.json, no diagnostics", "executions": 1},
+  "targetedTests": [
+    {"command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/entity-registration.routes.test.ts", "exitStatus": 0, "result": "PASS", "testFilesPassed": 1, "testsPassed": 3, "durationSeconds": 5.1, "executions": 1, "fileExisted": true, "noSubstitutionNeeded": true}
+  ],
+  "changedFiles": {
+    "byCoreMerge": 25,
+    "byThisSlot": ["migrations/parity.yaml"],
+    "productSourceModifiedByThisSlot": 0
+  },
+  "unmet": [],
+  "notes": [
+    "apps/api/test/entity-registration.contract.test.ts also arrived with this merge but was not run because the assignment named exactly one targeted test.",
+    "The merge also brought eight mini-side result artifacts under artifacts/orchestration/ plus artifacts/orchestration/.ccc291-smoke.ts. They are core-authored files carried by the merge, not writes by this slot."
+  ],
+  "guardrails": {
+    "productSourceModified": false,
+    "migrationsModified": false,
+    "newTestsOrDocs": 0,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "conflictsResolved": 0,
+    "projectWideTestsLintOrBuildRuns": 0,
+    "rebaseOrReset": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "otherWorktreesTouched": false,
+    "betaCoreParityLeftAt": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+    "frontendLeftAt": "0cefde1e339d2d4af09ad813aeb1bc1bd28eb103",
+    "designLeftAt": "3f47763534a4ed835461e51d083456dd9500864e",
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/ccc292-f2-parity-result.json"]
+  },
+  "contractTest": {
+    "assignmentId": "CCC292-F2-CONTRACT-TEST-20260914",
+    "onCommit": "c86cc5bcc76b4328da0e6829e5b616699af606a2",
+    "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/entity-registration.contract.test.ts",
+    "executions": 1,
+    "exitStatus": 1,
+    "result": "FAIL",
+    "testFilesPassed": 0,
+    "testFilesFailed": 1,
+    "testsPassed": 10,
+    "testsFailed": 1,
+    "totalTests": 11,
+    "durationSeconds": 37.95,
+    "failures": [
+      {
+        "testName": "supersedes a stale claim after source mutation before registration",
+        "file": "apps/api/test/entity-registration.contract.test.ts",
+        "line": 279,
+        "assertion": "await expect(response.json()).resolves.toEqual({ error: 'stale_claim' })",
+        "expected": {"error": "stale_claim"},
+        "received": {"error": "stale_claim", "jobId": "<uuid>", "retryable": false},
+        "statusAssertionPassed": true,
+        "statusExpectedAndReceived": 409,
+        "fact": "The status and the error literal matched. The body carried two additional fields, so the exact-equality assertion failed. The response shape matches the fixed S5 JobError object of error, jobId and retryable, while the test expects only the error key."
+      }
+    ],
+    "mutations": {"merges": 0, "commits": 0, "filesModified": 0, "assertionsOrBaselinesChanged": 0},
+    "notRerun": ["parity", "global tests", "lint", "full build"],
+    "treeClean": true,
+    "marker": "EXECUTOR_RESULT CCC292-F2-CONTRACT-TEST-20260914"
+  },
+  "marker": "EXECUTOR_RESULT CCC292-F2-PARITY-20260914"
+}

@@ -1,0 +1,138 @@
+{
+  "assignmentId": "ccc299-db-guard-repair-20260914",
+  "ticket": "CCC-299",
+  "status": "REPAIR_COMPLETE_READY_FOR_FINAL_ACCEPTANCE",
+  "completionMarker": "BACKEND_RESULT CCC299-DB-GUARD-REPAIR-20260914",
+  "worktree": "/Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND",
+  "branch": "core/relayer-domain-beta",
+  "parent": {
+    "commit": "ae8604435745ad4c042da70f175318402ecfbe37",
+    "tree": "3361160edc9b943b734dd3bb666042bca1dd998b"
+  },
+  "candidate": {
+    "commit": "b429d93dc45365cf2550de8d3b1b5268a808a94d",
+    "tree": "9c1d4d6c6221f8484f3938fd2ad01e7f1ba1f8ab"
+  },
+  "changedFiles": [
+    {
+      "path": "scripts/seed/harness.ts",
+      "sha256": "67fa817f9e76525ce48aefb6f4a38e26ee682c6e8055bc642783857042a5aaad"
+    },
+    {
+      "path": "scripts/seed/scenario.ts",
+      "sha256": "e3d7b2c9de8664b11926fc5c6f07de0001cf8f8ad6def60f2ec2005e123f091f"
+    }
+  ],
+  "repair": {
+    "helper": "installPreviewConsentProviderRegistry(env: Env, adminActor: Actor): Promise<void>",
+    "helperPath": "scripts/seed/harness.ts",
+    "scenarioDatabaseAccessRemoved": true,
+    "registryCallAndInputMovedVerbatim": true,
+    "captureOrdering": "runScenario awaits virtual counselors and program creation, marks setup at VIRTUAL_COUNSELORS.length + 2, awaits registry installation, then begins participant disclosures and registration. Registry writes still use the capture-wrapped Env DB.",
+    "preserved": [
+      "Five canonical provider rows and their original order",
+      "schemaVersion 1, actor orgId/userId, current ISO approvedAt, synthetic-seed UUID approvalRef",
+      "Synthetic legal recipients, OpenAI US and other providers KR, null validUntil",
+      "Admission program, issued six-domain disclosures/events and registration idempotency keys",
+      "Existing replay/capture implementation; no preview output generation"
+    ],
+    "guardAllowlistChanged": false,
+    "newInterfaceOrFactory": false
+  },
+  "verification": {
+    "guard": {
+      "command": "pnpm guard:db",
+      "exitCode": 0,
+      "output": "DB gateway guard passed."
+    },
+    "scenarioForbiddenAccess": {
+      "matches": 0,
+      "method": "Built-in grep over scenario.ts for env.DB including bracket notation, prepare/batch/exec/raw/withSession/dump calls, Database/D1Database and driver imports.",
+      "result": "No matches found"
+    },
+    "smoke": {
+      "command": "SEED_PROFILE=preview pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/ccc299-seed-harness-smoke.test.ts --maxWorkers 1",
+      "directCalls": [
+        "createCaptureHarness",
+        "runScenario"
+      ],
+      "sourceSha256": "511d062f4ea6bbf96c6591fbf0671418fb52cec1e62f57eedc150d8e76b3d582",
+      "restoredPriorSmokeVerbatim": true,
+      "fixtureReduced": false,
+      "assertionsReduced": false,
+      "testTimeoutMs": 3600000,
+      "passed": 1,
+      "failed": 0,
+      "vitestDurationSeconds": 365.34,
+      "testDurationSeconds": 364.5,
+      "counts": {
+        "participants": 100,
+        "sessions": 550,
+        "virtualCounselors": 0,
+        "consentEvents": 600,
+        "registryEntries": 5
+      },
+      "program": {
+        "count": 1,
+        "admissionState": "ready",
+        "financialSupportEnabled": true,
+        "storageMode": "supabase_seoul",
+        "processingMode": "external_allowed",
+        "allSupportCasesUseCreatedProgram": true,
+        "confirmationMatchesIssuedContext": true
+      },
+      "policy": {
+        "org_id": "bss",
+        "version": 1,
+        "stt_mode": "off",
+        "llm_mode": "off",
+        "created_at": "2026-01-01 00:00:00",
+        "updated_at": "2026-01-01 00:00:00",
+        "unchangedAfterScenario": true
+      },
+      "environment": {
+        "installationMode": "community-cloud",
+        "CCC_STT_MODE": "off",
+        "CCC_LLM_MODE": "off",
+        "PII_KEY_VERSION": "2"
+      },
+      "syntheticKey": "Generated in-process using randomBytes(32); never printed or persisted; environment restored in finally.",
+      "harnessDisposed": true,
+      "previewOutputCreated": false
+    }
+  },
+  "cleanup": {
+    "temporarySmokePath": "apps/api/test/ccc299-seed-harness-smoke.test.ts",
+    "temporarySmokeRemoved": true,
+    "seedOutDirectoryAbsent": true,
+    "workingTreeClean": true
+  },
+  "commit": {
+    "normalConfiguredHooks": true,
+    "hooksBypassed": false,
+    "allowedPathsOnly": true,
+    "pushed": false,
+    "merged": false,
+    "deployed": false
+  },
+  "excludedChecksNotRun": [
+    "participant-p3 and unrelated tests",
+    "migration parity and database matrix",
+    "typecheck",
+    "formatter",
+    "project-wide suites",
+    "preview generation",
+    "Docker/Colima repair",
+    "external services"
+  ],
+  "priorAcceptanceEvidence": {
+    "pathFromRequest": "artifacts/orchestration/ccc299-final-acceptance-result.json",
+    "sha256FromRequest": "f361ae76648cde5ec688d0f6a986009d4aeb76a63fd047ff57673a976edabd10",
+    "localArtifactAvailable": false,
+    "sha256IndependentlyVerified": false,
+    "note": "The supplied final-review artifact was absent at the worktree path, repository-root path and /tmp equivalent. The user-reported gap was acted on directly; no prior central results are represented as newly executed."
+  },
+  "remainingCentralAction": "Bind final acceptance to this exact candidate commit/tree. Requested DB guard and full direct scenario smoke are complete; unrelated checks were intentionally not rerun.",
+  "ownedJobs": 0,
+  "allResultsCollected": true
+}

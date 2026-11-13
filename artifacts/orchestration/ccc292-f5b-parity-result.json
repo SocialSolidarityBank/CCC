@@ -1,0 +1,111 @@
+{
+  "assignmentId": "CCC292-PGVIEW-PARITY-20260914",
+  "supersedes": "CCC292-F5B-PARITY-20260914 in this same file",
+  "ticket": "CCC-292",
+  "scope": "F5 and F5B",
+  "status": "PARITY_VERIFIED_AND_MANIFEST_COMMITTED",
+  "summary": "The PostgreSQL purge scope view closed the last gap. Parity passed, both new checkpoints entered the manifest, and api typecheck passed.",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "branch": "integrate/ccc291-parity",
+    "cleanAtEnd": true,
+    "tip": "19ee7f7b9511171821f0c53ab55ec87509f3f21a"
+  },
+  "observedBaseTip": {
+    "observedBy": "git branch --show-current, git rev-parse HEAD, git status --short, git log --oneline -1",
+    "branch": "integrate/ccc291-parity",
+    "commit": "4d78a22b8acd8e423a5821391084fe82790d5ddf",
+    "subject": "Merge commit 'ca86fe0e4cb97037b68cf8145add604a59ae7a94' into integrate/ccc291-parity",
+    "clean": true,
+    "resetUsed": false
+  },
+  "fetchedTip": {
+    "command": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "e85d5ffc0f3f1e6a1863d746631bb230a28266f7",
+    "fetchHeadParent": "ca86fe0e4cb97037b68cf8145add604a59ae7a94",
+    "subject": "PostgreSQL 파기 범위 뷰를 맞춘다",
+    "matchedAssignment": true,
+    "rangeStat": "1 file changed, 66 insertions(+), 38 deletions(-), migrations/postgres/0028_privacy_purge_owned_graph.sql only",
+    "verifiedBeforeMerge": true,
+    "observedEffect": "migrations/postgres/0028_privacy_purge_owned_graph.sql line 4 now reads CREATE VIEW privacy_purge_open_support_cases and no reference to ccc_privacy_purge_case_open remains in the file, matching the report"
+  },
+  "coreMergeCommit": {
+    "commit": "db848daa4897d647c67e7d57890ca40e5e1bffbe",
+    "mergedCommit": "e85d5ffc0f3f1e6a1863d746631bb230a28266f7",
+    "conflicts": 0,
+    "diffStat": "1 file changed, 66 insertions(+), 38 deletions(-)",
+    "onlyMigrationTouched": true
+  },
+  "conflicts": [],
+  "parityCommand": "env CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+  "parityCommandExecutions": 1,
+  "exitStatus": 0,
+  "parityTests": {"testFilesPassed": 1, "testsPassed": 1, "durationSeconds": 12.71},
+  "viewListCompared": {
+    "assertion": "apps/api/test/support/migration-parity.ts:627 expect(postgres.views.map(({ name }) => name)).toEqual(sqlite.views.map(({ name }) => name))",
+    "nowEqual": true,
+    "count": 5,
+    "names": ["approved_ai_briefing_v1", "case_assignees", "cases", "grounded_ai_quality_v1", "privacy_purge_open_support_cases"],
+    "previousMismatch": "PostgreSQL had only the first four because 0028 expressed the open-intent scope as the STABLE function ccc_privacy_purge_case_open instead of a view",
+    "resolvedBy": "e85d5ffc adds the view at migrations/postgres/0028_privacy_purge_owned_graph.sql line 4 and points the guards at it. No assertion, threshold or baseline was changed."
+  },
+  "resolvedChainOnThisFile": [
+    {"failure": "PostgreSQL migration did not parse, SQLSTATE 42601 at 0027 line 114", "fixedBy": "9a68af96"},
+    {"failure": "privacy_purge_events.event_id notnull true where the ccc:sqlite-primary-key marker requires nullable, 0027 line 4", "fixedBy": "ff505aae"},
+    {"failure": "view name lists differed by privacy_purge_open_support_cases", "fixedBy": "e85d5ffc"}
+  ],
+  "checkpointsPresent": {
+    "verified": true,
+    "entries": [
+      {"id": "privacy-purge-owned-graph", "manifestLine": 84808, "sqliteSource": "0072_privacy_purge_owned_graph.sql", "sqliteSourceManifestLine": 84812, "postgresSource": "0028_privacy_purge_owned_graph.sql", "postgresSourceManifestLine": 84821},
+      {"id": "privacy-purge-events", "manifestLine": 81347, "sqliteSource": "0071_privacy_purge_events.sql", "sqliteSourceManifestLine": 81351, "postgresSource": "0027_privacy_purge_events.sql", "postgresSourceManifestLine": 81360},
+      {"id": "openai-egress", "manifestLine": 77892, "stillPresent": true},
+      {"id": "masked-source-proof", "manifestLine": 74437, "stillPresent": true},
+      {"id": "entity-source-invalidation", "manifestLine": 70982, "stillPresent": true},
+      {"id": "entity-registration-binding", "manifestLine": 67527, "stillPresent": true},
+      {"id": "case-entity-mapping", "manifestLine": 64101, "stillPresent": true},
+      {"id": "agent-text-source-fence", "manifestLine": 60675, "stillPresent": true}
+    ],
+    "totalCheckpointIds": 28,
+    "previousTotal": 26,
+    "addedThisSlot": 2
+  },
+  "manifestSha256": "f671080ea7ed26b15ae96b3899a2210daa8ee651e8be3fde04fb670d5b65af8b",
+  "manifestPreviousSha256": "7343a9bd534a42fff7b45895d65bf8e7751a7683542108aaeb355afe891d2861",
+  "manifestRegenerated": true,
+  "parityCommit": {
+    "commit": "19ee7f7b9511171821f0c53ab55ec87509f3f21a",
+    "subject": "파기 증명과 소유 그래프 checkpoint 를 parity manifest 에 반영",
+    "files": ["migrations/parity.yaml"],
+    "diffStat": "1 file changed, 6922 insertions(+)",
+    "note": "larger than the usual single-checkpoint commit because two checkpoints entered the manifest at once",
+    "hooks": "normal configured hooks ran and passed",
+    "hooksBypassed": false
+  },
+  "apiTypecheck": {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "executions": 1},
+  "targetedTestsSkipped": {
+    "reason": "the merged range touched only migrations/postgres/0028_privacy_purge_owned_graph.sql, so there was no apps/api/test change to run",
+    "alreadyPassingOnThisLine": ["privacy-purge-events.contract.test.ts, 7 tests", "retention-lifecycle.test.ts", "the nine web test files, 169 tests", "client typecheck exit 0"]
+  },
+  "unmet": [],
+  "guardrails": {
+    "productSourceModified": false,
+    "migrationsModified": false,
+    "testOrSupportFilesModifiedByThisSlot": false,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "conflictsResolved": 0,
+    "commitsMade": 1,
+    "commitContents": ["migrations/parity.yaml"],
+    "mergeCommitsMade": 1,
+    "projectWideTestsLintOrBuildRuns": 0,
+    "rebaseOrReset": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "otherWorktreesTouched": false,
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/ccc292-f5b-parity-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT CCC292-PGVIEW-PARITY-20260914"
+}

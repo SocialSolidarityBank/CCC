@@ -1,0 +1,208 @@
+{
+  "assignmentId": "ccc212-browser-auth-audit-20260914",
+  "workerPaneId": "w1N:p1",
+  "workerSessionId": "01a09b5b-5952-7215-9127-ef3ed91e7261",
+  "status": "ready_for_review",
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "ticket": "CCC-212",
+  "ticketDone": false,
+  "completionDecisionOwner": "controller w1N:p6 only",
+  "verdict": "The bounded existing-source audit is complete. DTO, transport, synthetic authenticated browser lifecycle, memory-only storage, static release CSP, exact-origin rejection, and canonical manifest validation were exercised. The implementation is not eligible for Done from this evidence: the approved 21-code cutover is incomplete, browser installation consumption omits revocation/replay/installation state, Community Cloud CORS differs from S2, and no actual Electron product runtime exists to test.",
+  "identityEvidence": {
+    "matchesAssignment": true,
+    "pane": "w1N:p1",
+    "sessionId": "01a09b5b-5952-7215-9127-ef3ed91e7261",
+    "cwdAndBranchMatched": true,
+    "evidence": "artifacts/ccc212-browser-auth/identity.json"
+  },
+  "sourceProvenance": {
+    "sourceWorktreeReadOnly": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+    "sourceCommit": "f7194dc88064455f3eb6be02abb5aae836981612",
+    "snapshotFromGitArchive": true,
+    "pinnedSnapshotFiles": 901,
+    "actualImportedPinnedFiles": 44,
+    "allImportsMatchPin": true,
+    "lsp": "Unavailable for the separate pinned worktree; direct import instrumentation and SHA-256 source pinning were used instead.",
+    "evidence": [
+      "artifacts/ccc212-browser-auth/source-pin.json",
+      "artifacts/ccc212-browser-auth/fixture-imports.json",
+      "artifacts/ccc212-browser-auth/lsp-evidence.json"
+    ]
+  },
+  "acceptanceMatrix": [
+    {
+      "criterion": "Inventory and map the approved 21 error codes",
+      "status": "FAILED",
+      "tested": true,
+      "observed": "All 21 were mapped through actual httpError. Eight exact names are preserved, thirteen exact names are absent and normalized, and the current browser dictionary has 36 total names with 28 additions relative to the approved list.",
+      "evidence": "artifacts/ccc212-browser-auth/error-code-coverage.json"
+    },
+    {
+      "criterion": "Trace and exercise canonical DTOs and actual decoders",
+      "status": "PASSED",
+      "tested": true,
+      "observed": "Capability exact keys/order/null engine, identity nullable email/name, restricted participant projection, malformed extra keys, inactive/service identity, and 401/403/503/invalid JSON transport responses were exercised through unchanged decoders and transport.",
+      "evidence": [
+        "artifacts/ccc212-browser-auth/decoder-evidence.json",
+        "artifacts/ccc212-browser-auth/decoder-transport.json"
+      ]
+    },
+    {
+      "criterion": "Exercise Browser transport, authentication, cancellation, stale sessions, revocation, and logout",
+      "status": "PASSED",
+      "tested": true,
+      "observed": "Real SDK password login used the synthetic ES256 issuer, unchanged Supabase Identity, seeded D1 directory, actual HTTP handler and gateway. Missing/tampered/unlinked controls failed; path escape, no-retry, token-change discard, dispose, backend revocation, SDK logout, and post-logout reload boundaries passed. This is protocol proof, not hosted Supabase certification.",
+      "evidence": [
+        "artifacts/ccc212-browser-auth/decoder-transport.json",
+        "artifacts/ccc212-browser-auth/real-bridge-controls.json",
+        "artifacts/ccc212-browser-auth/browser-result.json",
+        "artifacts/ccc212-browser-auth/browser-server-evidence.json"
+      ]
+    },
+    {
+      "criterion": "Verify browser token and PII storage boundaries",
+      "status": "PASSED",
+      "tested": true,
+      "observed": "Fresh browser, authenticated, logout, and reload states had zero localStorage, sessionStorage, cookies, and IndexedDB entries. Cache contained only the five emitted static assets, no Authorization header, query, credential marker, or synthetic PII canary. CCC-204's accepted authenticated-reload proof remains unchanged and is reused for the pre-logout reload transition.",
+      "evidence": [
+        "artifacts/ccc212-browser-auth/browser-storage-lifecycle.json",
+        "artifacts/ccc212-browser-auth/browser-cleanup.json",
+        "artifacts/orchestration/ccc204-pwa-harness-result.json"
+      ]
+    },
+    {
+      "criterion": "Verify signed bootstrap, installation allowlist, URL and origin rejection, and optional Cloud MFA",
+      "status": "FAILED",
+      "tested": true,
+      "observed": "Separate signed API/Auth origins, signature rejection before bootstrap, bootstrap equality, exact client origin, canonical revoked-key/replay/wrong-install rejection, transport path rejection, and synthetic aal1 optional-MFA login passed. Browser loadInstallation nevertheless accepted a signed sequence 0 manifest with a different installationId because it accepts no revocation list, minimum sequence, or expected installation state.",
+      "evidence": [
+        "artifacts/ccc212-browser-auth/bootstrap-allowlist.json",
+        "artifacts/ccc212-browser-auth/browser-storage-lifecycle.json"
+      ]
+    },
+    {
+      "criterion": "Verify Electron same-origin, privileged protocol, and navigation runtime",
+      "status": "BLOCKED",
+      "tested": false,
+      "observed": "No Electron executable, resolvable module, product shell entrypoint, or real-runtime navigation harness exists in the pinned source. The only file importing Electron is a Windows encrypted-SQLite smoke and does not implement or test ccc protocol and navigation guards. Chrome and source strings were not substituted.",
+      "evidence": "artifacts/ccc212-browser-auth/electron-origin.json"
+    },
+    {
+      "criterion": "Evaluate actual CSP and CORS rather than fixture-authored headers",
+      "status": "FAILED",
+      "tested": true,
+      "observed": "The actual Deno static release served the full strict CSP and includes the required trailing slash after signed apiBase, so descendant API requests were allowed. The actual Community Cloud runtime passed exact-origin echo, Vary, no credentials header, absent-origin omission, and null/untrusted rejection, but omitted OPTIONS, If-Match, ETag, X-Request-ID exposure, and max-age 600 while adding idempotency-key and x-region request headers. Fixture-authored auth/API CORS was excluded from this verdict.",
+      "evidence": [
+        "artifacts/ccc212-browser-auth/actual-static-browser-headers.json",
+        "artifacts/ccc212-browser-auth/actual-headers.json"
+      ]
+    }
+  ],
+  "errorCodeCoverage": {
+    "approved": 21,
+    "exactNamesPreserved": 8,
+    "exactNamesMissing": 13,
+    "currentBrowserCodes": 36,
+    "additionsRelativeToApproved": 28,
+    "evidence": "artifacts/ccc212-browser-auth/error-code-coverage.json"
+  },
+  "decoderAndTransportEvidence": {
+    "customProbe": "5/5 passed after the production-build fixture correction",
+    "existingClientTests": "4 files, 34 tests passed",
+    "existingBackendTests": "4 files, 94 tests passed",
+    "noWriteRetry": true,
+    "staleSessionResponseDiscarded": true,
+    "providerErrorBodiesRedacted": true,
+    "evidence": [
+      "artifacts/ccc212-browser-auth/decoder-evidence.json",
+      "artifacts/ccc212-browser-auth/decoder-transport.json",
+      "artifacts/ccc212-browser-auth/commands-and-exit-codes.json"
+    ]
+  },
+  "browserStorageAndLifecycleEvidence": {
+    "status": "PASSED",
+    "realBridge": "synthetic credential issuer to unchanged ES256 Identity to seeded D1 directory to actual handleRequest/gateway",
+    "optionalAal1Accepted": true,
+    "backendRevocationObserved": true,
+    "sdkLogoutObserved": true,
+    "storageEmptyAcrossObservedTransitions": true,
+    "cacheStaticOnly": true,
+    "rawBodiesWrittenToEvidence": false,
+    "evidence": "artifacts/ccc212-browser-auth/browser-storage-lifecycle.json"
+  },
+  "bootstrapAllowlistEvidence": {
+    "canonicalValidator": "PASSED",
+    "browserConsumer": "FAILED persistent state binding",
+    "transportUrlAllowlist": "PASSED",
+    "evidence": "artifacts/ccc212-browser-auth/bootstrap-allowlist.json"
+  },
+  "electronOriginEvidence": {
+    "status": "BLOCKED",
+    "owner": "E7-2 Electron shell and app lock",
+    "evidence": "artifacts/ccc212-browser-auth/electron-origin.json"
+  },
+  "actualHeaderEvidence": {
+    "staticCsp": "PASSED via actual Deno serve-release runtime",
+    "apiBaseTrailingSlashPresent": true,
+    "communityCloudCors": "FAILED exact S2 comparison",
+    "fixtureAuthoredHeadersExcluded": true,
+    "evidence": [
+      "artifacts/ccc212-browser-auth/actual-static-browser-headers.json",
+      "artifacts/ccc212-browser-auth/actual-headers.json"
+    ]
+  },
+  "commandsAndExitCodes": {
+    "targetedPassingTests": 133,
+    "breakdown": "5 custom + 34 client + 94 backend",
+    "browserFinalStatus": "PASS",
+    "failedAttemptsRetained": true,
+    "evidence": "artifacts/ccc212-browser-auth/commands-and-exit-codes.json"
+  },
+  "sourceDefectsWithOwners": {
+    "count": 3,
+    "ids": [
+      "E2-3-error-code-cutover-incomplete",
+      "E2-3-installation-state-binding-missing",
+      "E6-2-community-cloud-cors-drift"
+    ],
+    "evidence": "artifacts/ccc212-browser-auth/source-defects.json"
+  },
+  "preservation": {
+    "sourceWorktreeHeadUnchanged": true,
+    "sourceWorktreeStatusClean": true,
+    "sourceFilesVerified": 1332,
+    "sourceMismatches": 0,
+    "acceptedCcc204EvidenceMismatches": 0,
+    "unexpectedPreexistingFileMismatches": 0,
+    "controllerOwnedConcurrentChange": "docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md",
+    "productSourceRepairs": 0,
+    "dependenciesInstalled": 0,
+    "commitsPushesDeployments": 0,
+    "evidence": "artifacts/ccc212-browser-auth/preservation-after.json"
+  },
+  "cleanup": {
+    "ownedServicesStopped": true,
+    "browserContextClosed": true,
+    "serviceWorkersUnregistered": true,
+    "cachesRemoved": true,
+    "disposableRuntimesRemoved": 2,
+    "privateMaterialPatternHits": 0,
+    "ownedJobs": 0,
+    "unownedProcessesStopped": false,
+    "evidence": "artifacts/ccc212-browser-auth/cleanup.json"
+  },
+  "unverified": [
+    "Hosted Supabase Auth, provider-side refresh and revocation guarantees, and a real institution session were not tested.",
+    "Actual deployed static/API infrastructure headers were not tested; the pinned source runtimes were exercised locally.",
+    "Electron ccc://app Origin, privileged scheme, built-client-only protocol handler, navigation guards, sandbox/context isolation, and preload memory bearer are blocked because the product runtime is absent.",
+    "Local Single DPAPI unlock and Local Office TLS/account/MFA runtimes remain owned by E7/E8 and were not substituted with Cloud behavior.",
+    "Crash dump and operating-system credential-memory guarantees were not established by browser storage inspection."
+  ],
+  "evidenceHashes": {
+    "algorithm": "sha256",
+    "supportingFiles": 35,
+    "index": "artifacts/ccc212-browser-auth/evidence-hashes.json"
+  },
+  "recommendedNextAction": "Controller should keep CCC-212 not Done and route three repair packets to FRONTEND E2-3 and BACKEND E6-2. After those land, rerun the bounded error/bootstrap/CORS probes. Electron remains a separately blocked E7-2 runtime criterion and must be verified only when the real shell exists."
+}

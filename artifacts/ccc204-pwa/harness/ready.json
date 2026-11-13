@@ -1,0 +1,16 @@
+{
+  "clientOrigin": "https://ccc.example.org",
+  "apiBase": "https://api.example.invalid/api",
+  "authOrigin": "https://abcdefghijklmnopqrst.supabase.co",
+  "tlsPort": 63348,
+  "proxyPort": 63349,
+  "socketPath": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/harness/.runtime-Upr6dg/control.sock",
+  "spki": "F4mwia4ETeUGMgy1odlF3/c4jmS9kdZTwEYvac7FcMw=",
+  "issuer": "https://abcdefghijklmnopqrst.supabase.co/auth/v1",
+  "jwksUri": "https://abcdefghijklmnopqrst.supabase.co/auth/v1/.well-known/jwks.json",
+  "installPublicKeyFingerprints": {
+    "test-key-2026-09": "cbe1768821d6d1170e884b25972ec58f20ba1f56d201c2f2a7f617e7df6fd155"
+  },
+  "jwtPublicKeyFingerprint": "56da14b3eb8940fb5deb168ea9f88a2d8a7b7b07773f4d1270677572aced909e",
+  "privateKeysAndTokensPersisted": false
+}

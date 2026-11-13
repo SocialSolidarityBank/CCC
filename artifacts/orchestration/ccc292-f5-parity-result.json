@@ -1,0 +1,103 @@
+{
+  "assignmentId": "CCC292-F5-PARITY-RERUN-20260914",
+  "supersedes": "CCC292-F5-PARITY-20260914 in this same file",
+  "ticket": "CCC-292",
+  "scope": "F5",
+  "status": "BLOCKED_NULLABLE_PRIMARY_KEY_COLUMN_MISMATCH",
+  "summary": "The parenthesis fix worked. PostgreSQL now parses and parity advanced past the migration step into the catalog comparison, where it fails on a different, real dialect difference in the same new table. Nothing was committed and the manifest is unchanged.",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "branch": "integrate/ccc291-parity",
+    "cleanAtEnd": true,
+    "tip": "f354b563769ad68de93444dd1ace829a1841178c"
+  },
+  "observedBaseTip": {
+    "observedBy": "git branch --show-current, git rev-parse HEAD, git status --short, git log --oneline -1",
+    "branch": "integrate/ccc291-parity",
+    "commit": "2726f970e8eeb2f80056a40819927cdde98785a7",
+    "subject": "Merge commit '5d43bbefe1a3b5a635cb9710f6546c92317732f5' into integrate/ccc291-parity",
+    "clean": true,
+    "resetUsed": false
+  },
+  "fetchedTip": {
+    "command": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "9a68af962b23c2d3fb52db837b1a8ad7f644ae81",
+    "fetchHeadParent": "5d43bbefe1a3b5a635cb9710f6546c92317732f5",
+    "subject": "파기 가드의 괄호 문법을 바로잡는다",
+    "matchedAssignment": true,
+    "rangeStat": "1 file changed, 1 insertion(+), 1 deletion(-), migrations/postgres/0027_privacy_purge_events.sql only",
+    "exactChange": "line 111 changed from `  ) THEN RAISE EXCEPTION ...` to `  )) THEN RAISE EXCEPTION ...`, adding the closing parenthesis for the group opened at line 49 without shortening any guard condition"
+  },
+  "coreMergeCommit": {
+    "commit": "f354b563769ad68de93444dd1ace829a1841178c",
+    "mergedCommit": "9a68af962b23c2d3fb52db837b1a8ad7f644ae81",
+    "conflicts": 0,
+    "diffStat": "1 file changed, 1 insertion(+), 1 deletion(-)"
+  },
+  "conflicts": [],
+  "parityCommand": "env CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+  "parityCommandExecutions": 1,
+  "exitStatus": 1,
+  "previousFailureResolved": {
+    "was": "Disposable PostgreSQL trusted migration failed at line 114 (SQLSTATE 42601), the guard function did not parse",
+    "nowPasses": true,
+    "evidence": "the run no longer raises from apps/api/test/support/postgres.ts and instead reaches postgresCatalog, which only runs after every PostgreSQL migration applied successfully"
+  },
+  "parityFailure": {
+    "testName": "S1 live migration parity > verifies every checkpoint read-only, or explicitly generates only after semantic proofs pass",
+    "failingAssertionFile": "apps/api/test/support/migration-parity.ts",
+    "failingAssertionLine": 528,
+    "calledFrom": "postgresCatalog at apps/api/test/support/migration-parity.ts:518, from apps/api/test/migration-parity.test.ts:756",
+    "assertion": "expect(columns.find(column => column.table_name === table.name && column.name === nullablePrimary[0])).toMatchObject({ type: 'text', notnull: false })",
+    "expected": {"type": "text", "notnull": false},
+    "received": {"type": "text", "notnull": true},
+    "table": "privacy_purge_events",
+    "column": "event_id",
+    "constraint": "privacy_purge_events_nullable_pk",
+    "constraintCountGapFound": false,
+    "rootCauseFact": "migrations/postgres/0027_privacy_purge_events.sql line 4 declares event_id text NOT NULL CONSTRAINT privacy_purge_events_nullable_pk UNIQUE, and line 23 comments that constraint as ccc:sqlite-primary-key. The harness requires a column carrying that marker to be nullable, because the SQLite counterpart migrations/sqlite/0071_privacy_purge_events.sql line 3 declares event_id TEXT PRIMARY KEY, and a SQLite TEXT PRIMARY KEY accepts NULL. The NOT NULL on the PostgreSQL side makes the two dialects disagree on that single column.",
+    "precedent": "every earlier table using this marker omits NOT NULL on the marked column, for example migrations/postgres/0008_audio_objects.sql lines 16, 45, 63 and 69 declare id text CONSTRAINT <name>_nullable_pk UNIQUE with no NOT NULL. The same marker also appears in 0001_baseline.sql, 0004_agent_jobs.sql and 0007_consent_six_domains.sql.",
+    "diagnosticRerun": "one extra read-only run was made because the assertion carries no label, then the table and column were identified from the migration files themselves. Same failure both times.",
+    "fixNotAttempted": "Editing a migration is outside this slot. No assertion, threshold or baseline was touched.",
+    "manifestUnchanged": true,
+    "manifestCommitted": false
+  },
+  "checkpointsPresent": {
+    "verified": false,
+    "reason": "the manifest was not regenerated because the parity command exited 1",
+    "newCheckpointRegisteredInSupportFile": true,
+    "newCheckpointId": "privacy-purge-events",
+    "existingStillPresentInUnchangedManifest": ["openai-egress", "masked-source-proof", "entity-source-invalidation", "entity-registration-binding", "case-entity-mapping", "agent-text-source-fence"],
+    "totalCheckpointIdsInSupportFile": 27,
+    "totalCheckpointIdsInManifest": 26
+  },
+  "manifestSha256": "7343a9bd534a42fff7b45895d65bf8e7751a7683542108aaeb355afe891d2861",
+  "manifestChanged": false,
+  "parityCommit": null,
+  "apiTypecheck": {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "executions": 1},
+  "targetedTestsSkipped": {
+    "reason": "the merged range is a single line in one migration file, so the assignment waived the targeted tests",
+    "alreadyPassingOnThisLine": ["privacy-purge-events.contract.test.ts and retention-lifecycle.test.ts, 10 tests", "the F4 api test files, closed by 5339668 per the orchestrator", "the nine web test files, 169 tests", "client typecheck exit 0"]
+  },
+  "unmet": ["parity exit 0", "privacy-purge-events present in migrations/parity.yaml", "migrations/parity.yaml committed"],
+  "requiredFromCore": "Drop NOT NULL from event_id at migrations/postgres/0027_privacy_purge_events.sql line 4 so the column marked ccc:sqlite-primary-key is nullable, matching the SQLite TEXT PRIMARY KEY semantics and the existing nullable_pk precedent. Then hand the commit back and this line will run parity again with manifest regeneration.",
+  "guardrails": {
+    "productSourceModified": false,
+    "migrationsModified": false,
+    "testOrSupportFilesModifiedByThisSlot": false,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "conflictsResolved": 0,
+    "commitsMade": 0,
+    "mergeCommitsMade": 1,
+    "projectWideTestsLintOrBuildRuns": 0,
+    "rebaseOrReset": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "otherWorktreesTouched": false,
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/ccc292-f5-parity-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT CCC292-F5-PARITY-RERUN-20260914"
+}

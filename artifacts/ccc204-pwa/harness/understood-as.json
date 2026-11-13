@@ -1,0 +1,9 @@
+{
+  "assignmentId": "ccc204-pwa-harness-20260913",
+  "understoodAs": "Compose one disposable seeded-password issuer with real JWT verification, real seeded D1 directory and actual HTTP/gateway handlers, then observe the unchanged production client naturally registering its worker. Synthetic integration only; no production authentication claim.",
+  "authorizedWrites": [
+    "artifacts/ccc204-pwa/harness/**: test-only implementation and sanitized evidence",
+    "artifacts/orchestration/ccc204-pwa-harness-result.json"
+  ],
+  "sourceCommit": "f7194dc88064455f3eb6be02abb5aae836981612"
+}

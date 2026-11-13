@@ -1,0 +1,68 @@
+[
+  {
+    "path": "/welcome",
+    "status": 200,
+    "location": null,
+    "shell": false,
+    "headings": [
+      "CCC 사례관리"
+    ],
+    "note": "CCC_PREVIEW unset, PUBLIC_SIGNUP_ENABLED unset, incoming public marker spoofed; dev transport, not deployed production"
+  },
+  {
+    "path": "/preview",
+    "status": 200,
+    "location": null,
+    "shell": false,
+    "headings": [
+      "미리보기 접속"
+    ],
+    "note": "CCC_PREVIEW unset, PUBLIC_SIGNUP_ENABLED unset, incoming public marker spoofed; dev transport, not deployed production"
+  },
+  {
+    "path": "/preview/admin",
+    "status": 200,
+    "location": null,
+    "shell": false,
+    "headings": [
+      "기관 관리자 미리보기 접속"
+    ],
+    "note": "CCC_PREVIEW unset, PUBLIC_SIGNUP_ENABLED unset, incoming public marker spoofed; dev transport, not deployed production"
+  },
+  {
+    "path": "/join",
+    "status": 404,
+    "location": null,
+    "shell": false,
+    "headings": [],
+    "note": "CCC_PREVIEW unset, PUBLIC_SIGNUP_ENABLED unset, incoming public marker spoofed; dev transport, not deployed production"
+  },
+  {
+    "path": "/join/participant/invalid",
+    "status": 404,
+    "location": null,
+    "shell": false,
+    "headings": [],
+    "note": "CCC_PREVIEW unset, PUBLIC_SIGNUP_ENABLED unset, incoming public marker spoofed; dev transport, not deployed production"
+  },
+  {
+    "path": "/joinX",
+    "status": 404,
+    "location": null,
+    "shell": true,
+    "headings": [
+      "404"
+    ],
+    "note": "CCC_PREVIEW unset, PUBLIC_SIGNUP_ENABLED unset, incoming public marker spoofed; dev transport, not deployed production"
+  },
+  {
+    "path": "/kit",
+    "status": 200,
+    "location": null,
+    "shell": true,
+    "headings": [
+      "컴포넌트 킷"
+    ],
+    "note": "CCC_PREVIEW unset, PUBLIC_SIGNUP_ENABLED unset, incoming public marker spoofed; dev transport, not deployed production"
+  }
+]

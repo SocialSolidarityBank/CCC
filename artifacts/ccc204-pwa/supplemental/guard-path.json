@@ -1,0 +1,27 @@
+[
+  {
+    "step": "Client installation trust",
+    "source": "apps/client/src/app.tsx:68-94 -> business/installation.ts:19-35,38-77",
+    "rule": "Trusted build key, Ed25519 signature, expiry, exact client/API/Auth origins and bootstrap match. Existing signed fixture passes."
+  },
+  {
+    "step": "SDK authentication state",
+    "source": "apps/client/src/business/auth.ts:69-128,137-185",
+    "rule": "Real SDK password grant, memory-only session, actual assurance/factors; no React/session injection. Supported browser-facing valid synthetic issuer is missing."
+  },
+  {
+    "step": "Backend credential and directory",
+    "source": "adapters/identity-supabase/src/verifier.ts:48-61,175-205 -> index.ts:52-69",
+    "rule": "Canonical HTTPS Supabase issuer/JWKS, ES256/RS256 signature/claims, linked active human and roles from directory. Original fixture tests pass; arbitrary preview format/origin fails."
+  },
+  {
+    "step": "Business session data",
+    "source": "apps/client/src/app.tsx:123-167; business/transport.ts:91-106; apps/community-cloud/src/runtime.ts:64-75,147-160",
+    "rule": "Bearer-protected decoded capabilities with installation binding, real /me and non-empty directory roles are required."
+  },
+  {
+    "step": "Natural registration trigger",
+    "source": "apps/client/src/app.tsx:182-188 -> business/service-worker.ts:12-35",
+    "rule": "Only mounted BusinessShell useEffect calls registerShellWorker in a production build. Not reached in this supplement; no manual call substituted."
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "exitCode": 0,
+  "stdoutSha256": "d607b5e5cf929be342d0c1780ba197d02375520b76b3e02644aaa72eed36a2ec",
+  "stderrSha256": "351b524197fb492920789369e7f1a271420c757633fbb553b280a181ac4c31a4",
+  "releaseDir": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc212-browser-auth/.runtime-xTXNN9/release",
+  "publicInputsOnly": true,
+  "privateKeyPersisted": false
+}

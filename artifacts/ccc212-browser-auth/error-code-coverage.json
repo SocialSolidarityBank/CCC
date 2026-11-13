@@ -1,0 +1,184 @@
+{
+  "approvedCount": 21,
+  "currentBrowserCount": 36,
+  "mapped": [
+    {
+      "legacyCode": "authentication_required",
+      "status": 401,
+      "browserCode": "unauthenticated",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "access_denied",
+      "status": 403,
+      "browserCode": "forbidden",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "forbidden",
+      "status": 403,
+      "browserCode": "forbidden",
+      "semantic": "preserved"
+    },
+    {
+      "legacyCode": "invalid_request",
+      "status": 400,
+      "browserCode": "invalid_request",
+      "semantic": "preserved"
+    },
+    {
+      "legacyCode": "validation_error",
+      "status": 422,
+      "browserCode": "invalid_request",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "not_found",
+      "status": 404,
+      "browserCode": "unavailable",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "conflict",
+      "status": 409,
+      "browserCode": "conflict",
+      "semantic": "preserved"
+    },
+    {
+      "legacyCode": "not_eligible_or_already_purged",
+      "status": 410,
+      "browserCode": "unavailable",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "pilot_text_ai_consent_required",
+      "status": 409,
+      "browserCode": "conflict",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "text_ai_pilot_disabled",
+      "status": 409,
+      "browserCode": "conflict",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "stale_draft_version",
+      "status": 409,
+      "browserCode": "draft_changed",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "draft_version_required",
+      "status": 409,
+      "browserCode": "draft_changed",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "grounded_evidence_required",
+      "status": 409,
+      "browserCode": "grounded_evidence_required",
+      "semantic": "preserved"
+    },
+    {
+      "legacyCode": "speaker_confirmation_required",
+      "status": 409,
+      "browserCode": "speaker_confirmation_required",
+      "semantic": "preserved"
+    },
+    {
+      "legacyCode": "fixture_draft_approval_forbidden",
+      "status": 409,
+      "browserCode": "fixture_draft_approval_forbidden",
+      "semantic": "preserved"
+    },
+    {
+      "legacyCode": "ai_provider_not_configured",
+      "status": 409,
+      "browserCode": "conflict",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "ai_prohibited_output",
+      "status": 422,
+      "browserCode": "invalid_request",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "ai_provider_unavailable",
+      "status": 503,
+      "browserCode": "unavailable",
+      "semantic": "normalized_or_lost"
+    },
+    {
+      "legacyCode": "privacy_consent_required",
+      "status": 422,
+      "browserCode": "privacy_consent_required",
+      "semantic": "preserved"
+    },
+    {
+      "legacyCode": "emergency_reason_required",
+      "status": 422,
+      "browserCode": "emergency_reason_required",
+      "semantic": "preserved"
+    },
+    {
+      "legacyCode": "service_unavailable",
+      "status": 503,
+      "browserCode": "unavailable",
+      "semantic": "normalized_or_lost"
+    }
+  ],
+  "additions": [
+    "trust_missing",
+    "installation_invalid",
+    "installation_expired",
+    "installation_mismatch",
+    "local_single_unsupported",
+    "local_office_unsupported",
+    "capabilities_required",
+    "capabilities_invalid",
+    "invalid_api_path",
+    "invalid_response",
+    "session_changed",
+    "unauthenticated",
+    "mfa_required",
+    "purge_disabled",
+    "program_admission_required",
+    "public_signup_disabled",
+    "draft_changed",
+    "consent_scope_mismatch",
+    "unavailable",
+    "invalid_credentials",
+    "email_not_confirmed",
+    "password_mismatch",
+    "mfa_invalid",
+    "mfa_unsupported",
+    "mfa_enrollment_failed",
+    "rate_limited",
+    "auth_failed",
+    "signout_failed"
+  ],
+  "missingExactNames": [
+    "authentication_required",
+    "access_denied",
+    "validation_error",
+    "not_found",
+    "not_eligible_or_already_purged",
+    "pilot_text_ai_consent_required",
+    "text_ai_pilot_disabled",
+    "stale_draft_version",
+    "draft_version_required",
+    "ai_provider_not_configured",
+    "ai_prohibited_output",
+    "ai_provider_unavailable",
+    "service_unavailable"
+  ],
+  "directConsumers": [
+    "apps/client/src/business/transport.ts:httpError",
+    "apps/client/src/business/auth.ts:authError and signOut",
+    "apps/client/src/business/ai-review.ts:404 becomes nullable draft",
+    "apps/client/src/business/invites.ts:404 becomes public_signup_disabled",
+    "apps/client/src/business/consent-panel.tsx:safeError and 401 signOut"
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "assignmentId": "ccc299-source-repair-20260914",
+  "ticket": "CCC-299",
+  "status": "BLOCKED_SEED_HARNESS_INITIALIZATION",
+  "completionMarker": "BACKEND_RESULT CCC299-SOURCE-REPAIR-20260914",
+  "implementationComplete": false,
+  "base": {
+    "branch": "core/relayer-domain-beta",
+    "commit": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+    "initialWorkingTreeClean": true
+  },
+  "centralEvidence": {
+    "resultPath": "/tmp/ccc299-central-verification-result.json",
+    "resultSha256": "213b62414cebf41759c0772f7a9ed7c8c362118bcea515d52660a9d7c4dfb68c",
+    "generatedParityPath": "/tmp/ccc299-generated-parity.yaml",
+    "generatedParitySha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0",
+    "hashesVerified": true,
+    "passingGatesAtParentOnly": [
+      "migration semantic parity update 1/1",
+      "intake route filter 7/7 with 78 skipped",
+      "API typecheck",
+      "encrypted SQLite and PostgreSQL lifecycle matrix",
+      "non-update migration and database parity 2/2 with parity bytes unchanged",
+      "DB gateway and core import guards"
+    ]
+  },
+  "changes": [
+    {
+      "path": "apps/api/test/participant-p3.contract.test.ts",
+      "change": "Only the stale intake PUT fixture now sends schemaVersion 3 and mandatory empty additionalItemRefs/questionWithdrawals; six access-state expectations unchanged.",
+      "sha256": "b1d1eb60f315e127d9155e4841823fdf927c8d87a485317a61e36e474114eb62"
+    },
+    {
+      "path": "scripts/seed/scenario.ts",
+      "change": "Current program creation uses listPrograms admission copy and installation confirmation, financialSupportEnabled true and a gateway-created ID. Trusted consent registry installation and six current disclosure-bound events replace legacy registration arguments; participants remain sequential with individual idempotency keys. The supplied capture harness prevents this path from reaching program creation.",
+      "sha256": "b9e4375e35e2dbfcb192126e27738882079172aacbcfc4b9e423a614302c3a40"
+    },
+    {
+      "path": "migrations/parity.yaml",
+      "change": "Copied byte-for-byte from the SHA-256-verified central generated artifact; no local regeneration.",
+      "sha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0"
+    }
+  ],
+  "verification": {
+    "command": "SEED_PROFILE=preview pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/participant-p3.contract.test.ts apps/api/test/ccc299-source-repair-smoke.test.ts --maxWorkers 1",
+    "exitCode": 1,
+    "testFiles": {
+      "passed": 1,
+      "failed": 1
+    },
+    "tests": {
+      "passed": 21,
+      "failed": 1
+    },
+    "participantTest": {
+      "path": "apps/api/test/participant-p3.contract.test.ts",
+      "passed": 21,
+      "failed": 0,
+      "accessStates": [
+        "writer",
+        "admin-only",
+        "nonassigned-admin-practitioner",
+        "supervisor",
+        "closed",
+        "closed-program"
+      ],
+      "expectationsPreserved": true
+    },
+    "seedSmoke": {
+      "directCreateCaptureHarness": true,
+      "directRunScenario": true,
+      "seedProfile": "preview",
+      "syntheticKey": "randomBytes(32), generated and used in-process only; never printed or written to a file",
+      "passed": false,
+      "preflight": {
+        "installationMode": null,
+        "policyCount": 0,
+        "organizationCount": 1
+      },
+      "error": "program_admission_required",
+      "reason": "installation_unavailable",
+      "stack": [
+        "packages/core/src/gateway.ts:13935 programAdmissionContext",
+        "packages/core/src/gateway.ts:14177 listPrograms",
+        "scripts/seed/scenario.ts:124 provisionSyntheticProgram",
+        "scripts/seed/scenario.ts:370 runScenario"
+      ],
+      "participantCreationReached": false,
+      "programCreationReached": false,
+      "consentIssuanceReached": false,
+      "disposableFileRemoved": true,
+      "generatorRun": false,
+      "previewOutputCreated": false
+    },
+    "outputArtifact": "artifact://102",
+    "parityByteIdentity": {
+      "sourceVerified": true,
+      "workingTreeExactCmp": true,
+      "sha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0",
+      "regeneratedOnMini": false,
+      "committedSha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0"
+    }
+  },
+  "blockers": [
+    {
+      "code": "SEED_CAPTURE_HARNESS_MISSING_INSTALLATION_INITIALIZATION",
+      "observed": {
+        "installationMode": null,
+        "programAdmissionPolicyRows": 0,
+        "organizationSettingsRows": 1
+      },
+      "evidence": [
+        {
+          "path": "scripts/seed/harness.ts",
+          "lines": "63-80",
+          "fact": "Preloads existing organization settings and returns an Env without installationMode."
+        },
+        {
+          "path": "scripts/seed/preload-data.ts",
+          "lines": "61-87",
+          "fact": "Preload supplies organization settings, users and pending stubs, but no installation AI policy row."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lines": "13932-13937",
+          "fact": "Program admission requires a recognized installationMode and persisted installed AI policy."
+        },
+        {
+          "path": "packages/core/src/gateway.ts",
+          "lines": "14397-14428",
+          "fact": "The existing createOrganizationSettings gateway initializes off/off policy only while creating a missing organization; it rejects this already-preloaded organization."
+        }
+      ],
+      "scopeBoundary": "harness.ts, preload-data.ts, packages/core and raw SQL provisioning in scenario.ts are excluded by the repair request.",
+      "requiredDecision": "Controller must authorize the capture-harness/preload installation cutover or provide another approved trusted initialization seam. Retain existing organization values, explicit installation mode and persisted off/off policy; do not forge program confirmation, bypass admission, or seed a raw policy row inside scenario.ts."
+    }
+  ],
+  "remainingCentralChecks": [
+    "Resolve the capture-harness installation initialization under an explicit scope expansion.",
+    "Rerun the direct createCaptureHarness plus runScenario smoke with SEED_PROFILE=preview and an in-process synthetic key; no generate.ts or preview output.",
+    "Run required central verification on the final exact candidate tree after the seed initialization repair. Parent-only passing gates are not claimed as fresh candidate evidence."
+  ],
+  "callerTrace": {
+    "lspAvailable": false,
+    "method": "Repository-wide grep for createBeneficiaryWithInitialSupportCase and scoped runScenario/intake fixture references; 35 matching files collected across both result pages.",
+    "changedRegistrationCaller": "scripts/seed/scenario.ts:runParticipant",
+    "unchangedRunScenarioCaller": "scripts/seed/generate.ts",
+    "participantRegistrationCallers": "Existing seed and later participant-p3 registration calls already use registrationInput and current programId/idempotencyKey/consentEvents.",
+    "aliasesAdded": false
+  },
+  "scope": {
+    "allowedProductPaths": 3,
+    "rawSqlAddedToScenario": false,
+    "testHelpersImportedIntoScenario": false,
+    "hardCodedProgramId": false,
+    "consentSnapshotsFabricated": false,
+    "lifecycleContractsChanged": false,
+    "dockerCommandsRun": false,
+    "externalServicesContacted": false,
+    "pushed": false,
+    "merged": false,
+    "deployed": false
+  },
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "candidate": {
+    "commit": "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db",
+    "tree": "d344b210ea9ae2f9def92f6aa81249845385a3fb",
+    "parent": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+    "changedPaths": [
+      "apps/api/test/participant-p3.contract.test.ts",
+      "migrations/parity.yaml",
+      "scripts/seed/scenario.ts"
+    ],
+    "workingTreeClean": true
+  },
+  "commit": {
+    "exitCode": 0,
+    "hooksBypassed": false,
+    "summary": "3 files changed, 6897 insertions(+), 7 deletions(-)"
+  }
+}

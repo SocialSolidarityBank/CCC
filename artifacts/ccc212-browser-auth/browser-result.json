@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "credentialValidatingSdkLogin": true,
+  "optionalAal1Accepted": true,
+  "businessRevocationObserved": true,
+  "logoutAndReloadRequireLogin": true,
+  "storageAndCacheBoundaryPassed": true,
+  "actualStaticCspObserved": true,
+  "defaultPageWorld": true,
+  "errors": {
+    "pageErrors": 0,
+    "consoleErrors": 1
+  }
+}

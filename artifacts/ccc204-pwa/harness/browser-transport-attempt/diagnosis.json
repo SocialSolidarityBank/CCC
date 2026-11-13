@@ -1,0 +1,7 @@
+{
+  "code": "net::ERR_PROXY_CONNECTION_FAILED",
+  "cause": "browser proxy loopback address was included in MAP * ~NOTFOUND resolver rule; no fixture request reached proxy",
+  "credentialEntries": 0,
+  "browserStarted": true,
+  "updaterObservation": "Installed Google Chrome spawned its updater despite disable-component-update. Updater logs show failed local service lookup and exit; no credentials had been entered. Subsequent browser is the existing headless_shell under a loopback-only process sandbox."
+}

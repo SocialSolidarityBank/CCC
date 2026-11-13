@@ -1,0 +1,899 @@
+{
+  "assignmentId": "ccc299-final-acceptance-after-guard-20260914",
+  "ticket": "CCC-299",
+  "status": "ACCEPTED_READY_FOR_CONSUMER_HANDOFF",
+  "completionMarker": "EXECUTOR_RESULT CCC299-FINAL-ACCEPTANCE-20260914",
+  "candidateVerified": true,
+  "producerContractFullyVerified": true,
+  "readyForConsumerHandoff": true,
+  "reason": "The sole prior gap is resolved: b429d93 changes only harness.ts and scenario.ts, binds a passing DB gateway guard and unchanged full seed smoke to those exact blobs, and preserves all other ae evidence-bearing blobs.",
+  "ticketDoneRecommendation": {
+    "recommendDone": true,
+    "scope": "CCC-299 producer acceptance contract",
+    "reason": "The producer contract and every required gate are fully covered on the final sealed candidate. Downstream screen completion is separate."
+  },
+  "consumerCompletionClaimed": false,
+  "consumerCompletion": {
+    "claimed": false,
+    "reason": "Acceptance authorizes consumer handoff; it does not claim downstream consumer implementation or screen verification."
+  },
+  "priorFinalReview": {
+    "path": "artifacts/orchestration/ccc299-final-acceptance-result.json",
+    "expectedSha256": "f361ae76648cde5ec688d0f6a986009d4aeb76a63fd047ff57673a976edabd10",
+    "actualSha256": "f361ae76648cde5ec688d0f6a986009d4aeb76a63fd047ff57673a976edabd10",
+    "hashMatch": true,
+    "decision": "All fourteen behavior criteria covered; only the changed scenario blob lacked a bound DB gateway guard pass.",
+    "allBehaviorCriteriaCovered": true,
+    "soleRemainingGap": {
+      "code": "DB_GATEWAY_GUARD_INVALIDATED_BY_CHANGED_SCENARIO_BLOB",
+      "finalScenarioEnvDbLines": [
+        139
+      ],
+      "finalScenarioBlob": {
+        "present": true,
+        "gitBlob": "f0db164f0ccc0e8f5939cd60b17da727e9024886",
+        "sha256": "b9e4375e35e2dbfcb192126e27738882079172aacbcfc4b9e423a614302c3a40",
+        "bytes": 15770
+      },
+      "guardBlobAtCentral": {
+        "present": true,
+        "gitBlob": "f0f0df59fcedab55a3e7fd3e1d139c2a85b399db",
+        "sha256": "fd76eff9e3352c7e3e258f1e5313c72752268ef5e29b977ce09fe090a22da223",
+        "bytes": 3936
+      },
+      "guardBlobAtFinal": {
+        "present": true,
+        "gitBlob": "f0f0df59fcedab55a3e7fd3e1d139c2a85b399db",
+        "sha256": "fd76eff9e3352c7e3e258f1e5313c72752268ef5e29b977ce09fe090a22da223",
+        "bytes": 3936
+      },
+      "guardBlobUnchanged": true,
+      "guardPatternPresent": true,
+      "scenarioAllowlisted": false,
+      "fact": "The final non-allowlisted scripts/seed/scenario.ts contains env.DB. The unchanged guard scans scripts and reports every env.DB match outside allowedFiles and test/migration paths. The 4a PASS cannot bind to this changed blob."
+    }
+  },
+  "repairArtifact": {
+    "path": "artifacts/orchestration/ccc299-db-guard-repair-result.json",
+    "expectedSha256": "b4d153c09b0d3852d98fdb5e78a7a367ffafd1c8777dfd91368d17a59fd4ee60",
+    "actualSha256": "b4d153c09b0d3852d98fdb5e78a7a367ffafd1c8777dfd91368d17a59fd4ee60",
+    "hashMatch": true,
+    "completionScope": {
+      "status": "REPAIR_COMPLETE_READY_FOR_FINAL_ACCEPTANCE",
+      "candidate": {
+        "commit": "b429d93dc45365cf2550de8d3b1b5268a808a94d",
+        "tree": "9c1d4d6c6221f8484f3938fd2ad01e7f1ba1f8ab"
+      },
+      "guard": {
+        "command": "pnpm guard:db",
+        "exitCode": 0,
+        "output": "DB gateway guard passed."
+      },
+      "smoke": {
+        "command": "SEED_PROFILE=preview pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/ccc299-seed-harness-smoke.test.ts --maxWorkers 1",
+        "directCalls": [
+          "createCaptureHarness",
+          "runScenario"
+        ],
+        "sourceSha256": "511d062f4ea6bbf96c6591fbf0671418fb52cec1e62f57eedc150d8e76b3d582",
+        "restoredPriorSmokeVerbatim": true,
+        "fixtureReduced": false,
+        "assertionsReduced": false,
+        "testTimeoutMs": 3600000,
+        "passed": 1,
+        "failed": 0,
+        "vitestDurationSeconds": 365.34,
+        "testDurationSeconds": 364.5,
+        "counts": {
+          "participants": 100,
+          "sessions": 550,
+          "virtualCounselors": 0,
+          "consentEvents": 600,
+          "registryEntries": 5
+        },
+        "program": {
+          "count": 1,
+          "admissionState": "ready",
+          "financialSupportEnabled": true,
+          "storageMode": "supabase_seoul",
+          "processingMode": "external_allowed",
+          "allSupportCasesUseCreatedProgram": true,
+          "confirmationMatchesIssuedContext": true
+        },
+        "policy": {
+          "org_id": "bss",
+          "version": 1,
+          "stt_mode": "off",
+          "llm_mode": "off",
+          "created_at": "2026-01-01 00:00:00",
+          "updated_at": "2026-01-01 00:00:00",
+          "unchangedAfterScenario": true
+        },
+        "environment": {
+          "installationMode": "community-cloud",
+          "CCC_STT_MODE": "off",
+          "CCC_LLM_MODE": "off",
+          "PII_KEY_VERSION": "2"
+        },
+        "syntheticKey": "Generated in-process using randomBytes(32); never printed or persisted; environment restored in finally.",
+        "harnessDisposed": true,
+        "previewOutputCreated": false
+      },
+      "ownedJobs": 0,
+      "allResultsCollected": true
+    }
+  },
+  "originalEvidenceArtifacts": [
+    {
+      "path": "artifacts/orchestration/ccc299-core-freeze-result.json",
+      "expectedSha256": "8f0e235965659b35c7d3b71331a6a70551f1908ea5e131c9b2c9a4f3e0034da2",
+      "actualSha256": "8f0e235965659b35c7d3b71331a6a70551f1908ea5e131c9b2c9a4f3e0034da2",
+      "match": true,
+      "completionScope": {
+        "status": "ready_for_controller_assignment",
+        "readyForImplementation": true,
+        "productChanges": 0,
+        "ownedJobs": 0,
+        "allResultsCollected": true
+      }
+    },
+    {
+      "path": "artifacts/orchestration/ccc299-core-implementation-result.json",
+      "expectedSha256": "50ac2406d0525cc4a0de9861e6315854c8c477137730308b21b332a8a8644858",
+      "actualSha256": "50ac2406d0525cc4a0de9861e6315854c8c477137730308b21b332a8a8644858",
+      "match": true,
+      "completionScope": {
+        "status": "BLOCKED_WRITER_PARITY",
+        "implementationComplete": false,
+        "readyForCentralVerification": false,
+        "candidate": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+        "ownedJobs": 0,
+        "allResultsCollected": true
+      }
+    },
+    {
+      "path": "artifacts/orchestration/ccc299-central-verification-result.json",
+      "expectedSha256": "213b62414cebf41759c0772f7a9ed7c8c362118bcea515d52660a9d7c4dfb68c",
+      "actualSha256": "213b62414cebf41759c0772f7a9ed7c8c362118bcea515d52660a9d7c4dfb68c",
+      "match": true,
+      "completionScope": {
+        "status": "BLOCKED_SOURCE_FAILURES",
+        "candidate": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+        "candidateVerified": false,
+        "ownedJobs": 0,
+        "allResultsCollected": true
+      }
+    },
+    {
+      "path": "artifacts/orchestration/ccc299-generated-parity.yaml",
+      "expectedSha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0",
+      "actualSha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0",
+      "match": true,
+      "completionScope": {
+        "kind": "test-generated migration parity manifest",
+        "checkpointIdsAdded": [
+          "manual-record-lifecycle",
+          "intake-question-lifecycle"
+        ],
+        "nonUpdateByteIdentical": true
+      }
+    },
+    {
+      "path": "artifacts/orchestration/ccc299-source-repair-result.json",
+      "expectedSha256": "5095c3e5e5cf52e0a5c50430ddc7e32b8cc449e7e3934f7026b2863d1f62e4b5",
+      "actualSha256": "5095c3e5e5cf52e0a5c50430ddc7e32b8cc449e7e3934f7026b2863d1f62e4b5",
+      "match": true,
+      "completionScope": {
+        "status": "BLOCKED_SEED_HARNESS_INITIALIZATION",
+        "candidate": "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db",
+        "participantP3Passed": 21,
+        "seedSmokePassed": false,
+        "ownedJobs": 0,
+        "allResultsCollected": true
+      }
+    },
+    {
+      "path": "artifacts/orchestration/ccc299-seed-harness-repair-result.json",
+      "expectedSha256": "8d02851565c5ca199acbf0f77452dc397300448d9c0a596c54bfd27d2717569a",
+      "actualSha256": "8d02851565c5ca199acbf0f77452dc397300448d9c0a596c54bfd27d2717569a",
+      "match": true,
+      "completionScope": {
+        "status": "READY_FOR_CENTRAL_VERIFICATION",
+        "candidate": "ae8604435745ad4c042da70f175318402ecfbe37",
+        "seedSmokeFinalAttempt": "PASS",
+        "ownedJobs": 0,
+        "allResultsCollected": true
+      }
+    }
+  ],
+  "allOriginalArtifactHashesMatchedBeforeOverwrite": true,
+  "candidate": {
+    "commit": "b429d93dc45365cf2550de8d3b1b5268a808a94d",
+    "tree": "9c1d4d6c6221f8484f3938fd2ad01e7f1ba1f8ab",
+    "expectedTree": "9c1d4d6c6221f8484f3938fd2ad01e7f1ba1f8ab",
+    "treeMatch": true,
+    "parent": "ae8604435745ad4c042da70f175318402ecfbe37",
+    "expectedParent": "ae8604435745ad4c042da70f175318402ecfbe37",
+    "parentMatch": true,
+    "changedPaths": [
+      "scripts/seed/harness.ts",
+      "scripts/seed/scenario.ts"
+    ],
+    "expectedChangedPaths": [
+      "scripts/seed/harness.ts",
+      "scripts/seed/scenario.ts"
+    ],
+    "changedPathsMatch": true,
+    "remoteObjectSource": "ssh://mini/Users/barq/DEVELOPER/PROJECTS/CCC",
+    "fetchCommand": "git fetch --no-write-fetch-head ssh://mini/Users/barq/DEVELOPER/PROJECTS/CCC b429d93dc45365cf2550de8d3b1b5268a808a94d",
+    "gitReferenceMutations": 0
+  },
+  "commitIdentityMatrix": [
+    {
+      "commit": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+      "tree": "f188a8f136a4de2147b9d5a36e9f2b535a990d89",
+      "parent": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+      "changedPaths": [
+        "apps/api/test/gateway-intake.test.ts",
+        "apps/api/test/manual-record.contract.test.ts",
+        "apps/api/test/migration-parity.test.ts",
+        "apps/api/test/routes.test.ts",
+        "apps/api/test/support-case-report.contract.test.ts",
+        "apps/api/test/support/intake.ts",
+        "apps/api/test/support/migration-parity.ts",
+        "migrations/postgres/0020_intake_question_lifecycle.sql",
+        "migrations/sqlite/0064_intake_question_lifecycle.sql",
+        "packages/contracts/src/intake.ts",
+        "packages/contracts/src/manual-record.ts",
+        "packages/core/src/gateway.ts",
+        "scripts/seed/scenario.ts"
+      ],
+      "expectedTree": "f188a8f136a4de2147b9d5a36e9f2b535a990d89",
+      "treeMatch": true,
+      "expectedParent": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+      "parentMatch": true,
+      "expectedChangedPaths": [
+        "apps/api/test/gateway-intake.test.ts",
+        "apps/api/test/manual-record.contract.test.ts",
+        "apps/api/test/migration-parity.test.ts",
+        "apps/api/test/routes.test.ts",
+        "apps/api/test/support-case-report.contract.test.ts",
+        "apps/api/test/support/intake.ts",
+        "apps/api/test/support/migration-parity.ts",
+        "migrations/postgres/0020_intake_question_lifecycle.sql",
+        "migrations/sqlite/0064_intake_question_lifecycle.sql",
+        "packages/contracts/src/intake.ts",
+        "packages/contracts/src/manual-record.ts",
+        "packages/core/src/gateway.ts",
+        "scripts/seed/scenario.ts"
+      ],
+      "changedPathsMatch": true
+    },
+    {
+      "commit": "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db",
+      "tree": "d344b210ea9ae2f9def92f6aa81249845385a3fb",
+      "parent": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+      "changedPaths": [
+        "apps/api/test/participant-p3.contract.test.ts",
+        "migrations/parity.yaml",
+        "scripts/seed/scenario.ts"
+      ],
+      "expectedTree": "d344b210ea9ae2f9def92f6aa81249845385a3fb",
+      "treeMatch": true,
+      "expectedParent": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+      "parentMatch": true,
+      "expectedChangedPaths": [
+        "apps/api/test/participant-p3.contract.test.ts",
+        "migrations/parity.yaml",
+        "scripts/seed/scenario.ts"
+      ],
+      "changedPathsMatch": true
+    },
+    {
+      "commit": "ae8604435745ad4c042da70f175318402ecfbe37",
+      "tree": "3361160edc9b943b734dd3bb666042bca1dd998b",
+      "parent": "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db",
+      "changedPaths": [
+        "scripts/seed/harness.ts",
+        "scripts/seed/preload-data.ts"
+      ],
+      "expectedTree": "3361160edc9b943b734dd3bb666042bca1dd998b",
+      "treeMatch": true,
+      "expectedParent": "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db",
+      "parentMatch": true,
+      "expectedChangedPaths": [
+        "scripts/seed/harness.ts",
+        "scripts/seed/preload-data.ts"
+      ],
+      "changedPathsMatch": true
+    },
+    {
+      "commit": "b429d93dc45365cf2550de8d3b1b5268a808a94d",
+      "tree": "9c1d4d6c6221f8484f3938fd2ad01e7f1ba1f8ab",
+      "parent": "ae8604435745ad4c042da70f175318402ecfbe37",
+      "changedPaths": [
+        "scripts/seed/harness.ts",
+        "scripts/seed/scenario.ts"
+      ],
+      "expectedTree": "9c1d4d6c6221f8484f3938fd2ad01e7f1ba1f8ab",
+      "treeMatch": true,
+      "expectedParent": "ae8604435745ad4c042da70f175318402ecfbe37",
+      "parentMatch": true,
+      "expectedChangedPaths": [
+        "scripts/seed/harness.ts",
+        "scripts/seed/scenario.ts"
+      ],
+      "changedPathsMatch": true
+    }
+  ],
+  "allCommitParentsTreesAndPathsMatch": true,
+  "blobIdentity": {
+    "priorTrackedEntries": 1334,
+    "finalTrackedEntries": 1334,
+    "differences": [
+      {
+        "path": "scripts/seed/harness.ts",
+        "ae": {
+          "mode": "100644",
+          "type": "blob",
+          "gitBlob": "0ee34e71c69a2a0416caa0f00c0e2f21be9ec3d9"
+        },
+        "b429": {
+          "mode": "100644",
+          "type": "blob",
+          "gitBlob": "9b70735a4126bd75a2133146d9df4c20fa72cd99"
+        }
+      },
+      {
+        "path": "scripts/seed/scenario.ts",
+        "ae": {
+          "mode": "100644",
+          "type": "blob",
+          "gitBlob": "f0db164f0ccc0e8f5939cd60b17da727e9024886"
+        },
+        "b429": {
+          "mode": "100644",
+          "type": "blob",
+          "gitBlob": "0f90f8ddb31b599fffb35cce2645b5d22a3292ce"
+        }
+      }
+    ],
+    "differencesMatchDeclaredPaths": true,
+    "unchangedBlobCount": 1332,
+    "allUndeclaredBlobsIdentical": true,
+    "repairBlobChecks": [
+      {
+        "path": "scripts/seed/harness.ts",
+        "present": true,
+        "gitBlob": "9b70735a4126bd75a2133146d9df4c20fa72cd99",
+        "sha256": "67fa817f9e76525ce48aefb6f4a38e26ee682c6e8055bc642783857042a5aaad",
+        "bytes": 5278,
+        "expectedSha256": "67fa817f9e76525ce48aefb6f4a38e26ee682c6e8055bc642783857042a5aaad",
+        "match": true
+      },
+      {
+        "path": "scripts/seed/scenario.ts",
+        "present": true,
+        "gitBlob": "0f90f8ddb31b599fffb35cce2645b5d22a3292ce",
+        "sha256": "e3d7b2c9de8664b11926fc5c6f07de0001cf8f8ad6def60f2ec2005e123f091f",
+        "bytes": 15231,
+        "expectedSha256": "e3d7b2c9de8664b11926fc5c6f07de0001cf8f8ad6def60f2ec2005e123f091f",
+        "match": true
+      }
+    ],
+    "allRepairHashesMatch": true,
+    "priorEvidenceBlobChecks": [
+      {
+        "path": "apps/api/test/gateway-intake.test.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "325602a1a89013640910534e9ac282d13f45cd81",
+        "finalSha256": "c6b3265128c0ca0a4ff4903988b99430f5565193495f2b62fcf6eaff20e978a6",
+        "match": true
+      },
+      {
+        "path": "apps/api/test/manual-record.contract.test.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "ef880051e170e480b8f1d8fdcbab0ac8418316b1",
+        "finalSha256": "89e054c3e0a53cd0c7a851aa5b8978ad51ebec852ec12ae58ef229a3b1f9d419",
+        "match": true
+      },
+      {
+        "path": "apps/api/test/migration-parity.test.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "9dbf16e39810640e636b3f63ec194cce0ea55100",
+        "finalSha256": "c3ba169a16cf473bfa4195686299dd3867a3a3dee4f4c60d1d4d610328ee33c9",
+        "match": true
+      },
+      {
+        "path": "apps/api/test/participant-p3.contract.test.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "28b8341d8fa07f08a19d3b5ed1d27b18cd79aa51",
+        "finalSha256": "b1d1eb60f315e127d9155e4841823fdf927c8d87a485317a61e36e474114eb62",
+        "match": true
+      },
+      {
+        "path": "apps/api/test/routes.test.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "5e242a8d2a1dbea9490a7803f244bcccffeb3207",
+        "finalSha256": "8eefbb6d4ab915a648925290904dec46ca3d50858032c9ef0c502f5be9f373fb",
+        "match": true
+      },
+      {
+        "path": "apps/api/test/support-case-report.contract.test.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "70a3bb12b677c94ef15f44663b13d6c2a20e6259",
+        "finalSha256": "42fcaac762d08a585a897fb3488a43bdf734b638de332d5706be3dc2e6d17baf",
+        "match": true
+      },
+      {
+        "path": "apps/api/test/support/intake.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "29e09d4b0c8e86859f3dbb13e204dadd1f98325e",
+        "finalSha256": "6b7547b32c2428d127d45aa3eb0b65f158bee104590119237fee8dc2b40076f9",
+        "match": true
+      },
+      {
+        "path": "apps/api/test/support/migration-parity.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "ea6e10d6904492baa8d7e56245e06ff28d7176e6",
+        "finalSha256": "e2ebbb70f6a04f54694deed4a6191ad5fea1984cf73334d25e8fe4c36ec1729f",
+        "match": true
+      },
+      {
+        "path": "migrations/parity.yaml",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "30512c6c220582b57ce7877026b7a73a31174552",
+        "finalSha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0",
+        "match": true
+      },
+      {
+        "path": "migrations/postgres/0020_intake_question_lifecycle.sql",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "8626c545910624b28adf46cea60f4ce697aa548a",
+        "finalSha256": "0336b76c37df9ef30ec6ddedca18ddd5f4e857a27d081ea5a897c65ceefb38ab",
+        "match": true
+      },
+      {
+        "path": "migrations/sqlite/0064_intake_question_lifecycle.sql",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "550b8ac4d4cdc36077e0dcc58182ed4baaaa36bb",
+        "finalSha256": "4b96d7cd71d412634a0574e012fc0088603bded21f4a3063367f383a01304564",
+        "match": true
+      },
+      {
+        "path": "packages/contracts/src/intake.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "4e75a163f4c09248abb9fd3f0fc9f6208d8b586f",
+        "finalSha256": "354174e84d6cf7dc3bd84a734d34e6a998390da8126b99fd357d05120972899f",
+        "match": true
+      },
+      {
+        "path": "packages/contracts/src/manual-record.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "4d2e16e0374f7d43788d2186809eb3898b2788b2",
+        "finalSha256": "b62227a3cc0fc792e95c26c38a2202e67d508df6bf442b5f72588d2df1e216e0",
+        "match": true
+      },
+      {
+        "path": "packages/core/src/gateway.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "56314c6bfaf932a4cd2a0b0d201eac5f6a132ad5",
+        "finalSha256": "62783b9921ed2fda7f9e672c3221604f3ab7b5be24783d4577a81d7bd3042bb6",
+        "match": true
+      },
+      {
+        "path": "scripts/seed/harness.ts",
+        "source": "repair artifact",
+        "finalGitBlob": "9b70735a4126bd75a2133146d9df4c20fa72cd99",
+        "finalSha256": "67fa817f9e76525ce48aefb6f4a38e26ee682c6e8055bc642783857042a5aaad",
+        "match": true
+      },
+      {
+        "path": "scripts/seed/preload-data.ts",
+        "source": "prior ae evidence blob",
+        "finalGitBlob": "70fdfc16a29d8a655644417a835f6f7a6d55645a",
+        "finalSha256": "d8a2f1e62db73574d16ff1af025d8657ab403367f5b8be17391056e16a28554f",
+        "match": true
+      },
+      {
+        "path": "scripts/seed/scenario.ts",
+        "source": "repair artifact",
+        "finalGitBlob": "0f90f8ddb31b599fffb35cce2645b5d22a3292ce",
+        "finalSha256": "e3d7b2c9de8664b11926fc5c6f07de0001cf8f8ad6def60f2ec2005e123f091f",
+        "match": true
+      }
+    ],
+    "allPriorEvidenceBlobsBound": true
+  },
+  "allAeBlobsExceptDeclaredTwoIdentical": true,
+  "repairEvidenceBinding": {
+    "candidateMatchesArtifact": true,
+    "parentMatchesArtifact": true,
+    "scenarioForbiddenMatches": {
+      "env.DB": 0,
+      "envBracketDB": 0,
+      "prepare": 0,
+      "batch": 0,
+      "DatabaseType": 0
+    },
+    "scenarioDirectDbGapAbsent": true,
+    "scenarioCallsHarnessHelper": true,
+    "harnessDefinesHelper": true,
+    "harnessOwnsTrustedDbCall": true,
+    "guardEvidence": {
+      "command": "pnpm guard:db",
+      "exitCode": 0,
+      "output": "DB gateway guard passed."
+    },
+    "guardPassedOnExactRepairCandidate": true,
+    "smokeEvidence": {
+      "command": "SEED_PROFILE=preview pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/ccc299-seed-harness-smoke.test.ts --maxWorkers 1",
+      "directCalls": [
+        "createCaptureHarness",
+        "runScenario"
+      ],
+      "sourceSha256": "511d062f4ea6bbf96c6591fbf0671418fb52cec1e62f57eedc150d8e76b3d582",
+      "restoredPriorSmokeVerbatim": true,
+      "fixtureReduced": false,
+      "assertionsReduced": false,
+      "testTimeoutMs": 3600000,
+      "passed": 1,
+      "failed": 0,
+      "vitestDurationSeconds": 365.34,
+      "testDurationSeconds": 364.5,
+      "counts": {
+        "participants": 100,
+        "sessions": 550,
+        "virtualCounselors": 0,
+        "consentEvents": 600,
+        "registryEntries": 5
+      },
+      "program": {
+        "count": 1,
+        "admissionState": "ready",
+        "financialSupportEnabled": true,
+        "storageMode": "supabase_seoul",
+        "processingMode": "external_allowed",
+        "allSupportCasesUseCreatedProgram": true,
+        "confirmationMatchesIssuedContext": true
+      },
+      "policy": {
+        "org_id": "bss",
+        "version": 1,
+        "stt_mode": "off",
+        "llm_mode": "off",
+        "created_at": "2026-01-01 00:00:00",
+        "updated_at": "2026-01-01 00:00:00",
+        "unchangedAfterScenario": true
+      },
+      "environment": {
+        "installationMode": "community-cloud",
+        "CCC_STT_MODE": "off",
+        "CCC_LLM_MODE": "off",
+        "PII_KEY_VERSION": "2"
+      },
+      "syntheticKey": "Generated in-process using randomBytes(32); never printed or persisted; environment restored in finally.",
+      "harnessDisposed": true,
+      "previewOutputCreated": false
+    },
+    "fullSmokePassedOnExactRepairCandidate": true,
+    "workingTreeClean": true
+  },
+  "affectedGateReplacement": {
+    "priorUncoveredGuard": {
+      "code": "DB_GATEWAY_GUARD_INVALIDATED_BY_CHANGED_SCENARIO_BLOB",
+      "finalScenarioEnvDbLines": [
+        139
+      ],
+      "finalScenarioBlob": {
+        "present": true,
+        "gitBlob": "f0db164f0ccc0e8f5939cd60b17da727e9024886",
+        "sha256": "b9e4375e35e2dbfcb192126e27738882079172aacbcfc4b9e423a614302c3a40",
+        "bytes": 15770
+      },
+      "guardBlobAtCentral": {
+        "present": true,
+        "gitBlob": "f0f0df59fcedab55a3e7fd3e1d139c2a85b399db",
+        "sha256": "fd76eff9e3352c7e3e258f1e5313c72752268ef5e29b977ce09fe090a22da223",
+        "bytes": 3936
+      },
+      "guardBlobAtFinal": {
+        "present": true,
+        "gitBlob": "f0f0df59fcedab55a3e7fd3e1d139c2a85b399db",
+        "sha256": "fd76eff9e3352c7e3e258f1e5313c72752268ef5e29b977ce09fe090a22da223",
+        "bytes": 3936
+      },
+      "guardBlobUnchanged": true,
+      "guardPatternPresent": true,
+      "scenarioAllowlisted": false,
+      "fact": "The final non-allowlisted scripts/seed/scenario.ts contains env.DB. The unchanged guard scans scripts and reports every env.DB match outside allowedFiles and test/migration paths. The 4a PASS cannot bind to this changed blob."
+    },
+    "replacementGuard": {
+      "command": "pnpm guard:db",
+      "exitCode": 0,
+      "output": "DB gateway guard passed."
+    },
+    "priorAffectedSeedEvidence": "ae seed smoke evidence was affected by the b429 harness/scenario changes",
+    "replacementSeedSmoke": {
+      "command": "SEED_PROFILE=preview pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/ccc299-seed-harness-smoke.test.ts --maxWorkers 1",
+      "directCalls": [
+        "createCaptureHarness",
+        "runScenario"
+      ],
+      "sourceSha256": "511d062f4ea6bbf96c6591fbf0671418fb52cec1e62f57eedc150d8e76b3d582",
+      "restoredPriorSmokeVerbatim": true,
+      "fixtureReduced": false,
+      "assertionsReduced": false,
+      "testTimeoutMs": 3600000,
+      "passed": 1,
+      "failed": 0,
+      "vitestDurationSeconds": 365.34,
+      "testDurationSeconds": 364.5,
+      "counts": {
+        "participants": 100,
+        "sessions": 550,
+        "virtualCounselors": 0,
+        "consentEvents": 600,
+        "registryEntries": 5
+      },
+      "program": {
+        "count": 1,
+        "admissionState": "ready",
+        "financialSupportEnabled": true,
+        "storageMode": "supabase_seoul",
+        "processingMode": "external_allowed",
+        "allSupportCasesUseCreatedProgram": true,
+        "confirmationMatchesIssuedContext": true
+      },
+      "policy": {
+        "org_id": "bss",
+        "version": 1,
+        "stt_mode": "off",
+        "llm_mode": "off",
+        "created_at": "2026-01-01 00:00:00",
+        "updated_at": "2026-01-01 00:00:00",
+        "unchangedAfterScenario": true
+      },
+      "environment": {
+        "installationMode": "community-cloud",
+        "CCC_STT_MODE": "off",
+        "CCC_LLM_MODE": "off",
+        "PII_KEY_VERSION": "2"
+      },
+      "syntheticKey": "Generated in-process using randomBytes(32); never printed or persisted; environment restored in finally.",
+      "harnessDisposed": true,
+      "previewOutputCreated": false
+    },
+    "exactFinalBlobHashes": [
+      {
+        "path": "scripts/seed/harness.ts",
+        "present": true,
+        "gitBlob": "9b70735a4126bd75a2133146d9df4c20fa72cd99",
+        "sha256": "67fa817f9e76525ce48aefb6f4a38e26ee682c6e8055bc642783857042a5aaad",
+        "bytes": 5278,
+        "expectedSha256": "67fa817f9e76525ce48aefb6f4a38e26ee682c6e8055bc642783857042a5aaad",
+        "match": true
+      },
+      {
+        "path": "scripts/seed/scenario.ts",
+        "present": true,
+        "gitBlob": "0f90f8ddb31b599fffb35cce2645b5d22a3292ce",
+        "sha256": "e3d7b2c9de8664b11926fc5c6f07de0001cf8f8ad6def60f2ec2005e123f091f",
+        "bytes": 15231,
+        "expectedSha256": "e3d7b2c9de8664b11926fc5c6f07de0001cf8f8ad6def60f2ec2005e123f091f",
+        "match": true
+      }
+    ],
+    "resolved": true
+  },
+  "acceptanceToEvidenceCoverage": [
+    {
+      "index": 1,
+      "criterion": "All preexisting schema-1/2 source JSON bytes, unknown fields, historical lifecycle snapshots, original actors/timestamps, convertedFromRevision, conversion confirmation, and immutable origin provenance remain unchanged. Current lifecycle sourceRevision/sourceRowIndex pointers rebase under the frozen revision rules without altering prior snapshots or origin metadata.",
+      "status": "COVERED",
+      "evidence": "central 4a migration semantic proof plus unchanged lifecycle blobs"
+    },
+    {
+      "index": 2,
+      "criterion": "A new answered row gets one persisted UUID at revision 1; exact replay returns the same ID and creates no extra revision, outcome, audit, or officialization.",
+      "status": "COVERED",
+      "evidence": "central 4a gateway lifecycle proof plus final-identical core/contracts blobs"
+    },
+    {
+      "index": 3,
+      "criterion": "Content/dueNote edit increments question revision; reorder rebases pointers without incrementing it; omission/nonanswer retain open identity; explicit withdrawal increments it and removes only current open work.",
+      "status": "COVERED",
+      "evidence": "central 4a gateway lifecycle proof and two-database matrix"
+    },
+    {
+      "index": 4,
+      "criterion": "The last answered question can be withdrawn while its unchanged row binding is present; no fake nonanswer is required.",
+      "status": "COVERED",
+      "evidence": "central 4a last-row withdrawal proof and two-database matrix"
+    },
+    {
+      "index": 5,
+      "criterion": "Legacy schema 1 and unbound schema 2 require explicit one-to-one human-confirmed conversion. Ambiguous, merged, dropped, duplicate, or text/hash-derived mappings fail with no mutation.",
+      "status": "COVERED",
+      "evidence": "central 4a legacy schema 1/2 conversion tests with unchanged final blobs"
+    },
+    {
+      "index": 6,
+      "criterion": "Confirmation-first then withdrawal preserves the answer as withdrawn history. Withdrawal-first then confirmation returns 409. Duplicate confirmation, replay, stale intake/question revision, and date correction have deterministic outcomes.",
+      "status": "COVERED",
+      "evidence": "central 4a manual-record tests with unchanged final blobs"
+    },
+    {
+      "index": 7,
+      "criterion": "Cross-tenant and cross-case IDs return 403 without data existence leakage; malformed envelopes return 400; stale/current-state conflicts return 409. Every failed operation leaves source, outcomes, audit, and officialization unchanged.",
+      "status": "COVERED",
+      "evidence": "central 4a intake route and failure-atomicity tests with unchanged final blobs"
+    },
+    {
+      "index": 8,
+      "criterion": "AI-off create, read, edit, context, records, and report work without provider or Agent calls and manual records are official immediately.",
+      "status": "COVERED",
+      "evidence": "central 4a manual/report tests and two-database lifecycle matrix with unchanged final blobs"
+    },
+    {
+      "index": 9,
+      "criterion": "Both encrypted SQLite and PostgreSQL produce the same create/read/edit/reorder/withdraw/confirm/context/records/report observations through handleRequest and gateway.",
+      "status": "COVERED",
+      "evidence": "central 4a encrypted SQLite/PostgreSQL lifecycle matrix with unchanged lifecycle dependencies"
+    },
+    {
+      "index": 10,
+      "criterion": "PostgreSQL FORCE RLS, tenant policy, PUBLIC revoke, ccc_api grants, and ccc_schema_owner ownership remain; SQLite foreign keys, immutable history guards, and confirmed-once index remain.",
+      "status": "COVERED",
+      "evidence": "central 4a migration/database parity 2/2 with unchanged migration and adapter blobs"
+    },
+    {
+      "index": 11,
+      "criterion": "The parity update adds 0064/0020 after preserving all previous checkpoint bytes; the immediate non-update run passes without changing migrations/parity.yaml.",
+      "status": "COVERED",
+      "evidence": "central generated parity plus non-update byte identity; final parity is exact 4d copy and unchanged at ae"
+    },
+    {
+      "index": 12,
+      "criterion": "Seed scenario runs through createCaptureHarness and runScenario with envelope 3 and writes no generator output or preview data.",
+      "status": "COVERED",
+      "evidence": "b429d93 exact guard/smoke repair: direct createCaptureHarness plus unreduced runScenario passed 1/1 with no generator or preview output; final harness/scenario hashes match repair artifact."
+    },
+    {
+      "index": 13,
+      "criterion": "The exact allowed path set is the complete product diff; packages/contracts/src/report.ts and all consumer paths remain unchanged.",
+      "status": "COVERED",
+      "evidence": "verified three-commit parent/tree/path chain and final blob identity matrix"
+    },
+    {
+      "index": 14,
+      "criterion": "Create an intake, commit a later update, then replay the identical original create envelope with the same actor and submissionId. Assert HTTP 200, replayed true, the original intake session ID, and the currently stored revision, with no additional identity allocation, revision, outcome, audit, or officialization.",
+      "status": "COVERED",
+      "evidence": "central 4a create-update-original-replay proof with unchanged final lifecycle blobs"
+    }
+  ],
+  "allProductBehaviorCriteriaCovered": true,
+  "requiredGateCoverage": [
+    {
+      "gate": "migration semantic parity update",
+      "status": "COVERED_BOUND_BY_UNCHANGED_BLOBS",
+      "evidence": "central 4a 1/1; final 0064/0020 and parity-support blobs unchanged; generated parity SHA-256 exact"
+    },
+    {
+      "gate": "targeted API contracts excluding participant P3",
+      "status": "COVERED_BOUND_BY_UNCHANGED_BLOBS",
+      "evidence": "central 4a 60/60; tests and product dependencies unchanged at ae"
+    },
+    {
+      "gate": "participant P3 full file",
+      "status": "COVERED_BOUND_BY_UNCHANGED_BLOBS",
+      "evidence": "source repair 4d 21/21 including six former failures; P3 blob and product dependencies unchanged at ae"
+    },
+    {
+      "gate": "intake route filter",
+      "status": "COVERED_BOUND_BY_UNCHANGED_BLOBS",
+      "evidence": "central 4a 7/7 with 78 skipped; route/core/contracts blobs unchanged at ae"
+    },
+    {
+      "gate": "API typecheck",
+      "status": "COVERED_BOUND_BY_UNCHANGED_BLOBS",
+      "evidence": "central 4a pass; API package source dependencies unchanged at ae"
+    },
+    {
+      "gate": "encrypted SQLite/PostgreSQL lifecycle matrix",
+      "status": "COVERED_BOUND_BY_UNCHANGED_BLOBS",
+      "evidence": "central 4a matched matrix; lifecycle/migration/core blobs unchanged at ae"
+    },
+    {
+      "gate": "seed producer direct smoke",
+      "status": "COVERED_REPAIRED_FINAL_BLOB",
+      "evidence": "b429d93 reran the unchanged full smoke 1/1 on exact repaired harness/scenario blobs: 100 participants, 550 sessions, 600 consent events, 5 registry rows, ready program, unchanged off/off policy, no preview output."
+    },
+    {
+      "gate": "non-update migration/database parity",
+      "status": "COVERED_BOUND_BY_UNCHANGED_BLOBS",
+      "evidence": "central 4a generated-tree run 2/2; final parity byte-identical and migration/database dependencies unchanged"
+    },
+    {
+      "gate": "core import guard",
+      "status": "COVERED_BOUND_BY_UNCHANGED_BLOBS",
+      "evidence": "central 4a pass; packages/adapters/apps package source graph unchanged after 4a"
+    },
+    {
+      "gate": "DB gateway guard",
+      "status": "COVERED_REPAIRED_FINAL_BLOB",
+      "evidence": "ccc299-db-guard-repair-result.json binds pnpm guard:db exit 0 and zero forbidden scenario accesses to b429d93; harness/scenario SHA-256 values match final blobs."
+    }
+  ],
+  "allRequiredGatesCovered": true,
+  "resolvedOriginalSourceFailures": [
+    {
+      "original": "six participant-P3 permission cases returned 400 on 4a",
+      "kind": "SOURCE_CALLER_FAILURE",
+      "replacement": "4d full participant-P3 file passed 21/21; final P3 blob equals 4d",
+      "resolved": true
+    },
+    {
+      "original": "runScenario legacy registration call failed exact-key validation on 4a",
+      "kind": "SOURCE_PRODUCER_FAILURE",
+      "replacement": "4d current registration caller plus ae harness initialization; final direct runScenario smoke passed 1/1",
+      "resolved": true
+    }
+  ],
+  "correctedHarnessAndEnvironmentFailures": [
+    {
+      "original": "artifacts/orchestration smoke path outside Vitest include",
+      "kind": "HARNESS_INVOCATION_FAILURE",
+      "sourceFailure": false,
+      "correction": "moved disposable smoke under apps/api/test include"
+    },
+    {
+      "original": "corrected smoke omitted required SEED_PROFILE at module import",
+      "kind": "HARNESS_INVOCATION_FAILURE",
+      "sourceFailure": false,
+      "correction": "rerun with SEED_PROFILE=preview; lifecycle matrix executed"
+    },
+    {
+      "original": "mini Colima storage/runtime unavailable",
+      "kind": "ENVIRONMENT_BLOCKER",
+      "sourceFailure": false,
+      "correction": "central MacBook Docker and pinned-image proof supplied the authoritative parity/database evidence"
+    }
+  ],
+  "resolvedPriorGaps": [
+    {
+      "code": "DB_GATEWAY_GUARD_INVALIDATED_BY_CHANGED_SCENARIO_BLOB",
+      "resolution": "b429d93 moved trusted registry DB access into the already allowlisted harness, removed forbidden scenario access, and reran the exact DB guard plus unchanged full smoke on the final blobs."
+    }
+  ],
+  "remainingGaps": [],
+  "miniWorktree": {
+    "path": "/Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND",
+    "head": "b429d93dc45365cf2550de8d3b1b5268a808a94d",
+    "statusPorcelain": "",
+    "clean": true,
+    "productFilesChangedAfterCandidate": false
+  },
+  "noDuplicateExecution": {
+    "testsRerunByFinalAcceptance": 0,
+    "buildsRun": 0,
+    "seedScenariosRunByFinalAcceptance": 0,
+    "dockerCommandsRun": 0,
+    "migrationsRun": 0,
+    "guardsRunByFinalAcceptance": 0
+  },
+  "mutationProof": {
+    "productEdits": 0,
+    "worktreeMutations": 0,
+    "branchMutations": 0,
+    "remoteMutations": 0,
+    "localWorktreeStatusDeltaCountBeforeResultWrite": 0,
+    "localWorktreeStatusDeltasBeforeResultWrite": {},
+    "onlyControllerWrite": "artifacts/orchestration/ccc299-final-acceptance-result.json"
+  },
+  "deployed": false,
+  "pushed": false,
+  "merged": false,
+  "ownedJobs": 0,
+  "allResultsCollected": true
+}

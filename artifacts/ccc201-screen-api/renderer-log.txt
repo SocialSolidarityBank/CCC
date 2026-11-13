@@ -1,0 +1,130 @@
+▲ Next.js 16.2.10 (webpack)
+- Local:         http://127.0.0.1:43982
+- Network:       http://127.0.0.1:43982
+✓ Ready in 350ms
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+
+ GET /preview 200 in 1824ms (next.js: 1623ms, proxy.ts: 55ms, application-code: 146ms)
+ POST /preview/unlock 303 in 273ms (next.js: 234ms, proxy.ts: 16ms, application-code: 23ms)
+ GET /preview 200 in 253ms (next.js: 179ms, proxy.ts: 1659µs, application-code: 72ms)
+ POST /preview/unlock 303 in 50ms (next.js: 14ms, proxy.ts: 16ms, application-code: 20ms)
+ POST /preview/unlock 303 in 10ms (next.js: 942µs, proxy.ts: 4ms, application-code: 6ms)
+ GET / 307 in 785ms (next.js: 380ms, proxy.ts: 3ms, application-code: 401ms)
+ GET /admin 200 in 561ms (next.js: 230ms, proxy.ts: 1901µs, application-code: 329ms)
+ GET /admin/ai-provider 200 in 1044ms (next.js: 606ms, proxy.ts: 10ms, application-code: 428ms)
+ GET /admin/assign?supportCaseId=bb271641-bfd9-4dcf-8548-4e8cfd795584 200 in 813ms (next.js: 336ms, proxy.ts: 2ms, application-code: 475ms)
+ GET /admin/invite 200 in 567ms (next.js: 265ms, proxy.ts: 1738µs, application-code: 301ms)
+ GET /admin/users 200 in 669ms (next.js: 336ms, proxy.ts: 2ms, application-code: 331ms)
+ GET /admin/users/admin%40example.invalid 200 in 980ms (next.js: 602ms, proxy.ts: 2ms, application-code: 376ms)
+ GET /join/participant/:synthetic-token 404 in 611ms (next.js: 556ms, proxy.ts: 1882µs, application-code: 54ms)
+ GET /join/worker/0000000000000000000000000000000000000000000000000000000000000000 404 in 628ms (next.js: 576ms, proxy.ts: 1766µs, application-code: 50ms)
+ GET /kit 200 in 624ms (next.js: 418ms, proxy.ts: 1742µs, application-code: 204ms)
+ GET /onboarding 200 in 637ms (next.js: 372ms, proxy.ts: 1479µs, application-code: 264ms)
+ GET /participants 200 in 704ms (next.js: 389ms, proxy.ts: 1738µs, application-code: 314ms)
+ GET /participants/invite 200 in 632ms (next.js: 428ms, proxy.ts: 2ms, application-code: 203ms)
+ GET /participants/new 200 in 701ms (next.js: 426ms, proxy.ts: 1645µs, application-code: 273ms)
+⨯ Error: API response did not match the declared contract.
+    at contractViolation (app/lib/api.ts:933:9)
+    at responseProperty (app/lib/api.ts:942:26)
+    at decodeParticipantProgram (app/lib/api.ts:1010:39)
+    at Array.map (<anonymous>)
+    at getParticipantHubDetail (app/lib/api.ts:1546:54)
+    at async ParticipantContent (app/participants/[beneficiaryId]/page.tsx:462:38)
+  931 |
+  932 | function contractViolation(): never {
+> 933 |   throw new Error('API response did not match the declared contract.');
+      |         ^
+  934 | }
+  935 |
+  936 | function responseObject(value: unknown): Record<string, unknown> { {
+  digest: '678385119'
+}
+ GET /participants/swallow-001 200 in 1411ms (next.js: 919ms, proxy.ts: 1572µs, application-code: 490ms)
+ GET /participants/swallow-001/edit 200 in 1171ms (next.js: 831ms, proxy.ts: 3ms, application-code: 337ms)
+ GET /participants/swallow-001/programs/bb271641-bfd9-4dcf-8548-4e8cfd795584/briefing 200 in 1261ms (next.js: 799ms, proxy.ts: 2ms, application-code: 459ms)
+ GET /participants/swallow-001/programs/bb271641-bfd9-4dcf-8548-4e8cfd795584/close 200 in 1404ms (next.js: 855ms, proxy.ts: 1764µs, application-code: 547ms)
+⨯ Error: API response did not match the declared contract.
+    at contractViolation (app/lib/api.ts:933:9)
+    at responseProperty (app/lib/api.ts:942:26)
+    at decodeParticipantProgram (app/lib/api.ts:1010:39)
+    at Array.map (<anonymous>)
+    at listParticipantPrograms (app/lib/api.ts:1517:28)
+    at async getParticipantProgram (app/lib/api.ts:1585:20)
+    at async listSupportCaseRecords (app/lib/api.ts:1649:3)
+    at async load (app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx:102:20)
+    at async RecordHistoryPage (app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx:150:7)
+  931 |
+  932 | function contractViolation(): never {
+> 933 |   throw new Error('API response did not match the declared contract.');
+      |         ^
+  934 | }
+  935 |
+  936 | function responseObject(value: unknown): Record<string, unknown> { {
+  digest: '1336876088'
+}
+ GET /participants/swallow-001/programs/bb271641-bfd9-4dcf-8548-4e8cfd795584/records 500 in 1138ms (next.js: 810ms, proxy.ts: 2ms, application-code: 326ms)
+⨯ Error: API response did not match the declared contract.
+    at contractViolation (app/lib/api.ts:933:9)
+    at responseProperty (app/lib/api.ts:942:26)
+    at decodeParticipantProgram (app/lib/api.ts:1010:39)
+    at Array.map (<anonymous>)
+    at getParticipantDetail (app/lib/api.ts:1528:28)
+    at async ReviewContent (app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/page.tsx:154:40)
+  931 |
+  932 | function contractViolation(): never {
+> 933 |   throw new Error('API response did not match the declared contract.');
+      |         ^
+  934 | }
+  935 |
+  936 | function responseObject(value: unknown): Record<string, unknown> { {
+  digest: '2931288236'
+}
+ GET /participants/swallow-001/programs/bb271641-bfd9-4dcf-8548-4e8cfd795584/records/625e15da-9ac4-43c8-b7f4-910e709a2455/review 200 in 1131ms (next.js: 807ms, proxy.ts: 1691µs, application-code: 323ms)
+⨯ Error: API response did not match the declared contract.
+    at contractViolation (app/lib/api.ts:933:9)
+    at responseObject (app/lib/api.ts:937:76)
+    at eval (app/lib/api.ts:1889:23)
+    at getIntakeRecordContext (app/lib/api.ts:1894:5)
+    at async load (app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx:24:20)
+    at async NewIntakePage (app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx:75:31)
+  931 |
+  932 | function contractViolation(): never {
+> 933 |   throw new Error('API response did not match the declared contract.');
+      |         ^
+  934 | }
+  935 |
+  936 | function responseObject(value: unknown): Record<string, unknown> { {
+  digest: '4210741137'
+}
+ GET /participants/swallow-001/programs/bb271641-bfd9-4dcf-8548-4e8cfd795584/records/intake 500 in 3.0s (next.js: 2.3s, proxy.ts: 1698µs, application-code: 643ms)
+⨯ Error: API response did not match the declared contract.
+    at contractViolation (app/lib/api.ts:933:9)
+    at responseProperty (app/lib/api.ts:942:26)
+    at decodeParticipantProgram (app/lib/api.ts:1010:39)
+    at Array.map (<anonymous>)
+    at listParticipantPrograms (app/lib/api.ts:1517:28)
+    at async getParticipantProgram (app/lib/api.ts:1585:20)
+    at async listSupportCaseRecords (app/lib/api.ts:1649:3)
+    at async getNewRecordContext (app/lib/api.ts:1664:19)
+    at async load (app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx:106:20)
+    at async NewRecordPage (app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx:417:7)
+  931 |
+  932 | function contractViolation(): never {
+> 933 |   throw new Error('API response did not match the declared contract.');
+      |         ^
+  934 | }
+  935 |
+  936 | function responseObject(value: unknown): Record<string, unknown> { {
+  digest: '2390613377'
+}
+ GET /participants/swallow-001/programs/bb271641-bfd9-4dcf-8548-4e8cfd795584/records/new 500 in 3.5s (next.js: 3.1s, proxy.ts: 1887µs, application-code: 381ms)
+ GET /preview 200 in 46ms (next.js: 18ms, proxy.ts: 1872µs, application-code: 26ms)
+ GET /preview/admin 200 in 869ms (next.js: 813ms, proxy.ts: 1337µs, application-code: 55ms)
+ GET /programs/financial_support_v1/schedule 200 in 1706ms (next.js: 1223ms, proxy.ts: 1782µs, application-code: 481ms)
+ GET /programs/financial_support_v1/schedule/all 307 in 1208ms (next.js: 1018ms, proxy.ts: 2ms, application-code: 188ms)
+ GET /schedules/new?target=swallow-001%7Cbb271641-bfd9-4dcf-8548-4e8cfd795584 200 in 1136ms (next.js: 814ms, proxy.ts: 2ms, application-code: 321ms)
+ GET /schedules/d261ddac-e13f-4d66-85e9-88767be368ae/plan 200 in 1466ms (next.js: 1105ms, proxy.ts: 1894µs, application-code: 359ms)
+ GET /settings 200 in 1446ms (next.js: 925ms, proxy.ts: 2ms, application-code: 518ms)
+ GET /welcome 200 in 891ms (next.js: 839ms, proxy.ts: 1612µs, application-code: 50ms)
+
+[ccc201-next: exited; cursor=8265]

@@ -1,0 +1,62 @@
+{
+  "assignmentId": "ccc212-frontend-installation-trust-20260914",
+  "ticket": "CCC-212",
+  "owner": "FRONTEND",
+  "goal": "Bind the current per-installation browser release to installer-produced immutable trust state before the first manifest or bootstrap fetch.",
+  "startCondition": "Assign only after ccc212-frontend-error-repair-20260914 commits and the same frontend worktree is clean. The later /auth/invite callback remains serialized behind this app.tsx change.",
+  "worktree": {
+    "decision": "reuse",
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+    "branch": "client/relayer-domain-beta",
+    "baseRule": "Use the exact clean commit produced by the preceding CCC-212 error repair. Do not reset, rebase, switch, stash, clean, or replace the branch's newer committed work with origin/main."
+  },
+  "contractSource": "artifacts/orchestration/ccc212-repair-contracts-result.json lines 207-283",
+  "allowedWrites": [
+    "apps/client/src/business/installation.ts",
+    "apps/client/src/app.tsx only at RuntimeBoundary installation loading",
+    "apps/client/src/vite-env.d.ts",
+    "apps/client/tools/build-release.mjs",
+    "apps/client/release.config.example.json",
+    "apps/client/src/business/boundary.test.ts",
+    "apps/client/tools/serve-release.test.mjs",
+    "apps/client/src/business/test-support.ts",
+    "apps/client/tools/synthetic-preview.mjs"
+  ],
+  "readOnly": [
+    "packages/contracts/src/install-manifest.ts",
+    "scripts/supabase/manifest-preflight.mjs",
+    "scripts/supabase/install-journal.mjs",
+    "apps/client/src/business/transport.ts",
+    "../onboarding/docs/adr/0050-relayer-assisted-onboarding.md",
+    "../onboarding/docs/superpowers/specs/2026-09-13-relayer-onboarding-design.md"
+  ],
+  "excluded": [
+    "all /auth/invite callback and onboarding code",
+    "packages/contracts/** writes",
+    "scripts/supabase/** writes",
+    "apps/client/src/stt-trial/**",
+    "package.json",
+    "apps/client/package.json",
+    "pnpm-lock.yaml",
+    "shared app.ccc.kr institution selection, Local Single, Local Office and Electron runtime implementations",
+    "provider, database, deployment, credential, live manifest and external service changes"
+  ],
+  "requiredBehavior": [
+    "Replace VITE_CCC_INSTALL_SIGNING_KEYS with one closed VITE_CCC_INSTALL_TRUST JSON input containing exactly publicKeys, revokedKeyIds, minSequence and expectedInstallationId. No key-only compatibility path or alias remains.",
+    "Parse and validate trust before any manifest or bootstrap fetch. Reject missing fields, unknown fields, invalid public-key entries, invalid revoked-key IDs, noninteger or negative sequence floor, and empty expected installation ID with the existing safe installation failure path.",
+    "Pass all four trusted values unchanged into verifySignedInstallManifest. Never derive expectedInstallationId or minSequence from the fetched manifest or persist trusted state in browser storage, URL, cookies, cache or IndexedDB.",
+    "build-release receives the closed nonsecret trust object from installer-owned release input, verifies the manifest against it before Vite, and embeds the same immutable object. It may compare but not derive trust from the manifest.",
+    "Keep signed clientOrigin, api/auth origin separation, bootstrap equality, expiry, capability X-CCC-Installation-Id binding, memory-only credentials, and reload/new-tab login behavior unchanged.",
+    "Current per-installation Community Cloud release only. Missing trust fails closed before fetch. Do not invent shared-client routing or a fallback for unsupported local modes."
+  ],
+  "verification": [
+    "Use LSP references before changing loadInstallation or related exported symbols when available.",
+    "Demonstrate no or malformed trust and extra-field input fail before the first manifest fetch. Demonstrate revoked key, sequence below the external floor and wrong installation ID fail after reading the manifest but before bootstrap or business API requests.",
+    "Demonstrate a valid externally supplied trust tuple passes manifest, bootstrap and capability equality checks.",
+    "Demonstrate release builder rejects trust/manifest mismatch before Vite and does not emit private approval, journal content, bearer, PII or API response.",
+    "Run only the directly affected boundary and serve-release tests, client typecheck/build if required by the existing release test, and the smallest actual browser bootstrap smoke. Do not run project-wide suites, linters or formatters.",
+    "Commit only allowed explicit paths locally. Do not push, merge, deploy or contact external services."
+  ],
+  "completionMarker": "FRONTEND_RESULT CCC-212-E2-3-TRUST",
+  "report": "Print marker, parent and commit SHA, changed paths, exact checks, first-fetch proof and blocker."
+}

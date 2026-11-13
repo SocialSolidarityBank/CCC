@@ -1,0 +1,57 @@
+{
+  "entries": [
+    {
+      "cache": "ccc-shell-6958a270",
+      "path": "/assets/index-C6dhwiDF.js",
+      "sameOrigin": true,
+      "queryPresent": false,
+      "hasAuthorization": false,
+      "sha256": "65d1136ce44e939a9c0167d0955dc9d29c50b0d7e038c23c2f8f0326f6272cdc",
+      "matchesEmittedAsset": true
+    },
+    {
+      "cache": "ccc-shell-6958a270",
+      "path": "/assets/index-DmXLclX2.css",
+      "sameOrigin": true,
+      "queryPresent": false,
+      "hasAuthorization": false,
+      "sha256": "8e476e8d67f7105be1d18fc3dd0fc9204a0437d513ebcfb8421358fe9f1867f2",
+      "matchesEmittedAsset": true
+    },
+    {
+      "cache": "ccc-shell-6958a270",
+      "path": "/icon.svg",
+      "sameOrigin": true,
+      "queryPresent": false,
+      "hasAuthorization": false,
+      "sha256": "4a8f9171f344758f6926925eaf5551f600bf9d27b3aeec2709951fd53424ea67",
+      "matchesEmittedAsset": true
+    },
+    {
+      "cache": "ccc-shell-6958a270",
+      "path": "/index.html",
+      "sameOrigin": true,
+      "queryPresent": false,
+      "hasAuthorization": false,
+      "sha256": "6b605b2c67db8cce110558560920269855589f0e29d3f62221b7e7e754ea4835",
+      "matchesEmittedAsset": true
+    },
+    {
+      "cache": "ccc-shell-6958a270",
+      "path": "/manifest.webmanifest",
+      "sameOrigin": true,
+      "queryPresent": false,
+      "hasAuthorization": false,
+      "sha256": "d623db37bb720152060922aabf7d3eaf501446a62b485701aa6e640013f8f4cf",
+      "matchesEmittedAsset": true
+    }
+  ],
+  "onlyEmittedAssets": false,
+  "credentialFound": false,
+  "dynamicCanaryFound": false,
+  "actualMeCanaryObserved": true,
+  "storageEmpty": true,
+  "localStorageCount": 0,
+  "sessionStorageCount": 0,
+  "indexedDBCount": 0
+}

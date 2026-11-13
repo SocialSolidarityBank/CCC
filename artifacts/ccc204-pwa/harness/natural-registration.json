@@ -1,0 +1,16 @@
+{
+  "registrationMode": "UNCHANGED_APPLICATION_ONLY",
+  "defaultPageWorld": true,
+  "manualRegisterCalls": 0,
+  "injectedAppState": false,
+  "worker": {
+    "registrationCount": 1,
+    "scope": "https://ccc.example.org/",
+    "activeScript": "https://ccc.example.org/sw.js",
+    "activeState": "activated",
+    "controllerBeforeReload": false,
+    "businessShellVisible": true
+  },
+  "swRequestObserved": true,
+  "emittedWorkerSha256": "5a77bc23f3e6765b4e4ec86ae71dcafb84f5f88b1e8b7e1d4adcb17e1c6122c8"
+}

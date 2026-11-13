@@ -1,0 +1,15 @@
+{
+  "unregistered": [
+    true
+  ],
+  "removed": [
+    true
+  ],
+  "registrations": 0,
+  "cacheCount": 0,
+  "localStorageCount": 0,
+  "sessionStorageCount": 0,
+  "cookies": 0,
+  "incognitoContextClosed": true,
+  "persistedCredentialsProfile": false
+}

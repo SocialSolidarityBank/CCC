@@ -1,0 +1,148 @@
+{
+  "sourcePin": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+  "commands": [
+    {
+      "command": "node artifacts/ccc201-screen-api/coverage.mjs /var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww artifacts/ccc201-screen-api/coverage.json docs/specs/S3-screen-api-map.md",
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+      "scope": "static comparison; result pending current command collection",
+      "firstExitCode": 1,
+      "firstComparison": {
+        "documentSha256": "ebd3d7727fa7d08f2993fe77d799a3c200d6348e100cfe06c34471974bde3c20",
+        "missingDocumentRoutes": [],
+        "extraDocumentRoutes": [],
+        "duplicateDocumentRoutes": [],
+        "undocumentedActions": [],
+        "unmappedLiteralClientOperations": [
+          "GET /schedules/month:param",
+          "GET /schedules/today:param",
+          "GET /schedules/upcoming:param"
+        ],
+        "retiredClientOperations": [
+          "POST /invites/counselor",
+          "GET /invites/worker/:param",
+          "POST /invites/worker",
+          "PUT /support-cases/:param/consent"
+        ],
+        "ledgerOperationsMissingFromDocument": [],
+        "exportedActionCount": 36,
+        "limitation": "Literal operation comparison and independent review complement each other; dynamic expressions and branch gates remain in the source closure, not presumed executed."
+      },
+      "correction": "Resolve local conditional string/template suffix symbols in the TypeScript AST; empty-or-query suffix is not a path parameter. No endpoint-specific exception.",
+      "exitCode": 0,
+      "durationSeconds": 11.52,
+      "comparison": {
+        "documentSha256": "2e87bcec8e0e609c09aec67df0fd81fbeb9a6aa601bc3aff7403ecf5833ffe2b",
+        "missingDocumentRoutes": [],
+        "extraDocumentRoutes": [],
+        "duplicateDocumentRoutes": [],
+        "undocumentedActions": [],
+        "unmappedLiteralClientOperations": [],
+        "retiredClientOperations": [
+          "POST /invites/counselor",
+          "GET /invites/worker/:param",
+          "POST /invites/worker",
+          "PUT /support-cases/:param/consent",
+          "POST /cases/:param/pilot-text-ai-consent"
+        ],
+        "ledgerOperationsMissingFromDocument": [],
+        "exportedActionCount": 36,
+        "routeEdgeGaps": [],
+        "orphanEdgeGaps": [],
+        "dispatchComparison": {
+          "sourceOnly": [],
+          "ledgerOnly": [],
+          "sourceOperationCount": 145,
+          "ledgerOperationCount": 144,
+          "limitation": "Route predicates are statically expanded; non-route authorization/data branches may have multiple return sites for one operation."
+        },
+        "limitation": "Literal operation comparison and independent review complement each other; dynamic expressions and branch gates remain in the source closure, not presumed executed."
+      }
+    },
+    {
+      "command": "node scripts/guard-doc-numbers.mjs",
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+      "exitCode": 0,
+      "output": "문서 번호 가드 통과 (ADR · 마이그레이션 · 결정 번호).",
+      "finalRun": true
+    },
+    {
+      "command": "node node_modules/vitest/vitest.mjs run --config artifacts/ccc201-screen-api/vitest.config.mts",
+      "cwd": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww",
+      "environment": "allowlisted PATH/HOME/TMPDIR/CI/CCC201_OUTPUT only; exact paths freeze.json",
+      "exitCode": 0,
+      "durationSeconds": 471.41,
+      "testsPassed": 1,
+      "testsFailed": 0,
+      "scope": "44 direct real-handler responses plus217 loopback events including corrected render collection and actual isolated browser actions",
+      "observedResponses": 261
+    },
+    {
+      "command": "node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 43982",
+      "cwd": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/apps/web",
+      "environment": {
+        "CCC_PREVIEW": "true",
+        "PUBLIC_SIGNUP_ENABLED": "1",
+        "CCC_API_ORIGIN": "http://127.0.0.1:43981",
+        "NEXT_TELEMETRY_DISABLED": "1"
+      },
+      "readiness": "Ready in350ms +port; stopped exit0"
+    },
+    {
+      "command": "node artifacts/ccc201-screen-api/web.mjs /var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww artifacts/ccc201-screen-api/web.json",
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+      "exitCode": 0,
+      "durationSeconds": 14.66,
+      "routes": 30,
+      "scope": "Final sidebar/error-marker collection; 21 HTML receipts,2 streamed errors,3 HTTP500,2 redirects,2 public refusals"
+    },
+    {
+      "command": "node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 43983",
+      "cwd": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/apps/web",
+      "environment": "CCC_PREVIEW/PUBLIC_SIGNUP_ENABLED unset; same loopback API origin; telemetry off",
+      "readiness": "after prior dev lock refused, serialized restart ready; stopped exit0"
+    },
+    {
+      "command": "Eval JS fetch loop: /welcome, /preview, /preview/admin, /join, /join/participant/invalid, /joinX, /kit with x-ccc-public:1 to127.0.0.1:43983",
+      "output": "public.json",
+      "scope": "actual middleware/HTML, not deployed production authentication"
+    },
+    {
+      "command": "Eval browser.open about:blank; tab.run with browser.createBrowserContext, real preview unlock, actual briefing URL, click goal editor/type/save, theme click, logout click, context.close; browser.close",
+      "output": "browser-actions.json",
+      "observed": {
+        "goalSaved": true,
+        "dark": true,
+        "logoutPublic": true
+      },
+      "scope": "Real Next hydration and3server actions; synthetic Actor only, no production authentication claim"
+    },
+    {
+      "command": "negative-control.json command",
+      "expectedExitCode": 1,
+      "actualExitCode": 1,
+      "scope": "One missing per-route GET /capabilities edge detected although global endpoint remains present"
+    },
+    {
+      "command": "node node_modules/vitest/vitest.mjs run --config artifacts/ccc201-screen-api/variants.config.mts",
+      "cwd": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww",
+      "environment": "allowlisted PATH/HOME/TMPDIR/CI/CCC201_VARIANTS_OUTPUT; no inherited provider credentials",
+      "exitCode": 0,
+      "durationSeconds": 7.63,
+      "testsPassed": 1,
+      "testsFailed": 0,
+      "actualResponseObservations": 30,
+      "scope": "Real public-token Worker and injected-Actor HTTP variants; not real authentication"
+    }
+  ],
+  "versions": {
+    "node": "v24.18.0",
+    "next": "16.2.10",
+    "vitest": "4.1.10",
+    "typescript": "5.9.3"
+  },
+  "scrComparison": {
+    "records": 21,
+    "missing": 0,
+    "duplicates": 0
+  }
+}

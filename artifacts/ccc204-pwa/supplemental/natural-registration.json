@@ -1,0 +1,26 @@
+{
+  "assignmentId": "ccc204-pwa-natural-registration-20260913",
+  "status": "blocked",
+  "browserStarted": false,
+  "businessShellReached": false,
+  "applicationRegistrationInvoked": null,
+  "swRequestObserved": null,
+  "activatedControllerObserved": null,
+  "manualRegistrationInvoked": false,
+  "reactRouterOrSessionInjected": false,
+  "authOrMeIntercepted": false,
+  "productSourceModified": false,
+  "reason": "No retained supported browser HTTP password-grant/session/user fixture that issues cryptographically valid synthetic credentials and connects the unchanged client to actual Identity plus real directory-backed /capabilities and /me was found in the pinned source.",
+  "qualifyingPrerequisiteProofs": {
+    "signedInstallationAccepted": true,
+    "actualBackendIdentityFixtureTests": {
+      "executed": 7,
+      "passed": 7,
+      "unselected": 29
+    },
+    "previewShapeRejected": true,
+    "previewOriginRejected": true
+  },
+  "naturalCacheCheck": "not run; first-audit emitted-worker policy evidence remains accepted but is not natural-registration proof",
+  "businessRouting": "not run; public router evidence from prior audit is not substituted"
+}

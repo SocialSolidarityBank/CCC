@@ -1,0 +1,32 @@
+{
+  "assignmentId": "ccc299-final-acceptance-after-guard-20260914",
+  "ticket": "CCC-299",
+  "workerPaneId": "w1N:p1",
+  "goal": "Update the final CCC-299 evidence binding for the exact DB-guard repair candidate without rerunning any passing verification.",
+  "priorFinalReview": {
+    "path": "artifacts/orchestration/ccc299-final-acceptance-result.json",
+    "sha256": "f361ae76648cde5ec688d0f6a986009d4aeb76a63fd047ff57673a976edabd10",
+    "decision": "All fourteen behavior criteria covered; only the changed scenario blob lacked a bound DB gateway guard pass."
+  },
+  "repair": {
+    "path": "artifacts/orchestration/ccc299-db-guard-repair-result.json",
+    "sha256": "b4d153c09b0d3852d98fdb5e78a7a367ffafd1c8777dfd91368d17a59fd4ee60",
+    "commit": "b429d93dc45365cf2550de8d3b1b5268a808a94d",
+    "tree": "9c1d4d6c6221f8484f3938fd2ad01e7f1ba1f8ab",
+    "parent": "ae8604435745ad4c042da70f175318402ecfbe37",
+    "changedPaths": ["scripts/seed/harness.ts", "scripts/seed/scenario.ts"],
+    "evidence": "pnpm guard:db passed on the exact changed scenario blob; forbidden DB access count is zero; unchanged full smoke passed 1/1 with 100 participants, 550 sessions, 600 consent events, 5 registry rows, ready program and unchanged off/off policy; worktree clean."
+  },
+  "requiredReview": [
+    "Verify both artifact hashes and exact final commit parent/tree/two-path diff from the mini object source without mutating the worktree.",
+    "Verify all ae evidence-bearing blobs except the two declared paths remain identical in b429d93.",
+    "Verify harness.ts and scenario.ts final hashes match the repair artifact, the direct DB gap is absent and both affected gates were rerun on b429d93.",
+    "Bind every prior covered criterion and unaffected gate by blob identity. Treat the new exact guard and full smoke as replacing only the prior uncovered guard and affected seed evidence.",
+    "If no gap remains, set candidateVerified, producerContractFullyVerified and readyForConsumerHandoff true. Keep consumerCompletionClaimed false and make the ticket Done recommendation based on the producer acceptance contract, not on downstream screen completion."
+  ],
+  "constraints": [
+    "Read-only except overwrite artifacts/orchestration/ccc299-final-acceptance-result.json with the final evidence binding.",
+    "No tests, builds, seed runs, Docker, migrations, guards, product/worktree/branch/ticket/remote mutation, deployment or external service use."
+  ],
+  "completionMarker": "EXECUTOR_RESULT CCC299-FINAL-ACCEPTANCE-20260914"
+}

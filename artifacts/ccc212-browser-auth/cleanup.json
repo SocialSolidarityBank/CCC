@@ -1,0 +1,47 @@
+{
+  "ownedServices": [
+    {
+      "name": "ccc212-browser-fixture",
+      "finalExit": 0
+    },
+    {
+      "name": "ccc212-browser",
+      "finalExit": 143,
+      "reason": "intentional stop after browser evidence"
+    },
+    {
+      "name": "ccc212-static-release",
+      "finalExit": 143,
+      "reason": "intentional stop after actual header evidence"
+    }
+  ],
+  "browserContext": {
+    "unregistered": [
+      true
+    ],
+    "removed": [
+      true
+    ],
+    "registrations": 0,
+    "cacheCount": 0,
+    "localStorageCount": 0,
+    "sessionStorageCount": 0,
+    "cookies": 0,
+    "incognitoContextClosed": true,
+    "persistedCredentialsProfile": false
+  },
+  "fixture": {
+    "servicesClosed": true,
+    "databaseDisposed": true,
+    "secretsMemoryOnly": true
+  },
+  "removedRuntimes": [
+    ".runtime-d2vYPz",
+    ".runtime-xTXNN9"
+  ],
+  "runtimesRemaining": [],
+  "privatePatternHits": [],
+  "privateKeysTokensPasswordsPersisted": false,
+  "ownedJobs": 0,
+  "unownedProcessesStopped": false
+}

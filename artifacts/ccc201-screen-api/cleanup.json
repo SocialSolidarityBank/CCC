@@ -1,0 +1,13 @@
+{
+  "removedGeneratedPaths": [
+    "apps/web/.next",
+    ".home",
+    ".tmp",
+    "artifacts/ccc201-screen-api/.vite",
+    "artifacts/ccc201-screen-api/.vite-variants"
+  ],
+  "archivedSourceFilesPreserved": 1337,
+  "snapshotSourceRetained": "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww",
+  "reason": "User forbids source deletion; only verified generated caches/runtime outputs were removed. Original checkout and all source-pinned archive inputs are preserved.",
+  "ownedServices": "ccc201-real-api exited0; ccc201-next and ccc201-public-next stopped exit0; browser contexts/tabs closed"
+}

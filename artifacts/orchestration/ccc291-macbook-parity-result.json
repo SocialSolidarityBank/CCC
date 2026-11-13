@@ -1,0 +1,101 @@
+{
+  "assignmentId": "CCC291-PARITY-RUN3-20260914",
+  "ticket": "CCC-291",
+  "status": "PARITY_VERIFIED_AND_MANIFEST_COMMITTED",
+  "supersedes": "CCC291-PARITY-RERUN-20260914",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "reused": true,
+    "created": false,
+    "cleanAtEnd": true
+  },
+  "branch": "integrate/ccc291-parity",
+  "baseCommit": {
+    "commit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+    "abbrev": "6f1b7d0b",
+    "parent": "b486a8eebb8d63966d0f68e26a7aa12efe9c9f47",
+    "subject": "수정: 원문 변경으로 큐 재설정 시 임대 정보 초기화",
+    "changedPaths": [
+      "migrations/postgres/0021_agent_text_source_fence.sql",
+      "migrations/sqlite/0065_agent_text_source_fence.sql"
+    ],
+    "diffStat": "2 files changed, 2 insertions(+), 2 deletions(-)"
+  },
+  "fetch": {
+    "command": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+    "fetchHeadParent": "b486a8eebb8d63966d0f68e26a7aa12efe9c9f47",
+    "localBranchCreated": false,
+    "otherBranchesMerged": 0
+  },
+  "fastForward": {
+    "attempted": true,
+    "mode": "git merge --ff-only",
+    "succeeded": true,
+    "from": "b486a8eebb8d63966d0f68e26a7aa12efe9c9f47",
+    "to": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+    "conflicts": 0
+  },
+  "installRun": {"executed": false, "reason": "The existing install in this worktree was sufficient."},
+  "command": "env CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+  "commandExecutions": 1,
+  "exitStatus": 0,
+  "testsPassed": 1,
+  "testFilesPassed": 1,
+  "testsFailed": 0,
+  "testFilesFailed": 0,
+  "durationSeconds": 10.4,
+  "checkpointsPresent": {
+    "verified": true,
+    "agentTextSourceFence": {
+      "id": "agent-text-source-fence",
+      "manifestLine": 60675,
+      "sqliteSource": "0065_agent_text_source_fence.sql",
+      "sqliteSourceSha256": "2e5fec523355088d800c894a47412654e630e98b5920512d8aaf2b3ec76977b6",
+      "sqliteCatalogSha256": "cb54dec91898eebf7e882316d1ae4f6daf73acced897c140dc5fc1abb13edcb1",
+      "postgresSource": "0021_agent_text_source_fence.sql",
+      "postgresSourceSha256": "b3e235a42e068f07e190940391dbf2e1277e01917f5943c9f4d98e8f6603d530",
+      "postgresCatalogSha256": "8ad8afa37566d8161242ba3941c42abbb3cf3a762d22253f88267705e4cff99d"
+    },
+    "intakeFamily": [
+      {"id": "intake-versions", "manifestLine": 50448},
+      {"id": "intake-question-lifecycle", "manifestLine": 57259}
+    ]
+  },
+  "manifestSha256": "b0ef89f20611d09357ef228a55abdc1dfa8300e4db19cea18b5f35bf479795d9",
+  "manifestRegenerated": true,
+  "manifestPreviousSha256": "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0",
+  "parityCommit": {
+    "commit": "53150b9151c3f2665e1eac188a11d47dc605faad",
+    "subject": "chore: 원문 경계 검사 checkpoint 를 parity manifest 에 반영",
+    "files": ["migrations/parity.yaml"],
+    "diffStat": "1 file changed, 3426 insertions(+)",
+    "hooks": "normal configured hooks ran: gitleaks secret guard, token-audit, align-audit, hierarchy-audit and its test, all passing",
+    "hooksBypassed": false
+  },
+  "changedFiles": ["migrations/parity.yaml"],
+  "resolutionHistory": [
+    {"run": 1, "base": "e8208cf8", "failureLine": 671, "cause": "proof fixture inserted a processing queue row without lease columns", "fixedBy": "b486a8ee"},
+    {"run": 2, "base": "b486a8ee", "failureLine": 706, "cause": "fence trigger reverted a queue row to pending while leaving the lease columns populated", "fixedBy": "6f1b7d0b"},
+    {"run": 3, "base": "6f1b7d0b", "result": "exit 0, both dialects verified"}
+  ],
+  "unmet": [],
+  "guardrails": {
+    "productSourceModified": false,
+    "migrationsModified": false,
+    "newTestsOrDocs": 0,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "conflictsResolved": 0,
+    "otherBranchesMerged": 0,
+    "otherWorktreesTouched": false,
+    "betaCoreParityLeftAt": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+    "projectWideTestsLintOrBuildRuns": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/ccc291-macbook-parity-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT CCC291-PARITY-RUN3-20260914"
+}

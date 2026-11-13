@@ -1,0 +1,305 @@
+{
+  "routes": [
+    {
+      "pathname": "/welcome",
+      "status": 200,
+      "fromServiceWorker": true,
+      "state": {
+        "rootMounted": true,
+        "heading": "Relayer",
+        "missingSigningKey": false,
+        "controlled": true
+      }
+    },
+    {
+      "pathname": "/schedule",
+      "status": 200,
+      "fromServiceWorker": true,
+      "state": {
+        "rootMounted": true,
+        "heading": "설치 정보 확인",
+        "missingSigningKey": true,
+        "controlled": true
+      }
+    },
+    {
+      "pathname": "/k/offline-audit",
+      "status": 200,
+      "fromServiceWorker": true,
+      "state": {
+        "rootMounted": true,
+        "heading": "기관 확인",
+        "missingSigningKey": false,
+        "controlled": true
+      }
+    }
+  ],
+  "assets": [
+    {
+      "pathname": "index.html",
+      "status": 200,
+      "sha256": "c055c1f7dda4f3681621d8bf77dc229313b7fb9fd671754df501696317f60049",
+      "matchesBuiltAsset": true
+    },
+    {
+      "pathname": "manifest.webmanifest",
+      "status": 200,
+      "sha256": "d623db37bb720152060922aabf7d3eaf501446a62b485701aa6e640013f8f4cf",
+      "matchesBuiltAsset": true
+    },
+    {
+      "pathname": "icon.svg",
+      "status": 200,
+      "sha256": "4a8f9171f344758f6926925eaf5551f600bf9d27b3aeec2709951fd53424ea67",
+      "matchesBuiltAsset": true
+    },
+    {
+      "pathname": "assets/index-DMZgAHU2.js",
+      "status": 200,
+      "sha256": "b9115c6c51ceb2411f0491d422a035f6c85de53847bd679d552a2e9bfaf02d02",
+      "matchesBuiltAsset": true
+    },
+    {
+      "pathname": "assets/index-DmXLclX2.css",
+      "status": 200,
+      "sha256": "8e476e8d67f7105be1d18fc3dd0fc9204a0437d513ebcfb8421358fe9f1867f2",
+      "matchesBuiltAsset": true
+    }
+  ],
+  "notCached": [
+    {
+      "pathname": "/__ccc204_audit__/api",
+      "networkRejected": true,
+      "errorName": "TypeError"
+    },
+    {
+      "pathname": "/__ccc204_audit__/private-pii",
+      "networkRejected": true,
+      "errorName": "TypeError"
+    },
+    {
+      "pathname": "/__ccc204_audit__/audio",
+      "networkRejected": true,
+      "errorName": "TypeError"
+    },
+    {
+      "pathname": "/__ccc204_audit__/denied",
+      "networkRejected": true,
+      "errorName": "TypeError"
+    },
+    {
+      "pathname": "/__ccc204_audit__/unlisted.js",
+      "networkRejected": true,
+      "errorName": "TypeError"
+    },
+    {
+      "pathname": "/__ccc204_audit__/unlisted.css",
+      "networkRejected": true,
+      "errorName": "TypeError"
+    },
+    {
+      "pathname": "/ccc-bootstrap.json",
+      "networkRejected": true,
+      "errorName": "TypeError"
+    },
+    {
+      "pathname": "/ccc-install-manifest.json",
+      "networkRejected": true,
+      "errorName": "TypeError"
+    },
+    {
+      "pathname": "/__ccc204_audit__/auth",
+      "method": "POST",
+      "networkRejected": true,
+      "errorName": "TypeError"
+    }
+  ],
+  "network": [
+    {
+      "pathname": "/welcome",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "document"
+    },
+    {
+      "pathname": "/assets/index-DmXLclX2.css",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "stylesheet"
+    },
+    {
+      "pathname": "/manifest.webmanifest",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "manifest"
+    },
+    {
+      "pathname": "/assets/index-DMZgAHU2.js",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "script"
+    },
+    {
+      "pathname": "/icon.svg",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "other"
+    },
+    {
+      "pathname": "/schedule",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "document"
+    },
+    {
+      "pathname": "/assets/index-DmXLclX2.css",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "stylesheet"
+    },
+    {
+      "pathname": "/manifest.webmanifest",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "manifest"
+    },
+    {
+      "pathname": "/assets/index-DMZgAHU2.js",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "script"
+    },
+    {
+      "pathname": "/icon.svg",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "other"
+    },
+    {
+      "pathname": "/k/offline-audit",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "document"
+    },
+    {
+      "pathname": "/assets/index-DmXLclX2.css",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "stylesheet"
+    },
+    {
+      "pathname": "/manifest.webmanifest",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "manifest"
+    },
+    {
+      "pathname": "/assets/index-DMZgAHU2.js",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "script"
+    },
+    {
+      "pathname": "/icon.svg",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "other"
+    },
+    {
+      "pathname": "/index.html",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/manifest.webmanifest",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/icon.svg",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/assets/index-DMZgAHU2.js",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/assets/index-DmXLclX2.css",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "fetch"
+    }
+  ],
+  "finalStorage": {
+    "caches": [
+      {
+        "name": "ccc-shell-d15104d8",
+        "entries": [
+          {
+            "pathname": "/assets/index-DMZgAHU2.js",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "text/javascript",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/assets/index-DmXLclX2.css",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "text/css",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/icon.svg",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "image/svg+xml",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/index.html",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "text/html;charset=utf-8",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/manifest.webmanifest",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "application/manifest+json",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          }
+        ]
+      }
+    ],
+    "localStorageKeys": [],
+    "sessionStorageKeys": [],
+    "indexedDBNames": [],
+    "cookiePresent": false
+  },
+  "independentFetchRejected": true,
+  "realOriginStopped": true,
+  "executionContext": "default-page-world"
+}

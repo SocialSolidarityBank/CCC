@@ -1,0 +1,59 @@
+[
+  {
+    "command": [
+      "/Users/seongqkim/.local/share/mise/installs/node/lts/bin/node",
+      "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source/node_modules/vitest/vitest.mjs",
+      "run",
+      "--config",
+      "apps/api/vitest.config.ts",
+      "apps/api/test/identity-supabase.test.ts",
+      "--maxWorkers=1",
+      "-t",
+      "verifies both asymmetric algorithms and takes identity/roles|rejects absent/malformed Bearer, algorithm downgrade|rejects unsafe installation endpoints"
+    ],
+    "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source",
+    "startedAt": "2026-09-13T13:36:35.824Z",
+    "finishedAt": "2026-09-13T13:36:40.811Z",
+    "exitCode": 0,
+    "signal": null,
+    "stdoutSha256": "50e4cad4cd01a4ab7d3ef20b7b165d9b963f290370cdc4f6933e335bec80392d",
+    "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "summary": [
+      " Test Files  1 passed (1)",
+      "      Tests  7 passed | 29 skipped (36)",
+      "   Start at  22:36:36",
+      "   Duration  4.61s (transform 295ms, setup 0ms, import 847ms, tests 3.67s, environment 0ms)"
+    ],
+    "rawOutputPersisted": false
+  },
+  {
+    "command": [
+      "/Users/seongqkim/.bun/bin/bun",
+      "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/fixture-seam.mjs",
+      "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source",
+      "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental"
+    ],
+    "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/supplemental/.runtime-K59HDv/source",
+    "startedAt": "2026-09-13T13:38:18.121Z",
+    "finishedAt": "2026-09-13T13:38:18.261Z",
+    "exitCode": 0,
+    "summary": {
+      "executedAgainst": "unmodified pinned fixture helper, client installation verifier and backend JWT verifier",
+      "signedInstallationAccepted": true,
+      "manifestReads": 1,
+      "bootstrapReads": 1,
+      "publicKeyFingerprints": {
+        "test-key-2026-09": "9ac906d46221e8576224cdea1c9a5f2b01f2fd6152bca5940f49b96cee214481"
+      },
+      "previewTokenShapeRejected": true,
+      "previewTokenError": "ActorAuthenticationError",
+      "jwksReads": 0,
+      "previewLoopbackIssuerRejected": true,
+      "previewOriginError": "IdentityStoreUnavailableError",
+      "privateKeysAndTokensPersisted": false,
+      "browserOrAuthServerStarted": false,
+      "naturalRegistrationObserved": false
+    },
+    "rawSecretsPersisted": false
+  }
+]

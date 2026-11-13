@@ -1,0 +1,44 @@
+{
+  "communityCloudRuntime": {
+    "trusted": {
+      "status": 200,
+      "allowOrigin": "https://ccc.example.org",
+      "exposeHeaders": "X-CCC-Installation-Id",
+      "credentialsHeaderPresent": false
+    },
+    "preflight": {
+      "status": 204,
+      "allowOrigin": "https://ccc.example.org",
+      "methods": "GET, POST, PUT, PATCH, DELETE",
+      "headers": "authorization, content-type, idempotency-key, x-request-id, x-region",
+      "exposeHeaders": "X-CCC-Installation-Id",
+      "maxAge": null,
+      "vary": "Origin",
+      "credentialsHeaderPresent": false
+    },
+    "untrusted": {
+      "status": 403,
+      "allowOriginPresent": false
+    },
+    "nullOrigin": {
+      "status": 403,
+      "allowOriginPresent": false
+    },
+    "absentOrigin": {
+      "status": 200,
+      "allowOriginPresent": false
+    }
+  },
+  "s2Expected": {
+    "methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    "headers": "Authorization, Content-Type, If-Match, X-Request-ID",
+    "exposeHeaders": "ETag, X-Request-ID, X-CCC-Installation-Id",
+    "maxAge": "600"
+  },
+  "corsMatchesS2": false,
+  "fixtureAuthoredHeadersExcluded": true,
+  "staticRelease": {
+    "status": "prepared_for_actual_server_probe",
+    "releaseDir": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc212-browser-auth/.runtime-xTXNN9/release"
+  }
+}

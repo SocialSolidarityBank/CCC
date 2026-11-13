@@ -1,0 +1,47 @@
+{
+  "assignmentId": "ccc212-backend-cors-repair-20260914",
+  "ticket": "CCC-212",
+  "owner": "BACKEND",
+  "goal": "Reconcile the independent Community Cloud runtime CORS response with S2 while preserving current exact-origin security and the conservative S11 header union.",
+  "worktree": {
+    "decision": "reuse",
+    "host": "mini",
+    "path": "/Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND",
+    "branch": "core/relayer-domain-beta",
+    "head": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+    "originMain": "ad218e8eafa646a524674fe4ef8cf9c20c0b68bb",
+    "divergence": {"behind": 0, "ahead": 4},
+    "state": "clean",
+    "rule": "Preserve the current branch tip. Do not reset, rebase, switch, stash, clean, or discard its four committed changes."
+  },
+  "contractSource": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/orchestration/ccc212-repair-contracts-result.json lines 285-342",
+  "allowedWrites": [
+    "apps/community-cloud/src/runtime.ts",
+    "apps/api/test/community-cloud-runtime.test.ts"
+  ],
+  "readOnly": [
+    "docs/specs/S2-auth-capability-manifest.md",
+    "docs/specs/S11-supabase-edge-template.md",
+    "docs/adr/0048-independent-cloud-api-runtime.md",
+    "packages/http-api/src/request-handler.ts",
+    "apps/client/**",
+    "apps/community-cloud/src/storage-signer.ts"
+  ],
+  "excluded": [
+    "all contracts, gateway, request-handler, docs, dependency, lockfile, frontend, installation, deployment, provider, credential, AI, STT, and Windows work"
+  ],
+  "requiredBehavior": [
+    "Allow methods GET, POST, PUT, PATCH, DELETE, OPTIONS.",
+    "Allow request-header union Authorization, Content-Type, If-Match, Idempotency-Key, X-Request-ID, X-Region. Retain Idempotency-Key and X-Region; this assignment does not decide their later removal.",
+    "Expose ETag, X-Request-ID, X-CCC-Installation-Id and set Access-Control-Max-Age to 600.",
+    "Keep Vary: Origin, exact byte-equal allowlisted origin echo, absent Access-Control-Allow-Credentials, null and outside-origin 403 without ACAO, and absent-Origin responses without CORS headers.",
+    "Reject TRACE and unknown requested headers with 403 and no ACAO. Do not manufacture ETag, request IDs, region values, cookies, wildcard origins, proxy behavior, or CSP changes."
+  ],
+  "verification": [
+    "Use LSP references before changing exported symbols when available.",
+    "Run only the targeted Community Cloud runtime test file; do not run project-wide suites, linters, or formatters.",
+    "Commit only the two allowed explicit paths locally. Do not push, merge, deploy, or contact external services."
+  ],
+  "completionMarker": "BACKEND_RESULT CCC-212-E6-2-CORS",
+  "report": "At completion print the marker, commit SHA, changed paths, exact verification counts, and any blocker."
+}

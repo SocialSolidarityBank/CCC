@@ -1,0 +1,96 @@
+{
+  "events": [
+    {
+      "host": "ccc.example.org",
+      "path": "/settings",
+      "method": "GET",
+      "status": 200,
+      "fromServiceWorker": false,
+      "type": "document"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/assets/index-DmXLclX2.css",
+      "method": "GET",
+      "status": 200,
+      "fromServiceWorker": false,
+      "type": "stylesheet"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/assets/index-BOOkDrDI.js",
+      "method": "GET",
+      "status": 200,
+      "fromServiceWorker": false,
+      "type": "script"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-install-manifest.json",
+      "method": "GET",
+      "status": 200,
+      "fromServiceWorker": false,
+      "type": "fetch"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-bootstrap.json",
+      "method": "GET",
+      "status": 200,
+      "fromServiceWorker": false,
+      "type": "fetch"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "OPTIONS",
+      "status": 204,
+      "fromServiceWorker": false,
+      "type": "other"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "POST",
+      "status": 400,
+      "fromServiceWorker": false,
+      "type": "fetch"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "OPTIONS",
+      "status": 204,
+      "fromServiceWorker": false,
+      "type": "other"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "POST",
+      "status": 200,
+      "fromServiceWorker": false,
+      "type": "fetch"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/user",
+      "method": "OPTIONS",
+      "status": 204,
+      "fromServiceWorker": false,
+      "type": "other"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/user",
+      "method": "GET",
+      "status": 200,
+      "fromServiceWorker": false,
+      "type": "fetch"
+    }
+  ],
+  "errors": {
+    "pageErrors": 0,
+    "consoleErrors": 3
+  }
+}

@@ -10,6 +10,7 @@
  *   5) 산출물 6종 기록(out/, gitignore): seed.sql·preload.sql·manifest.json·verify.sql·
  *      delete-best-effort.sql·capture-report.txt
  */
+import { appendFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -29,6 +30,9 @@ const SEED_TARGET = process.env.SEED_TARGET;
 if (SEED_TARGET !== 'local' && SEED_TARGET !== 'preview') {
   throw new Error('[seed] SEED_TARGET=local 또는 SEED_TARGET=preview 가 필요합니다.');
 }
+
+// TEMP-DIAG: vitest 가 console 출력을 버퍼링할 수 있어 진행 표시는 파일에 직접 쓴다.
+const diag = (m: string): void => { appendFileSync('/tmp/seed-diag.log', `${Date.now()} ${m}\n`); };
 
 /**
  * 향후 7일 예정 일정 판정 하한(브리핑에 바로 뜨는 기준).
@@ -382,12 +386,15 @@ describe('preview seed generation', () => {
     const piiKey = requireEnv('PII_ENC_KEY');
     assertPiiKeyMaterial(piiKey);
 
+    diag('harness boot start'); // TEMP-DIAG
     const harness = await createCaptureHarness();
+    diag('harness boot done'); // TEMP-DIAG
     let summarySessions = 0;
     let seedSql = '';
-    let emitted: EmittedRich[] = [];
     try {
+      console.error('[seed-diag] scenario start'); // TEMP-DIAG
       const summary = await runScenario(harness.env, harness.capture);
+      console.error('[seed-diag] scenario done'); // TEMP-DIAG
       summarySessions = summary.sessions;
 
       emitted = emitStatements(harness.capture.writes);
@@ -400,12 +407,13 @@ describe('preview seed generation', () => {
       const split = unstable_splitSqlQuery(pureJoined);
       expect(split.length).toBe(emitted.length);
 
-      // 신선한 DB 재생 + 전면 대조.
+      console.error('[seed-diag] validate start'); // TEMP-DIAG
       const report = await validateSeed({
         captureDb: harness.captureDb,
         emitted: emitted.map((entry) => ({ inlinedSql: entry.inlinedSql, batchId: entry.batchId })),
         piiKey,
       });
+      console.error('[seed-diag] validate done'); // TEMP-DIAG
       expect(report.consentRecords).toBe(PARTICIPANTS.length);
       expect(report.vaultRows).toBe(PARTICIPANTS.length);
       expect(report.activeGoalsMaxPerCase).toBeLessThanOrEqual(3);

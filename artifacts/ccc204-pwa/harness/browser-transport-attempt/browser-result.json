@@ -1,0 +1,9 @@
+{
+  "status": "FAILED",
+  "stage": "fresh browser",
+  "errorClass": "Error",
+  "errors": {
+    "pageErrors": 0,
+    "consoleErrors": 0
+  }
+}

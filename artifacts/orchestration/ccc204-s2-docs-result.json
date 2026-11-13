@@ -1,0 +1,398 @@
+{
+  "assignmentId": "ccc204-s2-docs-20260913",
+  "workerPaneId": "w1N:p1",
+  "workerSessionId": "01a09abb-04c7-74ae-8ced-1e06185b4396",
+  "controllerPaneId": "w1N:p6",
+  "status": "ready_for_review",
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "understoodAs": "Propagate two already approved, independent decisions into only S2 and SG2. This is a documentation prerequisite, not a new MFA policy, a decision renumbering, runtime configuration or CCC-204 implementation.",
+  "identityEvidence": {
+    "observedAt": "2026-09-13T12:30:53.922255+00:00",
+    "paneId": "w1N:p1",
+    "sessionId": "01a09abb-04c7-74ae-8ced-1e06185b4396",
+    "agent": "omp",
+    "agentName": "relayer-executor-a",
+    "statusAtObservation": "working",
+    "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+    "foregroundCwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+    "terminalId": "term_65b0a7a687c9a1",
+    "sessionSource": "herdr:omp agent_session metadata",
+    "ompPid": 85024,
+    "ompProcess": "omp",
+    "ompParentPid": 68086,
+    "kernelPid": 86894,
+    "kernelParentPid": 85024,
+    "branch": "orchestrate/beta-0.9",
+    "head": "3dff4d0ceb7cf2458a23f349afe31230400aefe0",
+    "bashPaneEnvironment": "w1N:p1",
+    "evalIdentityEnvironmentPresent": false,
+    "privateSessionFileOpened": false,
+    "assignmentMatches": true,
+    "jobCollection": {
+      "collectedAt": "2026-09-13T12:35:23.900595+00:00",
+      "source": "hub jobs",
+      "runningOwnedJobs": 0,
+      "terminalJobIds": [
+        "bg_1",
+        "bg_2",
+        "bg_3",
+        "bg_4"
+      ],
+      "terminalResultsCollected": 4,
+      "note": "Three commands completed successfully. The fixed-name printenv lookup returned the correct HERDR_PANE_ID and exit 1 because the other queried variables were absent; live Herdr metadata and the process-parent chain independently established identity."
+    },
+    "observedUnrelatedDirtyTrackedPaths": [
+      "docs/specs/S3-screen-api-map.md",
+      "docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md",
+      "docs/superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md"
+    ],
+    "identitySources": [
+      "bash printenv HERDR_PANE_ID HERDR_SESSION_ID OMP_SESSION_ID OMP_PID",
+      "herdr agent get w1N:p1 (allowlisted metadata only; no session file opened)",
+      "Python kernel PID/PPID plus ps -p 85024,86894 -o pid=,ppid=,comm=",
+      "git rev-parse --show-toplevel --git-dir --git-common-dir --show-superproject-working-tree; git branch --show-current; git rev-parse HEAD"
+    ]
+  },
+  "changedFiles": [
+    "docs/specs/S2-auth-capability-manifest.md",
+    "docs/superpowers/plans/2026-09-02-SG2-auth.md"
+  ],
+  "beforeHashes": {
+    "docs/specs/S2-auth-capability-manifest.md": "c3740bddae0075083c269eee63d5b81c12742c531f4e7853b9aa04d325bfe6dd",
+    "docs/superpowers/plans/2026-09-02-SG2-auth.md": "7e79984a7d67ad7eb443954f97b20c5dba3a54cf0f876fa2c7371fffba0cf4a7"
+  },
+  "afterHashes": {
+    "docs/specs/S2-auth-capability-manifest.md": "8691a67339cfdfd5db4227df9bba0f4e13b552a4b57720bad66f2c48c89e07f4",
+    "docs/superpowers/plans/2026-09-02-SG2-auth.md": "61a7d47b38c597b24a4f744fe9d74070f2d621815bdbdd3af56aa6240743a4fb"
+  },
+  "approvalCitations": [
+    {
+      "claim": "optional-community-cloud-mfa",
+      "decisionDate": "2026-09-12",
+      "decisionTitle": "추가 인증은 선택",
+      "historicalLabel": "D89",
+      "commit": "866013936edf3b6ca64846850eb1c4f6a41e49f2",
+      "commitTitle": "feat(auth): 추가 인증을 선택으로 바꾼다 (D89) (#333)",
+      "commitDate": "2026-09-12T15:10:12+09:00",
+      "source": "CLAUDE.md:273 at the cited commit, plus its S2 sections 2.2 and 3 patch",
+      "verifiedLocally": true,
+      "scope": "Supersedes only compulsory Community Cloud MFA enrollment/aal2 in earlier D82, D86 and preserved-MFA/first-admin prose. Valid provisioned human aal1 and aal2 retain actual assurance; enrolled users complete six-digit verification on subsequent login. Does not supersede ADR-0048 independent API hosting, ordinary authorization, revocation, Office privileged MFA or Single app lock.",
+      "writtenCitation": "docs/specs/S2-auth-capability-manifest.md:19,21"
+    },
+    {
+      "claim": "independent-signed-cloud-api",
+      "decisionDate": "2026-09-09",
+      "decisionTitle": "Community Cloud 업무 API의 독립 실행 환경",
+      "historicalLabel": "ADR-0048 / D89",
+      "commit": "2fb4440d08128d6b3440d041d76b2820c419101f",
+      "commitTitle": "docs: D89 독립 Cloud 업무 실행과 검증 이동 승인 기록",
+      "commitDate": "2026-09-09T22:41:07+09:00",
+      "source": "docs/adr/0048-independent-cloud-api-runtime.md:3-8,44-49 and the cited commit S2 sections 2.7/3 patch",
+      "verifiedLocally": true,
+      "scope": "Signed exact HTTPS apiBase is independent of Supabase Auth hosting; Auth origin/project ref and signed installation binding remain mandatory. The repeated D89 label does not make this the optional-MFA decision.",
+      "writtenCitation": "docs/specs/S2-auth-capability-manifest.md:17,21"
+    },
+    {
+      "claim": "installer-only-signed-authorization-binding",
+      "decisionDate": "2026-09-10",
+      "decisionTitle": "설치 소유권 승인",
+      "commit": "beabc126606657bf6f3eb998db8f46947f947b5f",
+      "commitTitle": "docs: 설치기 전용 서명 승인서와 공개 manifest 결합 확정",
+      "commitDate": "2026-09-10T21:05:23+09:00",
+      "source": "docs/adr/0048-independent-cloud-api-runtime.md:20-32 and the cited commit S2 section 2.7 patch",
+      "verifiedLocally": true,
+      "scope": "Installer-only authorization binds the complete signed public-manifest JCS SHA-256. Public manifest/bootstrap shapes and dual-signature/ownership checks are unchanged.",
+      "writtenCitation": "docs/specs/S2-auth-capability-manifest.md:18"
+    }
+  ],
+  "preservedInvariants": [
+    {
+      "contract": "Independent signed HTTPS API; Auth-origin/project-ref validation; unchanged public manifest/bootstrap; installer-only authorization binding; signatures/equality/expiry/sequence/key revocation/installation ID",
+      "evidence": "Entire S2 section 2.7 and section 3 API-origin row are byte-for-byte unchanged.",
+      "sectionSha256": "e0e1e00fc20b55458c65851796035bcfb9dcac755e109e0a1c7221d0298b2daa"
+    },
+    {
+      "contract": "Office privileged MFA and Single app lock/DPAPI handshake",
+      "evidence": "Mode table rows and Office/Single policy suffix are unchanged, as are S2 section 2.5 and SG2 Office/Single implementation instructions."
+    },
+    {
+      "contract": "Invalid 401; unprovisioned/inactive/revoked/role-denied 403; unavailable store 503; ordinary role/assignment/supervision authorization",
+      "evidence": "S2 section 2.1 and revocation section 2.4 are byte-for-byte unchanged; revised Cloud prose and fixture expectations explicitly preserve these checks."
+    },
+    {
+      "contract": "JWT cryptographic checks, Agent service scopes, scheduler, capability registry, public join and privileged-key boundary",
+      "evidence": "JWKS rules and protected S2 sections remain unchanged; SG2 retains existing Office, Single, Agent and signed installation tasks."
+    },
+    {
+      "contract": "Exact CORS/CSP and memory-only storage constraints",
+      "evidence": "S2 section 2.9 through the reload clause is byte-for-byte unchanged; only enrolled-user reload wording is clarified. SG2 tasks 3 and 4 are unchanged."
+    },
+    {
+      "contract": "No decision allocation or renumbering; no implied integration or new ticket execution",
+      "evidence": "D89 sources are separated by date, exact title and commit. ADRs, decision indices, product files and other worktrees received no writes."
+    }
+  ],
+  "verification": {
+    "observedAt": "2026-09-13T12:33:42.352810+00:00",
+    "kind": "inline_document_consistency_and_local_git_provenance_only",
+    "beforeHashesMatched": true,
+    "onlyAssignedDocumentHunksChanged": true,
+    "staleBlanketCloudClausesRemaining": 0,
+    "approvalCommitTitlesAndHashesCited": true,
+    "sg2S2ReferenceResolves": true,
+    "addedEmDashCount": 0,
+    "preservationChecks": {
+      "canonical_actor_roles_and_failure_statuses": {
+        "unchanged": true,
+        "sha256": "20927b9d70a6b3b24d48760a2772f5d91ee520f5882f88aebf70382e348b3dff"
+      },
+      "revocation_ttl": {
+        "unchanged": true,
+        "sha256": "09bb68cbdaa1ada212e3f18a45c7d807139276fab132cca28f41cc482224361e"
+      },
+      "single_lock_handshake": {
+        "unchanged": true,
+        "sha256": "f9ba279e34ab9265d46e2fc1aa6d584329ba7c5082cd07150fc02ea2aa29d91f"
+      },
+      "scheduler_boundary": {
+        "unchanged": true,
+        "sha256": "372b5181a1443f04576bbbfee174bc142e7008cf33f38fb23a46a54d7b1eca7e"
+      },
+      "independent_api_signed_manifest_bootstrap_installer_binding": {
+        "unchanged": true,
+        "sha256": "e0e1e00fc20b55458c65851796035bcfb9dcac755e109e0a1c7221d0298b2daa"
+      },
+      "capability_schema_and_registry": {
+        "unchanged": true,
+        "sha256": "1fa3949e46eb7c4007d16972f7942aed3d203bf0ca570e0af5d47e9e9c812ef8"
+      },
+      "public_join_and_admin_key_boundary": {
+        "unchanged": true,
+        "sha256": "a72800902666ac04249a99955c373c11a595cad64f0af6e5c55606282382356d"
+      },
+      "| Local Single |": {
+        "unchanged": true
+      },
+      "| Local Office |": {
+        "unchanged": true
+      },
+      "| API origin |": {
+        "unchanged": true
+      },
+      "JWKS key metadata": {
+        "unchanged": true
+      },
+      "office_single_policy_prose": {
+        "unchanged": true
+      },
+      "s2_cors_csp_storage_prefix": {
+        "unchanged": true
+      },
+      "sg2_signed_installation_cors_csp_storage_tasks": {
+        "unchanged": true
+      },
+      "sg2_- [ ] Add Office ": {
+        "unchanged": true
+      },
+      "sg2_- [ ] Implement Single ": {
+        "unchanged": true
+      },
+      "sg2_- [ ] Implement Agent ": {
+        "unchanged": true
+      }
+    },
+    "testsBuildsLintersFormattersProjectGuardsRun": false
+  },
+  "documentDiff": [
+    {
+      "path": "docs/specs/S2-auth-capability-manifest.md",
+      "ranges": [
+        {
+          "kind": "insert",
+          "beforeLines": [],
+          "afterLines": [
+            14,
+            21
+          ],
+          "afterOriginalLine": 13
+        },
+        {
+          "kind": "replace",
+          "beforeLines": [
+            61,
+            61
+          ],
+          "afterLines": [
+            69,
+            69
+          ],
+          "afterOriginalLine": null
+        },
+        {
+          "kind": "replace",
+          "beforeLines": [
+            70,
+            70
+          ],
+          "afterLines": [
+            78,
+            78
+          ],
+          "afterOriginalLine": null
+        },
+        {
+          "kind": "replace",
+          "beforeLines": [
+            114,
+            114
+          ],
+          "afterLines": [
+            122,
+            122
+          ],
+          "afterOriginalLine": null
+        },
+        {
+          "kind": "replace",
+          "beforeLines": [
+            280,
+            280
+          ],
+          "afterLines": [
+            288,
+            288
+          ],
+          "afterOriginalLine": null
+        },
+        {
+          "kind": "replace",
+          "beforeLines": [
+            312,
+            312
+          ],
+          "afterLines": [
+            320,
+            320
+          ],
+          "afterOriginalLine": null
+        },
+        {
+          "kind": "replace",
+          "beforeLines": [
+            324,
+            324
+          ],
+          "afterLines": [
+            332,
+            332
+          ],
+          "afterOriginalLine": null
+        },
+        {
+          "kind": "replace",
+          "beforeLines": [
+            336,
+            336
+          ],
+          "afterLines": [
+            344,
+            344
+          ],
+          "afterOriginalLine": null
+        }
+      ],
+      "addedLines": 15,
+      "removedLines": 7,
+      "unifiedDiff": "--- before/docs/specs/S2-auth-capability-manifest.md\n+++ after/docs/specs/S2-auth-capability-manifest.md\n@@ -13,2 +13,10 @@\n `확정`은 인터페이스, 규칙표, 18개 mode×STT×LLM 조합, fixture, 검증 명령이 문서로 완결되었다는 뜻이다. 실제 Auth·Electron·Office 어댑터의 실행 결과는 구현 검증 완료 단계와 해당 E 티켓의 소유다.\n+\n+후속 승인 출처는 날짜와 제목으로 구분한다.\n+\n+- **2026-09-09 「Community Cloud 업무 API의 독립 실행 환경」**: [ADR-0048](../adr/0048-independent-cloud-api-runtime.md)의 D89이며, 커밋 `2fb4440d08128d6b3440d041d76b2820c419101f`(`docs: D89 독립 Cloud 업무 실행과 검증 이동 승인 기록`)가 승인 기록과 S2 §2.7/§3의 독립 API 주소 계약을 반영했다.\n+- **2026-09-10 「설치 소유권 승인」**: 같은 ADR의 후속 결정이며, 커밋 `beabc126606657bf6f3eb998db8f46947f947b5f`(`docs: 설치기 전용 서명 승인서와 공개 manifest 결합 확정`)가 §2.7의 설치기 전용 승인서 결합을 반영했다. 공개 manifest와 bootstrap 형식은 그대로다.\n+- **2026-09-12 「추가 인증은 선택」**: 커밋 `866013936edf3b6ca64846850eb1c4f6a41e49f2`(`feat(auth): 추가 인증을 선택으로 바꾼다 (D89) (#333)`)의 `CLAUDE.md` §9와 S2 §2.2/§3이 승인 근거다. D82(ADR-0041), D86(ADR-0044), ADR-0048의 MFA 유지 및 최초 관리자 문구 중 **Community Cloud의 의무 MFA 등록과 `aal2` 요구만** 대체한다. 기관 선택, 검증된 Auth 주소, 신원 연결, 역할·담당·감독 권한, 세션 폐기, Local Office privileged MFA와 Local Single 앱 잠금은 바꾸지 않는다.\n+\n+두 승인 기록은 D89라는 번호를 함께 쓰지만 서로 다른 결정이다. 이 문서에서 번호만 쓴 D89는 2026-09-09 ADR-0048을 가리키며, 선택 MFA는 2026-09-12 결정으로 구분한다. 결정 번호를 새로 배정하지 않으며, 선택 MFA가 독립 API 실행이나 설치기 전용 승인서 결합을 대체하지 않는다.\n \n@@ -60,3 +68,3 @@\n |---|---|---|\n-| Community Cloud | Supabase Auth access JWT. 모든 human role은 `aal=aal2`인 세션만 업무 Actor로 허용한다. trusted issuer, `aud=authenticated`, asymmetric JWKS, `exp`와 선택적 `nbf`를 검증한다. `sub`는 E4-1/E4-2 paired migration이 관리하는 nullable `users.auth_subject`와 대조한다. | `users.id → userId`, 기관 행 → `orgId`, JWT `aal=aal2` → `authn.assurance='aal2'`, source roles를 lossless `roles[]`에 담는다. `aal1`은 모든 human role에서 403 `mfa_required`다. |\n+| Community Cloud | Supabase Auth access JWT. 유효하게 provision된 모든 human role은 `aal=aal1` 또는 `aal=aal2`인 세션을 허용하며 MFA 등록을 강제하지 않는다. trusted issuer, `aud=authenticated`, asymmetric JWKS, `exp`와 선택적 `nbf`를 검증한다. `sub`는 E4-1/E4-2 paired migration이 관리하는 nullable `users.auth_subject`와 대조한다. | `users.id → userId`, 기관 행 → `orgId`, JWT의 실제 `aal` → `authn.assurance`(`aal1` 또는 `aal2`), source roles를 lossless `roles[]`에 담는다. `aal1`이라는 이유만으로 403 `mfa_required`를 반환하지 않는다. |\n | Local Single | Electron 앱 잠금 후 local-service가 발급하는 opaque bearer. token hash만 보관하고 DPAPI handshake를 거친 요청만 발급한다. | 설치된 유일 human account의 `stableUserId → userId`, bearer 발급 때 생성한 random opaque `sessionId → authn.sessionId`, `authn.assurance='app-lock'`, source role bundle `institution-admin`, `technical-admin`, `worker`를 분리해 `roles[]`에 담는다. `multi_user=false`다. |\n@@ -69,3 +77,3 @@\n \n-Community Cloud의 모든 human role(`institution-admin`, `technical-admin`, `supervisor`, `worker`)은 `Actor.authn.assurance='aal2'`인 세션만 허용한다. `aal1` 또는 다른 assurance는 human Actor를 만들지 않고 403 `mfa_required`다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.\n+Community Cloud의 모든 human role(`institution-admin`, `technical-admin`, `supervisor`, `worker`)은 유효하게 provision된 `aal1` 또는 `aal2` 세션을 받는다(2026-09-12 Q 결정 「추가 인증은 선택」). MFA 등록은 선택이며 로그인이 인증 앱 등록을 강요하지 않는다. 인증 앱을 등록한 사람은 다음 로그인부터 여섯 자리 확인을 거치고 그 세션은 `aal2`로 기록된다. 실제 assurance는 그대로 `Actor.authn.assurance`에 남아 감사에 쓰인다. 이 수용 규칙은 §2.1의 인증 실패, 미등록·inactive·revoked, 역할·담당·감독 권한 부족 판정을 바꾸지 않는다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.\n \n@@ -113,3 +121,3 @@\n \n-JWT의 `iss`, `aud`, `alg`, `kid`, `sub`, `session_id`, `exp`, `role`, `is_anonymous`, `aal`을 확인한다. `nbf`는 claim이 있을 때만 ±60초 오차로 확인하고 없는 token을 거부하지 않는다. `role`은 `authenticated`, `is_anonymous`는 `false`, `session_id`는 non-empty여야 한다. 모든 Community Cloud human role(`institution-admin`, `technical-admin`, `supervisor`, `worker`)은 `aal=aal2`가 아니면 403 `mfa_required`다.\n+JWT의 `iss`, `aud`, `alg`, `kid`, `sub`, `session_id`, `exp`, `role`, `is_anonymous`, `aal`을 확인한다. `nbf`는 claim이 있을 때만 ±60초 오차로 확인하고 없는 token을 거부하지 않는다. `role`은 `authenticated`, `is_anonymous`는 `false`, `session_id`는 non-empty여야 한다. `aal`은 `aal1` 또는 `aal2`여야 하며 실제 값을 `Actor.authn.assurance`에 보존한다. 유효하게 provision된 Community Cloud human을 `aal1`이라는 이유만으로 거부하지 않으며, 등록자의 로그인 추가 인증은 §2.2를 따른다.\n \n@@ -279,3 +287,3 @@\n \n-third-party script, inline script, `eval`, 외부 font·image·frame은 0건이다. service worker는 정적 asset과 app shell만 cache하며 token·PII·API response는 cache하지 않는다. `localStorage`, `sessionStorage`, IndexedDB, Cache API, cookie, URL query/hash/path, crash dump, console, analytics에는 bearer·refresh token·PII를 저장하지 않는다. Cloud PWA는 Supabase client `persistSession=false`, `autoRefreshToken=true`로 memory-only session을 사용하며 client initialization은 signed manifest의 `supabaseAuthOrigin`, `supabasePublishableKey`만 사용한다. reload와 새 tab은 login과 필요한 MFA를 다시 요구한다.\n+third-party script, inline script, `eval`, 외부 font·image·frame은 0건이다. service worker는 정적 asset과 app shell만 cache하며 token·PII·API response는 cache하지 않는다. `localStorage`, `sessionStorage`, IndexedDB, Cache API, cookie, URL query/hash/path, crash dump, console, analytics에는 bearer·refresh token·PII를 저장하지 않는다. Cloud PWA는 Supabase client `persistSession=false`, `autoRefreshToken=true`로 memory-only session을 사용하며 client initialization은 signed manifest의 `supabaseAuthOrigin`, `supabasePublishableKey`만 사용한다. reload와 새 tab은 login을 다시 요구하고, 인증 앱 등록자는 §2.2에 따라 추가 인증을 거친다.\n \n@@ -311,3 +319,3 @@\n | API origin | signed 독립 업무 API HTTPS(D89) | DPAPI endpoint record가 정한 loopback random port | 내부망 HTTPS |\n-| human auth | Supabase JWT + all human roles require `aal2` | OS user + Argon2id app lock + stableUserId | Argon2id local account + privileged session MFA |\n+| human auth | Supabase JWT, MFA 선택(`aal1` 또는 `aal2`) | OS user + Argon2id app lock + stableUserId | Argon2id local account + privileged session MFA |\n | Actor source | `auth_subject → users.id` | stableUserId | local users.id |\n@@ -323,3 +331,3 @@\n 세 모드는 canonical Actor, API DTO, capability key를 공유한다. 차이는 Identity·SecretStore·origin·저장소 adapter뿐이다.\n-- [ ] Community Cloud 모든 human role의 `aal2`, Office `mfaVerifiedAt`, Single DPAPI unlock handshake와 stableUserId, Agent six scopes와 registration source가 완결되어 있다.\n+- [ ] Community Cloud 모든 human role의 `aal1`/`aal2` 수용과 실제 assurance 보존, 선택 등록과 등록자의 로그인 추가 인증, Office `mfaVerifiedAt`, Single DPAPI unlock handshake와 stableUserId, Agent six scopes와 registration source가 완결되어 있다.\n - [ ] canonical `Identity.resolve(request)`, `revokeAll(userId, reason)`, `revokeSession(sessionId, reason)`를 사용하고, 세 mode의 Bearer, lossless role projection, 401/403/503 판정이 완결되어 있다.\n@@ -335,3 +343,3 @@\n \n-- `pnpm test:contracts --auth`: `cloud-human-active`, `cloud-aal1-all-human`, `cloud-revoked-session`, `office-admin-no-mfa`, `single-stable-id`, `single-dpapi-handshake`, `agent-service`, `cloud-scheduler-secret`, `agent-linked-user-mismatch` fixture를 검사한다. malformed/invalid token은 401, valid unprovisioned/inactive/revoked 또는 linked user mismatch는 403, store unavailable은 503이어야 한다.\n+- `pnpm test:contracts --auth`: `cloud-human-active`, `cloud-aal1-all-human`, `cloud-revoked-session`, `office-admin-no-mfa`, `single-stable-id`, `single-dpapi-handshake`, `agent-service`, `cloud-scheduler-secret`, `agent-linked-user-mismatch` fixture를 검사한다. `cloud-human-active`와 `cloud-aal1-all-human`은 유효하게 provision된 모든 Cloud human role의 `aal1`/`aal2` 세션을 수용하고 실제 assurance를 그대로 보존해야 한다. MFA 미등록자에게 등록을 강제하거나 `aal1`만을 이유로 거부하면 실패다. 등록자는 다음 로그인부터 여섯 자리 확인을 거쳐 `aal2`로 기록되는지도 확인한다. malformed/invalid token은 401, valid unprovisioned/inactive/revoked, 역할·담당·감독 권한 부족 또는 linked user mismatch는 403, store unavailable은 503이어야 한다. `office-admin-no-mfa`의 거부와 Single 앱 잠금·DPAPI 검증은 그대로 유지한다.\n - `pnpm test:contracts --jwt`: `session_id`, optional `nbf`, `role`, `is_anonymous`, ES256/RS256 key metadata, HS256 rejection, old/new key rotation, unknown-kid negative cache/cooldown을 검사한다. unknown-kid마다 upstream fetch가 발생하거나 HS256이 통과하면 실패다.\n"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-02-SG2-auth.md",
+      "ranges": [
+        {
+          "kind": "replace",
+          "beforeLines": [
+            18,
+            18
+          ],
+          "afterLines": [
+            18,
+            18
+          ],
+          "afterOriginalLine": null
+        },
+        {
+          "kind": "replace",
+          "beforeLines": [
+            24,
+            24
+          ],
+          "afterLines": [
+            24,
+            24
+          ],
+          "afterOriginalLine": null
+        },
+        {
+          "kind": "replace",
+          "beforeLines": [
+            61,
+            61
+          ],
+          "afterLines": [
+            61,
+            61
+          ],
+          "afterOriginalLine": null
+        },
+        {
+          "kind": "replace",
+          "beforeLines": [
+            65,
+            65
+          ],
+          "afterLines": [
+            65,
+            65
+          ],
+          "afterOriginalLine": null
+        }
+      ],
+      "addedLines": 4,
+      "removedLines": 4,
+      "unifiedDiff": "--- before/docs/superpowers/plans/2026-09-02-SG2-auth.md\n+++ after/docs/superpowers/plans/2026-09-02-SG2-auth.md\n@@ -17,3 +17,3 @@\n - `institution-admin`, `technical-admin`, `supervisor`, `worker`, and `service` remain distinct roles. Technical admin has installation/diagnostic/update access only, never case, counselling, or PII business access. Privileged route MFA reads `Actor.authn.assurance`.\n-- All Community Cloud human roles, including worker and supervisor, require JWT `aal=aal2`; Office privileged roles require `mfaVerifiedAt`; nonprivileged Office workers may continue without privileged MFA.\n+- Community Cloud human assurance and optional MFA follow [S2 §2.2/§2.3](../../specs/S2-auth-capability-manifest.md); Office privileged roles require `mfaVerifiedAt`; nonprivileged Office workers may continue without privileged MFA.\n - Supabase accepts only asymmetric ES256 or RS256 keys selected from JWKS metadata. `session_id` is the revocation claim and `nbf` is checked only when present. HS256 is rejected at D84 preflight and runtime.\n@@ -23,3 +23,3 @@\n - The signed manifest is fixed at `apps/client/public/ccc-install-manifest.json`. Public bootstrap is exactly `{ apiBase: string, mode: DeploymentMode }` and only points same-origin to that manifest. Signed metadata uses RFC 8785 JCS, expiry, sequence, install binding, embedded signing-key revocation, and sorted/unique STT entries `{id: ApprovedSttEngineId, mode: 'local'|'azure'}`.\n-- The browser stores no bearer, refresh token, PII, or API response in Web Storage, IndexedDB, Cache API, cookies, URLs, logs, analytics, or crash output. Cloud PWA sessions are memory-only; reload requires login/MFA.\n+- The browser stores no bearer, refresh token, PII, or API response in Web Storage, IndexedDB, Cache API, cookies, URLs, logs, analytics, or crash output. Cloud PWA sessions are memory-only; reload requires login and, for enrolled users, the additional verification defined in S2 §2.2.\n - Exact CORS permits absent Origin only for authenticated non-browser service calls with no CORS headers, and byte-equal allowlisted browser Origins with a fixed response. `Origin: null`, outside origins, wildcard CORS, and credential cookies are prohibited.\n@@ -60,3 +60,3 @@\n - [ ] Map Supabase `sub` through E4-1/E4-2 `users.auth_subject`; preserve legacy Access email/common_name during E2-7 transition outside canonical Bearer; map Single stableUserId, Office users ID, and Agent installation registration.\n-- [ ] Verify `iss`, `aud=authenticated`, `role=authenticated`, `is_anonymous=false`, `session_id`, asymmetric `alg`, `exp`, optional `nbf`, and `aal`; require `aal2` for every Community Cloud human role, including worker/supervisor, and require `mfaVerifiedAt` for Office privileged roles.\n+- [ ] Verify `iss`, `aud=authenticated`, `role=authenticated`, `is_anonymous=false`, `session_id`, asymmetric `alg`, `exp`, optional `nbf`, and `aal`; apply the Cloud assurance acceptance and enrolled-user login contract in S2 §2.2/§2.3 without forced MFA enrollment, and require `mfaVerifiedAt` for Office privileged roles.\n - [ ] Add Office `mfaVerifiedAt` and sessionId, project them to `Actor.authn.assurance='mfa'` and `Actor.authn.sessionId` before privileged roles are active.\n@@ -64,3 +64,3 @@\n - [ ] Implement Agent opaque bearer hash binding to `agent_installations`, requiring a linked same-org active users row with `role=service` and exact `users.id=actorUserId`; enforce six exact route scopes and S5 service-principal ownership. Keep human Actor routes and `/capabilities` at 403 for Agent.\n-- [ ] Run the auth contract command; reject `cloud-admin-aal1`, `office-admin-no-mfa`, unknown/inactive/revoked users, and invalid credentials with their specified statuses.\n+- [ ] Run the auth contract command against S2 §5; accept valid provisioned Cloud `aal1` and `aal2` sessions, including `cloud-admin-aal1`, with actual assurance preserved. Verify optional enrollment and enrolled-user login checks per S2 §2.2; reject `office-admin-no-mfa`, unknown/inactive/revoked users, role-denied requests, and invalid credentials with their specified statuses.\n - [ ] Commit Identity adapter changes with E4-1/E4-2/E4-3/E7/E8 ownership.\n"
+    }
+  ],
+  "writeScope": {
+    "documentationPaths": [
+      "docs/specs/S2-auth-capability-manifest.md",
+      "docs/superpowers/plans/2026-09-02-SG2-auth.md"
+    ],
+    "resultArtifact": "artifacts/orchestration/ccc204-s2-docs-result.json",
+    "otherWritesByExecutor": [],
+    "existingDirtyWork": "Observed unrelated tracked and untracked work was left untouched. No reset, stash, clean, branch, checkout, fetch, index mutation or sibling-worktree write was performed."
+  },
+  "reviewScope": {
+    "performed": [
+      "readchk against the current assignment",
+      "fluent-korean protected-literal and sentence review",
+      "ssotize consistency audit limited to the two assigned documents and cited approvals",
+      "factchk source/date/title checks against exact local Git objects",
+      "re0 limited replacement of stale clauses, not a general rewrite"
+    ],
+    "skipped": [
+      "Fresh-agent/shower review because additional agents are explicitly forbidden.",
+      "Whole-repo audits, documentation guard, formatter, linter, builds, tests and CCC-201 probes because the assignment reserves or forbids them.",
+      "Mandela and detool because this is a bounded policy-provenance correction, not an experiment or portability claim."
+    ]
+  },
+  "remainingBlockers": [],
+  "unverified": [
+    "The controller documentation guard has not been run; it remains the controller responsibility after reviewing this result.",
+    "No product runtime, JWT adapter, MFA enrollment or login flow, test, build or CCC-204 implementation was exercised or changed.",
+    "No live authentication setting, resource, credential, permission, provider, external service, ticket status or deployment was queried or changed.",
+    "No private approval conversation or session transcript was opened; approval evidence is the exact authored repository decisions and local Git patches.",
+    "No other-lane integration, commit, push, merge or next-ticket assignment was performed. The controller alone decides integration and whether to assign CCC-204.",
+    "Scheduler/staff-invitation evolution and other out-of-scope S2 differences were not imported or certified."
+  ]
+}

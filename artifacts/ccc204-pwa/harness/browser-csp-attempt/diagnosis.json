@@ -1,0 +1,8 @@
+{
+  "confirmedByDefaultPageWorldProbe": true,
+  "cspConnectSrcViolation": true,
+  "reason": "fixture header used exact CSP path /api; the actual business calls are descendants /api/capabilities and /api/me. Use signed API directory /api/ without widening the origin or disabling CSP.",
+  "sdkSeededLoginStatus": 200,
+  "realVerifiedUserStatus": 200,
+  "appShellReached": false
+}

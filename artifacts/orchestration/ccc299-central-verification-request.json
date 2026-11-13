@@ -1,0 +1,66 @@
+{
+  "assignmentId": "ccc299-central-verification-20260914",
+  "ticket": "CCC-299",
+  "workerPaneId": "w1N:p1",
+  "goal": "Verify the sealed unverified CCC-299 candidate on the MacBook's healthy local Docker without mutating any Git worktree, then produce the deterministic parity manifest for the sole BACKEND writer if and only if semantic proofs pass.",
+  "inputs": {
+    "candidateCommit": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+    "candidateTree": "f188a8f136a4de2147b9d5a36e9f2b535a990d89",
+    "candidateParent": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+    "remoteObjectSource": "ssh://mini/Users/barq/DEVELOPER/PROJECTS/CCC",
+    "implementationResult": "artifacts/orchestration/ccc299-core-implementation-result.json",
+    "implementationResultSha256": "50ac2406d0525cc4a0de9861e6315854c8c477137730308b21b332a8a8644858",
+    "freezeResult": "artifacts/orchestration/ccc299-core-freeze-result.json",
+    "freezeResultSha256": "8f0e235965659b35c7d3b71331a6a70551f1908ea5e131c9b2c9a4f3e0034da2",
+    "localDockerProbe": "docker info returned ServerErrors=null",
+    "pinnedImageProbe": "postgres@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73 is present locally"
+  },
+  "isolation": {
+    "worktreeDecision": "n/a",
+    "branchDecision": "none",
+    "method": "Fetch the exact commit object with --no-write-fetch-head, export it with git archive into one unique /tmp sandbox, then run pnpm install --offline --frozen-lockfile inside that sandbox so workspace symlinks point to sandbox sources.",
+    "forbidden": [
+      "git checkout, switch, reset, stash, clean, cherry-pick, merge, branch creation, clone or worktree creation",
+      "any write in the orchestrator, frontend, onboarding, planner, beta-core-parity or mini BACKEND worktrees",
+      "network dependency or image pull, external provider/database, credential use, deployment, push or merge"
+    ],
+    "cleanup": "Remove the temporary sandbox, all disposable containers and the throwaway smoke file after evidence collection. Keep only controller result artifacts and the generated parity manifest artifact."
+  },
+  "steps": [
+    "Verify both input artifact hashes, fetch the exact candidate object read-only from mini, and verify commit, parent, tree and 13-path diff before extraction.",
+    "Create the temporary exported tree and install dependencies offline with the existing lockfile and local pnpm store. No lockfile or source update is permitted.",
+    "Confirm local Docker and the pinned image without pulling. Stop with an explicit blocker if either is unavailable.",
+    "Run the exact writer parity-update command in the temporary tree: CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1. This may modify only the temporary migrations/parity.yaml. Capture the output, semantic test counts, prior checkpoint preservation and generated file SHA-256.",
+    "If parity update passes, copy the generated parity file byte-for-byte to artifacts/orchestration/ccc299-generated-parity.yaml and never edit it by hand.",
+    "Run the frozen targeted gateway/manual/report tests, routes intake filter and API typecheck against the temporary candidate plus generated parity.",
+    "Create the frozen disposable apps/api/test/ccc299-core-lifecycle-smoke.test.ts inside the temporary tree only so the configured Vitest include selects it. Exercise create, GET, edit, reorder, omission, last-row withdrawal, later manual confirmation, context, official records and report through handleRequest/gateway on encrypted SQLite and disposable PostgreSQL, and call existing createCaptureHarness plus runScenario without generator output. Use synthetic data only.",
+    "Run non-update migration parity plus database parity. Hash migrations/parity.yaml before and after and require byte identity.",
+    "Run pnpm guard:db and pnpm guard:core-imports. Do not run project-wide suites, formatter, linter or unrelated checks.",
+    "If any source behavior fails, do not edit it. Record the smallest source-owned diagnosis and route it back to BACKEND. If only generated parity differs, preserve the passing generated artifact for the BACKEND writer follow-up commit.",
+    "Remove the smoke file, sandbox and disposable containers. Confirm all non-artifact worktrees remain untouched."
+  ],
+  "commands": [
+    "CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+    "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/gateway-intake.test.ts apps/api/test/manual-record.contract.test.ts apps/api/test/support-case-report.contract.test.ts apps/api/test/new-signup-badge.test.ts apps/api/test/participant-p3.contract.test.ts --maxWorkers 1",
+    "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/routes.test.ts --maxWorkers 1 -t intake",
+    "pnpm --filter @ccc/api run typecheck",
+    "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/ccc299-core-lifecycle-smoke.test.ts --maxWorkers 1",
+    "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts apps/api/test/database-parity.test.ts --maxWorkers 1",
+    "pnpm guard:db",
+    "pnpm guard:core-imports"
+  ],
+  "output": {
+    "resultPath": "artifacts/orchestration/ccc299-central-verification-result.json",
+    "generatedParityPath": "artifacts/orchestration/ccc299-generated-parity.yaml",
+    "mustContain": [
+      "exact candidate identity and isolation proof",
+      "each command, cwd, exit code, test count and observable scenario matrix",
+      "generated parity SHA-256 and before/after non-update identity",
+      "Docker/image/container cleanup evidence without credentials",
+      "source failures and exact BACKEND handback if any",
+      "worktree mutation count zero",
+      "ownedJobs 0 and allResultsCollected true"
+    ]
+  },
+  "completionMarker": "EXECUTOR_RESULT CCC299-CENTRAL-VERIFICATION-20260914"
+}

@@ -1,0 +1,36 @@
+{
+  "assignmentId": "n03-manual-otp-installer-20260914",
+  "ticket": "CCC-276",
+  "owner": "onboarding installer writer",
+  "goal": "Make first-admin invitation readiness fail closed unless Supabase Auth is configured with the exact Q-approved manual six-digit code email template.",
+  "contract": {
+    "path": "artifacts/orchestration/n03-manual-otp-contract-result.json",
+    "sha256": "d07f8ca15ed9fb7e9f1b9052a01bab91f73e81b2e61b9671b0a99aafb675b029"
+  },
+  "worktree": {
+    "decision": "reuse",
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/onboarding",
+    "branch": "feat/relayer-onboarding",
+    "requiredHead": "217e752f816dedf1f6c535b073039ab596ef046f",
+    "state": "clean",
+    "rule": "No reset, rebase, switch, stash or clean. This worker owns only the two script paths below; documentation remains the onboarding ORCHESTRATOR's later slot."
+  },
+  "allowedWrites": [
+    "scripts/onboarding/first-admin.mjs",
+    "scripts/onboarding/first-admin.test.mjs"
+  ],
+  "requiredBehavior": [
+    "Add one module-private FIRST_ADMIN_INVITE_TEMPLATE constant byte-equal to emailTemplateContract.exactHtml. Do not export a second template source.",
+    "Keep createSupabaseAuthAdmin.inviteTtlSeconds as the single Management API GET. After disable_signup === true and integer mailer_otp_exp in 60..604800, require mailer_templates_invite_content === FIRST_ADMIN_INVITE_TEMPLATE.",
+    "Missing or non-exact content throws FIRST_ADMIN_INVITE_TEMPLATE_UNREADY before institution creation or invitation submission reaches inviteAuthUser. Do not mutate the hosted template or add a retry/fallback.",
+    "Preserve redirect_to as the exact signed clientOrigin /auth/invite, relayerFirstAdmin metadata marker, one-send/resume behavior, TTL, subject/email binding and all existing fixed error redaction.",
+    "Update every synthetic successful Auth-config fixture to include the exact template. Add table cases for missing content and one-character variants containing ConfirmationURL, TokenHash, Email, Data, query or fragment additions; each sends zero invitations and returns the fixed unready code.",
+    "Keep disable_signup=false and invalid mailer_otp_exp refusals unchanged."
+  ],
+  "verification": [
+    "Run only node --test scripts/onboarding/first-admin.test.mjs.",
+    "Commit only the two allowed paths with configured hooks. Do not bypass hooks, edit docs, change Auth, access credentials, send an invite, push, merge or deploy."
+  ],
+  "completionMarker": "ONBOARDING_RESULT N03-MANUAL-OTP-INSTALLER-20260914",
+  "report": "Print marker, parent/commit SHA, exact paths, test counts, zero-send refusal cases, clean state and blockers."
+}

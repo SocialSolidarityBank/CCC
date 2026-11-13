@@ -1,0 +1,458 @@
+{
+  "assignmentId": "ccc212-repair-contracts-20260914",
+  "workerPaneId": "w1N:p1",
+  "workerSessionId": "01a09b5b-5952-7215-9127-ef3ed91e7261",
+  "status": "ready_for_review",
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "ticket": "CCC-212",
+  "ticketDone": false,
+  "completionDecisionOwner": "controller w1N:p6 only",
+  "identityEvidence": {
+    "sameTicketSession": true,
+    "pane": "w1N:p1",
+    "sessionId": "01a09b5b-5952-7215-9127-ef3ed91e7261",
+    "priorVerifiedIdentity": "artifacts/ccc212-browser-auth/identity.json"
+  },
+  "sourceProvenance": {
+    "auditSource": "f7194dc88064455f3eb6be02abb5aae836981612",
+    "integrationBase": "origin/main ad218e8eafa646a524674fe4ef8cf9c20c0b68bb",
+    "controllerComparisonAcceptedWithoutReplay": {
+      "paths": [
+        "apps/client/src/business/errors.ts",
+        "apps/client/src/business/installation.ts",
+        "apps/community-cloud/src/runtime.ts",
+        "docs/specs/S2-auth-capability-manifest.md"
+      ],
+      "result": "identical between auditSource and integrationBase"
+    },
+    "currentContractAuthority": [
+      "orchestrator working tree docs/specs/S2-auth-capability-manifest.md, including dated 2026-09-09, 2026-09-10 and 2026-09-12 approvals",
+      "docs/adr/0048-independent-cloud-api-runtime.md",
+      "docs/specs/S11-supabase-edge-template.md only where D89 did not replace its hosted-Edge assumptions"
+    ],
+    "callerProvenance": {
+      "unchangedBetweenBases": [
+        "apps/client/src/app.tsx",
+        "apps/client/src/business/invites.ts",
+        "apps/client/src/business/transport.ts",
+        "apps/client/src/screens/invites.tsx",
+        "apps/client/src/vite-env.d.ts",
+        "apps/client/tools/build-release.mjs",
+        "apps/client/release.config.example.json",
+        "packages/contracts/src/install-manifest.ts",
+        "scripts/supabase/manifest-preflight.mjs",
+        "scripts/supabase/install-journal.mjs",
+        "docs/specs/S11-supabase-edge-template.md"
+      ],
+      "originMainMustBeUsedForRepair": [
+        "apps/client/src/business/ai-review.ts blob d1f8868089e3b9331c6887a7542b3f4d6ddc8fa7",
+        "apps/client/src/screens/records.tsx blob afcce899d113841e18736c9a28d2a3b2e44d10b4",
+        "packages/core/src/gateway.ts blob 57f60699df45b5eb31efa4f60125567d536e472f",
+        "packages/http-api/src/request-handler.ts blob 3d65688e589d3b2b5624442a4020aa94f8b41781",
+        "packages/ai-runtime/src/ai-provider.ts blob 2eb13ee317ddc38c6b0a8e5166c2ae35da8fd8a6"
+      ],
+      "reason": "Those five callers or producers differ from the audit source for unrelated newer work. Repair must not restore the older blobs."
+    },
+    "lsp": "The audited separate worktree had no available language server. Exact references were traced through source imports, symbols, grep results and commit blob provenance; no source mutation or validation command was run."
+  },
+  "repairPackets": [
+    {
+      "id": "E2-3-error-cutover",
+      "finding": "Thirteen approved legacy names are absent from the browser dictionary, but only six current behaviors have actually lost actionable meaning. Six are intentional later normalizations and one is superseded retention behavior.",
+      "writer": "FRONTEND E2-3",
+      "prerequisites": [
+        "Use origin/main ad218e8eafa646a524674fe4ef8cf9c20c0b68bb for current AI decoder and review-screen content.",
+        "Treat packages/core and packages/http-api producer behavior as read-only input unless BACKEND issues a separate producer-contract change.",
+        "Keep N03 In Review, N04 blocked and Q's public-signup policy decision outside this repair."
+      ],
+      "approvalReferences": [
+        "CCC_OPEN_PILOT_PLAN.md E2-3",
+        "ADR-0041 D80 browser client cutover",
+        "S2 sections 2.1, 2.2 and 2.4",
+        "2026-09-12 optional Community Cloud MFA approval",
+        "D57 and R2/R3/R5 for AI and consent failure meaning"
+      ],
+      "exactPathsAndSymbols": {
+        "mutateFrontend": [
+          "apps/client/src/business/errors.ts: BusinessErrorCode, httpError, messages",
+          "apps/client/src/business/errors.test.ts: HTTP translation cases",
+          "apps/client/src/business/ai-review.ts: AiReviewApi.draft only if the 404 check moves from status to the repaired not_found code",
+          "apps/client/src/screens/records.tsx: RecordReviewScreen recovery presentation for AI gate/provider/output failures",
+          "apps/client/src/business/invites.ts: InvitesApi.createRequestLink must retain its scoped 404 to public_signup_disabled translation",
+          "apps/client/src/screens/invites.tsx: existing public_signup capability and direct-registration fallback remain unchanged"
+        ],
+        "readOnlyProducerReferences": [
+          "packages/http-api/src/request-handler.ts: errorResponse, route fallback, GET /sessions/:id/ai 404",
+          "packages/core/src/gateway.ts: ConsentContractError, TextAiPilotDisabledError, StaleDraftVersionError, DraftVersionRequiredError, AiProviderNotConfiguredError",
+          "packages/ai-runtime/src/ai-provider.ts: AiProviderProhibitedOutputError and AiProviderUnavailableError producers",
+          "apps/client/src/app.tsx: handleAuthFailure and VerifiedSession",
+          "apps/client/src/business/auth.ts: unauthenticated and unavailable lifecycle"
+        ]
+      },
+      "lostNameMap": [
+        {
+          "approvedName": "authentication_required",
+          "currentProducer": "request-handler.errorResponse emits actor_authentication_required with 401",
+          "currentBrowserBehavior": "httpError returns unauthenticated; app.tsx and screen handlers sign out on status 401",
+          "classification": "intentional later rename with preserved recovery",
+          "desiredBehavior": "Keep unauthenticated and the sign-out boundary. Accept both legacy authentication_required and current actor_authentication_required by status without reintroducing a second user-facing code."
+        },
+        {
+          "approvedName": "access_denied",
+          "currentProducer": "No current producer. ForbiddenError emits forbidden with 403.",
+          "currentBrowserBehavior": "All non-MFA 403 responses become forbidden.",
+          "classification": "intentional later rename with preserved recovery",
+          "desiredBehavior": "Keep forbidden as the one permission-denied action and keep mfa_required distinct. A legacy access_denied body must not bypass the 403 permission boundary."
+        },
+        {
+          "approvedName": "validation_error",
+          "currentProducer": "No current producer. ValidationError emits invalid_request with 400.",
+          "currentBrowserBehavior": "Generic 400 and 422 become invalid_request; privacy_consent_required and emergency_reason_required remain distinct.",
+          "classification": "intentional later rename with preserved recovery",
+          "desiredBehavior": "Keep invalid_request as the generic input action and preserve the two current consent-specific 422 codes. Do not add validation_error as a duplicate display code."
+        },
+        {
+          "approvedName": "not_found",
+          "currentProducer": "request-handler emits not_found for unknown routes, hidden or invalid public capabilities, disabled public signup and missing AI drafts.",
+          "currentBrowserBehavior": "Generic 404 becomes unavailable. AiReviewApi.draft converts any status 404 to null. InvitesApi.createRequestLink converts any status 404 to public_signup_disabled.",
+          "classification": "lost actionable meaning",
+          "desiredBehavior": "Add not_found to the safe browser dictionary and map generic 404 to it. Keep AiReviewApi's missing-draft null result and InvitesApi's scoped public_signup_disabled conversion. Do not change PublicTransport routes, invite token concealment, capability flags or signup policy."
+        },
+        {
+          "approvedName": "not_eligible_or_already_purged",
+          "currentProducer": "No current core or HTTP producer. Current retention lifecycle uses review DTO state and purge_disabled.",
+          "currentBrowserBehavior": "A hypothetical 410 falls to unavailable; current retention screen reads pending, retained or purged state and separately displays purge_disabled.",
+          "classification": "superseded by the current retention lifecycle",
+          "desiredBehavior": "Do not resurrect the old code. Keep purge_disabled and the retention review DTO. A new eligibility failure requires a current backend producer contract, not a legacy alias."
+        },
+        {
+          "approvedName": "pilot_text_ai_consent_required",
+          "currentProducer": "PilotTextAiConsentRequiredError remains declared but has no throw site. Six-domain consent now fails as ConsentContractError consent_not_effective.",
+          "currentBrowserBehavior": "consent_not_effective with 409 becomes conflict, so RecordReviewScreen incorrectly offers concurrent-draft reload recovery.",
+          "classification": "intentional domain upgrade with lost recovery meaning",
+          "desiredBehavior": "Preserve the newer consent_not_effective producer as a distinct safe browser code and show consent-blocked/manual-record recovery. Do not restore the obsolete pilot-only name or weaken the six-domain gate."
+        },
+        {
+          "approvedName": "text_ai_pilot_disabled",
+          "currentProducer": "gateway assertServiceTextAiSessionGrant and assertPilotTextAiConsent throw TextAiPilotDisabledError; errorResponse emits the code with 409.",
+          "currentBrowserBehavior": "It becomes conflict and RecordReviewScreen offers latest-draft reload.",
+          "classification": "lost actionable meaning",
+          "desiredBehavior": "Preserve text_ai_pilot_disabled as a browser code. Show AI-disabled/manual-record guidance and no conflict callout."
+        },
+        {
+          "approvedName": "stale_draft_version",
+          "currentProducer": "gateway and request-handler AI edit/review version checks emit stale_draft_version with 409.",
+          "currentBrowserBehavior": "It becomes draft_changed; RecordReviewScreen preserves input and reloads the latest draft.",
+          "classification": "intentional later consolidation with preserved recovery",
+          "desiredBehavior": "Keep draft_changed as the shared browser action and keep stale_draft_version as a recognized raw producer code."
+        },
+        {
+          "approvedName": "draft_version_required",
+          "currentProducer": "request-handler draft-version parsers and gateway validation emit draft_version_required with 409.",
+          "currentBrowserBehavior": "It becomes draft_changed with the same safe reload action.",
+          "classification": "intentional later consolidation with preserved recovery",
+          "desiredBehavior": "Keep draft_changed and recognize this raw producer separately from generic conflict."
+        },
+        {
+          "approvedName": "ai_provider_not_configured",
+          "currentProducer": "gateway activeAiProviderConfigurationForCase and getActiveAiProviderRuntimeMetadataForService emit ai_provider_not_configured with 409.",
+          "currentBrowserBehavior": "It becomes conflict and RecordReviewScreen offers latest-draft reload.",
+          "classification": "lost actionable meaning",
+          "desiredBehavior": "Preserve ai_provider_not_configured as a browser code. Show configuration or manual-record guidance; do not label it concurrent modification."
+        },
+        {
+          "approvedName": "ai_prohibited_output",
+          "currentProducer": "request-handler and ai-runtime output validation emit ai_prohibited_output with 422.",
+          "currentBrowserBehavior": "It becomes invalid_request, blaming user input; RecordReviewScreen then offers only generic reload.",
+          "classification": "lost actionable meaning",
+          "desiredBehavior": "Preserve ai_prohibited_output as a browser code. State that generated output was rejected and leave the official manual record unchanged; regeneration remains available only when the server DTO already says it is available."
+        },
+        {
+          "approvedName": "ai_provider_unavailable",
+          "currentProducer": "request-handler maps AiProviderUnavailableError to ai_provider_unavailable with 503; ai-runtime can emit it for missing or invalid runtime configuration and provider failure.",
+          "currentBrowserBehavior": "It becomes generic unavailable, which reads as whole-server connectivity failure.",
+          "classification": "lost actionable meaning",
+          "desiredBehavior": "Preserve ai_provider_unavailable as a browser code on AI surfaces and keep manual records usable. Do not expose provider detail or add automatic provider fallback."
+        },
+        {
+          "approvedName": "service_unavailable",
+          "currentProducer": "Identity store, capability and audio/runtime failures emit service_unavailable with 503.",
+          "currentBrowserBehavior": "It becomes unavailable and preserves the no-assumed-write-success recovery.",
+          "classification": "intentional later rename with preserved recovery",
+          "desiredBehavior": "Keep unavailable as the browser-wide service failure and keep provider-specific ai_provider_unavailable distinct before the generic 503 fallback."
+        }
+      ],
+      "minimalChange": [
+        "Extend httpError's allowlisted raw-code branches only for not_found, consent_not_effective, text_ai_pilot_disabled, ai_provider_not_configured, ai_prohibited_output and ai_provider_unavailable.",
+        "Add only those six safe messages. Keep unauthenticated, forbidden, invalid_request, draft_changed, unavailable and all newer installation, capability, MFA, consent-scope, program-admission, rate-limit and signout codes.",
+        "In RecordReviewScreen, show the existing conflict preservation callout only for draft_changed and true conflict. For AI gate/provider/output codes, show their safe message and existing manual-record navigation; never auto-retry or approve.",
+        "Keep 404 special cases scoped to AiReviewApi.draft and InvitesApi.createRequestLink. Do not make every not_found mean public signup is disabled."
+      ],
+      "preservedBehavior": [
+        "No provider error body, URL, token or PII enters BusinessError.",
+        "401 still signs out; mfa_required still rechecks optional registered MFA; ordinary 403 remains forbidden.",
+        "stale_draft_version and draft_version_required still converge on draft_changed and preserve draft recovery.",
+        "Current six-domain consent_not_effective supersedes the dead pilot-only consent name.",
+        "public_signup_disabled, invite token concealment, staff invitation identity binding and capability-gated navigation remain unchanged pending Q."
+      ],
+      "regressionAcceptance": [
+        "A table test covers all thirteen approved missing names plus current actor_authentication_required and consent_not_effective, asserting raw status, browser code and recovery class.",
+        "Unknown 403, 409, 422 and 503 bodies remain redacted generic codes; provider-private text never appears in error name, message or serialized state.",
+        "RecordReviewScreen shows conflict preservation only for conflict and draft_changed, consent/manual guidance for consent_not_effective and text_ai_pilot_disabled, configuration guidance for ai_provider_not_configured, output rejection for ai_prohibited_output, and provider outage guidance for ai_provider_unavailable.",
+        "Missing AI draft still returns null; disabled participant-link creation still becomes public_signup_disabled; other business 404 becomes not_found.",
+        "No assertion forces the dictionary back to exactly 21 or removes any current valid code."
+      ]
+    },
+    {
+      "id": "E2-3-installation-trust-state",
+      "finding": "The canonical verifier accepts revokedKeyIds, minSequence and expectedInstallationId, but loadInstallation supplies only publicKeys and now. A fetched manifest cannot be its own expected state.",
+      "writer": "FRONTEND E2-3 for browser consumption; installation/release owner for trusted state production; controller serializes the shared handoff",
+      "prerequisites": [
+        "Current one-installation release path may use installer-produced trust state.",
+        "A shared app.ccc.kr institution-selection delivery contract is not selected here because it overlaps pending onboarding policy.",
+        "Electron remains blocked on E7-2; Windows singandmong is only a future candidate and is not contacted or started."
+      ],
+      "approvalReferences": [
+        "S2 section 2.7 and section 5 bootstrap fixtures",
+        "ADR-0048 decision 5",
+        "S11 sections 2.1 and 2.3 installation authorization and durable journal",
+        "S12 release trust and monotonic sequence plan",
+        "E6-5 install/update/rollback, E7-1b/E7-2 and E8 mode owners"
+      ],
+      "exactPathsAndSymbols": {
+        "mutateFrontend": [
+          "apps/client/src/business/installation.ts: loadInstallation and trustedKeys replacement with one closed trusted-state parser",
+          "apps/client/src/app.tsx: RuntimeBoundary loadInstallation call",
+          "apps/client/src/vite-env.d.ts: replace key-only build input with closed public installation trust input",
+          "apps/client/tools/build-release.mjs: release-config parsing, pre-build verification and Vite injection",
+          "apps/client/release.config.example.json: public trust-state shape",
+          "apps/client/src/business/boundary.test.ts and apps/client/tools/serve-release.test.mjs: consumer and sealed-release cases"
+        ],
+        "reuseWithoutChangeExpected": [
+          "packages/contracts/src/install-manifest.ts: VerifyInstallManifestOptions and verifySignedInstallManifest",
+          "scripts/supabase/manifest-preflight.mjs: configuredInstallTrust and verified authorization fields",
+          "scripts/supabase/install-journal.mjs: durable installationId, runtime sequence, manifest digest and current receipt",
+          "apps/client/src/business/transport.ts: X-CCC-Installation-Id post-auth equality"
+        ],
+        "futureModeOwners": [
+          "E7-1b/E7-2: DPAPI-protected Local Single record and preload memory delivery",
+          "E8: protected Local Office install record and same-origin HTTPS delivery"
+        ]
+      },
+      "trustedSourceAndLifecycle": {
+        "communityCloud": {
+          "source": "Installer authorization built from externally injected publicKeys and revokedKeyIds, plus the matching durable install journal/current receipt for installationId and accepted runtime sequence. S11 already forbids deriving approved owner or installation identity from observed or fetched values.",
+          "delivery": "For the current per-installation release, the installer supplies a closed nonsecret trust object to build-release before Vite runs: publicKeys, revokedKeyIds, minSequence and expectedInstallationId. build-release verifies the manifest against that object, then embeds the same immutable object in the built client. It must not construct expectedInstallationId or minSequence from the manifest it is verifying.",
+          "initialInstall": "Use the verified authorization and newly committed journal/receipt only after owner evidence passes. Missing trust object is a pre-fetch trust_missing failure.",
+          "update": "Use the previous installed journal/receipt as the floor and the external revoked-key list; advance the floor only after the new signed update is accepted and promoted.",
+          "rollback": "Artifact version may roll back only through the approved release path; the rollback operation still issues a higher trusted sequence. Browser floor never moves backward."
+        },
+        "localSingle": {
+          "source": "DPAPI CurrentUser protected install record owned by E7, combined with packaged release trust and revocation state. The record supplies expectedInstallationId, last accepted sequence and endpoint binding independently of the fetched manifest.",
+          "delivery": "Electron main reads the protected record and passes only the nonsecret trust tuple to the renderer in memory through the future isolated preload. No localStorage, IndexedDB, cookie, URL or cache storage.",
+          "lifecycle": "Create atomically at install, advance only after verified update, preserve monotonic sequence on rollback, and fail closed on unreadable or mismatched DPAPI state."
+        },
+        "localOffice": {
+          "source": "Office installer or local service protected install record plus packaged release trust. The institution CA/TLS connection authenticates the service, but the fetched manifest still does not become its own expected state.",
+          "delivery": "Serve or preload the nonsecret expectedInstallationId, sequence floor and revocation trust from the protected local installation context before manifest acceptance. Browser persistence remains forbidden.",
+          "lifecycle": "Server install creates the record; signed update advances it; rollback keeps a higher operation sequence; missing or unreadable state blocks startup. E8 owns the exact runtime mechanism."
+        }
+      },
+      "minimalChange": [
+        "Replace VITE_CCC_INSTALL_SIGNING_KEYS with one closed VITE_CCC_INSTALL_TRUST input containing publicKeys, revokedKeyIds, minSequence and expectedInstallationId. Do not retain a second key-only path.",
+        "Parse and validate the trust input before any manifest or bootstrap fetch. Missing arrays, noninteger floor, empty expected ID, unknown keys or extra fields fail closed.",
+        "Pass the four trusted values unchanged to verifySignedInstallManifest. Keep manifest clientOrigin, bootstrap equality, API/Auth binding, expiry and capability installation header checks unchanged.",
+        "Have build-release accept the trust object from installer-owned input, verify the manifest with it, and embed it. It may compare trusted state to the manifest but may not derive trusted state from that manifest.",
+        "Do not add a database read, browser store, runtime API response or capability field for trust state."
+      ],
+      "preservedBehavior": [
+        "Public bootstrap stays exactly apiBase and mode.",
+        "Manifest schema and signatures do not change.",
+        "Bearer, refresh tokens, PII and API bodies remain memory-only and absent from persistent browser storage.",
+        "Independent API/Auth origins, optional Community Cloud MFA and X-CCC-Installation-Id capability binding remain unchanged.",
+        "Local Single and Office remain unsupported in the web entry until their owning runtimes provide trusted state; no Cloud fallback."
+      ],
+      "regressionAcceptance": [
+        "No trust input fails before the first fetch.",
+        "A revoked signing key, manifest sequence below the externally supplied floor and installationId unequal to the externally supplied expected ID each fail before bootstrap and API requests.",
+        "A valid manifest at or above the floor with the expected ID and separate signed API/Auth origins passes; bootstrap and capability equality remain mandatory.",
+        "A test that sets expectedInstallationId to parsedManifest.installationId or minSequence to parsedManifest.sequence is rejected as an invalid self-comparison fixture design.",
+        "Release builder rejects trust/manifest mismatch before Vite and emits no private approval, journal content, bearer, PII or API response.",
+        "Reload and new tab still require login; trust metadata is immutable build input, not browser persistence."
+      ]
+    },
+    {
+      "id": "E6-2-cors-reconciliation",
+      "finding": "The independent Community Cloud runtime preserves exact origin rejection but its preflight fields do not cover the current S2 response set. Existing Idempotency-Key and X-Region allowances must not be deleted blindly because they came from the S11 Edge contract and current runtime.",
+      "writer": "BACKEND E6-2",
+      "prerequisites": [
+        "Use current reconciled S2 as the business-runtime authority.",
+        "Preserve the two current extra request-header allowances until the S11 Edge-only scope is explicitly reconciled; this packet makes no policy deletion.",
+        "No frontend proxy, wildcard, credentials cookie or CSP relaxation."
+      ],
+      "approvalReferences": [
+        "S2 section 2.9 exact CORS and D89 independent API",
+        "ADR-0048 decision 5",
+        "S11 sections 3.1 and 3.2 for Idempotency-Key, X-Request-Id and x-region historical Edge requirements",
+        "CCC_OPEN_PILOT_PLAN.md E6-2"
+      ],
+      "exactPathsAndSymbols": {
+        "mutateBackend": [
+          "apps/community-cloud/src/runtime.ts: METHODS, REQUEST_HEADERS, ALLOWED_REQUEST_HEADERS and response header construction",
+          "apps/api/test/community-cloud-runtime.test.ts: exact-origin and preflight assertions"
+        ],
+        "readOnlyConsumers": [
+          "apps/client/src/business/transport.ts: BusinessTransport.exchange currently sends Authorization and conditional Content-Type; Accept is CORS-safelisted",
+          "packages/http-api/src/request-handler.ts: no current If-Match, ETag, X-Request-ID, Idempotency-Key or X-Region consumer",
+          "apps/client/tools/build-release.mjs: CSP only, not API CORS",
+          "apps/api/tools/ai-review-preview.mjs: fixture header table, not production runtime evidence",
+          "apps/community-cloud/src/storage-signer.ts: X-Region is used for Supabase Edge/provider calls, not as evidence that browser BusinessTransport currently sends it"
+        ]
+      },
+      "headerTrace": {
+        "Authorization": "Current Browser transport sends it; required and preserved.",
+        "Content-Type": "Current Browser transport sends it for JSON bodies; required and preserved.",
+        "If-Match": "Approved by current S2 but no current client or handler consumer; add to CORS allowlist without inventing ETag concurrency behavior.",
+        "ETag": "Approved for exposure by current S2 but no current handler producer or client consumer; expose the name only, do not fabricate values.",
+        "X-Request-ID": "Approved for request and exposure by current S2 but no current producer or consumer; allow and expose without inventing logging or IDs.",
+        "Idempotency-Key": "Present in current runtime and S11. Current browser APIs carry idempotency keys in JSON bodies, not this header. Preserve the allowance pending authority cleanup.",
+        "X-Region": "Present in current runtime and S11 Edge policy. Current BusinessTransport does not send it; StorageSigner uses it on Edge/provider calls. Preserve the allowance pending explicit D89 scope reconciliation."
+      },
+      "minimalChange": [
+        "Return the method token set GET, POST, PUT, PATCH, DELETE, OPTIONS.",
+        "Use the conservative no-deletion request-header union Authorization, Content-Type, If-Match, Idempotency-Key, X-Request-ID, X-Region until the canonical document owner resolves the S11 Edge-only leftovers.",
+        "Expose ETag, X-Request-ID and X-CCC-Installation-Id. Set Access-Control-Max-Age to 600 and keep Vary: Origin.",
+        "Keep Access-Control-Allow-Credentials absent. Keep exact byte-equal origin echo, null/outside rejection without ACAO and absent-Origin responses without CORS headers.",
+        "Do not manufacture ETag, request IDs or region values merely because their names are allowed or exposed."
+      ],
+      "preservedBehavior": [
+        "Current Idempotency-Key and X-Region allowances remain until a later approved cleanup.",
+        "Header-name casing and comma spacing are not treated as semantic failures; token sets are compared case-insensitively.",
+        "Signed apiBase prefix, trusted origins, installation ID header, no-store responses, audio-body rejection and independent API/Auth binding remain unchanged.",
+        "Fixture-authored CORS and static CSP are not production API evidence."
+      ],
+      "regressionAcceptance": [
+        "Preflight accepts each approved or preserved header alone and the complete union; an unknown header and TRACE remain 403 without Access-Control-Allow-Origin.",
+        "Allow-Methods contains the six semantic tokens including OPTIONS; Allow-Headers contains the six union tokens; Expose-Headers contains ETag, X-Request-ID and X-CCC-Installation-Id; Max-Age is 600.",
+        "Tests compare header-name token sets case-insensitively and separately assert exact origin value, Vary: Origin and complete absence of Access-Control-Allow-Credentials.",
+        "Trusted actual responses echo only the allowlisted origin. null and outside origins remain 403 with no ACAO. Absent Origin has no CORS headers.",
+        "No test uses apps/client/tools/synthetic-api.mjs or ai-review-preview.mjs as proof of apps/community-cloud/src/runtime.ts."
+      ]
+    }
+  ],
+  "sharedSlots": [
+    {
+      "slot": "browser error producer contract",
+      "proposedWriter": "FRONTEND only",
+      "paths": [
+        "apps/client/src/business/errors.ts",
+        "apps/client/src/business/ai-review.ts",
+        "apps/client/src/screens/records.tsx",
+        "apps/client/src/business/invites.ts"
+      ],
+      "serializationBoundary": "Rebase on origin/main current AI consumer blobs. packages/core and packages/http-api remain read-only producer contracts unless BACKEND separately changes a raw code.",
+      "granted": false
+    },
+    {
+      "slot": "installation trust production and browser delivery",
+      "proposedWriter": "Installation/release owner produces trusted state; FRONTEND consumes it; controller owns integration order",
+      "paths": [
+        "scripts/supabase/manifest-preflight.mjs",
+        "scripts/supabase/install-journal.mjs",
+        "apps/client/tools/build-release.mjs",
+        "apps/client/release.config.example.json",
+        "apps/client/src/vite-env.d.ts",
+        "apps/client/src/app.tsx",
+        "apps/client/src/business/installation.ts"
+      ],
+      "serializationBoundary": "Trust producer contract first, then frontend consumption. No shared-client institution routing is added while onboarding policy is pending.",
+      "granted": false
+    },
+    {
+      "slot": "canonical install manifest verifier",
+      "proposedWriter": "none expected",
+      "paths": ["packages/contracts/src/install-manifest.ts"],
+      "serializationBoundary": "Reuse VerifyInstallManifestOptions. Any schema change requires a separate shared-contract approval and all caller migration.",
+      "granted": false
+    },
+    {
+      "slot": "independent runtime CORS",
+      "proposedWriter": "BACKEND E6-2",
+      "paths": [
+        "apps/community-cloud/src/runtime.ts",
+        "apps/api/test/community-cloud-runtime.test.ts"
+      ],
+      "serializationBoundary": "May land independently of frontend errors. Final integration compares current S2 and preserved S11 header tokens without changing policy docs in this repair.",
+      "granted": false
+    },
+    {
+      "slot": "request handler and response metadata",
+      "proposedWriter": "none for this repair",
+      "paths": ["packages/http-api/src/request-handler.ts"],
+      "serializationBoundary": "CORS may allow or expose header names, but this repair does not invent If-Match, ETag, X-Request-ID, Idempotency-Key or X-Region application behavior.",
+      "granted": false
+    },
+    {
+      "slot": "dependency and lockfile",
+      "proposedWriter": "none",
+      "paths": ["package.json", "apps/client/package.json", "pnpm-lock.yaml"],
+      "serializationBoundary": "All repairs use existing platform code and require no dependency change.",
+      "granted": false
+    }
+  ],
+  "unresolvedDecisions": [
+    {
+      "question": "For a future shared Community Cloud client at app.ccc.kr, which trusted control-plane artifact binds an institution selection to expectedInstallationId, sequence floor and revoked keys before that institution manifest is fetched?",
+      "whyUnresolved": "The current one-installation release can embed installer-produced trust state, but D86 onboarding and institution selection are under separate review. Deriving expected state from the selected manifest or persisting it in browser storage is forbidden.",
+      "conservativeBoundary": "Repair only the current per-installation release path and fail closed when trusted state is absent. Do not add shared-client routing or a success fallback.",
+      "owner": "Q and onboarding contract owner; N03 remains In Review and N04 remains blocked"
+    },
+    {
+      "question": "After D89, are S11's Idempotency-Key and X-Region request headers still canonical for the independent business API, or only for the remaining Supabase Edge and pg_net calls?",
+      "whyUnresolved": "Current S2 omits both, S11 lists both, and current runtime allows both. Current browser and handler do not consume either.",
+      "conservativeBoundary": "Do not delete them in this repair. Use the union while adding S2-required If-Match and response fields, then let the canonical document owner remove extras only through an approved reconciliation.",
+      "owner": "controller and canonical S2/S11 contract owner"
+    },
+    {
+      "question": "What is the final participant public-signup policy and its relationship to staff invitation binding?",
+      "whyUnresolved": "Q's decision is pending; N03 is In Review and N04 is blocked.",
+      "conservativeBoundary": "No change to PUBLIC_SIGNUP_ENABLED, capabilities.features.public_signup, participant invite 404 concealment, staff invite routes, identity/link or signup UI. The error repair keeps only the existing scoped public_signup_disabled translation.",
+      "owner": "Q and onboarding owner; explicitly outside CCC-212 repair"
+    }
+  ],
+  "integrationPlan": {
+    "sourceBase": "Fresh origin/main ad218e8eafa646a524674fe4ef8cf9c20c0b68bb",
+    "existingUnmergedPrerequisites": [
+      "N03 onboarding is In Review and is not merged into these packets.",
+      "N04 is blocked and supplies no signup-policy authority.",
+      "E7-2 Electron product runtime does not exist; Electron verification stays blocked."
+    ],
+    "order": [
+      "Controller accepts the raw error and CORS authority mapping without granting source slots.",
+      "Installation/release owner defines the installer-produced nonsecret trust object from existing authorization and journal sources. This must precede browser wiring.",
+      "FRONTEND applies the error and current per-installation trust consumer packets on origin/main, preserving current AI consumer blobs and all newer valid error codes.",
+      "BACKEND applies the CORS packet independently, preserving current exact-origin and runtime security behavior.",
+      "Controller integrates owner commits in dependency order: trust producer, frontend consumer, backend CORS. No local cross-lane edits or blanket conflict choice.",
+      "Central validation after implementation is limited to targeted error/consumer tests, bootstrap and release trust cases, Community Cloud runtime CORS cases, and the existing bounded browser scenario. It does not rerun unrelated suites or claim Electron."
+    ],
+    "handoffRecipientRoles": {
+      "frontend": "FRONTEND E2-3 owner",
+      "backend": "BACKEND E6-2 owner",
+      "trustProducer": "installation/release owner for E6-5, with E7/E8 future mode implementations",
+      "integration": "controller w1N:p6"
+    },
+    "electron": "Remains blocked until the E7-2 product runtime and owner-provided real-runtime harness exist. Windows singandmong is not contacted, installed, restarted or used by this preparation."
+  },
+  "touchedFiles": [
+    "artifacts/orchestration/ccc212-repair-contracts-result.json"
+  ],
+  "unverified": [
+    "No product or test source was changed, so no repaired behavior is claimed.",
+    "No tests, builds, linters, formatters, browsers, providers or prior failure probes were run.",
+    "The future shared Community Cloud trust-state delivery remains pending the separate onboarding authority decision.",
+    "The final removal or retention of Idempotency-Key and X-Region in the independent API CORS table remains a canonical S2/S11 reconciliation question; this packet preserves both.",
+    "Electron ccc://app protocol, navigation, sandbox and preload behavior remains blocked on E7-2.",
+    "Hosted provider, credential, deployment and operating-system behavior was not accessed."
+  ]
+}

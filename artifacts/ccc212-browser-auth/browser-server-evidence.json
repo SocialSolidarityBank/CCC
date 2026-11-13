@@ -1,0 +1,236 @@
+{
+  "counts": {
+    "passwordAccepted": 1,
+    "passwordRejected": 1,
+    "userVerified": 1,
+    "refreshAccepted": 0,
+    "jwks": 1,
+    "actualApi": 6,
+    "businessLogout": 1,
+    "authLogout": 1,
+    "staticReleaseRequests": 11,
+    "deniedProxy": 0,
+    "runtimeErrors": 0
+  },
+  "requests": [
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/.well-known/jwks.json",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 401,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 403,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/settings",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "actual-static-release"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/assets/index-C-lWucsB.js",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "actual-static-release"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-install-manifest.json",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "actual-static-release"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-bootstrap.json",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "actual-static-release"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "OPTIONS",
+      "status": 204,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "POST",
+      "status": 400,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "OPTIONS",
+      "status": 204,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/token",
+      "method": "POST",
+      "status": 200,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/user",
+      "method": "OPTIONS",
+      "status": 204,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/user",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/capabilities",
+      "method": "OPTIONS",
+      "status": 204,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/capabilities",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "OPTIONS",
+      "status": 204,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/me",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/assignment-requests",
+      "method": "OPTIONS",
+      "status": 204,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/sw.js",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "actual-static-release"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/icon.svg",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "actual-static-release"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/index.html",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "actual-static-release"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/manifest.webmanifest",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "actual-static-release"
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/assignment-requests",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/auth/logout",
+      "method": "OPTIONS",
+      "status": 204,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "api.example.invalid",
+      "path": "/api/auth/logout",
+      "method": "POST",
+      "status": 204,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/logout",
+      "method": "OPTIONS",
+      "status": 204,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "abcdefghijklmnopqrst.supabase.co",
+      "path": "/auth/v1/logout",
+      "method": "POST",
+      "status": 204,
+      "headerSource": "fixture-authored-cors"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/settings",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "actual-static-release"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-install-manifest.json",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "actual-static-release"
+    },
+    {
+      "host": "ccc.example.org",
+      "path": "/ccc-bootstrap.json",
+      "method": "GET",
+      "status": 200,
+      "headerSource": "actual-static-release"
+    }
+  ],
+  "seededAccounts": 1,
+  "privateKeysAndTokensPersisted": false
+}

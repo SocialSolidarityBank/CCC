@@ -1,0 +1,534 @@
+{
+  "assignmentId": "ccc204-pwa-harness-20260913",
+  "workerPaneId": "w1N:p1",
+  "workerSessionId": "01a09b0f-f350-75e8-8643-9c2f4c436c96",
+  "status": "ready_for_review",
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "ticket": "CCC-204",
+  "ticketDone": false,
+  "completionDecisionOwner": "controller w1N:p6 only",
+  "verdict": "Unchanged production-built client, under a valid signed test installation and a seeded credential-validating synthetic issuer joined to the real ES256 verifier, real seeded D1 directory and actual handleRequest/gateway, reached BusinessShell and registered its own service worker. All six acceptance criteria observed; nothing is claimed about hosted Supabase, other roles or full business features.",
+  "identityEvidence": {
+    "observedAt": "2026-09-13T14:05:36.222Z",
+    "pane": "w1N:p1",
+    "sessionId": "01a09b0f-f350-75e8-8643-9c2f4c436c96",
+    "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+    "foregroundCwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+    "branch": "orchestrate/beta-0.9",
+    "processes": [
+      {
+        "pid": 35759,
+        "name": "gh",
+        "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator"
+      },
+      {
+        "pid": 85024,
+        "name": "omp",
+        "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator"
+      }
+    ],
+    "matches": true,
+    "path": "artifacts/ccc204-pwa/harness/identity.json"
+  },
+  "sourceAndFixtureProvenance": {
+    "sourceWorktreeReadOnly": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+    "sourceCommit": "f7194dc88064455f3eb6be02abb5aae836981612",
+    "snapshotFromGitArchive": true,
+    "pinnedSnapshotFiles": 883,
+    "snapshotHashes": "artifacts/ccc204-pwa/harness/source-pin.json",
+    "fixtureImportsResolvedToSnapshot": {
+      "count": 33,
+      "allMatchPin": true,
+      "evidence": "artifacts/ccc204-pwa/harness/fixture-imports.json"
+    },
+    "clientBuildImportsResolvedToSnapshot": {
+      "pinnedModules": 63,
+      "allMatchPin": true,
+      "evidence": "artifacts/ccc204-pwa/harness/client-imports.json"
+    },
+    "dependencyLinks": "artifacts/ccc204-pwa/harness/runtime-setup.json",
+    "reusedPinnedFixtures": [
+      "apps/api/test/support/install-manifest.ts (createTestSigner, signedManifest)",
+      "apps/api/test/support/d1.ts (createD1TestContext, testActors: seeded org_demo directory)",
+      "adapters/identity-supabase/src/index.ts + verifier.ts (createSupabaseIdentity, unchanged)",
+      "packages/http-api/src/request-handler.ts (handleRequest, unchanged)",
+      "packages/http-api/src/capabilities.ts (verifiedInstallManifest)",
+      "artifacts/ccc204-pwa/build.mjs (prior configured Vite build probe, reused)"
+    ],
+    "publicKeyFingerprints": {
+      "note": "ready.json lived in the removed runtime; fingerprints are of public keys only",
+      "installSigning": "test-key-2026-09 ephemeral per run; fingerprint not retained after runtime removal",
+      "jwtVerification": "ephemeral ES256 public JWK per run; fingerprint not retained after runtime removal"
+    },
+    "build": {
+      "nodeEnv": "production",
+      "exitCode": 0,
+      "assets": {
+        "/assets/index-DmXLclX2.css": {
+          "sha256": "8e476e8d67f7105be1d18fc3dd0fc9204a0437d513ebcfb8421358fe9f1867f2",
+          "bytes": 105116
+        },
+        "/assets/index-zo7xrKjL.js": {
+          "sha256": "eecd0bf51404946dd361a7667ff1a26ef531d920341081fbc6584c00dc6925f4",
+          "bytes": 769292
+        },
+        "/ccc-bootstrap.json.example": {
+          "sha256": "e79ea8f688d72a35085b083829f85e4e899edbbe16a27897924fe5ab34edda7b",
+          "bytes": 34
+        },
+        "/icon.svg": {
+          "sha256": "4a8f9171f344758f6926925eaf5551f600bf9d27b3aeec2709951fd53424ea67",
+          "bytes": 468
+        },
+        "/index.html": {
+          "sha256": "1ca6eacd608c9aaa5c173d5c925685d00c00c65778cd95f724be7de6da3c04a0",
+          "bytes": 560
+        },
+        "/manifest.webmanifest": {
+          "sha256": "d623db37bb720152060922aabf7d3eaf501446a62b485701aa6e640013f8f4cf",
+          "bytes": 330
+        },
+        "/sw.js": {
+          "sha256": "5a77bc23f3e6765b4e4ec86ae71dcafb84f5f88b1e8b7e1d4adcb17e1c6122c8",
+          "bytes": 1869
+        }
+      },
+      "reactDevelopmentInternalsPresent": false,
+      "developmentBuildRejectedBeforeBrowser": "artifacts/ccc204-pwa/harness/development-build-rejected.json"
+    }
+  },
+  "implementationFiles": [
+    {
+      "path": "artifacts/ccc204-pwa/harness/setup.mjs",
+      "role": "identity gate, preservation hashes, git-archive snapshot of pinned commit, node_modules links"
+    },
+    {
+      "path": "artifacts/ccc204-pwa/harness/vitest.config.mjs",
+      "role": "single-file Vitest runner rooted in snapshot; records pinned import hashes; rejects imports outside snapshot"
+    },
+    {
+      "path": "artifacts/ccc204-pwa/harness/fixture.test.mjs",
+      "role": "synthetic issuer (seeded email + CSPRNG password, ES256 JWT, JWKS) + real Identity + real handleRequest + static client host + TLS/CONNECT proxy + AF_UNIX control socket; negative controls; production build"
+    },
+    {
+      "path": "artifacts/ccc204-pwa/harness/browser-check.mjs",
+      "role": "observer-only puppeteer scenario in default page world; no register() call, no state injection"
+    },
+    {
+      "path": "artifacts/ccc204-pwa/harness/browser-launch.json",
+      "role": "exact headless_shell launch under macOS seatbelt (loopback-only network, writes only inside runtime)"
+    }
+  ],
+  "realValidatorAndHandlerPath": [
+    {
+      "step": "Client installation trust",
+      "source": "apps/client/src/business/installation.ts",
+      "observed": "signed test manifest + bootstrap accepted (GET /ccc-install-manifest.json, /ccc-bootstrap.json 200) with build-time public keys only"
+    },
+    {
+      "step": "SDK password grant",
+      "source": "apps/client/src/business/auth.ts:171-186 -> @supabase/supabase-js",
+      "observed": "POST /auth/v1/token?grant_type=password: 400 for wrong password (2x UI, 1x direct), 200 only for seeded password (2x); GET /auth/v1/user verified by real verifier (2x)"
+    },
+    {
+      "step": "Backend credential",
+      "source": "adapters/identity-supabase/src/verifier.ts + index.ts",
+      "observed": "JWKS fetched once via redirect:error to canonical https://<ref>.supabase.co/auth/v1/.well-known/jwks.json; ES256 signature, iss/aud/role/is_anonymous/session_id/aal/email/iat/exp checks unchanged"
+    },
+    {
+      "step": "Directory and role",
+      "source": "packages/core/src/gateway.ts resolveDirectoryActorByAuthSubject/getMyIdentity/listMyRoles",
+      "observed": "auth_subject-linked active counselor -> roles [worker]; unlinked and inactive subjects 403; token app_metadata roles ignored (settings/accounts 403)"
+    },
+    {
+      "step": "Business session",
+      "source": "packages/http-api/src/request-handler.ts /capabilities,/me; apps/client/src/business/transport.ts",
+      "observed": "X-CCC-Installation-Id byte-equal, sttMode off/sttEngine null/llmMode off, /me name canary observed in browser response body"
+    },
+    {
+      "step": "Natural registration",
+      "source": "apps/client/src/app.tsx:188 -> business/service-worker.ts:19",
+      "observed": "GET /sw.js 200 served by fixture twice (activation + reload); registration.active.scriptURL = clientOrigin/sw.js, state activated, before any reload"
+    }
+  ],
+  "negativeControls": {
+    "evidence": "artifacts/ccc204-pwa/harness/negative-controls.json",
+    "total": 13,
+    "passed": 13,
+    "rows": [
+      {
+        "name": "valid-linked-worker",
+        "status": 200,
+        "expectedStatus": 200,
+        "passed": true,
+        "linkedWorker": true,
+        "responseCanaryPresent": true
+      },
+      {
+        "name": "missing-bearer",
+        "status": 401,
+        "expectedStatus": 401,
+        "passed": true
+      },
+      {
+        "name": "tampered-signature",
+        "status": 401,
+        "expectedStatus": 401,
+        "passed": true
+      },
+      {
+        "name": "unlinked-subject",
+        "status": 403,
+        "expectedStatus": 403,
+        "passed": true
+      },
+      {
+        "name": "inactive-subject",
+        "status": 403,
+        "expectedStatus": 403,
+        "passed": true
+      },
+      {
+        "name": "wrong-issuer",
+        "status": 401,
+        "expectedStatus": 401,
+        "passed": true
+      },
+      {
+        "name": "wrong-audience",
+        "status": 401,
+        "expectedStatus": 401,
+        "passed": true
+      },
+      {
+        "name": "expired-token",
+        "status": 401,
+        "expectedStatus": 401,
+        "passed": true
+      },
+      {
+        "name": "empty-session-id",
+        "status": 401,
+        "expectedStatus": 401,
+        "passed": true
+      },
+      {
+        "name": "token-role-escalation",
+        "status": 403,
+        "expectedStatus": 403,
+        "passed": true
+      },
+      {
+        "name": "untrusted-browser-origin",
+        "status": 403,
+        "expectedStatus": 403,
+        "passed": true
+      },
+      {
+        "name": "real-capabilities-installation-binding",
+        "status": 200,
+        "expectedStatus": 200,
+        "passed": true
+      },
+      {
+        "name": "wrong-seeded-password",
+        "status": 400,
+        "expectedStatus": 400,
+        "passed": true
+      }
+    ],
+    "browserWrongCredential": {
+      "stillLogin": true,
+      "shellAbsent": true,
+      "passwordCleared": true
+    }
+  },
+  "naturalRegistrationEvidence": {
+    "status": "PASS",
+    "evidence": "artifacts/ccc204-pwa/harness/natural-registration.json",
+    "freshBrowserBaseline": {
+      "registrations": 0,
+      "controlled": false,
+      "cacheCount": 0,
+      "businessShellVisible": false,
+      "secureContext": true
+    },
+    "worker": {
+      "registrationCount": 1,
+      "scope": "https://ccc.example.org/",
+      "activeScript": "https://ccc.example.org/sw.js",
+      "activeState": "activated",
+      "controllerBeforeReload": false,
+      "businessShellVisible": true
+    },
+    "swRequestServedByFixture": true,
+    "emittedWorkerSha256": "5a77bc23f3e6765b4e4ec86ae71dcafb84f5f88b1e8b7e1d4adcb17e1c6122c8",
+    "manualRegisterCalls": 0,
+    "injectedAppState": false,
+    "defaultPageWorld": true
+  },
+  "routingEvidence": {
+    "status": "PASS",
+    "evidence": "artifacts/ccc204-pwa/harness/routing.json",
+    "navigation": {
+      "path": "/schedule",
+      "businessShellVisible": true,
+      "activeScheduleLink": true,
+      "documentPreserved": true
+    },
+    "reload": {
+      "path": "/schedule",
+      "loginRequired": true,
+      "businessShellAbsent": true,
+      "controllerScript": "https://ccc.example.org/sw.js",
+      "controllerState": "activated",
+      "newDocument": true
+    },
+    "screenshot": "artifacts/ccc204-pwa/harness/business-route.png",
+    "note": "/settings -> /schedule via app link kept the document (loaderId equal); reload created a new document, required login again (memory-only session), controller remained the naturally registered worker; second login re-entered the shell."
+  },
+  "cacheEvidence": {
+    "status": "PASS",
+    "evidence": "artifacts/ccc204-pwa/harness/cache.json",
+    "cacheName": "ccc-shell-6b6168ec",
+    "entries": [
+      "/assets/index-DmXLclX2.css",
+      "/assets/index-zo7xrKjL.js",
+      "/icon.svg",
+      "/index.html",
+      "/manifest.webmanifest"
+    ],
+    "onlyWorkerAllowlistedAssets": true,
+    "allBodiesMatchEmittedHashes": true,
+    "credentialOrTokenFoundInCacheOrStorage": false,
+    "dynamicApiCanaryFoundInCache": false,
+    "actualMeResponseContainedCanary": true,
+    "webStorageIndexedDbCookiesEmpty": true,
+    "priorPolicyEvidenceReused": "artifacts/ccc204-pwa/worker-online.json, worker-offline.json (unchanged)"
+  },
+  "commandsAndExitCodes": [
+    {
+      "command": "node --check fixture.test.mjs && node --check vitest.config.mjs",
+      "exitCode": 0
+    },
+    {
+      "command": "hub start ccc204-harness-fixture (Vitest single fixture)",
+      "exitCode": 1,
+      "stage": "module loading",
+      "cause": "require.resolve(vitest) selected the CommonJS rejection entry before any fixture initialized"
+    },
+    {
+      "command": "hub restart ccc204-harness-fixture",
+      "exitCode": 1,
+      "stage": "module loading",
+      "cause": "snapshot selection omitted apps/api/package.json, so fixture support/d1.ts lacked the existing apps/api node_modules workspace links"
+    },
+    {
+      "command": "hub restart ccc204-harness-fixture",
+      "stage": "pre-browser build validation",
+      "fixtureNegativeControls": 13,
+      "fixtureNegativeControlsPassed": 13,
+      "buildExitCode": 0,
+      "buildRejected": true,
+      "reason": "Vitest NODE_ENV=test affected nested Vite build"
+    },
+    {
+      "command": "browser.open / incognito scenario",
+      "status": "failed",
+      "stage": "fresh browser transport",
+      "code": "net::ERR_PROXY_CONNECTION_FAILED",
+      "credentialsEntered": false
+    },
+    {
+      "command": "hub start ccc204-harness-browser (seatbelt policy)",
+      "exitCode": 65,
+      "stage": "policy compilation",
+      "cause": "macOS policy accepts localhost rather than literal 127.0.0.1"
+    },
+    {
+      "command": "hub start ccc204-harness-browser (nested sandbox)",
+      "exitCode": 133,
+      "stage": "browser startup",
+      "cause": "nested Chromium GPU sandbox initialization denied; no browser credentials entered"
+    },
+    {
+      "command": "sandboxed browser natural-registration scenario",
+      "status": "failed",
+      "stage": "business bootstrap",
+      "cause": "fixture CSP used exact API base path rather than its descendant directory",
+      "seededPasswordSdkFlowStatus": 200,
+      "userVerifiedStatus": 200,
+      "cspIndependentProbeConfirmed": true
+    },
+    {
+      "command": "sandboxed browser natural-registration scenario (first complete pass)",
+      "status": "observer assertion failed after all browser stages",
+      "stage": "natural cache and credential boundary",
+      "cause": "observer expected committed /ccc-bootstrap.json.example placeholder; emitted worker never lists it. Browser evidence preserved under browser-first-pass/",
+      "naturalRegistration": "activated",
+      "cacheMatchedWorkerList": true
+    },
+    {
+      "command": "hub restart ccc204-harness-fixture (clean pass)",
+      "exitCode": 1,
+      "stage": "control socket bind",
+      "cause": "stale owned control.sock left by 30-minute Vitest timeout of prior long-lived fixture"
+    },
+    {
+      "command": "sandboxed browser natural-registration scenario (clean pass)",
+      "status": "PASS",
+      "consoleErrors": 1,
+      "consoleErrorAttribution": "wrong-password 400 resource line",
+      "pageErrors": 0
+    }
+  ],
+  "serverObservedCounts": {
+    "passwordAccepted": 2,
+    "passwordRejected": 3,
+    "userVerified": 2,
+    "refreshAccepted": 0,
+    "jwks": 1,
+    "actualApi": 18,
+    "deniedProxy": 0,
+    "externalConnections": 0,
+    "runtimeErrors": 0
+  },
+  "preservation": {
+    "sourceWorktreeFilesVerified": 1332,
+    "sourceMismatches": 0,
+    "sourceWorktreeStatusAfter": "clean",
+    "orchestratorWipFilesVerified": 89,
+    "orchestratorWipMismatches": 0,
+    "priorAuditEvidenceMismatches": 0,
+    "evidence": "artifacts/ccc204-pwa/harness/preservation-before.json",
+    "noProductOrOtherLaneSourceChanged": true,
+    "noDependenciesInstalled": true,
+    "noCommitsBranchesPushes": true
+  },
+  "cleanup": {
+    "ownedServices": [
+      {
+        "name": "ccc204-harness-fixture",
+        "finalExit": 0
+      },
+      {
+        "name": "ccc204-harness-browser",
+        "finalExit": 143,
+        "reason": "intentional stop after evidence"
+      },
+      {
+        "name": "ccc204-harness-chromium",
+        "finalExit": 143,
+        "reason": "transport attempt with installed Chrome stopped; no credentials entered"
+      }
+    ],
+    "browserContexts": {
+      "unregistered": [
+        true
+      ],
+      "removed": [
+        true
+      ],
+      "registrations": 0,
+      "cacheCount": 0,
+      "incognitoContextClosed": true,
+      "persistedCredentialsProfile": false
+    },
+    "fixtureCleanup": {
+      "servicesClosed": true,
+      "databaseDisposed": true,
+      "secretsMemoryOnly": true
+    },
+    "runtimeRemoved": true,
+    "privateKeysTokensPasswordsPersisted": false,
+    "secretScanOfOwnedArtifacts": "0 PEM/JWT hits",
+    "backgroundJobs": 0,
+    "unownedProcessesStopped": false
+  },
+  "remainingGapsWithOwners": [
+    {
+      "id": "installed-chrome-updater-spawn",
+      "severity": "low",
+      "observed": "Installed Google Chrome spawned GoogleUpdater despite --disable-component-update during the failed transport attempt; the updater found no local service and exited. Final evidence uses the existing Playwright headless_shell under a loopback-only seatbelt instead.",
+      "owner": "harness author (this executor); no product impact"
+    },
+    {
+      "id": "nested-chromium-sandbox",
+      "severity": "low",
+      "observed": "macOS rejected Chromium child-process sandbox inside sandbox-exec; child sandbox disabled while the process-wide seatbelt kept network loopback-only and writes runtime-only.",
+      "owner": "harness author; no product impact"
+    },
+    {
+      "id": "bootstrap-example-in-dist",
+      "severity": "info",
+      "observed": "apps/client/public/ccc-bootstrap.json.example is copied into dist. The emitted worker does not list it and it was not cached; static host served it as a public placeholder.",
+      "owner": "frontend lane (apps/client) if the placeholder should be excluded from builds"
+    }
+  ],
+  "unverified": [
+    "Hosted Supabase Auth, MFA/aal2, refresh rotation over time, revocation and logout round trips (fixture had refreshAccepted 0; only password grant and user lookup were exercised).",
+    "Roles other than a directory-linked worker; institution-admin/technical-admin/supervisor navigation.",
+    "Business features beyond /settings and /schedule reads (assignment-requests, schedules/month returned 200 with seeded empty data).",
+    "Service-worker update waiting behavior, offline-first launch from a fresh profile, standalone OS installation, non-Chromium browsers.",
+    "Deployed HTTPS/CSP/CORS of the real independent API runtime; the fixture served the S2 CSP with connect-src <apiBase>/ and the community-cloud runtime.ts CORS shape was not executed (handleRequest was called directly)."
+  ],
+  "evidenceHashes": {
+    "artifacts/ccc204-pwa/harness/browser-baseline.json": "1572501e8e2728d91019ed867e4d21190d72c5300e8f82af1ee5ffd543331474",
+    "artifacts/ccc204-pwa/harness/browser-check.mjs": "9525be5eb4a7e2b247d4a2d4f2c6b2c0f15c31236544e390787478271b60d6cb",
+    "artifacts/ccc204-pwa/harness/browser-cleanup.json": "554d46f069147ee99a62a623d9245b636241680a512970dd10e4f7a7cb5be07e",
+    "artifacts/ccc204-pwa/harness/browser-csp-attempt/browser-baseline.json": "1572501e8e2728d91019ed867e4d21190d72c5300e8f82af1ee5ffd543331474",
+    "artifacts/ccc204-pwa/harness/browser-csp-attempt/browser-cleanup.json": "e0147c8534a0e3464b32558755bb115c588b6d2f6e285f6bce1cbd63523589f8",
+    "artifacts/ccc204-pwa/harness/browser-csp-attempt/browser-network.json": "e40a46c8debe500eb7b10f62cbe8b3faef20b8f300d995b4c319daf240a62126",
+    "artifacts/ccc204-pwa/harness/browser-csp-attempt/browser-result.json": "4b833f140abb376ee184a3abc16095e736d54074d5b9d3f01571d219a129be85",
+    "artifacts/ccc204-pwa/harness/browser-csp-attempt/browser-wrong-credentials.json": "ce1749b0fc6674ec6d0eeab0d10c792251a9c00ef5112404cfea9d0ec8847afb",
+    "artifacts/ccc204-pwa/harness/browser-csp-attempt/diagnosis.json": "353605538bc618d981e503130cb127d4d5ff8f697d25c529024c6285f3991ba0",
+    "artifacts/ccc204-pwa/harness/browser-csp-attempt/server-observed.json": "81866e0f546a1a5ffbcb414da2ef2935429be2e62c5c7e0790209c9e20a22c36",
+    "artifacts/ccc204-pwa/harness/browser-first-pass/browser-baseline.json": "1572501e8e2728d91019ed867e4d21190d72c5300e8f82af1ee5ffd543331474",
+    "artifacts/ccc204-pwa/harness/browser-first-pass/browser-cleanup.json": "554d46f069147ee99a62a623d9245b636241680a512970dd10e4f7a7cb5be07e",
+    "artifacts/ccc204-pwa/harness/browser-first-pass/browser-network.json": "4cc320ed8ef1e559d56b79f9d4667a6a0b558db3b0a2274608b111933d6fca86",
+    "artifacts/ccc204-pwa/harness/browser-first-pass/browser-result.json": "421d7fc780b9c1008410dba2c8fb28c6c433008ecaf1f2d184915265ebd0f41e",
+    "artifacts/ccc204-pwa/harness/browser-first-pass/browser-wrong-credentials.json": "ce1749b0fc6674ec6d0eeab0d10c792251a9c00ef5112404cfea9d0ec8847afb",
+    "artifacts/ccc204-pwa/harness/browser-first-pass/business-route.png": "9a50507dee09dc3b5b045b59d08688ba47eb2faffca6aca1e5272edc35a2972e",
+    "artifacts/ccc204-pwa/harness/browser-first-pass/cache.json": "6e46ef9fd2a52ad6017810d43689281fc8b17f150937b19866c7c6bb637c599e",
+    "artifacts/ccc204-pwa/harness/browser-first-pass/diagnosis.json": "5e0ac17f3f01c066dfcc83bebd3d6ba86f90628152add42d2438ebe042e1b2a6",
+    "artifacts/ccc204-pwa/harness/browser-first-pass/natural-registration.json": "fd9b5c064d193351a48b6d66c8c6e9a54626171c347b6122b308168dc335d29f",
+    "artifacts/ccc204-pwa/harness/browser-first-pass/routing.json": "175f0fefd86b19dfaa7db960ea4542abfef1824340bbe2bc51657031e11e88ae",
+    "artifacts/ccc204-pwa/harness/browser-first-pass/server-observed.json": "f9c653cc688317b628e197cc0c6f79ccb773286b7a4f6a76a0ec6f94c03903a6",
+    "artifacts/ccc204-pwa/harness/browser-launch.json": "151f74fdb16c8ff8c13ff77afea36be0a9caecddb0ea27e689f0f7dcd32c58c8",
+    "artifacts/ccc204-pwa/harness/browser-network.json": "c6bcc432411e8ca968491f9b51e75dd9c2fbfb0a0e4bcb5b4552de2752d2079a",
+    "artifacts/ccc204-pwa/harness/browser-result.json": "ac414576b30dcda6b5bdd6b838f7d48f37375426e766aba47229525d531cb9a2",
+    "artifacts/ccc204-pwa/harness/browser-transport-attempt/browser-cleanup.json": "70eb2e37e405b506e574b94526f4fd587719baeccf5b66c0992b7b091aae46f8",
+    "artifacts/ccc204-pwa/harness/browser-transport-attempt/browser-network.json": "828d67c89886078ce43b6e2b4de839356a8ba59bf301759589a01da4a342dd20",
+    "artifacts/ccc204-pwa/harness/browser-transport-attempt/browser-result.json": "e21ffad23c458398b4cbb555d66f55af951057af2e258428fee65fe3dce4b4c6",
+    "artifacts/ccc204-pwa/harness/browser-transport-attempt/diagnosis.json": "63146313979bf8fcbaeeaf048d5c4a00b1f5ec5cf8b4eee7c985bd62f520953f",
+    "artifacts/ccc204-pwa/harness/browser-transport-attempt/server-observed.json": "3f378fcd53d60eaf5df116916152dfe091afc5be19a7ea38e09a0befdcd0f549",
+    "artifacts/ccc204-pwa/harness/browser-wrong-credentials.json": "ce1749b0fc6674ec6d0eeab0d10c792251a9c00ef5112404cfea9d0ec8847afb",
+    "artifacts/ccc204-pwa/harness/build-command.json": "77d660e9e185884669b11ecf7fb522d5a456dd6cca0f815bc90e9645aafe0510",
+    "artifacts/ccc204-pwa/harness/build.json": "3a5afa898f1e52db0bb7b02be93cb3f4f0318fb5594d9cd21401aeaf35a62c11",
+    "artifacts/ccc204-pwa/harness/cache.json": "90b98442fe1095f2b6611c10f7bbdde63a77be9e5bac94952d5aa93755b94caf",
+    "artifacts/ccc204-pwa/harness/client-imports.json": "122b6440b313a94a5ee82a5b1f284fb5c342e4ab9b8d630df3c39e8436634571",
+    "artifacts/ccc204-pwa/harness/commands.json": "0c8f5a9b83c8a14ec20ae4388db8fe3b68023ad47b7b120b04a625f26ac9e417",
+    "artifacts/ccc204-pwa/harness/console-error-attribution.json": "5c86f98af2d3f768aca3b1c7578c6de01fb7af2ed6558f8a5592b9f6af22359d",
+    "artifacts/ccc204-pwa/harness/development-build-rejected.json": "58d18cf5ff6bbfbd41e81913efc16e36859f545ecb26cab8fcd43ab167a1e3d6",
+    "artifacts/ccc204-pwa/harness/fixture-cleanup.json": "8c58d7a8fdf571b956b4a70ccbcd1775939d2ef9859658bbaafaa633a60e797e",
+    "artifacts/ccc204-pwa/harness/fixture-imports.json": "f27f7218e4bdc59a8f6ed797deeb6f841c0150d55d1e1f701821846e54aa010e",
+    "artifacts/ccc204-pwa/harness/fixture.test.mjs": "489ea4a9b7c4a28051931f1fca3fe4404ed3328b038b4e58a7fce28a0c16b5ee",
+    "artifacts/ccc204-pwa/harness/identity.json": "f783a9bf46ee5b757d912bf99015f2a910fc70d97aca80ca5ff977e3e7b3f415",
+    "artifacts/ccc204-pwa/harness/import-closure.json": "be4956fbb7a8f3877aada2b00fd32c7f16bdd4661eb101bbc1381b81a3f48afe",
+    "artifacts/ccc204-pwa/harness/natural-registration.json": "f78f0160b25e8400e95ff95cd19f93bb2fef22a1fbb5e49b4b2656464b94f907",
+    "artifacts/ccc204-pwa/harness/negative-controls.json": "b1f025c42a3840ae4f88b2e5d319add7acaf0069430b7703a6f15c275b05d970",
+    "artifacts/ccc204-pwa/harness/preservation-before.json": "46fa88ccc1995f4c1bb8e386d9580447c755f67553dc54fd6e20c487d3e7a01c",
+    "artifacts/ccc204-pwa/harness/ready.json": "82240ab7b6da4ab6bb3da52efd5e96bdb537ef3250f03a1cf5d2e990a9e94539",
+    "artifacts/ccc204-pwa/harness/resolved-imports.json": "339656879798f17decc534c3c4877ca08598eeca19b0dc4850949bef8e46e9e6",
+    "artifacts/ccc204-pwa/harness/routing.json": "175f0fefd86b19dfaa7db960ea4542abfef1824340bbe2bc51657031e11e88ae",
+    "artifacts/ccc204-pwa/harness/runtime-setup.json": "c656ea0e89bc22b8c45430c433a36c9a12ec6bac33c531535ec872f36d80a65b",
+    "artifacts/ccc204-pwa/harness/server-evidence.json": "de250d2d93b5b7c11a4353a705caf502101cdbd8fbab35ca2e5589576da3c0c7",
+    "artifacts/ccc204-pwa/harness/server-observed.json": "2d0db9e8eb73a5b70dd9f1ae5de5daa677e6954c64979e4a30db6b82806d5224",
+    "artifacts/ccc204-pwa/harness/setup.mjs": "083b5efc802c3d767ef5e707aa909dd20945e4ade862fca9ea3736afced13836",
+    "artifacts/ccc204-pwa/harness/source-pin.json": "b970f6a626d63655b55d76e92a49f9d22066fcad9366ee42b095b9cd1d50d848",
+    "artifacts/ccc204-pwa/harness/understood-as.json": "5e494f5baa8cf7b4a38c60a2ee354740e34e03a6d36c30e37e98bc5dc9393ccf",
+    "artifacts/ccc204-pwa/harness/vitest.config.mjs": "2dfbe470eb952f17c8c9ed97a70b0b915af4a2737df163b48f1127b88bb8f48a",
+    "artifacts/ccc204-pwa/harness/business-route.png": "9a50507dee09dc3b5b045b59d08688ba47eb2faffca6aca1e5272edc35a2972e"
+  }
+}

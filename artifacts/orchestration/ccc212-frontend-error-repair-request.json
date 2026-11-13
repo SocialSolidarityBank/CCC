@@ -1,0 +1,57 @@
+{
+  "assignmentId": "ccc212-frontend-error-repair-20260914",
+  "ticket": "CCC-212",
+  "owner": "FRONTEND",
+  "goal": "Repair the six lost browser error meanings without changing authentication, signup, invite, installation-trust, provider, or backend contracts.",
+  "worktree": {
+    "decision": "reuse",
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+    "branch": "client/relayer-domain-beta",
+    "head": "f7194dc88064455f3eb6be02abb5aae836981612",
+    "originMain": "ad218e8eafa646a524674fe4ef8cf9c20c0b68bb",
+    "divergence": {"behind": 0, "ahead": 10},
+    "state": "clean",
+    "rule": "Preserve the current branch tip. origin/main is its ancestor, so do not reset, rebase, switch, stash, clean, or replace the newer ai-review.ts and records.tsx blobs with older origin/main content."
+  },
+  "contractSource": "../beta-0.9-orchestrator/artifacts/orchestration/ccc212-repair-contracts-result.json lines 60-205",
+  "allowedWrites": [
+    "apps/client/src/business/errors.ts",
+    "apps/client/src/business/errors.test.ts",
+    "apps/client/src/business/ai-review.ts only if the scoped missing-draft 404 conversion must change",
+    "apps/client/src/screens/records.tsx",
+    "the smallest existing directly related test file if records.tsx behavior lacks coverage"
+  ],
+  "readOnly": [
+    "apps/client/src/business/invites.ts",
+    "apps/client/src/screens/invites.tsx",
+    "apps/client/src/app.tsx",
+    "packages/core/**",
+    "packages/http-api/**",
+    "packages/ai-runtime/**"
+  ],
+  "excluded": [
+    "apps/client/src/business/installation.ts",
+    "apps/client/src/vite-env.d.ts",
+    "apps/client/tools/build-release.mjs",
+    "apps/client/release.config.example.json",
+    "apps/client/src/stt-trial/**",
+    "package.json",
+    "apps/client/package.json",
+    "pnpm-lock.yaml",
+    "all onboarding callback, signup, invitation, deployment, provider, credential, and Electron work"
+  ],
+  "requiredBehavior": [
+    "Allowlist only not_found, consent_not_effective, text_ai_pilot_disabled, ai_provider_not_configured, ai_prohibited_output, and ai_provider_unavailable in addition to current browser codes.",
+    "Keep 401 signout, ordinary 403 forbidden, MFA handling, invalid_request, draft_changed, unavailable, public_signup_disabled, and all newer valid codes unchanged.",
+    "Keep AI draft 404 to null and participant-link 404 to public_signup_disabled scoped to those APIs; generic business 404 becomes not_found.",
+    "RecordReviewScreen uses conflict recovery only for conflict and draft_changed. The six repaired meanings receive safe, actionable recovery and keep manual records usable. No provider detail, retry, auto-approval, fallback, token, PII, or raw response text.",
+    "Do not force the browser dictionary to exactly 21 codes. Do not resurrect validation_error, access_denied, authentication_required, pilot_text_ai_consent_required, or not_eligible_or_already_purged as duplicate display codes."
+  ],
+  "verification": [
+    "Use LSP references before changing exported symbols when available.",
+    "Run only the directly affected error and record-review tests plus the smallest existing browser smoke covering the repaired recovery rendering; do not run project-wide suites, linters, or formatters.",
+    "Commit only the allowed explicit paths locally. Do not push, merge, deploy, or contact external services."
+  ],
+  "completionMarker": "FRONTEND_RESULT CCC-212-E2-3-ERROR",
+  "report": "At completion print the marker, commit SHA, changed paths, exact verification counts, and any blocker."
+}

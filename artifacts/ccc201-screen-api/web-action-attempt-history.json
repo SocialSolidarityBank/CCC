@@ -1,0 +1,284 @@
+{
+  "reason": "URL-encoded native action attempt did not establish action execution; goal editor requires hydration. Superseded by isolated real browser-actions.json.",
+  "attempts": [
+    {
+      "boundary": "server-action",
+      "name": "updateOverallGoalAction",
+      "result": "blocked_no_rendered_form"
+    },
+    {
+      "boundary": "server-action",
+      "name": "toggleThemeAction",
+      "status": 200,
+      "location": null,
+      "themeCookieWritten": false,
+      "previewCookieExpired": false,
+      "apiCalls": [
+        {
+          "label": "next-loopback-real-worker",
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "error": null,
+          "cookieIssued": false
+        },
+        {
+          "label": "next-loopback-real-worker",
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "error": null,
+          "cookieIssued": false
+        },
+        {
+          "label": "next-loopback-real-worker",
+          "method": "GET",
+          "path": "/users",
+          "status": 200,
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "shape": {
+            "array": [
+              {
+                "active": "boolean",
+                "email": "string",
+                "id": "string",
+                "name": "null",
+                "orgId": "string",
+                "role": "string"
+              }
+            ]
+          },
+          "error": null,
+          "cookieIssued": false
+        },
+        {
+          "label": "next-loopback-real-worker",
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "null",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "error": null,
+          "cookieIssued": false
+        },
+        {
+          "label": "next-loopback-real-worker",
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "shape": {
+            "count": "number"
+          },
+          "error": null,
+          "cookieIssued": false
+        }
+      ]
+    },
+    {
+      "boundary": "server-action",
+      "name": "logoutAction",
+      "status": 200,
+      "location": null,
+      "themeCookieWritten": false,
+      "previewCookieExpired": false,
+      "apiCalls": [
+        {
+          "label": "next-loopback-real-worker",
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "error": null,
+          "cookieIssued": false
+        },
+        {
+          "label": "next-loopback-real-worker",
+          "method": "GET",
+          "path": "/organization/profile",
+          "status": 200,
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "shape": {
+            "orgId": "string",
+            "orgName": "null",
+            "programDisplayName": "null"
+          },
+          "error": null,
+          "cookieIssued": false
+        },
+        {
+          "label": "next-loopback-real-worker",
+          "method": "GET",
+          "path": "/users",
+          "status": 200,
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "shape": {
+            "array": [
+              {
+                "active": "boolean",
+                "email": "string",
+                "id": "string",
+                "name": "null",
+                "orgId": "string",
+                "role": "string"
+              }
+            ]
+          },
+          "error": null,
+          "cookieIssued": false
+        },
+        {
+          "label": "next-loopback-real-worker",
+          "method": "GET",
+          "path": "/me",
+          "status": 200,
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "shape": {
+            "active": "boolean",
+            "email": "string",
+            "id": "string",
+            "institution": {
+              "consentCopy": {
+                "domains": {
+                  "array": [
+                    {
+                      "disclosureAvailable": "boolean",
+                      "domain": "string"
+                    }
+                  ]
+                },
+                "status": "string",
+                "version": "string"
+              },
+              "creatorLinkState": "string",
+              "firstProgram": "null",
+              "firstProgramAdmissionState": "string",
+              "initialSetupState": "string",
+              "installationState": "string",
+              "orgId": "string",
+              "orgName": "null",
+              "retentionPolicyStatus": "string",
+              "settingsState": "string"
+            },
+            "lastProgramType": "null",
+            "name": "null",
+            "orgId": "string",
+            "role": "string",
+            "roles": {
+              "array": [
+                "string"
+              ]
+            }
+          },
+          "error": null,
+          "cookieIssued": false
+        },
+        {
+          "label": "next-loopback-real-worker",
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "status": 200,
+          "requestCredentialPresence": {
+            "authorization": false,
+            "cookie": true,
+            "access": false
+          },
+          "shape": {
+            "count": "number"
+          },
+          "error": null,
+          "cookieIssued": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+[
+  {
+    "id": "E2-3-error-code-cutover-incomplete",
+    "status": "FAILED",
+    "path": "apps/client/src/business/errors.ts",
+    "contract": "CCC_OPEN_PILOT_PLAN.md E2-3 and ADR-0041 require moving the approved 21 ApiErrorCode values to the browser client.",
+    "reproduction": "Actual httpError mapped all 21 inputs, but only 8 exact names survived. Thirteen approved names are absent and normalize into unauthenticated, forbidden, invalid_request, unavailable, conflict, or draft_changed. The browser dictionary also has 28 names not in the approved 21 and 36 total entries.",
+    "owner": "FRONTEND E2-3",
+    "minimalRepairPacket": "Reconcile the 21-code cutover with current backend error names and screen recovery actions. Preserve distinct user actions where the legacy code was specific; update targeted transport and consumer tests. Do not remove newer installation/auth codes merely to force a count of 21."
+  },
+  {
+    "id": "E2-3-installation-state-binding-missing",
+    "status": "FAILED",
+    "path": "apps/client/src/business/installation.ts",
+    "contract": "S2 section 2.7 requires key revocation, sequence replay, and expected installationId checks before accepting a signed installation.",
+    "reproduction": "The canonical verifier rejected revokedKeyIds, minSequence, and expectedInstallationId vectors. loadInstallation exposes only public keys and now, and accepted a validly signed sequence 0 manifest carrying a different installationId.",
+    "owner": "FRONTEND E2-3 with installer-state handoff from E7/E8",
+    "minimalRepairPacket": "Provide trusted persisted revocation, sequence floor, and installation identity state to loadInstallation and forward all three options to verifySignedInstallManifest before bootstrap or API use."
+  },
+  {
+    "id": "E6-2-community-cloud-cors-drift",
+    "status": "FAILED",
+    "path": "apps/community-cloud/src/runtime.ts",
+    "contract": "S2 section 2.9 exact CORS response.",
+    "reproduction": "Actual preflight returned methods GET, POST, PUT, PATCH, DELETE without OPTIONS; request headers authorization, content-type, idempotency-key, x-request-id, x-region without If-Match; exposed only X-CCC-Installation-Id; and omitted Access-Control-Max-Age. Exact-origin echo, Vary: Origin, no credentials header, and null/untrusted rejection passed.",
+    "owner": "BACKEND E6-2",
+    "minimalRepairPacket": "Reconcile runtime CORS constants with the approved S2 exact method, request-header, exposed-header, and max-age contract, then run the existing community-cloud runtime tests against exact values."
+  }
+]

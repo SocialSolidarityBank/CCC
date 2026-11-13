@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-09-13T21:58:35Z",
+  "operation": "n03-hosted-auth-readonly-preflight",
+  "authorization": "read-only preflight only",
+  "providerWrites": 0,
+  "emailsSent": 0,
+  "targetResolved": true,
+  "targetCandidateCount": 1,
+  "visibleProjectCount": 3,
+  "targetRefSha256": "b2b2413ce2722a6489cbbf86a97454755c366512125a91caed2285de2134c12e",
+  "authConfigRead": true,
+  "openSignupDisabled": false,
+  "otpLifetimeValid": true,
+  "otpLifetimeSeconds": 3600,
+  "inviteTemplateByteEqual": false,
+  "ready": false,
+  "code": "FIRST_ADMIN_OPEN_SIGNUP_ENABLED",
+  "nextRequiredAuthorization": "Set disable_signup=true and replace the invite template with the approved byte-exact manual six-digit code HTML, then rerun read-only verification. Invitation sending remains separately unapproved."
+}

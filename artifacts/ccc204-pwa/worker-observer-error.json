@@ -1,0 +1,14 @@
+{
+  "step": "first manual registration observation",
+  "errorName": "NotSupportedError",
+  "message": "Failed to read the ready property from ServiceWorkerContainer: ready is only supported in pages",
+  "independentReadback": {
+    "targetType": "page",
+    "globalType": "Window",
+    "documentUrl": "http://127.0.0.1:46173/welcome",
+    "secureContext": true,
+    "registrationActive": "activated",
+    "controller": null
+  },
+  "interpretation": "Registration succeeded; readiness observation helper failed. Resume using observed registration.active, not fabricated application authentication or worker mutation."
+}

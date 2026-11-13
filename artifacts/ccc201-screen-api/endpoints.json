@@ -1,0 +1,767 @@
+{
+  "sourceCommit": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+  "source": "packages/http-api/src/request-handler.ts",
+  "evidenceKind": "source_dispatch_ledger_not_runtime",
+  "groups": [
+    {
+      "operations": [
+        "GET /health"
+      ],
+      "handlerLines": "2226",
+      "requestResponse": "{status,service}",
+      "actor": "무자격",
+      "owner": "E2-7"
+    },
+    {
+      "operations": [
+        "GET /invites/participant/:token"
+      ],
+      "handlerLines": "2262-2271",
+      "requestResponse": "getParticipantRequestLinkInfo (gateway21105-21153): issued {status,programId,programType,orgName,expiresAt} or used {status,counselorName:string|null,message}",
+      "actor": "P",
+      "owner": "E2-5c"
+    },
+    {
+      "operations": [
+        "GET /invites/participant/:token/consent/disclosures"
+      ],
+      "handlerLines": "2272-2282",
+      "requestResponse": "{disclosures:ConsentDisclosure[]}",
+      "actor": "P",
+      "owner": "E2-5c"
+    },
+    {
+      "operations": [
+        "POST /signup/participant"
+      ],
+      "handlerLines": "2283-2301",
+      "requestResponse": "token/name/phone?/email?/consentEvents → completeParticipantSignup의 201 결과",
+      "actor": "P",
+      "owner": "E2-5c"
+    },
+    {
+      "operations": [
+        "GET /staff-invites/token/:token"
+      ],
+      "handlerLines": "2302-2310",
+      "requestResponse": "getStaffInvitePublicInfo; 200/no-store",
+      "actor": "T",
+      "owner": "E2-5c"
+    },
+    {
+      "operations": [
+        "POST /staff-invites/token/:token/accept"
+      ],
+      "handlerLines": "2311-2332",
+      "requestResponse": "name/email → acceptStaffInvite의 201 결과; 검증된 Auth subject만 결합",
+      "actor": "T",
+      "owner": "E2-5c"
+    },
+    {
+      "operations": [
+        "POST /agents/pair",
+        "POST /agents/token"
+      ],
+      "handlerLines": "2336-2344",
+      "requestResponse": "pairingCode 또는 refreshToken → AgentCredentialGrant; 실패401",
+      "actor": "교환 자격",
+      "owner": "E6-4"
+    },
+    {
+      "operations": [
+        "POST /internal/scheduler/run"
+      ],
+      "handlerLines": "2354-2376",
+      "requestResponse": "빈 body 또는 {} → {ranAt,jobs}; Origin 거부",
+      "actor": "system/scheduler-secret/scheduler:run",
+      "owner": "S11 실행 소유자"
+    },
+    {
+      "operations": [
+        "POST /internal/storage/authorize"
+      ],
+      "handlerLines": "2377-2406",
+      "requestResponse": "StorageSignerRequest → StorageSignerDecision; Origin 거부",
+      "actor": "system/검증된 Bearer/Cloud manifest",
+      "owner": "S11 실행 소유자"
+    },
+    {
+      "operations": [
+        "POST /auth/logout"
+      ],
+      "handlerLines": "2407-2419",
+      "requestResponse": "{} → 204 빈 본문",
+      "actor": "human + 검증된 sessionId",
+      "owner": "E2-3"
+    },
+    {
+      "operations": [
+        "GET /capabilities"
+      ],
+      "handlerLines": "2420-2426",
+      "requestResponse": "CapabilityManifest + x-ccc-installation-id; manifest 없으면503",
+      "actor": "human; Agent403",
+      "owner": "E1-7/E2-3"
+    },
+    {
+      "operations": [
+        "GET /me"
+      ],
+      "handlerLines": "2427-2441",
+      "requestResponse": "MeResponse {id,orgId,email,role,active,name,lastProgramType,roles,institution}",
+      "actor": "현재 본인",
+      "owner": "E2-3"
+    },
+    {
+      "operations": [
+        "GET /settings/accounts"
+      ],
+      "handlerLines": "2442-2450",
+      "requestResponse": "DirectoryAccountPage; cursor",
+      "actor": "원래 resolvedActor를 보존한 역할 검사",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "PATCH /settings/accounts/:userId/roles"
+      ],
+      "handlerLines": "2456-2462",
+      "requestResponse": "roles/expectedRoles → updateDirectoryRoles",
+      "actor": "원래 resolvedActor를 보존한 역할 검사",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "POST /settings/accounts/:userId/deactivate"
+      ],
+      "handlerLines": "2463-2467",
+      "requestResponse": "reason → deactivateDirectoryAccount",
+      "actor": "원래 resolvedActor를 보존한 역할 검사",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "GET /program-options"
+      ],
+      "handlerLines": "2472-2475",
+      "requestResponse": "{programs:ProgramOption[]}",
+      "actor": "H",
+      "owner": "E2-4a"
+    },
+    {
+      "operations": [
+        "GET /programs",
+        "POST /programs",
+        "PATCH /programs/:id"
+      ],
+      "handlerLines": "2476-2504",
+      "requestResponse": "listPrograms 또는 {program}; 저장/처리 선택, confirmation, staff, financialSupportEnabled를 실제 parser가 검사",
+      "actor": "H, 쓰기 기관 관리자",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "GET /audit-log"
+      ],
+      "handlerLines": "2505-2508",
+      "requestResponse": "limit/cursor/actorId/from/to/supportCaseId → AuditLogPage {items,nextCursor}",
+      "actor": "기관 관리자",
+      "owner": "E2-5a; 월간 집계 CCC-301"
+    },
+    {
+      "operations": [
+        "POST /schedules"
+      ],
+      "handlerLines": "2509-2516",
+      "requestResponse": "parseScheduleCreate → scheduleResponse",
+      "actor": "H, 사례 쓰기",
+      "owner": "E2-4b"
+    },
+    {
+      "operations": [
+        "GET /settings/counseling-memory",
+        "PUT /settings/counseling-memory"
+      ],
+      "handlerLines": "2517-2530",
+      "requestResponse": "MemorySettingsView; PUT은 현 MemorySettingsInput",
+      "actor": "기관 관리자",
+      "owner": "E2-5a/CCC-291"
+    },
+    {
+      "operations": [
+        "GET /organization/profile",
+        "PATCH /organization/profile"
+      ],
+      "handlerLines": "2531-2545",
+      "requestResponse": "OrganizationProfile; PATCH orgName/expectedOrgName",
+      "actor": "H, PATCH 기관 관리자",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "POST /organization/onboarding"
+      ],
+      "handlerLines": "2546-2558",
+      "requestResponse": "orgName/programDisplayName/financialSupportEnabled → OrganizationOnboardingResponse",
+      "actor": "기관 관리자",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "PUT /me/last-program"
+      ],
+      "handlerLines": "2559-2567",
+      "requestResponse": "programType → {ok:true}",
+      "actor": "현재 본인",
+      "owner": "E2-4b"
+    },
+    {
+      "operations": [
+        "GET /schedules/today",
+        "GET /schedules/upcoming",
+        "GET /schedules/month"
+      ],
+      "handlerLines": "2568-2583",
+      "requestResponse": "날짜 query → AuthoritativeDayInterval + schedules:TodayScheduleCard[]",
+      "actor": "H, 조회 범위",
+      "owner": "E2-4b"
+    },
+    {
+      "operations": [
+        "GET /schedules/candidates"
+      ],
+      "handlerLines": "2584-2589",
+      "requestResponse": "{candidates:ScheduleCandidate[]}",
+      "actor": "H, 조회 범위",
+      "owner": "E2-4b"
+    },
+    {
+      "operations": [
+        "PATCH /schedules/:id/reschedule",
+        "POST /schedules/:id/cancel",
+        "POST /schedules/:id/no-show"
+      ],
+      "handlerLines": "2590-2615",
+      "requestResponse": "현 transition parser/expectedVersion → scheduleResponse",
+      "actor": "H, 사례 쓰기",
+      "owner": "E2-4b/E2-7"
+    },
+    {
+      "operations": [
+        "GET /schedules/:id/plan",
+        "PUT /schedules/:id/plan"
+      ],
+      "handlerLines": "2617-2631",
+      "requestResponse": "GET scheduleSessionPlanResponse; PUT {scheduleId,version,sessionGoals}",
+      "actor": "H, PUT 시각/버전/사례 쓰기",
+      "owner": "E2-4b"
+    },
+    {
+      "operations": [
+        "POST /invites/participant"
+      ],
+      "handlerLines": "2633-2643",
+      "requestResponse": "programId → InviteToken; switch 닫힘404",
+      "actor": "H, 발급 권한",
+      "owner": "E2-4a"
+    },
+    {
+      "operations": [
+        "GET /staff-invites",
+        "POST /staff-invites",
+        "POST /staff-invites/:id/revoke"
+      ],
+      "handlerLines": "2644-2665",
+      "requestResponse": "GET {invites}; POST email/roles -> {invite,token}; revoke {invite}; token only in creation response",
+      "actor": "초대 권한의 합",
+      "owner": "E2-5a/E2-5c"
+    },
+    {
+      "operations": [
+        "GET /programs/:id/consent/disclosures"
+      ],
+      "handlerLines": "2666-2672",
+      "requestResponse": "{disclosures}",
+      "actor": "H, 등록 고지 범위",
+      "owner": "E2-4a"
+    },
+    {
+      "operations": [
+        "POST /participants",
+        "POST /beneficiaries"
+      ],
+      "handlerLines": "2674-2686",
+      "requestResponse": "parseInitialParticipantCreation → SupportCaseCreationResult",
+      "actor": "H, 등록 권한/사업 확인/6영역 동의",
+      "owner": "E2-4a"
+    },
+    {
+      "operations": [
+        "GET /participants/search",
+        "GET /beneficiaries/search"
+      ],
+      "handlerLines": "2687-2698",
+      "requestResponse": "q → {results:ParticipantSearchResult[]}",
+      "actor": "H, 조회 범위",
+      "owner": "E2-7"
+    },
+    {
+      "operations": [
+        "GET /participants/new-signup-count"
+      ],
+      "handlerLines": "2699-2709",
+      "requestResponse": "{count}",
+      "actor": "H",
+      "owner": "E2-4a"
+    },
+    {
+      "operations": [
+        "GET /participants",
+        "GET /beneficiaries"
+      ],
+      "handlerLines": "2710-2719",
+      "requestResponse": "{results:assignedParticipantResponse[]}",
+      "actor": "H, 조회 범위",
+      "owner": "E2-4a"
+    },
+    {
+      "operations": [
+        "GET /consent/follow-ups"
+      ],
+      "handlerLines": "2721-2724",
+      "requestResponse": "{results:PrivacyConsentFollowUp[]}",
+      "actor": "H, 조회 범위",
+      "owner": "E2-7"
+    },
+    {
+      "operations": [
+        "GET /participants/:id/hub"
+      ],
+      "handlerLines": "2727-2738",
+      "requestResponse": "participantHubResponse: restricted에 따라 다른 필드 집합",
+      "actor": "H; D86 축소 허브와 사례 접근 구별",
+      "owner": "E2-5b"
+    },
+    {
+      "operations": [
+        "GET /participants/:id/support-cases",
+        "GET /participants/:id/programs"
+      ],
+      "handlerLines": "2739-2747",
+      "requestResponse": "participantProgramResponse[]; programs는 잔존 별칭",
+      "actor": "H",
+      "owner": "E2-5b/E2-7"
+    },
+    {
+      "operations": [
+        "POST /participants/:id/support-cases",
+        "POST /participants/:id/programs"
+      ],
+      "handlerLines": "2748-2760",
+      "requestResponse": "현 생성 parser → SupportCaseCreationResult",
+      "actor": "H, 사례 생성 권한",
+      "owner": "E2-4a/E2-7"
+    },
+    {
+      "operations": [
+        "GET /participants/:id/goal-tree"
+      ],
+      "handlerLines": "2762-2765",
+      "requestResponse": "{cases:participantGoalTreeResponse[]}",
+      "actor": "H, 사례 조회",
+      "owner": "E2-5b"
+    },
+    {
+      "operations": [
+        "GET /participants/:id/basic-info",
+        "PUT /participants/:id/basic-info"
+      ],
+      "handlerLines": "2769-2787",
+      "requestResponse": "ParticipantBasicInfo; PUT contextId/expectedVersion/허용 PII → ParticipantPiiVault",
+      "actor": "H, 별도 PII/쓰기 검사",
+      "owner": "E2-5b"
+    },
+    {
+      "operations": [
+        "GET /participants/:id/briefing",
+        "GET /participants/:id/programs/:case/briefing"
+      ],
+      "handlerLines": "2788-2804",
+      "requestResponse": "focusSupportCaseId query 또는 path → normalizeParticipantBriefing",
+      "actor": "H, 사례 조회",
+      "owner": "E2-5b/E2-7"
+    },
+    {
+      "operations": [
+        "GET /exports/cases"
+      ],
+      "handlerLines": "2806-2809",
+      "requestResponse": "cursor → listSettingsSupportCaseOptions assigned scope",
+      "actor": "H, 반출 가능 사례",
+      "owner": "E2-5a/CCC-298"
+    },
+    {
+      "operations": [
+        "GET /support-cases/:id/report"
+      ],
+      "handlerLines": "2812-2815",
+      "requestResponse": "SupportCaseReport; no-store",
+      "actor": "H, 사례 조회",
+      "owner": "E2-5b/CCC-289"
+    },
+    {
+      "operations": [
+        "POST /support-cases/:id/export",
+        "GET /support-cases/:id/export-history"
+      ],
+      "handlerLines": "2816-2823",
+      "requestResponse": "CaseExportResponse 또는 ExportHistoryPage",
+      "actor": "H, 반출 권한/감사",
+      "owner": "CCC-298/E2-5a"
+    },
+    {
+      "operations": [
+        "GET /support-cases/:id/memory/trial",
+        "POST /support-cases/:id/memory/trial"
+      ],
+      "handlerLines": "2824-2840",
+      "requestResponse": "시험 스위치 꺼짐404; POST confirmExternalAi → 실제 trial work",
+      "actor": "H, 내부 시험",
+      "owner": "CCC-291"
+    },
+    {
+      "operations": [
+        "GET /support-cases/:id/memory",
+        "POST /support-cases/:id/memory/corrections"
+      ],
+      "handlerLines": "2841-2857",
+      "requestResponse": "현 memory view; itemId/expectedRevision/body → 정정",
+      "actor": "H, 사례/기억 권한",
+      "owner": "CCC-291"
+    },
+    {
+      "operations": [
+        "POST /support-cases/:id/close",
+        "GET /support-cases/:id/closure"
+      ],
+      "handlerLines": "2858-2869",
+      "requestResponse": "reason → SupportCase; GET SupportCaseClosureInfo",
+      "actor": "H, POST 사례 쓰기",
+      "owner": "E2-5b"
+    },
+    {
+      "operations": [
+        "POST /support-cases/:id/assignment-requests",
+        "POST /support-cases/:id/assignment-requests/:assignmentId/review"
+      ],
+      "handlerLines": "2870-2890",
+      "requestResponse": "요청 및 decision → 현 배정 요청 결과",
+      "actor": "요청자/검토 관리자",
+      "owner": "E2-5a/E2-5b"
+    },
+    {
+      "operations": [
+        "POST /support-cases/:id/force-transfer"
+      ],
+      "handlerLines": "2891-2903",
+      "requestResponse": "toUserId/reason/participantNotified → {transferred:true}",
+      "actor": "기관 관리자",
+      "owner": "E2-7"
+    },
+    {
+      "operations": [
+        "GET /support-cases/:id/assignees",
+        "POST /support-cases/:id/assignees",
+        "POST /support-cases/:id/assignees/:assignmentId/accept"
+      ],
+      "handlerLines": "2904-2935",
+      "requestResponse": "{assignees}; SupportCaseAssignee; {accepted:true}",
+      "actor": "H, 각 배정 권한",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "GET /support-cases/:id/consent",
+        "GET /support-cases/:id/consent/events",
+        "GET /support-cases/:id/consent/disclosures",
+        "POST /support-cases/:id/consent-events"
+      ],
+      "handlerLines": "2936-2967",
+      "requestResponse": "{consent}; {events}; {disclosures}; AppendConsentEventInput → event",
+      "actor": "H, 사례/동의 권한",
+      "owner": "E2-4a/E2-5b"
+    },
+    {
+      "operations": [
+        "PUT /support-cases/:id/overall-goal"
+      ],
+      "handlerLines": "2968-2979",
+      "requestResponse": "overallGoal → {supportCaseId,overallGoal}",
+      "actor": "H, 담당 실무자 쓰기",
+      "owner": "E2-5b"
+    },
+    {
+      "operations": [
+        "PUT /support-cases/:id/discrepancies/:discrepancyId/resolution"
+      ],
+      "handlerLines": "2980-2994",
+      "requestResponse": "resolution parser → SessionDiscrepancyWire",
+      "actor": "H, 담당 실무자 쓰기",
+      "owner": "E2-5b"
+    },
+    {
+      "operations": [
+        "GET /support-cases/:id/records/context"
+      ],
+      "handlerLines": "2995-2998",
+      "requestResponse": "ManualRecordContext",
+      "actor": "H, 읽기와 canWrite 구별",
+      "owner": "CCC-290/E2-4c"
+    },
+    {
+      "operations": [
+        "GET /support-cases/:id/records"
+      ],
+      "handlerLines": "2999-3025",
+      "requestResponse": "official query → SupportCaseRecordsWire, manual 투영 포함",
+      "actor": "H, 사례 조회/승인 경계",
+      "owner": "E2-4c"
+    },
+    {
+      "operations": [
+        "POST /support-cases/:id/records"
+      ],
+      "handlerLines": "3026-3036",
+      "requestResponse": "현 manual schema2 parser → {record,replayed}",
+      "actor": "H, 담당 쓰기/동의/사업 검사",
+      "owner": "CCC-290/E2-4c"
+    },
+    {
+      "operations": [
+        "GET /support-cases/:id/records/intake"
+      ],
+      "handlerLines": "3038-3041",
+      "requestResponse": "intakeContextResponse",
+      "actor": "H, canWrite를 별도 계산",
+      "owner": "E2-5b/CCC-288"
+    },
+    {
+      "operations": [
+        "POST /support-cases/:id/records/intake",
+        "PUT /support-cases/:id/records/intake"
+      ],
+      "handlerLines": "3043-3061",
+      "requestResponse": "schema2/expectedRevision → {schemaVersion,revision,record,replayed}; PUT replayed=false",
+      "actor": "H, 담당 쓰기",
+      "owner": "E2-5b/CCC-288"
+    },
+    {
+      "operations": [
+        "GET /cases",
+        "POST /cases",
+        "GET /cases/:id"
+      ],
+      "handlerLines": "3063-3082",
+      "requestResponse": "현 gateway listCases/createCase/getCase; 구 CaseRecord 축소형과 동일하지 않음",
+      "actor": "H",
+      "owner": "E2-7"
+    },
+    {
+      "operations": [
+        "GET /cases/:id/briefing",
+        "GET /cases/:id/pilot-text-ai-consent"
+      ],
+      "handlerLines": "3083-3086",
+      "requestResponse": "Briefing 또는 PilotTextAiConsentStatus",
+      "actor": "H, 사례 조회",
+      "owner": "E2-7"
+    },
+    {
+      "operations": [
+        "GET /cases/:id/goals",
+        "POST /cases/:id/goals",
+        "POST /cases/:id/action-items"
+      ],
+      "handlerLines": "3087-3114",
+      "requestResponse": "Goal[]; Goal; OpenActionItemWire",
+      "actor": "H, 쓰기는 담당",
+      "owner": "E2-5b"
+    },
+    {
+      "operations": [
+        "GET /cases/:id/sessions",
+        "POST /cases/:id/sessions"
+      ],
+      "handlerLines": "3115-3138",
+      "requestResponse": "SessionWire[] 또는 SessionWire + replayed",
+      "actor": "H, 쓰기는 담당",
+      "owner": "E2-7"
+    },
+    {
+      "operations": [
+        "POST /goals/:id/close",
+        "GET /goals/:id/upcoming-links",
+        "PUT /goals/:id/title"
+      ],
+      "handlerLines": "3140-3162",
+      "requestResponse": "Goal; {upcomingCount}; Goal",
+      "actor": "H, 쓰기는 담당",
+      "owner": "E2-5b"
+    },
+    {
+      "operations": [
+        "GET /sessions/:id",
+        "POST /sessions/:id/approve"
+      ],
+      "handlerLines": "3163-3233",
+      "requestResponse": "SessionWire; 승인 경계는 실제 handler/gateway 검사",
+      "actor": "H, 사례/승인 권한",
+      "owner": "E2-4c/E2-7"
+    },
+    {
+      "operations": [
+        "GET /sessions/:id/ai",
+        "POST /sessions/:id/ai/generate",
+        "POST /sessions/:id/ai/drafts/:version/edit",
+        "POST /sessions/:id/ai/drafts/:version/review"
+      ],
+      "handlerLines": "3163-3233",
+      "requestResponse": "AiDraftGetWire 또는 AiDraftMutationWire; 근거/초안 version 검사",
+      "actor": "H, human 검토 권한",
+      "owner": "E2-4c/CCC-293"
+    },
+    {
+      "operations": [
+        "PUT /sessions/:id/audio",
+        "POST /sessions/:id/audio-upload-target",
+        "POST /sessions/:id/audio-upload-target/:audioObjectId/complete"
+      ],
+      "handlerLines": "3163-3233",
+      "requestResponse": "실제 audio upload/target/complete 계약; S8 참조",
+      "actor": "H, 현재 동의/Agent/입장 조건",
+      "owner": "E5-6/E2-4c"
+    },
+    {
+      "operations": [
+        "GET /ai/provider/status",
+        "POST /ai/provider/activate-runtime"
+      ],
+      "handlerLines": "3234-3311",
+      "requestResponse": "AiProviderStatus; activation 결과 {enabled,adapterId,adapterVersion,configHash,replayed}",
+      "actor": "기관 관리자",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "POST /pipeline/readiness",
+        "GET /pipeline/health"
+      ],
+      "handlerLines": "3313-3324",
+      "requestResponse": "recordSttReadiness 또는 PipelineHealth",
+      "actor": "service readiness/관리자 health",
+      "owner": "E5-1a/STT 준비 소유자"
+    },
+    {
+      "operations": [
+        "GET /audio-lifecycle/manual-notes",
+        "POST /audio-lifecycle/manual-notes/:id/ack"
+      ],
+      "handlerLines": "3325-3343",
+      "requestResponse": "실제 manual-notes view/ack",
+      "actor": "H, 사례 권한",
+      "owner": "E5-6"
+    },
+    {
+      "operations": [
+        "POST /pipeline/memory/claim",
+        "GET /pipeline/memory/:jobId/source",
+        "POST /pipeline/memory/:jobId/mask-dictionary",
+        "POST /pipeline/memory/:jobId/result",
+        "POST /pipeline/memory/:jobId/release"
+      ],
+      "handlerLines": "3344-3370",
+      "requestResponse": "S5 MemoryMaskJob/source/dictionary; result/release204",
+      "actor": "service, claim-bound",
+      "owner": "CCC-291/E5-1a"
+    },
+    {
+      "operations": [
+        "POST /pipeline/jobs/claim",
+        "POST /pipeline/jobs/:jobId/heartbeat",
+        "POST /pipeline/jobs/:jobId/release",
+        "POST /pipeline/jobs/:jobId/mask-dictionary",
+        "GET /pipeline/jobs/:jobId/source",
+        "GET /pipeline/jobs/:jobId/audio",
+        "POST /pipeline/jobs/:jobId/audio/verify",
+        "POST /pipeline/jobs/:jobId/egress/authorize",
+        "POST /pipeline/jobs/:jobId/egress/in-flight",
+        "POST /pipeline/jobs/:jobId/result"
+      ],
+      "handlerLines": "3372-3564",
+      "requestResponse": "S5 실제 job/attempt/claim 계약; result/release204, audio는 bytes/전송 경계",
+      "actor": "service, claim-bound",
+      "owner": "E5-1a; CCC-292 차단 유지"
+    },
+    {
+      "operations": [
+        "GET /settings/retention-policy",
+        "PUT /settings/retention-policy"
+      ],
+      "handlerLines": "3565-3578",
+      "requestResponse": "{orgId,piiPurgeGraceDays,version}; PUT expectedVersion",
+      "actor": "기관 관리자",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "GET /pii-retention/reviews",
+        "POST /pii-retention/reviews/:id"
+      ],
+      "handlerLines": "3579-3592",
+      "requestResponse": "{reviews}; 실제 보존/파기 결정 결과",
+      "actor": "기관 관리자/파기 이중 게이트",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "GET /assignment-requests"
+      ],
+      "handlerLines": "3594-3598",
+      "requestResponse": "{requests:AssignmentRequestWire[]}",
+      "actor": "H, 본인 요청 범위",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "GET /settings/assignments/cases",
+        "GET /settings/assignments/cases/:id"
+      ],
+      "handlerLines": "3599-3608",
+      "requestResponse": "사례 options 또는 {assignees}",
+      "actor": "기관 관리자",
+      "owner": "E2-5a"
+    },
+    {
+      "operations": [
+        "POST /agents/pairing-codes",
+        "POST /agents/:installationId/revoke"
+      ],
+      "handlerLines": "3609-3629",
+      "requestResponse": "AgentPairingCode 또는 {installationId,revokedAt}",
+      "actor": "기관 관리자",
+      "owner": "E6-4"
+    },
+    {
+      "operations": [
+        "GET /users",
+        "POST /users",
+        "POST /users/:id/deactivate",
+        "GET /users/:id/assignments"
+      ],
+      "handlerLines": "3630-3663",
+      "requestResponse": "DirectoryUser[]; DirectoryUser; DirectoryUser; CounselorAssignments",
+      "actor": "기관 관리자",
+      "owner": "E2-5a"
+    }
+  ]
+}

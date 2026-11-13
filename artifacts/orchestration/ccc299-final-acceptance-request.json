@@ -1,0 +1,69 @@
+{
+  "assignmentId": "ccc299-final-acceptance-20260914",
+  "ticket": "CCC-299",
+  "workerPaneId": "w1N:p1",
+  "goal": "Bind existing non-overlapping verification evidence to the final sealed CCC-299 candidate without rerunning passed work, and decide whether the producer contract is fully verified.",
+  "candidate": {
+    "commit": "ae8604435745ad4c042da70f175318402ecfbe37",
+    "tree": "3361160edc9b943b734dd3bb666042bca1dd998b",
+    "remoteObjectSource": "ssh://mini/Users/barq/DEVELOPER/PROJECTS/CCC",
+    "worktreeExpectedClean": true
+  },
+  "chain": [
+    {
+      "commit": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+      "parent": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+      "purpose": "frozen lifecycle producer and migrations"
+    },
+    {
+      "commit": "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db",
+      "parent": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+      "purpose": "participant P3 envelope caller, current seed registration caller and exact generated parity manifest"
+    },
+    {
+      "commit": "ae8604435745ad4c042da70f175318402ecfbe37",
+      "parent": "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db",
+      "purpose": "preview seed harness installation mode and off/off policy initialization"
+    }
+  ],
+  "artifacts": [
+    ["artifacts/orchestration/ccc299-core-freeze-result.json", "8f0e235965659b35c7d3b71331a6a70551f1908ea5e131c9b2c9a4f3e0034da2"],
+    ["artifacts/orchestration/ccc299-core-implementation-result.json", "50ac2406d0525cc4a0de9861e6315854c8c477137730308b21b332a8a8644858"],
+    ["artifacts/orchestration/ccc299-central-verification-result.json", "213b62414cebf41759c0772f7a9ed7c8c362118bcea515d52660a9d7c4dfb68c"],
+    ["artifacts/orchestration/ccc299-generated-parity.yaml", "0534c4b5e7d8e94d469ddc25aaf909ad968595aee67ab0f032e72bb9c039a1c0"],
+    ["artifacts/orchestration/ccc299-source-repair-result.json", "5095c3e5e5cf52e0a5c50430ddc7e32b8cc449e7e3934f7026b2863d1f62e4b5"],
+    ["artifacts/orchestration/ccc299-seed-harness-repair-result.json", "8d02851565c5ca199acbf0f77452dc397300448d9c0a596c54bfd27d2717569a"]
+  ],
+  "evidenceComposition": [
+    "Central on 4a: generated semantic parity 1/1; 60 unaffected targeted API tests plus 15 participant-P3 cases passed; intake routes 7/7 passed; API typecheck passed; encrypted SQLite/PostgreSQL lifecycle matrix matched; non-update migration/database parity 2/2 passed with byte-stable generated parity; DB and core import guards passed.",
+    "The only six targeted API failures on 4a were the stale participant-P3 envelope. On 4d, the full participant-P3 file passed 21/21, including all six former failures and all fifteen prior passes. ae does not change that file or its producer dependencies.",
+    "The only corrected lifecycle smoke source failure on 4a was runScenario's stale registration call. 4d cut that caller to current gateway program/consent/registration seams. ae initialized the existing preview harness. On ae, direct createCaptureHarness plus full, unreduced runScenario passed 1/1 with 100 participants, 550 sessions, 600 consent events, 5 registry entries, a ready financial-support program, off/off policy unchanged, no preview output and disposable cleanup.",
+    "4d copied the generated parity bytes exactly; ae does not change migrations, parity or lifecycle code. 4a central parity and two-database evidence therefore remains bound by identical blobs.",
+    "Initial smoke path and missing SEED_PROFILE failures were harness invocation errors, each corrected and separately recorded. Mini Colima failure was an environment blocker replaced by central MacBook Docker proof; no claim relies on the broken mini runtime."
+  ],
+  "requiredReview": [
+    "Verify every artifact hash and completion scope.",
+    "Fetch the final commit object read-only with --no-write-fetch-head. Verify chain parents, final tree and exact per-commit changed paths.",
+    "Compare final candidate blobs to the exact evidence-bearing commits. Lifecycle/migration/core/test blobs from 4a must remain unchanged except the declared 4d files; participant P3, scenario and parity must equal 4d; harness and preload must equal ae result hashes.",
+    "Verify final mini worktree is clean and no product file changed after ae. Do not switch/reset/modify the worktree.",
+    "Confirm every original central failure has a passing replacement on the exact final blob and every unaffected passing result still has identical dependencies. Do not count harness-invocation failures as source failures.",
+    "If coverage is complete, mark candidateVerified true and readyForConsumerHandoff true. Otherwise identify the exact uncovered behavior or changed blob."
+  ],
+  "constraints": [
+    "Read-only except the final result JSON in controller artifacts.",
+    "Do not rerun tests, builds, seed scenario, Docker, migrations or guards; the task is evidence binding, not duplicate validation.",
+    "No product/worktree/branch/ticket/remote mutation, deployment, provider, credential or external service use."
+  ],
+  "output": {
+    "path": "artifacts/orchestration/ccc299-final-acceptance-result.json",
+    "mustContain": [
+      "artifact hash results and commit/blob identity matrix",
+      "full acceptance-to-evidence coverage map",
+      "resolved original failures and any remaining gaps",
+      "candidateVerified and readyForConsumerHandoff booleans",
+      "ticketDone recommendation separate from consumer completion",
+      "ownedJobs 0 and allResultsCollected true"
+    ]
+  },
+  "completionMarker": "EXECUTOR_RESULT CCC299-FINAL-ACCEPTANCE-20260914"
+}

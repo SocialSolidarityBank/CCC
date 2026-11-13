@@ -1,0 +1,109 @@
+{
+  "assignmentId": "CCC292-F1-PARITY-20260914",
+  "ticket": "CCC-292",
+  "scope": "F1",
+  "status": "PARITY_VERIFIED_AND_MANIFEST_COMMITTED",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "reused": true,
+    "branch": "integrate/ccc291-parity",
+    "cleanAtEnd": true,
+    "tip": "fc5c9ed4a76e023e222dde784fba816f64d952a3"
+  },
+  "baseTip": {
+    "commit": "6441f2949d67d073fab73df1e9c49ac61aedc058",
+    "content": "core 6f1b7d0b plus parity 53150b91 plus the client and DESIGN merges",
+    "preflightClean": true,
+    "preflightMatchedAssignment": true
+  },
+  "fetch": {
+    "command": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "9a09f9443a87f569c691f86c2c26046324076204",
+    "fetchHeadParent": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef",
+    "subject": "feat: 사례별 식별 대응표를 암호화해 저장",
+    "localBranchCreated": false
+  },
+  "coreMergeCommit": {
+    "commit": "16cbce2e795dfcdfc7d7068f721f3f04fa7ba612",
+    "strategy": "ort, ordinary merge because the core commit was not a descendant of the integration tip",
+    "mergedCommit": "9a09f9443a87f569c691f86c2c26046324076204",
+    "conflicts": 0,
+    "diffStat": "6 files changed, 359 insertions(+), 1 deletion(-)",
+    "paths": [
+      "apps/api/test/case-entity-mapping.contract.test.ts",
+      "apps/api/test/migration-parity.test.ts",
+      "apps/api/test/support/migration-parity.ts",
+      "migrations/postgres/0022_case_entity_mapping.sql",
+      "migrations/sqlite/0066_case_entity_mapping.sql",
+      "packages/core/src/gateway.ts"
+    ]
+  },
+  "conflicts": [],
+  "parityCommand": "env CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+  "parityCommandExecutions": 1,
+  "exitStatus": 0,
+  "parityTests": {"testFilesPassed": 1, "testsPassed": 1, "durationSeconds": 11.01},
+  "checkpointsPresent": {
+    "verified": true,
+    "caseEntityMapping": {
+      "id": "case-entity-mapping",
+      "manifestLine": 64101,
+      "sqliteSource": "0066_case_entity_mapping.sql",
+      "sqliteSourceManifestLine": 64105,
+      "postgresSource": "0022_case_entity_mapping.sql",
+      "postgresSourceManifestLine": 64114
+    },
+    "agentTextSourceFence": {"id": "agent-text-source-fence", "manifestLine": 60675, "stillPresent": true},
+    "intakeQuestionLifecycle": {"id": "intake-question-lifecycle", "manifestLine": 57259, "stillPresent": true},
+    "totalCheckpointIds": 22,
+    "previousTotal": 21
+  },
+  "manifestSha256": "a696d8561faf0f9db7b99646c1cbcb6fd466877d385ed3103139f0eb8fed0e94",
+  "manifestPreviousSha256": "b0ef89f20611d09357ef228a55abdc1dfa8300e4db19cea18b5f35bf479795d9",
+  "manifestRegenerated": true,
+  "parityCommit": {
+    "commit": "fc5c9ed4a76e023e222dde784fba816f64d952a3",
+    "subject": "chore: 사례 대응표 checkpoint 를 parity manifest 에 반영",
+    "files": ["migrations/parity.yaml"],
+    "diffStat": "1 file changed, 3426 insertions(+)",
+    "hooks": "normal configured hooks ran and passed: secret guard, token-audit 0, align-audit 0, hierarchy audit 0 new violations with 2 preexisting baseline entries, hierarchy audit test",
+    "hooksBypassed": false
+  },
+  "typecheck": {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "detail": "tsc --noEmit --project apps/api/tsconfig.json, no diagnostics", "executions": 1},
+  "targetedTests": [
+    {"command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/case-entity-mapping.contract.test.ts", "exitStatus": 0, "result": "PASS", "testFilesPassed": 1, "testsPassed": 5, "durationSeconds": 12.1, "executions": 1}
+  ],
+  "changedFiles": {
+    "byCoreMerge": [
+      "apps/api/test/case-entity-mapping.contract.test.ts",
+      "apps/api/test/migration-parity.test.ts",
+      "apps/api/test/support/migration-parity.ts",
+      "migrations/postgres/0022_case_entity_mapping.sql",
+      "migrations/sqlite/0066_case_entity_mapping.sql",
+      "packages/core/src/gateway.ts"
+    ],
+    "byThisSlot": ["migrations/parity.yaml"],
+    "productSourceModifiedByThisSlot": 0
+  },
+  "unmet": [],
+  "guardrails": {
+    "productSourceModified": false,
+    "migrationsModified": false,
+    "newTestsOrDocs": 0,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "conflictsResolved": 0,
+    "projectWideTestsLintOrBuildRuns": 0,
+    "rebaseSquashOrReset": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "otherWorktreesTouched": false,
+    "betaCoreParityLeftAt": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+    "frontendLeftAt": "0cefde1e339d2d4af09ad813aeb1bc1bd28eb103",
+    "designLeftAt": "3f47763534a4ed835461e51d083456dd9500864e",
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/ccc292-f1-parity-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT CCC292-F1-PARITY-20260914"
+}

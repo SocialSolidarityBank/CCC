@@ -1,0 +1,8 @@
+{
+  "file": "docs/consent/consent-form-print-v1.md",
+  "domainsMatched": 6,
+  "emDashCount": 0,
+  "gatewayEvidence": "요청된 위치 packages/core/src/gateway.ts:9129는 동의 판정이 아니라 CAS 변경 건수 검사입니다. 상담 녹음과 외부 STT 처리의 동시 요구는 packages/core/src/gateway.ts:8311-8314에서 Azure 전사에 필요한 두 영역을 구성하고, packages/core/src/gateway.ts:8519-8524에서 두 영역이 모두 포함됐는지 다시 확인합니다.",
+  "openItemsCarried": 16,
+  "blocked": []
+}

@@ -1,0 +1,126 @@
+{
+  "assignmentId": "INTEGRATION-DIVERGENCE-MAP-20260914",
+  "readOnly": true,
+  "mergeBase": "a1afc7a770daed0f2e3b994cdf145f3dbe181eae",
+  "branches": {
+    "integration": {"branch": "integrate/relayer-domain-beta", "head": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07", "worktree": ".worktrees/beta-core-parity", "commitsSinceBase": 9},
+    "core": {"branch": "core/relayer-domain-beta", "head": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef", "commitsSinceBase": 12, "fetchedVia": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta"},
+    "parityLane": {"branch": "integrate/ccc291-parity", "head": "53150b9151c3f2665e1eac188a11d47dc605faad", "worktree": ".worktrees/parity-291", "parent": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef", "content": "migrations/parity.yaml only"},
+    "client": {"branch": "client/relayer-domain-beta", "head": "0cefde1e339d2d4af09ad813aeb1bc1bd28eb103", "worktree": ".worktrees/frontend", "mergeBaseWithCore": "46e32f8a85bf9142d76063b86f65bc96ded72a7f", "aheadOfCoreTip": 15, "behindCoreTip": 4}
+  },
+  "commitsSinceMergeBase": {
+    "integration": [
+      {"commit": "d9b46c6c", "subject": "client: 릴레이어 용어 라벨과 등록 뒤 첫 상담 기록 진입 (W02·W04 1차)", "ticketAxis": "W02/W04 client", "alsoOnClientBranch": true},
+      {"commit": "91b7859b", "subject": "fix(client): bind intake permissions and canonical comparison DTOs", "ticketAxis": "client intake/DTO", "alsoOnClientBranch": true},
+      {"commit": "189560fe", "subject": "feat(client): package verified static releases in a nonroot Deno image", "ticketAxis": "client release packaging", "alsoOnClientBranch": true},
+      {"commit": "9b5b5c6e", "subject": "feat(client): consume versioned intake contract from core a1afc7a7", "ticketAxis": "client intake contract", "alsoOnClientBranch": true},
+      {"commit": "9dcba136", "subject": "W03: WireButton ariaExpanded/ariaControls 공개 prop 추가, 중복 파일 제거", "ticketAxis": "W03 DESIGN", "alsoOnClientBranch": true},
+      {"commit": "099bd7e2", "subject": "build: DESIGN의 공용 Wire 마크업 탐색 경로 반영", "ticketAxis": "DESIGN guard path", "alsoOnClientBranch": "same content via a different client commit; blob identical"},
+      {"commit": "f7194dc8", "subject": "fix(client): restore accessible intake area collapsing", "ticketAxis": "client accessibility", "alsoOnClientBranch": true},
+      {"commit": "8feb4c62", "subject": "feat: 수기 기록 v2 생명주기 연결", "ticket": "CCC-286", "evidence": "docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md:1638 integrationCommit 8feb4c62 and :1530-1563 CCC-286 verification", "coreEquivalent": "a6b2fc47"},
+      {"commit": "7c7b632d", "subject": "chore: 수기 기록 마이그레이션 동등성 고정", "ticket": "CCC-286", "evidence": "docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md:1562-1563 manifestCommit 7c7b632d and :3359-3362 CCC-286 completedAt", "content": "migrations/parity.yaml with 19 checkpoints"}
+    ],
+    "core": [
+      {"commit": "a6b2fc47", "subject": "feat: 수기 기록 v2 생명주기 연결", "ticket": "CCC-286", "evidence": "artifacts/orchestration/ccc299-core-freeze-request.json and ccc299-core-implementation-result.json cite a6b2fc47 as the contract base", "identicalToIntegrationCommit": "8feb4c62"},
+      {"commit": "6ff75d27", "subject": "fix: Community Cloud CORS 계약 정합성 반영", "ticket": "CCC-212", "evidence": "artifacts/orchestration/ccc212-backend-cors-repair-request.json and ccc299-core-implementation-result.json:14"},
+      {"commit": "aa0bdb19", "subject": "fix: 검증된 신원으로만 직원 초대 수락", "ticket": "N03 staff invite", "evidence": "artifacts/orchestration/n03-backend-invite-binding-request.json and ccc299-core-implementation-result.json:23"},
+      {"commit": "4a2070e6", "subject": "feat(core): 인테이크 질문 수명주기 계약 구현", "ticket": "CCC-299", "evidence": "artifacts/orchestration/ccc299-core-implementation-result.json:388 candidate 4a2070e6"},
+      {"commit": "4d0f7f59", "subject": "fix(seed): 현재 등록 계약과 검증된 parity 반영", "ticket": "CCC-299", "evidence": "artifacts/orchestration/ccc299-source-repair-result.json:167"},
+      {"commit": "ae860443", "subject": "fix(seed): preview 하니스에 설치 정책과 모드 초기화", "ticket": "CCC-299", "evidence": "artifacts/orchestration/ccc299-seed-harness-repair-result.json and ccc299-db-guard-repair-result.json:9"},
+      {"commit": "b429d93d", "subject": "fix(seed): 합성 registry 설치를 하니스 경계로 이동", "ticket": "CCC-299", "evidence": "artifacts/orchestration/ccc299-final-acceptance-result.json:211 accepted candidate"},
+      {"commit": "46e32f8a", "subject": "fix: 수기 기록을 리포트와 AI 재료에 연결", "ticket": "CCC-289", "evidence": "paths packages/contracts/src/report.ts, packages/core/src/gateway.ts, apps/api/test/support-case-report.contract.test.ts, apps/api/test/text-work-materials.test.ts match artifacts/orchestration/ccc289-core-contract-freeze-result.json ownedFiles"},
+      {"commit": "1caa2a4e", "subject": "feat: 기관 월간 감사 사건 집계 추가", "ticket": "CCC-301", "evidence": "adds apps/api/test/audit-monthly-summary.contract.test.ts and artifacts/orchestration/ccc289-core-result.json; matches docs/superpowers/plans/2026-09-13-planner-handoff.md:187-195 A6 monthly audit"},
+      {"commit": "e8208cf8", "subject": "CCC-291 원문 버전과 실제 검사 범위 경계 추가", "ticket": "CCC-291", "evidence": "artifacts/orchestration/ccc291-macbook-parity-result.json resolutionHistory run 1"},
+      {"commit": "b486a8ee", "subject": "테스트: 원문 변경 증명 픽스처에 임대 정보 추가", "ticket": "CCC-291", "evidence": "same file, run 2"},
+      {"commit": "6f1b7d0b", "subject": "수정: 원문 변경으로 큐 재설정 시 임대 정보 초기화", "ticket": "CCC-291", "evidence": "same file, run 3, exit 0"}
+    ]
+  },
+  "conflictFiles": [
+    {"path": "packages/core/src/gateway.ts", "blocks": 6, "kind": "content", "superset": "core", "category": "shared-lineage-then-core-evolved", "evidence": "CCC-286 blob identical at 8feb4c62 and a6b2fc47; core then added CCC-299, CCC-289 and CCC-301 changes. Size 1025307 integration versus 1056455 core."},
+    {"path": "apps/api/test/migration-parity.test.ts", "blocks": 3, "kind": "content", "superset": "core", "category": "shared-lineage-then-core-evolved", "evidence": "proveAgentTextSourceFence occurrences 0 integration versus 2 core; size 50649 versus 66096."},
+    {"path": "packages/contracts/src/manual-record.ts", "blocks": 1, "kind": "add/add", "superset": "core", "category": "same-content-added-independently-then-core-evolved", "evidence": "Blob identical at 8feb4c62 and a6b2fc47. Core now carries MANUAL_RECORD_CONTEXT_SCHEMA_VERSION = 3, withdrawnQuestions and the intake question kind; integration has none of those."},
+    {"path": "apps/api/test/manual-record.contract.test.ts", "blocks": 1, "kind": "add/add", "superset": "core", "category": "same-content-added-independently-then-core-evolved", "evidence": "Blob identical at 8feb4c62 and a6b2fc47; size 29928 integration versus 38185 core."},
+    {"path": "apps/api/test/support-case-report.contract.test.ts", "blocks": 1, "kind": "content", "superset": "core", "category": "shared-lineage-then-core-evolved", "evidence": "Core carries CCC-289 report v2 cases; size 23123 versus 31023."},
+    {"path": "apps/api/test/support/migration-parity.ts", "blocks": 1, "kind": "content", "superset": "core", "category": "checkpoint-registry-divergence", "evidence": "Checkpoint rows 23 integration versus 25 core; integration ends at manual-record-lifecycle and core adds intake-question-lifecycle and agent-text-source-fence."},
+    {"path": "migrations/parity.yaml", "blocks": 1, "kind": "content", "superset": "parityLane", "category": "generated-artifact", "evidence": "Checkpoint ids 19 at 7c7b632d, 20 at 6f1b7d0b, 21 at 53150b91. The verified current manifest is the parity-lane commit, not either branch tip."}
+  ],
+  "integrationOnlyWork": {
+    "requiresRedo": false,
+    "filesPresentOnlyInIntegrationTree": [
+      {"paths": ["apps/client/.dockerignore", "apps/client/Dockerfile", "apps/client/tools/serve-release.mjs"], "sourceCommit": "189560fe", "alsoOnClientBranch": "identical blobs at client HEAD 0cefde1e"},
+      {"paths": ["apps/client/src/business/intake.test.ts", "apps/client/src/business/report.test.ts", "apps/client/src/screens/participants.test.ts", "apps/client/src/screens/records.test.ts", "apps/client/tools/serve-release.test.mjs"], "sourceCommits": ["189560fe", "91b7859b", "d9b46c6c", "f7194dc8"], "alsoOnClientBranch": "present at client HEAD with newer content; no integration-only content"}
+    ],
+    "contentOnlyInIntegration": [
+      {"path": "scripts/design/token-audit.mjs", "delta": "two lines adding walkMarkup(join(repoRoot, 'packages/wire/src')) with its comment", "sourceCommit": "099bd7e2", "coreState": "absent at 6f1b7d0b", "clientState": "identical blob cc1d4c3bcb78be6710b50f2d264261be06fd194a at client HEAD", "carryCost": "two lines, or zero when the client branch is merged"}
+    ],
+    "supersededIntegrationOutputs": [
+      {"commit": "8feb4c62", "reason": "CCC-286 content is byte-identical to core a6b2fc47 for manual-record.ts, gateway.ts, manual-record.contract.test.ts and both lifecycle migrations, and core evolved those files further."},
+      {"commit": "7c7b632d", "reason": "Its parity.yaml pins 19 checkpoints for integration's migration set. The verified manifest for the core migration set is 53150b91 with 21 checkpoints."}
+    ],
+    "conclusion": "No work exists only on the integration branch. Every integration-only file already lives on client/relayer-domain-beta, the single integration-only content delta is two lines in scripts/design/token-audit.mjs that the client branch already carries identically, and the CCC-286 outputs exist on core as identical blobs."
+  },
+  "options": [
+    {
+      "id": "A",
+      "name": "Core tip becomes the new integration base",
+      "work": "Point the integration boundary at 6f1b7d0b plus the existing parity commit 53150b91, then merge client/relayer-domain-beta on top. Carry nothing else: the only integration-only delta is two lines that the client branch already has.",
+      "size": "smallest. Zero conflict resolution on the seven files, zero reimplementation, one branch pointer decision plus one client merge whose non-client surface is four files: apps/web/app/components/wire/wire-month-calendar.tsx and its test, packages/wire/src/wire-button.tsx, scripts/design/token-audit.mjs.",
+      "risk": "low. Retires the CCC-286 duplicate rather than merging it, so the CCC-286 Linear completion must be read as satisfied by core a6b2fc47. Existing verified parity evidence stays valid because 53150b91 was generated on this exact lineage.",
+      "evidence": ["8feb4c62 versus a6b2fc47 identical blobs", "artifacts/orchestration/ccc291-macbook-parity-result.json exitStatus 0 on 6f1b7d0b", "client diff 46e32f8a..0cefde1e touches only four non-client files"]
+    },
+    {
+      "id": "B",
+      "name": "Keep the integration branch and merge core into it",
+      "work": "Resolve the seven conflicting files by hand, which in practice means taking the core side for all of them, then regenerate migrations/parity.yaml again because integration's 19-checkpoint manifest and its checkpoint registry both lose.",
+      "size": "largest. Twelve conflict blocks plus two add/add files, a full manifest regeneration, and a re-run of the parity command to prove the merged result.",
+      "risk": "high. Hand resolution of gateway.ts with six blocks can silently drop CCC-289, CCC-299 or CCC-301 lines, and the outcome is byte-equivalent to option A because core is the superset in all seven files.",
+      "evidence": ["conflictFiles superset column", "apps/api/test/support/migration-parity.ts 23 versus 25 checkpoint rows"]
+    },
+    {
+      "id": "C",
+      "name": "Replay equivalent changes from origin/main",
+      "work": "Start from origin/main and re-land the same functional changes.",
+      "size": "largest by far and unnecessary. The integration branch is already 16 commits ahead of origin/main with behind 0, and core carries twelve commits across five tickets.",
+      "risk": "highest. Loses the verified proofs for CCC-286, CCC-289, CCC-291 and CCC-299 and reopens every acceptance artifact already collected.",
+      "evidence": ["git rev-list --left-right --count origin/main...7c7b632d = 0 16", "artifacts/orchestration/ccc299-final-acceptance-result.json accepted b429d93d", "artifacts/orchestration/ccc291-macbook-parity-result.json exit 0"]
+    }
+  ],
+  "humanDecisions": {
+    "A": [
+      "Declare core a6b2fc47 as the canonical CCC-286 delivery so integration 8feb4c62 and 7c7b632d retire without a Linear reopen.",
+      "Confirm migrations/parity.yaml canonical home is the parity lane commit 53150b91, and that the integration branch's 19-checkpoint manifest is abandoned rather than merged.",
+      "Confirm the checkpoint registry canonical list is core's 25 rows in apps/api/test/support/migration-parity.ts.",
+      "Decide who carries the two-line scripts/design/token-audit.mjs delta: the client merge or a direct two-line commit."
+    ],
+    "B": [
+      "Same four decisions as option A, plus a per-file resolution ruling for manual-record.ts, manual-record.contract.test.ts, support-case-report.contract.test.ts and gateway.ts, each of which is only defensible as take-core.",
+      "Approve a second parity regeneration and re-run after the merge."
+    ],
+    "C": ["Approve discarding the accepted proofs for CCC-286, CCC-289, CCC-291 and CCC-299 and re-verifying all of them."],
+    "sharedQuestions": {
+      "manualRecordContract": "Core is canonical. It holds MANUAL_RECORD_CONTEXT_SCHEMA_VERSION = 3 with confirmed and withdrawn arrays and the intake question kind; integration holds none of those.",
+      "reportProjection": "Core is canonical. packages/contracts/src/report.ts is schemaVersion 2 with questionRef at 6f1b7d0b and schemaVersion 1 without it at 7c7b632d.",
+      "checkpointRegistry": "Core is canonical with 25 rows including intake-question-lifecycle and agent-text-source-fence.",
+      "parityManifest": "Neither branch tip is canonical. 53150b91 is the only manifest generated and verified against the core migration set."
+    }
+  },
+  "recommendation": {
+    "option": "A",
+    "reasons": [
+      "Core is the strict superset in all seven conflicting files and already carries the CCC-286 content byte for byte, so merging the old integration branch would only re-derive what core already has.",
+      "Nothing exists only on the integration branch except two lines of scripts/design/token-audit.mjs that the client branch already holds identically, so option A costs one base decision and one client merge instead of twelve conflict blocks and a second parity run."
+    ]
+  },
+  "mutationProof": {
+    "productSourceChanged": 0,
+    "merges": 0,
+    "commits": 0,
+    "testsOrBuildsRun": 0,
+    "fetches": 1,
+    "fetchScope": "core/relayer-domain-beta into FETCH_HEAD only; no local branch created",
+    "worktreesInspected": [".worktrees/beta-core-parity", ".worktrees/parity-291", ".worktrees/frontend"],
+    "checkoutResetCleanStashOrBranchSwitch": 0,
+    "writes": ["artifacts/orchestration/integration-divergence-map.json"]
+  },
+  "marker": "EXECUTOR_RESULT INTEGRATION-DIVERGENCE-MAP-20260914"
+}

@@ -12,6 +12,14 @@
 
 `확정`은 인터페이스, 규칙표, 18개 mode×STT×LLM 조합, fixture, 검증 명령이 문서로 완결되었다는 뜻이다. 실제 Auth·Electron·Office 어댑터의 실행 결과는 구현 검증 완료 단계와 해당 E 티켓의 소유다.
 
+후속 승인 출처는 날짜와 제목으로 구분한다.
+
+- **2026-09-09 「Community Cloud 업무 API의 독립 실행 환경」**: [ADR-0048](../adr/0048-independent-cloud-api-runtime.md)의 D89이며, 커밋 `2fb4440d08128d6b3440d041d76b2820c419101f`(`docs: D89 독립 Cloud 업무 실행과 검증 이동 승인 기록`)가 승인 기록과 S2 §2.7/§3의 독립 API 주소 계약을 반영했다.
+- **2026-09-10 「설치 소유권 승인」**: 같은 ADR의 후속 결정이며, 커밋 `beabc126606657bf6f3eb998db8f46947f947b5f`(`docs: 설치기 전용 서명 승인서와 공개 manifest 결합 확정`)가 §2.7의 설치기 전용 승인서 결합을 반영했다. 공개 manifest와 bootstrap 형식은 그대로다.
+- **2026-09-12 「추가 인증은 선택」**: 커밋 `866013936edf3b6ca64846850eb1c4f6a41e49f2`(`feat(auth): 추가 인증을 선택으로 바꾼다 (D89) (#333)`)의 `CLAUDE.md` §9와 S2 §2.2/§3이 승인 근거다. D82(ADR-0041), D86(ADR-0044), ADR-0048의 MFA 유지 및 최초 관리자 문구 중 **Community Cloud의 의무 MFA 등록과 `aal2` 요구만** 대체한다. 기관 선택, 검증된 Auth 주소, 신원 연결, 역할·담당·감독 권한, 세션 폐기, Local Office privileged MFA와 Local Single 앱 잠금은 바꾸지 않는다.
+
+두 승인 기록은 D89라는 번호를 함께 쓰지만 서로 다른 결정이다. 이 문서에서 번호만 쓴 D89는 2026-09-09 ADR-0048을 가리키며, 선택 MFA는 2026-09-12 결정으로 구분한다. 결정 번호를 새로 배정하지 않으며, 선택 MFA가 독립 API 실행이나 설치기 전용 승인서 결합을 대체하지 않는다.
+
 ## 2. 인터페이스와 규칙
 
 ### 2.1 canonical Actor와 Identity 포트
@@ -58,7 +66,7 @@ adapter 내부 context의 인증 원천 literal은 `supabase-jwt | cloudflare-ac
 
 | 모드 | Bearer 발급·검증 | canonical Actor 매핑 |
 |---|---|---|
-| Community Cloud | Supabase Auth access JWT. 모든 human role은 `aal=aal2`인 세션만 업무 Actor로 허용한다. trusted issuer, `aud=authenticated`, asymmetric JWKS, `exp`와 선택적 `nbf`를 검증한다. `sub`는 E4-1/E4-2 paired migration이 관리하는 nullable `users.auth_subject`와 대조한다. | `users.id → userId`, 기관 행 → `orgId`, JWT `aal=aal2` → `authn.assurance='aal2'`, source roles를 lossless `roles[]`에 담는다. `aal1`은 모든 human role에서 403 `mfa_required`다. |
+| Community Cloud | Supabase Auth access JWT. 유효하게 provision된 모든 human role은 `aal=aal1` 또는 `aal=aal2`인 세션을 허용하며 MFA 등록을 강제하지 않는다. trusted issuer, `aud=authenticated`, asymmetric JWKS, `exp`와 선택적 `nbf`를 검증한다. `sub`는 E4-1/E4-2 paired migration이 관리하는 nullable `users.auth_subject`와 대조한다. | `users.id → userId`, 기관 행 → `orgId`, JWT의 실제 `aal` → `authn.assurance`(`aal1` 또는 `aal2`), source roles를 lossless `roles[]`에 담는다. `aal1`이라는 이유만으로 403 `mfa_required`를 반환하지 않는다. |
 | Local Single | Electron 앱 잠금 후 local-service가 발급하는 opaque bearer. token hash만 보관하고 DPAPI handshake를 거친 요청만 발급한다. | 설치된 유일 human account의 `stableUserId → userId`, bearer 발급 때 생성한 random opaque `sessionId → authn.sessionId`, `authn.assurance='app-lock'`, source role bundle `institution-admin`, `technical-admin`, `worker`를 분리해 `roles[]`에 담는다. `multi_user=false`다. |
 | Local Office | Argon2id 로컬 계정 로그인 후, privileged role이면 MFA를 완료한 뒤 local-service가 opaque bearer를 발급한다. | 로컬 `users.id → userId`, `orgId`는 설치 기관, 세션의 `sessionId` → `authn.sessionId`, `mfaVerifiedAt` → `authn.assurance='mfa'`, source roles를 `roles[]`에 담는다. |
 | 세 모드의 Agent | SG5 service principal이 pairing 후 발급하는 opaque bearer. 서버에는 hash와 installation binding만 두며 사람용 bearer와 섞지 않는다. | `kind='agent'`, `userId=agent:<installationId>`, `orgId`와 active 상태는 `agent_installations` 등록 행에서 읽고 `roles=['service']`로 투영한다. |
@@ -67,7 +75,7 @@ adapter 내부 context의 인증 원천 literal은 `supabase-jwt | cloudflare-ac
 
 roles의 업무 의미는 lossless하게 유지한다. `institution-admin`은 기관 업무와 허용된 PII 업무를 수행하고, `technical-admin`은 설치·진단·업데이트만 수행하며 케이스·상담·PII business route에는 403이다. `supervisor`는 지정 팀의 읽기 전용 감독 범위, `worker`는 활성 담당 케이스 쓰기 범위를 가진다. `service`는 아래 Agent route만 가진다. 복수 role은 합집합으로 권한을 계산하며 `roles=[]`인 human은 business route에서 403이다.
 
-Community Cloud의 모든 human role(`institution-admin`, `technical-admin`, `supervisor`, `worker`)은 `Actor.authn.assurance='aal2'`인 세션만 허용한다. `aal1` 또는 다른 assurance는 human Actor를 만들지 않고 403 `mfa_required`다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.
+Community Cloud의 모든 human role(`institution-admin`, `technical-admin`, `supervisor`, `worker`)은 유효하게 provision된 `aal1` 또는 `aal2` 세션을 받는다(2026-09-12 Q 결정 「추가 인증은 선택」). MFA 등록은 선택이며 로그인이 인증 앱 등록을 강요하지 않는다. 인증 앱을 등록한 사람은 다음 로그인부터 여섯 자리 확인을 거치고 그 세션은 `aal2`로 기록된다. 실제 assurance는 그대로 `Actor.authn.assurance`에 남아 감사에 쓰인다. 이 수용 규칙은 §2.1의 인증 실패, 미등록·inactive·revoked, 역할·담당·감독 권한 부족 판정을 바꾸지 않는다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.
 
 Agent service Actor의 scope는 정확히 다음 여섯 개다.
 
@@ -111,7 +119,7 @@ interface JwtVerificationConfig {
 }
 ```
 
-JWT의 `iss`, `aud`, `alg`, `kid`, `sub`, `session_id`, `exp`, `role`, `is_anonymous`, `aal`을 확인한다. `nbf`는 claim이 있을 때만 ±60초 오차로 확인하고 없는 token을 거부하지 않는다. `role`은 `authenticated`, `is_anonymous`는 `false`, `session_id`는 non-empty여야 한다. 모든 Community Cloud human role(`institution-admin`, `technical-admin`, `supervisor`, `worker`)은 `aal=aal2`가 아니면 403 `mfa_required`다.
+JWT의 `iss`, `aud`, `alg`, `kid`, `sub`, `session_id`, `exp`, `role`, `is_anonymous`, `aal`을 확인한다. `nbf`는 claim이 있을 때만 ±60초 오차로 확인하고 없는 token을 거부하지 않는다. `role`은 `authenticated`, `is_anonymous`는 `false`, `session_id`는 non-empty여야 한다. `aal`은 `aal1` 또는 `aal2`여야 하며 실제 값을 `Actor.authn.assurance`에 보존한다. 유효하게 provision된 Community Cloud human을 `aal1`이라는 이유만으로 거부하지 않으며, 등록자의 로그인 추가 인증은 §2.2를 따른다.
 
 JWKS key metadata의 `alg`와 JWT header가 일치하는 ES256 또는 RS256만 허용한다. HS256 프로젝트, symmetric-only key set, key metadata 불일치, algorithm downgrade는 D84 preflight/install에서 거부하며 운영 verifier도 401로 거부한다. JWKS는 최대 1시간 캐시한다. unknown `kid`는 60초 negative cache에 넣고 cooldown 안에는 upstream fetch 없이 401로 거부한다. cooldown이 지나면 같은 trusted `jwksUri`를 한 번 재조회하고 새 키와 아직 만료되지 않은 이전 키를 검증한다. 알 수 없는 issuer, audience, kid, 만료 키 서명은 401이다.
 
@@ -277,7 +285,7 @@ Vary: Origin
 Content-Security-Policy: default-src 'self'; script-src 'self'; connect-src 'self' <signed apiBase> <signed supabaseAuthOrigin>; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; form-action 'self'
 ```
 
-third-party script, inline script, `eval`, 외부 font·image·frame은 0건이다. service worker는 정적 asset과 app shell만 cache하며 token·PII·API response는 cache하지 않는다. `localStorage`, `sessionStorage`, IndexedDB, Cache API, cookie, URL query/hash/path, crash dump, console, analytics에는 bearer·refresh token·PII를 저장하지 않는다. Cloud PWA는 Supabase client `persistSession=false`, `autoRefreshToken=true`로 memory-only session을 사용하며 client initialization은 signed manifest의 `supabaseAuthOrigin`, `supabasePublishableKey`만 사용한다. reload와 새 tab은 login과 필요한 MFA를 다시 요구한다.
+third-party script, inline script, `eval`, 외부 font·image·frame은 0건이다. service worker는 정적 asset과 app shell만 cache하며 token·PII·API response는 cache하지 않는다. `localStorage`, `sessionStorage`, IndexedDB, Cache API, cookie, URL query/hash/path, crash dump, console, analytics에는 bearer·refresh token·PII를 저장하지 않는다. Cloud PWA는 Supabase client `persistSession=false`, `autoRefreshToken=true`로 memory-only session을 사용하며 client initialization은 signed manifest의 `supabaseAuthOrigin`, `supabasePublishableKey`만 사용한다. reload와 새 tab은 login을 다시 요구하고, 인증 앱 등록자는 §2.2에 따라 추가 인증을 거친다.
 
 Electron은 `file://`와 `Origin: null`을 사용하지 않는다. `app.ready` 전에 다음처럼 `ccc`를 standard·secure scheme으로 등록하고 built client만 제공한다.
 
@@ -309,7 +317,7 @@ D89는 업무 API의 관리자 키 접근을 금지한다. 따라서 위 worker 
 |---|---|---|---|
 | client origin | signed exact HTTPS origin | registered `ccc://app` | 기관 CA HTTPS origin |
 | API origin | signed 독립 업무 API HTTPS(D89) | DPAPI endpoint record가 정한 loopback random port | 내부망 HTTPS |
-| human auth | Supabase JWT + all human roles require `aal2` | OS user + Argon2id app lock + stableUserId | Argon2id local account + privileged session MFA |
+| human auth | Supabase JWT, MFA 선택(`aal1` 또는 `aal2`) | OS user + Argon2id app lock + stableUserId | Argon2id local account + privileged session MFA |
 | Actor source | `auth_subject → users.id` | stableUserId | local users.id |
 | Agent source | SG5 service principal + agent_installations | paired local Agent + agent_installations | paired server Agent + agent_installations |
 | revocation | Supabase session + `auth_revocations` | in-memory/token hash + install revoke | session rows + account revoke |
@@ -321,7 +329,7 @@ D89는 업무 API의 관리자 키 접근을 금지한다. 따라서 위 worker 
 Local Single에서는 `joinKind='worker'`를 만들지 않으며, participant join만 허용한다. Cloud만 worker invitation capability를 제공하고, Local Office는 E4-3이 nonce-bound invite exchange와 Argon2id credential creation을 확정한 뒤에 연다.
 
 세 모드는 canonical Actor, API DTO, capability key를 공유한다. 차이는 Identity·SecretStore·origin·저장소 adapter뿐이다.
-- [ ] Community Cloud 모든 human role의 `aal2`, Office `mfaVerifiedAt`, Single DPAPI unlock handshake와 stableUserId, Agent six scopes와 registration source가 완결되어 있다.
+- [ ] Community Cloud 모든 human role의 `aal1`/`aal2` 수용과 실제 assurance 보존, 선택 등록과 등록자의 로그인 추가 인증, Office `mfaVerifiedAt`, Single DPAPI unlock handshake와 stableUserId, Agent six scopes와 registration source가 완결되어 있다.
 - [ ] canonical `Identity.resolve(request)`, `revokeAll(userId, reason)`, `revokeSession(sessionId, reason)`를 사용하고, 세 mode의 Bearer, lossless role projection, 401/403/503 판정이 완결되어 있다.
 
 - [ ] Supabase `session_id`, optional `nbf`, `role`, `is_anonymous`, ES256/RS256 JWKS rotation, negative cache/cooldown, revocation과 TTL이 완결되어 있다.
@@ -333,7 +341,7 @@ Local Single에서는 `joinKind='worker'`를 만들지 않으며, participant jo
 
 ## 5. 검증 방법
 
-- `pnpm test:contracts --auth`: `cloud-human-active`, `cloud-aal1-all-human`, `cloud-revoked-session`, `office-admin-no-mfa`, `single-stable-id`, `single-dpapi-handshake`, `agent-service`, `cloud-scheduler-secret`, `agent-linked-user-mismatch` fixture를 검사한다. malformed/invalid token은 401, valid unprovisioned/inactive/revoked 또는 linked user mismatch는 403, store unavailable은 503이어야 한다.
+- `pnpm test:contracts --auth`: `cloud-human-active`, `cloud-aal1-all-human`, `cloud-revoked-session`, `office-admin-no-mfa`, `single-stable-id`, `single-dpapi-handshake`, `agent-service`, `cloud-scheduler-secret`, `agent-linked-user-mismatch` fixture를 검사한다. `cloud-human-active`와 `cloud-aal1-all-human`은 유효하게 provision된 모든 Cloud human role의 `aal1`/`aal2` 세션을 수용하고 실제 assurance를 그대로 보존해야 한다. MFA 미등록자에게 등록을 강제하거나 `aal1`만을 이유로 거부하면 실패다. 등록자는 다음 로그인부터 여섯 자리 확인을 거쳐 `aal2`로 기록되는지도 확인한다. malformed/invalid token은 401, valid unprovisioned/inactive/revoked, 역할·담당·감독 권한 부족 또는 linked user mismatch는 403, store unavailable은 503이어야 한다. `office-admin-no-mfa`의 거부와 Single 앱 잠금·DPAPI 검증은 그대로 유지한다.
 - `pnpm test:contracts --jwt`: `session_id`, optional `nbf`, `role`, `is_anonymous`, ES256/RS256 key metadata, HS256 rejection, old/new key rotation, unknown-kid negative cache/cooldown을 검사한다. unknown-kid마다 upstream fetch가 발생하거나 HS256이 통과하면 실패다.
 
 - `pnpm test:contracts --capabilities`: synthetic signed-registry context를 포함한 18개 조합을 decode하고 schemaVersion, exact key set, `sttOptions` 3개 `[off, local, azure]`, `llmOptions` 2개 `[off, openai]`, branded engine membership, status/feature invariants, secret·PII field 부재를 검사한다. `stt-azure-id-as-local-reject` 또는 `stt-local-id-as-azure-reject`가 통과하거나 조합 하나라도 표현되지 않으면 실패다.

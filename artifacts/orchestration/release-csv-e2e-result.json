@@ -1,0 +1,174 @@
+{
+  "assignmentId": "RELEASE-CSV-E2E-20260915",
+  "status": "ALL_THREE_MERGES_CLEAN_ALL_CHECKS_PASS_CSV_LIVE_PATH_PROVEN",
+  "summary": "Core, client and DESIGN merged with zero conflicts. Parity still holds read-only, three typechecks pass, every targeted test passes, gateway-domain.test.ts is now 41 of 41, and the CSV download path was exercised live through handleRequest with synthetic data.",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "branch": "integrate/ccc291-parity",
+    "cleanAtEnd": true,
+    "tip": "3ababe78e534e28a2592890ea99983f012cac1f1",
+    "filesChangedSinceBase": 33
+  },
+  "observedBaseTip": {
+    "observedBy": "git branch --show-current, git rev-parse HEAD, git status --short, git log --oneline -1",
+    "branch": "integrate/ccc291-parity",
+    "commit": "4e477a0c90e24c89cf7875e0d11c2e39aa2ed27d",
+    "subject": "Merge commit '5ef5a0b3e5c6459208239c0096b056b6ab70deaa' into integrate/ccc291-parity",
+    "clean": true,
+    "resetUsed": false
+  },
+  "coreMergeCommit": {
+    "commit": "d80a09c0",
+    "fetchCommand": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "c65ba714ce2c11c81d12d017d2f93cee5b4d2c06",
+    "commitsBrought": 3,
+    "chain": [
+      {"commit": "c65ba714ce2c11c81d12d017d2f93cee5b4d2c06", "parent": "34513485230673a5a5d2e07cedf61f20f6523514", "subject": "test: AI 초안 픽스처 증명 스냅샷 복구", "stat": "1 file changed, 164 insertions(+), 4 deletions(-), apps/api/test/gateway-domain.test.ts only"},
+      {"commit": "34513485230673a5a5d2e07cedf61f20f6523514", "parent": "a42c15e30aa34b7de3715c8bee78528cb2a57194", "subject": "fix: CSV 내려받기를 GET 방식으로 통일", "stat": "2 files changed, 9 insertions(+), 7 deletions(-)"},
+      {"commit": "a42c15e30aa34b7de3715c8bee78528cb2a57194", "parent": "5ef5a0b3e5c6459208239c0096b056b6ab70deaa", "subject": "feat: 사례 전체 CSV 내보내기 생산자 추가", "stat": "4 files changed, 897 insertions(+)"}
+    ],
+    "conflicts": 0,
+    "diffStat": "5 files changed, 1063 insertions(+), 4 deletions(-)",
+    "newFiles": ["apps/api/test/support-case-csv-export.contract.test.ts", "packages/core/src/support-case-csv.ts"]
+  },
+  "clientMergeCommit": {
+    "commit": "1da52aea",
+    "mergedRef": "client/relayer-domain-beta",
+    "mergedCommit": "4b07ca1b8a5d45c49eef64ccfad0b3fa6a3a2800",
+    "commitsBrought": 2,
+    "chain": [
+      {"commit": "4b07ca1b8a5d45c49eef64ccfad0b3fa6a3a2800", "subject": "fix(client): 첫 출고 제외 기능 진입점을 숨긴다"},
+      {"commit": "b87f50e4defe8c792365d83dc456253624b14550", "subject": "feat(client): 경과 리포트 CSV 내려받기"}
+    ],
+    "conflicts": 0,
+    "diffStat": "12 files changed, 281 insertions(+), 20 deletions(-)",
+    "note": "the client branch exists only as a local ref on this machine. An attempt to fetch client/relayer-domain-beta from mini returned couldn't find remote ref, and the follow-up git merge FETCH_HEAD resolved to the already merged core commit and reported Already up to date, so it changed nothing. The merge was then made from the local branch name, as in earlier slots."
+  },
+  "designMergeCommit": {
+    "commit": "3ababe78e534e28a2592890ea99983f012cac1f1",
+    "mergedRef": "design/w03-intake-v2",
+    "mergedCommit": "866f2475846519fdff5f3eca24e6c7f1fca71a67",
+    "subject": "fix: 첫 출고 제외 기능 진입점을 숨긴다",
+    "conflicts": 0,
+    "diffStat": "16 files changed, 159 insertions(+), 80 deletions(-)"
+  },
+  "conflicts": [],
+  "parityCheck": {
+    "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+    "updateEnvironmentVariableUsed": false,
+    "migrationFilesInRange": 0,
+    "exitStatus": 0,
+    "result": "PASS",
+    "testsPassed": 1,
+    "durationSeconds": 14.51,
+    "manifestSha256": "f671080ea7ed26b15ae96b3899a2210daa8ee651e8be3fde04fb670d5b65af8b",
+    "manifestUnchanged": true,
+    "manifestCommitted": false,
+    "executions": 1
+  },
+  "apiTypecheck": {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "executions": 1},
+  "clientTypecheck": {"command": "pnpm --filter @ccc/client run typecheck", "exitStatus": 0, "result": "PASS", "executions": 1},
+  "webTypecheck": {"command": "pnpm --filter @ccc/web run typecheck", "exitStatus": 0, "result": "PASS", "executions": 1},
+  "testedFiles": {
+    "derivedFrom": "git diff --name-status 4e477a0c 3ababe78",
+    "api": [
+      {"path": "apps/api/test/gateway-domain.test.ts", "change": "M", "fromMerge": "core"},
+      {"path": "apps/api/test/support-case-csv-export.contract.test.ts", "change": "A", "fromMerge": "core"}
+    ],
+    "client": [
+      {"path": "apps/client/src/business/navigation.test.ts", "change": "M", "fromMerge": "client"},
+      {"path": "apps/client/src/business/report.test.ts", "change": "M", "fromMerge": "client"},
+      {"path": "apps/client/src/screens/records.test.ts", "change": "M", "fromMerge": "client"},
+      {"path": "apps/client/src/screens/schedules.test.ts", "change": "A", "fromMerge": "client"}
+    ],
+    "web": [
+      {"path": "apps/web/app/admin/ai-provider/page.test.tsx", "change": "M"},
+      {"path": "apps/web/app/components/wire/admin-sidebar.test.tsx", "change": "M"},
+      {"path": "apps/web/app/components/wire/app-sidebar.test.tsx", "change": "M"},
+      {"path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards.test.tsx", "change": "M"},
+      {"path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/fixture-draft-view.test.tsx", "change": "M"},
+      {"path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/record-list.test.tsx", "change": "M"},
+      {"path": "apps/web/app/participants/invite/page.test.tsx", "change": "A"},
+      {"path": "apps/web/app/settings/page.test.tsx", "change": "M"}
+    ],
+    "pythonChanged": []
+  },
+  "testResults": [
+    {"package": "api", "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/gateway-domain.test.ts apps/api/test/support-case-csv-export.contract.test.ts", "exitStatus": 0, "result": "PASS", "testFilesPassed": 2, "testsPassed": 43, "durationSeconds": 104.74, "executions": 1},
+    {"package": "client", "command": "pnpm --filter @ccc/client exec vitest run with the four changed client test files", "exitStatus": 0, "result": "PASS", "testFilesPassed": 4, "testsPassed": 37, "durationSeconds": 0.676, "executions": 1},
+    {"package": "web", "command": "pnpm --filter @ccc/web exec vitest run with the eight changed web test files", "exitStatus": 0, "result": "PASS", "testFilesPassed": 8, "testsPassed": 132, "durationSeconds": 0.89, "executions": 1}
+  ],
+  "gatewayDomainResult": {
+    "file": "apps/api/test/gateway-domain.test.ts",
+    "totalTests": 41,
+    "passed": 41,
+    "failed": 0,
+    "allPass": true,
+    "countEvidence": "the file declares 41 it blocks and the two-file api run reported 43 passing tests, where the CSV contract file contributes exactly 2 it blocks at lines 241 and 281",
+    "previousFailureCount": 11,
+    "previousFailure": "every one of the eleven raised Error masking_snapshot_missing through the createPilotDraft helper",
+    "closedBy": "c65ba714ce2c11c81d12d017d2f93cee5b4d2c06, which restored the proof snapshot in the fixture and touched only this test file",
+    "assertionsOrBaselinesChanged": "none by this slot"
+  },
+  "csvLive": {
+    "howRun": "a throwaway probe test drove the real handleRequest with the same D1 harness and synthetic data only, then was deleted. Nothing about it was committed and no CSV file was written into the repository.",
+    "syntheticOnly": true,
+    "realPersonalDataUsed": false,
+    "probeDeleted": true,
+    "method": "GET",
+    "status": 200,
+    "contentType": "text/csv; charset=utf-8",
+    "disposition": "attachment; filename*=UTF-8''ccc-support-case-<supportCaseId>.csv; filename=\"ccc-support-case-<supportCaseId>.csv\"",
+    "cacheControl": "no-store",
+    "bom": [239, 187, 191],
+    "header": "구획,사업ID,사례ID,회차ID,항목종류,항목ID,상위항목ID,순서,필드,값",
+    "headerColumnCount": 10,
+    "lineEnding": "CRLF, the header line ends with a carriage return before the newline",
+    "rowCount": {"dataRows": 244, "rawNewlineSplitLines": 248, "note": "244 counts records after quoted fields are masked, so an embedded newline inside a quoted value does not inflate it. The raw split gives 248 because quoted values contain newlines.", "byteLength": 39219, "auditReportedRowCount": 244, "matchesAudit": true},
+    "contentFidelity": {
+      "koreanPreserved": true,
+      "koreanEvidence": "김한글 and 주거 안정과 생활 회복 both appear in the body",
+      "quotedNewlineFieldPreserved": true,
+      "quoteAndNewlineEvidence": "the memo 한글, 쉼표와 \"따옴표\" with a second line survives as one quoted field with doubled quotes and the embedded newline intact"
+    },
+    "programIsolation": {"otherProgramLeak": false, "checked": "the other program's support case id, its display name 다른 사업 프로브 and its session memo canary are all absent from the body"},
+    "rejectionCase": {
+      "unassignedCounselor": 403,
+      "otherOrgAdmin": 403,
+      "service": 403,
+      "wrongMethodPost": 404,
+      "note": "POST on the same path is not routed, which matches the GET unification in 3451348"
+    },
+    "auditRows": {
+      "before": 0,
+      "after": 1,
+      "addedByTheSuccessfulDownload": 1,
+      "addedByTheThreeRejections": 0,
+      "actorId": "counselor@example.invalid",
+      "detail": {"schemaVersion": 1, "prepared": true, "format": "csv", "rowCount": 244, "goalCount": 0, "sessionCount": 1, "gasScoreCount": 0}
+    }
+  },
+  "unmet": [],
+  "guardrails": {
+    "productSourceModified": false,
+    "testOrSupportFilesModifiedByThisSlot": false,
+    "throwawayProbeCommitted": false,
+    "csvArtifactCommitted": false,
+    "migrationsModified": false,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "conflictsResolved": 0,
+    "commitsMade": 0,
+    "mergeCommitsMade": 3,
+    "projectWideTestsLintOrBuildRuns": 0,
+    "rebaseOrReset": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "otherWorktreesTouched": false,
+    "branchesReadByNameOnly": ["client/relayer-domain-beta", "design/w03-intake-v2"],
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/release-csv-e2e-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT RELEASE-CSV-E2E-20260915"
+}

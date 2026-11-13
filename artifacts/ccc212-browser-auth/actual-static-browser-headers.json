@@ -1,0 +1,7 @@
+{
+  "headerSource": "apps/client/tools/serve-release.mjs via Deno runtime",
+  "documentStatusObserved": true,
+  "contentSecurityPolicy": "default-src 'self'; script-src 'self'; connect-src 'self' https://api.example.invalid/api/ https://abcdefghijklmnopqrst.supabase.co; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; form-action 'self'",
+  "cspAllowsSignedApiDescendants": true,
+  "cspAllowsSignedAuthOrigin": true
+}

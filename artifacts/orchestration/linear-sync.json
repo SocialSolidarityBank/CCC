@@ -1,0 +1,128 @@
+{
+  "accessPath": "Composio 백엔드 (COMPOSIO_SEARCH_TOOLS → COMPOSIO_MULTI_EXECUTE_TOOL / COMPOSIO_REMOTE_WORKBENCH). 연결 상태 ACTIVE, 워크스페이스 CCC, 팀 RELAYER (id f60e437c-bf04-4d41-9206-a1fc09b6884b, 키 CCC).",
+  "portwrightDoc": {
+    "exists": true,
+    "path": "~/developer/tools/portwright/services/linear.md",
+    "notes": "코멘트는 전용 툴(LINEAR_CREATE_LINEAR_COMMENT) 우선. RUN_QUERY_OR_MUTATION 의 비ASCII variables 함정 회피. 팀 이름은 RELAYER 로 표시되지만 티켓 키는 CCC 다."
+  },
+  "doneToday": [
+    {
+      "work": "원음 업로드 화면 구현 (커밋 a67e00f)",
+      "ticket": "CCC-99",
+      "ticketTitle": "Preview 녹음 파이프라인 클로즈 베타 검증",
+      "ticketState": "Backlog",
+      "match": "partial",
+      "action": "comment_only",
+      "commentId": "3ef58bf5-5cc8-4b83-8633-1088b04a5c61",
+      "reason": "업로드 진입 화면은 apps/client 에만 들어갔고 16일 화면(apps/web)에는 없으며 업로드 API 도 닫혀 있다. 티켓의 완료 조건(클로즈 베타 종단 검증)을 충족하지 못해 Done 으로 바꾸지 않았다."
+    },
+    {
+      "work": "상담 기록 CSV 반출 GET 통일",
+      "ticket": "CCC-298",
+      "ticketTitle": "[W11 잔여] 공식 기록을 편집 가능한 HWPX DOCX CSV로 반출",
+      "ticketState": "Backlog",
+      "match": "partial",
+      "action": "comment_only",
+      "commentId": "9d199619-1c91-4b9d-8add-7353f5938b14",
+      "reason": "CSV 반출의 GET 통일은 티켓 범위의 일부다. HWPX·DOCX 반출이 남아 있어 완료 조건 미충족으로 Done 처리하지 않았다."
+    },
+    {
+      "work": "제외 기능 서버 경로 차단 (커밋 af2bf33)",
+      "ticket": null,
+      "match": "none",
+      "action": "none",
+      "reason": "대응 티켓 없음. 제목 검색(제외·차단·서버)으로도 매칭되는 열린 티켓이 없었다."
+    },
+    {
+      "work": "외부 기관 안내 문서 (커밋 e50e70da)",
+      "ticket": null,
+      "match": "none",
+      "action": "none",
+      "reason": "대응 티켓 없음."
+    },
+    {
+      "work": "복구 연습 절차 문서 (커밋 e50e70da)",
+      "ticket": "CCC-232",
+      "ticketTitle": "[E4-5] Recovery Kit",
+      "ticketState": "Backlog",
+      "match": "weak",
+      "action": "none",
+      "reason": "Recovery Kit 티켓이 있으나 복구 연습 '절차 문서' 작성만으로는 티켓 완료 조건(kit 구현)과 다르다고 판단해 코멘트도 달지 않았다. [추정] 문서가 티켓 산출물의 일부일 수 있으나 확실하지 않다."
+    },
+    {
+      "work": "동의서 인쇄본과 노션 반영",
+      "ticket": null,
+      "match": "none",
+      "action": "none",
+      "reason": "대응 티켓 없음. 동의 관련 열린 티켓(CCC-234, CCC-223, CCC-198)은 모두 코드 배선·마이그레이션 범위라 인쇄본·노션 반영과 다르다."
+    },
+    {
+      "work": "Infisical 폴더 정리와 자격 로테이션",
+      "ticket": null,
+      "match": "none",
+      "action": "none",
+      "reason": "대응 티켓 없음. CCC-35(Access 토큰 로테이션)는 이미 Done 인 과거 건이고 오늘 작업과 다르다."
+    },
+    {
+      "work": "릴리스 번들 0.9.0-dev.3 게시 (만료 2026-09-22)",
+      "ticket": null,
+      "match": "none",
+      "action": "none",
+      "reason": "대응 티켓 없음. CCC-160(SG12 설치와 릴리스 확정 게이트)은 이미 Done 인 게이트 티켓이라 이번 번들 게시와 다르다."
+    }
+  ],
+  "commentsAdded": [
+    {"issue": "CCC-298", "commentId": "9d199619-1c91-4b9d-8add-7353f5938b14"},
+    {"issue": "CCC-99", "commentId": "3ef58bf5-5cc8-4b83-8633-1088b04a5c61"}
+  ],
+  "statusChanged": [],
+  "notChanged": [
+    {"issue": "CCC-298", "reason": "HWPX·DOCX 반출 미완. CSV GET 통일만 끝난 부분 완료라 코멘트만 달았다."},
+    {"issue": "CCC-99", "reason": "클로즈 베타 검증 본체 미완. 업로드 진입 화면이 apps/web 에 없고 API 도 fail-closed 라 코멘트만 달았다."},
+    {"issue": "CCC-232", "reason": "절차 문서와 Recovery Kit 구현 티켓의 대응이 약해(weak match) 변경하지 않았다."}
+  ],
+  "remainingWork": [
+    {
+      "work": "전사 트랙 세 겹 해소 (NER 측정 미달, apps/web 업로드 UI 부재, 업로드 API fail-closed)",
+      "ticket": "partial",
+      "detail": "CCC-250([E5-8] STT-G1~G3 엔진 판정, In Progress)이 STT/품질 측정 축을 일부 덮는다. NER 측정, apps/web 업로드 UI, 업로드 API 개방은 각각 대응 티켓이 없다."
+    },
+    {
+      "work": "운영 D1 마이그레이션 19건 적용",
+      "ticket": "none",
+      "detail": "대응 티켓 없음. CCC-235(E3-6 D1→PostgreSQL 이전)은 방향이 다른 이전 작업이다."
+    },
+    {
+      "work": "운영 배포",
+      "ticket": "none",
+      "detail": "대응 티켓 없음."
+    },
+    {
+      "work": "기관 초기 설정과 사람 등록",
+      "ticket": "partial",
+      "detail": "CCC-205([E2-4a] 당사자 목록과 등록, Backlog)이 사람 등록 축을 덮는다. CCC-151(첫 기관 관리자 가입과 MFA)은 Canceled 상태라 기관 초기 설정의 열린 티켓은 없다."
+    },
+    {
+      "work": "동의 실제 수받기",
+      "ticket": "none",
+      "detail": "대응 티켓 없음. 동의 관련 열린 티켓은 코드 배선(CCC-234)·마이그레이션(CCC-223)·repository(CCC-198)뿐이다."
+    },
+    {
+      "work": "Supabase 이전 (RELAYER2 레인)",
+      "ticket": "partial",
+      "detail": "CCC-235(E3-6 D1→PostgreSQL), CCC-141(E6-1b apply/baseline), CCC-142(E4-2 Auth), CCC-147(E6-3 AudioStore), CCC-248(E6-2 Edge wrapper) 등 E3·E4·E6 계열 Backlog 티켓이 레인을 덮는다."
+    },
+    {
+      "work": "Agent 서버 발급",
+      "ticket": "yes",
+      "detail": "CCC-241([E6-4] Agent 페어링, Backlog): pairing code 와 refresh token 회전, service principal 제한이 완료 조건이다."
+    }
+  ],
+  "mutations": {
+    "commentsCreated": 2,
+    "statusChanges": 0,
+    "issuesCreated": 0,
+    "slackPosts": 0
+  },
+  "blocked": []
+}

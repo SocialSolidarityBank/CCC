@@ -1,0 +1,23 @@
+{
+  "readchk": "The assignment is an audit of existing pinned source, not a source migration, authentication implementation or ticket completion.",
+  "mandela": {
+    "originalBoundaryRisk": "An isolated automation realm bypassed service-worker fetch handling and could falsely support a cache conclusion.",
+    "independenceCorrection": "Default-page CDP execution, fromServiceWorker observations, stopped origin plus independent failed fetch, and byte hashes compared with separately recorded build assets.",
+    "expectedEvidence": "No live authentication or app-triggered registration is inferred from manually registering the emitted worker.",
+    "assertionsAudited": "acceptance-checks.json includes only exercised routes, cache entries, synthetic stand-ins and static assets."
+  },
+  "sip": {
+    "subagentReviewSkipped": "Explicit sole-executor/no-agents constraint.",
+    "broaderSsotAndSourceCleanupSkipped": "Ownership forbids source/spec/guard mutation; no duplicated product specification created.",
+    "externalFactCheckingSkipped": "No external factual or portability claim; all verdicts use local source and runtime evidence.",
+    "recordedCorrections": [
+      "Identity session path parsed to UUID rather than compared directly",
+      "Requested attached viewport set and observed explicitly",
+      "Service-worker readiness and fetch probes moved from isolated world to actual page context",
+      "Edited observer imported by content-addressed data URL",
+      "Prior isolated-observer result retained as superseded, not counted as final proof"
+    ]
+  },
+  "productCodeModified": false,
+  "sourceDefectDemonstrated": false
+}

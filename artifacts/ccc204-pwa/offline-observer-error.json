@@ -1,0 +1,14 @@
+{
+  "error": "page.evaluate fetch rejected the precached asset while origin was stopped",
+  "page": "http://127.0.0.1:46173/k/offline-audit",
+  "isolated": {
+    "ok": false,
+    "error": "TypeError"
+  },
+  "mainWorld": {
+    "ok": true,
+    "status": 200,
+    "controller": "http://127.0.0.1:46173/sw.js"
+  },
+  "originStopped": true
+}

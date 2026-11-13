@@ -1,0 +1,705 @@
+{
+  "assignmentId": "ccc299-core-contract-freeze-20260914",
+  "ticket": "CCC-299",
+  "status": "ready_for_controller_assignment",
+  "completionMarker": "EXECUTOR_RESULT CCC299-CORE-FREEZE-20260914",
+  "authority": {
+    "reviewedCandidate": "docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md RELAYER_RELAY_STATE verification.CCC-299.proposal",
+    "approvedDecisions": [
+      "G1",
+      "G3",
+      "G5",
+      "G6"
+    ],
+    "contractSections": [
+      "docs/superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md#2",
+      "docs/superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md#6",
+      "docs/superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md#7"
+    ],
+    "plannerReview": "PREP_RESULT Q-COORDINATION-20260914-PLANNER CCC-299",
+    "decision": "Freeze the independently reviewed reference-only lifecycle candidate. No product behavior choice remains.",
+    "precedence": "For CCC-299 physical names, fields, versions, paths, and transition mechanics, this result is the implementation freeze. G1/G3/G5/G6 and card-contract sections 2/6/7 remain superior for product meaning. Any contradiction with those approved semantics stops implementation for controller refreeze; the writer does not improvise."
+  },
+  "sourceObjects": {
+    "reviewedIntegrationCommit": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+    "coreWriterCommitBeforeCCC212Cors": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+    "ccc212CorsCommit": "6ff75d272ca0ca7c81f8161a9ec118dd1807d67b",
+    "n03PrerequisiteCommit": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+    "originMain": "ad218e8eafa646a524674fe4ef8cf9c20c0b68bb",
+    "facts": [
+      "CCC-212 CORS commit 6ff75d272ca0ca7c81f8161a9ec118dd1807d67b has direct parent a6b2fc473597abd844b1d72f51245c804d8670e9 and changes exactly apps/community-cloud/src/runtime.ts and apps/api/test/community-cloud-runtime.test.ts.",
+      "Controller-reviewed N03 commit aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d has direct parent 6ff75d272ca0ca7c81f8161a9ec118dd1807d67b and changes exactly packages/core/src/gateway.ts, packages/http-api/src/request-handler.ts, apps/api/test/invite-identity-binding.test.ts, and apps/api/test/staff-invites.contract.test.ts.",
+      "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d is the selected CCC-299 owner base. CCC-299 layers its gateway and request-handler work on those N03 bytes and must not revert N03.",
+      "All other existing CCC-299 writer paths except migrations/parity.yaml remain byte-identical to a6b2fc473597abd844b1d72f51245c804d8670e9.",
+      "reviewedIntegrationCommit includes the manual-record-lifecycle parity checkpoint; coreWriterCommitBeforeCCC212Cors has the matching checkpoint source and migrations but its parity manifest ends at intake-versions.",
+      "originMain ends at SQLite 0061 and PostgreSQL 0017 and is not a CCC-299 base."
+    ]
+  },
+  "ownerBaseRule": {
+    "owner": "existing Mac mini BACKEND single writer",
+    "worktree": "/Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND",
+    "branch": "core/relayer-domain-beta",
+    "baseSelection": "Begin CCC-299 only from aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d. Its direct parent must be 6ff75d272ca0ca7c81f8161a9ec118dd1807d67b, whose direct parent must be a6b2fc473597abd844b1d72f51245c804d8670e9.",
+    "requiredChecks": [
+      "The selected base remains in the existing BACKEND worktree and branch; no reset, rebase, merge, branch switch, or writer reassignment is part of CCC-299.",
+      "Verify 6ff75d272ca0ca7c81f8161a9ec118dd1807d67b has direct parent a6b2fc473597abd844b1d72f51245c804d8670e9 and changes exactly apps/community-cloud/src/runtime.ts and apps/api/test/community-cloud-runtime.test.ts.",
+      "Verify aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d has direct parent 6ff75d272ca0ca7c81f8161a9ec118dd1807d67b and changes exactly packages/core/src/gateway.ts, packages/http-api/src/request-handler.ts, apps/api/test/invite-identity-binding.test.ts, and apps/api/test/staff-invites.contract.test.ts.",
+      "Before the first CCC-299 write, every allowed existing path except migrations/parity.yaml, packages/core/src/gateway.ts, and packages/http-api/src/request-handler.ts must match its a6b2fc47 Git-object bytes. The new 0064 and 0020 paths must be absent from a6b2fc47 and aa0bdb1.",
+      "Before the first CCC-299 write, packages/core/src/gateway.ts and packages/http-api/src/request-handler.ts must match their aa0bdb1 Git-object bytes. The final CCC-299 diff must layer only the frozen lifecycle work on those bytes and preserve every N03 behavior and test.",
+      "migrations/parity.yaml must be regenerated in the writer slot from the full checkpoint list, preserving the manual-record-lifecycle checkpoint already present at reviewedIntegrationCommit and adding the CCC-299 checkpoint. It must not be copied from originMain or treated as optional.",
+      "If either prerequisite parent/path proof fails, any nonexception CCC-299 path differs from a6b2fc47, either N03-owned source file differs from aa0bdb1, or either new migration already exists, the controller must stop and refreeze ownership; the writer must not resolve that conflict implicitly."
+    ],
+    "notBases": [
+      "a6b2fc473597abd844b1d72f51245c804d8670e9",
+      "6ff75d272ca0ca7c81f8161a9ec118dd1807d67b",
+      "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+      "ad218e8eafa646a524674fe4ef8cf9c20c0b68bb"
+    ],
+    "reason": "The same sole writer continues from the controller-reviewed N03 prerequisite after CORS. CCC-299 preserves N03 in the two overlapping source files while every other frozen writer path keeps the a6b2fc47 baseline, with reviewedIntegrationCommit retained only as the parity reference."
+  },
+  "contract": {
+    "versionConstants": {
+      "INTAKE_SCHEMA_VERSION": 2,
+      "INTAKE_WRITE_SCHEMA_VERSION": 3,
+      "INTAKE_QUESTION_LIFECYCLE_VERSION": 1,
+      "MANUAL_RECORD_SCHEMA_VERSION": 2,
+      "MANUAL_RECORD_CONTEXT_SCHEMA_VERSION": 3
+    },
+    "parserNames": {
+      "unchangedQuestionnaire": "parseIntakeQuestionnaire",
+      "createMutation": "parseIntakeCreateRequest",
+      "updateMutation": "parseIntakeUpdateRequest",
+      "storedLifecycle": "parseIntakeQuestionLifecycle",
+      "manualMutation": "parseCreateManualRecord"
+    },
+    "typeDeclarations": {
+      "IntakeAdditionalItemRef": "export type IntakeAdditionalItemRef = { rowIndex: number; legacySourceRowIndex?: number } & ({ questionId: null; expectedRevision: null } | { questionId: string; expectedRevision: number });",
+      "IntakeQuestionWithdrawalInput": "export interface IntakeQuestionWithdrawalInput { questionId: string; expectedRevision: number }",
+      "IntakeQuestionWithdrawal": "export interface IntakeQuestionWithdrawal { actorId: string; recordedAt: string; fromRevision: number }",
+      "IntakeQuestionOrigin": "export interface IntakeQuestionOrigin { schemaVersion: 1 | 2; sourceRevision: number; sourceRowIndex: number }",
+      "IntakeQuestionLifecycleItem": "export interface IntakeQuestionLifecycleItem { id: string; revision: number; sourceRevision: number; sourceRowIndex: number; createdBy: string; createdAt: string; withdrawn: IntakeQuestionWithdrawal | null; origin: IntakeQuestionOrigin | null }",
+      "IntakeQuestionLifecycleConversion": "export interface IntakeQuestionLifecycleConversion { sourceSchemaVersion: 1 | 2; sourceRevision: number; mechanical: { recordedAt: string; mappings: Array<{ questionId: string; sourceRowIndex: number }> }; confirmation: { actorId: string; recordedAt: string } }",
+      "IntakeQuestionLifecycle": "export interface IntakeQuestionLifecycle { version: 1; items: IntakeQuestionLifecycleItem[]; conversion: IntakeQuestionLifecycleConversion | null }",
+      "IntakeCreateRequest": "export interface IntakeCreateRequest { schemaVersion: 3; submissionId: string; heldAt: string; channel: 'in_person' | 'phone' | 'video'; questionnaire: IntakeQuestionnaire; additionalItemRefs: IntakeAdditionalItemRef[]; questionWithdrawals: IntakeQuestionWithdrawalInput[]; scheduleId?: string; expectedScheduleVersion?: number }",
+      "IntakeUpdateRequest": "export interface IntakeUpdateRequest { schemaVersion: 3; expectedRevision: number; heldAt: string; channel: 'in_person' | 'phone' | 'video'; questionnaire: IntakeQuestionnaire; additionalItemRefs: IntakeAdditionalItemRef[]; questionWithdrawals: IntakeQuestionWithdrawalInput[]; conversion?: { confirmed: true; sourceRevision: number } }",
+      "IntakeRevisionAddition": "questionLifecycle: IntakeQuestionLifecycle | null",
+      "IntakeSavedRecordAddition": "questionLifecycle: IntakeQuestionLifecycle | null",
+      "IntakeMutationResponse": "export interface IntakeMutationResponse { schemaVersion: 3; revision: number; record: { id: string; heldAt: string; channel: 'in_person' | 'phone' | 'video'; kind: 'intake' }; replayed: boolean }",
+      "IntakeRecordContextChange": "writeSchemaVersion: 3; saved remains IntakeSavedRecord | null",
+      "ManualQuestionAnswerInputChange": "kind: 'schedule' | 'record' | 'intake'; sourceId is the intake session ID and expectedRevision is the stable intake-question revision when kind is 'intake'",
+      "ManualPendingQuestionChange": "kind: 'schedule' | 'record' | 'intake'; state: 'open' | 'confirmed' | 'withdrawn'",
+      "ManualRecordProjectionChange": "questionOutcomes[].kind: 'schedule' | 'record' | 'intake'",
+      "ManualRecordContextChange": "schemaVersion: 3; questions: ManualPendingQuestion[]; confirmedQuestions: ManualPendingQuestion[]; withdrawnQuestions: ManualPendingQuestion[]"
+    },
+    "wireRules": {
+      "questionnaireBytes": "IntakeQuestionnaire.schemaVersion remains exactly 2. Stored questionnaire and legacy JSON remain their literal schema 1 or 2 bytes, including unknown historical fields.",
+      "create": [
+        "The mutation envelope schemaVersion is exactly 3.",
+        "additionalItemRefs and questionWithdrawals are mandatory arrays.",
+        "Each answered questionnaire.additionalItems row has exactly one ref with its request-local zero-based rowIndex, questionId null, and expectedRevision null.",
+        "A nonanswer has no rows and requires additionalItemRefs to be empty. questionWithdrawals must be empty on create.",
+        "Generate IDs inside the successful write transaction after validation and source/CAS checks, persist them atomically with the intake revision, and expose no durable identity or other side effect on rollback. Exact replay allocates no new IDs."
+      ],
+      "update": [
+        "The mutation envelope schemaVersion is exactly 3 and existing expectedRevision remains the full intake CAS.",
+        "Every submitted answered rowIndex appears exactly once in additionalItemRefs. Existing rows carry questionId and question expectedRevision; new rows carry both as null.",
+        "rowIndex binds only this request. It is never stable identity.",
+        "An unchanged row binding may coexist with a withdrawal of the same question ID. An actual item or dueNote edit combined with withdrawal of that same ID is a conflict.",
+        "Omitted existing IDs remain open and retain their prior canonical pointer. A nonanswer creates no ID and withdraws nothing.",
+        "Duplicate bindings, duplicate withdrawals, duplicate request rowIndex values, unknown fields, or out-of-range rowIndex values are invalid."
+      ],
+      "legacyConversion": [
+        "No migration or GET allocates identity or classifies old questions.",
+        "First adoption from schema 1 or from schema 2 with null questionLifecycle requires conversion.confirmed true and conversion.sourceRevision equal to the full expectedRevision.",
+        "Every preexisting source row must have exactly one new ref whose legacySourceRowIndex identifies that exact row. New rows added in the same human-confirmed update omit legacySourceRowIndex.",
+        "Malformed, ambiguous, duplicate-origin, dropped, or merged mappings are refused. Text, hash, and array-order matching are forbidden.",
+        "origin preserves the immutable source schema, revision, and row. conversion.mechanical records allocated ID mappings separately from conversion.confirmation and IntakeRevision.convertedFromRevision.",
+        "Historical actorId stays null when unknown. createdBy and createdAt describe identity allocation, not original authorship."
+      ],
+      "mutationResponse": "POST returns the frozen IntakeMutationResponse with HTTP 201 for a new commit and 200 for an exact replay. PUT returns the same shape with replayed false and HTTP 200. Generated identities are read from the subsequent GET context, not duplicated into the mutation response.",
+      "getContext": "GET /support-cases/:id/records/intake returns writeSchemaVersion 3. saved.questionLifecycle and every saved.history[].questionLifecycle are null for unbound history or a strict version-1 object. GET never allocates or guesses identity.",
+      "manualContext": "GET /support-cases/:id/records/context returns manual context schemaVersion 3. Each question appears in exactly one current-state array: questions for open, confirmedQuestions for confirmed and not later withdrawn, withdrawnQuestions for withdrawn. A confirmed-then-withdrawn question is in withdrawnQuestions with its confirmed outcome retained in outcomes.",
+      "noNewEndpoint": true
+    },
+    "identityAndRevisionRules": [
+      "Question ID is a server-generated persisted UUID and never text, hash, row index, or array position.",
+      "A new question starts at revision 1.",
+      "Question revision increments exactly once for explicit item change, dueNote change, or withdrawal. It does not increment for reorder, unrelated intake edits, manual confirmation, or pointer rebasing alone.",
+      "Each submitted question pointer is rebased to the newly saved intake revision and actual request rowIndex even when question revision is unchanged. Omitted IDs retain the older pointer.",
+      "Current-row association is pointer.sourceRevision equal to saved.revision plus sourceRowIndex. Metadata array order and text equality have no identity meaning.",
+      "Withdrawal sets withdrawn.fromRevision to the pre-withdrawal question revision, increments the question revision, and never reopens automatically.",
+      "Intake expectedRevision protects the whole intake; ManualQuestionAnswerInput.expectedRevision protects the question revision. Neither substitutes for the other."
+    ],
+    "withdrawalAndOutcomeRules": [
+      "Withdrawal removes a question only from current open work. It does not delete original text, revisions, or outcome history and is not declined, unknown, not_applicable, omission, or completion.",
+      "Confirmation committed before withdrawal is preserved; the later valid withdrawal marks current state withdrawn and retains the confirmed answer as readable history.",
+      "Withdrawal committed before confirmation makes the later answer stale and rejects it with conflict.",
+      "Concurrent duplicate confirmations retain the existing confirmed-once rule. No symmetric first-winner rule and no reopen endpoint are introduced."
+    ],
+    "storage": {
+      "canonicalText": "sessions.intake_details plus immutable intake_record_revisions.details only",
+      "sessionColumn": "sessions.intake_question_lifecycle TEXT NULL",
+      "revisionColumn": "intake_record_revisions.question_lifecycle TEXT NULL",
+      "storedShape": "IntakeQuestionLifecycle version 1 JSON; no question text or duplicate body",
+      "history": "Lifecycle metadata is captured in the same intake revision transaction and source guard. Lifecycle-only changes append exactly one intake revision with the acting human and timestamp.",
+      "outcomes": "manual_question_outcomes remains the only manual answer store. Its kind constraint extends to intake without changing manual record request/storage schema 2.",
+      "locks": "program, then support_case, then the real intake source row. Intake updates and manual confirmations use the same order and recheck write scope, active program/case, intake revision, heldAt, lifecycle, question revision, withdrawal, prior confirmation, and source chronology inside the atomic batch.",
+      "snapshot": "loadManualWork selects one authoritative intake snapshot, resolves text through immutable sourceRevision/sourceRowIndex, bounds history to that snapshot, and retains selected result-owning regular sessions. Later revisions cannot replace prior outcome sourceText.",
+      "databaseProtection": "SQLite preserves foreign keys, the confirmed-once index, and immutable no-update/no-delete/source/history guards. PostgreSQL preserves ENABLE/FORCE RLS, tenant policy, PUBLIC revoke, SELECT/INSERT ccc_api grants, and ccc_schema_owner ownership for tables and replaced/new functions."
+    },
+    "http": {
+      "routes": [
+        "GET /support-cases/:id/records/intake",
+        "POST /support-cases/:id/records/intake",
+        "PUT /support-cases/:id/records/intake",
+        "GET /support-cases/:id/records/context",
+        "POST /support-cases/:id/records",
+        "GET /support-cases/:id/records?official=true",
+        "GET /support-cases/:id/report"
+      ],
+      "success": [
+        {
+          "operation": "create",
+          "status": 201,
+          "body": "IntakeMutationResponse schemaVersion 3"
+        },
+        {
+          "operation": "exact create replay",
+          "status": 200,
+          "body": "IntakeMutationResponse schemaVersion 3 with the same intake session ID, its currently stored intake revision, and replayed true; after later mutations, the returned revision is not necessarily the original creation revision."
+        },
+        {
+          "operation": "update",
+          "status": 200,
+          "body": "IntakeMutationResponse schemaVersion 3, replayed false"
+        }
+      ],
+      "refusalTable": [
+        {
+          "condition": "unversioned, schema 1/2, or unsupported intake mutation envelope; unknown fields; malformed refs or withdrawals; create withdrawal; nonanswer with refs",
+          "errorClass": "IntakeContractError -> ValidationError",
+          "status": 400,
+          "body": {
+            "error": "invalid_request"
+          },
+          "beforeWrite": true
+        },
+        {
+          "condition": "duplicate rowIndex, duplicate questionId binding, duplicate withdrawal, or structurally invalid legacySourceRowIndex",
+          "errorClass": "IntakeContractError -> ValidationError",
+          "status": 400,
+          "body": {
+            "error": "invalid_request"
+          },
+          "beforeWrite": true
+        },
+        {
+          "condition": "question/source ID absent from the authorized case, sourceId mismatch, cross-case or cross-tenant reference, or actor lacks read/write source authority",
+          "errorClass": "ForbiddenError",
+          "status": 403,
+          "body": {
+            "error": "forbidden"
+          },
+          "beforeWrite": true
+        },
+        {
+          "condition": "stale intake expectedRevision or question expectedRevision",
+          "errorClass": "ConflictError",
+          "status": 409,
+          "body": {
+            "error": "conflict"
+          },
+          "beforeWrite": true
+        },
+        {
+          "condition": "actual content edit and withdrawal of the same question in one update",
+          "errorClass": "ConflictError",
+          "status": 409,
+          "body": {
+            "error": "conflict"
+          },
+          "beforeWrite": true
+        },
+        {
+          "condition": "missing or stale human conversion confirmation, ambiguous/drop/merge legacy mapping, or conversion on an already bound lifecycle",
+          "errorClass": "ConflictError",
+          "status": 409,
+          "body": {
+            "error": "conflict"
+          },
+          "beforeWrite": true
+        },
+        {
+          "condition": "withdrawal-first late confirmation, duplicate confirmation, changed heldAt/source chronology, inactive program/case, or lost in-transaction source fence",
+          "errorClass": "ConflictError",
+          "status": 409,
+          "body": {
+            "error": "conflict"
+          },
+          "beforeWrite": true
+        },
+        {
+          "condition": "same submissionId with a different canonical submission hash",
+          "errorClass": "ConflictError",
+          "status": 409,
+          "body": {
+            "error": "conflict"
+          },
+          "beforeWrite": true
+        }
+      ],
+      "rawDatabaseErrors": "Constraint failures must be translated to the frozen 409 conflict boundary where they represent stale/current-state loss; raw trigger text is never an HTTP contract."
+    },
+    "reportProjection": {
+      "decision": "Do not modify packages/contracts/src/report.ts.",
+      "reason": "Existing ReportEvidence already identifies the immutable source with sessionId, source, intakeSchemaVersion, and intakeRevision. The report is read-only and needs no stable question ID, lifecycle version, or state field.",
+      "exactEvidence": "For an open intake question, evidence.source is intake_details.additionalItems.<sourceRowIndex>.item and evidence.intakeRevision is the question pointer sourceRevision; intakeSchemaVersion comes from that immutable revision.",
+      "projection": "getSupportCaseReport must read lifecycle metadata plus immutable revisions, include retained omitted open questions, and exclude confirmed and withdrawn questions. It must not use the latest raw array as identity or attach the current intake revision to older source text.",
+      "allowedTest": "apps/api/test/support-case-report.contract.test.ts",
+      "unchangedContractPath": "packages/contracts/src/report.ts"
+    },
+    "validationRules": {
+      "newWireObjects": "parseIntakeCreateRequest, parseIntakeUpdateRequest, and parseIntakeQuestionLifecycle reject unknown keys at every new envelope, ref, withdrawal, lifecycle, item, origin, conversion, mechanical, mapping, and confirmation object boundary.",
+      "historicalPayloads": "Unknown keys are preserved byte-for-byte only inside preexisting sessions.intake_details and intake_record_revisions.details historical JSON. They are not accepted as new envelope or lifecycle fields.",
+      "identifiers": "Incoming questionId and sourceId use the existing manual-record identifier predicate: nonblank string of at most 200 code units. Persisted new question IDs are generated by existing newId() and are UUIDs.",
+      "revisions": "expectedRevision, revision, sourceRevision, fromRevision, and conversion.sourceRevision are safe integers >= 1.",
+      "rowIndexes": "rowIndex and legacySourceRowIndex are safe integers >= 0. rowIndex must be within the submitted answered rows; legacySourceRowIndex must be within the selected immutable legacy source-row set.",
+      "timestamps": "createdAt and recordedAt are server-produced UTC ISO instants from the existing now() seam; clients never submit them.",
+      "cardinality": "additionalItemRefs has exactly the submitted answered-row count and at most 20 entries. questionWithdrawals and lifecycle items have no duplicate question IDs; each submitted rowIndex and each conversion sourceRowIndex occurs at most once.",
+      "lifecycle": "version must equal 1; item IDs are unique; each item pointer resolves the same session's immutable intake revision and row; withdrawn.fromRevision equals revision - 1; origin and conversion mappings resolve the recorded immutable source; null lifecycle is allowed for unbound current or historical schema-1/2 data only."
+    },
+    "manualRevisionSemantics": {
+      "ManualPendingQuestion.sourceRevision": "The source's answer CAS. For kind intake this is the stable intake-question revision, not the intake form revision or lifecycle pointer sourceRevision.",
+      "IntakeQuestionLifecycleItem.sourceRevision": "The immutable intake form revision that stores the current canonical question text.",
+      "IntakeQuestionLifecycleItem.sourceRowIndex": "The row in that immutable intake form revision.",
+      "ManualQuestionAnswerInput.expectedRevision": "Must equal ManualPendingQuestion.sourceRevision. For kind intake it therefore equals the stable question revision.",
+      "outcome.sourceRevision": "For kind intake, stores the stable question revision used by the answer. sourceText stores the resolved immutable text; no new pointer columns are added to outcomes."
+    },
+    "transitionTable": [
+      {
+        "from": "open",
+        "operation": "unchanged submitted binding",
+        "result": "open",
+        "allowed": true,
+        "questionRevisionDelta": 0,
+        "pointer": "rebase to new intake revision/row",
+        "outcomes": "unchanged"
+      },
+      {
+        "from": "open",
+        "operation": "content or dueNote edit",
+        "result": "open",
+        "allowed": true,
+        "questionRevisionDelta": 1,
+        "pointer": "rebase to new intake revision/row",
+        "outcomes": "unchanged"
+      },
+      {
+        "from": "open",
+        "operation": "omission or questionnaire nonanswer",
+        "result": "open",
+        "allowed": true,
+        "questionRevisionDelta": 0,
+        "pointer": "retain prior pointer",
+        "outcomes": "unchanged"
+      },
+      {
+        "from": "open",
+        "operation": "explicit withdrawal with unchanged binding optional",
+        "result": "withdrawn",
+        "allowed": true,
+        "questionRevisionDelta": 1,
+        "pointer": "unchanged binding may rebase; omitted binding retains prior pointer",
+        "outcomes": "unchanged"
+      },
+      {
+        "from": "open",
+        "operation": "manual confirmation",
+        "result": "confirmed",
+        "allowed": true,
+        "questionRevisionDelta": 0,
+        "pointer": "unchanged",
+        "outcomes": "append one confirmed outcome"
+      },
+      {
+        "from": "confirmed",
+        "operation": "unchanged submitted binding",
+        "result": "confirmed",
+        "allowed": true,
+        "questionRevisionDelta": 0,
+        "pointer": "rebase to new intake revision/row",
+        "outcomes": "preserve confirmed outcome"
+      },
+      {
+        "from": "confirmed",
+        "operation": "content or dueNote edit",
+        "result": "confirmed",
+        "allowed": true,
+        "questionRevisionDelta": 1,
+        "pointer": "rebase to new intake revision/row",
+        "outcomes": "preserve historical confirmed answer and sourceText; no reopen"
+      },
+      {
+        "from": "confirmed",
+        "operation": "omission or questionnaire nonanswer",
+        "result": "confirmed",
+        "allowed": true,
+        "questionRevisionDelta": 0,
+        "pointer": "retain prior pointer",
+        "outcomes": "preserve confirmed outcome"
+      },
+      {
+        "from": "confirmed",
+        "operation": "explicit withdrawal with unchanged binding optional",
+        "result": "withdrawn",
+        "allowed": true,
+        "questionRevisionDelta": 1,
+        "pointer": "same rule as open withdrawal",
+        "outcomes": "preserve confirmed outcome"
+      },
+      {
+        "from": "confirmed",
+        "operation": "manual confirmation",
+        "result": "confirmed",
+        "allowed": false,
+        "status": 409,
+        "questionRevisionDelta": 0,
+        "outcomes": "confirmed-once conflict"
+      },
+      {
+        "from": "withdrawn",
+        "operation": "omission or questionnaire nonanswer",
+        "result": "withdrawn",
+        "allowed": true,
+        "questionRevisionDelta": 0,
+        "pointer": "retain prior pointer",
+        "outcomes": "preserve all history"
+      },
+      {
+        "from": "withdrawn",
+        "operation": "binding, content edit, repeated withdrawal, or manual confirmation",
+        "result": "withdrawn",
+        "allowed": false,
+        "status": 409,
+        "questionRevisionDelta": 0,
+        "outcomes": "preserve all history; no reopen"
+      },
+      {
+        "from": "open or confirmed",
+        "operation": "actual content edit and withdrawal in the same update",
+        "result": "unchanged",
+        "allowed": false,
+        "status": 409,
+        "questionRevisionDelta": 0,
+        "outcomes": "atomic rollback"
+      }
+    ],
+    "transitionRules": {
+      "sameRequestRevision": "If a binding and withdrawal name the same ID, both expectedRevision values must equal the same current pre-mutation question revision. Any mismatch is 409.",
+      "confirmedOnceKey": "UNIQUE (org_id, support_case_id, kind, question_id) WHERE outcome = 'confirmed'.",
+      "currentArrays": "A question appears in exactly one current-state context array. A withdrawn question may carry a prior confirmed outcome in outcomes but is not duplicated in confirmedQuestions."
+    },
+    "replay": {
+      "hash": "Existing canonicalSha256 over canonicalizeJcs({ input: parsedEnvelope3, actorId, orgId, supportCaseId }). Object-key order is normalized; array order is preserved.",
+      "scope": "Lookup by org_id, support_case_id, and submission_id, then require the same submitted_by actor and same hash.",
+      "exactness": "Exact replay means the same parsed envelope including questionnaire row order, additionalItemRefs order, and questionWithdrawals order. A different array order with the same submissionId is a hash conflict, not a normalized replay.",
+      "order": [
+        "strict request parse and contract validation -> 400",
+        "support-case access/write authorization -> 403",
+        "active case/program availability -> 409",
+        "submission hash and scoped replay lookup: same actor/hash -> 200; mismatched actor/hash -> 409",
+        "module, schedule, question/source ownership -> 403 for unavailable/cross-scope identity",
+        "full intake/question revision, lifecycle, chronology, and terminal-state fences -> 409"
+      ],
+      "afterLaterMutation": "A later exact replay performs no write and returns the same intake session ID with the currently stored intake revision and replayed true.",
+      "noLeakage": "Source identity lookup occurs only after case authorization. A mixed request follows the ordered boundary above; it never returns a more specific existence error."
+    },
+    "legacySourceRows": {
+      "schema1": "Use the exact historical legacy additionalItems array when present. An absent field yields an empty source-row set. A present malformed or non-array value is not guessed and blocks conversion with 409.",
+      "schema2": "questionnaire.additionalItems.rows only when response is answered; declined, unknown, and not_applicable yield an empty source-row set.",
+      "zeroRows": "An unbound record with zero eligible source rows still requires the explicit conversion gate before becoming bound; mappings is empty and any newly submitted rows omit legacySourceRowIndex.",
+      "mapping": "Every eligible historical row is named exactly once by legacySourceRowIndex. Extra current rows are new questions and omit it. Duplicate indexes are 400 when structurally duplicated; out-of-range, missing, dropped, merged, or otherwise non-one-to-one source mappings are 409 after source selection.",
+      "simultaneousEdit": "A mapped row may be human-edited in the confirmed conversion update. The allocated question starts at revision 1 with origin pointing to the old row and the current pointer pointing to the newly saved row; the origin preserves the old text. Later edits increment revision.",
+      "fieldPermission": "legacySourceRowIndex is allowed only on a null-ID/null-revision ref in an update that carries the valid conversion gate. It is 400 on create, on an already-bound update, on a nonconversion update, or on a ref with a nonnull ID/revision."
+    },
+    "chronologyAndSnapshot": {
+      "authoritativeIntake": "The single sessions row for the authorized org_id/support_case_id with kind intake, selected with its current intake_revision, held_at, and lifecycle under the program -> support_case -> intake-source lock order.",
+      "questionEligibility": "At manual-record commit, the question is in current open state, belongs to that intake session and case, its stable revision equals answer.expectedRevision, and the selected intake heldAt is <= the new manual record heldAt.",
+      "historyBound": "Resolve body from the lifecycle pointer only in intake_record_revisions for the same session/org with revision <= the selected intake revision. Outcome reads remain limited to regular sessions selected in the same loadManualWork snapshot.",
+      "concurrentDateCorrection": "If correction commits first and makes intake heldAt later than the manual record, confirmation revalidation returns 409 and rolls back. If confirmation commits first, it preserves the captured question revision/sourceText and historical source revision; a later intake date correction appends history, preserves the outcome, and does not reopen the question.",
+      "otherDateCorrections": "Changing intake heldAt is an intake revision even when question revision is unchanged. Every submitted row pointer rebases; omitted pointers remain historical. Current and historical outcome projections must use their captured sources rather than replacing them with the corrected date/text.",
+      "failure": "Any lost revision, heldAt, lifecycle, terminal-state, or source-row fence is ConflictError/409 with atomic rollback. Wrong tenant/case/source identity is ForbiddenError/403."
+    }
+  },
+  "migrations": {
+    "sqlite": "migrations/sqlite/0064_intake_question_lifecycle.sql",
+    "postgres": "migrations/postgres/0020_intake_question_lifecycle.sql",
+    "checkpointId": "intake-question-lifecycle",
+    "manifest": "migrations/parity.yaml",
+    "rules": [
+      "0062_intake_versions.sql, 0063_manual_record_lifecycle.sql, 0018_intake_versions.sql, and 0019_manual_record_lifecycle.sql are immutable.",
+      "The new pair adds nullable lifecycle columns without updating old rows or original JSON.",
+      "The new pair replaces intake source/capture/revision guards so metadata equality and metadata-only revisions are protected with explicit insert columns.",
+      "SQLite rebuilds manual_question_outcomes to extend kind to intake while preserving all rows, constraints, foreign keys, confirmed-once index, and immutable/source/history triggers. PostgreSQL replaces the kind check and source/history functions with unchanged RLS, grants, revokes, and ownership.",
+      "apps/api/test/support/migration-parity.ts appends exactly { id: 'intake-question-lifecycle', sqlite: '0064_intake_question_lifecycle.sql', postgres: '0020_intake_question_lifecycle.sql' }.",
+      "The writer generates migrations/parity.yaml only after the new semantic proofs pass. The central verifier then runs the same parity test without the update environment variable."
+    ]
+  },
+  "allowedWriterPaths": [
+    "packages/contracts/src/intake.ts",
+    "packages/contracts/src/manual-record.ts",
+    "packages/core/src/gateway.ts",
+    "packages/http-api/src/request-handler.ts",
+    "migrations/sqlite/0064_intake_question_lifecycle.sql",
+    "migrations/postgres/0020_intake_question_lifecycle.sql",
+    "migrations/parity.yaml",
+    "scripts/seed/scenario.ts",
+    "apps/api/test/support/intake.ts",
+    "apps/api/test/gateway-intake.test.ts",
+    "apps/api/test/manual-record.contract.test.ts",
+    "apps/api/test/routes.test.ts",
+    "apps/api/test/support-case-report.contract.test.ts",
+    "apps/api/test/support/migration-parity.ts",
+    "apps/api/test/migration-parity.test.ts",
+    "apps/api/test/database-parity.test.ts"
+  ],
+  "pathRestrictions": {
+    "apps/api/test/routes.test.ts": "intake route cases only",
+    "packages/core/src/gateway.ts": "intake identity/revision/withdrawal, loadManualWork, records manual projection, and narrow report projection only",
+    "packages/http-api/src/request-handler.ts": "existing intake/manual parser and response routes only",
+    "packages/contracts/src/report.ts": "read-only and unchanged",
+    "allOtherPaths": "not owned by CCC-299"
+  },
+  "producerCutover": {
+    "seed": {
+      "path": "scripts/seed/scenario.ts",
+      "exactChange": "Use INTAKE_WRITE_SCHEMA_VERSION for the create envelope and send additionalItemRefs: [] plus questionWithdrawals: []; keep questionnaire.schemaVersion equal to INTAKE_SCHEMA_VERSION and keep the existing unknown additionalItems response.",
+      "noException": "No envelope-2 alias or seed-only bypass."
+    },
+    "testSupport": {
+      "path": "apps/api/test/support/intake.ts",
+      "exactChange": "intakeInput returns envelope 3 with mandatory empty refs/withdrawals by default; helpers for answered rows emit exact row bindings and explicit legacySourceRowIndex mappings. seedLegacyIntake remains a direct historical schema-1 fixture and never passes through the new writer."
+    }
+  },
+  "centralSmoke": {
+    "path": "artifacts/orchestration/ccc299-core-lifecycle-smoke.test.ts",
+    "ownership": "central verification only; disposable; never committed and not a writer path",
+    "command": "pnpm exec vitest run --config apps/api/vitest.config.ts artifacts/orchestration/ccc299-core-lifecycle-smoke.test.ts --maxWorkers 1",
+    "requirements": [
+      "Call existing createCaptureHarness() and runScenario() directly to prove the real seed producer accepts envelope 3 without invoking scripts/seed/generate.ts or writing scripts/seed/out or preview data.",
+      "Use existing startPostgresHarness(), openParityDatabase(), gateway fixtures, and handleRequest() to run the same lifecycle over real encrypted SQLite and disposable PostgreSQL.",
+      "Exercise create, GET, content edit, reorder, omission, last-row withdrawal, later manual confirmation, records context, official records list, and report through HTTP and gateway seams.",
+      "Use only synthetic values and the existing test key constant; emit statuses, counts, IDs/revisions, and booleans, never raw PII or credentials.",
+      "Delete the smoke artifact after its captured result is collected."
+    ]
+  },
+  "consumerHandoffs": {
+    "frontendFirstIntake": {
+      "owner": "FRONTEND",
+      "writeGranted": false,
+      "prerequisiteForProducerImplementation": false,
+      "paths": [
+        "apps/client/src/business/intake.ts",
+        "apps/client/src/business/intake-form.ts",
+        "apps/client/src/screens/intake.tsx"
+      ],
+      "fields": [
+        "context.writeSchemaVersion = 3",
+        "context.saved.schemaVersion = 1 | 2",
+        "context.saved.revision",
+        "context.saved.questionLifecycle",
+        "context.saved.history[].questionLifecycle",
+        "submission.schemaVersion = 3",
+        "submission.additionalItemRefs[] = { rowIndex, questionId, expectedRevision, legacySourceRowIndex? }",
+        "submission.questionWithdrawals[] = { questionId, expectedRevision }",
+        "submission.conversion? = { confirmed: true, sourceRevision }",
+        "mutationResponse.schemaVersion = 3, revision, record, replayed"
+      ],
+      "behavior": "Decode lifecycle without dropping unknown-as-invalid checks; keep an ID/revision with each editable row, preserve omitted retained questions, send deletion only as questionWithdrawals, support explicit v1/unbound-v2 conversion, and reject old/missing writeSchemaVersion or lifecycle fields instead of defaulting them.",
+      "handoffStatus": "contract frozen, not delivered or acknowledged by this assignment"
+    },
+    "frontendCCC290": {
+      "owner": "FRONTEND",
+      "ticket": "CCC-290",
+      "writeGranted": false,
+      "prerequisiteForProducerImplementation": false,
+      "additionalDependency": "CCC-289",
+      "paths": [
+        "apps/client/src/business/records.ts",
+        "apps/client/src/business/records.test.ts",
+        "apps/client/src/screens/records.tsx"
+      ],
+      "fields": [
+        "manualContext.schemaVersion = 3",
+        "manualContext.questions[]",
+        "manualContext.confirmedQuestions[]",
+        "manualContext.withdrawnQuestions[]",
+        "question.kind = schedule | record | intake",
+        "question.id, sourceId, sourceRevision, sourceSessionId, sourceHeldAt, sourceScheduledAt, createdAt, body, state, outcomes",
+        "questionAnswer = { kind: 'intake', questionId, sourceId: intakeSessionId, expectedRevision: questionRevision, answer }",
+        "records[].manual.questionOutcomes[].kind includes intake"
+      ],
+      "behavior": "Decode the server manual projection and context, submit explicit later answers without changing manual request schema 2, keep confirmed answers readable after withdrawal, and never infer completion from omission or withdrawal.",
+      "handoffStatus": "contract frozen, not delivered or acknowledged by this assignment"
+    },
+    "syntheticApi": {
+      "owner": "FRONTEND",
+      "writeGranted": false,
+      "prerequisiteForProducerImplementation": false,
+      "path": "apps/client/tools/synthetic-api.mjs",
+      "fields": [
+        "GET intake context exposes writeSchemaVersion 3 and saved/history lifecycle",
+        "POST/PUT intake accepts only envelope 3 refs/withdrawals and returns mutation response schemaVersion 3",
+        "GET records/context exposes manual context schemaVersion 3 and all three question-state arrays",
+        "GET records includes manual.questionOutcomes with intake kind",
+        "GET report exposes only open nextConfirmations with immutable evidence revision/path"
+      ],
+      "behavior": "Fixture identity and revisions must be stable across edit/reorder, explicit withdrawal must differ from omission/nonanswer, and 400/403/409 cases must mirror the real server. A permissive fixture is not compatibility evidence.",
+      "handoffStatus": "contract frozen, not delivered or acknowledged by this assignment"
+    },
+    "designCCC288": {
+      "owner": "DESIGN",
+      "ticket": "CCC-288",
+      "writeGranted": false,
+      "prerequisiteForProducerImplementation": false,
+      "paths": [
+        "apps/web/app/lib/api.ts",
+        "apps/web/app/actions.ts",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.tsx",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-draft.test.tsx",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.test.tsx",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.test.tsx"
+      ],
+      "fields": [
+        "writeSchemaVersion 3",
+        "saved.revision and saved.questionLifecycle/history lifecycle",
+        "envelope schemaVersion 3",
+        "additionalItemRefs and questionWithdrawals",
+        "conversion confirmation for schema 1 or unbound schema 2",
+        "mutation response schemaVersion 3 and revision",
+        "400 invalid_request, 403 forbidden, 409 conflict"
+      ],
+      "behavior": "Replace positional delete/omit writes with stable row bindings and explicit withdrawal, preserve literal source schemas 1/2, and show retained/withdrawn/confirmed history without treating response codes as withdrawal. The legacy web remains explicitly unsupported against the new writer until CCC-288 ships; no alias is added.",
+      "handoffStatus": "contract frozen, not delivered or acknowledged by this assignment"
+    }
+  },
+  "verification": {
+    "commands": [
+      {
+        "owner": "central",
+        "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/gateway-intake.test.ts apps/api/test/manual-record.contract.test.ts apps/api/test/support-case-report.contract.test.ts apps/api/test/new-signup-badge.test.ts apps/api/test/participant-p3.contract.test.ts --maxWorkers 1"
+      },
+      {
+        "owner": "central",
+        "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/routes.test.ts --maxWorkers 1 -t intake"
+      },
+      {
+        "owner": "central",
+        "command": "pnpm --filter @ccc/api run typecheck"
+      },
+      {
+        "owner": "central",
+        "command": "pnpm exec vitest run --config apps/api/vitest.config.ts artifacts/orchestration/ccc299-core-lifecycle-smoke.test.ts --maxWorkers 1"
+      },
+      {
+        "owner": "BACKEND writer slot only",
+        "command": "CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1"
+      },
+      {
+        "owner": "central non-update",
+        "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts apps/api/test/database-parity.test.ts --maxWorkers 1"
+      },
+      {
+        "owner": "central",
+        "command": "pnpm guard:db"
+      },
+      {
+        "owner": "central",
+        "command": "pnpm guard:core-imports"
+      }
+    ],
+    "observableAcceptance": [
+      "All preexisting schema-1/2 source JSON bytes, unknown fields, historical lifecycle snapshots, original actors/timestamps, convertedFromRevision, conversion confirmation, and immutable origin provenance remain unchanged. Current lifecycle sourceRevision/sourceRowIndex pointers rebase under the frozen revision rules without altering prior snapshots or origin metadata.",
+      "A new answered row gets one persisted UUID at revision 1; exact replay returns the same ID and creates no extra revision, outcome, audit, or officialization.",
+      "Content/dueNote edit increments question revision; reorder rebases pointers without incrementing it; omission/nonanswer retain open identity; explicit withdrawal increments it and removes only current open work.",
+      "The last answered question can be withdrawn while its unchanged row binding is present; no fake nonanswer is required.",
+      "Legacy schema 1 and unbound schema 2 require explicit one-to-one human-confirmed conversion. Ambiguous, merged, dropped, duplicate, or text/hash-derived mappings fail with no mutation.",
+      "Confirmation-first then withdrawal preserves the answer as withdrawn history. Withdrawal-first then confirmation returns 409. Duplicate confirmation, replay, stale intake/question revision, and date correction have deterministic outcomes.",
+      "Cross-tenant and cross-case IDs return 403 without data existence leakage; malformed envelopes return 400; stale/current-state conflicts return 409. Every failed operation leaves source, outcomes, audit, and officialization unchanged.",
+      "AI-off create, read, edit, context, records, and report work without provider or Agent calls and manual records are official immediately.",
+      "Both encrypted SQLite and PostgreSQL produce the same create/read/edit/reorder/withdraw/confirm/context/records/report observations through handleRequest and gateway.",
+      "PostgreSQL FORCE RLS, tenant policy, PUBLIC revoke, ccc_api grants, and ccc_schema_owner ownership remain; SQLite foreign keys, immutable history guards, and confirmed-once index remain.",
+      "The parity update adds 0064/0020 after preserving all previous checkpoint bytes; the immediate non-update run passes without changing migrations/parity.yaml.",
+      "Seed scenario runs through createCaptureHarness and runScenario with envelope 3 and writes no generator output or preview data.",
+      "The exact allowed path set is the complete product diff; packages/contracts/src/report.ts and all consumer paths remain unchanged.",
+      "Create an intake, commit a later update, then replay the identical original create envelope with the same actor and submissionId. Assert HTTP 200, replayed true, the original intake session ID, and the currently stored revision, with no additional identity allocation, revision, outcome, audit, or officialization."
+    ],
+    "notRunByOrchestrator": "No product tests, builds, migrations, databases, services, or remote systems were run because this assignment is contract freeze only.",
+    "phases": [
+      {
+        "order": 1,
+        "owner": "controller plus BACKEND writer",
+        "name": "base preflight",
+        "requirement": "Select aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d. Verify CORS 6ff75d27 has direct parent a6b2fc47 and exactly its two accepted paths; verify controller-reviewed N03 aa0bdb1 has direct parent 6ff75d27 and exactly its four accepted paths. Confirm gateway.ts and request-handler.ts match aa0bdb1, every other existing CCC-299 path except parity matches a6b2fc47, both new migration paths are absent, the owned writer slot is clean, and no concurrent CCC-299 writer exists."
+      },
+      {
+        "order": 2,
+        "owner": "BACKEND writer",
+        "name": "implementation and local source freeze",
+        "requirement": "Change only allowedWriterPaths. Do not run broad or mid-flight suites. When the complete producer diff is ready, run the writer-only parity update command; migration-parity.test.ts must execute all semantic proofs before its final manifest write."
+      },
+      {
+        "order": 3,
+        "owner": "controller",
+        "name": "candidate seal",
+        "requirement": "Record the exact candidate commit and tree, complete changed-path list, new migration hashes, parity hash, and zero uncommitted product paths. No source edit after this seal may reuse its evidence."
+      },
+      {
+        "order": 4,
+        "owner": "central verifier",
+        "name": "non-update verification",
+        "requirement": "On the exact sealed candidate tree, run targeted tests, route intake filter, API typecheck, disposable smoke, parity/database non-update tests, and both guards. The non-update parity run must leave migrations/parity.yaml byte-identical."
+      },
+      {
+        "order": 5,
+        "owner": "controller",
+        "name": "result collection",
+        "requirement": "Collect every command status/output and smoke observation, delete the disposable smoke artifact, confirm no unowned path changed, and hand the frozen consumer maps to their existing owners without granting writes or claiming deployment compatibility."
+      }
+    ],
+    "candidateEvidenceRequired": [
+      "CORS commit 6ff75d272ca0ca7c81f8161a9ec118dd1807d67b with direct-parent a6b2fc47 and exact two-path diff proof",
+      "controller-reviewed N03 commit aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d with direct-parent 6ff75d27 and exact four-path diff proof",
+      "selected CCC-299 base aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d and clean sole BACKEND writer evidence",
+      "pre-write gateway.ts and request-handler.ts equality to aa0bdb1 plus final diff evidence that N03 remains preserved",
+      "pre-write equality of every other existing CCC-299 writer path except parity to a6b2fc47, with 0064/0020 absent",
+      "CCC-299 candidate commit and tree",
+      "complete changed-path list equal to allowedWriterPaths actually touched, with no unowned path",
+      "0064/0020/parity SHA-256 values",
+      "writer parity-update command result and central non-update byte-stability result",
+      "each targeted command exit status and observed counts",
+      "two-database HTTP/gateway smoke observations",
+      "remaining failures or unrun checks without false PASS",
+      "consumer handoff delivery status, not consumer completion"
+    ],
+    "evidenceInvalidation": "Any product change after the candidate seal invalidates every affected test, hash, and smoke result and requires the corresponding gate to run again on the new exact tree."
+  },
+  "excluded": [
+    "CCC-297 as prerequisite",
+    "CCC-292, G7, S5/S6, Agent transport, provider egress, purge/restore",
+    "screens, CSS, shared UI, design artifacts, deployment, preview, credentials, AI/STT activation",
+    "new question table, duplicated question text, text/hash/order identity, compatibility alias, automatic legacy conversion, reopen behavior",
+    "product source, canonical docs, tickets, branches, commits, or remote-system mutation by ORCH-A"
+  ],
+  "semanticDecisionsRemaining": [],
+  "readyForImplementation": true,
+  "implementationAssignmentIssued": false,
+  "productChanges": 0,
+  "canonicalDocsChanged": 0,
+  "remoteChanges": 0,
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "completionResultScope": "ownedJobs and allResultsCollected describe only this ORCH-A contract-freeze assignment and its blind review result. They do not claim product implementation, runtime verification, consumer completion, or deployment."
+}

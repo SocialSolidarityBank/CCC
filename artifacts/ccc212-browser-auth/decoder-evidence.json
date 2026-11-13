@@ -1,0 +1,18 @@
+{
+  "capability": {
+    "validExactSchema": true,
+    "nullableEngine": true,
+    "extraKeyRejected": true,
+    "optionOrderRejected": true
+  },
+  "identity": {
+    "nullableEmailAndName": true,
+    "inactiveRejected": true,
+    "serviceRoleRejected": true
+  },
+  "participant": {
+    "nullablePiiAccepted": true,
+    "extraKeyRejected": true,
+    "restrictedProjectionNullsSensitiveFields": true
+  }
+}

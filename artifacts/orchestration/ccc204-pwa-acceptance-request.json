@@ -1,0 +1,78 @@
+{
+  "assignmentId": "ccc204-pwa-acceptance-20260913",
+  "ticket": "CCC-204",
+  "issueId": "986eff0e-aea7-4ca8-ba90-fb3f3ffc2e5e",
+  "title": "[E2-2] Vite PWA 골격",
+  "controllerPane": "w1N:p6",
+  "workerPane": "w1N:p1",
+  "workerSessionId": "01a09acb-883e-7562-88b7-ec7db8a87ef8",
+  "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+  "branch": "orchestrate/beta-0.9",
+  "mode": "existing-source-acceptance-audit",
+  "resultPath": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/orchestration/ccc204-pwa-acceptance-result.json",
+  "goal": "Evaluate all existing CCC-204 acceptance criteria against the already implemented PWA, avoiding a second scaffold. Run real safe verification where possible and return exact gaps and their existing owners. This assignment does not grant product source ownership or mark the ticket Done.",
+  "approvedAcceptance": [
+    "React and Vite application are present and usable.",
+    "A real data router supports the current application routes; observe direct URL, reload and back navigation rather than inferring from an import.",
+    "Existing shared design tokens and wire components are reused rather than copied into a new design system.",
+    "The service worker caches only static assets and the app shell, never authenticated/API/PII responses or tokens. Observe real browser service-worker and cache behavior with non-sensitive synthetic inputs.",
+    "The existing design guard checks both apps/web and apps/client. Inspect actual guard inclusion and run the relevant supported guard without changing its rules, fixtures, baseline or assertions."
+  ],
+  "readiness": {
+    "linearState": "In Progress",
+    "openBlockers": 0,
+    "completedPredecessors": ["CCC-169 SG2", "CCC-201 E2-1"],
+    "blockerReadbackLog": "log_j37aglyONncL",
+    "stateAndCommentReadbackLog": "log_Xos8kSWD9IHM",
+    "progressCommentId": "9c19044d-26cd-4892-9eb5-f73e9cdd7f58",
+    "s2Hashes": {
+      "docs/specs/S2-auth-capability-manifest.md": "8691a67339cfdfd5db4227df9bba0f4e13b552a4b57720bad66f2c48c89e07f4",
+      "docs/superpowers/plans/2026-09-02-SG2-auth.md": "61a7d47b38c597b24a4f744fe9d74070f2d621815bdbdd3af56aa6240743a4fb"
+    },
+    "sourceWorktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+    "sourceBranch": "client/relayer-domain-beta",
+    "sourceHead": "f7194dc88064455f3eb6be02abb5aae836981612",
+    "sourceCleanAtControllerReadback": true,
+    "sourceOwner": "existing frontend lane w1M:p2 remains owner and was idle; no source ownership transfer",
+    "scope": "S2 propagation is verified documentation only. CCC-212 owns later browser API/auth implementation; do not absorb it into E2-2."
+  },
+  "readSources": [
+    "This request and the first current-rules section of the canonical orchestration handoff only, not its full historical JSON.",
+    "CCC_OPEN_PILOT_PLAN.md E2-2 and the relevant S2 sections above",
+    "The pinned source apps/client/package.json, vite config, actual router and boot modules, service worker/public manifest, shared token/wire imports and their existing tests",
+    "Existing scripts/design entry points and root package commands needed to establish web/client coverage",
+    "Existing frontend-lane and design-lane procedures plus DESIGN-RULES.md before browser/UI verification",
+    "CCC-201 evidence may be referenced for provenance, but its correspondence completion is not PWA runtime proof."
+  ],
+  "ownedWrites": [
+    "docs/superpowers/plans/2026-09-13-CCC-204-vite-pwa-verification.md: the existing ticket requires a ticket-specific plan; keep it concise and do not create a status ledger",
+    "artifacts/ccc204-pwa/**: non-sensitive verification scripts and JSON evidence only, no design mockups, shared visual harness changes or private transcript dumps",
+    "artifacts/orchestration/ccc204-pwa-acceptance-result.json"
+  ],
+  "executionRules": [
+    "Verify actual own Bash pane, session, cwd and branch against this request. Only controller w1N:p6 assigns work and resets the executor.",
+    "Pin the observed source commit and its actual import closure before execution. Source worktree and all other lanes are read-only, including their build/cache outputs.",
+    "Use a disposable source-pinned snapshot or an existing verified equivalent isolated harness for builds/runtime/cache generation. Reuse installed dependencies only when resolution is proven to use the pinned source. Keep cache, HOME/temp and generated files in the disposable runtime. No package installation, worktree creation or branch changes.",
+    "Inspect the actual configured commands before running them. Since this is a single frozen-source verification assignment with no concurrent source writer, ORCH-A owns this central targeted runtime pass; do not launch additional agents or duplicate full project suites.",
+    "Use existing real browser/runtime helpers and non-sensitive synthetic fixtures. Do not fabricate successful authentication, disable a signature/consent gate, persist a credential or call a real provider to make the UI load.",
+    "Run finite commands normally and services through hub start; observe readiness and exercise the actual PWA. Capture status codes, cache key classes and boolean outcomes rather than sensitive bodies/tokens. Offline/runtime conclusions require the observed scenario, not source text alone.",
+    "If a source defect or missing prerequisite blocks a criterion, report exact file, behavior, existing owner, evidence and smallest repair. Continue independent reachable criteria; do not shrink the ticket or silently fix outside ownership.",
+    "Do not delete or skip existing tests, weaken assertions, change guards, suppress failures, or rerun completed CCC-201/CCC-286 suites merely as proof of activity.",
+    "Stop only your verification services and close your browser contexts at completion. Preserve original worktrees and source artifacts; distinguish generated cache from source before removal.",
+    "Write the result and end your turn after collecting all owned results. Do not prompt another pane, reset a session, mutate Linear/control state, or take the next ticket. The existing monitor sends the completion notification."
+  ],
+  "forbidden": [
+    "No changes to apps/client, apps/web, packages/wire, shared CSS/tokens, DESIGN.md, DESIGN-RULES.md, scripts/design algorithms/fixtures/baselines, auth/API/DB/migrations or other product source.",
+    "No Git add/commit/push/merge/reset/stash/clean, installs, new agents/panes/worktrees, live credentials, real participant data, operational resources, deployment or external AI/STT calls.",
+    "No inference of ownership expansion from the generic instruction to continue; no false ticket Done."
+  ],
+  "resultContract": {
+    "assignmentId": "ccc204-pwa-acceptance-20260913",
+    "workerPaneId": "w1N:p1",
+    "workerSessionId": "01a09acb-883e-7562-88b7-ec7db8a87ef8",
+    "status": "ready_for_review or blocked",
+    "ownedJobs": 0,
+    "allResultsCollected": true,
+    "requiredFields": ["identityEvidence", "sourceCommitAndHashes", "criteria", "actualCommandsAndExitCodes", "runtimeEvidence", "gapsWithOwners", "touchedFiles", "cleanup", "unverified", "recommendedNextAction"]
+  }
+}

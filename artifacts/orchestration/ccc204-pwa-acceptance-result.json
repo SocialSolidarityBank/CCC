@@ -1,0 +1,469 @@
+{
+  "assignmentId": "ccc204-pwa-acceptance-20260913",
+  "workerPaneId": "w1N:p1",
+  "workerSessionId": "01a09acb-883e-7562-88b7-ec7db8a87ef8",
+  "status": "ready_for_review",
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "ticket": "CCC-204",
+  "auditVerdict": "Existing-source audit complete; all reachable checks pass. Authenticated integration remains explicitly unverified.",
+  "ticketDone": false,
+  "completionDecisionOwner": "controller w1N:p6 only",
+  "identityEvidence": {
+    "path": "artifacts/ccc204-pwa/identity.json",
+    "observedAt": "2026-09-13T12:50:54.344Z",
+    "bashPane": "w1N:p1",
+    "livePane": "w1N:p1",
+    "liveSession": "01a09acb-883e-7562-88b7-ec7db8a87ef8",
+    "ompPid": 85024,
+    "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+    "branch": "orchestrate/beta-0.9",
+    "head": "3dff4d0ceb7cf2458a23f349afe31230400aefe0",
+    "matches": {
+      "bashPane": true,
+      "livePane": true,
+      "session": true,
+      "cwd": true,
+      "branch": true,
+      "ompProcess": true
+    },
+    "sessionFileContentsRead": false,
+    "currentRulesRead": "docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md:1-13"
+  },
+  "sourceCommitAndHashes": {
+    "sourceWorktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+    "sourceBranch": "client/relayer-domain-beta",
+    "sourceCommit": "f7194dc88064455f3eb6be02abb5aae836981612",
+    "sourceInitiallyClean": true,
+    "selectedTrackedFiles": 397,
+    "allSelectedFilesMatchedCommitBeforeBuild": true,
+    "actualBuildModuleCount": 182,
+    "actualPinnedSourceModuleCount": 63,
+    "allActualPinnedModuleHashesMatched": true,
+    "allSourceAndSnapshotHashes": "artifacts/ccc204-pwa/source-pin.json",
+    "resolvedDependencies": "artifacts/ccc204-pwa/resolved-imports.json",
+    "actualImportClosure": "artifacts/ccc204-pwa/import-closure.json",
+    "snapshotSetup": "artifacts/ccc204-pwa/runtime-setup.json",
+    "criticalSourceHashes": {
+      "apps/client/package.json": "e46aa881cbdcae3fdf3c553a754c02966b2909f16a22835711f483751f0dd8f2",
+      "apps/client/vite.config.ts": "2e629904de380e375142069f0e5d19026bbda9992202ac2fff6ad08527e787ba",
+      "apps/client/src/main.tsx": "d1ff5261316f15bf987ee15b3ca5c1e7f3e3d85aa4a6ca3a8b7008c54cf51782",
+      "apps/client/src/app.tsx": "6333c29541abf09717ba401a872fa89c3f9ca5e4234e2b698a8d223797d86d4b",
+      "apps/client/src/business/installation.ts": "af70362e65e4cb8d01a80eb47bc40564116f9557bb784e626bf38035bc678a29",
+      "apps/client/src/business/service-worker.ts": "c35eb525439f4695abdca4134e85c54ac5223ffa0d70ee3919af38d9a626c34e",
+      "apps/client/build/pwa.mjs": "c89088a3a059932d08de64196838d30e075e80e20fcbf1e151b3cd23539b21d1",
+      "apps/client/build/shared-styles.mjs": "406b9ba331c9d70936fbbfa7c954edb783679782bd0f3737d684fcf7c1cd8a60",
+      "packages/wire/package.json": "8920c38fd8e73dd2a651123a99d4f739411166842d7ef803699fca39c1d9411e",
+      "packages/wire/src/index.ts": "63fbbb3aa88d709ed00cf71a4a108b2500c49503b85001758438ee77cbd67a45",
+      "packages/wire/src/wire-styles.ts": "ea6b0a4619fc7223ae5ff300617eca6590451505601e196532eeff82a5f1847c",
+      "design/tokens.css": "1f8250249add7ef07dab2704396a5303d103731ea94e89f063cea433fcd94346",
+      "apps/web/app/layout.tsx": "44978bdbba30ae8a7d9aaeeacc8244b85df7474ae30cd7b617971f32cdd3eb4b",
+      "scripts/design/token-audit.mjs": "fc5df680bdd323cce3719896c4d314cafed6f2a0c697af38c48c83dd79a8ecca",
+      "package.json": "abd2803eccbb11ce6c470226b2fed4435cd735b0f59f05f56bd80bf4f07b04b3",
+      "pnpm-lock.yaml": "cab41f837e3bd73cbad2b010fa268bfa92ff981db75208ff1f87ffb10164579e"
+    },
+    "s2Hashes": {
+      "docs/specs/S2-auth-capability-manifest.md": "8691a67339cfdfd5db4227df9bba0f4e13b552a4b57720bad66f2c48c89e07f4",
+      "docs/superpowers/plans/2026-09-02-SG2-auth.md": "61a7d47b38c597b24a4f744fe9d74070f2d621815bdbdd3af56aa6240743a4fb"
+    },
+    "s2HashesMatchedRequest": true,
+    "buildAssets": {
+      "index.html": "c055c1f7dda4f3681621d8bf77dc229313b7fb9fd671754df501696317f60049",
+      "sw.js": "a56e7629c8349e4e1bab98729ef27a355dd8f27c43606d9792c5bd3a13d1e4bd",
+      "manifest.webmanifest": "d623db37bb720152060922aabf7d3eaf501446a62b485701aa6e640013f8f4cf",
+      "icon.svg": "4a8f9171f344758f6926925eaf5551f600bf9d27b3aeec2709951fd53424ea67",
+      "assets/index-DMZgAHU2.js": "b9115c6c51ceb2411f0491d422a035f6c85de53847bd679d552a2e9bfaf02d02",
+      "assets/index-DmXLclX2.css": "8e476e8d67f7105be1d18fc3dd0fc9204a0437d513ebcfb8421358fe9f1867f2"
+    }
+  },
+  "criteria": [
+    {
+      "criterion": "React and Vite application are present and usable.",
+      "status": "pass",
+      "evidence": [
+        "artifacts/ccc204-pwa/commands.json",
+        "artifacts/ccc204-pwa/browser-baseline.json",
+        "artifacts/ccc204-pwa/visual.json"
+      ],
+      "observed": "Existing React 19.2.7 application builds with configured Vite 8.1.3. Real /welcome renders and its login link works. No second scaffold or dependency installation.",
+      "scope": "Public application usability; not a successful business login."
+    },
+    {
+      "criterion": "A real data router supports the current application routes; observe direct URL, reload and back navigation rather than inferring from an import.",
+      "status": "pass_with_scope_limit",
+      "evidence": [
+        "apps/client/src/main.tsx:5-17",
+        "apps/client/src/app.tsx:265-301",
+        "artifacts/ccc204-pwa/direct-routes.json",
+        "artifacts/ccc204-pwa/router-navigation.json"
+      ],
+      "observed": "24 direct URL cases cover the current route patterns and fallback. All mount the React tree; 20 correctly stop at the installation-key boundary. /welcome -> /login preserves the document; reload creates a new document and keeps /login; Back restores /welcome. No page exceptions observed.",
+      "unverified": "Authenticated screen bodies, actual role-derived navigation and API-dependent routing, owned by CCC-212 and existing frontend lane."
+    },
+    {
+      "criterion": "Existing shared design tokens and wire components are reused rather than copied into a new design system.",
+      "status": "pass",
+      "evidence": [
+        "artifacts/ccc204-pwa/resolved-imports.json",
+        "artifacts/ccc204-pwa/import-closure.json",
+        "apps/client/build/shared-styles.mjs:13-37",
+        "artifacts/ccc204-pwa/visual.json",
+        "artifacts/ccc204-pwa/visual-observation.json"
+      ],
+      "observed": "@ccc/wire and contracts resolve inside the committed snapshot. The client build composes design/tokens.css, original web layout CSS and shared wireStyles. The public surface uses one emitted static stylesheet, no style tags, canonical 14px/32px variables, 24px card padding and 32px button height. 1280px and 390px light/dark observations show no horizontal overflow.",
+      "scope": "Shared-source reuse and bounded public-surface verification, not a full design sweep."
+    },
+    {
+      "criterion": "The service worker caches only static assets and the app shell, never authenticated/API/PII responses or tokens. Observe real browser service-worker and cache behavior with non-sensitive synthetic inputs.",
+      "status": "pass_with_scope_limit",
+      "evidence": [
+        "artifacts/ccc204-pwa/worker-online.json",
+        "artifacts/ccc204-pwa/worker-offline.json",
+        "artifacts/ccc204-pwa/acceptance-checks.json"
+      ],
+      "observed": "Unchanged emitted /sw.js was manually registered in a fresh owned browser. Default-page CDP observations show activated control and exactly five cached files: app shell, web manifest, SVG icon, emitted JS and CSS. Seven real loopback synthetic dynamic responses, including Authorization-bearing requests and 401/POST cases, bypass worker handling. An Authorization/query-bearing static request returns byte-identical built JS without storing the marker. Cache keys and bodies remain static-only. With the actual origin stopped, three routes render from the worker, five asset hashes match the build, and all nine uncached requests reject. Web Storage, IndexedDB and cookies remain empty in this scenario.",
+      "scope": "The generated worker itself and synthetic response boundaries are exercised. No live credential, real PII, fabricated authentication, signature bypass or real provider call.",
+      "unverified": "Natural BusinessShell-triggered registration, authenticated reload/logout/revocation persistence, update waiting behavior and standalone OS installation are not established."
+    },
+    {
+      "criterion": "The existing design guard checks both apps/web and apps/client. Inspect actual guard inclusion and run the relevant supported guard without changing its rules, fixtures, baseline or assertions.",
+      "status": "pass",
+      "evidence": [
+        "package.json:25",
+        "scripts/design/token-audit.mjs:21-25",
+        "scripts/design/token-audit.mjs:194-206",
+        "artifacts/ccc204-pwa/commands.json"
+      ],
+      "observed": "Existing guard:tokens reads web layout CSS, shared wireStyles and client business.css, and scans apps/web/app, apps/client/src and packages/wire/src. The unmodified supported command exits 0 with token-audit: 위반 0.",
+      "scope": "No guard rule, fixture, baseline or assertion changed. No duplicate full project suites."
+    }
+  ],
+  "actualCommandsAndExitCodes": [
+    {
+      "command": "node artifacts/ccc204-pwa/identity.mjs",
+      "exitCode": 1,
+      "phase": "initial metadata probe",
+      "reason": "Audit-script comparison expected a UUID but Herdr supplies the own session path; no source/runtime execution began before correction."
+    },
+    {
+      "command": "node artifacts/ccc204-pwa/identity.mjs",
+      "exitCode": 0,
+      "phase": "corrected identity gate",
+      "evidence": "artifacts/ccc204-pwa/identity.json"
+    },
+    {
+      "command": "git -C /Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend show -s --format=%H%n%D HEAD",
+      "exitCode": 0
+    },
+    {
+      "command": "git -C /Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend status --porcelain=v1 --untracked-files=all",
+      "exitCode": 0,
+      "stdoutEmpty": true
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+        "ls-tree",
+        "-r",
+        "--format=%(objectmode) %(objectname) %(path)",
+        "f7194dc88064455f3eb6be02abb5aae836981612",
+        "--",
+        "apps/client",
+        "apps/web",
+        "packages",
+        "scripts/design",
+        "design",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "tsconfig.base.json"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+        "archive",
+        "--format=tar",
+        "f7194dc88064455f3eb6be02abb5aae836981612",
+        "apps/client",
+        "apps/web",
+        "packages",
+        "scripts/design",
+        "design",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "tsconfig.base.json"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "tar",
+        "-xf",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source.tar",
+        "-C",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source"
+      ],
+      "exitCode": 0
+    },
+    {
+      "label": "Configured Vite production build with read-only module observer",
+      "command": [
+        "/Users/seongqkim/.local/share/mise/installs/node/lts/bin/node",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/build.mjs",
+        "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa"
+      ],
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source",
+      "startedAt": "2026-09-13T12:54:11.183Z",
+      "finishedAt": "2026-09-13T12:54:12.720Z",
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "vite v8.1.3 building client environment for production...\n\u001b[2K\rtransforming...✓ 183 modules transformed.\nrendering chunks...\ncomputing gzip size...\napps/client/dist/manifest.webmanifest         0.33 kB\napps/client/dist/icon.svg                     0.46 kB │ gzip:   0.30 kB\napps/client/dist/index.html                   0.56 kB │ gzip:   0.32 kB\napps/client/dist/sw.js                        1.86 kB\napps/client/dist/assets/index-DmXLclX2.css  105.11 kB │ gzip:  17.14 kB\napps/client/dist/assets/index-DMZgAHU2.js   769.22 kB │ gzip: 212.26 kB\n\n✓ built in 468ms\n",
+      "stderr": "[plugin builtin:vite-reporter] \n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\n"
+    },
+    {
+      "label": "Existing supported guard:tokens",
+      "command": [
+        "/Users/seongqkim/.local/share/mise/installs/node/lts/bin/node",
+        "scripts/design/token-audit.mjs"
+      ],
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x/source",
+      "startedAt": "2026-09-13T12:54:12.729Z",
+      "finishedAt": "2026-09-13T12:54:13.002Z",
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "token-audit: 위반 0\n",
+      "stderr": ""
+    },
+    {
+      "command": "browser.open -> real current-route goto/click/reload/goBack; default-context Runtime.evaluate online/offline worker probes",
+      "exitCode": null,
+      "outcome": "completed",
+      "evidence": [
+        "artifacts/ccc204-pwa/router-navigation.json",
+        "artifacts/ccc204-pwa/direct-routes.json",
+        "artifacts/ccc204-pwa/worker-online.json",
+        "artifacts/ccc204-pwa/worker-offline.json"
+      ]
+    },
+    {
+      "command": "hub start/stop ccc204-pwa-preview",
+      "exitCode": 0,
+      "outcome": "owned service stopped"
+    },
+    {
+      "command": "hub start/stop ccc204-pwa-chromium",
+      "exitCode": 143,
+      "outcome": "intentional termination after owned page/cache cleanup"
+    }
+  ],
+  "runtimeEvidence": {
+    "browser": "Chrome/152.0.7977.83",
+    "node": "v24.18.0",
+    "isolation": "Committed-source snapshot with workspace links targeting snapshot; installed third-party dependencies read-only. Services launched with env -i; HOME, TMPDIR, Chromium profile and disk cache inside owned runtime. Loopback only.",
+    "sourceBuildAndCacheGeneratedOutsideSourceWorktree": true,
+    "primaryEvidence": [
+      "artifacts/ccc204-pwa/acceptance-checks.json",
+      "artifacts/ccc204-pwa/source-findings.json",
+      "artifacts/ccc204-pwa/worker-online.json",
+      "artifacts/ccc204-pwa/worker-offline.json",
+      "artifacts/ccc204-pwa/visual.json"
+    ],
+    "manifest": {
+      "startUrl": "/schedule",
+      "scope": "/",
+      "display": "standalone",
+      "parseErrors": 0,
+      "chromeInstallabilityErrors": 0
+    },
+    "bootstrapObservation": "Bare preview returns HTML 200 for absent bootstrap/install-manifest paths; this is not installation success. The app independently stops at trust_missing before fetch.",
+    "observerCorrections": {
+      "identityParser": "path metadata parsed to UUID",
+      "viewport": "explicit page.setViewport after attach ignored requested dimensions",
+      "readyAndFetchRealm": "Isolated evaluate world could not use ServiceWorker.ready and bypassed worker fetches; main page context independently worked. Final online/offline verdict uses only default-context observations.",
+      "moduleFreshness": "Edited file import stayed stale despite a query suffix; content-addressed data-URL import executed the exact corrected observer.",
+      "supersededEvidence": [
+        "artifacts/ccc204-pwa/worker-online-isolated-observer.json",
+        "artifacts/ccc204-pwa/online-verdict.json"
+      ],
+      "errorEvidence": [
+        "artifacts/ccc204-pwa/worker-observer-error.json",
+        "artifacts/ccc204-pwa/worker-ready-main-world.json",
+        "artifacts/ccc204-pwa/browser-module-cache-error.json",
+        "artifacts/ccc204-pwa/offline-observer-error.json"
+      ]
+    }
+  },
+  "gapsWithOwners": [
+    {
+      "id": "authenticated-runtime-prerequisite",
+      "kind": "unverified prerequisite, not demonstrated source defect",
+      "files": [
+        "apps/client/src/business/installation.ts:19-20,38-65",
+        "apps/client/src/app.tsx:68-94,101-179"
+      ],
+      "behavior": "No authorized signed installation/public-key configuration or non-fabricated authenticated business runtime was assigned. Twenty protected/public-join URL cases render the trust_missing boundary, not their business screen bodies.",
+      "owner": "Existing frontend lane w1M:p2; CCC-212 browser API/auth implementation, with its approved release/installation configuration owner.",
+      "evidence": [
+        "artifacts/ccc204-pwa/direct-routes.json",
+        "artifacts/ccc204-pwa/router-navigation.json"
+      ],
+      "smallestNextStep": "Reuse this source and provide the approved signed installation and real non-sensitive authentication environment in the owning lane. Do not remove the key/signature gate or treat the existing arbitrary-login synthetic preview as real authentication."
+    },
+    {
+      "id": "automatic-worker-integration",
+      "kind": "unverified integration scenario",
+      "files": [
+        "apps/client/src/app.tsx:182-188",
+        "apps/client/src/business/service-worker.ts:12-35"
+      ],
+      "behavior": "Normal registration is mounted only after a verified authenticated business session. Natural registration was zero in the permitted public/unconfigured runs; subsequent worker registration was explicitly performed by the auditor.",
+      "owner": "Existing frontend lane w1M:p2; CCC-212 authenticated lifecycle integration.",
+      "evidence": [
+        "artifacts/ccc204-pwa/browser-baseline.json",
+        "artifacts/ccc204-pwa/direct-routes.json",
+        "artifacts/ccc204-pwa/worker-online.json"
+      ],
+      "smallestNextStep": "In the approved authenticated runtime, observe BusinessShell triggering registration without manual calls, then exercise reload/logout/revocation. Keep current ownership and fail-closed behavior."
+    }
+  ],
+  "touchedFiles": [
+    "docs/superpowers/plans/2026-09-13-CCC-204-vite-pwa-verification.md",
+    "artifacts/ccc204-pwa/acceptance-checks.json",
+    "artifacts/ccc204-pwa/browser-baseline.json",
+    "artifacts/ccc204-pwa/browser-cleanup.json",
+    "artifacts/ccc204-pwa/browser-module-cache-error.json",
+    "artifacts/ccc204-pwa/build.mjs",
+    "artifacts/ccc204-pwa/cache-check.mjs",
+    "artifacts/ccc204-pwa/cleanup.json",
+    "artifacts/ccc204-pwa/commands.json",
+    "artifacts/ccc204-pwa/direct-routes.json",
+    "artifacts/ccc204-pwa/identity.json",
+    "artifacts/ccc204-pwa/identity.mjs",
+    "artifacts/ccc204-pwa/import-closure.json",
+    "artifacts/ccc204-pwa/offline-check.mjs",
+    "artifacts/ccc204-pwa/offline-observer-error.json",
+    "artifacts/ccc204-pwa/online-verdict.json",
+    "artifacts/ccc204-pwa/preservation.json",
+    "artifacts/ccc204-pwa/resolved-imports.json",
+    "artifacts/ccc204-pwa/review.json",
+    "artifacts/ccc204-pwa/router-navigation.json",
+    "artifacts/ccc204-pwa/runtime-inventory.json",
+    "artifacts/ccc204-pwa/runtime-setup.json",
+    "artifacts/ccc204-pwa/server.mjs",
+    "artifacts/ccc204-pwa/source-findings.json",
+    "artifacts/ccc204-pwa/source-pin.json",
+    "artifacts/ccc204-pwa/visual-observation.json",
+    "artifacts/ccc204-pwa/visual.json",
+    "artifacts/ccc204-pwa/worker-observer-error.json",
+    "artifacts/ccc204-pwa/worker-offline.json",
+    "artifacts/ccc204-pwa/worker-online-isolated-observer.json",
+    "artifacts/ccc204-pwa/worker-online.json",
+    "artifacts/ccc204-pwa/worker-ready-main-world.json",
+    "artifacts/orchestration/ccc204-pwa-acceptance-result.json"
+  ],
+  "cleanup": {
+    "observedAt": "2026-09-13T13:13:00.986Z",
+    "ownedServices": [
+      {
+        "name": "ccc204-pwa-preview",
+        "initialPid": 2625,
+        "restartedPid": 46282,
+        "state": "exited",
+        "exitCode": 0,
+        "reason": "Stopped for real origin-unavailable proof, restarted only to correct isolated-world observer, stopped again."
+      },
+      {
+        "name": "ccc204-pwa-chromium",
+        "pid": 2622,
+        "state": "exited",
+        "exitCode": 143,
+        "reason": "Intentional owned process termination after page/cache cleanup"
+      }
+    ],
+    "browser": {
+      "unregistered": [
+        true
+      ],
+      "deletedCaches": [
+        true
+      ],
+      "remainingRegistrations": 0,
+      "remainingCaches": [],
+      "ownedPageClosed": true
+    },
+    "runtimeDir": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc204-pwa/.runtime-qCjJ3x",
+    "runtimeRemoved": true,
+    "originalAfterCleanup": [],
+    "wipAfterCleanup": [],
+    "originalSourceFilesVerified": 397,
+    "unrelatedWipFilesVerified": 38,
+    "portsClosed": {
+      "46173": true,
+      "46174": true
+    },
+    "temporaryScreenshotRemoved": true,
+    "ownedJobs": 0,
+    "otherProcessesStopped": false,
+    "otherWorktreesWritten": false,
+    "controlOrLinearMutated": false
+  },
+  "unverified": [
+    "Authenticated business page contents and role-derived navigation; no login was fabricated.",
+    "Automatic application-triggered service-worker registration and authenticated token lifecycle persistence.",
+    "Service-worker update waiting/unsaved-input behavior, browser fresh-profile offline-first launch, standalone OS installation and non-Chromium platforms.",
+    "Deployed HTTPS/CSP/CORS, hosted Supabase authentication, actual PII, live providers and production resources; not called or altered.",
+    "Existing unit tests were inspected as source context, not rerun. No CCC-201/CCC-286 suite or project-wide suite was used as activity proof.",
+    "Generated browser-file glob hit its 200-entry clamp. Runtime inventory labels that path sample partial; complete committed source hashes and exclusive mkdtemp ownership established the removal boundary."
+  ],
+  "warnings": [
+    {
+      "kind": "build-warning",
+      "observed": "Existing production JS chunk is 769.22 kB; Vite emits the >500 kB warning and still exits 0.",
+      "action": "Recorded without suppressing the warning or expanding this audit into code splitting."
+    }
+  ],
+  "recommendedNextAction": "Controller w1N:p6 reviews the five criterion results and the two authenticated-integration gaps. Retain the existing PWA source; route remaining real-auth integration evidence to the existing frontend/CCC-212 owner. This executor does not mark CCC-204 Done.",
+  "evidenceHashes": {
+    "artifacts/ccc204-pwa/cleanup.json": "b48feba9e93479083eb4cd24035e740260ef0c011beaa7851a8adce4be641034",
+    "artifacts/ccc204-pwa/runtime-inventory.json": "0e87602881d7da8e76e3aaff38417d3abb55ea5359f28760877e17ff512b1d2d",
+    "artifacts/ccc204-pwa/preservation.json": "68c617e7b2bac9604c5c27cda5da4d927c83c788f9263d079402ac5033f59b9e",
+    "artifacts/ccc204-pwa/browser-cleanup.json": "66bd24e7280f53019c2cb9f26a30c69a458e7dc2182287fac0060c0561f546bb",
+    "artifacts/ccc204-pwa/acceptance-checks.json": "ccac49a49b6cb254eaa7baab98598e1d9e247209e3a55b9d0fc449420c9c3d46",
+    "artifacts/ccc204-pwa/worker-offline.json": "8aed7dd8a40fb555d32b16e208470e6d79bdf11a47f8a4b83be712768eab6b88",
+    "artifacts/ccc204-pwa/worker-online.json": "3df5a37d538fcf9d4b621cac4d3671430738cfbcb9d860d71494b0f6fd754ef1",
+    "artifacts/ccc204-pwa/offline-check.mjs": "e0bd3e571581087841cbfa88aab8dea7f5f9ed48dcc0d844f0a908cb591df81d",
+    "artifacts/ccc204-pwa/cache-check.mjs": "9799139df2f7e245ffc4880825288eaa0cb26d326f1341afcb7f0c2a0ce65945",
+    "artifacts/ccc204-pwa/online-verdict.json": "79f17149152fd58900e579eab7ba9d58bd0016199a1721804ef33137b50a8f78",
+    "artifacts/ccc204-pwa/offline-observer-error.json": "943a253f118977716917de7f61d2ad6e6eb24c48865d7e48492e429c338f2a3b",
+    "artifacts/ccc204-pwa/worker-online-isolated-observer.json": "ae78c7a04913d776dd20e3cfa8ad7165989a786f74126f8a2dfcc7d8c5818bd1",
+    "artifacts/ccc204-pwa/browser-module-cache-error.json": "9e0a089b2aeff7451082236921b27db6207c6cddd3b00a5d321839c5854fa182",
+    "artifacts/ccc204-pwa/worker-ready-main-world.json": "3b9993d2ac2605694f0fefdf91d7e56b35007b562bd2b0253223395303ece9ce",
+    "artifacts/ccc204-pwa/worker-observer-error.json": "776a21d853c49553914be722392bcbbcfe696df7e5de40d43666e1f0bd1fa14c",
+    "artifacts/ccc204-pwa/visual-observation.json": "73d964205bb52260ac7d3d0a6110c09b3f9b71b6235f1cf97be9dc78660b58c4",
+    "artifacts/ccc204-pwa/visual.json": "7d1077b7533a433b54a9e3a0d93c70507e678a9ff07e76d31c84e0146b0213fa",
+    "artifacts/ccc204-pwa/direct-routes.json": "9ba9355e529c1eb56d86c6ce741b1944b00a6b05eb4c288c2d44c445c52db29d",
+    "artifacts/ccc204-pwa/router-navigation.json": "df8f2a915c1930b4f1a9ae1dd845f4319380118e8f7f2a2fbbfcf65b61ac3875",
+    "artifacts/ccc204-pwa/browser-baseline.json": "b338a6e95915c6b8c414a485863bc49e73601239e64f9262c2ec686f15dad7a4",
+    "artifacts/ccc204-pwa/source-findings.json": "ddbbf4d15a4ffdb104279e5771f67491b7ca18215e91508b2e9ac9e96779dc62",
+    "artifacts/ccc204-pwa/server.mjs": "287144e47b7927231c53274ffb295ccf2012b7d3bbfdea77e91eb11a6ceef07b",
+    "artifacts/ccc204-pwa/commands.json": "948a5be57d96b5801346b003489337b0d065ece9ba10f3eea345ba7adf7c755b",
+    "artifacts/ccc204-pwa/import-closure.json": "be4956fbb7a8f3877aada2b00fd32c7f16bdd4661eb101bbc1381b81a3f48afe",
+    "artifacts/ccc204-pwa/resolved-imports.json": "95cf5f85405cc79fe920721175a7854b0296cc3e3d788229c31a19d08b8c6b88",
+    "artifacts/ccc204-pwa/build.mjs": "596fab8a769c97263c4c9b70ca431c72a1249fa44850eb07bbda2a029c5dedc1",
+    "artifacts/ccc204-pwa/runtime-setup.json": "272134be1f27184c0e3f385789de9a7260fae7c9102fa025531486f9673eb963",
+    "artifacts/ccc204-pwa/source-pin.json": "0a9da08805908b8213a9ebffc397bb70a0320c3efc4fcdcf9b1d474dffe5b9ee",
+    "artifacts/ccc204-pwa/identity.json": "aa1e1a0de5fd638ed67e5cfed4e2c9bcd9b9219050e0b3f37281191f1b9643bd",
+    "artifacts/ccc204-pwa/identity.mjs": "22939cd5c6e6cbd277d383e89a699102a9b41ace434063b6be145c3002758cc4",
+    "artifacts/ccc204-pwa/review.json": "24d187e1e3b05934faddfaa6ef141bf77e564b00f375e9284361ae67e2816b8e",
+    "docs/superpowers/plans/2026-09-13-CCC-204-vite-pwa-verification.md": "476f3c1f35de0e7cbd443c0f776e9ab17a039022935e582ce533c6cbf65fd376"
+  }
+}

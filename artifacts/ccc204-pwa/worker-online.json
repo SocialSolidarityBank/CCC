@@ -1,0 +1,376 @@
+{
+  "executionContext": "default-page-world",
+  "network": [
+    {
+      "pathname": "/welcome",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "document"
+    },
+    {
+      "pathname": "/assets/index-DmXLclX2.css",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "stylesheet"
+    },
+    {
+      "pathname": "/assets/index-DMZgAHU2.js",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "script"
+    },
+    {
+      "pathname": "/manifest.webmanifest",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "manifest"
+    },
+    {
+      "pathname": "/icon.svg",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "other"
+    },
+    {
+      "pathname": "/welcome",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "document"
+    },
+    {
+      "pathname": "/assets/index-DmXLclX2.css",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "stylesheet"
+    },
+    {
+      "pathname": "/manifest.webmanifest",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "manifest"
+    },
+    {
+      "pathname": "/assets/index-DMZgAHU2.js",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "script"
+    },
+    {
+      "pathname": "/icon.svg",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "other"
+    },
+    {
+      "pathname": "/icon.svg",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "other"
+    },
+    {
+      "pathname": "/__ccc204_audit__/api",
+      "status": 200,
+      "fromServiceWorker": false,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/__ccc204_audit__/private-pii",
+      "status": 200,
+      "fromServiceWorker": false,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/__ccc204_audit__/auth",
+      "status": 200,
+      "fromServiceWorker": false,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/__ccc204_audit__/audio",
+      "status": 200,
+      "fromServiceWorker": false,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/__ccc204_audit__/denied",
+      "status": 401,
+      "fromServiceWorker": false,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/__ccc204_audit__/unlisted.js",
+      "status": 200,
+      "fromServiceWorker": false,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/__ccc204_audit__/unlisted.css",
+      "status": 200,
+      "fromServiceWorker": false,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/assets/index-DMZgAHU2.js",
+      "status": 200,
+      "fromServiceWorker": true,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/ccc-bootstrap.json",
+      "status": 200,
+      "fromServiceWorker": false,
+      "resourceType": "fetch"
+    },
+    {
+      "pathname": "/ccc-install-manifest.json",
+      "status": 200,
+      "fromServiceWorker": false,
+      "resourceType": "fetch"
+    }
+  ],
+  "registrationMode": "AUDITOR_MANUAL_UNCHANGED_EMITTED_WORKER_NOT_APP_TRIGGERED",
+  "before": {
+    "registrations": 1,
+    "controlled": true
+  },
+  "registered": {
+    "scope": "http://127.0.0.1:46173/",
+    "activeScript": "http://127.0.0.1:46173/sw.js",
+    "activeState": "activated",
+    "waiting": false,
+    "controllerBeforeReload": true
+  },
+  "controlled": {
+    "script": "http://127.0.0.1:46173/sw.js",
+    "state": "activated"
+  },
+  "afterInstall": {
+    "caches": [
+      {
+        "name": "ccc-shell-d15104d8",
+        "entries": [
+          {
+            "pathname": "/assets/index-DMZgAHU2.js",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "text/javascript",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/assets/index-DmXLclX2.css",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "text/css",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/icon.svg",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "image/svg+xml",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/index.html",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "text/html;charset=utf-8",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/manifest.webmanifest",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "application/manifest+json",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          }
+        ]
+      }
+    ],
+    "localStorageKeys": [],
+    "sessionStorageKeys": [],
+    "indexedDBNames": [],
+    "cookiePresent": false
+  },
+  "requests": [
+    {
+      "pathname": "/__ccc204_audit__/api",
+      "method": "GET",
+      "syntheticAuthorizationSent": false,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": false
+    },
+    {
+      "pathname": "/__ccc204_audit__/private-pii",
+      "method": "GET",
+      "syntheticAuthorizationSent": true,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": true
+    },
+    {
+      "pathname": "/__ccc204_audit__/auth",
+      "method": "POST",
+      "syntheticAuthorizationSent": false,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": false
+    },
+    {
+      "pathname": "/__ccc204_audit__/audio",
+      "method": "GET",
+      "syntheticAuthorizationSent": true,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": true
+    },
+    {
+      "pathname": "/__ccc204_audit__/denied",
+      "method": "GET",
+      "syntheticAuthorizationSent": true,
+      "status": 401,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": true
+    },
+    {
+      "pathname": "/__ccc204_audit__/unlisted.js",
+      "method": "GET",
+      "syntheticAuthorizationSent": false,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": false
+    },
+    {
+      "pathname": "/__ccc204_audit__/unlisted.css",
+      "method": "GET",
+      "syntheticAuthorizationSent": false,
+      "status": 200,
+      "syntheticBodyReceived": true,
+      "serverObservedAuthorization": false
+    }
+  ],
+  "staticRequest": {
+    "pathname": "/assets/index-DMZgAHU2.js",
+    "status": 200,
+    "sha256": "b9115c6c51ceb2411f0491d422a035f6c85de53847bd679d552a2e9bfaf02d02",
+    "matchesBuiltAsset": true
+  },
+  "bootstrapProbes": [
+    {
+      "pathname": "/ccc-bootstrap.json",
+      "status": 200,
+      "contentType": "text/html",
+      "returnedHtml": true
+    },
+    {
+      "pathname": "/ccc-install-manifest.json",
+      "status": 200,
+      "contentType": "text/html",
+      "returnedHtml": true
+    }
+  ],
+  "afterRequests": {
+    "caches": [
+      {
+        "name": "ccc-shell-d15104d8",
+        "entries": [
+          {
+            "pathname": "/assets/index-DMZgAHU2.js",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "text/javascript",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/assets/index-DmXLclX2.css",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "text/css",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/icon.svg",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "image/svg+xml",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/index.html",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "text/html;charset=utf-8",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          },
+          {
+            "pathname": "/manifest.webmanifest",
+            "queryPresent": false,
+            "hashPresent": false,
+            "authorizationHeaderPresent": false,
+            "status": 200,
+            "contentType": "application/manifest+json",
+            "syntheticResponseCanaryPresent": false,
+            "syntheticCredentialCanaryPresent": false
+          }
+        ]
+      }
+    ],
+    "localStorageKeys": [],
+    "sessionStorageKeys": [],
+    "indexedDBNames": [],
+    "cookiePresent": false
+  },
+  "manifest": {
+    "url": "http://127.0.0.1:46173/manifest.webmanifest",
+    "errors": [],
+    "data": {
+      "name": "Relayer",
+      "short_name": "Relayer",
+      "lang": "ko",
+      "start_url": "/schedule",
+      "scope": "/",
+      "display": "standalone",
+      "background_color": "#ffffff",
+      "theme_color": "#ffffff",
+      "icons": [
+        {
+          "src": "/icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml",
+          "purpose": "any"
+        }
+      ]
+    }
+  },
+  "installability": {
+    "installabilityErrors": []
+  }
+}

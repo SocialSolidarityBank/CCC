@@ -1,0 +1,795 @@
+{
+  "modules": [
+    {
+      "path": "\u0000virtual:ccc-shared.css",
+      "kind": "virtual"
+    },
+    {
+      "path": "\u0000vite/modulepreload-polyfill.js",
+      "kind": "virtual"
+    },
+    {
+      "path": "\u0000vite/preload-helper.js",
+      "kind": "virtual"
+    },
+    {
+      "path": "apps/client/index.html",
+      "sha256": "cc007686c193c7da8890f7284ebd360456775d38e06bcfa9f106881d4e88d44f",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/app.tsx",
+      "sha256": "6333c29541abf09717ba401a872fa89c3f9ca5e4234e2b698a8d223797d86d4b",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/ai-review.ts",
+      "sha256": "38a5cdf3e179f09332eb0f99396ce8843a0916091ab92bff13cdb86963374fa9",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/api.ts",
+      "sha256": "216bfc79102af2b5b0f9347436a418ec22aea5ca132311fb131e7bc282afcc31",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/auth-view.tsx",
+      "sha256": "210a712bf558f3016dbfd4042403cd0140df0e763dd8646c48a9902582685b52",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/auth.ts",
+      "sha256": "d80674312b823dd294198bf2195bc0c4a3cec0b87c05073e3ca9e4b7a45e01f9",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/business.css",
+      "sha256": "2c2f6851441df8bb568311df83c568d743eba130706afea44ed87b8a1946e601",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/consent-decisions.tsx",
+      "sha256": "d7b96156f79101b9790f21b3d572684c206bcb94b58cd1af8ba9238f4b28c9a3",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/consent-panel.tsx",
+      "sha256": "8a258f6ba4a7320b9c0604019e7202614d96863612dcbf67dc2b210fb8d3a337",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/consent.ts",
+      "sha256": "49af27fc280a4a03064f3ed9a1f750de0fa8c50ea7af18c140dae55505b5131c",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/editing.ts",
+      "sha256": "35a356b04033f8965e307ca71d1eb97466b32484713c9376e331ba1e0e063769",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/errors.ts",
+      "sha256": "c1960ccc9d746eee0627845815d3f2f30d490270e85e2f5c6c7ac3a665178665",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/installation.ts",
+      "sha256": "af70362e65e4cb8d01a80eb47bc40564116f9557bb784e626bf38035bc678a29",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/institution.ts",
+      "sha256": "0dbdcac23e0e9dfbff8a34a746eebfeeeaf2af0098f6d739e10a26c67171f678",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/intake-form.ts",
+      "sha256": "ee97c42a56f59924355bc5c3655a09d0a64c4d37f7fa40ac366f9db9e60a8120",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/intake.ts",
+      "sha256": "86f4cf1e37b298d781516974d8e7d3c52780a397d21ba9e5a51fc17eff1f8e5b",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/invites.ts",
+      "sha256": "ea17a6c51e7371e563de5f2cf515c4a9a0b21c9f3201b938b126575158fc8868",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/navigation.ts",
+      "sha256": "2b77f5518f51fbdecdfddc44495fe3d829e367274be0a9aa21cd322810168a5b",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/participants.ts",
+      "sha256": "70e6193018a42d2c06dffe3f3beed69b80bf678710cd41ef77a8a511300cb472",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/records.ts",
+      "sha256": "63dae4839629ac142089a5f728f3d07ebdbe7ee827694e9ff24b9a0ff2b8ced5",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/report.ts",
+      "sha256": "7021dd77d9fc144ecd9acc15e6f527aba9c0103d3411741dc69cdf8627ad7ae0",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/schedules.ts",
+      "sha256": "fe9c78f1ffd00fd11183652616de07d325e3d4a3fb0d6e47c61eaa72fee17bc1",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/service-worker.ts",
+      "sha256": "c35eb525439f4695abdca4134e85c54ac5223ffa0d70ee3919af38d9a626c34e",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/settings-modules.tsx",
+      "sha256": "29ae9e94b8afcdfc4e37f9d49ac5d0807dfea34e8f3a4260dfddc7d45b20d4c2",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/business/transport.ts",
+      "sha256": "42dfd2e798186d81683ea8f923d871ee8ff0a2ccd70c0761574bbe59519f5fde",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/main.tsx",
+      "sha256": "d1ff5261316f15bf987ee15b3ca5c1e7f3e3d85aa4a6ca3a8b7008c54cf51782",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/screens/institution.tsx",
+      "sha256": "b8321d5eda97fca4655beaaf416c9abcc969b74a3ea3d1d4c407d1b95c90312b",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/screens/intake.tsx",
+      "sha256": "7fcd638325624a869901dcd484503428ae62e59c69946910401534dd89a719bd",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/screens/invites.tsx",
+      "sha256": "0a3f44240b98d4aeea46ffb6f2b61b1c978f5f832e0e311efc52154237aa9c8d",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/screens/participants.tsx",
+      "sha256": "950b152f00a07993a39c36b101e6c48e55e5b1163efe0586c2591383938bb803",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/screens/records.tsx",
+      "sha256": "26a49f94e351d45a87128582dc5e49915153169d4e0d265419e830f0522e507f",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/screens/report.tsx",
+      "sha256": "8bd14861dee975ae24045d2aa8e928c3b3d2e3c0ce8d05139b73a9f56dfc0b41",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/screens/schedules.tsx",
+      "sha256": "6f664c07a63d6cb75c6719f24b94439d253bed9a3b7ba0a3c7c26ddfbfc2231a",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/screens/settings.tsx",
+      "sha256": "eff9fc1b0943404c9c2ef93675189687645b1b5535ffde691ab2b9c28876369a",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/stt-trial/api.ts",
+      "sha256": "d88635848e188e5e2b8f8132be2cdb6770fbe6402a33232cb30e8491049d848a",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/stt-trial/messages.ts",
+      "sha256": "4ded33187322c3a5a7140966fdb3693ed1e2afb13f78534e3e89d1efc32766c4",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "apps/client/src/stt-trial/stt-trial-page.tsx",
+      "sha256": "1519ef84fe8c9252c5f8761b899b55b535b3b64e7443070a0ffb1148dff04c4f",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/contracts/src/capabilities.ts",
+      "sha256": "5ea1d107374eeb8bc0d05495a0a20a36d80370f5b80d2b94abde43073f2b311a",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/contracts/src/consent.ts",
+      "sha256": "0dbf3364f994d471b8b46b511d6c169bfa817abf577c7610bf7d28d370655660",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/contracts/src/guards.ts",
+      "sha256": "3618ca698c19cff8906dadabff9389bf6968e3a414ef96c62614c120c5d8cab8",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/contracts/src/install-manifest.ts",
+      "sha256": "2a30d5c7f538bfb4bb47097ed90f518a8fa4e27c693a56afd0b202dd3609fccf",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/contracts/src/intake.ts",
+      "sha256": "782be8f08ec0fbed77c0b04330d2e887a89ebb6d451e1f9bbe3dddf4ec35cc22",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/contracts/src/jcs.ts",
+      "sha256": "2c5053bd2d08e6c8950649e2aa9a61fbe3e6605151a1812a26aab5050192d953",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/contracts/src/program-admission.ts",
+      "sha256": "98768ab622cb8be6ca2b55af077caf6dda678022c68d32089fee0dfdad462b5d",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/contracts/src/runtime.ts",
+      "sha256": "15cdd4550f9e4e7b7bd666bdc465d5ba0ad4de565b58f3d34eada484151b5e1a",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/chevron.tsx",
+      "sha256": "2f8ea537ec2180934e21a178273087ffac8432f6af45427566ca83c78e6138ce",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/grid-container.tsx",
+      "sha256": "abd94664efc759fb520f16ea859d2def3db269ca8304594a1006ba610f1cdd86",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/index.ts",
+      "sha256": "63fbbb3aa88d709ed00cf71a4a108b2500c49503b85001758438ee77cbd67a45",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/page-title.tsx",
+      "sha256": "5234a4bbddc22026e6708507898e0cf66d36f0da0fc23fe2c8ce9a9d4936efcc",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/participant-hero-card.tsx",
+      "sha256": "f45db2204f8827ce4730ccbc9204363737cabeaf2127840cf0951c920bebe9de",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/participant-name.tsx",
+      "sha256": "cc07d039238958ec9e8706078fab56903d59f3eeb5a2c04d4d41e3faa8c6e665",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-badge.tsx",
+      "sha256": "7578a54e4c34a9d8606c0993fc66294970d94936910a977fc4fede2ed28ef2ae",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-button.tsx",
+      "sha256": "4119f3cd15031651f0933bd4500c2270257015cd36f37cc67e35bef1120c5cd6",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-callout.tsx",
+      "sha256": "82de5b88766edfcf689c535f4054568c91984b304a75ffccd4c11000ac4a7108",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-card.tsx",
+      "sha256": "3d2b1744cebd649d5b7f5df7ec9dc49796b57bd35014140be64bb7e97c2a4354",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-data-rows.tsx",
+      "sha256": "5202aa71d60d7e902817e13ffccaeddbf1f4eac87c546f0c034853b0f61ed096",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-form-field.tsx",
+      "sha256": "5c63d7b533ba7f7d301bbf6aea903de4700f082a971ffc1febcbcb77083108d5",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-icon.tsx",
+      "sha256": "81ca8368c1bcc93e8c0ba5f0f1136e16d560afe1132fe29f7d527c032ed57bcb",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-month-calendar.tsx",
+      "sha256": "0d1eee265526567ce330614c4f45ee6584a43f544eef100eeeaff509307f190f",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-radio-group.tsx",
+      "sha256": "50a277565d1a526ba3939a41d73f0bfb8af8b1edd747961025d05de7bea61ce6",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-radio-layout.ts",
+      "sha256": "83738753a6271243d789f813c965c2fbe1ba811f9b12fa32929671451e05838c",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-section.tsx",
+      "sha256": "9644a051a8f0518638cad25f79f2e72484c83c1886cf71af535be78d8aadbfc8",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "packages/wire/src/wire-state.tsx",
+      "sha256": "0aa6d3ee6687cd9969d8f139795046ca39704b16128eedde6608574242398c2e",
+      "kind": "pinned-source"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/AuthAdminApi.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/AuthClient.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/GoTrueAdminApi.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/GoTrueClient.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/index.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/base64url.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/constants.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/errors.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/fetch.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/helpers.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/local-storage.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/locks.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/polyfills.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/types.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/version.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/web3/ethereum.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/webauthn.errors.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+auth-js@2.116.0/node_modules/@supabase/auth-js/dist/module/lib/webauthn.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+functions-js@2.116.0/node_modules/@supabase/functions-js/dist/module/FunctionsClient.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+functions-js@2.116.0/node_modules/@supabase/functions-js/dist/module/helper.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+functions-js@2.116.0/node_modules/@supabase/functions-js/dist/module/index.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+functions-js@2.116.0/node_modules/@supabase/functions-js/dist/module/types.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+phoenix@0.4.5/node_modules/@supabase/phoenix/priv/static/phoenix.mjs",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+postgrest-js@2.116.0/node_modules/@supabase/postgrest-js/dist/index.mjs",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/RealtimeChannel.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/RealtimeClient.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/RealtimePostgresFilterBuilder.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/RealtimePresence.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/index.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/lib/constants.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/lib/normalizeChannelError.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/lib/serializer.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/lib/transformers.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/lib/version.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/lib/websocket-factory.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/phoenix/channelAdapter.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/phoenix/presenceAdapter.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+realtime-js@2.116.0/node_modules/@supabase/realtime-js/dist/module/phoenix/socketAdapter.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+storage-js@2.116.0/node_modules/@supabase/storage-js/dist/index.mjs",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+supabase-js@2.116.0/node_modules/@supabase/supabase-js/dist/index.mjs",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/@supabase+supabase-js@2.116.0/node_modules/@supabase/supabase-js/dist/tracingRegistry.mjs",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/cookie-es@3.1.1/node_modules/cookie-es/dist/index.mjs",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/iceberg-js@0.8.1/node_modules/iceberg-js/dist/index.mjs",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/cjs/react-dom-client.development.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/cjs/react-dom.development.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/client.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/index.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/dom-export.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/index.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/actions.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/components.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/context.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom-export/dom-router-provider.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom-export/hydrated-router.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/dom.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/lib.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/server.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/components.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/data.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/errorBoundaries.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/fallback.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/fog-of-war.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/hydration.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/invariant.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/links.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/markup.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/routeModules.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/routes-test-stub.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/routes.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/server.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/dom/ssr/single-fetch.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/errors.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/hooks.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/href.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/router/history.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/router/instrumentation.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/router/navigation.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/router/router.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/router/url.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/router/utils.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/rsc/browser.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/rsc/errorBoundaries.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/rsc/html-stream/browser.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/rsc/html-stream/server.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/rsc/route-modules.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/rsc/server.ssr.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/cookies.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/crypto.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/data.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/dev.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/entry.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/errors.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/headers.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/invariant.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/mode.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/routeMatching.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/routes.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/server.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/serverHandoff.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/sessions.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/sessions/cookieStorage.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/sessions/memoryStorage.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/single-fetch.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/urls.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/lib/server-runtime/warnings.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/vendor/turbo-stream-v2/flatten.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/vendor/turbo-stream-v2/turbo-stream.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/vendor/turbo-stream-v2/unflatten.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react-router@8.3.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/vendor/turbo-stream-v2/utils.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react-jsx-dev-runtime.development.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react.development.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react@19.2.7/node_modules/react/index.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/react@19.2.7/node_modules/react/jsx-dev-runtime.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/scheduler@0.27.0/node_modules/scheduler/cjs/scheduler.development.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/scheduler@0.27.0/node_modules/scheduler/index.js",
+      "kind": "installed-dependency"
+    },
+    {
+      "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend/node_modules/.pnpm/tslib@2.8.1/node_modules/tslib/tslib.es6.mjs",
+      "kind": "installed-dependency"
+    }
+  ]
+}

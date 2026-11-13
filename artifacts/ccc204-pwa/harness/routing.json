@@ -1,0 +1,16 @@
+{
+  "navigation": {
+    "path": "/schedule",
+    "businessShellVisible": true,
+    "activeScheduleLink": true,
+    "documentPreserved": true
+  },
+  "reload": {
+    "path": "/schedule",
+    "loginRequired": true,
+    "businessShellAbsent": true,
+    "controllerScript": "https://ccc.example.org/sw.js",
+    "controllerState": "activated",
+    "newDocument": true
+  }
+}

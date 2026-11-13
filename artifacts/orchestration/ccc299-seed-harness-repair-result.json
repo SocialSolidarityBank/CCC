@@ -1,0 +1,124 @@
+{
+  "assignmentId": "ccc299-seed-harness-repair-20260914",
+  "ticket": "CCC-299",
+  "status": "READY_FOR_CENTRAL_VERIFICATION",
+  "completionMarker": "BACKEND_RESULT CCC299-SEED-HARNESS-REPAIR-20260914",
+  "worktree": "/Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND",
+  "branch": "core/relayer-domain-beta",
+  "parent": {
+    "commit": "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db",
+    "tree": "d344b210ea9ae2f9def92f6aa81249845385a3fb"
+  },
+  "candidate": {
+    "commit": "ae8604435745ad4c042da70f175318402ecfbe37",
+    "tree": "3361160edc9b943b734dd3bb666042bca1dd998b"
+  },
+  "changedFiles": [
+    {
+      "path": "scripts/seed/harness.ts",
+      "sha256": "b4503f3ca05a90554d2403fa2e91a65ad354b1ada706f43afe1477454088e76a"
+    },
+    {
+      "path": "scripts/seed/preload-data.ts",
+      "sha256": "d8a2f1e62db73574d16ff1af025d8657ab403367f5b8be17391056e16a28554f"
+    }
+  ],
+  "changes": {
+    "preload": "Added one deterministic program_admission_policies row immediately after the existing organization_settings row and before users; existing organization, users and pending stubs unchanged.",
+    "environment": {
+      "installationMode": "community-cloud",
+      "CCC_STT_MODE": "off",
+      "CCC_LLM_MODE": "off",
+      "PII_KEY_VERSION": "2"
+    },
+    "scenarioChanged": false,
+    "admissionAndRegistrationFlow": "Existing gateway createProgram, trusted provider registry, issued six-domain disclosures, per-participant idempotency keys and current registration input unchanged."
+  },
+  "verification": {
+    "command": "SEED_PROFILE=preview pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/ccc299-seed-harness-smoke.test.ts --maxWorkers 1",
+    "directCalls": [
+      "createCaptureHarness",
+      "runScenario"
+    ],
+    "temporarySmokeSha256": "511d062f4ea6bbf96c6591fbf0671418fb52cec1e62f57eedc150d8e76b3d582",
+    "attempts": [
+      {
+        "result": "TIMEOUT",
+        "testTimeoutMs": 300000,
+        "artifact": "artifact://113",
+        "observation": "Initial installation mode and persisted off/off policy assertions passed; the full fixture exceeded the disposable test timeout. No scenario caller failure was reported."
+      },
+      {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "testTimeoutMs": 3600000,
+        "vitestDurationSeconds": 363.25,
+        "testDurationSeconds": 362.41,
+        "fixtureReduced": false,
+        "assertionsWeakened": false
+      }
+    ],
+    "counts": {
+      "participants": 100,
+      "sessions": 550,
+      "virtualCounselors": 0,
+      "consentEvents": 600,
+      "registryEntries": 5
+    },
+    "countsEvidence": "Summary matched the current content fixture. Direct disposable DB assertions confirmed 100 support cases, 550 sessions, 600 consent events and 5 registry entries.",
+    "program": {
+      "count": 1,
+      "admissionState": "ready",
+      "financialSupportEnabled": true,
+      "storageMode": "supabase_seoul",
+      "processingMode": "external_allowed",
+      "allSupportCasesUseCreatedProgram": true,
+      "confirmationMatchesCurrentAdmissionCopyAndInstallationContext": true
+    },
+    "policy": {
+      "org_id": "bss",
+      "version": 1,
+      "stt_mode": "off",
+      "llm_mode": "off",
+      "created_at": "2026-01-01 00:00:00",
+      "updated_at": "2026-01-01 00:00:00",
+      "unchangedAfterScenario": true
+    },
+    "piiKey": "Random 32-byte synthetic key generated in-process, injected via PII_ENC_KEY, never printed or written to disk; environment restored in finally.",
+    "harnessDisposal": "Successful smoke awaited harness.dispose() in finally.",
+    "participantP3": {
+      "rerun": false,
+      "inheritedParentPassingTests": 21,
+      "parentCommit": "4d0f7f590c04bb07fe5544cfa7be0994cc1a90db",
+      "evidencePath": "/tmp/ccc299-source-repair-result.json",
+      "evidenceSha256": "5095c3e5e5cf52e0a5c50430ddc7e32b8cc449e7e3934f7026b2863d1f62e4b5"
+    }
+  },
+  "cleanup": {
+    "temporarySmokeRemoved": true,
+    "previewOutputCreated": false,
+    "seedOutDirectoryAbsentBeforeAndAfter": true,
+    "workingTreeClean": true
+  },
+  "boundaries": {
+    "normalCommit": true,
+    "hooksBypassed": false,
+    "pushed": false,
+    "merged": false,
+    "deployed": false,
+    "dockerRun": false,
+    "externalServicesContacted": false,
+    "previewGeneratorRun": false,
+    "projectWideSuitesRun": false,
+    "formattersRun": false,
+    "excludedPathsChanged": false
+  },
+  "remainingCentralChecks": [
+    "Central verifier must bind its final acceptance evidence to candidate ae8604435745ad4c042da70f175318402ecfbe37 / tree 3361160edc9b943b734dd3bb666042bca1dd998b.",
+    "Any required central type/build, guard, migration parity or cross-database integration checks were not rerun on this candidate on the mini. Prior central results remain evidence for their original tree only.",
+    "Actual preview generation remains intentionally unrun and is not claimed verified."
+  ],
+  "ownedJobs": 0,
+  "allResultsCollected": true
+}

@@ -1,0 +1,130 @@
+{
+  "observedAt": "2026-09-13T23:05:00Z",
+  "operation": "n03-relayer-canonical-inputs",
+  "selectedTarget": "current N02-created Supabase project",
+  "targetRefSha256": "b2b2413ce2722a6489cbbf86a97454755c366512125a91caed2285de2134c12e",
+  "supabaseProviderWrites": 0,
+  "databaseWrites": 0,
+  "emailsSent": 0,
+  "infisicalWrites": 26,
+  "legacyEntriesDeletedOrOverwritten": 0,
+  "localCa": {
+    "path": "/Users/seongqkim/.config/relayer/supabase-root-2021.crt",
+    "sha256": "700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7",
+    "subject": "Supabase Root 2021 CA",
+    "notAfter": "2031-04-26T10:56:53Z",
+    "matchesPinnedSupabaseCliSource": true,
+    "databaseCredentialVerified": true,
+    "databaseRoleClass": "installer-capable"
+  },
+  "existingN02Artifacts": {
+    "sourceNames": [
+      "CCC_N02_INSTALL_MANIFEST",
+      "CCC_N02_INSTALL_APPROVAL",
+      "CCC_N02_BETA_RELEASE_TRUST",
+      "CCC_N02_PROVIDER_BASELINE"
+    ],
+    "targetBindingValid": true,
+    "authorizationExpiresAt": "2026-10-13T10:55:26.230Z",
+    "runtimeManifestSha256": "f299c7279ce75b95854d3b2d41e077a4fb09ddb7be8915c4708c7bfbb54555c9",
+    "approvalSha256": "04197287291df45e0cae38c3053fa57b3a056cd2d588fe18137d87ed1fb233af",
+    "releaseTrustSha256": "55079a0e3fbb67e2dc361c85997dcc2be92ae3fb9aa687bd1e6193f6a0d9fc11",
+    "baselineSha256": "f24d99f22c44f54d0ee26a428df41c797703edcd1e824c916a4cd4f2954a3e06",
+    "baselineVersion": "supabase-hosted-pg17-20260913-v1",
+    "baselineObjectCount": 194,
+    "baselineGrantCount": 1760,
+    "decision": "reuse the already valid target-bound documents; do not issue duplicate documents"
+  },
+  "canonicalInfisical": {
+    "projectId": "78d6f149-5ef7-43f2-b20c-4c89c3dc473c",
+    "environment": "prod",
+    "path": "/",
+    "prefix": "RELAYER_",
+    "storedAndVerifiedNames": [
+      "RELAYER_SUPABASE_ACCESS_TOKEN",
+      "RELAYER_SUPABASE_SECRET_KEY",
+      "RELAYER_SUPABASE_PROJECT_REF",
+      "RELAYER_INSTALL_DATABASE_URL",
+      "RELAYER_INSTALL_SIGNING_PRIVATE_KEY",
+      "RELAYER_INSTALL_SIGNING_KEYS",
+      "RELAYER_INSTALL_REVOKED_KEY_IDS",
+      "RELAYER_INSTALL_MANIFEST",
+      "RELAYER_INSTALL_APPROVAL",
+      "RELAYER_ORGANIZATION_ID",
+      "RELAYER_BETA_ROOT_SIGNING_PRIVATE_KEY",
+      "RELAYER_BETA_RELEASE_SIGNING_PRIVATE_KEY",
+      "RELAYER_BETA_TRUST_ROOT_KEYS",
+      "RELAYER_BETA_REVOKED_ROOT_KEY_IDS",
+      "RELAYER_BETA_RELEASE_TRUST",
+      "RELAYER_PROVIDER_BASELINE",
+      "RELAYER_RELEASE_ROOT_SIGNING_PRIVATE_KEY",
+      "RELAYER_RELEASE_SIGNING_PRIVATE_KEY",
+      "RELAYER_RELEASE_TRUST_STORE",
+      "RELAYER_SCHEDULER_SECRET",
+      "RELAYER_API_DATABASE_PASSWORD",
+      "RELAYER_PII_ENC_KEY",
+      "RELAYER_ONBOARDING_REQUEST",
+      "RELAYER_ONBOARDING_JOURNAL",
+      "RELAYER_ONBOARDING_DATABASE_PASSWORD",
+      "RELAYER_ONBOARDING_INSTALLATION"
+    ],
+    "firstWriteCreatedCount": 26,
+    "idempotentVerification": {
+      "createdCount": 0,
+      "existingCount": 26,
+      "verifiedCount": 26,
+      "valueMismatches": 0
+    },
+    "notCreated": {
+      "name": "RELAYER_ONBOARDING_FIRST_ADMIN",
+      "reason": "No approved non-sensitive test email and optional name were supplied."
+    }
+  },
+  "runtimeMapping": {
+    "RELAYER_SUPABASE_ACCESS_TOKEN": "SUPABASE_ACCESS_TOKEN",
+    "RELAYER_SUPABASE_SECRET_KEY": "SUPABASE_SERVICE_ROLE_KEY",
+    "RELAYER_SUPABASE_PROJECT_REF": "CCC_SUPABASE_PROJECT_REF",
+    "RELAYER_INSTALL_DATABASE_URL": "CCC_INSTALL_DATABASE_URL",
+    "RELAYER_INSTALL_SIGNING_KEYS": "CCC_INSTALL_SIGNING_KEYS",
+    "RELAYER_INSTALL_REVOKED_KEY_IDS": "CCC_INSTALL_REVOKED_KEY_IDS",
+    "RELAYER_INSTALL_MANIFEST": "CCC_INSTALL_MANIFEST",
+    "RELAYER_INSTALL_APPROVAL": "CCC_INSTALL_APPROVAL",
+    "RELAYER_ORGANIZATION_ID": "CCC_ORGANIZATION_ID",
+    "RELAYER_BETA_TRUST_ROOT_KEYS": "CCC_BETA_TRUST_ROOT_KEYS",
+    "RELAYER_BETA_REVOKED_ROOT_KEY_IDS": "CCC_BETA_REVOKED_ROOT_KEY_IDS",
+    "RELAYER_BETA_RELEASE_TRUST": "CCC_BETA_RELEASE_TRUST",
+    "RELAYER_PROVIDER_BASELINE": "CCC_PROVIDER_BASELINE",
+    "RELAYER_RELEASE_TRUST_STORE": "CCC_RELEASE_TRUST_STORE",
+    "RELAYER_ONBOARDING_REQUEST": "CCC_ONBOARDING_REQUEST",
+    "RELAYER_ONBOARDING_JOURNAL": "CCC_ONBOARDING_JOURNAL",
+    "RELAYER_ONBOARDING_INSTALLATION": "CCC_ONBOARDING_INSTALLATION",
+    "RELAYER_ONBOARDING_FIRST_ADMIN": "CCC_ONBOARDING_FIRST_ADMIN",
+    "RELAYER_ONBOARDING_DATABASE_PASSWORD": "CCC_ONBOARDING_DATABASE_PASSWORD"
+  },
+  "n03ReadOnlyPlan": {
+    "canonicalInputsLoaded": true,
+    "syntheticFirstAdminUsed": true,
+    "providerWrites": 0,
+    "databaseWrites": 0,
+    "emailsSent": 0,
+    "ready": false,
+    "failureCode": "HEALTH_FAILED",
+    "doctor": {
+      "installState": "installed",
+      "ready": false,
+      "productionReady": false,
+      "blockers": [
+        "DRIFT_BLOCKED",
+        "DRIFT_DETECTED"
+      ]
+    },
+    "rootCause": "The installed journal fingerprint predates the approved hosted Auth change. The out-of-band disable_signup and invite-template update is now observed as installation drift. Values are no longer the blocker."
+  },
+  "documentation": {
+    "commit": "206e494f80284ec9c91b21da4d89c7795f754488",
+    "parent": "18810bce803df757de94b6b4de8aa6542919c27d",
+    "tree": "6d849bf328294860a1c89d1476c06b9448df5afa",
+    "worktreeClean": true
+  },
+  "nextRequiredWork": "Add an approved installer reconciliation/update path for the intentional Auth configuration change, or make another explicit recovery decision. Do not edit the append-only journal or reopen public signup to hide the drift."
+}

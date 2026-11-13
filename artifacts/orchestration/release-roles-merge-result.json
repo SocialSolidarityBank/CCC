@@ -1,0 +1,186 @@
+{
+  "assignmentId": "RELEASE-ROLES-MERGE-20260915",
+  "scope": "first item of the release contract, internal operating roles and the administrator export boundary",
+  "status": "MERGED_ROLE_BOUNDARY_PROVEN_BUT_ELEVEN_AI_DRAFT_TESTS_FAIL",
+  "summary": "The merge was clean, parity still holds read-only, api typecheck passed, the python module passed at 68 tests, and all four role boundary items are proven by existing tests that pass. Eleven tests in gateway-domain.test.ts fail, all on one AI draft helper path, unrelated to role boundaries.",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "branch": "integrate/ccc291-parity",
+    "cleanAtEnd": true,
+    "tip": "4e477a0c90e24c89cf7875e0d11c2e39aa2ed27d"
+  },
+  "observedBaseTip": {
+    "observedBy": "git branch --show-current, git rev-parse HEAD, git status --short, git log --oneline -1",
+    "branch": "integrate/ccc291-parity",
+    "commit": "6adc14634c5413f958b49694b98613dfa13b6995",
+    "subject": "Merge commit '21265854715837b8701e4d518a032b801b40fbc0' into integrate/ccc291-parity",
+    "clean": true,
+    "resetUsed": false
+  },
+  "fetchedTip": {
+    "command": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "5ef5a0b3e5c6459208239c0096b056b6ab70deaa",
+    "subject": "feat: 내부 운영 역할과 관리자 내보내기 경계 확정",
+    "chain": [
+      {"commit": "5ef5a0b3e5c6459208239c0096b056b6ab70deaa", "parent": "7780debcbb882d82547987abc2bb1a4b7df58af8", "stat": "7 files changed, 86 insertions(+), 112 deletions(-)"},
+      {"commit": "7780debcbb882d82547987abc2bb1a4b7df58af8", "parent": "21265854715837b8701e4d518a032b801b40fbc0", "subject": "test: 처리 Agent 명세 원천 참조 복구", "stat": "1 file changed, 50 insertions(+), 13 deletions(-), apps/pipeline/tests/test_api_client_worker.py only"},
+      {"commit": "21265854715837b8701e4d518a032b801b40fbc0", "alreadyMerged": true}
+    ],
+    "matchedAssignment": true
+  },
+  "migrationFilesInRange": {
+    "verifiedBy": "git show --stat per commit, read before merging",
+    "newMigrationFiles": [],
+    "modifiedMigrationFiles": [],
+    "count": 0,
+    "consequence": "parity was run read-only with no update environment variable and the manifest was neither regenerated nor committed"
+  },
+  "coreMergeCommit": {
+    "commit": "4e477a0c90e24c89cf7875e0d11c2e39aa2ed27d",
+    "mergedCommit": "5ef5a0b3e5c6459208239c0096b056b6ab70deaa",
+    "commitsBrought": 2,
+    "conflicts": 0,
+    "diffStat": "8 files changed, 136 insertions(+), 125 deletions(-)"
+  },
+  "conflicts": [],
+  "parityCheck": {
+    "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+    "updateEnvironmentVariableUsed": false,
+    "exitStatus": 0,
+    "result": "PASS",
+    "testsPassed": 1,
+    "durationSeconds": 12.63,
+    "manifestSha256": "f671080ea7ed26b15ae96b3899a2210daa8ee651e8be3fde04fb670d5b65af8b",
+    "manifestUnchanged": true,
+    "manifestCommitted": false,
+    "executions": 1
+  },
+  "apiTypecheck": {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "executions": 1},
+  "testedFiles": {
+    "derivedFrom": "git diff --name-status 6adc1463 4e477a0c",
+    "apiTestFilesChanged": [
+      {"path": "apps/api/test/access-jwt.test.ts", "change": "M"},
+      {"path": "apps/api/test/access-policy.test.ts", "change": "M"},
+      {"path": "apps/api/test/gateway-domain.test.ts", "change": "M"},
+      {"path": "apps/api/test/support-case-access-deny-audit.test.ts", "change": "M"}
+    ],
+    "pythonTestFilesChanged": [{"path": "apps/pipeline/tests/test_api_client_worker.py", "change": "M"}],
+    "otherChanged": ["packages/core/src/access-policy.ts", "packages/core/src/gateway.ts", "packages/http-api/src/identity.ts"]
+  },
+  "testResults": [
+    {
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/access-jwt.test.ts apps/api/test/access-policy.test.ts apps/api/test/gateway-domain.test.ts apps/api/test/support-case-access-deny-audit.test.ts",
+      "exitStatus": 1,
+      "result": "PARTIAL",
+      "testFilesPassed": 3,
+      "testFilesFailed": 1,
+      "testsPassed": 71,
+      "testsFailed": 11,
+      "totalTests": 82,
+      "durationSeconds": 75.5,
+      "executions": 1,
+      "passedFiles": ["apps/api/test/access-jwt.test.ts", "apps/api/test/access-policy.test.ts", "apps/api/test/support-case-access-deny-audit.test.ts"],
+      "failedFile": "apps/api/test/gateway-domain.test.ts",
+      "failedFileOwnTotals": "11 failed, 30 passed, 41 total",
+      "failures": {
+        "sharedError": "Error: masking_snapshot_missing",
+        "sharedPath": "openAiMaterialError at packages/core/src/gateway.ts:4142, raised by verifyPersistedSnapshotProof at gateway.ts:4154, called from loadMaskedSourceSnapshotForService at 4506, loadDeclaredAiDraftMaterials at 4607 and createGeneratedAiDraft at 4722, entered through the test helper createPilotDraft at apps/api/test/gateway-domain.test.ts:569",
+        "commonCause": "every one of the eleven builds an AI draft through that one helper, so a single snapshot proof path accounts for all of them",
+        "attributionEvidence": "git log -S verifyPersistedSnapshotProof on packages/core/src/gateway.ts returns only 53396688, and git show of this merge's 5ef5a0b touches that area zero times while the earlier masking producer commit 21265854 touches verifyPersistedSnapshotProof, masking_snapshot_missing or maskingPipeline twelve times. So the path in question came from commits this line merged before this assignment, not from the role commit.",
+        "notVerifiedOnThePreviousTip": "this slot did not run gateway-domain.test.ts on tip 6adc1463, and moving HEAD to test it would require a reset, which is forbidden here. So whether the failures predate this merge is stated as evidence above, not as a measured comparison.",
+        "names": [
+          "keeps generated AI unofficial until immutable approval projects it through the official view",
+          "falls back to the manual memo while a generated draft remains pending",
+          "keeps service-only actions separate from counselor-owned GAS approval and flag review",
+          "manages action items and flags while excluding unapproved AI data from export",
+          "keeps pending AI flags out of the briefing while showing counselor and confirmed flags",
+          "rejects a versionless session approval wrapper before it can bypass immutable review",
+          "녹음 재료 승인은 화자 확인 전제에서 막힌다 (D11 회귀)",
+          "화자 확인 뒤 대조를 통째 승인하고 확인 시각을 함께 기록한다 (D71)",
+          "rejects stale generated draft versions after an edit creates the next immutable version",
+          "rejects evidence-only edits that select only question links",
+          "supersedes into a new version and rejects its terminal current version"
+        ],
+        "suite": "gateway domain records",
+        "roleBoundaryTestsAffected": false,
+        "diagnosticRerun": "one extra run of gateway-domain.test.ts alone was made to collect the failing test names, same 11 failures",
+        "fixNotAttempted": "no assertion, threshold or baseline was touched and no product or test source was edited"
+      }
+    }
+  ],
+  "pythonResult": {
+    "command": "python3 -m unittest tests.test_api_client_worker",
+    "cwd": "apps/pipeline",
+    "exitStatus": 0,
+    "result": "PASS",
+    "testsRun": 68,
+    "executions": 1,
+    "note": "confirms the mini report. The import error this slot reported for CCC292-MANIFEST-MERGE is closed by 7780deb."
+  },
+  "roleBoundaryEvidence": {
+    "method": "read the changed test files, mapped each of the four items to existing tests and their pass state. No new test was written and no existing check was duplicated.",
+    "items": [
+      {
+        "item": "a same-institution administrator may read and export a case they are not assigned to",
+        "satisfied": true,
+        "evidence": [
+          {"file": "apps/api/test/gateway-domain.test.ts", "line": 853, "test": "lets an unassigned institution administrator read and export but not mutate counseling records", "assertions": "getSession with admin resolves at line 878, exportCase with admin resolves at line 901, and line 905 requires exactly one export audit row for that admin and case", "result": "PASS"},
+          {"file": "apps/api/test/support-case-access-deny-audit.test.ts", "line": 73, "test": "allows an institution administrator to read an unassigned case", "result": "PASS"},
+          {"file": "apps/api/test/access-policy.test.ts", "line": 5, "test": "allows an institution administrator to read an unassigned case", "result": "PASS"}
+        ]
+      },
+      {
+        "item": "the same administrator's record write, edit and AI approval are denied without an assignment",
+        "satisfied": true,
+        "evidence": [
+          {"file": "apps/api/test/gateway-domain.test.ts", "line": 853, "test": "lets an unassigned institution administrator read and export but not mutate counseling records", "assertions": "with the same admin actor, approveGeneratedAiDraft rejects ForbiddenError at line 882, approveSession rejects at 889, recordGasScores rejects at 891 and createFlag rejects at 897", "result": "PASS"},
+          {"file": "apps/api/test/support-case-access-deny-audit.test.ts", "line": 180, "test": "does not let an unassigned institution administrator rewrite session goals", "result": "PASS"},
+          {"file": "apps/api/test/support-case-access-deny-audit.test.ts", "line": 89, "test": "does not let an administrator without a practitioner role mutate case content even when assigned", "result": "PASS"},
+          {"file": "apps/api/test/support-case-access-deny-audit.test.ts", "line": 200, "test": "allows an administrator to receive case work only after an explicit practitioner grant and assignment", "result": "PASS"}
+        ]
+      },
+      {
+        "item": "another institution's case is denied for both read and export",
+        "satisfied": true,
+        "evidence": [
+          {"file": "apps/api/test/gateway-domain.test.ts", "line": 853, "test": "lets an unassigned institution administrator read and export but not mutate counseling records", "assertions": "getSession with otherOrgAdmin rejects ForbiddenError at line 880 and exportCase with otherOrgAdmin rejects ForbiddenError at line 903, so read and export are both closed in one test", "result": "PASS"},
+          {"file": "apps/api/test/gateway-foundation.test.ts", "line": 378, "test": "getCase with otherOrgAdmin rejects ForbiddenError, plus cross-organization revealPii denials at lines 232 and 240", "result": "not run in this slot because the file is unchanged by this merge"}
+        ]
+      },
+      {
+        "item": "supervision-relationship effective permission is closed at the API",
+        "satisfied": true,
+        "evidence": [
+          {"file": "apps/api/test/support-case-access-deny-audit.test.ts", "line": 227, "test": "keeps team supervision records without granting effective API access", "result": "PASS"},
+          {"file": "apps/api/test/support-case-access-deny-audit.test.ts", "line": 268, "test": "rejects a supervisor after the team grant is revoked", "result": "PASS"},
+          {"file": "apps/api/test/support-case-access-deny-audit.test.ts", "line": 299, "test": "does not let a supervisor mutate content in a supervised case", "result": "PASS"}
+        ]
+      }
+    ],
+    "allFourSatisfied": true,
+    "newTestsWritten": 0,
+    "duplicateChecksCreated": 0
+  },
+  "unmet": ["the eleven gateway-domain.test.ts AI draft tests listed above"],
+  "requiredFromCore": "Decide the AI draft material path. Every failing test reaches masking_snapshot_missing through the createPilotDraft helper at apps/api/test/gateway-domain.test.ts:569, and the snapshot proof it trips came from 53396688 and 21265854, which this line merged before this assignment. Either the helper must persist a snapshot that satisfies verifyPersistedSnapshotProof or that proof must accept the fixture shape.",
+  "guardrails": {
+    "productSourceModified": false,
+    "testOrSupportFilesModifiedByThisSlot": false,
+    "migrationsModified": false,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "newTestsWritten": 0,
+    "conflictsResolved": 0,
+    "commitsMade": 0,
+    "mergeCommitsMade": 1,
+    "projectWideTestsLintOrBuildRuns": 0,
+    "rebaseOrReset": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "otherWorktreesTouched": false,
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/release-roles-merge-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT RELEASE-ROLES-MERGE-20260915"
+}

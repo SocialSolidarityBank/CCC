@@ -1,0 +1,6 @@
+{
+  "validLinkedWorkerStatus": 200,
+  "missingBearerStatus": 401,
+  "wrongOriginStatus": 403,
+  "actualHandlers": true
+}

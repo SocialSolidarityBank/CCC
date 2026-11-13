@@ -1,0 +1,54 @@
+{
+  "purpose": "Remove GET /capabilities only from /admin/ai-provider route row, retaining endpoint catalog and SCR references",
+  "command": [
+    "node",
+    "artifacts/ccc201-screen-api/coverage.mjs",
+    "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww",
+    "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator/artifacts/ccc201-screen-api/negative-control-detail.json",
+    "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/.tmp/ccc201-negative-s3.txt"
+  ],
+  "expectedExitCode": 1,
+  "actualExitCode": 1,
+  "routeEdgeGaps": [
+    {
+      "route": "/admin/ai-provider",
+      "effectiveOperations": [
+        "GET /ai/provider/status",
+        "GET /capabilities",
+        "GET /me",
+        "GET /organization/profile",
+        "GET /participants/new-signup-count",
+        "POST /ai/provider/activate-runtime"
+      ],
+      "missingOperations": [
+        "GET /capabilities"
+      ],
+      "missingActions": []
+    }
+  ],
+  "globalMissingOperations": [],
+  "productSourceChanged": false,
+  "canonicalDocumentChanged": false,
+  "dispatchNegativeControl": {
+    "removedLedgerOperation": "GET /audit-log",
+    "documentAndSourceUnchanged": true,
+    "command": [
+      "node",
+      "artifacts/ccc201-screen-api/coverage.mjs",
+      "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww",
+      "/var/folders/kf/zttf7x416x11358fqf5p83lw0000gn/T/ccc201-pinned-_ikh6vww/.tmp/ccc201-negative-dispatch-78ngv_ag/result.json",
+      "docs/specs/S3-screen-api-map.md"
+    ],
+    "expectedExitCode": 1,
+    "actualExitCode": 1,
+    "dispatchComparison": {
+      "sourceOnly": [
+        "GET /audit-log"
+      ],
+      "ledgerOnly": [],
+      "sourceOperationCount": 145,
+      "ledgerOperationCount": 143,
+      "limitation": "Route predicates are statically expanded; non-route authorization/data branches may have multiple return sites for one operation."
+    }
+  }
+}

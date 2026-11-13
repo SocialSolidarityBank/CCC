@@ -1,0 +1,88 @@
+{
+  "assignmentId": "CCC292-FREEZE-REVIEW-20260914",
+  "reviewer": "independent read-only reviewer, not the freeze author",
+  "verdict": "구현 진행 불가. 동결본 스스로 TECHNICAL_CANDIDATE_BLOCKED_ON_REQUIRED_SOURCES, implementationReady=false 로 선언했고 검토 결과도 같다. 막는 것은 세 가지다. (1) 동결본이 없다고 한 네 정본(relayer 계약 §2,3,5,6,7, ADR-0010 9월 13일 개정, S10 §6.1, 준비 보고)은 이 orchestrator 워크트리에 모두 있고 sha256 도 준비 보고 부록과 일치한다(446e1f0e…, 0ba4d7fb…, 5d30a146…). 작성자 트리에만 없었던 것이므로 orchestrator 가 전달하면 풀린다. Q 재결정 사안이 아니다. (2) F2 거부표가 result_schema_invalid 와 stale_claim 에 상충되는 종단 의미를 얹었고, 기존 worker.py 의 처리와 합치면 동명이인 모호성 한 건이 job 전체 영구 실패로 이어진다(P1). (3) F5 파기 근거와 F6 독립 purge-history 저장소의 소유자와 저장 자리가 F1 newTableCountTarget=0 과 F6 '표 예약 안 함' 사이에서 비어 있다(P1). 이 둘을 고친 재동결본과 정본 대조가 끝나면 F1(storage) 부터 F2, F3, F4, F5 순으로 진행 가능하고, F6 는 CCC-224/E3-7 의 실제 importer 가 나올 때까지 blocker 로 남는다. 승인된 의미를 기술 선택으로 낮춘 자리는 없었고, 이미 승인된 것을 Q 에게 다시 물으려는 항목도 없었다. 새로 Q 판단이 필요한 항목은 0건이다. 파일 변경 0건, 테스트와 바이너리 실행 0건, 외부 호출 0건.",
+  "findingCount": 11,
+  "p1": [
+    {
+      "severity": "P1",
+      "record": "F2",
+      "issue": "거부표가 하나의 코드에 상충되는 종단 의미를 얹었다. '동명이인 모호성, 없는 결속 증거, 허용하지 않은 identity inference' 를 result_schema_invalid(422) 로, 'namespace revision 또는 source binding 이 현재와 다름' 을 stale_claim(409) 으로 정했는데, S5 §2.6 은 stale_claim 을 '토큰 또는 attempt 불일치' 로, result_schema_invalid 를 payload 형식 거부로 고정하고 있고, 기존 Agent 는 ApiError.code == result_schema_invalid 를 받으면 job 을 permanent release 로 닫고 그 밖의 4xx 는 release 없이 return 한다. F2 가 ApiClient 재사용을 전제하므로 그대로 두면 모호한 언급 한 건이 job 전체 영구 실패가 되고(F2 자신의 'ambiguity: 거부 후 generic mask 유지' 와 모순), map revision 이 바뀐 경우는 release 없이 방치돼 임대 만료로 attempt 를 태운다. 등록 operation 전용 거부 의미를 기존 코드와 분리해 정하거나(예: 등록 거부는 job 상태를 바꾸지 않는 별도 응답 형태), Agent 의 등록 클라이언트 처리 규칙을 함께 동결해야 한다. 준비 보고 §5 line 126 이 명시적으로 금지한 항목이다.",
+      "evidence": "freeze F2.refusalTable 5행,3행; docs/specs/S5-agent-job-contract-v2.md:419-421; apps/pipeline/ccc_pipeline/worker.py:780-789; artifacts/orchestration/ccc292-preparation-result.txt:126,133"
+    },
+    {
+      "severity": "P1",
+      "record": "F5, F6, F1",
+      "issue": "파기 근거(tombstone)와 독립 purge-history 의 저장 자리와 작성 소유자가 비어 있다. F5.deletionOrder 는 '독립적으로 남을 비민감 파기 근거를 확보' 하라 하고, F6.independentPurgeHistory 는 'archive 행 하나나 백업 audit_log 만으로 독립성을 주장하지 않는다' 고 하면서, F1 은 newTableCountTarget=0, F6 은 'CCC-292 가 독립 restore 표나 포트를 예약하지 않는다' 고 했다. 준비 보고 line 98 과 이 워크트리의 0047 트리거(참고: participant_pii_archive_re_register_cleanup 이 purged archive 행을 지움)대로 현재 archive 행과 vault.purged_at 은 내구성 있는 파기 이력이 아니다. 파기 시점에 tombstone 을 쓰는 쪽(F5, CCC-292)과 복원 시점에 읽는 쪽(F6, E3-7)이 같은 저장 계약을 가져야 S10 §6.1 2단계와 ADR-0010 line 54 의 삭제 증거 요구를 만족한다. 지금 상태는 보안·감사를 줄여 가볍게 만든 것과 같은 효과다. 재동결에서 저장 슬롯과 소유자를 명시해야 한다.",
+      "evidence": "freeze F1.migrationNeed.newTableCountTarget, F5.minimumShape.deletionOrder, F6.minimumShape.independentPurgeHistory, F6.migrationNeed; docs/adr/0010-archive-before-purge.md:52-54; docs/specs/S10-cccx-format.md:172-176; migrations/sqlite/0047_timestamp_normalization.sql:337-349; ccc292-preparation-result.txt:98"
+    }
+  ],
+  "findings": [
+    {
+      "severity": "P1",
+      "record": "F2",
+      "issue": "거부표가 하나의 코드에 상충되는 종단 의미를 얹었다. '동명이인 모호성, 없는 결속 증거, 허용하지 않은 identity inference' 를 result_schema_invalid(422) 로, 'namespace revision 또는 source binding 이 현재와 다름' 을 stale_claim(409) 으로 정했는데, S5 §2.6 은 stale_claim 을 '토큰 또는 attempt 불일치' 로, result_schema_invalid 를 payload 형식 거부로 고정하고 있고, 기존 Agent 는 ApiError.code == result_schema_invalid 를 받으면 job 을 permanent release 로 닫고 그 밖의 4xx 는 release 없이 return 한다. F2 가 ApiClient 재사용을 전제하므로 그대로 두면 모호한 언급 한 건이 job 전체 영구 실패가 되고(F2 자신의 'ambiguity: 거부 후 generic mask 유지' 와 모순), map revision 이 바뀐 경우는 release 없이 방치돼 임대 만료로 attempt 를 태운다. 등록 operation 전용 거부 의미를 기존 코드와 분리해 정하거나(예: 등록 거부는 job 상태를 바꾸지 않는 별도 응답 형태), Agent 의 등록 클라이언트 처리 규칙을 함께 동결해야 한다. 준비 보고 §5 line 126 이 명시적으로 금지한 항목이다.",
+      "evidence": "freeze F2.refusalTable 5행,3행; docs/specs/S5-agent-job-contract-v2.md:419-421; apps/pipeline/ccc_pipeline/worker.py:780-789; artifacts/orchestration/ccc292-preparation-result.txt:126,133"
+    },
+    {
+      "severity": "P1",
+      "record": "F5, F6, F1",
+      "issue": "파기 근거(tombstone)와 독립 purge-history 의 저장 자리와 작성 소유자가 비어 있다. F5.deletionOrder 는 '독립적으로 남을 비민감 파기 근거를 확보' 하라 하고, F6.independentPurgeHistory 는 'archive 행 하나나 백업 audit_log 만으로 독립성을 주장하지 않는다' 고 하면서, F1 은 newTableCountTarget=0, F6 은 'CCC-292 가 독립 restore 표나 포트를 예약하지 않는다' 고 했다. 준비 보고 line 98 과 이 워크트리의 0047 트리거(참고: participant_pii_archive_re_register_cleanup 이 purged archive 행을 지움)대로 현재 archive 행과 vault.purged_at 은 내구성 있는 파기 이력이 아니다. 파기 시점에 tombstone 을 쓰는 쪽(F5, CCC-292)과 복원 시점에 읽는 쪽(F6, E3-7)이 같은 저장 계약을 가져야 S10 §6.1 2단계와 ADR-0010 line 54 의 삭제 증거 요구를 만족한다. 지금 상태는 보안·감사를 줄여 가볍게 만든 것과 같은 효과다. 재동결에서 저장 슬롯과 소유자를 명시해야 한다.",
+      "evidence": "freeze F1.migrationNeed.newTableCountTarget, F5.minimumShape.deletionOrder, F6.minimumShape.independentPurgeHistory, F6.migrationNeed; docs/adr/0010-archive-before-purge.md:52-54; docs/specs/S10-cccx-format.md:172-176; migrations/sqlite/0047_timestamp_normalization.sql:337-349; ccc292-preparation-result.txt:98"
+    },
+    {
+      "severity": "P2",
+      "record": "F3, F5, F6 (exactPathsAndSymbols)",
+      "issue": "동결본이 기준 커밋을 밝히지 않았고, 인용한 심볼 일부가 이 워크트리와 승인 baseline 7c7b632d 에 없다. textSourceGeneration, assertTextJobSourceCurrent, textSnapshotCurrentSql, CheckedTextSource, migrations/sqlite/0065_agent_text_source_fence.sql 은 미승인 CCC-291 작업 트리(parity-291, b486a8ee)에만 있다. MaskedSourceSnapshotInput 은 어느 트리에도 없고 실제 이름은 RecordMaskedSourceSnapshotInput 이다. RecoverySecretStore 는 baseline 에는 있으나 이 워크트리 runtime.ts 에는 없고, Database 는 runtime.ts 가 아니라 database.ts 에 있다. F3.currentReuse 가 'CCC-291 fence 를 현재 안전 경계로 재사용' 한다고 했으므로 재동결본은 기준 트리와 CCC-291 의존 hunk 를 명시해야 한다. 컨트롤러도 'do not silently claim CCC-291 completion' 을 요구한다.",
+      "evidence": "이 워크트리 packages/core/src/gateway.ts 에 textSourceGeneration/assertTextJobSourceCurrent/textSnapshotCurrentSql 검색 결과 0건; parity-291 gateway.ts:9382,9390,1981; parity-291 packages/contracts/src/agent-jobs.ts:228; packages/contracts/src/database.ts:1; docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md:1751,2080"
+    },
+    {
+      "severity": "P2",
+      "record": "F3",
+      "issue": "날짜 의미를 '누락 정본 수신 전 미정' 으로 남겼는데, 정본이 여기 있고 두 정본이 실제로 다르다. relayer §7(line 164)은 '원문 맥락이 분명한 사건일·기한만 상담일 기준으로 바꾼다, 생년월일은 제외, 불분명하면 추정 금지' 로 Q 가 G7 을 승인했고, S6 §2.5(line 158,162)는 완전한 절대 날짜를 연월로 일반화하고 상대 날짜는 원문 유지다. 준비 보고 §5 line 134 도 relayer 의미를 채택한다. 이는 Q 재결정이 아니라 S6 §2.5 를 승인된 relayer 의미로 정합화하는 기술 작업이며, 재동결본은 relayer §7 을 채택하고 S6 §2.5 의 연월 일반화 행을 상충 항목으로 표시해야 한다. 그대로 두면 구현자가 S6 를 따라 승인 의미를 낮출 위험이 있다.",
+      "evidence": "freeze F3.minimumShape.dateLimits, F3.unresolved[0]; docs/superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md:164; docs/specs/S6-privacy-packet.md:158,162; ccc292-preparation-result.txt:28,134"
+    },
+    {
+      "severity": "P2",
+      "record": "F2",
+      "issue": "repeatReference 가 '같은 문자열…만으로 다른 언급을 합치지 않는다' 고 하고 firstRegistration 이 'occurrence 등록은 그 언급에 번호를 주는 것' 이라 해서, 같은 source 안에서 같은 등록값이 여러 offset 에 나올 때의 규칙이 없다. 문자 그대로 적용하면 한 전사 안의 같은 인물이 언급마다 다른 번호를 받거나 generic mask 로 떨어진다. 승인 의미(준비 보고 line 42: 'Same source-occurrence replay may be idempotent; identical text in a later session alone may not merge')와 기존 S6 dictionary 의 같은 claim 안 정확 일치 치환은 같은 source 안 같은 등록값의 일관 치환을 전제한다. 승인 의미를 바꾸는 것이 아니므로 Q 사안이 아니지만, 재동결본은 '같은 claim 의 같은 source bundle 안 동일 등록값은 같은 번호' 를 명시해야 한다.",
+      "evidence": "freeze F2.minimumShape.firstRegistration, repeatReference, replay; ccc292-preparation-result.txt:42; docs/specs/S6-privacy-packet.md:165,300(S5 dictionary)"
+    },
+    {
+      "severity": "P2",
+      "record": "F3, F5",
+      "issue": "원문 revision 변경이 임대 중인 job 에 흡수되는 지점을 동결하지 않았다. gateway 의 textWorkEnqueueStatements 주석대로 '재공식화는 기존 행에 흡수되고 이미 열린 작업이 있으면 늘지 않는다'. F3.staleRule 은 결과 수락 시점 거부만 정하고 F5.regeneration 은 enqueueTextWorkItem 재사용만 말한다. 준비 보고 §3 B line 68 이 '두 번째 큐 행은 해결책이 아니며 원자적 supersede/fence 가 필요' 하다고 지목했다. 이대로면 revision 변경 뒤 old job 은 stale 로 거부되지만 새 job 이 생기지 않아 임대 만료와 attempt 소진(3회 뒤 retry_exhausted, 재큐 없음)에 의존하게 된다. 재동결본은 supersede 지점(textWorkEnqueueStatements 또는 동등 CAS)과 그 결과 상태를 명시해야 한다.",
+      "evidence": "packages/core/src/gateway.ts:7409-7412; freeze F3.minimumShape.staleRule, F5.minimumShape.regeneration; ccc292-preparation-result.txt:68,137"
+    },
+    {
+      "severity": "P2",
+      "record": "F2, F3",
+      "issue": "HTTP 400/422 경계를 정하지 않았다. 동결본은 형식 불일치를 422 result_schema_invalid 로 적었지만 request-handler 는 requireOnlyKeys 와 ValidationError 를 400 invalid_request 로, AgentJobContractError 만 S5 매핑으로 응답한다. 준비 보고 line 130 이 이 매핑을 일관되게 동결하라고 요구했다. 또한 여섯 기록 어디에도 packages/http-api/src/request-handler.ts 심볼(ordinary dispatch, parseAgentResultRequest, parseClaimCredentials, onRecordOfficialized/onGoalRevised)이 없어 등록 transport 의 dispatch 지점이 미지정이다. 검토용으로 확인한 결과 이 심볼들은 이 워크트리에 존재한다.",
+      "evidence": "packages/http-api/src/request-handler.ts:1555-1591,1960,1983,2407-2410,2435; ccc292-preparation-result.txt:130"
+    },
+    {
+      "severity": "P2",
+      "record": "F5",
+      "issue": "ADR-0010 9월 13일 개정 line 51 은 '파기 승인 범위, 공유 자료의 귀속과 다른 활성 케이스의 보존 경계를 구현 전에 명시' 하라고 요구하는데, F5 는 파기 대상 집합을 '개정 수신 전 미확정' 으로 두었고 공유 자료 귀속 규칙이 없다. 개정문은 여기 있고 집합도 line 48 에 열거돼 있다(금고 값, 아카이브 사본, 수기 메모, 전사, 인테이크 자유 글, 목표 문장, 인용, AI 결과, 상담 기억, 연결 가능한 파생자료). 준비 보고 line 97,99 의 추가 인벤토리(session_goal_scores.evidence_quote, *_revisions, manual_question_outcomes.source_text 등)도 F5 에 없다. 귀속이 불명확한 공유 자료는 삭제하지 않고 막는 fail-closed 규칙으로 닫을 수 있으므로 Q 사안은 아니다.",
+      "evidence": "freeze F5.minimumShape.retentionLimit, F5.unresolved[0]; docs/adr/0010-archive-before-purge.md:48-51; ccc292-preparation-result.txt:97,99"
+    },
+    {
+      "severity": "P2",
+      "record": "F1, F2",
+      "issue": "map revision 을 case 단위 CAS 이자 claim 무효화 조건으로 쓰면 같은 사례의 다른 회차 job 이 동시에 처리될 때 한쪽의 등록이 다른 쪽 claim 을 stale 로 만들어 서로 무효화하는 경합이 생긴다. F1.revisionAndCas 와 F2.concurrency 는 expected mapping revision CAS 만 정하고 같은 사례 job 의 직렬화나 등록 재시도 규칙을 정하지 않았다. 추정이 섞인 항목이지만 F2 거부표(stale_claim)와 worker 의 4xx 처리(release 없음)를 합치면 attempt 소진으로 이어지는 경로가 실제로 존재한다. 재동결본은 같은 사례 동시 job 정책(직렬화 또는 등록 단위 재시도)을 적어야 한다.",
+      "evidence": "freeze F1.minimumShape.revisionAndCas, F2.minimumShape.requestContract.concurrency, F2.refusalTable 3행; apps/pipeline/ccc_pipeline/worker.py:780-789"
+    },
+    {
+      "severity": "P3",
+      "record": "F1, F5, F6",
+      "issue": "생애주기 트리거의 정본 위치가 틀렸다. participant_pii_archives_approved_purge 와 participant_pii_archive_re_register_cleanup 는 0041 에서 만들어졌지만 0047_timestamp_normalization.sql 이 DROP 후 재정의했다. 동결본은 0041 만 인용해 F5 'purge trigger 연결' 의 수정 대상 파일이 어긋난다. 준비 보고 line 97 이 이미 지적한 사항이다.",
+      "evidence": "migrations/sqlite/0047_timestamp_normalization.sql:19-20,337-349; migrations/sqlite/0041_pii_retention_lifecycle.sql:408,546; ccc292-preparation-result.txt:97"
+    },
+    {
+      "severity": "P3",
+      "record": "sourceAvailability",
+      "issue": "S10 에 대해 '현재 파일의 6절 다음은 7절이다' 라고 했지만 이 워크트리 S10 은 §6.1 을 갖는다(line 166-180). 작성자 트리의 S10 이 구본이라는 뜻이며, F6 본문은 다행히 §6.1 5단계와 §5 6항, §6 오류 코드 집합과 일치한다(재해석 없음). 재동결본은 controller 의 S10 hash 5d30a146… 를 기준으로 다시 대조했다고 적어야 한다.",
+      "evidence": "freeze sourceAvailability.requiredButUnavailable[2]; docs/specs/S10-cccx-format.md:164-180; shasum 결과 5d30a1465388598b8b29000c8596e00fd360d0db6d104c26e1374a975fdd1122"
+    }
+  ]
+}

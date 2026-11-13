@@ -1,0 +1,151 @@
+{
+  "assignmentId": "CCC292-F4-PARITY-20260914",
+  "ticket": "CCC-292",
+  "scope": "F4 partial",
+  "status": "PARITY_PASSED_AND_COMMITTED_BUT_TWO_TARGETED_TESTS_FAIL",
+  "summary": "The merge was clean, parity passed and its manifest was committed, and api typecheck passed. Two of the five api test files the merge touched fail. Both failures are in core-authored behaviour, nothing was fixed or relaxed here.",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "reused": true,
+    "branch": "integrate/ccc291-parity",
+    "cleanAtEnd": true,
+    "tip": "512c908df27f982bded1ce69baf9d7c178ac4b8b"
+  },
+  "observedBaseTip": {
+    "observedBy": "git branch --show-current, git rev-parse HEAD, git status --short, git log --oneline -1",
+    "branch": "integrate/ccc291-parity",
+    "commit": "fc4b2ef4afe5c7febaa4bc3ac77ad8c5632dc4f0",
+    "subject": "원천 무효화 checkpoint 를 parity manifest 에 반영",
+    "clean": true,
+    "matchedOrchestratorRecollection": true
+  },
+  "fetchedTip": {
+    "command": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "4c5fe47bb990fdaedaff7f42f818d7ab4d06784e",
+    "fetchHeadParent": "4924569cfd4a4f138597f37085fb2b8e258dcd8d",
+    "subject": "fix: F4 결과 증명과 원천 결속의 원자 저장",
+    "matchedAssignment": true,
+    "noExtraFollowUpCommits": true
+  },
+  "coreMergeCommit": {
+    "commit": "936053a66df9467f106598abfd0e146493bdecc7",
+    "mergedCommit": "4c5fe47bb990fdaedaff7f42f818d7ab4d06784e",
+    "conflicts": 0,
+    "diffStat": "10 files changed, 500 insertions(+), 70 deletions(-)",
+    "newMigrations": ["migrations/sqlite/0069_masked_source_proof.sql", "migrations/postgres/0025_masked_source_proof.sql"],
+    "checkpointRegisteredByCore": "apps/api/test/support/migration-parity.ts:42 { id: 'masked-source-proof', sqlite: '0069_masked_source_proof.sql', postgres: '0025_masked_source_proof.sql' }, exactly as reported"
+  },
+  "conflicts": [],
+  "parityCommand": "env CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+  "parityCommandExecutions": 1,
+  "exitStatus": 0,
+  "parityTests": {"testFilesPassed": 1, "testsPassed": 1, "durationSeconds": 17.1},
+  "parityNote": "This is the PostgreSQL run mini could not perform. The two DB semantic proofs for 0069 and 0025 passed on the MacBook local disposable harness.",
+  "checkpointsPresent": {
+    "verified": true,
+    "entries": [
+      {"id": "masked-source-proof", "manifestLine": 74437, "sqliteSource": "0069_masked_source_proof.sql", "sqliteSourceManifestLine": 74441, "postgresSource": "0025_masked_source_proof.sql", "postgresSourceManifestLine": 74450},
+      {"id": "entity-source-invalidation", "manifestLine": 70982, "stillPresent": true},
+      {"id": "entity-registration-binding", "manifestLine": 67527, "stillPresent": true},
+      {"id": "case-entity-mapping", "manifestLine": 64101, "stillPresent": true},
+      {"id": "agent-text-source-fence", "manifestLine": 60675, "stillPresent": true}
+    ],
+    "totalCheckpointIds": 25,
+    "previousTotal": 24
+  },
+  "manifestSha256": "7ec4b1b3896f5f2b2ef37c7ac63d3aa5fc45f3e6f3f5f6543c535ee8a8786a17",
+  "manifestPreviousSha256": "03f223d3fd624a6d47028fab40175a80ae5cb7e233ec8b57dbc3af94505b30ca",
+  "manifestRegenerated": true,
+  "parityCommit": {
+    "commit": "512c908df27f982bded1ce69baf9d7c178ac4b8b",
+    "subject": "가림 원천 증명 checkpoint 를 parity manifest 에 반영",
+    "files": ["migrations/parity.yaml"],
+    "diffStat": "1 file changed, 3455 insertions(+)",
+    "hooks": "normal configured hooks ran and passed",
+    "hooksBypassed": false
+  },
+  "typecheck": {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "detail": "tsc --noEmit --project apps/api/tsconfig.json, no diagnostics", "executions": 1},
+  "testedFiles": {
+    "derivedFrom": "git diff --name-status fc4b2ef 936053a6",
+    "apiTestFilesAddedOrChanged": [
+      {"path": "apps/api/test/entity-result-proof.contract.test.ts", "change": "A"},
+      {"path": "apps/api/test/agent-job-contract.test.ts", "change": "M"},
+      {"path": "apps/api/test/agent-source-fence.contract.test.ts", "change": "M"},
+      {"path": "apps/api/test/ai-contrast-materials.test.ts", "change": "M"},
+      {"path": "apps/api/test/recording-result.e2e.test.ts", "change": "M"}
+    ],
+    "supportFilesChangedByCoreNotRunDirectly": ["apps/api/test/support/agent-jobs.ts", "apps/api/test/support/migration-parity.ts"],
+    "pythonChanged": [],
+    "otherChanged": ["packages/core/src/gateway.ts", "migrations/sqlite/0069_masked_source_proof.sql", "migrations/postgres/0025_masked_source_proof.sql"]
+  },
+  "testResults": [
+    {
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/entity-result-proof.contract.test.ts apps/api/test/agent-job-contract.test.ts apps/api/test/agent-source-fence.contract.test.ts apps/api/test/ai-contrast-materials.test.ts apps/api/test/recording-result.e2e.test.ts",
+      "exitStatus": 1,
+      "result": "FAIL",
+      "testFilesPassed": 3,
+      "testFilesFailed": 2,
+      "testsPassed": 80,
+      "testsFailed": 2,
+      "totalTests": 82,
+      "durationSeconds": 78.74,
+      "executions": 1,
+      "passedFiles": ["apps/api/test/entity-result-proof.contract.test.ts", "apps/api/test/agent-source-fence.contract.test.ts", "apps/api/test/ai-contrast-materials.test.ts"],
+      "failures": [
+        {
+          "file": "apps/api/test/agent-job-contract.test.ts",
+          "line": 324,
+          "suite": "S5 Agent 작업 계약 v2",
+          "testName": "F3 heartbeat는 임대를 연장하고, 만료된 임대는 재분배 뒤 옛 토큰을 거부한다",
+          "assertion": "expect(reclaimed?.attempt).toBe(2)",
+          "expected": 2,
+          "received": "undefined",
+          "fact": "Line 323 destructures the first element of claimAgentJobs for a second agent after the lease expired. That array came back empty, so reclaimed is undefined and its attempt is undefined. The expired lease was not redistributed to the second agent on this build.",
+          "reproduced": true,
+          "reproductionNote": "One extra diagnostic run of this single file was made because the batch output truncated the received value. Same failure, 1 failed and 35 passed."
+        },
+        {
+          "file": "apps/api/test/recording-result.e2e.test.ts",
+          "line": 805,
+          "suite": "recording result end-to-end contract (CCC-95)",
+          "testName": "rejects unauthorized, cross-organization, malformed, unsafe, and non-numeric results without mutation",
+          "scenario": "unmasked sensitive pattern",
+          "assertion": "expect(response.status, `${scenario.name}: ...`).toBe(400)",
+          "expected": 400,
+          "received": 422,
+          "receivedBody": {"error": "unmasked_identifier_detected", "jobId": "<uuid>", "retryable": false},
+          "fact": "The rejection itself happened and carried the expected unmasked_identifier_detected code with no leak in the body. Only the HTTP status differs: this scenario expects 400 and the endpoint now answers 422."
+        }
+      ]
+    }
+  ],
+  "pythonResult": {"run": false, "reason": "the merge changed no file under apps/pipeline, so no python module was in scope", "changedPythonFiles": 0},
+  "notRerun": {
+    "reason": "already passed on earlier ranges of this same integration line",
+    "items": ["entity-registration.contract.test.ts, entity-source-binding.contract.test.ts and entity-source-invalidation.contract.test.ts, 25 tests", "apps/pipeline tests.test_api_client_worker, 68 tests"]
+  },
+  "unmet": [
+    "apps/api/test/agent-job-contract.test.ts F3 lease redistribution test passing",
+    "apps/api/test/recording-result.e2e.test.ts unmasked sensitive pattern scenario passing"
+  ],
+  "requiredFromCore": "Decide both facts on the core side. For the first, whether the second agent should receive the expired lease as attempt 2, since claimAgentJobs now returns nothing in that path. For the second, whether the unmasked_identifier_detected rejection is a 400 or a 422, and align either the endpoint or that scenario expectation. No assertion, threshold or baseline was touched here.",
+  "guardrails": {
+    "productSourceModified": false,
+    "testOrSupportFilesModifiedByThisSlot": false,
+    "migrationsModified": false,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "conflictsResolved": 0,
+    "commitsMade": 1,
+    "commitContents": ["migrations/parity.yaml"],
+    "projectWideTestsLintOrBuildRuns": 0,
+    "rebaseOrReset": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "otherWorktreesTouched": false,
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/ccc292-f4-parity-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT CCC292-F4-PARITY-20260914"
+}

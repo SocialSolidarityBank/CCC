@@ -1,0 +1,379 @@
+{
+  "assignmentId": "ccc204-s2-provenance-20260913",
+  "workerPaneId": "w1N:p1",
+  "workerSessionId": "01a09aac-2494-76cd-81cc-8ea5d1436348",
+  "status": "ready_for_review",
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "identityEvidence": {
+    "observedAt": "2026-09-13T12:21:21.063358+00:00",
+    "assignmentMatches": true,
+    "bash": {
+      "HERDR_PANE_ID": "w1N:p1",
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+      "reportedPid": 85024,
+      "reportedParentPid": 68086,
+      "commands": [
+        "printenv HERDR_PANE_ID HERDR_SESSION_ID OMP_SESSION_ID OMP_PID",
+        "printf shellPid/parentPid/cwd from $$, $PPID and $PWD",
+        "ps -p 85024,68086 -o pid=,ppid=,comm=",
+        "git branch --show-current",
+        "herdr agent get w1N:p1"
+      ],
+      "note": "Only HERDR_PANE_ID was present among the queried identity environment variables; PID and session were verified independently, not assumed from missing variables."
+    },
+    "process": {
+      "ompPid": 85024,
+      "command": "omp",
+      "parentPid": 68086,
+      "parentCommand": "zsh"
+    },
+    "herdr": {
+      "paneId": "w1N:p1",
+      "agent": "omp",
+      "agentName": "relayer-executor-a",
+      "sessionId": "01a09aac-2494-76cd-81cc-8ea5d1436348",
+      "sessionSource": "herdr:omp agent_session metadata",
+      "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+      "foregroundCwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+      "terminalId": "term_65b0a7a687c9a1",
+      "observedStatus": "working",
+      "privateSessionFileOpened": false
+    },
+    "currentRulePreamble": {
+      "path": "docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md",
+      "ruleLines": "1-13",
+      "controllerPane": "w1N:p6",
+      "soleExecutorPane": "w1N:p1",
+      "completionTransport": "The current request overrides the preamble completion-message sentence: the existing completion monitor notifies the controller after this response ends; no direct completion prompt is sent.",
+      "readScopeNote": "The initial 1-65 read also exposed the beginning of the current control-state object (tool output through line 68). No full control JSON, old orchestration history or private session file was loaded or used as execution authority."
+    },
+    "sourceSnapshots": {
+      "orchestrator": {
+        "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+        "branch": "orchestrate/beta-0.9",
+        "head": "3dff4d0ceb7cf2458a23f349afe31230400aefe0",
+        "s2Blob": "f87f7453690c8f9bedf025a6063275e721951b07",
+        "s2WorkingBlob": "f87f7453690c8f9bedf025a6063275e721951b07",
+        "adr0048Tracked": true,
+        "commitAncestry": {
+          "sg2": true,
+          "independent_api": true,
+          "installer_binding": true,
+          "optional_mfa": false,
+          "invite_binding": false
+        }
+      },
+      "frontend": {
+        "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+        "branch": "client/relayer-domain-beta",
+        "head": "f7194dc88064455f3eb6be02abb5aae836981612",
+        "s2Blob": "6248d0e9a4e70061811caf77c5b6d09dd88ca44c",
+        "s2WorkingBlob": "6248d0e9a4e70061811caf77c5b6d09dd88ca44c",
+        "adr0048Tracked": false,
+        "commitAncestry": {
+          "sg2": true,
+          "independent_api": false,
+          "installer_binding": false,
+          "optional_mfa": true,
+          "invite_binding": true
+        }
+      },
+      "integration": {
+        "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-core-parity",
+        "branch": "integrate/relayer-domain-beta",
+        "head": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+        "s2Blob": "6248d0e9a4e70061811caf77c5b6d09dd88ca44c",
+        "s2WorkingBlob": "6248d0e9a4e70061811caf77c5b6d09dd88ca44c",
+        "adr0048Tracked": false,
+        "commitAncestry": {
+          "sg2": true,
+          "independent_api": false,
+          "installer_binding": false,
+          "optional_mfa": true,
+          "invite_binding": true
+        }
+      }
+    },
+    "sourceWorkingTreeChanges": "Path-scoped git status reported no changes to the inspected S2/ADR/SG2/pilot sources. All three S2 working blobs equal their committed blobs.",
+    "branchInterpretation": "The orchestrator has the independent-API approvals but lacks the later optional-MFA commit. Frontend and integration have the optional-MFA commit but lack the independent-API approvals. This is a branch split, not evidence that either whole S2 copy is the approved combined contract.",
+    "jobCollection": {
+      "source": "hub jobs snapshot",
+      "runningJobs": 0,
+      "completedResultCollected": "bg_28 path-specific D86 Git history",
+      "spawnedAgents": 0
+    }
+  },
+  "claims": [
+    {
+      "claim": "cloud-human-mfa",
+      "approvedRule": "Community Cloud human sessions may use aal1 or aal2. MFA enrollment is optional, not a prerequisite for business login. An enrolled user completes the six-digit verification on later logins; the actual assurance remains in Actor and audit. This does not alter provisioning, role/assignment checks, revocation, Local Office privileged MFA, or Local Single app lock.",
+      "approvedSource": {
+        "path": "CLAUDE.md",
+        "section": "Chapter 9, added row titled 추가 인증은 선택 (row label D89)",
+        "revision": "866013936edf3b6ca64846850eb1c4f6a41e49f2",
+        "linesAtRevision": "273",
+        "approvalDate": "2026-09-12",
+        "commitDate": "2026-09-12T15:10:12+09:00",
+        "author": "SeongQ kim",
+        "approvalEvidence": "The authored decision explicitly says 2026-09-12 Q 결정 and D82의 Community Cloud MFA 필수 부분을 대체. It references S2 as the detailed contract."
+      },
+      "controllingSections": [
+        {
+          "path": "../frontend/docs/specs/S2-auth-capability-manifest.md",
+          "section": "2.2, dated Q decision paragraph; 3, human auth row",
+          "lines": "70; 311",
+          "revision": "f7194dc88064455f3eb6be02abb5aae836981612"
+        },
+        {
+          "path": "../beta-core-parity/docs/specs/S2-auth-capability-manifest.md",
+          "section": "2.2, dated Q decision paragraph; 3, human auth row",
+          "lines": "70; 311",
+          "revision": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07"
+        },
+        {
+          "path": "docs/adr/0041-one-core-three-deployment-modes.md",
+          "section": "D82",
+          "lines": "112-118",
+          "role": "Earlier mandatory Cloud MFA rule, explicitly superseded in that part by the 2026-09-12 authored decision. The Office/Single rules are preserved."
+        },
+        {
+          "path": "docs/adr/0044-onboarding-invite-and-admin-surfaces.md",
+          "section": "Decision 1",
+          "lines": "19-21",
+          "role": "Earlier D86 two-stage institution-code then Supabase Auth login. The later decision changes compulsory Cloud MFA, not institution selection or trusted Auth routing."
+        },
+        {
+          "path": "docs/adr/0048-independent-cloud-api-runtime.md",
+          "section": "2026-09-09 follow-up: first administrator; Decision 3",
+          "lines": "10-18; 46",
+          "role": "Earlier preserved-MFA language is not a later reversal of the 2026-09-12 MFA decision."
+        }
+      ],
+      "chronology": [
+        {
+          "decisionDate": "2026-09-02",
+          "commit": "97620bc5d81844cc6c56f96b68b4e9da9a1fe9f3",
+          "commitDate": "2026-09-02T23:49:45+09:00",
+          "source": "docs/adr/0041-one-core-three-deployment-modes.md#D82",
+          "meaning": "Original Q-approved Cloud MFA requirement. Published through PR #238 as 77827c4892ccaaf81e423a50821f9f62f110c8a6 at 2026-09-03T06:46:27+09:00."
+        },
+        {
+          "commit": "0e5474f95029d87c729aad68f0029af433d3f1ce",
+          "commitDate": "2026-09-03T08:32:42+09:00",
+          "source": "docs/specs/S2-auth-capability-manifest.md#2.2-and-2.3",
+          "meaning": "PR #248 spells out aal2 for every Cloud human role; the SG2 execution plan carries the same rule."
+        },
+        {
+          "decisionDate": "2026-09-06",
+          "commit": "4617ea1ab4395ae1f10279b619c4e5b967bef2b2",
+          "commitDate": "2026-09-06T19:12:25+09:00",
+          "source": "docs/adr/0044-onboarding-invite-and-admin-surfaces.md#Decision-1",
+          "meaning": "D86 records institution-code then Supabase email/password/MFA login."
+        },
+        {
+          "decisionDate": "2026-09-12",
+          "commit": "c0d9c4dfce9f9103618811acc7e3cbb8ab4ac56a",
+          "commitDate": "2026-09-12T14:24:14+09:00",
+          "source": "docs/specs/S2-auth-capability-manifest.md",
+          "meaning": "Source commit for optional Cloud MFA."
+        },
+        {
+          "decisionDate": "2026-09-12",
+          "commit": "866013936edf3b6ca64846850eb1c4f6a41e49f2",
+          "commitDate": "2026-09-12T15:10:12+09:00",
+          "source": "CLAUDE.md:273 and S2 sections 2.2/3",
+          "meaning": "PR #333, authored by SeongQ kim, records the explicit D82 supersession and changes S2 to optional MFA. Approval evidence is the authored decision, not the code changes."
+        }
+      ],
+      "conflictingCopies": [
+        {
+          "path": "docs/specs/S2-auth-capability-manifest.md",
+          "lines": "61; 70; 114; 312; 324",
+          "classification": "stale_prior_rule",
+          "detail": "Orchestrator still requires aal2 everywhere; its HEAD does not contain the optional-MFA approval commit."
+        },
+        {
+          "paths": [
+            "../frontend/docs/specs/S2-auth-capability-manifest.md",
+            "../beta-core-parity/docs/specs/S2-auth-capability-manifest.md"
+          ],
+          "lines": "61; 116; 323",
+          "classification": "partial_cutover_internal_contradiction",
+          "detail": "Both identical committed copies retain aal2-only mode/JWT/checklist clauses despite their explicit optional-MFA paragraph at line 70 and summary row at line 311. PR #333 changed the paragraph and summary but not these remnants."
+        },
+        {
+          "path": "docs/superpowers/plans/2026-09-02-SG2-auth.md",
+          "lines": "18; 24; 61; 65",
+          "classification": "stale_execution_instructions",
+          "detail": "Blanket aal2/login-MFA and cloud-admin-aal1 rejection expectations predate the later approval."
+        }
+      ],
+      "classification": "mechanical_reconciliation_of_an_approved_policy_change",
+      "confidence": {
+        "level": "high",
+        "basis": "Explicit dated Q decision and D82 supersession in a SeongQ-kim-authored committed change, corroborated by the S2 diff and local branch ancestry. Original private conversation was not inspected."
+      },
+      "newUserDecisionRequired": false
+    },
+    {
+      "claim": "independent-cloud-api-origin",
+      "approvedRule": "Community Cloud uses an independently controlled business API runtime. The signed apiBase is its exact HTTPS address and need not share the Supabase Auth host. supabaseProjectRef is validated against supabaseAuthOrigin; the signed API address, Auth configuration and installation identity remain bound together. Bootstrap/effective API equality, signatures, expiry, sequence, installation ID, key revocation, exact CORS/CSP and no unsigned address replacement remain mandatory.",
+      "approvedSource": {
+        "path": "docs/adr/0048-independent-cloud-api-runtime.md",
+        "section": "Accepted preamble, supersession scope, Decision 5",
+        "approvalDate": "2026-09-09",
+        "commitDate": "2026-09-09T22:41:07+09:00",
+        "author": "SocialSolidarityBank",
+        "approvalEvidence": "The accepted ADR attributes the independent execution direction to Q; Decision 5 expressly removes API/Auth host equality while retaining signed binding and all security checks.",
+        "introducingCommit": "2fb4440d08128d6b3440d041d76b2820c419101f",
+        "linesAtObservedHead": "3-8; 48",
+        "observedHead": "3dff4d0ceb7cf2458a23f349afe31230400aefe0",
+        "linesAtIntroducingCommit": "3; 7; 24"
+      },
+      "controllingSections": [
+        {
+          "path": "docs/adr/0048-independent-cloud-api-runtime.md",
+          "section": "Decision 1-6",
+          "lines": "44-49"
+        },
+        {
+          "path": "docs/adr/0041-one-core-three-deployment-modes.md",
+          "section": "Partial supersession by ADR-0048",
+          "lines": "9"
+        },
+        {
+          "path": "docs/specs/S2-auth-capability-manifest.md",
+          "section": "2.7 signed bootstrap; 3 API origin",
+          "lines": "180; 188-192; 311",
+          "revision": "3dff4d0ceb7cf2458a23f349afe31230400aefe0"
+        },
+        {
+          "path": "CCC_OPEN_PILOT_PLAN.md",
+          "section": "SG2 installation trust contract",
+          "lines": "161"
+        },
+        {
+          "path": "docs/adr/0040-community-cloud-policy.md",
+          "section": "5.1 Supabase",
+          "lines": "104-117",
+          "role": "Earlier hosted-Edge architecture, not the controlling source after ADR-0048."
+        }
+      ],
+      "chronology": [
+        {
+          "commit": "0e5474f95029d87c729aad68f0029af433d3f1ce",
+          "commitDate": "2026-09-03T08:32:42+09:00",
+          "source": "docs/specs/S2-auth-capability-manifest.md#2.7-and-3",
+          "meaning": "Original SG2 required the same Supabase project ref for API and Auth and described the API as Supabase/Edge HTTPS."
+        },
+        {
+          "decisionDate": "2026-09-09",
+          "commit": "2fb4440d08128d6b3440d041d76b2820c419101f",
+          "commitDate": "2026-09-09T22:41:07+09:00",
+          "source": "docs/adr/0048-independent-cloud-api-runtime.md and S2 sections 2.7/3",
+          "meaning": "Accepted D89 approval and matching S2 changes explicitly replace API-host-derived project binding with independent signed API and trusted Auth/project-ref binding."
+        },
+        {
+          "commit": "23fa1daa531682ecd2489002e924cd9a30512d46",
+          "commitDate": "2026-09-09T23:42:27+09:00",
+          "source": "docs/adr/0048-independent-cloud-api-runtime.md#first-administrator",
+          "meaning": "Records the separate first-admin one-time invitation decision; it does not restore shared API/Auth hosting."
+        },
+        {
+          "decisionDate": "2026-09-10",
+          "commit": "beabc126606657bf6f3eb998db8f46947f947b5f",
+          "commitDate": "2026-09-10T21:05:23+09:00",
+          "source": "docs/adr/0048-independent-cloud-api-runtime.md#installation-ownership and S2 section 2.7",
+          "meaning": "Installer-only signed authorization binds the complete public-manifest hash; public S2 shape and independent API origin remain unchanged."
+        }
+      ],
+      "conflictingCopies": [
+        {
+          "paths": [
+            "../frontend/docs/specs/S2-auth-capability-manifest.md",
+            "../beta-core-parity/docs/specs/S2-auth-capability-manifest.md"
+          ],
+          "lines": "183; 191; 310",
+          "classification": "missing_approved_branch_changes",
+          "detail": "Both still bind apiBase to the Auth project ref and call the API Supabase/Edge HTTPS. Neither HEAD contains 2fb4440d or beabc126; ADR-0048 is not tracked in either HEAD. Their newer dates do not represent a later reversal."
+        }
+      ],
+      "classification": "mechanically_stale_branch_copy_not_an_undecided_requirement",
+      "confidence": {
+        "level": "high",
+        "basis": "Accepted Q-attributed ADR, an exact simultaneous S2 change, an explicit ADR-0041 supersession marker, SG2 plan reference, and commit ancestry. No deployment or provider behavior is inferred."
+      },
+      "newUserDecisionRequired": false
+    }
+  ],
+  "remainingDecision": {
+    "required": false,
+    "productDecision": null,
+    "reason": "Both requested policies have explicit recorded Q approval. The gap is incomplete propagation: optional Cloud MFA from 2026-09-12 must coexist with the independent signed API origin approved on 2026-09-09. Asking Q to choose one existing worktree copy would conflate two independent decisions.",
+    "decisionLabelCollision": {
+      "label": "D89",
+      "independentApi": "ADR-0048, 2026-09-09, commit 2fb4440d08128d6b3440d041d76b2820c419101f",
+      "optionalMfa": "CLAUDE.md Chapter 9 and S2, 2026-09-12, commit 866013936edf3b6ca64846850eb1c4f6a41e49f2",
+      "handling": "Cite date, title, exact source and commit. The later row explicitly replaces D82 Cloud MFA; it does not revoke ADR-0048 independent API hosting. Renumbering is outside this prerequisite."
+    },
+    "controllerActionRequired": "w1N:p6 must review this evidence and explicitly assign any document reconciliation or later implementation. No assignment, /new, integration, ticket transition or live authorization is implied by this result."
+  },
+  "nextAction": {
+    "type": "proposed_document_only_prerequisite_packet",
+    "title": "Reconcile S2 and its SG2 execution instructions before CCC-204 implementation",
+    "controllerPane": "w1N:p6",
+    "requiresControllerAssignment": true,
+    "executorPane": "w1N:p1",
+    "cwd": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/beta-0.9-orchestrator",
+    "branch": "orchestrate/beta-0.9",
+    "baseHeadObserved": "3dff4d0ceb7cf2458a23f349afe31230400aefe0",
+    "ownedPaths": [
+      "docs/specs/S2-auth-capability-manifest.md",
+      "docs/superpowers/plans/2026-09-02-SG2-auth.md"
+    ],
+    "readOnlyReferences": [
+      "CLAUDE.md at 866013936edf3b6ca64846850eb1c4f6a41e49f2, Chapter 9 optional-MFA decision",
+      "docs/adr/0041-one-core-three-deployment-modes.md#D82",
+      "docs/adr/0044-onboarding-invite-and-admin-surfaces.md#Decision-1",
+      "docs/adr/0048-independent-cloud-api-runtime.md#Decision-5",
+      "../frontend/docs/specs/S2-auth-capability-manifest.md",
+      "../beta-core-parity/docs/specs/S2-auth-capability-manifest.md"
+    ],
+    "steps": [
+      "In the current worktree S2, record the 2026-09-12 optional-MFA approval by exact commit and title. Explicitly scope its supersession to compulsory Community Cloud MFA in the earlier D82/D86 and preserved-MFA prose; keep Local Office/Single and ordinary authorization unchanged. Distinguish this reused D89 label from ADR-0048/D89 independent API runtime. Do not allocate or renumber decisions.",
+      "Reconcile every Cloud assurance occurrence in S2 sections 2.2, 2.3, 3, the completion checklist and section 5 fixture expectations. Accept valid provisioned human aal1/aal2 sessions without forced enrollment; preserve actual assurance, enrolled-user verification and invalid/unprovisioned/revoked/role-denied behavior. Do not leave the old aal2-only row or checklist beside the new paragraph.",
+      "Preserve the current worktree S2 section 2.7 independent-API and installer-authorization binding, plus its section 3 API-origin row, from 2fb4440d and beabc126. Do not replace the whole file with either sibling worktree copy or infer common API/Auth hosting from a shared D89 label.",
+      "In the SG2 execution plan, replace the blanket Cloud MFA and cloud-admin-aal1 rejection instructions with references to the reconciled S2 assurance contract. Preserve Office privileged MFA, Single lock, JWT validation, signed installation and storage/CORS/CSP constraints.",
+      "Return a bounded document-diff/evidence result to the controller. The controller alone decides integration into other lanes and whether to assign CCC-204 afterward; this prerequisite does not itself start CCC-204."
+    ],
+    "acceptance": [
+      "Both claims cite their explicit approval sources and chronology independently; no document is chosen merely because of worktree name, mtime or matching code.",
+      "Within the two owned files there is no remaining blanket Cloud aal2 requirement or unconditional rejection of a valid provisioned Cloud aal1 session. Office privileged MFA and Single app-lock requirements are unchanged.",
+      "S2 retains the independent signed HTTPS API, Auth-origin/project-ref check, unchanged public manifest/bootstrap shape, installer-only authorization linkage and all exact equality/signature/CORS/CSP guards.",
+      "The duplicate D89 labels are disambiguated by date, title and commit; neither decision silently replaces the other.",
+      "Only the two assigned documentation paths change. No product code, tests, auth setting, live resource, credential, permission, external service or other-worktree file is changed.",
+      "Validate documentation consistency and cited Git provenance only; do not rerun CCC-201 probes, formatters, linters, builds, tests or project-wide checks for this documentation-only prerequisite."
+    ],
+    "excluded": [
+      "CCC-204 implementation and ticket-status changes",
+      "Wholesale branch merge/cherry-pick or replacement of sibling S2 files",
+      "Separate scheduler and staff-invitation contract changes observed in the sibling S2",
+      "Decision-number renumbering or repository-wide documentation cleanup",
+      "Live deployment, resource creation, credential access, permission changes or MFA reconfiguration",
+      "Assignment changes, /new, another agent, or another ticket"
+    ]
+  },
+  "touchedFiles": [
+    "artifacts/orchestration/ccc204-s2-provenance-result.json"
+  ],
+  "unverified": [
+    "No product runtime behavior, test, build, lint, formatter or CCC-201 probe was run. This is approval-provenance evidence, not CCC-204 completion or implementation verification.",
+    "No live Supabase/Azure/provider state, resource, credential, permission, MFA enrollment or deployment was queried or changed.",
+    "Private Q conversation transcripts were deliberately not inspected. Approval confidence is based on the repository-authored dated decisions, exact Git patches and current local branch ancestry.",
+    "Remote branch freshness and ticket status were not checked; no fetch, provider call or ticket mutation was performed. Recorded source snapshots are the local worktree heads observed in this investigation.",
+    "Other S2 differences, including scheduler and staff-invitation evolution, are outside the two requested claims and are not certified or imported by this result.",
+    "The two-file successor is only proposed. Product/docs and sibling worktrees remain unchanged; only the controller can assign and integrate follow-on work.",
+    "Fresh-agent review was skipped because spawning agents is forbidden. Artifact review is inline: source/commit checks, scoped SSOT audit and contracted JSON validation. No claim of independent reviewer acceptance is made."
+  ]
+}

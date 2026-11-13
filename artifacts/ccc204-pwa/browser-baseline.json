@@ -1,0 +1,18 @@
+{
+  "browserVersion": "Chrome/152.0.7977.83",
+  "url": "http://127.0.0.1:46173/welcome",
+  "state": {
+    "title": "Relayer | Relayer",
+    "headings": [
+      "Relayer"
+    ],
+    "rootMounted": true,
+    "registrations": 0,
+    "controlled": false,
+    "cacheNames": [],
+    "localStorageKeys": [],
+    "sessionStorageKeys": [],
+    "indexedDBNames": [],
+    "cookiePresent": false
+  }
+}

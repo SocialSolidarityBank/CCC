@@ -1,0 +1,672 @@
+{
+  "assignmentId": "ccc299-core-implementation-20260914",
+  "ticket": "CCC-299",
+  "status": "BLOCKED_WRITER_PARITY",
+  "completionMarker": "BACKEND_RESULT CCC299-CORE-IMPLEMENTATION-20260914",
+  "readyForCentralVerification": false,
+  "implementationComplete": false,
+  "base": {
+    "branch": "core/relayer-domain-beta",
+    "head": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+    "clean": true,
+    "prerequisites": [
+      {
+        "commit": "6ff75d272ca0ca7c81f8161a9ec118dd1807d67b",
+        "parent": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "paths": [
+          "apps/api/test/community-cloud-runtime.test.ts",
+          "apps/community-cloud/src/runtime.ts"
+        ],
+        "pass": true
+      },
+      {
+        "commit": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+        "parent": "6ff75d272ca0ca7c81f8161a9ec118dd1807d67b",
+        "paths": [
+          "apps/api/test/invite-identity-binding.test.ts",
+          "apps/api/test/staff-invites.contract.test.ts",
+          "packages/core/src/gateway.ts",
+          "packages/http-api/src/request-handler.ts"
+        ],
+        "pass": true
+      }
+    ],
+    "files": [
+      {
+        "path": "packages/contracts/src/intake.ts",
+        "base": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "equal": true
+      },
+      {
+        "path": "packages/contracts/src/manual-record.ts",
+        "base": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "equal": true
+      },
+      {
+        "path": "packages/core/src/gateway.ts",
+        "base": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+        "equal": true
+      },
+      {
+        "path": "packages/http-api/src/request-handler.ts",
+        "base": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+        "equal": true
+      },
+      {
+        "path": "scripts/seed/scenario.ts",
+        "base": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "equal": true
+      },
+      {
+        "path": "apps/api/test/support/intake.ts",
+        "base": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "equal": true
+      },
+      {
+        "path": "apps/api/test/gateway-intake.test.ts",
+        "base": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "equal": true
+      },
+      {
+        "path": "apps/api/test/manual-record.contract.test.ts",
+        "base": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "equal": true
+      },
+      {
+        "path": "apps/api/test/routes.test.ts",
+        "base": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "equal": true
+      },
+      {
+        "path": "apps/api/test/support-case-report.contract.test.ts",
+        "base": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "equal": true
+      },
+      {
+        "path": "apps/api/test/support/migration-parity.ts",
+        "base": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "equal": true
+      },
+      {
+        "path": "apps/api/test/migration-parity.test.ts",
+        "base": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "equal": true
+      },
+      {
+        "path": "apps/api/test/database-parity.test.ts",
+        "base": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+        "equal": true
+      }
+    ],
+    "newMigrations": [
+      {
+        "path": "migrations/sqlite/0064_intake_question_lifecycle.sql",
+        "absent": true,
+        "absentAtBases": true
+      },
+      {
+        "path": "migrations/postgres/0020_intake_question_lifecycle.sql",
+        "absent": true,
+        "absentAtBases": true
+      }
+    ],
+    "pass": true
+  },
+  "freeze": {
+    "localPath": "artifacts/orchestration/ccc299-core-freeze-result.json",
+    "remoteStagedPath": "/tmp/ccc299-core-freeze-result.json",
+    "sha256": "8f0e235965659b35c7d3b71331a6a70551f1908ea5e131c9b2c9a4f3e0034da2",
+    "readyForImplementation": true,
+    "semanticDecisionsRemaining": []
+  },
+  "supplementalApproval": {
+    "source": "User approval in this implementation conversation",
+    "decision": "UUID candidates may be generated in memory after validation and existing replay lookup; durable identity and history are committed only in the same guarded atomic batch. Exact existing replay allocates no IDs.",
+    "applied": true
+  },
+  "lsp": {
+    "available": false,
+    "method": "Read-only textual callsite tracing before exported contract changes",
+    "migratedCallers": [
+      "apps/api/test/gateway-intake.test.ts",
+      "apps/api/test/manual-record.contract.test.ts",
+      "apps/api/test/migration-parity.test.ts",
+      "apps/api/test/routes.test.ts",
+      "apps/api/test/support-case-report.contract.test.ts",
+      "apps/api/test/support/intake.ts",
+      "apps/api/test/support/migration-parity.ts",
+      "packages/core/src/gateway.ts",
+      "scripts/seed/scenario.ts"
+    ]
+  },
+  "changedFiles": [
+    {
+      "path": "apps/api/test/gateway-intake.test.ts",
+      "sha256": "c6b3265128c0ca0a4ff4903988b99430f5565193495f2b62fcf6eaff20e978a6"
+    },
+    {
+      "path": "apps/api/test/manual-record.contract.test.ts",
+      "sha256": "89e054c3e0a53cd0c7a851aa5b8978ad51ebec852ec12ae58ef229a3b1f9d419"
+    },
+    {
+      "path": "apps/api/test/migration-parity.test.ts",
+      "sha256": "c3ba169a16cf473bfa4195686299dd3867a3a3dee4f4c60d1d4d610328ee33c9"
+    },
+    {
+      "path": "apps/api/test/routes.test.ts",
+      "sha256": "8eefbb6d4ab915a648925290904dec46ca3d50858032c9ef0c502f5be9f373fb"
+    },
+    {
+      "path": "apps/api/test/support-case-report.contract.test.ts",
+      "sha256": "42fcaac762d08a585a897fb3488a43bdf734b638de332d5706be3dc2e6d17baf"
+    },
+    {
+      "path": "apps/api/test/support/intake.ts",
+      "sha256": "6b7547b32c2428d127d45aa3eb0b65f158bee104590119237fee8dc2b40076f9"
+    },
+    {
+      "path": "apps/api/test/support/migration-parity.ts",
+      "sha256": "e2ebbb70f6a04f54694deed4a6191ad5fea1984cf73334d25e8fe4c36ec1729f"
+    },
+    {
+      "path": "migrations/postgres/0020_intake_question_lifecycle.sql",
+      "sha256": "0336b76c37df9ef30ec6ddedca18ddd5f4e857a27d081ea5a897c65ceefb38ab"
+    },
+    {
+      "path": "migrations/sqlite/0064_intake_question_lifecycle.sql",
+      "sha256": "4b96d7cd71d412634a0574e012fc0088603bded21f4a3063367f383a01304564"
+    },
+    {
+      "path": "packages/contracts/src/intake.ts",
+      "sha256": "354174e84d6cf7dc3bd84a734d34e6a998390da8126b99fd357d05120972899f"
+    },
+    {
+      "path": "packages/contracts/src/manual-record.ts",
+      "sha256": "b62227a3cc0fc792e95c26c38a2202e67d508df6bf442b5f72588d2df1e216e0"
+    },
+    {
+      "path": "packages/core/src/gateway.ts",
+      "sha256": "62783b9921ed2fda7f9e672c3221604f3ab7b5be24783d4577a81d7bd3042bb6"
+    },
+    {
+      "path": "scripts/seed/scenario.ts",
+      "sha256": "4fcf7a5e7ab929a9060a14f56874c0564f2d549dbe79fbcdd3c5811d1522c4ba"
+    }
+  ],
+  "migrationCheckpoint": {
+    "id": "intake-question-lifecycle",
+    "sqlite": {
+      "path": "migrations/sqlite/0064_intake_question_lifecycle.sql",
+      "sha256": "4b96d7cd71d412634a0574e012fc0088603bded21f4a3063367f383a01304564"
+    },
+    "postgres": {
+      "path": "migrations/postgres/0020_intake_question_lifecycle.sql",
+      "sha256": "0336b76c37df9ef30ec6ddedca18ddd5f4e857a27d081ea5a897c65ceefb38ab"
+    },
+    "registration": "apps/api/test/support/migration-parity.ts",
+    "semanticProofs": "apps/api/test/migration-parity.test.ts",
+    "semanticProofsExecuted": false,
+    "manifestUpdated": false,
+    "parity": {
+      "path": "migrations/parity.yaml",
+      "sha256": "c6e20e950eebd3b2167a8256cadb0c2de8e4164dc52f64e4c00b75c7cbaa3c0d",
+      "unchangedFromBase": true
+    },
+    "reviewedPriorManifestReference": {
+      "commit": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+      "availableInLocalObjectDatabase": false,
+      "note": "Controller-only reference could not be read locally. No fetch or substitution from another branch was performed. The existing full checkpoint list retains manual-record-lifecycle before the new checkpoint."
+    }
+  },
+  "writerParityUpdate": {
+    "command": "CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+    "exitCode": 1,
+    "status": "BLOCKED_BEFORE_TEST_EXECUTION",
+    "testFilesFailed": 1,
+    "testsPassed": 0,
+    "testsSkipped": 1,
+    "outputExcerpt": "RUN v4.1.10 /Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND\napps/api/test/migration-parity.test.ts (1 test | 1 skipped) 95ms\nFAIL apps/api/test/migration-parity.test.ts\nError: Disposable PostgreSQL startup failed; ensure Docker and the pinned image are available.\nat startPostgresHarness apps/api/test/support/postgres.ts:171:11\nat apps/api/test/migration-parity.test.ts:18:35\nTest Files 1 failed (1)\nTests 1 skipped (1)\nStart at 03:29:34\nDuration 776ms\nCommand exited with code 1"
+  },
+  "blockers": [
+    {
+      "code": "LOCAL_DOCKER_STORAGE_IO_ERROR",
+      "evidence": [
+        "Docker context: unix:///Users/barq/.colima/default/docker.sock",
+        "colima status: VM running, runtime docker",
+        "docker info and pinned image inspect: EOF",
+        "Inside VM docker info: cannot connect to unix:///var/run/docker.sock",
+        "docker.service failed since 2026-09-09 02:27:01 KST",
+        "Starting the stopped Docker service failed; journal: chmod /var/lib/docker: input/output error"
+      ],
+      "attempted": "One supervised start of the stopped local Docker service. No VM restart, disk repair, image pull, external service call, or runtime configuration mutation.",
+      "requiredNextAction": "Restore local Colima Docker storage/runtime outside this producer scope, confirm the pinned image is locally available, then rerun the exact writer parity update on this branch. Do not manually synthesize the manifest or treat this candidate as verified."
+    }
+  ],
+  "unrunCentralChecks": [
+    {
+      "owner": "central",
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/gateway-intake.test.ts apps/api/test/manual-record.contract.test.ts apps/api/test/support-case-report.contract.test.ts apps/api/test/new-signup-badge.test.ts apps/api/test/participant-p3.contract.test.ts --maxWorkers 1",
+      "status": "NOT_RUN_RESERVED_FOR_CENTRAL"
+    },
+    {
+      "owner": "central",
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/routes.test.ts --maxWorkers 1 -t intake",
+      "status": "NOT_RUN_RESERVED_FOR_CENTRAL"
+    },
+    {
+      "owner": "central",
+      "command": "pnpm --filter @ccc/api run typecheck",
+      "status": "NOT_RUN_RESERVED_FOR_CENTRAL"
+    },
+    {
+      "owner": "central",
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts artifacts/orchestration/ccc299-core-lifecycle-smoke.test.ts --maxWorkers 1",
+      "status": "NOT_RUN_RESERVED_FOR_CENTRAL"
+    },
+    {
+      "owner": "central non-update",
+      "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts apps/api/test/database-parity.test.ts --maxWorkers 1",
+      "status": "NOT_RUN_RESERVED_FOR_CENTRAL"
+    },
+    {
+      "owner": "central",
+      "command": "pnpm guard:db",
+      "status": "NOT_RUN_RESERVED_FOR_CENTRAL"
+    },
+    {
+      "owner": "central",
+      "command": "pnpm guard:core-imports",
+      "status": "NOT_RUN_RESERVED_FOR_CENTRAL"
+    }
+  ],
+  "consumerHandoffs": {
+    "frontendFirstIntake": {
+      "owner": "FRONTEND",
+      "writeGranted": false,
+      "prerequisiteForProducerImplementation": false,
+      "paths": [
+        "apps/client/src/business/intake.ts",
+        "apps/client/src/business/intake-form.ts",
+        "apps/client/src/screens/intake.tsx"
+      ],
+      "fields": [
+        "context.writeSchemaVersion = 3",
+        "context.saved.schemaVersion = 1 | 2",
+        "context.saved.revision",
+        "context.saved.questionLifecycle",
+        "context.saved.history[].questionLifecycle",
+        "submission.schemaVersion = 3",
+        "submission.additionalItemRefs[] = { rowIndex, questionId, expectedRevision, legacySourceRowIndex? }",
+        "submission.questionWithdrawals[] = { questionId, expectedRevision }",
+        "submission.conversion? = { confirmed: true, sourceRevision }",
+        "mutationResponse.schemaVersion = 3, revision, record, replayed"
+      ],
+      "behavior": "Decode lifecycle without dropping unknown-as-invalid checks; keep an ID/revision with each editable row, preserve omitted retained questions, send deletion only as questionWithdrawals, support explicit v1/unbound-v2 conversion, and reject old/missing writeSchemaVersion or lifecycle fields instead of defaulting them.",
+      "handoffStatus": "contract frozen, not delivered or acknowledged by this assignment"
+    },
+    "frontendCCC290": {
+      "owner": "FRONTEND",
+      "ticket": "CCC-290",
+      "writeGranted": false,
+      "prerequisiteForProducerImplementation": false,
+      "additionalDependency": "CCC-289",
+      "paths": [
+        "apps/client/src/business/records.ts",
+        "apps/client/src/business/records.test.ts",
+        "apps/client/src/screens/records.tsx"
+      ],
+      "fields": [
+        "manualContext.schemaVersion = 3",
+        "manualContext.questions[]",
+        "manualContext.confirmedQuestions[]",
+        "manualContext.withdrawnQuestions[]",
+        "question.kind = schedule | record | intake",
+        "question.id, sourceId, sourceRevision, sourceSessionId, sourceHeldAt, sourceScheduledAt, createdAt, body, state, outcomes",
+        "questionAnswer = { kind: 'intake', questionId, sourceId: intakeSessionId, expectedRevision: questionRevision, answer }",
+        "records[].manual.questionOutcomes[].kind includes intake"
+      ],
+      "behavior": "Decode the server manual projection and context, submit explicit later answers without changing manual request schema 2, keep confirmed answers readable after withdrawal, and never infer completion from omission or withdrawal.",
+      "handoffStatus": "contract frozen, not delivered or acknowledged by this assignment"
+    },
+    "syntheticApi": {
+      "owner": "FRONTEND",
+      "writeGranted": false,
+      "prerequisiteForProducerImplementation": false,
+      "path": "apps/client/tools/synthetic-api.mjs",
+      "fields": [
+        "GET intake context exposes writeSchemaVersion 3 and saved/history lifecycle",
+        "POST/PUT intake accepts only envelope 3 refs/withdrawals and returns mutation response schemaVersion 3",
+        "GET records/context exposes manual context schemaVersion 3 and all three question-state arrays",
+        "GET records includes manual.questionOutcomes with intake kind",
+        "GET report exposes only open nextConfirmations with immutable evidence revision/path"
+      ],
+      "behavior": "Fixture identity and revisions must be stable across edit/reorder, explicit withdrawal must differ from omission/nonanswer, and 400/403/409 cases must mirror the real server. A permissive fixture is not compatibility evidence.",
+      "handoffStatus": "contract frozen, not delivered or acknowledged by this assignment"
+    },
+    "designCCC288": {
+      "owner": "DESIGN",
+      "ticket": "CCC-288",
+      "writeGranted": false,
+      "prerequisiteForProducerImplementation": false,
+      "paths": [
+        "apps/web/app/lib/api.ts",
+        "apps/web/app/actions.ts",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.tsx",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-draft.test.tsx",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.test.tsx",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.test.tsx"
+      ],
+      "fields": [
+        "writeSchemaVersion 3",
+        "saved.revision and saved.questionLifecycle/history lifecycle",
+        "envelope schemaVersion 3",
+        "additionalItemRefs and questionWithdrawals",
+        "conversion confirmation for schema 1 or unbound schema 2",
+        "mutation response schemaVersion 3 and revision",
+        "400 invalid_request, 403 forbidden, 409 conflict"
+      ],
+      "behavior": "Replace positional delete/omit writes with stable row bindings and explicit withdrawal, preserve literal source schemas 1/2, and show retained/withdrawn/confirmed history without treating response codes as withdrawal. The legacy web remains explicitly unsupported against the new writer until CCC-288 ships; no alias is added.",
+      "handoffStatus": "contract frozen, not delivered or acknowledged by this assignment"
+    }
+  },
+  "consumerHandoffDeliveryStatus": "NOT_DELIVERED; verbatim frozen map copied for controller routing only",
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "remoteChanges": false,
+  "pushed": false,
+  "deployed": false,
+  "canonicalDocsChanged": false,
+  "limitations": [
+    "No product behavior test passed in this writer slot; migration semantics did not execute because harness startup failed.",
+    "The parity manifest does not yet contain manual-record-lifecycle or intake-question-lifecycle entries; its original bytes are retained, not claimed as regenerated.",
+    "No central verification command, disposable smoke, seed scenario runtime or consumer compatibility check was run.",
+    "The local code commit is an unverified candidate, not a passing or ready-to-deploy implementation."
+  ],
+  "candidate": {
+    "commit": "4a2070e6cf04bb04bd3a734a92150168932dd406",
+    "tree": "f188a8f136a4de2147b9d5a36e9f2b535a990d89",
+    "parent": "aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d",
+    "changedPaths": [
+      "apps/api/test/gateway-intake.test.ts",
+      "apps/api/test/manual-record.contract.test.ts",
+      "apps/api/test/migration-parity.test.ts",
+      "apps/api/test/routes.test.ts",
+      "apps/api/test/support-case-report.contract.test.ts",
+      "apps/api/test/support/intake.ts",
+      "apps/api/test/support/migration-parity.ts",
+      "migrations/postgres/0020_intake_question_lifecycle.sql",
+      "migrations/sqlite/0064_intake_question_lifecycle.sql",
+      "packages/contracts/src/intake.ts",
+      "packages/contracts/src/manual-record.ts",
+      "packages/core/src/gateway.ts",
+      "scripts/seed/scenario.ts"
+    ],
+    "uncommittedProductPaths": [],
+    "sealed": true,
+    "verified": false
+  },
+  "prerequisitePreservation": {
+    "files": [
+      {
+        "path": "apps/api/test/community-cloud-runtime.test.ts",
+        "blob": "e1a48b1c0d026bbef093943fb7b77eaa87453c66",
+        "unchanged": true
+      },
+      {
+        "path": "apps/community-cloud/src/runtime.ts",
+        "blob": "ea02a374bbb4b785ca3b5ae3f4c0acd735675c65",
+        "unchanged": true
+      },
+      {
+        "path": "apps/api/test/invite-identity-binding.test.ts",
+        "blob": "9feed80b874a112132c99d8626717374d19ce9d6",
+        "unchanged": true
+      },
+      {
+        "path": "apps/api/test/staff-invites.contract.test.ts",
+        "blob": "f016821b5e986237ec69dec583cecec3157a6787",
+        "unchanged": true
+      },
+      {
+        "path": "packages/http-api/src/request-handler.ts",
+        "blob": "6a48f6bddb0b8e429e27764ed40d9e86f9d85bae",
+        "unchanged": true
+      },
+      {
+        "path": "packages/contracts/src/report.ts",
+        "blob": "186c3c6093bec45e1065ac753e9514ea85780c07",
+        "unchanged": true
+      },
+      {
+        "path": "apps/api/test/database-parity.test.ts",
+        "blob": "1b37c9f74929599224bf2948c0ef000ff225b73e",
+        "unchanged": true
+      }
+    ],
+    "gatewayN03AcceptedLineRanges": [
+      {
+        "start": 21533,
+        "count": 1
+      },
+      {
+        "start": 21540,
+        "count": 1
+      },
+      {
+        "start": 21544,
+        "count": 1
+      }
+    ],
+    "candidateDiffOverlapsN03": false
+  },
+  "commit": {
+    "exitCode": 0,
+    "hooksBypassed": false,
+    "summary": "13 files changed, 1190 insertions(+), 105 deletions(-)"
+  },
+  "observableContractMatrix": [
+    {
+      "acceptance": "All preexisting schema-1/2 source JSON bytes, unknown fields, historical lifecycle snapshots, original actors/timestamps, convertedFromRevision, conversion confirmation, and immutable origin provenance remain unchanged. Current lifecycle sourceRevision/sourceRowIndex pointers rebase under the frozen revision rules without altering prior snapshots or origin metadata.",
+      "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED",
+      "implementation": "Nullable lifecycle columns; immutable revision snapshots and literal historical JSON; separate origin, mechanical mapping and human confirmation metadata.",
+      "paths": [
+        "packages/core/src/gateway.ts",
+        "migrations/sqlite/0064_intake_question_lifecycle.sql",
+        "migrations/postgres/0020_intake_question_lifecycle.sql"
+      ],
+      "tests": [
+        "apps/api/test/gateway-intake.test.ts",
+        "apps/api/test/migration-parity.test.ts"
+      ]
+    },
+    {
+      "acceptance": "A new answered row gets one persisted UUID at revision 1; exact replay returns the same ID and creates no extra revision, outcome, audit, or officialization.",
+      "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED",
+      "implementation": "Create validates and checks existing receipts before UUID candidates; source/lifecycle/history/audit commit atomically; replay returns persisted identity.",
+      "paths": [
+        "packages/core/src/gateway.ts"
+      ],
+      "tests": [
+        "apps/api/test/gateway-intake.test.ts",
+        "apps/api/test/routes.test.ts"
+      ]
+    },
+    {
+      "acceptance": "Content/dueNote edit increments question revision; reorder rebases pointers without incrementing it; omission/nonanswer retain open identity; explicit withdrawal increments it and removes only current open work.",
+      "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED",
+      "implementation": "Stable ID plus question CAS; content/dueNote changes increment question revision, reorder only rebases immutable pointers, omitted/nonanswer identities remain open.",
+      "paths": [
+        "packages/contracts/src/intake.ts",
+        "packages/core/src/gateway.ts"
+      ],
+      "tests": [
+        "apps/api/test/gateway-intake.test.ts"
+      ]
+    },
+    {
+      "acceptance": "The last answered question can be withdrawn while its unchanged row binding is present; no fake nonanswer is required.",
+      "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED",
+      "implementation": "Unchanged binding may share its ID with a withdrawal; editing and withdrawing the same question is rejected.",
+      "paths": [
+        "packages/core/src/gateway.ts"
+      ],
+      "tests": [
+        "apps/api/test/gateway-intake.test.ts"
+      ]
+    },
+    {
+      "acceptance": "Legacy schema 1 and unbound schema 2 require explicit one-to-one human-confirmed conversion. Ambiguous, merged, dropped, duplicate, or text/hash-derived mappings fail with no mutation.",
+      "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED",
+      "implementation": "Unbound schema 1 and 2 require confirmed current-revision conversion and complete explicit legacySourceRowIndex mappings, including zero-row sources; no matching by text/hash/order.",
+      "paths": [
+        "packages/contracts/src/intake.ts",
+        "packages/core/src/gateway.ts"
+      ],
+      "tests": [
+        "apps/api/test/gateway-intake.test.ts"
+      ]
+    },
+    {
+      "acceptance": "Confirmation-first then withdrawal preserves the answer as withdrawn history. Withdrawal-first then confirmation returns 409. Duplicate confirmation, replay, stale intake/question revision, and date correction have deterministic outcomes.",
+      "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED",
+      "implementation": "Program, support-case and actual intake-row locks; full source snapshot and chronology fence; terminal withdrawal; prior confirmed outcomes remain immutable and readable.",
+      "paths": [
+        "packages/core/src/gateway.ts",
+        "migrations/sqlite/0064_intake_question_lifecycle.sql",
+        "migrations/postgres/0020_intake_question_lifecycle.sql"
+      ],
+      "tests": [
+        "apps/api/test/manual-record.contract.test.ts",
+        "apps/api/test/migration-parity.test.ts"
+      ]
+    },
+    {
+      "acceptance": "Cross-tenant and cross-case IDs return 403 without data existence leakage; malformed envelopes return 400; stale/current-state conflicts return 409. Every failed operation leaves source, outcomes, audit, and officialization unchanged.",
+      "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED",
+      "implementation": "Strict request parser returns 400; unavailable identity/source returns 403; stale revisions, conversion, state and atomic fence losses return 409 without exposing trigger text.",
+      "paths": [
+        "packages/contracts/src/intake.ts",
+        "packages/core/src/gateway.ts"
+      ],
+      "tests": [
+        "apps/api/test/routes.test.ts",
+        "apps/api/test/gateway-intake.test.ts",
+        "apps/api/test/manual-record.contract.test.ts"
+      ]
+    },
+    {
+      "acceptance": "AI-off create, read, edit, context, records, and report work without provider or Agent calls and manual records are official immediately.",
+      "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED",
+      "implementation": "Existing AI-off officialization path retained; one authoritative manual-work source snapshot and immutable history feed context, records and report.",
+      "paths": [
+        "packages/core/src/gateway.ts",
+        "packages/contracts/src/manual-record.ts"
+      ],
+      "tests": [
+        "apps/api/test/manual-record.contract.test.ts",
+        "apps/api/test/support-case-report.contract.test.ts"
+      ]
+    },
+    {
+      "acceptance": "Both encrypted SQLite and PostgreSQL produce the same create/read/edit/reorder/withdraw/confirm/context/records/report observations through handleRequest and gateway.",
+      "status": "NOT_RUN_RESERVED_CENTRAL_SMOKE",
+      "implementation": "Paired producer/storage implementations are present; cross-engine HTTP/gateway observation is reserved for the controller-owned disposable smoke.",
+      "paths": [
+        "packages/core/src/gateway.ts",
+        "migrations/sqlite/0064_intake_question_lifecycle.sql",
+        "migrations/postgres/0020_intake_question_lifecycle.sql"
+      ],
+      "tests": []
+    },
+    {
+      "acceptance": "PostgreSQL FORCE RLS, tenant policy, PUBLIC revoke, ccc_api grants, and ccc_schema_owner ownership remain; SQLite foreign keys, immutable history guards, and confirmed-once index remain.",
+      "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED",
+      "implementation": "PostgreSQL alteration preserves table security boundary and owners; SQLite rebuild restores foreign keys, append-only/source guards and confirmed-once index; semantic proofs added.",
+      "paths": [
+        "migrations/sqlite/0064_intake_question_lifecycle.sql",
+        "migrations/postgres/0020_intake_question_lifecycle.sql"
+      ],
+      "tests": [
+        "apps/api/test/migration-parity.test.ts"
+      ]
+    },
+    {
+      "acceptance": "The parity update adds 0064/0020 after preserving all previous checkpoint bytes; the immediate non-update run passes without changing migrations/parity.yaml.",
+      "status": "BLOCKED_PARITY_REGENERATION",
+      "implementation": "New checkpoint registered after existing manual-record-lifecycle. Manifest regeneration blocked before semantic proofs; existing manifest byte-identical. No non-update run performed.",
+      "paths": [
+        "apps/api/test/support/migration-parity.ts",
+        "apps/api/test/migration-parity.test.ts"
+      ],
+      "tests": [
+        "apps/api/test/migration-parity.test.ts"
+      ]
+    },
+    {
+      "acceptance": "Seed scenario runs through createCaptureHarness and runScenario with envelope 3 and writes no generator output or preview data.",
+      "status": "IMPLEMENTED_SEED_RUNTIME_NOT_RUN",
+      "implementation": "Seed create envelope uses INTAKE_WRITE_SCHEMA_VERSION 3 and mandatory empty refs/withdrawals; questionnaire remains schema 2. No seed runtime or generated output written.",
+      "paths": [
+        "scripts/seed/scenario.ts",
+        "apps/api/test/support/intake.ts"
+      ],
+      "tests": []
+    },
+    {
+      "acceptance": "The exact allowed path set is the complete product diff; packages/contracts/src/report.ts and all consumer paths remain unchanged.",
+      "status": "VERIFIED_GIT_SCOPE_AND_BLOB_EVIDENCE",
+      "implementation": "Candidate tree has exactly 13 allowed changed paths, no uncommitted product paths; report DTO, HTTP handler, accepted CORS/N03 tests and all consumer paths remain unchanged.",
+      "paths": [
+        "apps/api/test/gateway-intake.test.ts",
+        "apps/api/test/manual-record.contract.test.ts",
+        "apps/api/test/migration-parity.test.ts",
+        "apps/api/test/routes.test.ts",
+        "apps/api/test/support-case-report.contract.test.ts",
+        "apps/api/test/support/intake.ts",
+        "apps/api/test/support/migration-parity.ts",
+        "migrations/postgres/0020_intake_question_lifecycle.sql",
+        "migrations/sqlite/0064_intake_question_lifecycle.sql",
+        "packages/contracts/src/intake.ts",
+        "packages/contracts/src/manual-record.ts",
+        "packages/core/src/gateway.ts",
+        "scripts/seed/scenario.ts"
+      ],
+      "tests": []
+    },
+    {
+      "acceptance": "Create an intake, commit a later update, then replay the identical original create envelope with the same actor and submissionId. Assert HTTP 200, replayed true, the original intake session ID, and the currently stored revision, with no additional identity allocation, revision, outcome, audit, or officialization.",
+      "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED",
+      "implementation": "Original create receipt survives later update; HTTP replay returns schema 3, current revision, original session ID and replayed true without another write.",
+      "paths": [
+        "packages/core/src/gateway.ts"
+      ],
+      "tests": [
+        "apps/api/test/routes.test.ts",
+        "apps/api/test/gateway-intake.test.ts"
+      ]
+    }
+  ],
+  "intentionallyUnchanged": [
+    {
+      "path": "packages/http-api/src/request-handler.ts",
+      "reason": "Existing strict contract parser delegation and direct mutation/context responses already follow the updated exported producer contract; accepted N03 code preserved."
+    },
+    {
+      "path": "packages/contracts/src/report.ts",
+      "reason": "Frozen report DTO unchanged; only gateway evidence selection changed."
+    },
+    {
+      "path": "apps/api/test/database-parity.test.ts",
+      "reason": "Existing three-profile runner consumes the appended checkpoint list; specific lifecycle migration semantics added to migration-parity.test.ts; HTTP/gateway smoke is central-owned."
+    },
+    {
+      "path": "migrations/parity.yaml",
+      "reason": "Writer command failed before semantic proofs and final manifest write; no hand-written fingerprint or invalid regenerated manifest."
+    }
+  ],
+  "localResultPath": "/tmp/ccc299-core-implementation-result.json",
+  "controllerResultPath": "artifacts/orchestration/ccc299-core-implementation-result.json",
+  "controllerResultDelivered": false
+}

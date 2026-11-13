@@ -1,0 +1,119 @@
+{
+  "assignmentId": "CCC292-MANIFEST-MERGE-20260914",
+  "ticket": "CCC-292",
+  "scope": "masking manifest producer only",
+  "status": "MERGED_AND_VERIFIED_EXCEPT_ONE_STALE_PYTHON_TEST_IMPORT",
+  "summary": "The merge was clean, parity still holds read-only, api typecheck and the new api contract test pass, and the masking python module passes. One python test module no longer imports, because the producer moved two symbols out of worker.py and the deferred fixture migration has not happened yet.",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "branch": "integrate/ccc291-parity",
+    "cleanAtEnd": true,
+    "tip": "6adc14634c5413f958b49694b98613dfa13b6995"
+  },
+  "observedBaseTip": {
+    "observedBy": "git branch --show-current, git rev-parse HEAD, git status --short, git log --oneline -1",
+    "branch": "integrate/ccc291-parity",
+    "commit": "19ee7f7b9511171821f0c53ab55ec87509f3f21a",
+    "subject": "파기 증명과 소유 그래프 checkpoint 를 parity manifest 에 반영",
+    "clean": true,
+    "resetUsed": false
+  },
+  "fetchedTip": {
+    "command": "git fetch mini:/Users/barq/DEVELOPER/PROJECTS/CCC core/relayer-domain-beta",
+    "fetchHeadCommit": "21265854715837b8701e4d518a032b801b40fbc0",
+    "fetchHeadParent": "e85d5ffc0f3f1e6a1863d746631bb230a28266f7",
+    "subject": "feat: 마스킹 명세 생산자만 단일화",
+    "matchedAssignment": true,
+    "rangeStat": "11 files changed, 684 insertions(+), 134 deletions(-)"
+  },
+  "migrationFilesInRange": {
+    "verifiedBy": "git show --stat FETCH_HEAD, read before merging",
+    "newMigrationFiles": [],
+    "modifiedMigrationFiles": [],
+    "count": 0,
+    "consequence": "parity was run read-only with no update environment variable and the manifest was neither regenerated nor committed"
+  },
+  "coreMergeCommit": {
+    "commit": "6adc14634c5413f958b49694b98613dfa13b6995",
+    "mergedCommit": "21265854715837b8701e4d518a032b801b40fbc0",
+    "conflicts": 0,
+    "diffStat": "11 files changed, 684 insertions(+), 134 deletions(-)",
+    "newFiles": ["apps/api/test/masking-pipeline-manifest.contract.test.ts", "apps/pipeline/ccc_pipeline/masking_manifest.py", "packages/contracts/src/masking-pipeline.ts"]
+  },
+  "conflicts": [],
+  "parityCheck": {
+    "command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1",
+    "updateEnvironmentVariableUsed": false,
+    "exitStatus": 0,
+    "result": "PASS",
+    "testsPassed": 1,
+    "durationSeconds": 15.49,
+    "manifestSha256": "f671080ea7ed26b15ae96b3899a2210daa8ee651e8be3fde04fb670d5b65af8b",
+    "manifestUnchanged": true,
+    "manifestCommitted": false,
+    "executions": 1
+  },
+  "apiTypecheck": {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "executions": 1},
+  "restoredFilesCheck": {
+    "purpose": "confirm the nine restored check files do not break on this integration line",
+    "fact": "none of the nine paths appear in this merge range. git diff --name-status 19ee7f7b 6adc1463 lists eleven files and the only apps/api/test entry is the new masking-pipeline-manifest.contract.test.ts. The restore itself arrived on earlier commits this line already merged, where agent-job-contract, agent-source-fence.contract, entity-memory-proof.contract, entity-provider-proof.contract, entity-result-proof.contract, entity-source-binding.contract and support/agent-jobs were exercised and passed.",
+    "pathsInThisRange": ["apps/pipeline/tests is untouched, but apps/pipeline/ccc_pipeline/worker.py, config.py and masking.py changed, which is what breaks the python module below"],
+    "notRerunBecauseUnchanged": ["apps/api/test/agent-job-contract.test.ts", "apps/api/test/agent-source-fence.contract.test.ts", "apps/api/test/counseling-memory.races.test.ts", "apps/api/test/entity-memory-proof.contract.test.ts", "apps/api/test/entity-provider-proof.contract.test.ts", "apps/api/test/entity-result-proof.contract.test.ts", "apps/api/test/entity-source-binding.contract.test.ts", "apps/api/test/support/agent-jobs.ts"]
+  },
+  "testedFiles": {
+    "derivedFrom": "git diff --name-status 19ee7f7b 6adc1463",
+    "apiTestFilesAddedOrChanged": [{"path": "apps/api/test/masking-pipeline-manifest.contract.test.ts", "change": "A"}],
+    "pythonChanged": [
+      {"path": "apps/pipeline/ccc_pipeline/config.py", "change": "M"},
+      {"path": "apps/pipeline/ccc_pipeline/masking.py", "change": "M"},
+      {"path": "apps/pipeline/ccc_pipeline/masking_manifest.py", "change": "A"},
+      {"path": "apps/pipeline/ccc_pipeline/worker.py", "change": "M"}
+    ],
+    "pythonTestFilesChanged": [],
+    "pythonModulesSelected": ["tests.test_masking covers masking.py", "tests.test_api_client_worker covers worker.py and was named in the assignment"],
+    "otherChanged": ["apps/pipeline/README.md", "docs/ops.md", "packages/contracts/package.json", "packages/contracts/src/agent-jobs.ts", "packages/contracts/src/masking-pipeline.ts", "packages/core/src/gateway.ts"]
+  },
+  "testResults": [
+    {"command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/masking-pipeline-manifest.contract.test.ts", "exitStatus": 0, "result": "PASS", "testFilesPassed": 1, "testsPassed": 3, "durationSeconds": 0.102, "executions": 1}
+  ],
+  "pythonResult": {
+    "cwd": "apps/pipeline",
+    "modules": [
+      {"command": "python3 -m unittest tests.test_masking", "result": "PASS", "testsRun": 40, "executions": 1},
+      {
+        "command": "python3 -m unittest tests.test_api_client_worker",
+        "result": "FAIL",
+        "failureKind": "module import error, so the module never collected its tests",
+        "testsRun": 1,
+        "errors": 1,
+        "error": "ImportError: cannot import name 'masking_pipeline_hash' from 'ccc_pipeline.worker'",
+        "failingFileAndLine": "apps/pipeline/tests/test_api_client_worker.py:29, the from ccc_pipeline.worker import block that lists claim_request, masking_pipeline_hash, masking_pipeline_version, process_text_job, run_once and run_memory_once",
+        "rootCauseFact": "the producer commit removed the module level masking_pipeline_hash and masking_pipeline_version from apps/pipeline/ccc_pipeline/worker.py. grep finds no def for either name anywhere under ccc_pipeline. They now exist as AgentConfig fields at apps/pipeline/ccc_pipeline/config.py lines 42 and 43, populated at config.py lines 294 and 295 from apps/pipeline/ccc_pipeline/masking_manifest.py lines 51, 52, 135 and 136, and worker.py reads them as config.masking_pipeline_version and config.masking_pipeline_hash at lines 788, 789, 844 and 845.",
+        "matchesDeferredScope": "the assignment stated the check fixture migration was pushed to the next step. This is exactly that unmigrated fixture, not a behaviour regression found by an assertion.",
+        "fixNotAttempted": "test and product source edits are outside this slot. No assertion, threshold or baseline was touched.",
+        "executions": 1
+      }
+    ]
+  },
+  "unmet": ["apps/pipeline/tests/test_api_client_worker.py importing and running"],
+  "requiredFromCore": "In the deferred fixture step, change apps/pipeline/tests/test_api_client_worker.py line 29 so it stops importing masking_pipeline_hash and masking_pipeline_version from ccc_pipeline.worker and reads them from the config or manifest module instead. Then hand it back and this line will run that module again.",
+  "guardrails": {
+    "productSourceModified": false,
+    "testOrSupportFilesModifiedByThisSlot": false,
+    "migrationsModified": false,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "conflictsResolved": 0,
+    "commitsMade": 0,
+    "mergeCommitsMade": 1,
+    "projectWideTestsLintOrBuildRuns": 0,
+    "rebaseOrReset": 0,
+    "pushed": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "dockerHarness": "existing local disposable PostgreSQL harness only; no external connection string",
+    "otherWorktreesTouched": false,
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/ccc292-manifest-merge-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT CCC292-MANIFEST-MERGE-20260914"
+}

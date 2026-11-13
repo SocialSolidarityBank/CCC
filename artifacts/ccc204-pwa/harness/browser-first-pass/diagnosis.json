@@ -1,0 +1,12 @@
+{
+  "observerDefect": "Expected-asset list was derived from every emitted file, so the committed /ccc-bootstrap.json.example placeholder was expected in cache. The worker never lists it; the browser evidence is unchanged and all cached entries match emitted assets.",
+  "cachedPaths": [
+    "/assets/index-C6dhwiDF.js",
+    "/assets/index-DmXLclX2.css",
+    "/icon.svg",
+    "/index.html",
+    "/manifest.webmanifest"
+  ],
+  "placeholderEmitted": true,
+  "placeholderCached": false
+}

@@ -1,0 +1,69 @@
+{
+  "sourceCommit": "f7194dc88064455f3eb6be02abb5aae836981612",
+  "searchScope": [
+    "apps",
+    "adapters",
+    "packages",
+    "scripts"
+  ],
+  "searchedSymbols": [
+    "createSupabaseIdentity",
+    "createCommunityCloudRuntime",
+    "handleAuth",
+    "signInWithPassword",
+    "createD1TestContext"
+  ],
+  "signedManifestFixture": {
+    "path": "apps/api/test/support/install-manifest.ts:15-19,63-64",
+    "actualClientVerifier": "apps/client/src/business/installation.ts:38-77",
+    "observed": "Cryptographically signed manifest and bootstrap accepted by unchanged client verifier.",
+    "evidence": "fixture-seam.json"
+  },
+  "realIdentityFixture": {
+    "path": "apps/api/test/identity-supabase.test.ts:17-56,63-72",
+    "databaseFixture": "apps/api/test/support/d1.ts:264-336,362-387",
+    "observed": "7 focused original tests pass: actual ES256/RS256 verification and linked-directory actor/role resolution plus malformed/algorithm/endpoint rejection.",
+    "evidence": "commands.json",
+    "httpPasswordGrantRuntime": false
+  },
+  "browserAuthCandidate": {
+    "path": "apps/client/src/business/auth.test.ts:24-93",
+    "limitations": [
+      "Private test function injects a fetch boundary into CloudAuth; it is not an HTTP runtime for the unchanged browser app.",
+      "Token body uses HS256 and placeholder signature; it cannot pass the real backend verifier."
+    ]
+  },
+  "existingNetworkPreview": {
+    "paths": [
+      "apps/client/tools/synthetic-preview.mjs:28-30,41-60,78-106",
+      "apps/client/tools/synthetic-api.mjs:175-181,195-233",
+      "apps/client/tools/synthetic-api.mjs:291-316"
+    ],
+    "limitations": [
+      "Accepts arbitrary login input; using it as success is explicitly forbidden.",
+      "Placeholder HS256 tokens lack a valid asymmetric signature and required issuer/anonymous/email claims.",
+      "Its loopback Auth origin with a port is rejected by real Identity configuration.",
+      "handleApi checks only Authorization header presence; /capabilities and /me are synthetic response constructors, not actual Identity/gateway results."
+    ],
+    "actualRejections": {
+      "token": "ActorAuthenticationError",
+      "issuer": "IdentityStoreUnavailableError"
+    },
+    "evidence": "fixture-seam.json",
+    "runtimeStarted": false
+  },
+  "cloudRuntimeCandidate": {
+    "path": "apps/community-cloud/src/runtime.ts:33-75,147-160",
+    "limitations": [
+      "Actual backend runtime binds the real Identity adapter and PostgreSQL directory but is not an Auth token issuer.",
+      "The existing unit runtime fixture uses an attested database substitute which deliberately refuses business SQL; its valid signed JWT /me case expects 503."
+    ],
+    "unitFixture": "apps/api/test/community-cloud-runtime.test.ts:19-50,110-133"
+  },
+  "missingSeam": {
+    "description": "No retained supported browser HTTP password-grant/session/user fixture that issues cryptographically valid synthetic credentials and connects the unchanged client to actual Identity plus real directory-backed /capabilities and /me was found in the pinned source.",
+    "owner": "Existing frontend integration fixture owner w1M:p2 with the existing API/Identity harness owner",
+    "smallestRemedy": "Provide an owner-reviewed synthetic network harness that joins the existing signed-installation and Identity/D1 fixtures, preserves signature/issuer/role checks, validates fixture credentials, and returns /me through handleRequest/gateway rather than a fixed response. This is a CCC-204 acceptance-harness seam, not a dependency on completing CCC-212.",
+    "notAuthorizedHere": "Implementing a new/replacement auth server or patching the arbitrary-login preview is outside this supplement."
+  }
+}

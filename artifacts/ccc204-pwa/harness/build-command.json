@@ -1,0 +1,7 @@
+{
+  "command": "node ../build.mjs <owned-evidence-dir>",
+  "nodeEnv": "production",
+  "exitCode": 0,
+  "stdoutSha256": "ffe4f8d5c83a54d38394931f90842f677db762b6d26d3df48c927368e993068a",
+  "priorBuildProbeReused": true
+}

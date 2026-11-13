@@ -1,0 +1,177 @@
+{
+  "sourceCommit": "f7194dc88064455f3eb6be02abb5aae836981612",
+  "sourceFilesChecked": 457,
+  "sourceChanges": [],
+  "snapshotSourceChanges": [],
+  "acceptedFirstAuditEvidence": {
+    "artifacts/ccc204-pwa/cleanup.json": {
+      "expected": "b48feba9e93479083eb4cd24035e740260ef0c011beaa7851a8adce4be641034",
+      "actual": "b48feba9e93479083eb4cd24035e740260ef0c011beaa7851a8adce4be641034",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/runtime-inventory.json": {
+      "expected": "0e87602881d7da8e76e3aaff38417d3abb55ea5359f28760877e17ff512b1d2d",
+      "actual": "0e87602881d7da8e76e3aaff38417d3abb55ea5359f28760877e17ff512b1d2d",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/preservation.json": {
+      "expected": "68c617e7b2bac9604c5c27cda5da4d927c83c788f9263d079402ac5033f59b9e",
+      "actual": "68c617e7b2bac9604c5c27cda5da4d927c83c788f9263d079402ac5033f59b9e",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/browser-cleanup.json": {
+      "expected": "66bd24e7280f53019c2cb9f26a30c69a458e7dc2182287fac0060c0561f546bb",
+      "actual": "66bd24e7280f53019c2cb9f26a30c69a458e7dc2182287fac0060c0561f546bb",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/acceptance-checks.json": {
+      "expected": "ccac49a49b6cb254eaa7baab98598e1d9e247209e3a55b9d0fc449420c9c3d46",
+      "actual": "ccac49a49b6cb254eaa7baab98598e1d9e247209e3a55b9d0fc449420c9c3d46",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/worker-offline.json": {
+      "expected": "8aed7dd8a40fb555d32b16e208470e6d79bdf11a47f8a4b83be712768eab6b88",
+      "actual": "8aed7dd8a40fb555d32b16e208470e6d79bdf11a47f8a4b83be712768eab6b88",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/worker-online.json": {
+      "expected": "3df5a37d538fcf9d4b621cac4d3671430738cfbcb9d860d71494b0f6fd754ef1",
+      "actual": "3df5a37d538fcf9d4b621cac4d3671430738cfbcb9d860d71494b0f6fd754ef1",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/offline-check.mjs": {
+      "expected": "e0bd3e571581087841cbfa88aab8dea7f5f9ed48dcc0d844f0a908cb591df81d",
+      "actual": "e0bd3e571581087841cbfa88aab8dea7f5f9ed48dcc0d844f0a908cb591df81d",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/cache-check.mjs": {
+      "expected": "9799139df2f7e245ffc4880825288eaa0cb26d326f1341afcb7f0c2a0ce65945",
+      "actual": "9799139df2f7e245ffc4880825288eaa0cb26d326f1341afcb7f0c2a0ce65945",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/online-verdict.json": {
+      "expected": "79f17149152fd58900e579eab7ba9d58bd0016199a1721804ef33137b50a8f78",
+      "actual": "79f17149152fd58900e579eab7ba9d58bd0016199a1721804ef33137b50a8f78",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/offline-observer-error.json": {
+      "expected": "943a253f118977716917de7f61d2ad6e6eb24c48865d7e48492e429c338f2a3b",
+      "actual": "943a253f118977716917de7f61d2ad6e6eb24c48865d7e48492e429c338f2a3b",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/worker-online-isolated-observer.json": {
+      "expected": "ae78c7a04913d776dd20e3cfa8ad7165989a786f74126f8a2dfcc7d8c5818bd1",
+      "actual": "ae78c7a04913d776dd20e3cfa8ad7165989a786f74126f8a2dfcc7d8c5818bd1",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/browser-module-cache-error.json": {
+      "expected": "9e0a089b2aeff7451082236921b27db6207c6cddd3b00a5d321839c5854fa182",
+      "actual": "9e0a089b2aeff7451082236921b27db6207c6cddd3b00a5d321839c5854fa182",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/worker-ready-main-world.json": {
+      "expected": "3b9993d2ac2605694f0fefdf91d7e56b35007b562bd2b0253223395303ece9ce",
+      "actual": "3b9993d2ac2605694f0fefdf91d7e56b35007b562bd2b0253223395303ece9ce",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/worker-observer-error.json": {
+      "expected": "776a21d853c49553914be722392bcbbcfe696df7e5de40d43666e1f0bd1fa14c",
+      "actual": "776a21d853c49553914be722392bcbbcfe696df7e5de40d43666e1f0bd1fa14c",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/visual-observation.json": {
+      "expected": "73d964205bb52260ac7d3d0a6110c09b3f9b71b6235f1cf97be9dc78660b58c4",
+      "actual": "73d964205bb52260ac7d3d0a6110c09b3f9b71b6235f1cf97be9dc78660b58c4",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/visual.json": {
+      "expected": "7d1077b7533a433b54a9e3a0d93c70507e678a9ff07e76d31c84e0146b0213fa",
+      "actual": "7d1077b7533a433b54a9e3a0d93c70507e678a9ff07e76d31c84e0146b0213fa",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/direct-routes.json": {
+      "expected": "9ba9355e529c1eb56d86c6ce741b1944b00a6b05eb4c288c2d44c445c52db29d",
+      "actual": "9ba9355e529c1eb56d86c6ce741b1944b00a6b05eb4c288c2d44c445c52db29d",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/router-navigation.json": {
+      "expected": "df8f2a915c1930b4f1a9ae1dd845f4319380118e8f7f2a2fbbfcf65b61ac3875",
+      "actual": "df8f2a915c1930b4f1a9ae1dd845f4319380118e8f7f2a2fbbfcf65b61ac3875",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/browser-baseline.json": {
+      "expected": "b338a6e95915c6b8c414a485863bc49e73601239e64f9262c2ec686f15dad7a4",
+      "actual": "b338a6e95915c6b8c414a485863bc49e73601239e64f9262c2ec686f15dad7a4",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/source-findings.json": {
+      "expected": "ddbbf4d15a4ffdb104279e5771f67491b7ca18215e91508b2e9ac9e96779dc62",
+      "actual": "ddbbf4d15a4ffdb104279e5771f67491b7ca18215e91508b2e9ac9e96779dc62",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/server.mjs": {
+      "expected": "287144e47b7927231c53274ffb295ccf2012b7d3bbfdea77e91eb11a6ceef07b",
+      "actual": "287144e47b7927231c53274ffb295ccf2012b7d3bbfdea77e91eb11a6ceef07b",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/commands.json": {
+      "expected": "948a5be57d96b5801346b003489337b0d065ece9ba10f3eea345ba7adf7c755b",
+      "actual": "948a5be57d96b5801346b003489337b0d065ece9ba10f3eea345ba7adf7c755b",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/import-closure.json": {
+      "expected": "be4956fbb7a8f3877aada2b00fd32c7f16bdd4661eb101bbc1381b81a3f48afe",
+      "actual": "be4956fbb7a8f3877aada2b00fd32c7f16bdd4661eb101bbc1381b81a3f48afe",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/resolved-imports.json": {
+      "expected": "95cf5f85405cc79fe920721175a7854b0296cc3e3d788229c31a19d08b8c6b88",
+      "actual": "95cf5f85405cc79fe920721175a7854b0296cc3e3d788229c31a19d08b8c6b88",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/build.mjs": {
+      "expected": "596fab8a769c97263c4c9b70ca431c72a1249fa44850eb07bbda2a029c5dedc1",
+      "actual": "596fab8a769c97263c4c9b70ca431c72a1249fa44850eb07bbda2a029c5dedc1",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/runtime-setup.json": {
+      "expected": "272134be1f27184c0e3f385789de9a7260fae7c9102fa025531486f9673eb963",
+      "actual": "272134be1f27184c0e3f385789de9a7260fae7c9102fa025531486f9673eb963",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/source-pin.json": {
+      "expected": "0a9da08805908b8213a9ebffc397bb70a0320c3efc4fcdcf9b1d474dffe5b9ee",
+      "actual": "0a9da08805908b8213a9ebffc397bb70a0320c3efc4fcdcf9b1d474dffe5b9ee",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/identity.json": {
+      "expected": "aa1e1a0de5fd638ed67e5cfed4e2c9bcd9b9219050e0b3f37281191f1b9643bd",
+      "actual": "aa1e1a0de5fd638ed67e5cfed4e2c9bcd9b9219050e0b3f37281191f1b9643bd",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/identity.mjs": {
+      "expected": "22939cd5c6e6cbd277d383e89a699102a9b41ace434063b6be145c3002758cc4",
+      "actual": "22939cd5c6e6cbd277d383e89a699102a9b41ace434063b6be145c3002758cc4",
+      "unchanged": true
+    },
+    "artifacts/ccc204-pwa/review.json": {
+      "expected": "24d187e1e3b05934faddfaa6ef141bf77e564b00f375e9284361ae67e2816b8e",
+      "actual": "24d187e1e3b05934faddfaa6ef141bf77e564b00f375e9284361ae67e2816b8e",
+      "unchanged": true
+    },
+    "docs/superpowers/plans/2026-09-13-CCC-204-vite-pwa-verification.md": {
+      "expected": "476f3c1f35de0e7cbd443c0f776e9ab17a039022935e582ce533c6cbf65fd376",
+      "actual": "476f3c1f35de0e7cbd443c0f776e9ab17a039022935e582ce533c6cbf65fd376",
+      "unchanged": true
+    }
+  },
+  "acceptedEvidenceCount": 32,
+  "allAcceptedEvidenceUnchanged": true,
+  "acceptedPriorResult": {
+    "expected": "56f9d94f38092a5655e2d77429d1571a493579340d74f9a538552e91fa81b876",
+    "actual": "56f9d94f38092a5655e2d77429d1571a493579340d74f9a538552e91fa81b876",
+    "unchanged": true
+  },
+  "previouslyInventoriedWipFileCount": 38,
+  "previouslyInventoriedWipChanges": []
+}

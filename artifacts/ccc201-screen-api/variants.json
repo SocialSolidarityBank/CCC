@@ -1,0 +1,654 @@
+{
+  "evidenceKind": "actual_http_responses_synthetic_d1",
+  "note": "type 'worker-public' traversed the real Worker entry on token-credential routes that never resolve an actor; type 'injected-actor' traversed handleRequest with a test-supplied Actor and does not prove real authentication",
+  "events": [
+    {
+      "key": "participant.issue.null-email-issuer",
+      "type": "injected-actor",
+      "variant": "POST /invites/participant",
+      "status": 201,
+      "shape": {
+        "token": "string",
+        "kind": "string",
+        "orgId": "string",
+        "programId": "string",
+        "programType": "string",
+        "issuedBy": "string",
+        "status": "string",
+        "issuedAt": "string",
+        "usedAt": "null",
+        "expiresAt": "string",
+        "revokedAt": "null",
+        "usedByBeneficiaryId": "null"
+      }
+    },
+    {
+      "key": "participant.disclosures",
+      "type": "worker-public",
+      "variant": "GET /invites/participant/:token/consent/disclosures",
+      "status": 200,
+      "shape": {
+        "disclosures": {
+          "array": [
+            {
+              "snapshotId": "string",
+              "scopeBinding": {
+                "orgId": "string",
+                "programId": "string",
+                "issuerId": "string",
+                "supportCaseId": "null"
+              },
+              "domain": "string",
+              "fullKoreanCopy": "string",
+              "provider": "string",
+              "providerLegalRecipient": "string",
+              "country": "string",
+              "purpose": "string",
+              "retentionProfile": "string",
+              "retentionDuration": "string",
+              "copyVersion": "string",
+              "copyHash": "string",
+              "issuedAt": "string",
+              "expiresAt": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "participant.link.issued",
+      "type": "worker-public",
+      "variant": "GET /invites/participant/:token",
+      "status": 200,
+      "shape": {
+        "status": "string",
+        "programId": "string",
+        "programType": "string",
+        "orgName": "null",
+        "expiresAt": "string"
+      }
+    },
+    {
+      "key": "participant.signup.legacy-consent-rejected",
+      "type": "worker-public",
+      "variant": "POST /signup/participant",
+      "status": 400,
+      "shape": {
+        "error": "string"
+      }
+    },
+    {
+      "key": "participant.link.still-issued-after-400",
+      "type": "worker-public",
+      "variant": "GET /invites/participant/:token",
+      "status": 200,
+      "shape": {
+        "status": "string",
+        "programId": "string",
+        "programType": "string",
+        "orgName": "null",
+        "expiresAt": "string"
+      }
+    },
+    {
+      "key": "participant.signup",
+      "type": "worker-public",
+      "variant": "POST /signup/participant",
+      "status": 201,
+      "shape": {
+        "beneficiaryId": "string",
+        "supportCaseId": "string"
+      }
+    },
+    {
+      "key": "participant.link.used.null-counselor-name",
+      "type": "worker-public",
+      "variant": "GET /invites/participant/:token",
+      "status": 200,
+      "shape": {
+        "status": "string",
+        "counselorName": "null",
+        "message": "string"
+      }
+    },
+    {
+      "key": "participant.issue.counselor",
+      "type": "injected-actor",
+      "variant": "POST /invites/participant",
+      "status": 201,
+      "shape": {
+        "token": "string",
+        "kind": "string",
+        "orgId": "string",
+        "programId": "string",
+        "programType": "string",
+        "issuedBy": "string",
+        "status": "string",
+        "issuedAt": "string",
+        "usedAt": "null",
+        "expiresAt": "string",
+        "revokedAt": "null",
+        "usedByBeneficiaryId": "null"
+      }
+    },
+    {
+      "key": "participant.signup.second",
+      "type": "worker-public",
+      "variant": "POST /signup/participant",
+      "status": 201,
+      "shape": {
+        "beneficiaryId": "string",
+        "supportCaseId": "string"
+      }
+    },
+    {
+      "key": "participant.link.used.named-counselor",
+      "type": "worker-public",
+      "variant": "GET /invites/participant/:token",
+      "status": 200,
+      "shape": {
+        "status": "string",
+        "counselorName": "string",
+        "message": "string"
+      }
+    },
+    {
+      "key": "staff.issue.unsupported-worker",
+      "type": "injected-actor",
+      "variant": "POST /staff-invites role=worker",
+      "status": 400,
+      "shape": {
+        "error": "string"
+      }
+    },
+    {
+      "key": "staff.issue.unsupported-supervisor",
+      "type": "injected-actor",
+      "variant": "POST /staff-invites role=supervisor",
+      "status": 400,
+      "shape": {
+        "error": "string"
+      }
+    },
+    {
+      "key": "staff.issue",
+      "type": "injected-actor",
+      "variant": "POST /staff-invites",
+      "status": 201,
+      "shape": {
+        "invite": {
+          "id": "string",
+          "email": "string",
+          "roles": {
+            "array": [
+              "string"
+            ]
+          },
+          "status": "string",
+          "issuedAt": "string",
+          "expiresAt": "string",
+          "usedAt": "null",
+          "revokedAt": "null"
+        },
+        "token": "string"
+      }
+    },
+    {
+      "key": "staff.list.token-free",
+      "type": "injected-actor",
+      "variant": "GET /staff-invites",
+      "status": 200,
+      "shape": {
+        "invites": {
+          "array": [
+            {
+              "id": "string",
+              "email": "string",
+              "roles": {
+                "array": [
+                  "string"
+                ]
+              },
+              "status": "string",
+              "issuedAt": "string",
+              "expiresAt": "string",
+              "usedAt": "null",
+              "revokedAt": "null"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "staff.public-info",
+      "type": "worker-public",
+      "variant": "GET /staff-invites/token/:token",
+      "status": 200,
+      "shape": {
+        "orgName": "null",
+        "roles": {
+          "array": [
+            "string"
+          ]
+        },
+        "expiresAt": "string"
+      }
+    },
+    {
+      "key": "staff.accept",
+      "type": "worker-public",
+      "variant": "POST /staff-invites/token/:token/accept",
+      "status": 201,
+      "shape": {
+        "userId": "string",
+        "email": "string",
+        "roleWaiting": "boolean"
+      }
+    },
+    {
+      "key": "staff.issue.for-revoke",
+      "type": "injected-actor",
+      "variant": "POST /staff-invites",
+      "status": 201,
+      "shape": {
+        "invite": {
+          "id": "string",
+          "email": "string",
+          "roles": {
+            "array": [
+              "string"
+            ]
+          },
+          "status": "string",
+          "issuedAt": "string",
+          "expiresAt": "string",
+          "usedAt": "null",
+          "revokedAt": "null"
+        },
+        "token": "string"
+      }
+    },
+    {
+      "key": "staff.revoke.token-free",
+      "type": "injected-actor",
+      "variant": "POST /staff-invites/:id/revoke",
+      "status": 200,
+      "shape": {
+        "invite": {
+          "id": "string",
+          "email": "string",
+          "roles": {
+            "array": [
+              "string"
+            ]
+          },
+          "status": "string",
+          "issuedAt": "string",
+          "expiresAt": "string",
+          "usedAt": "null",
+          "revokedAt": "string"
+        }
+      }
+    },
+    {
+      "key": "staff.public-info.revoked-404",
+      "type": "worker-public",
+      "variant": "GET /staff-invites/token/:token",
+      "status": 404,
+      "shape": {
+        "error": "string"
+      }
+    },
+    {
+      "key": "me.null-email",
+      "type": "injected-actor",
+      "variant": "GET /me",
+      "status": 200,
+      "shape": {
+        "id": "string",
+        "orgId": "string",
+        "email": "null",
+        "role": "string",
+        "active": "boolean",
+        "name": "null",
+        "lastProgramType": "null",
+        "roles": {
+          "array": [
+            "string"
+          ]
+        },
+        "institution": {
+          "orgId": "string",
+          "orgName": "null",
+          "settingsState": "string",
+          "creatorLinkState": "string",
+          "initialSetupState": "string",
+          "firstProgramAdmissionState": "string",
+          "firstProgram": "null",
+          "installationState": "string",
+          "retentionPolicyStatus": "string",
+          "consentCopy": {
+            "version": "string",
+            "status": "string",
+            "domains": {
+              "array": [
+                {
+                  "domain": "string",
+                  "disclosureAvailable": "boolean"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "directory.contains-null-email",
+      "type": "injected-actor",
+      "variant": "GET /settings/accounts",
+      "status": 200,
+      "shape": {
+        "accounts": {
+          "array": [
+            {
+              "id": "string",
+              "email": "null",
+              "name": "null",
+              "active": "boolean",
+              "roles": {
+                "array": [
+                  "string"
+                ]
+              },
+              "supervisedTeamIds": {
+                "array": []
+              },
+              "assignmentCount": "number"
+            },
+            {
+              "id": "string",
+              "email": "string",
+              "name": "null",
+              "active": "boolean",
+              "roles": {
+                "array": [
+                  "string"
+                ]
+              },
+              "supervisedTeamIds": {
+                "array": []
+              },
+              "assignmentCount": "number"
+            },
+            {
+              "id": "string",
+              "email": "string",
+              "name": "string",
+              "active": "boolean",
+              "roles": {
+                "array": [
+                  "string"
+                ]
+              },
+              "supervisedTeamIds": {
+                "array": []
+              },
+              "assignmentCount": "number"
+            },
+            {
+              "id": "string",
+              "email": "string",
+              "name": "null",
+              "active": "boolean",
+              "roles": {
+                "array": [
+                  "string"
+                ]
+              },
+              "supervisedTeamIds": {
+                "array": [
+                  "string"
+                ]
+              },
+              "assignmentCount": "number"
+            }
+          ]
+        },
+        "permissions": {
+          "canManageRoles": "boolean",
+          "canManageAccounts": "boolean"
+        },
+        "nextCursor": "null"
+      }
+    },
+    {
+      "key": "hub.restricted.nonassigned",
+      "type": "injected-actor",
+      "variant": "GET /participants/:id/hub",
+      "status": 200,
+      "shape": {
+        "beneficiaryId": "string",
+        "restricted": "boolean",
+        "participantName": "string",
+        "participantPhone": "null",
+        "participantEmail": "null",
+        "programs": {
+          "array": [
+            {
+              "id": "string",
+              "beneficiaryId": "string",
+              "programId": "string",
+              "programName": "string",
+              "programType": "string",
+              "status": "string",
+              "authorized": "boolean",
+              "assigneeNames": {
+                "array": []
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "hub.full.assignee",
+      "type": "injected-actor",
+      "variant": "GET /participants/:id/hub",
+      "status": 200,
+      "shape": {
+        "beneficiaryId": "string",
+        "restricted": "boolean",
+        "participantName": "string",
+        "participantPhone": "null",
+        "participantEmail": "null",
+        "participantBirthDate": "null",
+        "status": "string",
+        "closedAt": "null",
+        "sessionCount": "number",
+        "lastSessionAt": "null",
+        "programs": {
+          "array": [
+            {
+              "id": "string",
+              "beneficiaryId": "string",
+              "programType": "string",
+              "status": "string",
+              "intakeAt": "null",
+              "creationKind": "string",
+              "sourceSupportCase": "null",
+              "participantName": "string",
+              "participantPhone": "null",
+              "authorized": "boolean",
+              "assigneeNames": {
+                "array": []
+              },
+              "consentRecordedAt": "string",
+              "upcomingSchedule": "null",
+              "programId": "string",
+              "programName": "string",
+              "closedAt": "null"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "intake.create.by-assignee",
+      "type": "injected-actor",
+      "variant": "POST /support-cases/:id/records/intake",
+      "status": 201,
+      "shape": {
+        "schemaVersion": "number",
+        "revision": "number",
+        "record": {
+          "id": "string",
+          "heldAt": "string",
+          "channel": "string",
+          "kind": "string"
+        },
+        "replayed": "boolean"
+      }
+    },
+    {
+      "key": "intake.read.supervisor",
+      "type": "injected-actor",
+      "variant": "GET /support-cases/:id/records/intake",
+      "status": 200,
+      "shape": {
+        "beneficiaryId": "string",
+        "supportCaseId": "string",
+        "participant": {
+          "name": "string",
+          "phone": "null",
+          "email": "null"
+        },
+        "sessionSequence": "number",
+        "hasIntake": "boolean",
+        "canWrite": "boolean",
+        "writeSchemaVersion": "number",
+        "moduleSnapshot": {
+          "programId": "string",
+          "programVersion": "number",
+          "financialSupportEnabled": "boolean"
+        },
+        "extendedPii": {
+          "birthDate": "null",
+          "region": "null",
+          "emergencyContact": "null",
+          "gender": "null"
+        },
+        "consent": {
+          "array": [
+            {
+              "domain": "string",
+              "state": "string",
+              "provider": "string",
+              "providerLegalRecipient": "string",
+              "providerCountry": "string",
+              "purpose": "string",
+              "retentionDuration": "null",
+              "effectiveAt": "string",
+              "eventId": "string",
+              "revision": "number",
+              "eventSequence": "number"
+            },
+            {
+              "domain": "string",
+              "state": "string",
+              "provider": "string",
+              "providerLegalRecipient": "string",
+              "providerCountry": "string",
+              "purpose": "string",
+              "retentionDuration": "string",
+              "effectiveAt": "string",
+              "eventId": "string",
+              "revision": "number",
+              "eventSequence": "number"
+            }
+          ]
+        },
+        "saved": {
+          "sessionId": "string",
+          "heldAt": "string",
+          "channel": "string",
+          "revision": "number",
+          "history": {
+            "array": []
+          },
+          "schemaVersion": "number",
+          "questionnaire": {
+            "schemaVersion": "number",
+            "moduleSnapshot": {
+              "programId": "string",
+              "programVersion": "number",
+              "financialSupportEnabled": "boolean"
+            },
+            "answers": {
+              "array": [
+                {
+                  "key": "string",
+                  "response": "string"
+                }
+              ]
+            },
+            "linkedOrgs": {
+              "response": "string"
+            },
+            "additionalItems": {
+              "response": "string"
+            },
+            "debts": "null"
+          },
+          "legacyDetailsJson": "null"
+        },
+        "overallGoal": "null",
+        "schedule": "null"
+      }
+    },
+    {
+      "key": "intake.write.supervisor-denied",
+      "type": "injected-actor",
+      "variant": "PUT /support-cases/:id/records/intake",
+      "status": 403,
+      "shape": {
+        "error": "string"
+      }
+    },
+    {
+      "key": "intake.read.nonassigned-denied",
+      "type": "injected-actor",
+      "variant": "GET /support-cases/:id/records/intake",
+      "status": 403,
+      "shape": {
+        "error": "string"
+      }
+    },
+    {
+      "key": "intake.write.nonassigned-denied",
+      "type": "injected-actor",
+      "variant": "PUT /support-cases/:id/records/intake",
+      "status": 403,
+      "shape": {
+        "error": "string"
+      }
+    },
+    {
+      "key": "records.read.technical-admin-denied",
+      "type": "injected-actor",
+      "variant": "GET /support-cases/:id/records",
+      "status": 403,
+      "shape": {
+        "error": "string"
+      }
+    },
+    {
+      "key": "hub.technical-admin-denied",
+      "type": "injected-actor",
+      "variant": "GET /participants/:id/hub",
+      "status": 403,
+      "shape": {
+        "error": "string"
+      }
+    }
+  ]
+}

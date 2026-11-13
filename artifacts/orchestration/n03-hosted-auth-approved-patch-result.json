@@ -1,0 +1,35 @@
+{
+  "observedAt": "2026-09-13T22:02:36Z",
+  "operation": "n03-hosted-auth-approved-patch",
+  "authorization": "Q approved exactly disable_signup=true and the byte-exact manual six-digit invite template",
+  "approvedFields": [
+    "disable_signup",
+    "mailer_templates_invite_content"
+  ],
+  "providerWrites": 1,
+  "emailsSent": 0,
+  "targetResolved": true,
+  "targetCandidateCount": 1,
+  "targetRefSha256": "b2b2413ce2722a6489cbbf86a97454755c366512125a91caed2285de2134c12e",
+  "before": {
+    "openSignupDisabled": false,
+    "inviteTemplateByteEqual": false,
+    "otpLifetimeValid": true,
+    "otpLifetimeSeconds": 3600
+  },
+  "after": {
+    "openSignupDisabled": true,
+    "inviteTemplateByteEqual": true,
+    "otpLifetimeValid": true,
+    "otpLifetimeSeconds": 3600
+  },
+  "ready": true,
+  "code": "FIRST_ADMIN_INVITE_TEMPLATE_READY",
+  "remainingUnapprovedOperations": [
+    "CCC_ONBOARDING_FIRST_ADMIN test-mailbox injection",
+    "one invitation send",
+    "recipient browser acceptance",
+    "installer resume",
+    "fresh aal1 login and institution setup entry"
+  ]
+}

@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relayer, 상담 5분 전에 기록을 훑는다</title>
+<meta name="description" content="비영리 기관 금전 지원 사업의 상담 기록 관리 도구. 인테이크부터 종결까지 기록하고 상담 5분 전에 15초 페이지로 보여준다.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+/* ── 제품 토큰 (design/tokens.css 라이트 테마에서 발췌) ── */
+:root{
+  --canvas:#FAFAF9; --panel:#FFFFFF; --muted:#F5F5F4;
+  --ink:#3D3445; --sub:#534E57; --line:#D7D3CE; --line-control:#E3E3E3;
+  --blue-deep:#486997; --blue-tint:#E7EEF8; --badge-blue:#67A9F0;
+  --mint-deep:#56CC99; --mint-tint:#E4F4EC;
+  --lavender-deep:#7D4E9B; --lavender-tint:#F2E7F7; --badge-lavender:#C890F0;
+  --risk:#B52573; --risk-tint-solid:#F7EEF2;
+  --on-action:#3D3445; --on-badge:#FFFFFF;
+  --gradient-frame:linear-gradient(90deg,#93C1F5 0%,#8ED9B8 50%,#CBA8E2 100%);
+  --gradient-action:linear-gradient(135deg,#A8E3C6 0%,#D1B3E3 100%);
+  --line-action:rgba(61,52,69,.5);
+  --radius-control:6px; --radius-card:12px; --radius-pill:9999px;
+  --badge-height:22px;
+  /* 랜딩 전용 배치 값. 제품 간격 토큰 밖의 페이지 리듬만 정의한다 */
+  --lp-max:1040px; --lp-pad:32px; --lp-gap:96px;
+  --lp-display:40px; --lp-title:24px;
+  --font-sans:"Pretendard Variable",Pretendard,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  margin:0;background:var(--canvas);color:var(--ink);
+  font-family:var(--font-sans);font-size:16px;font-weight:400;line-height:1.55;
+  letter-spacing:-.01em;word-break:keep-all;overflow-wrap:break-word;
+}
+h1,h2,h3,p{margin:0}
+a{color:inherit}
+a:focus-visible,button:focus-visible{outline:2px solid var(--lavender-deep);outline-offset:2px}
+
+/* ── 공통 셸 ── */
+.wrap{max-width:var(--lp-max);margin:0 auto;padding:0 var(--lp-pad)}
+section{padding-top:var(--lp-gap)}
+.section-title{font-size:var(--lp-title);font-weight:600;line-height:1.35}
+.section-lead{margin-top:8px;max-width:56ch;color:var(--sub);font-size:16px}
+.topline{height:2px;background:var(--gradient-frame)}
+
+/* ── 머리 ── */
+.masthead{border-bottom:1px solid var(--line)}
+.masthead-row{display:flex;align-items:center;gap:16px;height:64px}
+.wordmark{font-size:18px;font-weight:600;letter-spacing:-.01em}
+.version-pill{
+  display:inline-flex;align-items:center;height:var(--badge-height);padding:0 10px;
+  border:1px solid var(--line);border-radius:var(--radius-pill);
+  font-size:12px;font-weight:400;color:var(--sub);
+}
+.masthead nav{margin-left:auto;display:flex;gap:4px}
+.masthead nav a{
+  display:inline-flex;align-items:center;height:32px;padding:0 14px;
+  border-radius:var(--radius-pill);font-size:14px;font-weight:500;color:var(--sub);text-decoration:none;
+}
+.masthead nav a:hover{background:var(--muted);color:var(--ink)}
+
+/* ── 히어로 ── */
+.hero{display:grid;grid-template-columns:5fr 7fr;gap:48px;align-items:center;padding-top:64px}
+.hero h1{font-size:var(--lp-display);font-weight:600;line-height:1.25;letter-spacing:-.02em}
+.hero .lead{margin-top:16px;max-width:24em;font-size:16px;color:var(--sub)}
+.hero-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+.btn{
+  display:inline-flex;align-items:center;height:40px;padding:0 20px;
+  border-radius:var(--radius-pill);font-size:14px;font-weight:600;text-decoration:none;
+}
+.btn-primary{background:var(--gradient-action);border:1px solid var(--line-action);color:var(--on-action)}
+.btn-primary:hover{filter:brightness(1.03)}
+.btn-ghost{border:1px solid var(--line);color:var(--ink)}
+.btn-ghost:hover{background:var(--muted)}
+
+/* ── 15초 페이지 목업 ── */
+.brief{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card)}
+.brief-frame{height:3px;border-radius:var(--radius-card) var(--radius-card) 0 0;background:var(--gradient-frame)}
+.brief-body{padding:24px}
+.brief-body>*+*{margin-top:16px}
+.brief h2{font-size:18px;font-weight:600;line-height:1.35}
+.brief-hero-meta{display:flex;flex-wrap:wrap;column-gap:24px;row-gap:4px;margin-top:6px;font-size:14px}
+.brief-hero-meta dt{color:var(--mint-deep);font-weight:600}
+.brief-hero-meta dt.time{color:var(--blue-deep)}
+.brief-hero-meta dd{margin:0;color:var(--sub)}
+.brief-hero-meta .pair{display:flex;gap:6px}
+.brief-flag{
+  padding:12px 16px;border:1px solid var(--risk);border-radius:var(--radius-card);
+  background:var(--risk-tint-solid);color:var(--risk);font-size:14px;
+}
+.brief-label{font-size:14px;font-weight:600;color:var(--sub)}
+.brief-label.goal{color:var(--mint-deep)}
+.brief-goal{font-size:16px}
+.suggest{border-top:1px solid var(--line)}
+.suggest-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.suggest-row:last-child{border-bottom:0}
+.suggest-title{color:var(--lavender-deep);font-size:14px;font-weight:600}
+.suggest-why{margin-top:2px;font-size:14px;color:var(--sub)}
+.sessions{border-top:1px solid var(--line)}
+.session-row{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px}
+.session-row .when{
+  flex:none;display:inline-flex;align-items:center;height:var(--badge-height);padding:0 10px;
+  border-radius:var(--radius-pill);background:var(--badge-blue);color:var(--on-badge);font-size:12px;
+}
+.session-row .type{
+  flex:none;display:inline-flex;align-items:center;height:var(--badge-height);padding:0 10px;
+  border-radius:var(--radius-pill);font-size:12px;color:var(--on-badge);
+}
+.session-row .type.intake{background:var(--badge-lavender)}
+.session-row .type.counsel{background:var(--mint-deep)}
+.session-row .line{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.action-row{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:12px 16px;border:1px solid var(--line);border-radius:var(--radius-control);font-size:14px;
+}
+.action-row .due{flex:none;color:var(--sub)}
+.brief-caption{margin-top:12px;font-size:13px;color:var(--sub)}
+
+/* ── 특징 행 ── */
+.features{margin-top:32px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card)}
+.feature{display:grid;grid-template-columns:220px 1fr;gap:24px;padding:24px}
+.feature+.feature{border-top:1px solid var(--line)}
+.feature-name{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600}
+.feature-name .dot{flex:none;width:10px;height:10px;border-radius:var(--radius-pill)}
+.dot-mint{background:var(--mint-deep)}
+.dot-lavender{background:var(--lavender-deep)}
+.dot-blue{background:var(--badge-blue)}
+.feature p{font-size:14px;color:var(--sub)}
+
+/* ── 시작 순서 ── */
+.steps{margin-top:32px;display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+.step{padding:0 32px;border-left:1px solid var(--line)}
+.step:first-child{padding-left:0;border-left:0}
+.step .num{font-size:14px;font-weight:600;color:var(--sub)}
+.step h3{margin-top:8px;font-size:16px;font-weight:600}
+.step p{margin-top:8px;font-size:14px;color:var(--sub)}
+
+/* ── 대상 ── */
+.audience{margin-top:32px;border-top:1px solid var(--line)}
+.audience li{
+  display:flex;align-items:baseline;gap:16px;padding:16px 0;border-bottom:1px solid var(--line);
+  font-size:16px;list-style:none;
+}
+.audience{padding-left:0}
+.audience .who{flex:none;width:200px;font-weight:600}
+.audience .why{color:var(--sub);font-size:14px}
+
+/* ── 설치 형태 ── */
+.modes{margin-top:32px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.mode{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card);padding:24px}
+.mode h3{font-size:16px;font-weight:600}
+.mode ul{margin:12px 0 0;padding:0}
+.mode li{margin-top:6px;font-size:14px;color:var(--sub)}
+.modes-note{margin-top:16px;font-size:13px;color:var(--sub)}
+
+/* ── 마침 ── */
+footer{margin-top:var(--lp-gap);border-top:1px solid var(--line)}
+.footer-row{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:center;height:64px;font-size:13px;color:var(--sub)}
+
+/* ── 좁은 화면 (제품과 같은 분기 하나) ── */
+@media (max-width:767px){
+  :root{--lp-pad:16px}
+  .hero{grid-template-columns:1fr;gap:32px;padding-top:40px}
+  .hero h1{font-size:28px}
+  .masthead nav{display:none}
+  .feature{grid-template-columns:1fr;gap:4px;padding:16px 0}
+  .feature+.feature{margin:0 -16px;padding-left:16px;padding-right:16px}
+  .features{border-left:0;border-right:0;border-radius:0}
+  .steps{grid-template-columns:1fr}
+  .step{border-left:0;padding:16px 0;border-top:1px solid var(--line)}
+  .step:first-child{border-top:0;padding-top:0}
+  .audience .who{width:auto;display:block}
+  .audience li{flex-direction:column;gap:4px}
+  .modes{grid-template-columns:1fr}
+  section{padding-top:64px}
+}
+</style>
+</head>
+<body>
+
+<div class="topline"></div>
+<header class="masthead">
+  <div class="wrap masthead-row">
+    <span class="wordmark">Relayer</span>
+    <span class="version-pill">베타 0.9.0</span>
+    <nav aria-label="페이지 안내">
+      <a href="#features">특징</a>
+      <a href="#start">시작하기</a>
+      <a href="#modes">설치 형태</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero" aria-label="Relayer 소개">
+    <div>
+      <h1>상담 5분 전에 기록을 한 화면으로 훑는다</h1>
+      <p class="lead">Relayer는 비영리 기관의 금전 지원 상담을 인테이크부터 종결까지 기록한다. 목표, 회차 요약, 리스크, 액션을 상담 전에 15초 페이지 하나로 보여준다.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#start">사용 순서 보기</a>
+        <a class="btn btn-ghost" href="#modes">설치 형태 보기</a>
+      </div>
+    </div>
+
+    <figure style="margin:0">
+      <div class="brief" role="img" aria-label="15초 페이지 화면 예시. 당사자 정보, 확인할 리스크, 목표, 회차 요약, 미해결 액션이 한 화면에 있다.">
+        <div class="brief-frame"></div>
+        <div class="brief-body">
+          <h2>박은별</h2>
+          <dl class="brief-hero-meta">
+            <div class="pair"><dt>담당</dt><dd>김서연</dd></div>
+            <div class="pair"><dt class="time">다음 상담</dt><dd>9월 12일 14:00</dd></div>
+          </dl>
+          <p class="brief-flag">연락 두절 위험 플래그 1건. 지난 9일부터 연락이 없다.</p>
+
+          <p class="brief-label goal">전체 목표</p>
+          <p class="brief-goal">채무 조정 계획을 다시 세운다</p>
+
+          <div class="suggest">
+            <p class="brief-label">오늘 만나기 전 꼭 기억할 것</p>
+            <div class="suggest-row">
+              <div>
+                <p class="suggest-title">상환 일정 합의 여부</p>
+                <p class="suggest-why">9월 2일 회차에서 납부일을 정하지 못했다</p>
+              </div>
+            </div>
+            <div class="suggest-row">
+              <div>
+                <p class="suggest-title">연락 두절 재발 확인</p>
+                <p class="suggest-why">확인된 플래그와 같은 항목이다</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="sessions">
+            <p class="brief-label">상담 내용 회차별 정리</p>
+            <div class="session-row">
+              <span class="when">9/9</span><span class="type counsel">기본 상담</span>
+              <span class="line">상환 계획 초안을 함께 검토했다</span>
+            </div>
+            <div class="session-row">
+              <span class="when">9/2</span><span class="type intake">인테이크</span>
+              <span class="line">생활 현황과 부채 목록을 정리했다</span>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <span>연체 내역 서류 제출</span>
+            <span class="due">기한 9/16</span>
+          </div>
+        </div>
+      </div>
+      <figcaption class="brief-caption">15초 페이지. 상담을 시작하기 전에 이 화면 하나를 읽는다.</figcaption>
+    </figure>
+  </section>
+
+  <section id="features" aria-label="특징">
+    <h2 class="section-title">무엇을 하는가</h2>
+    <p class="section-lead">여섯 가지 기능이 핵심이다. 행의 색은 화면에서 쓰는 계열 의미를 따른다.</p>
+    <div class="features">
+      <div class="feature">
+        <h3 class="feature-name"><span class="dot dot-mint" aria-hidden="true"></span>15초 페이지</h3>
+        <p>상담 전에 전체 목표, 회차 요약, 리스크, 미해결 액션을 한 화면에서 읽는다. 브리핑이 곧 기록의 요약이다.</p>
+      </div>
+      <div class="feature">
+        <h3 class="feature-name"><span class="dot dot-lavender" aria-hidden="true"></span>승인 장치</h3>
+        <p>AI 초안은 실무자가 승인해야 공식 기록이 된다. 승인 화면에서 수기 기록과 AI 정리를 나란히 대조한다. 수기 메모는 저장 즉시 기록이다.</p>
+      </div>
+      <div class="feature">
+        <h3 class="feature-name"><span class="dot dot-lavender" aria-hidden="true"></span>가림 처리</h3>
+        <p>실명, 연락처, 계좌는 암호화해 저장한다. AI에는 등록값을 치환하고 이름과 주소를 가린 텍스트만 보낸다. 가림 결과가 없으면 AI 처리를 멈춘다.</p>
+      </div>
+      <div class="feature">
+        <h3 class="feature-name"><span class="dot dot-blue" aria-hidden="true"></span>일정</h3>
+        <p>상담 일정을 일간, 주간, 월간으로 본다. 종일 일정도 등록한다. 지난 주차는 접히고 오늘과 앞으로의 날짜가 펼쳐진다.</p>
+      </div>
+      <div class="feature">
+        <h3 class="feature-name"><span class="dot dot-mint" aria-hidden="true"></span>권한과 감사</h3>
+        <p>담당 실무자, 실무 책임자, 기관 관리자의 열람 범위가 다르다. 관리자와 책임자는 읽기 전용이고 모든 열람은 기록을 남긴다.</p>
+      </div>
+      <div class="feature">
+        <h3 class="feature-name"><span class="dot dot-blue" aria-hidden="true"></span>요청 링크</h3>
+        <p>당사자는 만료 7일의 1회용 링크로 가입한다. 링크는 목적이 정해져 있고 재사용되지 않는다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="start" aria-label="사용 순서">
+    <h2 class="section-title">어떻게 시작하는가</h2>
+    <p class="section-lead">설치부터 첫 상담까지 세 단계다.</p>
+    <div class="steps">
+      <div class="step">
+        <p class="num">1</p>
+        <h3>설치한다</h3>
+        <p>설치 도구로 배포 모드를 고른다. AI 녹취와 AI 정리는 꺼진 상태로 시작하므로 수기 기록만으로 쓸 수 있다.</p>
+      </div>
+      <div class="step">
+        <p class="num">2</p>
+        <h3>기관을 설정한다</h3>
+        <p>기관 코드로 로그인하고 비밀번호와 2단계 인증을 등록한다. 동의 문안과 보유기간을 정하고 첫 사업을 등록한다.</p>
+      </div>
+      <div class="step">
+        <p class="num">3</p>
+        <h3>기록하고 훑는다</h3>
+        <p>당사자를 등록하고 일정을 잡는다. 상담 후 수기 기록을 남긴다. 다음 상담 전에 15초 페이지를 연다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-label="사용자">
+    <h2 class="section-title">누가 쓰는가</h2>
+    <ul class="audience">
+      <li><span class="who">금전 지원 사업 기관</span><span class="why">지원 사업의 상담 기록을 한 곳에 모은다. 기관이 저장 위치와 처리 경로를 정한다.</span></li>
+      <li><span class="who">담당 실무자</span><span class="why">인테이크와 상담 기록을 쓰고, 승인과 브리핑으로 상담에 들어간다.</span></li>
+      <li><span class="who">기관 관리자</span><span class="why">동의 문안과 보유기간을 정하고, 권한과 사업을 관리한다. 기록은 읽기 전용으로 본다.</span></li>
+    </ul>
+  </section>
+
+  <section id="modes" aria-label="설치 형태">
+    <h2 class="section-title">어디에 설치하는가</h2>
+    <p class="section-lead">세 형태가 같은 화면과 규칙을 쓴다. 저장소와 접속 범위만 다르다.</p>
+    <div class="modes">
+      <div class="mode">
+        <h3>Community Cloud</h3>
+        <ul>
+          <li>기관 소유 Supabase 서울 프로젝트에 저장한다</li>
+          <li>인터넷으로 접속한다</li>
+          <li>기관 코드로 로그인한다</li>
+        </ul>
+      </div>
+      <div class="mode">
+        <h3>Local Single</h3>
+        <ul>
+          <li>한 대의 PC에서만 연다</li>
+          <li>암호화 SQLite에 저장한다</li>
+          <li>외부로 데이터를 보내지 않는다</li>
+        </ul>
+      </div>
+      <div class="mode">
+        <h3>Local Office</h3>
+        <ul>
+          <li>기관 내부망에서 연다</li>
+          <li>서버와 클라이언트로 나눠 설치한다</li>
+          <li>암호화 SQLite에 저장한다</li>
+        </ul>
+      </div>
+    </div>
+    <p class="modes-note">AI 녹취와 AI 정리는 어떤 형태에서도 설치 직후 꺼져 있다. 켜는 시점과 범위는 기관이 정한다.</p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap footer-row">
+    <span>Relayer 베타 0.9.0</span>
+    <span>Apache 2.0 라이선스로 배포한다</span>
+  </div>
+</footer>
+
+</body>
+</html>

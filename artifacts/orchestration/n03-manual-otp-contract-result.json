@@ -1,0 +1,442 @@
+{
+  "assignmentId": "n03-manual-otp-contract-20260914",
+  "ticket": "CCC-276",
+  "workerPaneId": "w1N:p1",
+  "status": "ready_for_implementation",
+  "readyForImplementation": true,
+  "ownedJobs": 0,
+  "allResultsCollected": true,
+  "understoodAs": "Replace only the rejected implicit-fragment first-admin acceptance contract with Q's selected manual six-digit Supabase invitation-code flow. Freeze exact installer, frontend, documentation, verification and ownership semantics without changing product source, canonical documentation, Auth configuration, credentials or deployment state.",
+  "decision": {
+    "choice": "manual_one_time_code",
+    "literalZeroRetention": true,
+    "diagnosticRetentionExceptionApproved": false,
+    "supersedes": [
+      "the implicit success/error fragment contract in onboarding commit 217e752f816dedf1f6c535b073039ab596ef046f",
+      "artifacts/orchestration/n03-frontend-invite-contract-result.json",
+      "the fragment implementation currently preserved as nine unstaged frontend files"
+    ],
+    "notReopened": [
+      "fragment callback",
+      "PKCE",
+      "token_hash",
+      "diagnostic-retention exception"
+    ]
+  },
+  "sourceEvidence": {
+    "officialSupabase": [
+      {
+        "url": "https://supabase.com/docs/guides/auth/auth-email-templates",
+        "fact": "Supabase defines {{ .Token }} as a six-digit OTP usable instead of {{ .ConfirmationURL }} and recommends a custom clean link plus email/token verifyOtp for prefetch-safe manual entry. {{ .RedirectTo }} is the redirect supplied to inviteUserByEmail."
+      },
+      {
+        "url": "https://supabase.com/docs/reference/javascript/auth-verifyotp",
+        "fact": "verifyOtp accepts a user-supplied email and token and returns Auth data."
+      }
+    ],
+    "installedSdk": {
+      "package": "@supabase/auth-js",
+      "version": "2.116.0",
+      "manifest": "apps/client/node_modules/@supabase/supabase-js -> node_modules/.pnpm/@supabase+supabase-js@2.116.0/node_modules/@supabase/supabase-js; its installed @supabase/auth-js package.json reports 2.116.0",
+      "types": "src/lib/types.ts defines VerifyEmailOtpParams as email: string, token: string, type: EmailOtpType, and EmailOtpType includes 'invite'",
+      "implementation": "GoTrueClient.verifyOtp POSTs the supplied params to /verify, transforms the response to session/user, saves a returned access-token session and emits SIGNED_IN",
+      "pkceBoundary": "GoTrueAdminApi documents that inviteUserByEmail does not support PKCE because issuance and acceptance often use different browsers"
+    },
+    "currentInstaller": {
+      "head": "217e752f816dedf1f6c535b073039ab596ef046f",
+      "worktreeState": "clean",
+      "issuerPath": "scripts/onboarding/first-admin.mjs",
+      "redirect": "createDefaultFirstAdminServices derives new URL('/auth/invite', manifest.clientOrigin).href from the signed manifest; createSupabaseAuthAdmin accepts only HTTPS /auth/invite with no credentials, query or fragment; inviteAuthUser sends it as redirect_to",
+      "ttlAndSignup": "inviteTtlSeconds reads the hosted Auth configuration, requires disable_signup === true, and accepts integer mailer_otp_exp from 60 through 604800 seconds; the same value is bound into the plan and first-admin journal expiry",
+      "resumeBoundary": "resumeFirstAdmin observes the private relayerFirstAdmin marker, normalized email, provider subject, confirmedAt and lastSignInAt before calling linkFirstAdmin; the browser never performs that binding"
+    },
+    "preservedFrontend": {
+      "baseAndHead": "d49449dab92e5e7691c008b21fb65ecfa4dd5c78",
+      "branch": "client/relayer-domain-beta",
+      "state": "nine modified unstaged files preserved in place",
+      "paths": [
+        "apps/client/src/main.tsx",
+        "apps/client/src/app.tsx",
+        "apps/client/src/business/auth.ts",
+        "apps/client/src/business/session.ts",
+        "apps/client/src/business/invites.ts",
+        "apps/client/src/business/transport.ts",
+        "apps/client/src/screens/invites.tsx",
+        "apps/client/src/business/auth.test.ts",
+        "apps/client/src/screens/invites.test.ts"
+      ],
+      "reusableWork": [
+        "one CloudAuth Supabase client configured with persistSession=false and detectSessionInUrl=false",
+        "invite mode suppresses getToken, auth-event inspection, ready publication and VerifiedSession entry",
+        "best-effort local-scope signout plus mandatory in-memory disposal",
+        "provider error redaction",
+        "fail-closed staff list/revoke-only and legacy /staff/join surfaces",
+        "unchanged participant request-link flow"
+      ],
+      "mustBeReplaced": [
+        "fragment parsing and CapturedInvite access/refresh token storage",
+        "client-derived invitation deadline and timer",
+        "prepareFirstAdminInvite fragment adoption through getUser and setSession",
+        "password-only initial screen",
+        "invite_missing as a fragment-missing state"
+      ]
+    }
+  },
+  "emailTemplateContract": {
+    "managementConfigField": "mailer_templates_invite_content",
+    "exactHtml": "<h2>Relayer 관리자 초대</h2>\n<p>아래 링크를 열고 이 이메일 주소와 여섯 자리 인증 코드를 입력해 관리자 계정을 설정하세요.</p>\n<p><a href=\"{{ .RedirectTo }}\">관리자 계정 설정</a></p>\n<p>인증 코드: <strong>{{ .Token }}</strong></p>\n<p>이 코드는 한 번만 사용할 수 있으며 만료되면 설치 담당자에게 새 초대를 요청해 주세요.</p>",
+    "requiredPlaceholders": [
+      "{{ .RedirectTo }} exactly once as the href value of the only link",
+      "{{ .Token }} exactly once as visible text"
+    ],
+    "forbiddenContent": [
+      "{{ .ConfirmationURL }}",
+      "{{ .TokenHash }}",
+      "{{ .Email }}",
+      "{{ .Data }}",
+      "access_token",
+      "refresh_token",
+      "token_hash",
+      "relayerFirstAdmin marker material",
+      "any query string or fragment on the link"
+    ],
+    "redirectInvariant": "The issuer continues to pass exactly new URL('/auth/invite', signedManifest.clientOrigin).href. The template links directly to {{ .RedirectTo }}; the resulting browser URL is origin plus /auth/invite with empty search and hash.",
+    "markerInvariant": "The current private relayerFirstAdmin marker remains only in the Auth administrative invitation metadata and installer journal hashes. The exact template never renders .Data, marker material, email or credentials.",
+    "installerReadinessCheck": {
+      "owner": "onboardingInstallerWriter",
+      "path": "scripts/onboarding/first-admin.mjs",
+      "minimalChange": [
+        "Add one module-private FIRST_ADMIN_INVITE_TEMPLATE constant equal byte-for-byte to exactHtml.",
+        "Keep the existing inviteTtlSeconds service and its single Auth-config GET; do not add a second method, request or configuration source.",
+        "After requiring disable_signup === true and validating mailer_otp_exp as an integer from 60 through 604800, require value.mailer_templates_invite_content === FIRST_ADMIN_INVITE_TEMPLATE.",
+        "On template mismatch or missing template, throw the fixed code FIRST_ADMIN_INVITE_TEMPLATE_UNREADY before institution creation or invitation submission can reach inviteAuthUser.",
+        "Do not mutate the hosted template. Readiness is observation only; a separate explicitly approved operation must install the exact template."
+      ],
+      "tests": [
+        "Update every synthetic Auth-config success response in scripts/onboarding/first-admin.test.mjs to include the exact template.",
+        "Assert the exact template, disable_signup=true and a valid mailer_otp_exp permit the existing one-send path and preserve redirect_to=https://app.example.invalid/auth/invite.",
+        "Table-test missing content and one-character variants containing ConfirmationURL, TokenHash, Email, Data, query or fragment additions; each returns FIRST_ADMIN_INVITE_TEMPLATE_UNREADY and invitation sends remain zero.",
+        "Keep the existing disable_signup=false and invalid-TTL refusals unchanged."
+      ]
+    }
+  },
+  "frontendContract": {
+    "dataTypes": {
+      "InviteFailureCode": [
+        "invite_invalid",
+        "invite_expired",
+        "invite_session_conflict",
+        "password_rejected",
+        "provider_unavailable"
+      ],
+      "InviteRetry": [
+        "entry",
+        "password",
+        "none"
+      ],
+      "InviteCompletionResult": "export type InviteCompletionResult = { status: 'complete' } | { status: 'failure'; code: InviteFailureCode; retry: 'entry' | 'password' | 'none' }",
+      "InviteBootstrapResult": "module-private union 'unseen' | 'clean' | 'invalid'; it contains no URL text or credential",
+      "InviteScreenState": "React-safe discriminated union: { phase: 'entry'; error: null | 'invalid_request' | 'password_mismatch' | 'invite_invalid' | 'provider_unavailable' } | { phase: 'submitting' } | { phase: 'password'; error: 'password_rejected' | 'provider_unavailable' } | { phase: 'failure'; code: 'invite_invalid' | 'invite_expired' | 'invite_session_conflict' | 'provider_unavailable' } | { phase: 'complete' }. Only fixed codes enter React state."
+    },
+    "urlBootstrap": {
+      "path": "apps/client/src/business/auth.ts",
+      "signature": "captureInviteUrlBeforeRender(location: Pick<Location, 'pathname' | 'search' | 'hash'>, history: Pick<History, 'state' | 'replaceState'>): void",
+      "safeAccessor": "export function firstAdminInviteBootstrap(): 'entry' | 'invite_invalid'; returns entry only for the captured clean result and invite_invalid for invalid or unseen, performs no Auth/network call, and returns no URL or credential",
+      "rules": [
+        "Keep the synchronous call in main.tsx before createBrowserRouter, createRoot, installation loading or any network/Auth operation.",
+        "For exact /auth/invite, set the module-private bootstrap result to clean only when both location.search and location.hash are empty on the first capture.",
+        "If either is nonempty, record only invalid, synchronously call history.replaceState(history.state, '', '/auth/invite'), and never parse, copy or retain the query or fragment. The screen is terminal invite_invalid and performs zero Auth calls.",
+        "If replaceState fails, record invalid and throw only invite_bootstrap_invalid before router creation or network.",
+        "A later invocation cannot replace the first result. An unseen result, including SPA navigation that did not start at exact /auth/invite, is treated as terminal invite_invalid rather than invite_missing.",
+        "For exact legacy /staff/join, synchronously remove any search or fragment and discard it without affecting the /auth/invite bootstrap result. Other paths, including participant /join, remain untouched."
+      ],
+      "removed": [
+        "parseInviteFragment",
+        "CapturedInvite",
+        "CapturedInviteResult containing credentials",
+        "inviteCaptureAttempted credential handoff",
+        "discardCapturedInvite credential clearing",
+        "fragment deadline calculation and expiry timer"
+      ]
+    },
+    "localForm": {
+      "route": "/auth/invite as a direct RuntimeBoundary child, outside AuthBoundary and BusinessShell",
+      "initial": "When bootstrap is clean and signed installation loading succeeds, the first FirstAdminInviteScreen render is one full entry form; there is no preparation effect or Auth request.",
+      "fields": [
+        "email: uncontrolled input type=email, name=email, required, maxLength=254, autoComplete=email",
+        "code: uncontrolled input type=text, name=code, required, minLength=6, maxLength=6, pattern=[0-9]{6}, inputMode=numeric, autoComplete=one-time-code",
+        "password: uncontrolled input type=password, name=password, required, minLength=8, autoComplete=new-password",
+        "passwordConfirm: uncontrolled input type=password, name=passwordConfirm, required, minLength=8, autoComplete=new-password"
+      ],
+      "normalizationAndValidation": [
+        "Read FormData only inside submit. Normalize email with trim().toLowerCase().",
+        "Require normalized email to satisfy the same current first-admin email shape /^[^\\s@;,\u0027\"\\\\]{1,64}@[A-Za-z0-9][A-Za-z0-9.-]{0,180}\\.[A-Za-z]{2,24}$/u and total length at most 254.",
+        "Require code to satisfy /^[0-9]{6}$/ exactly. No Unicode digits, separators or whitespace are accepted.",
+        "Require password length at least eight and exact equality with confirmation. Provider password policy remains authoritative beyond this local minimum.",
+        "Invalid email/code/password shape stays on entry with invalid_request and zero Auth calls; mismatch stays on entry with password_mismatch and zero Auth calls.",
+        "On every submit, copy only validated values to block-local variables, delete all four FormData entries and reset the form before starting or awaiting Auth. Immediately blank the screen function's mutable locals after obtaining the Auth promise.",
+        "Email, code, password and confirmation never enter useState, context, props retained across render, errors, logs or serialization. Their temporary presence is limited to uncontrolled DOM inputs before submit, block-local submit variables and the required Supabase Auth request bodies."
+      ]
+    },
+    "cloudAuthFunctions": [
+      {
+        "signature": "CloudAuth.completeFirstAdminInvite(email: string, code: string, password: string): Promise<InviteCompletionResult>",
+        "contract": [
+          "Reject unless the module bootstrap result is clean. Enter invite mode synchronously before reading or creating the SDK client.",
+          "Reuse CloudAuth.client(), the one existing Supabase client configured with persistSession=false, detectSessionInUrl=false and its existing memory-only randomized storage key. Do not create an invitation client.",
+          "Before verifyOtp, call getSession on that client while invite mode suppresses auth callbacks. If any ordinary session exists, do not call verifyOtp, do not sign it out or replace it, restore the previous snapshot/client, and return invite_session_conflict with retry none.",
+          "Call exactly sdk.auth.verifyOtp({ email: normalizedEmail, token: code, type: 'invite' }). Do not pass redirectTo, token_hash, PKCE fields or any URL-derived value.",
+          "Require both returned session and user, a nonblank user.id, session.user.id === user.id, normalized user.email === normalizedEmail and normalized session.user.email === normalizedEmail. Do not decode a JWT. A malformed or identity-mismatched success is provider_unavailable with retry none after mandatory local disposal.",
+          "Retain only the verified in-memory invitation session in private CloudAuth state. Do not retain email or code and do not copy session, subject or email into AuthSnapshot, React state or errors.",
+          "Without unlocking invite mode, immediately call sdk.auth.updateUser({ password }) in the same submit flow and require its returned user.id to equal the verified session user.id.",
+          "Concurrent entry submissions share one private in-flight promise; no second verifyOtp or updateUser starts."
+        ]
+      },
+      {
+        "signature": "CloudAuth.retryFirstAdminPassword(password: string): Promise<InviteCompletionResult>",
+        "contract": [
+          "Available only while invite mode holds the verified in-memory invitation session after password_rejected or an unconfirmed password-update provider_unavailable result.",
+          "Calls only sdk.auth.updateUser({ password }); it never calls verifyOtp and never needs email or code.",
+          "Concurrent retry submissions share one private in-flight promise."
+        ]
+      },
+      {
+        "signature": "CloudAuth.cancelFirstAdminInvite(): Promise<void>",
+        "contract": [
+          "Called on a real route exit. If no invitation session/mode exists, it is a no-op and never signs out an ordinary current session.",
+          "If invite mode exists, best-effort local-scope signout and mandatory stop-refresh, session clearing, lifetime abort and SDK disposal run once. StrictMode remount and concurrent completion reuse the existing disposal promise."
+        ]
+      }
+    ],
+    "inviteLock": [
+      "CloudAuth.getToken returns null for the entire interval from before getSession/verifyOtp through updateUser and disposal.",
+      "recordActivity, recheck, sign-in, MFA and business-session transitions do nothing while invite mode is active.",
+      "onAuthStateChange ignores verifyOtp SIGNED_IN and update events while invite mode is active, so it cannot publish ready, call inspect, mount VerifiedSession or construct BusinessTransport.",
+      "The callback makes no business API request and never calls getUser with a URL token, setSession, /me, staff acceptance or identity binding."
+    ],
+    "providerTransitions": {
+      "beforeOtp": [
+        "ordinary current session -> invite_session_conflict, retry none, verifyOtp count zero, ordinary session preserved",
+        "getSession failure without a trusted current result -> provider_unavailable, retry entry, verifyOtp count zero"
+      ],
+      "verifyOtp": [
+        "otp_expired, invite_not_found or session_expired -> invite_expired, retry none, mandatory disposal",
+        "other provider 4xx except 429 -> invite_invalid, retry entry; all full-form values must be re-entered",
+        "network, timeout, 429 or 5xx before a confirmed verified session -> provider_unavailable, retry entry; all full-form values must be re-entered",
+        "missing session/user, blank or inconsistent subject, or returned email mismatch -> provider_unavailable, retry none and mandatory disposal because the provider result cannot be trusted"
+      ],
+      "passwordUpdate": [
+        "non-expiry provider 4xx, including password-policy rejection -> password_rejected, retry password; retain only the verified in-memory invitation session",
+        "otp_expired, invite_not_found or session_expired -> invite_expired, retry none and mandatory disposal",
+        "network, timeout, 429 or 5xx with the verified session still held -> provider_unavailable, retry password; retain only that session and require a fresh password",
+        "malformed success or returned subject mismatch -> provider_unavailable, retry none and mandatory disposal",
+        "confirmed matching update -> best-effort sdk.auth.signOut({ scope: 'local' }), mandatory disposal, then complete even if local signout itself reports failure"
+      ],
+      "redaction": "Map only operation stage, numeric status class and the three allowlisted expiry codes. Provider body, message, URL, email, code, password, session and subject never enter a BusinessError, InviteScreenState, console or serialized result."
+    },
+    "screenTransitions": [
+      "clean bootstrap -> entry form",
+      "local invalid input -> entry plus invalid_request; zero Auth",
+      "password mismatch -> entry plus password_mismatch; zero Auth",
+      "entry submit -> submitting -> complete",
+      "entry submit -> submitting -> entry plus invite_invalid or provider_unavailable when retry is entry",
+      "entry submit -> submitting -> password-only form plus password_rejected or provider_unavailable when retry is password",
+      "entry submit -> submitting -> terminal invite_expired, invite_session_conflict, invite_invalid or provider_unavailable when retry is none",
+      "password-only retry submit -> submitting -> complete, password form, or terminal failure according to the returned retry value"
+    ],
+    "passwordOnlyRetry": [
+      "Render only uncontrolled password and confirmation inputs with autoComplete=new-password and the same local checks.",
+      "Do not render, retain or request email or code again in this state.",
+      "A page reload or new tab destroys the memory-only invite session and starts at the full entry form. No browser persistence or recovery shim is added. A consumed code that the provider no longer accepts requires the installer to issue a new provider invitation/code."
+    ],
+    "completion": [
+      "Complete means only Supabase Auth accepted the invitation OTP, returned the matching identity and confirmed the password update, followed by mandatory local disposal.",
+      "Show the existing wait-for-installer message and no automatic navigation or business data. The login link remains explicitly usable only after the installer reports binding complete.",
+      "A later /login starts a fresh ordinary password session. The invitation session is never reused for business access."
+    ]
+  },
+  "preservedBoundaries": {
+    "firstAdmin": [
+      "The installer remains the sole invitation issuer and sole holder/observer of the private relayerFirstAdmin marker.",
+      "The browser callback performs Auth verification and password setting only. It creates no users row, role, CCC staff invite, audit receipt or users.auth_subject binding.",
+      "Installer resume separately observes the matching marker, email, provider subject, confirmedAt and lastSignInAt, then calls linkFirstAdmin. Auth acceptance and business identity binding remain separate facts."
+    ],
+    "laterStaff": [
+      "The accepted backend commit aa0bdb1976a65a9a68f6c9f9a1becf85edeff12d remains the later staff subject/email acceptance boundary.",
+      "The first-admin /auth/invite page does not call that boundary. No later-staff Auth issuer, marker, raw token, public accept client, fallback or browser signUp is introduced.",
+      "StaffInviteScreen remains list/revoke-only with its fixed not-ready callout; legacy /staff/join remains a scrubbed zero-network fail-closed screen."
+    ],
+    "participant": [
+      "Participant /join#t request links, public_signup capability, disclosure loading and completion remain unchanged.",
+      "captureInviteUrlBeforeRender does not inspect or clean participant /join fragments."
+    ]
+  },
+  "serializedOwners": [
+    {
+      "order": 1,
+      "owner": "onboardingInstallerWriter",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/onboarding",
+      "requiredHead": "217e752f816dedf1f6c535b073039ab596ef046f",
+      "allowedWrites": [
+        "scripts/onboarding/first-admin.mjs",
+        "scripts/onboarding/first-admin.test.mjs"
+      ],
+      "rule": "Receive an exact writer slot, preserve all other onboarding files, implement only the constant/readiness check/tests above, run the targeted test, and do not mutate a live Auth template or send an invitation."
+    },
+    {
+      "order": 2,
+      "owner": "FRONTEND",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+      "requiredHead": "d49449dab92e5e7691c008b21fb65ecfa4dd5c78",
+      "requiredState": "the same nine modified unstaged files, revised in place without reset, stash, clean, switch or rebase",
+      "allowedWrites": [
+        "apps/client/src/main.tsx",
+        "apps/client/src/app.tsx",
+        "apps/client/src/business/auth.ts",
+        "apps/client/src/business/session.ts",
+        "apps/client/src/business/invites.ts",
+        "apps/client/src/business/transport.ts",
+        "apps/client/src/screens/invites.tsx",
+        "apps/client/src/business/auth.test.ts",
+        "apps/client/src/screens/invites.test.ts"
+      ],
+      "rule": "Replace only the fragment-specific WIP with this manual OTP contract, preserve all reusable invite locking/disposal and staff/participant cutover work, use LSP references before exported-symbol deletion, and do not add dependencies, CSS, shared UI or backend changes."
+    },
+    {
+      "order": 3,
+      "owner": "onboardingORCHESTRATOR",
+      "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/onboarding",
+      "precondition": "Controller has verified the installer and frontend implementations against this result, including the actual-browser zero-retention matrix.",
+      "allowedWrites": [
+        "docs/adr/0050-relayer-assisted-onboarding.md",
+        "docs/superpowers/specs/2026-09-13-relayer-onboarding-design.md",
+        "docs/superpowers/plans/2026-09-13-relayer-onboarding-implementation.md",
+        "docs/superpowers/plans/2026-09-13-relayer-onboarding-handoff.md",
+        "CONTEXT.md",
+        "CLAUDE.md"
+      ],
+      "rule": "Replace implicit-fragment decision references with the verified manual OTP semantics only. Do not present Auth template mutation, live invitation, deployment or operational acceptance as approved."
+    }
+  ],
+  "explicitlyReadOnlyOrExcluded": [
+    "apps/client/src/business/auth-view.tsx",
+    "apps/client/src/business/errors.ts",
+    "apps/client/src/business/installation.ts",
+    "apps/client/src/stt-trial/**",
+    "apps/web/**",
+    "packages/contracts/**",
+    "packages/core/**",
+    "packages/http-api/**",
+    "apps/api/**",
+    "scripts/supabase/**",
+    "migrations/**",
+    "shared Wire components, CSS, design tokens, DESIGN.md, DESIGN-RULES.md and design artifacts",
+    "accepted backend identity-binding source",
+    "new endpoint, dependency, persistence, compatibility alias, provider fallback or PKCE/token_hash path",
+    "Auth configuration mutation, credential injection, live invitation, deployment, push or merge"
+  ],
+  "verification": {
+    "installerUnit": {
+      "command": "node --test scripts/onboarding/first-admin.test.mjs",
+      "required": [
+        "exact template plus valid TTL plus disable_signup=true preserves the current plan/begin/resume behavior and exact clean redirect_to",
+        "missing or non-exact template fails with FIRST_ADMIN_INVITE_TEMPLATE_UNREADY before invite send",
+        "existing response-loss, one-send, expiry, marker, email/subject and binding separation tests remain passing"
+      ]
+    },
+    "frontendUnit": {
+      "command": "pnpm --filter @ccc/client exec vitest run --config vitest.config.ts src/business/auth.test.ts src/screens/invites.test.ts",
+      "required": [
+        "clean exact startup renders the four uncontrolled fields and makes zero Auth calls before submit",
+        "query, fragment and query-plus-fragment are synchronously cleaned and terminal before any Auth call",
+        "local normalization and validation make zero Auth calls and reset all fields",
+        "ordinary current session returns invite_session_conflict with verifyOtp count zero and remains usable afterward",
+        "valid submit calls exactly one verifyOtp with email/token/type invite, requires matching returned session/user identity, then calls updateUser and disposes",
+        "invalid and expired OTP, malformed identity, rate limit, network and 5xx map to the exact retry/state matrix without provider text",
+        "password-policy rejection keeps only the verified session; password-only retry calls updateUser without a second verifyOtp",
+        "route exit and complete dispose once without signing out an unrelated ordinary session",
+        "invite events never expose getToken, ready, inspect, VerifiedSession or a business request",
+        "staff list/revoke-only and legacy fail-closed behavior remains; participant request-link tests remain unchanged"
+      ]
+    },
+    "frontendStatic": [
+      "pnpm --filter @ccc/client run typecheck",
+      "pnpm --filter @ccc/client run build",
+      "Source search under apps/client/src returns zero parseInviteFragment, CapturedInvite access/refresh token handling, prepareFirstAdminInvite, invite_missing, sdk.auth.signUp, signUpWithPassword, public staff lookup/accept client and raw /staff/join#t creation occurrences.",
+      "Source search confirms exactly one verifyOtp call using email, token and type invite; no token_hash, PKCE or email/code URL construction; participant /join#t and public_signup behavior remain present."
+    ],
+    "actualBrowserZeroRetentionMatrix": {
+      "surface": "Built @ccc/client on a disposable local origin with synthetic signed installation and synthetic Supabase Auth responses only; no credential, live Auth mutation or external service",
+      "scenarios": [
+        {
+          "case": "clean entry",
+          "start": "/auth/invite",
+          "expect": "First invite-screen frame has exact clean URL, one four-field form, no Auth request and no business request."
+        },
+        {
+          "case": "dirty URL rejection",
+          "start": "/auth/invite?x=synthetic, /auth/invite#synthetic, and both",
+          "expect": "Before first rendered frame and before network, visible URL is /auth/invite; terminal invite_invalid; zero Auth/business requests; back does not restore search or fragment."
+        },
+        {
+          "case": "ordinary session conflict",
+          "start": "clean page with an existing ordinary CloudAuth session",
+          "expect": "Submit returns invite_session_conflict, POST /auth/v1/verify count zero, no signout, ordinary session restored after leaving."
+        },
+        {
+          "case": "complete",
+          "start": "clean page and valid synthetic email, six-digit code and password",
+          "expect": "Inputs are empty when the first Auth fetch begins; exactly POST /auth/v1/verify, PUT /auth/v1/user and best-effort local POST /auth/v1/logout; complete; zero business requests."
+        },
+        {
+          "case": "invalid and expired code",
+          "start": "clean page with provider invalid-token 4xx and each allowlisted expiry code",
+          "expect": "Invalid returns a reset full entry form; expiry is terminal; no password update."
+        },
+        {
+          "case": "password retry",
+          "start": "verify succeeds and updateUser returns password-policy 4xx",
+          "expect": "Email/code fields disappear, only reset password fields remain, second submit makes no verify request, and success disposes."
+        },
+        {
+          "case": "provider unavailable by stage",
+          "start": "network, timeout, 429 and 5xx before verify confirmation and during password update",
+          "expect": "Before verified session, reset full entry retry; after verified session, reset password-only retry; provider text absent."
+        },
+        {
+          "case": "reload and new tab after OTP consumption",
+          "start": "password-only retry state followed by reload or new tab",
+          "expect": "No session or values persist; full entry form returns; no automatic retry or business access; provider rejection of the consumed old code requires a new provider invitation/code."
+        },
+        {
+          "case": "legacy staff and participant separation",
+          "start": "/staff/join#t=synthetic and existing /join#t=synthetic participant request",
+          "expect": "Legacy staff URL is clean on first frame with zero Auth/staff-accept traffic; participant request-link issue, lookup, disclosures and completion still work unchanged."
+        }
+      ],
+      "urlAndDiagnosticInspection": [
+        "At first frame, submit start, verify completion, password rejection, retry, complete, back, reload and new-tab open, inspect location.href, normal history/state, document.referrer, PerformanceResourceTiming names, network request URLs and redirects, console/analytics URL fields, and available Chrome history/diagnostic DocumentURL and UserTypedURL metadata.",
+        "Search every URL/metadata value for the exact synthetic email, six-digit code, password, Auth access/refresh token, provider subject and private marker. Required matches: zero. The invitation link itself is only /auth/invite, so Chrome diagnostic retention contains no credential.",
+        "Inspect localStorage, sessionStorage, IndexedDB names and contents, CacheStorage keys/bodies, service-worker caches, serialized React-visible state, rendered non-input DOM and console output for the same exact values. Required matches: zero after each form reset and at every post-submit checkpoint.",
+        "The only permitted transient credential occurrences are uncontrolled input values before submit, email/token/type in the POST /auth/v1/verify body, password in the PUT /auth/v1/user body, and the verified invitation session inside the memory-only Supabase client while invite mode is locked. No credential may appear in any URL, browser persistence, non-Auth request or React state."
+      ],
+      "cleanup": "Close browser tabs and stop the disposable local server; retain no screenshot, trace, profile or fixture containing the synthetic form values unless a sanitized evidence artifact is separately required."
+    },
+    "notExecutedByThisContractTask": "Product and documentation source were intentionally read-only. These commands and scenarios are mandatory for their serialized implementation owners and controller verification."
+  },
+  "operationalNonApproval": {
+    "syntheticImplementationOnly": true,
+    "authTemplateMutationApproved": false,
+    "credentialInjectionApproved": false,
+    "liveInviteApproved": false,
+    "deploymentApproved": false,
+    "operationalAcceptanceApproved": false,
+    "statement": "This contract makes the source change implementation-ready only. It does not authorize changing a hosted Supabase template, reading or injecting credentials, sending any invitation, deploying, linking a real person, or declaring N03 operationally accepted."
+  },
+  "semanticDecisionsRemaining": [],
+  "touchedFiles": [
+    "artifacts/orchestration/n03-manual-otp-contract-result.json"
+  ],
+  "productOrDocsModified": false,
+  "completionMarker": "EXECUTOR_RESULT N03-MANUAL-OTP-CONTRACT-20260914"
+}

@@ -1,0 +1,108 @@
+{
+  "assignmentId": "INTEGRATION-DESIGN-MERGE-20260914",
+  "status": "BOTH_MERGES_DONE_AND_VERIFIED",
+  "supersedes": "INTEGRATION-REBASE-A-20260914",
+  "worktree": {
+    "path": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/parity-291",
+    "reused": true,
+    "branch": "integrate/ccc291-parity",
+    "branchRenamed": false,
+    "newWorktreesOrBranches": 0,
+    "preflightTip": "31fa22fef2dc21e18eefd933297947bc527c3af8",
+    "preflightClean": true,
+    "tip": "6441f2949d67d073fab73df1e9c49ac61aedc058",
+    "cleanAtEnd": true
+  },
+  "baseTip": {"commit": "53150b9151c3f2665e1eac188a11d47dc605faad", "parent": "6f1b7d0bfc0c8059a970bd027ab783d182e0f0ef"},
+  "clientMergeCommit": {
+    "commit": "31fa22fef2dc21e18eefd933297947bc527c3af8",
+    "mergedBranch": "client/relayer-domain-beta",
+    "mergedTip": "0cefde1e339d2d4af09ad813aeb1bc1bd28eb103",
+    "conflicts": 0,
+    "preserved": true,
+    "diffVersusBase": "54 files changed, 3878 insertions(+), 1717 deletions(-)",
+    "tokenAuditDeltaReceived": true,
+    "approvedDeletions": ["apps/web/app/components/wire/wire-month-calendar.tsx", "apps/web/app/components/wire/wire-month-calendar.test.tsx"]
+  },
+  "designMergeCommit": {
+    "commit": "6441f2949d67d073fab73df1e9c49ac61aedc058",
+    "mergedBranch": "design/w03-intake-v2",
+    "mergedTip": "3f47763534a4ed835461e51d083456dd9500864e",
+    "mergeBase": "b429d93dc45365cf2550de8d3b1b5268a808a94d",
+    "mergedByBranchName": true,
+    "messageLanguage": "Korean, no long dash",
+    "diffVersusPreviousTip": "115 files changed, 1562 insertions(+), 2336 deletions(-)",
+    "hooks": "normal configured hooks ran and passed: token-audit 0, align-audit 0, hierarchy audit 0 new violations with 2 preexisting baseline entries, hierarchy audit test",
+    "hooksBypassed": false
+  },
+  "conflictResolutions": [
+    {
+      "path": "apps/client/src/business/api.ts",
+      "lines": "127-135",
+      "chosenSide": "client (ours)",
+      "chosenValue": "financialSupportEnabled boolean check placed before the version checks",
+      "instructed": true,
+      "checksDropped": 0,
+      "verification": "The resolved condition retains id, displayName, programType, admissionState, status, financialSupportEnabled and the three version checks; no conflict markers remain."
+    },
+    {
+      "path": "apps/client/src/business/institution.test.ts",
+      "lines": "60-65",
+      "chosenSide": "client (ours)",
+      "chosenValue": "financialSupportEnabled: false",
+      "instructed": true,
+      "verification": "The same file still asserts this field directly at lines 73, 74, 77 and 78, including rejection of undefined, so the incidental fixture value carries no assertion."
+    }
+  ],
+  "additionalConflicts": {
+    "count": 0,
+    "detail": "The re-merge produced exactly the two instructed conflict files with one block each. No other file conflicted and nothing was resolved outside the instruction."
+  },
+  "verification": {
+    "runs": 1,
+    "onCommit": "6441f2949d67d073fab73df1e9c49ac61aedc058",
+    "results": [
+      {"command": "pnpm --filter @ccc/api run typecheck", "exitStatus": 0, "result": "PASS", "detail": "tsc --noEmit --project apps/api/tsconfig.json, no diagnostics"},
+      {"command": "pnpm --filter @ccc/client run typecheck", "exitStatus": 0, "result": "PASS", "detail": "tsc --noEmit, no diagnostics"},
+      {"command": "pnpm --filter @ccc/client exec vitest run src/business/institution.test.ts src/business/report.test.ts src/business/records.test.ts src/business/intake.test.ts", "exitStatus": 0, "result": "PASS", "testFilesPassed": 4, "testsPassed": 28},
+      {"command": "pnpm --filter @ccc/web exec vitest run \"app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake\"", "exitStatus": 0, "result": "PASS", "testFilesPassed": 3, "testsPassed": 57},
+      {"command": "pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1", "exitStatus": 0, "result": "PASS", "testFilesPassed": 1, "testsPassed": 1, "mode": "read-only, no CCC_UPDATE_MIGRATION_PARITY", "manifestSha256": "b0ef89f20611d09357ef228a55abdc1dfa8300e4db19cea18b5f35bf479795d9", "manifestUnchanged": true}
+    ],
+    "allPassed": true,
+    "totalTestFilesPassed": 8,
+    "totalTestsPassed": 86,
+    "webIntakeDelta": "47 tests before the DESIGN merge, 57 after; CCC-288 added 10 intake cases",
+    "clientDelta": "22 tests before, 28 after; institution.test.ts contributed 6",
+    "treeCleanAfterVerification": true,
+    "installRun": false,
+    "projectWideTestsLintOrBuildRuns": 0
+  },
+  "changedFileCount": {"designMergeOnly": 115, "totalVersusBase": 169},
+  "decisionsApplied": {
+    "ccc286Canonical": "core a6b2fc47; integration 8feb4c62 and 7c7b632d not merged",
+    "parityManifestCanonical": "53150b91 manifest bytes unchanged and re-verified read-only",
+    "checkpointListCanonical": "core 25 rows, unchanged",
+    "tokenAuditDelta": "received through the client merge only",
+    "wireMonthCalendarDeletion": "approved as client deduplication; packages/wire/src copies remain in the merged tree",
+    "financialSupportEnabled": "client side chosen at both sites as instructed"
+  },
+  "unmet": [],
+  "guardrails": {
+    "newFeaturesTestsOrDocs": 0,
+    "productSourceRewritten": false,
+    "resolutionsBeyondInstruction": 0,
+    "assertionsBaselinesOrChecksWeakened": false,
+    "rebaseSquashOrReset": 0,
+    "pushed": false,
+    "originManipulated": false,
+    "deployed": false,
+    "productionDatabaseChanged": false,
+    "externalProviderCalls": 0,
+    "otherWorktreesTouched": false,
+    "betaCoreParityLeftAt": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+    "frontendLeftAt": "0cefde1e339d2d4af09ad813aeb1bc1bd28eb103",
+    "designLeftAt": "3f47763534a4ed835461e51d083456dd9500864e",
+    "orchestratorWorktreeWrites": ["artifacts/orchestration/integration-rebase-a-result.json"]
+  },
+  "marker": "EXECUTOR_RESULT INTEGRATION-DESIGN-MERGE-20260914"
+}

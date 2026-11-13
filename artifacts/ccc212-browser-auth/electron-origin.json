@@ -1,0 +1,13 @@
+{
+  "status": "BLOCKED",
+  "requiredRuntime": "Electron privileged ccc scheme plus navigation guards",
+  "electronExecutableAvailable": false,
+  "electronModuleResolvableFromPinnedSnapshot": false,
+  "productElectronEntrypointFound": false,
+  "onlyMatchingRuntimeFile": "adapters/db-sqlite/test/electron-smoke.mjs",
+  "whyItIsNotProof": "The smoke imports Electron only to verify encrypted SQLite on Windows x64 Electron 44. It does not register ccc, serve the built client, enforce ccc://app Origin, or exercise will-navigate/setWindowOpenHandler.",
+  "chromeSubstitutionUsed": false,
+  "sourceStringSubstitutionUsed": false,
+  "owner": "E7-2 Electron shell and app lock",
+  "missingCapability": "An installed Electron runtime and product shell entrypoint implementing registerSchemesAsPrivileged, protocol.handle, will-navigate, setWindowOpenHandler, contextIsolation, sandbox, and memory-only preload bearer transfer."
+}

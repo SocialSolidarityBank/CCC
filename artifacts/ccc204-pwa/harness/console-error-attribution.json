@@ -1,0 +1,5 @@
+{
+  "consoleErrorsInCleanPass": 1,
+  "attribution": "Browser-native \"Failed to load resource\" line for the deliberately rejected wrong-password POST /auth/v1/token 400. Reproduced in an isolated context with a non-seeded probe credential; no page exceptions.",
+  "pageErrors": 0
+}

@@ -1,0 +1,81 @@
+{
+  "assignmentId": "ccc299-core-contract-freeze-20260914",
+  "ticket": "CCC-299",
+  "workerPaneId": "w1N:p1",
+  "goal": "Turn the reviewed CCC-299 lifecycle candidate into one exact, minimal CORE implementation contract for the existing Mac mini BACKEND single writer.",
+  "authority": [
+    "docs/superpowers/plans/2026-09-13-relayer-two-pane-handoff.md RELAYER_RELAY_STATE JSON verification.CCC-299.proposal",
+    "docs/superpowers/plans/2026-09-12-relayer-domain-ai-replan.md G1, G3, G5, G6 and W01, W03, W04",
+    "docs/superpowers/specs/2026-09-12-relayer-card-ai-contract-design.md sections 2, 6 and 7",
+    "PREP_RESULT Q-COORDINATION-20260914-PLANNER CCC-299, already reviewed by the controller"
+  ],
+  "source": {
+    "reviewedIntegrationCommit": "7c7b632dc5b0a1cd6d7ff2ade4a15eaa3e6ecd07",
+    "coreWriterCommitBeforeCCC212Cors": "a6b2fc473597abd844b1d72f51245c804d8670e9",
+    "originMain": "ad218e8eafa646a524674fe4ef8cf9c20c0b68bb",
+    "rule": "Use Git object reads only. The CORE writer is concurrently changing only apps/community-cloud/src/runtime.ts and apps/api/test/community-cloud-runtime.test.ts, outside CCC-299. Do not mutate or validate product source."
+  },
+  "decisionsToClose": [
+    "Keep questionnaire/source schema versions 1 and 2 byte-true. Decide exact mutation envelope version 3 constant and parser names by existing naming conventions.",
+    "Freeze the exact reference-only lifecycle metadata shape, stable question ID and revision semantics, explicit withdrawal, legacy conversion association, manual outcome source binding, HTTP response shape and 400/403/409 behavior. Do not create a second question-text store or infer identity from text or array order.",
+    "Choose exact next forward SQLite and PostgreSQL migration filenames from both source histories. Existing 0062/0063 and 0018/0019 are immutable. Include migrations/parity.yaml in the single writer scope.",
+    "Decide whether the existing report evidence projection can carry source identity. Include packages/contracts/src/report.ts only if the consumer otherwise cannot observe the approved contract; no speculative report expansion.",
+    "Include scripts/seed/scenario.ts and the exact test/support paths required by the real producer cutover. No seed-only compatibility exception.",
+    "Define the disposable central smoke artifact path that calls existing createCaptureHarness and runScenario without writing the full out generator or preview data.",
+    "Define exact FRONTEND first-intake, FRONTEND CCC-290, synthetic API and DESIGN CCC-288 consumer handoff fields, without granting their write slots or making them prerequisites for producer implementation."
+  ],
+  "requiredWriterScope": [
+    "packages/contracts/src/intake.ts",
+    "packages/contracts/src/manual-record.ts",
+    "packages/core/src/gateway.ts",
+    "packages/http-api/src/request-handler.ts",
+    "one new migrations/sqlite forward file",
+    "one new migrations/postgres forward file",
+    "migrations/parity.yaml",
+    "scripts/seed/scenario.ts",
+    "apps/api/test/support/intake.ts",
+    "apps/api/test/gateway-intake.test.ts",
+    "apps/api/test/manual-record.contract.test.ts",
+    "apps/api/test/routes.test.ts intake section",
+    "apps/api/test/support-case-report.contract.test.ts",
+    "apps/api/test/support/migration-parity.ts",
+    "apps/api/test/migration-parity.test.ts",
+    "apps/api/test/database-parity.test.ts"
+  ],
+  "preserve": [
+    "R1 gateway and audit boundaries, R2 official manual records, R3 no raw AI material egress, R5 human decision boundary",
+    "legacy schema 1 and 2 bytes, unknown fields, original actors and timestamps, convertedFromRevision, conversion.confirmed and sourceRevision",
+    "existing PostgreSQL FORCE RLS, tenant policy, PUBLIC revoke, ccc_api grants and ccc_schema_owner ownership",
+    "existing SQLite foreign keys, confirmed-once index and immutable history behavior",
+    "AI-off operation, tenant and case isolation, program to support-case to source lock order, atomic rollback",
+    "CCC-297 is not a prerequisite; CCC-292, G7, S5/S6, agent transport, egress, purge/restore, screens and deployment are excluded"
+  ],
+  "verificationPlanMustInclude": [
+    "targeted gateway, manual-record, report, signup badge and participant contract tests",
+    "routes intake filter",
+    "API typecheck",
+    "two-database real HTTP lifecycle through handleRequest and gateway including create, read, edit, reorder, withdraw, later manual confirmation, context, records and report",
+    "migration parity update only in the writer slot followed by non-update verification",
+    "guard-db-gateway and guard-core-imports",
+    "new, legacy, unbound v2, upgrade, reorder, omission, last-row withdrawal, confirmation/withdrawal race, date correction, duplicate confirmation, replay, stale, cross-tenant/case, audit and AI-off observations"
+  ],
+  "output": {
+    "path": "artifacts/orchestration/ccc299-core-freeze-result.json",
+    "mustContain": [
+      "exact types, field names, version constants and refusal table",
+      "exact migration filenames and complete allowed path list",
+      "exact owner base rule after CCC-212 CORS commit",
+      "consumer handoff map",
+      "targeted verification commands and observable acceptance",
+      "readyForImplementation true only if no semantic decision remains",
+      "ownedJobs 0 and allResultsCollected true"
+    ]
+  },
+  "constraints": [
+    "Read-only except the result JSON in this orchestrator worktree.",
+    "No source, canonical document, ticket, branch, commit, remote, provider, database, preview, credential, deployment, AI, STT or Windows mutation.",
+    "Do not rerun planner research. Resolve only its named technical freeze gaps against source and approved semantics.",
+    "Choose the smallest existing-seam implementation. Surface only a real product tradeoff; do not return placeholders for ordinary engineering naming decisions."
+  ],
+  "completionMarker": "EXECUTOR_RESULT CCC299-CORE-FREEZE-20260914"
+}

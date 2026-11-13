@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "naturalRegistration": true,
+  "activatedController": true,
+  "businessNavigation": true,
+  "reloadRequiresLogin": true,
+  "credentialValidatingSdkLogin": true,
+  "wrongCredentialsRejected": true,
+  "cacheStaticOnly": true,
+  "defaultPageWorld": true,
+  "errors": {
+    "pageErrors": 0,
+    "consoleErrors": 1
+  }
+}
