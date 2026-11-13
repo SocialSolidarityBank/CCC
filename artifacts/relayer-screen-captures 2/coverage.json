@@ -1,0 +1,254 @@
+[
+  {
+    "source": "apps/web/app/page.tsx",
+    "route": "/",
+    "captures": [
+      "schedule-week.html"
+    ],
+    "redirectOnly": true
+  },
+  {
+    "source": "apps/web/app/admin/page.tsx",
+    "route": "/admin",
+    "captures": [
+      "admin-org.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/admin/ai-provider/page.tsx",
+    "route": "/admin/ai-provider",
+    "captures": [
+      "admin-ai-provider.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/admin/assign/page.tsx",
+    "route": "/admin/assign",
+    "captures": [
+      "admin-assign.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/admin/invite/page.tsx",
+    "route": "/admin/invite",
+    "captures": [
+      "admin-invite.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/admin/users/page.tsx",
+    "route": "/admin/users",
+    "captures": [
+      "admin-users.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/admin/users/[id]/page.tsx",
+    "route": "/admin/users/:id",
+    "captures": [
+      "admin-user-detail.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/join/participant/[token]/page.tsx",
+    "route": "/join/participant/:token",
+    "captures": [
+      "join-participant.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/join/worker/[token]/page.tsx",
+    "route": "/join/worker/:token",
+    "captures": [
+      "join-worker.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/kit/page.tsx",
+    "route": "/kit",
+    "captures": [
+      "kit.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/onboarding/page.tsx",
+    "route": "/onboarding",
+    "captures": [
+      "onboarding.html",
+      "onboarding-2.html",
+      "onboarding-done.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/participants/page.tsx",
+    "route": "/participants",
+    "captures": [
+      "participants.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/participants/invite/page.tsx",
+    "route": "/participants/invite",
+    "captures": [
+      "participant-invite.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/participants/new/page.tsx",
+    "route": "/participants/new",
+    "captures": [
+      "participant-new.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/participants/[beneficiaryId]/page.tsx",
+    "route": "/participants/:beneficiaryId",
+    "captures": [
+      "participant-sessions.html",
+      "participant-goals.html",
+      "participant-info.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/participants/[beneficiaryId]/edit/page.tsx",
+    "route": "/participants/:beneficiaryId/edit",
+    "captures": [
+      "participant-edit.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/page.tsx",
+    "route": "/participants/:beneficiaryId/programs/:supportCaseId/briefing",
+    "captures": [
+      "briefing.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/close/page.tsx",
+    "route": "/participants/:beneficiaryId/programs/:supportCaseId/close",
+    "captures": [
+      "case-close.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx",
+    "route": "/participants/:beneficiaryId/programs/:supportCaseId/records",
+    "captures": [
+      "records.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/page.tsx",
+    "route": "/participants/:beneficiaryId/programs/:supportCaseId/records/:sessionId/review",
+    "captures": [
+      "record-review.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx",
+    "route": "/participants/:beneficiaryId/programs/:supportCaseId/records/intake",
+    "captures": [
+      "intake-step-1.html",
+      "intake-step-2.html",
+      "intake-step-3.html",
+      "intake-step-4.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx",
+    "route": "/participants/:beneficiaryId/programs/:supportCaseId/records/new",
+    "captures": [
+      "record-entry.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/preview/page.tsx",
+    "route": "/preview",
+    "captures": [
+      "preview.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/preview/admin/page.tsx",
+    "route": "/preview/admin",
+    "captures": [
+      "preview-admin.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/programs/[programType]/schedule/page.tsx",
+    "route": "/programs/:programType/schedule",
+    "captures": [
+      "schedule-day.html",
+      "schedule-week.html",
+      "schedule-month.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/programs/[programType]/schedule/all/page.tsx",
+    "route": "/programs/:programType/schedule/all",
+    "captures": [
+      "schedule-month.html"
+    ],
+    "redirectOnly": true
+  },
+  {
+    "source": "apps/web/app/schedules/new/page.tsx",
+    "route": "/schedules/new",
+    "captures": [
+      "schedule-new-1.html",
+      "schedule-new-2.html",
+      "schedule-new-intake-1.html",
+      "schedule-new-intake-2.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/schedules/[scheduleId]/plan/page.tsx",
+    "route": "/schedules/:scheduleId/plan",
+    "captures": [
+      "schedule-plan-edit.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/settings/page.tsx",
+    "route": "/settings",
+    "captures": [
+      "settings.html"
+    ],
+    "redirectOnly": false
+  },
+  {
+    "source": "apps/web/app/welcome/page.tsx",
+    "route": "/welcome",
+    "captures": [
+      "welcome.html"
+    ],
+    "redirectOnly": false
+  }
+]

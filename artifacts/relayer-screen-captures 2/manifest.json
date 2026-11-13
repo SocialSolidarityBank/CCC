@@ -1,0 +1,364 @@
+{
+  "syntheticOnly": true,
+  "scripts": false,
+  "baseline": "DESIGN preview source and 2026-09-09 workflow prototype",
+  "pages": [
+    {
+      "slug": "participant-new",
+      "title": "당사자 등록",
+      "group": "당사자",
+      "source": "apps/web/app/participants/new/register-form.tsx",
+      "public": false
+    },
+    {
+      "slug": "participant-edit",
+      "title": "기본정보 수정",
+      "group": "당사자",
+      "source": "apps/web/app/participants/[beneficiaryId]/edit/page.tsx + basic-info-form.tsx",
+      "public": false
+    },
+    {
+      "slug": "intake-step-1",
+      "title": "인테이크 1단계 · 상담 신청 및 기본정보",
+      "group": "인테이크 작성",
+      "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+      "public": false
+    },
+    {
+      "slug": "intake-step-2",
+      "title": "인테이크 2단계 · 현재 생활상황",
+      "group": "인테이크 작성",
+      "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+      "public": false
+    },
+    {
+      "slug": "intake-step-3",
+      "title": "인테이크 3단계 · 필요한 도움과 활용 가능한 자원",
+      "group": "인테이크 작성",
+      "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+      "public": false
+    },
+    {
+      "slug": "intake-step-4",
+      "title": "인테이크 4단계 · 상담 정리와 후속관리",
+      "group": "인테이크 작성",
+      "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+      "public": false
+    },
+    {
+      "slug": "schedule-new-1",
+      "title": "상담 일정 등록 1단계 · 당사자 선택",
+      "group": "상담 일정",
+      "source": "apps/web/app/schedules/new/schedule-wizard.tsx",
+      "public": false
+    },
+    {
+      "slug": "schedule-new-2",
+      "title": "상담 일정 등록 2단계 · 상담 목표와 맞춤형 질문",
+      "group": "상담 일정",
+      "source": "apps/web/app/schedules/new/schedule-wizard.tsx",
+      "public": false
+    },
+    {
+      "slug": "schedule-new-intake-1",
+      "title": "상담 일정 등록 1단계 · 당사자 선택(인테이크)",
+      "group": "상담 일정",
+      "source": "apps/web/app/schedules/new/schedule-wizard.tsx",
+      "public": false
+    },
+    {
+      "slug": "schedule-new-intake-2",
+      "title": "상담 일정 등록 2단계 · 맞춤형 질문(인테이크)",
+      "group": "상담 일정",
+      "source": "apps/web/app/schedules/new/schedule-wizard.tsx",
+      "public": false
+    },
+    {
+      "slug": "schedule-plan-edit",
+      "title": "세션 목표 수정",
+      "group": "상담 일정",
+      "source": "apps/web/app/schedules/[scheduleId]/plan/session-plan-editor.tsx",
+      "public": false
+    },
+    {
+      "slug": "briefing",
+      "title": "15초 다시보기",
+      "group": "상담 기록",
+      "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/page.tsx + briefing-cards.tsx",
+      "public": false
+    },
+    {
+      "slug": "record-entry",
+      "title": "상담 기록하기",
+      "group": "상담 기록",
+      "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx + record-onepage.tsx",
+      "public": false
+    },
+    {
+      "slug": "record-review",
+      "title": "AI가 정리한 내용 검토하기",
+      "group": "상담 기록",
+      "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/page.tsx + fixture-draft-view.tsx",
+      "public": false
+    },
+    {
+      "slug": "case-close",
+      "title": "상담 종결",
+      "group": "상담 기록",
+      "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/close/page.tsx + close-cards.tsx",
+      "public": false
+    },
+    {
+      "slug": "records",
+      "title": "상담 기록 확인하기",
+      "group": "상담 기록",
+      "source": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx + record-list.tsx",
+      "public": false
+    },
+    {
+      "slug": "participant-sessions",
+      "title": "당사자 정보: 회차별 요약",
+      "group": "당사자",
+      "source": "artifacts/2026-09-09-workflow-prototypes/prototype-app.tsx ParticipantPage·FullReport 회차별 요약·핵심지표",
+      "public": false
+    },
+    {
+      "slug": "participant-goals",
+      "title": "당사자 정보: 목표",
+      "group": "당사자",
+      "source": "apps/web/app/participants/[beneficiaryId]/goal-tree.tsx GoalTreeCard + prototype-app.tsx ParticipantPage 탭",
+      "public": false
+    },
+    {
+      "slug": "participant-info",
+      "title": "당사자 정보: 정보",
+      "group": "당사자",
+      "source": "apps/web/app/participants/[beneficiaryId]/page.tsx ParticipantHub(참여 중인 사업·최신 일정·동의서) + prototype-app.tsx 탭",
+      "public": false
+    },
+    {
+      "slug": "participants",
+      "title": "당사자 목록",
+      "group": "당사자",
+      "source": "artifacts/2026-09-09-workflow-prototypes/prototype-app.tsx ParticipantsPage·ParticipantListRow",
+      "public": false
+    },
+    {
+      "slug": "schedule-day",
+      "title": "일정 보기: 일간",
+      "group": "일정",
+      "source": "artifacts/2026-09-09-workflow-prototypes/prototype-app.tsx SchedulePage·DayWeekBody(일간)",
+      "public": false
+    },
+    {
+      "slug": "schedule-week",
+      "title": "일정 보기: 주간",
+      "group": "일정",
+      "source": "artifacts/2026-09-09-workflow-prototypes/prototype-app.tsx SchedulePage·DayWeekBody(주간)",
+      "public": false
+    },
+    {
+      "slug": "schedule-month",
+      "title": "일정 보기: 월간",
+      "group": "일정",
+      "source": "packages/wire/src/wire-month-calendar.tsx WireMonthCalendar·buildMonthWeeks(D88 월간 격자)",
+      "public": false
+    },
+    {
+      "slug": "record-start",
+      "title": "상담 기록하기: 당사자 선택",
+      "group": "일정",
+      "source": "artifacts/2026-09-09-workflow-prototypes/prototype-app.tsx RecordEntryPage 진입 단계",
+      "public": false
+    },
+    {
+      "slug": "admin-org",
+      "title": "기관",
+      "group": "관리자",
+      "source": "apps/web/app/admin/page.tsx",
+      "public": false
+    },
+    {
+      "slug": "admin-assign",
+      "title": "배정",
+      "group": "관리자",
+      "source": "apps/web/app/admin/assign/page.tsx",
+      "public": false
+    },
+    {
+      "slug": "admin-users",
+      "title": "사용자·역할",
+      "group": "관리자",
+      "source": "apps/web/app/admin/users/page.tsx",
+      "public": false
+    },
+    {
+      "slug": "admin-user-detail",
+      "title": "실무자 상세",
+      "group": "관리자",
+      "source": "apps/web/app/admin/users/[id]/page.tsx",
+      "public": false
+    },
+    {
+      "slug": "admin-invite",
+      "title": "실무자 초대",
+      "group": "관리자",
+      "source": "apps/web/app/admin/invite/page.tsx",
+      "public": false
+    },
+    {
+      "slug": "admin-ai-provider",
+      "title": "AI·STT·연결",
+      "group": "관리자",
+      "source": "apps/web/app/admin/ai-provider/page.tsx",
+      "public": false
+    },
+    {
+      "slug": "settings",
+      "title": "설정",
+      "group": "설정",
+      "source": "apps/web/app/settings/page.tsx",
+      "public": false
+    },
+    {
+      "slug": "participant-invite",
+      "title": "당사자 초대",
+      "group": "당사자",
+      "source": "apps/web/app/participants/invite/page.tsx",
+      "public": false
+    },
+    {
+      "slug": "onboarding",
+      "title": "기관 온보딩",
+      "group": "공개·온보딩",
+      "source": "apps/web/app/onboarding/page.tsx",
+      "public": false
+    },
+    {
+      "slug": "welcome",
+      "title": "CCC 사례관리",
+      "group": "공개·온보딩",
+      "source": "apps/web/app/welcome/page.tsx",
+      "public": true
+    },
+    {
+      "slug": "join-participant",
+      "title": "당사자 가입",
+      "group": "공개·온보딩",
+      "source": "apps/web/app/join/participant/[token]/page.tsx",
+      "public": true
+    },
+    {
+      "slug": "join-worker",
+      "title": "실무자 초대 가입",
+      "group": "공개·온보딩",
+      "source": "apps/web/app/join/worker/[token]/page.tsx",
+      "public": true
+    },
+    {
+      "slug": "preview",
+      "title": "미리보기 접속",
+      "group": "공개·온보딩",
+      "source": "apps/web/app/preview/page.tsx",
+      "public": true
+    },
+    {
+      "slug": "preview-admin",
+      "title": "기관 관리자 미리보기 접속",
+      "group": "공개·온보딩",
+      "source": "apps/web/app/preview/admin/page.tsx",
+      "public": true
+    },
+    {
+      "slug": "client-login",
+      "title": "기관 계정 로그인",
+      "group": "Relayer 클라이언트",
+      "source": "apps/client/src/business/auth-view.tsx",
+      "public": true
+    },
+    {
+      "slug": "client-welcome",
+      "title": "Relayer 시작",
+      "group": "Relayer 클라이언트",
+      "source": "apps/client/src/app.tsx PublicScreen welcome",
+      "public": true
+    },
+    {
+      "slug": "client-institution-code",
+      "title": "기관 확인",
+      "group": "Relayer 클라이언트",
+      "source": "apps/client/src/app.tsx PublicScreen institution (/k/:code)",
+      "public": true
+    },
+    {
+      "slug": "client-staff-join",
+      "title": "실무자 초대 수락",
+      "group": "Relayer 클라이언트",
+      "source": "apps/client/src/screens/invites.tsx StaffJoinScreen",
+      "public": true
+    },
+    {
+      "slug": "client-participant-join",
+      "title": "당사자 등록 요청",
+      "group": "Relayer 클라이언트",
+      "source": "apps/client/src/screens/invites.tsx ParticipantJoinScreen",
+      "public": true
+    },
+    {
+      "slug": "client-institution",
+      "title": "기관 준비",
+      "group": "Relayer 클라이언트",
+      "source": "apps/client/src/screens/institution.tsx",
+      "public": true
+    },
+    {
+      "slug": "client-staff-invites",
+      "title": "실무자 초대",
+      "group": "Relayer 클라이언트",
+      "source": "apps/client/src/screens/invites.tsx StaffInviteScreen",
+      "public": true
+    },
+    {
+      "slug": "client-participant-invite",
+      "title": "당사자 초대 링크",
+      "group": "Relayer 클라이언트",
+      "source": "apps/client/src/screens/invites.tsx ParticipantInviteScreen",
+      "public": true
+    },
+    {
+      "slug": "client-assignments",
+      "title": "담당 배정 요청",
+      "group": "Relayer 클라이언트",
+      "source": "apps/client/src/screens/settings.tsx AssignmentsModule",
+      "public": true
+    },
+    {
+      "slug": "onboarding-2",
+      "title": "기관 온보딩 2단계",
+      "group": "공개·온보딩",
+      "source": "apps/web/app/onboarding/onboarding-wizard.tsx step 2",
+      "public": false
+    },
+    {
+      "slug": "onboarding-done",
+      "title": "기관 온보딩 완료",
+      "group": "공개·온보딩",
+      "source": "apps/web/app/onboarding/page.tsx OnboardingDone",
+      "public": false
+    },
+    {
+      "slug": "client-stt-trial",
+      "title": "STT 내부 시험",
+      "group": "Relayer 클라이언트",
+      "source": "apps/client/src/stt-trial/stt-trial-page.tsx",
+      "public": true
+    },
+    {
+      "slug": "kit",
+      "title": "컴포넌트 킷",
+      "group": "컴포넌트 킷",
+      "source": "apps/web/app/kit/page.tsx",
+      "public": false
+    }
+  ]
+}

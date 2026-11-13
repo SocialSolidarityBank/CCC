@@ -1,0 +1,94 @@
+{
+  "screensChanged": [
+    {
+      "screen": "당사자 등록",
+      "result": "여섯 동의 영역을 정본 순서와 문안으로 표시하고, 각 영역에 동의함과 동의하지 않음 라디오를 제공한다. 여섯 결정을 모두 직접 고르기 전에는 등록 버튼이 비활성이다."
+    },
+    {
+      "screen": "당사자 정보 허브",
+      "result": "사업별 동의 편집기를 여섯 영역으로 교체했다. granted, not_granted, unconfirmed 현재 상태를 각각 동의함, 동의하지 않음, 미선택으로 표시한다. 현재 granted를 거절로 바꿀 때만 withdraw 값을 사용한다."
+    },
+    {
+      "screen": "인테이크 기록과 조회",
+      "result": "작성, 수정, 조회 화면에서 여섯 영역을 읽기 전용으로 표시하고 granted, not_granted, unconfirmed를 동의함, 동의하지 않음, 미기록으로 구분한다. 빠진 영역은 미기록으로 닫힌다."
+    }
+  ],
+  "contractSource": {
+    "path": "packages/contracts/src/consent.ts",
+    "order": "CONSENT_DOMAINS",
+    "copy": "CONSENT_COPY",
+    "copyVersion": "CONSENT_COPY_VERSION",
+    "version": "consent-six-domains-v1"
+  },
+  "reusedComponents": [
+    "WireCard",
+    "WireCardSection",
+    "WireChoice",
+    "WireBadge"
+  ],
+  "newCssCount": 0,
+  "noDefaultChecked": true,
+  "typecheck": {
+    "status": "passed",
+    "command": "pnpm --filter @ccc/web run typecheck",
+    "result": "tsc --noEmit 통과"
+  },
+  "targetedTests": {
+    "status": "passed",
+    "command": "pnpm --filter @ccc/web exec vitest run app/participants/new/register-form.test.tsx app/participants/[beneficiaryId]/consent-editor.test.tsx app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-draft.test.tsx app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.test.tsx app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.test.tsx",
+    "result": "5 files, 79 tests passed",
+    "regressionProof": "라디오 그룹 접근성 단언을 먼저 추가해 2개 테스트의 실패를 확인한 뒤 canonical 영역 이름을 radiogroup 접근 가능 이름으로 연결해 통과시켰다."
+  },
+  "renderCheck": {
+    "status": "passed",
+    "hierarchy": "pnpm design:hierarchy 통과. 1280, 767, 390 폭에서 새 위계 쌍 0건, 기하 새 위반 0건.",
+    "alignment": "pnpm design:align 통과. 실제 등록과 허브 동의 부품을 포함한 89개 픽셀 단언 통과. 등록과 허브의 각 라디오 12개는 자기 행 세로 중앙, 여섯 등록 구획과 허브 묶음은 위아래 17px로 확인했다."
+  },
+  "coordination": {
+    "rehearsalFailureTriage": "폼과 액션 경계 편집 전에 RehearsalFailureTriage에 대상 파일과 액션 비수정 방침을 보내려 했으나 live 또는 parked 수신자가 없어 전달이 실패했다.",
+    "dataLayerBoundary": "apps/web/app/participants/actions.ts와 apps/web/app/lib/api.ts는 변경하지 않았다. 현재 체크아웃의 두 파일은 아직 구 consentPrivacy, consentRecordingAi 계약이므로 별도 데이터 레인의 여섯 영역 요청 및 응답 컷오버가 합쳐져야 실제 저장 왕복이 열린다.",
+    "review": "읽기 전용 리뷰의 접근성 지적을 반영해 등록과 허브의 각 라디오 묶음에 canonical 영역 이름을 연결했다. 데이터 소비자 지적은 지정된 별도 레인 소유라 변경하지 않았다.",
+    "printCopy": "docs/consent/consent-form-print-v1.md는 현재 작업 트리에 없어 packages/contracts/src/consent.ts 정본만 사용했다."
+  },
+  "mutations": {
+    "productionUi": [
+      "apps/web/app/participants/new/register-form.tsx",
+      "apps/web/app/participants/[beneficiaryId]/page.tsx",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.tsx",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx"
+    ],
+    "testsAndHarness": [
+      "apps/web/app/participants/new/register-form.test.tsx",
+      "apps/web/app/participants/[beneficiaryId]/consent-editor.test.tsx",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-draft.test.tsx",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.test.tsx",
+      "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.test.tsx",
+      "apps/web/app/kit/align-harness.test.tsx",
+      "apps/web/app/kit/hierarchy-harness.test.tsx",
+      "scripts/design/align-assertions.json"
+    ],
+    "cssCleanup": [
+      "apps/web/app/layout.tsx에서 사용이 끝난 .consent-item 선언 삭제",
+      "packages/wire/src/wire-styles.ts에서 사용이 끝난 .consent-item 간격 선언 삭제"
+    ],
+    "actionApiDatabase": []
+  },
+  "gitStatus": {
+    "staged": 0,
+    "preservedUnstaged": [
+      "DESIGN-RULES.md",
+      "DESIGN.md",
+      "apps/web/app/participants/new/register-form.tsx의 기존 서명 동의서 배지 한 줄 변경",
+      "packages/wire/src/wire-section.tsx",
+      "packages/wire/src/wire-styles.ts의 기존 작업"
+    ],
+    "preservedUntracked": "기존 untracked 아티팩트는 건드리지 않았고 이 결과 JSON은 untracked로 남겼다."
+  },
+  "commit": "fd62601142cc68bd652574e6d743e5c3d84b19f1",
+  "blocked": {
+    "uiScope": false,
+    "rehearsalIntegration": true,
+    "reason": "현재 체크아웃의 action과 response decoder가 구 2필드 계약이다. 별도 데이터 레인의 여섯 영역 저장 및 조회 컷오버가 합쳐지기 전에는 실제 저장 왕복이 완료되지 않는다."
+  }
+}

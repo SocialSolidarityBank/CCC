@@ -1,0 +1,87 @@
+{
+  "assignmentId": "CCC288-DESIGN-INTAKE-V2-20260914",
+  "completionMarker": "DESIGN_RESULT CCC288-DESIGN-INTAKE-V2-20260914",
+  "commits": {
+    "producerMerge": "c9174727069281af8f66e7d555f5a60b5323d57a",
+    "implementation": "3f47763534a4ed835461e51d083456dd9500864e"
+  },
+  "requirementCoverage": [
+    {
+      "requirement": "writeSchemaVersion 3",
+      "file": "apps/web/app/lib/api.ts",
+      "symbols": ["getIntakeRecordContext"]
+    },
+    {
+      "requirement": "saved.schemaVersion 1 or 2 and saved.revision",
+      "file": "apps/web/app/lib/api.ts",
+      "symbols": ["decodeIntakeSavedRecord"]
+    },
+    {
+      "requirement": "saved.questionLifecycle and saved.history lifecycle",
+      "file": "apps/web/app/lib/api.ts",
+      "symbols": ["decodeIntakeQuestionLifecycle", "decodeIntakeRevisionHistory"]
+    },
+    {
+      "requirement": "envelope schemaVersion 3",
+      "file": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+      "symbols": ["complete"]
+    },
+    {
+      "requirement": "additionalItemRefs",
+      "file": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+      "symbols": ["bindingsFromInitial", "collectedAdditionalItems", "complete"]
+    },
+    {
+      "requirement": "questionWithdrawals",
+      "file": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+      "symbols": ["removeAdditionalItem", "complete"]
+    },
+    {
+      "requirement": "conversion confirmation for schema 1 or unbound schema 2",
+      "file": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+      "symbols": ["conversionRequired", "conversionConfirmed", "complete"]
+    },
+    {
+      "requirement": "mutation response schemaVersion 3 and revision",
+      "files": ["apps/web/app/lib/api.ts", "apps/web/app/actions.ts"],
+      "symbols": ["decodeIntakeMutationResponse", "createIntakeRecordAction", "updateIntakeRecordAction"]
+    },
+    {
+      "requirement": "400 invalid_request, 403 forbidden, 409 conflict",
+      "files": [
+        "apps/web/app/lib/api.ts",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.tsx",
+        "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx"
+      ],
+      "symbols": ["errorCode", "messageFor", "complete", "canWrite branch"]
+    }
+  ],
+  "verification": {
+    "targetedVitest": {
+      "command": "pnpm --filter @ccc/web exec vitest run 'app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-draft.test.tsx' 'app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view.test.tsx' 'app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard.test.tsx' --testTimeout=10000",
+      "testFilesPassed": 3,
+      "testsPassed": 57,
+      "testsFailed": 0
+    },
+    "typecheck": {
+      "command": "pnpm --filter @ccc/web run typecheck",
+      "result": "passed",
+      "diagnostics": 0
+    }
+  },
+  "positionalDeletionRemoval": "rows.slice(0, -1)만으로 삭제 의미를 만들던 경로를 없애고, 기존 행 삭제는 결합된 questionId와 expectedRevision으로 questionWithdrawals를 만들 때만 철회되도록 바꿨다.",
+  "gaps": [],
+  "remainingRisks": [
+    "프리뷰 배포와 실환경 브라우저 검수는 금지 범위라 실행하지 않았다.",
+    "기존 화면에 직접 입력칸이 없는 v2 세부 문항은 호환 변환 과정에서 명시적 unknown으로 기록된다. 이를 직접 입력받으려면 현재 소유 범위 밖인 intake-questions.ts 변경이 별도로 필요하다."
+  ],
+  "packageBoundary": {
+    "confirmed": true,
+    "statement": "c9174727 merge가 가져온 packages/** 파일은 병합 후 수정하지 않았다. 구현 커밋 3f477635는 지정된 apps/web 소유 파일 8개만 포함한다."
+  },
+  "workingTreePreservation": {
+    "tracked": "clean after implementation commit",
+    "untrackedArtifactsPreserved": 93,
+    "reportFileCommitted": false
+  }
+}
