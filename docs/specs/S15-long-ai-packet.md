@@ -63,9 +63,9 @@ interface LongAiInterval extends CodepointRange {
 
 - 모든 문자 수와 offset은 UTF-16 단위나 byte가 아니라 `Array.from(text).length`와 code point slice 기준이다. 마스킹 뒤 text를 다시 normalize하거나 trim하지 않는다. `charStart < charEnd`, 음수·범위 밖·같은 source에서 같은 종류의 겹친 interval은 거부한다.
 - transcript의 시간 interval은 segment 경계에만 맞는다. 시간 경계가 segment 중간이면 해당 구간을 `unsupported`로 기록하고 Core outcome은 `failed`로 만들어 provider에 보내지 않는다. 제외 interval과 겹치는 segment는 전부 제외해 제외된 segment 일부가 provider에 들어가지 않게 한다. manual_note와 goal은 시간 정보가 없으므로 `startMs/endMs`가 항상 `null`이고 문자 interval만 허용한다.
-- 구조적으로 지원하지 않는 material 또는 요청이 있으면 유효 included chunk를 만들지 않고 `not_applicable`로 남긴다. 반면 특정 interval의 경계·좌표가 지원되지 않는 `unsupported`는 실패 descriptor와 `failed` outcome으로 남긴다.
+- 구조적으로 지원하지 않는 optional operation/section에 요청 source가 없으면 유효 included chunk를 만들지 않고 `not_applicable`로 남긴다. 반면 특정 interval의 경계·좌표가 지원되지 않는 `unsupported`는 실패 descriptor와 `failed` outcome으로 남긴다.
 - 전체 목표·세부 목표·세션 목표의 공식 문구는 `goal`, 수기 상담 기록은 `manual_note`다. `purposes`는 planner가 정하며 provider가 추가·삭제하지 않는다. goal evidence는 goal 또는 직접 논의한 transcript, promise evidence는 manual_note 또는 transcript, risk evidence는 transcript만 허용한다.
-- 기본 포함 범위는 S6 snapshot 전체다. `includedIntervals`는 요청 범위의 교집합이고 `excludedIntervals`는 원래 좌표, reason을 모두 보존한다. planner는 duplicate `sourceRef` 또는 같은 `originKind`의 두 source를 거부한다. `excluded_by_user`만 정상적인 중립 제외이며, `unsupported`는 실패, `privacy`는 차단이다. 제외가 포함보다 우선한다. 유효 포함 범위가 없으면 provider 호출 없이 `not_applicable`이 된다.
+- 기본 포함 범위는 S6 snapshot 전체다. `includedIntervals`는 요청 범위의 교집합이고 `excludedIntervals`는 원래 좌표, reason을 모두 보존한다. planner는 duplicate `sourceRef` 또는 같은 `originKind`의 두 source를 거부한다. `excluded_by_user`만 정상적인 중립 제외이며, `unsupported`는 실패, `privacy`는 차단이다. privacy로 source/chunk가 전부 제외되면 blocked descriptor와 partial draft를 남기며 `not_applicable`로 숨기지 않는다. `not_applicable`은 요청 source가 없는 구조적 optional operation/section에만 쓴다.
 
 ### 2.2 청크 계획
 
@@ -296,12 +296,28 @@ interface LongAiDraft {
   missingSections: readonly ('goal' | 'risk' | 'promise' | 'summary')[];
   excludedIntervals: readonly LongAiInterval[];
 }
+```
+```ts
+interface LongAiMissingSectionsRequest {
+  mode: 'long_missing_sections';
+  draftVersion: number;
+  planHash: string;
+  priorCallId: string;
+  sectionNames: readonly [string, ...string[]]; // 현재 missingSections의 정렬된 non-empty subset
+  includedChunkIds: readonly [string, ...string[]]; // succeeded-empty prior call의 원래 eligible chunks
+  requestHash: string;
+  callId: string;
+  idempotencyKey: string;
+}
+```
+
+`sectionNames`, `includedChunkIds`, `priorCallId`는 requestHash, callId, idempotency key 계산에 포함한다. `sectionNames`는 현재 draft의 missingSections에서 가져온 정렬된 non-empty subset이어야 한다. 이 recovery는 succeeded-empty call의 exact original eligible source chunks(`includedChunkIds`)만 다시 호출하며, succeeded-with-content chunk는 대상이 아니다.
 
 - persisted `outcomes`의 key 집합은 plan에 저장한 모든 non-user-excluded descriptor의 `chunkId` 집합과 정확히 같고, `succeeded`, `failed`, `blocked`, `not_applicable` 네 집합은 서로 겹치지 않으며 합집합은 전체다. `unsupported`와 `privacy` descriptor도 각각 failed/blocked outcome으로 남긴다. provider request에는 eligible included chunk만 넣는다. `excluded_by_user` descriptor는 plan/outcome에 넣지 않고 `excludedIntervals`에만 보존한다. `LongAiDraft.state`는 outcomes와 content completeness에서만 파생한다. 모든 eligible chunk가 succeeded이고 `missingSections`가 비어 있으며 discrepancy가 `supported`일 때만 `complete`, 성공과 비성공이 혼합되거나 missingSections가 non-empty이거나 discrepancy가 `unsupported`/`failed`이면 `partial`, 성공이 없거나 eligible chunk가 없으면 `blocked`다.
 - dedupe identity는 output family, 모든 semantics(`claim section`, `contrast axis`, `risk type`, `goalRef`, `promise key`, discrepancy `kind`), canonical text(NFC 정규화, Unicode whitespace run을 ASCII 공백 하나로 접고 양끝을 자름), 정렬한 전체 provenance tuple 집합 `(originKind, sourceRef, sourceCharStart, sourceCharEnd, startMs, endMs)`의 결합이다. 같은 identity만 하나로 만들고 모든 입력 evidence를 union한다. provenance span 하나라도 다르면 strict evidence subset이더라도 별도 output이다. claimKey만으로 합치지 않는다. 최종 sort의 마지막 tie-breaker는 chunkId다.
 - persisted claim, oneLiner, question, risk, promise와 discrepancy pair는 모두 generic `Grounded*<LongAiPersistedEvidence>`다. provider-local evidence와 content는 저장하거나 UI에 직접 노출하지 않는다. factual claim과 risk의 evidence는 transcript-only이며 validator가 sourceRef/origin과 quote의 정확한 관계를 확인한다. `goalOutputs`는 immutable `goalRef`를 가지고 goal-material evidence와, 논의된 경우 transcript evidence를 함께 보존한다. promise는 manual_note 또는 transcript evidence를 허용한다. risk는 고정 유형 제안이며 진단·확정·GAS 점수가 아니다. evidence가 없거나 범위·quote·goal relation이 틀리면 전체 call response가 실패한다.
 - `regenerateMissing(expectedDraftVersion, expectedPlanHash, callId, chunkIds)`는 compare-and-set으로 동작한다. 현재 draftVersion·planHash·callId가 모두 일치하고 lifecycle이 `pending`일 때만 시작한다. 불일치, lifecycle이 `succeeded` 또는 `approved`, 다른 plan의 chunk는 거부한다. 선택한 subset을 재계획해 새 requestHash, 새 callId, 새 idempotency key를 만들고 기존 call을 `supersedesCallId`로 연결한다. 기존 성공 output과 attempt는 수정·삭제하지 않는다.
-- `regenerateMissingSections(expectedDraftVersion, expectedPlanHash, callId, sectionNames)`는 lifecycle이 `succeeded`지만 call-level content가 비어 missingSections가 남은 경우에만 허용한다. CAS 검증 뒤 유효 subset을 새 request identity로 호출하며 성공한 chunk를 중복 호출하지 않는다. `retryDiscrepancy`는 discrepancy call에만 같은 CAS와 새 requestHash/callId/key를 적용한다. `approved` draft와 evidence는 immutable이며 모든 recovery 요청을 거부한다.
+- `regenerateMissingSections(expectedDraftVersion, expectedPlanHash, priorCallId, sectionNames, includedChunkIds)`는 lifecycle이 `succeeded`지만 해당 call의 content가 비어 있고 이름 붙인 section이 현재 `missingSections`에 남은 경우에만 허용한다. CAS 검증 뒤 지정한 original eligible chunks를 새 requestHash, 새 callId, 새 idempotency key로 재계획·재호출하고 `supersedesCallId`를 남긴다. succeeded-with-content chunk, `approved` draft와 evidence는 immutable이며 모든 recovery 요청을 거부한다. `retryDiscrepancy`는 discrepancy call에만 같은 CAS와 새 request identity를 적용한다.
 
 ### 2.6 누락 UI
 
