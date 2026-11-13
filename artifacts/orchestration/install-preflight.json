@@ -1,0 +1,106 @@
+{
+  "distBuilt": "apps/community-cloud/dist/install-manifest-verifier.js (같은 build.mjs가 index.js, install-consent-registry.js, storage-signer.js도 함께 산출)",
+  "buildCommand": "pnpm --filter @ccc/community-cloud run build (apps/community-cloud/package.json의 \"build\": \"node build.mjs\"; apps/community-cloud/build.mjs:27-36이 dist/install-manifest-verifier.js를 산출)",
+  "planRunOutcome": "node scripts/supabase/plan.mjs: ERR_MODULE_NOT_FOUND 없이 종료 코드 0 (라이브러리 모듈, CLI 진입점 없음). 실제 CLI인 node scripts/supabase/bootstrap.mjs (기본 operation plan)은 입력 부재로 [OWNER_EVIDENCE_MISSING] 종료 코드 6을 반환 (bootstrap.mjs:99, exitCodes bootstrap.mjs:50)",
+  "requiredEnvNames": [
+    { "name": "CCC_ORGANIZATION_ID", "required": "hosted 필수", "evidence": "bootstrap.mjs:297,301; manifest-preflight.mjs:139-140 (빈 값이면 OWNER_EVIDENCE_MISSING); RUN.md:54" },
+    { "name": "CCC_SUPABASE_PROJECT_REF", "required": "hosted 필수 (--project-ref로 대체 가능)", "evidence": "bootstrap.mjs:302; manifest-preflight.mjs:284-285; S11:40" },
+    { "name": "CCC_INSTALL_MANIFEST", "required": "hosted 필수 (--install-manifest로 대체 가능). JSON 문자열 또는 로컬 파일 경로, 1 MiB 이하, duplicate key 거부", "evidence": "bootstrap.mjs:294,330; manifest-preflight.mjs:113-137; RUN.md:54" },
+    { "name": "CCC_INSTALL_APPROVAL", "required": "hosted 필수 (--install-approval로 대체 가능). 같은 입력 형식", "evidence": "bootstrap.mjs:295; manifest-preflight.mjs:173-188; RUN.md:54" },
+    { "name": "CCC_INSTALL_SIGNING_KEYS", "required": "hosted 필수. {keyId: base64 raw Ed25519 공개키 44자} JSON map, 1개 이상", "evidence": "bootstrap.mjs:298; manifest-preflight.mjs:145-151,161-171" },
+    { "name": "CCC_INSTALL_REVOKED_KEY_IDS", "required": "선택, 기본 '[]'. 폐기된 keyId의 JSON 배열, 중복 불가", "evidence": "bootstrap.mjs:299; manifest-preflight.mjs:152-154,161 (기본값)" },
+    { "name": "CCC_BETA_RELEASE_TRUST", "required": "hosted 필수. 서명된 beta release trust JSON/파일", "evidence": "bootstrap.mjs:308; provider-baseline.mjs:252-267" },
+    { "name": "CCC_PROVIDER_BASELINE", "required": "hosted 필수. 서명된 provider baseline JSON/파일", "evidence": "bootstrap.mjs:309; provider-baseline.mjs:274-298" },
+    { "name": "CCC_BETA_TRUST_ROOT_KEYS", "required": "hosted 필수. {rootKeyId: base64 공개키} JSON map", "evidence": "bootstrap.mjs:310; provider-baseline.mjs:249 (validExternalTrust), 254" },
+    { "name": "CCC_BETA_REVOKED_ROOT_KEY_IDS", "required": "선택, 기본 []", "evidence": "bootstrap.mjs:311; provider-baseline.mjs:255" },
+    { "name": "SUPABASE_ACCESS_TOKEN", "required": "hosted 필수 (Management API Bearer). plan은 토큰 소비 전 서명 검증을 먼저 한다", "evidence": "bootstrap.mjs:327,409; hosted-inspector.mjs:720 (없으면 CREDENTIAL_MISSING); S11:40" },
+    { "name": "CCC_INSTALL_DATABASE_URL", "required": "apply/renew-authorization/create-institution/link-first-admin 쓰기 단계와 install-consent-registry.js에서 필수. plan/doctor/report는 읽지 않는다. db.<ref>.supabase.co 직결 또는 *-ap-northeast-2.pooler.supabase.com + postgres.<ref> 사용자, /postgres, 포트 5432, ssl verify-full, ccc_api 역할 불가", "evidence": "installer-connection.mjs:11-27; install-consent-registry.ts:43-46" },
+    { "name": "CCC_RELEASE_TRUST_STORE", "required": "apply 필수 (loadPinnedReleaseIndex 기본값). doctor/report는 없으면 release 대조를 건너뛰고 blocker로 남긴다", "evidence": "apply.mjs:191,227-228" },
+    { "name": "SCHEDULER_SECRET", "required": "apply 필수 (cron_job 단계 주입, 존재만 검사)", "evidence": "bootstrap.mjs:411; apply.mjs:92-98,396" },
+    { "name": "SUPABASE_SERVICE_ROLE_KEY", "required": "apply 필수 (edge_secret_binding 단계 주입, 존재만 검사)", "evidence": "bootstrap.mjs:412; apply.mjs:92-98; RUN.md:109" },
+    { "name": "CCC_API_DATABASE_PASSWORD", "required": "apply 필수 (api_credential 단계, ccc_api 비밀번호를 바인드 변수로만 설정)", "evidence": "bootstrap.mjs:416; apply.mjs:92-98; RUN.md:68" },
+    { "name": "CCC_DATABASE_CA_FILE", "required": "선택. 설정 시 NODE_EXTRA_CA_CERTS와 DENO_CERT가 같은 경로여야 하고 파일은 256 KiB 이하 CA-only PEM. with-ca.sh가 두 변수를 같은 경로로 묶는다", "evidence": "application-ca.mjs:33-47; with-ca.sh:10-32; RUN.md:33-48" }
+  ],
+  "requiredFlags": [
+    { "flag": "<operation>", "required": "첫 위치 인자, 기본 'plan'", "meaning": "plan|apply|doctor|report|rollback|renew-authorization|create-institution|link-first-admin 중 하나", "evidence": "bootstrap.mjs:98-99" },
+    { "flag": "--target", "required": "선택, 기본 'hosted'", "meaning": "'hosted' 또는 'local'. local은 plan만 허용", "evidence": "bootstrap.mjs:132,147,149" },
+    { "flag": "--project-ref", "required": "hosted에서 사실상 필수 (CCC_SUPABASE_PROJECT_REF 대체 가능)", "meaning": "대상 Supabase 프로젝트 식별자. 서명 approval의 projectRef 및 manifest의 supabaseProjectRef와 정확히 같아야 한다", "evidence": "bootstrap.mjs:133,302; manifest-preflight.mjs:303-306" },
+    { "flag": "--install-manifest", "required": "hosted에서 사실상 필수 (CCC_INSTALL_MANIFEST 대체 가능)", "meaning": "서명된 install manifest. '{'로 시작하면 JSON 본문, 아니면 로컬 파일 경로 (1 MiB, duplicate key 거부)", "evidence": "bootstrap.mjs:134,294; manifest-preflight.mjs:113-137" },
+    { "flag": "--install-approval", "required": "hosted에서 사실상 필수 (CCC_INSTALL_APPROVAL 대체 가능)", "meaning": "서명된 비공개 소유 승인서. 같은 입력 형식", "evidence": "bootstrap.mjs:135,295; manifest-preflight.mjs:173-188" },
+    { "flag": "--manifest-url", "required": "apply에서만 필수, 다른 operation에서는 거부", "meaning": "pinned release origin의 same-origin URL. ReleaseBundle 색인 row의 manifestUrl과 정확히 일치해야 하며 artifact를 가리키는 서명된 release manifest를 가져온다", "evidence": "bootstrap.mjs:151-152; apply.mjs:253-262" },
+    { "flag": "--renew-authorization", "required": "선택, plan/apply만", "meaning": "갱신된 서명 쌍을 미리보거나 적용한다", "evidence": "bootstrap.mjs:110-113,385-401" },
+    { "flag": "--to", "required": "rollback에서만 허용", "meaning": "rollback 대상 버전", "evidence": "bootstrap.mjs:137,150" },
+    { "flag": "--format / --json", "required": "선택, 기본 text (create-institution/link-first-admin은 json 고정)", "meaning": "출력 형식 text|json. --json은 doctor/report만", "evidence": "bootstrap.mjs:103,115-118,138,148,159,164" },
+    { "flag": "--workdir", "required": "선택, 기본 process.cwd()", "meaning": "local target에서 supabase status를 실행할 작업 디렉터리", "evidence": "bootstrap.mjs:104,139,325; local-inspector.mjs:33-45" },
+    { "flag": "--output", "required": "report에서만 필수, 다른 operation에서는 거부", "meaning": "redacted 진단 보고서 출력 경로", "evidence": "bootstrap.mjs:140,153,375-379" },
+    { "flag": "--auth-subject", "required": "link-first-admin 필수", "meaning": "Supabase Auth user uuid, 소문자만", "evidence": "bootstrap.mjs:141,154-155,166; first-admin.mjs:9,64-72" },
+    { "flag": "--email", "required": "link-first-admin 필수", "meaning": "관리자 이메일 (최대 254자, EMAIL 정규식)", "evidence": "bootstrap.mjs:142; first-admin.mjs:10,68" },
+    { "flag": "--name", "required": "link-first-admin 선택", "meaning": "표시 이름 (제어문자 없이 120자 이하)", "evidence": "bootstrap.mjs:143; first-admin.mjs:11,67-69" },
+    { "flag": "--time-zone", "required": "create-institution 선택, 기본 Asia/Seoul", "meaning": "UTC 또는 IANA region/city", "evidence": "bootstrap.mjs:144,156-161; institution.mjs:17,20" },
+    { "flag": "--pii-purge-grace-days", "required": "create-institution 선택, 기본 365", "meaning": "1~3660 정수", "evidence": "bootstrap.mjs:145; institution.mjs:18,21,25" }
+  ],
+  "manifestRequiredFields": {
+    "evidence": "packages/contracts/src/install-manifest.ts:40-44 (MANIFEST_KEYS, 정확히 16키), 128-188 (parseManifestShape), 191-225 (assertModeFields)",
+    "keys": [
+      { "field": "schemaVersion", "constraint": "정확히 1", "evidence": "install-manifest.ts:135" },
+      { "field": "mode", "constraint": "DEPLOYMENT_MODES 중 하나. community-cloud면 https + static + supabase 세 필드 필수", "evidence": "install-manifest.ts:136,193-210" },
+      { "field": "apiBase", "constraint": "유효한 URL 문자열. community-cloud는 https origin+명시적 path의 정확한 href", "evidence": "install-manifest.ts:137-144,194-200" },
+      { "field": "clientOrigin", "constraint": "exact origin (path/query/fragment/userinfo 없음, ccc: 커스텀 스킴 허용)", "evidence": "install-manifest.ts:77-92,145" },
+      { "field": "allowedOrigins", "constraint": "비어있지 않은 exact origin 배열, clientOrigin을 포함해야 함", "evidence": "install-manifest.ts:146-150" },
+      { "field": "host", "constraint": "비어있지 않은 문자열", "evidence": "install-manifest.ts:137-139" },
+      { "field": "scheme", "constraint": "'https'|'http'|'ccc'. community-cloud는 'https'", "evidence": "install-manifest.ts:151,194" },
+      { "field": "endpointDiscovery", "constraint": "'static'|'dpapi-record'. community-cloud는 'static'", "evidence": "install-manifest.ts:152-154,194" },
+      { "field": "installationId", "constraint": "비어있지 않은 문자열", "evidence": "install-manifest.ts:155" },
+      { "field": "sequence", "constraint": "0 이상 정수. 검증 시 minSequence 미만이면 sequence_replay", "evidence": "install-manifest.ts:156-158,249" },
+      { "field": "publishedAt", "constraint": "Date.parse 가능한 문자열", "evidence": "install-manifest.ts:159-162" },
+      { "field": "expiresAt", "constraint": "Date.parse 가능한 문자열, now 이후여야 함", "evidence": "install-manifest.ts:159-162,248" },
+      { "field": "approvedSttEngineIds", "constraint": "{id, mode} 정확히 2키 객체의 배열. id는 ^[a-z0-9][a-z0-9-]{0,63}$ 이고 '://','?','@','bearer','key' 부분문자열 금지. mode는 'local'|'azure'. id 오름차순 엄격 정렬이며 중복 불가 (entries[i-1].id >= entries[i].id 이면 거부)", "evidence": "install-manifest.ts:110-125; capabilities.ts:32-38" },
+      { "field": "supabaseProjectRef", "constraint": "community-cloud는 non-null 문자열. supabaseAuthOrigin host 첫 라벨과 일치", "evidence": "install-manifest.ts:163-165,201,206-208" },
+      { "field": "supabaseAuthOrigin", "constraint": "community-cloud는 non-null exact https origin", "evidence": "install-manifest.ts:163-165,204-205" },
+      { "field": "supabasePublishableKey", "constraint": "community-cloud는 non-null. sb_publishable_* 형태 또는 payload.role==='anon'인 3-part JWT", "evidence": "install-manifest.ts:163-165,209; isSupabasePublishableKey 98-108" },
+      { "field": "signingKeyId", "constraint": "비어있지 않은 문자열. trust publicKeys에 있어야 하고 revokedKeyIds에 없어야 함", "evidence": "install-manifest.ts:166,232-234" },
+      { "field": "ed25519Signature", "constraint": "비어있지 않은 문자열. 서명 제외 객체의 JCS를 Ed25519로 검증", "evidence": "install-manifest.ts:167,235-247" }
+    ]
+  },
+  "sttEngineEntryShape": {
+    "evidence": "install-manifest.ts:110-125 (parseEngineRegistry); capabilities.ts:32-38 (ENGINE_ID_PATTERN, ENGINE_ID_FORBIDDEN); runtime.ts:230-233 (ApprovedSttEngineEntry); stt-readiness.ts:8,27 (azure 엔진 고정 ID)",
+    "placement": "manifest 최상위 approvedSttEngineIds 배열의 원소. 정확히 {id, mode} 두 키",
+    "example": { "approvedSttEngineIds": [ { "id": "azure-speech-koreacentral", "mode": "azure" } ] },
+    "note": "id 'azure-speech-koreacentral'은 ^[a-z0-9][a-z0-9-]{0,63}$를 만족하고 금지 부분문자열('://','?','@','bearer','key')을 포함하지 않는다. 다른 엔진을 추가하면 id 오름차순을 유지해야 한다."
+  },
+  "signingProcedure": {
+    "manifest": "signInstallManifest(unsigned, privateKey)가 ed25519Signature를 제외한 객체를 RFC 8785 JCS로 정규화해 Ed25519로 서명한다. 검증은 signingKeyId로 CCC_INSTALL_SIGNING_KEYS의 공개키를 찾아 crypto.subtle.verify(Ed25519)한다",
+    "manifestEvidence": "install-manifest.ts:227-264; manifest-preflight.mjs:295-299",
+    "approval": "approval은 ed25519Signature를 제외한 9키 객체를 같은 JCS+Ed25519로 서명한다. approval.signingKeyId의 공개키도 같은 CCC_INSTALL_SIGNING_KEYS map에서 찾고 revokedKeyIds에 없어야 한다. approval.runtimeManifestSha256은 서명된 manifest 전체(서명 포함)의 sha256Jcs와 같아야 한다",
+    "approvalEvidence": "manifest-preflight.mjs:173-188,300-317",
+    "keyCustody": "개인키는 설치기 측 SecretStore에서만 꺼낸다 (install-manifest.ts:257 주석). 이름은 CCC_INSTALL_SIGNING_PRIVATE_KEY이며 business runtime과 StorageSigner 양쪽의 금지 바인딩 목록에 있다 (RUN.md:219,252; main.ts:23; storage-signer-main.ts:27). 공개키 map만 CCC_INSTALL_SIGNING_KEYS로 주입한다. beta trust 체인은 별도 키를 쓴다: CCC_BETA_ROOT_SIGNING_PRIVATE_KEY가 release trust에, CCC_BETA_RELEASE_SIGNING_PRIVATE_KEY가 provider baseline에 서명하고 release bundle은 CCC_RELEASE_SIGNING_PRIVATE_KEY/CCC_RELEASE_TRUST_STORE를 쓴다 (RUN.md:78; s12-development-release-design.md:55-56). 새 키를 만들지 않는다"
+  },
+  "firstAdminInvitePath": {
+    "order": "apply -> create-institution -> link-first-admin -> 첫 로그인(TOTP 등록) -> 온보딩 화면 (RUN.md:115)",
+    "prerequisite": "Supabase Auth 계정이 먼저 존재해야 한다. 대시보드 또는 Auth Admin API로 만들고 이메일 확인을 완료한다. 이 명령은 Auth 계정을 만들지 않고 비밀번호를 다루지 않는다 (RUN.md:144)",
+    "command": "sh apps/community-cloud/with-ca.sh node scripts/supabase/bootstrap.mjs link-first-admin --target hosted --auth-subject <소문자 uuid> --email ccc@ggbss.or.kr --name <선택>",
+    "inputs": "--auth-subject (소문자 uuid 필수), --email (필수), --name (선택). 같은 S11 승인 입력 + CCC_INSTALL_DATABASE_URL (RUN.md:147-154; bootstrap.mjs:472-490)",
+    "effect": "설치 잠금 안 한 transaction으로 users 행(role 'admin', active=1, auth_subject)을 넣고 users_seed_independent_roles_after_insert 트리거가 만드는 canonical institution_admin 역할을 확인한 뒤 first_admin_linked 영수증을 audit_log에 남긴다. 설치 상태가 installed가 아니면 FIRST_ADMIN_NOT_INSTALLED (first-admin.mjs:111-170; bootstrap.mjs:475)",
+    "timing": "apply가 installed 영수증을 쓴 뒤, 첫 로그인 전에 실행한다"
+  },
+  "readinessPath": {
+    "write": "Agent actor가 POST /pipeline/readiness로 SttReadinessReport를 보내면 recordSttReadiness가 stt_agent_readiness에 upsert한다 (request-handler.ts:3464-3472; gateway.ts:8988-9009). azure 모양은 {schemaVersion:1, sttMode:'azure', sttEngineId:'azure-speech-koreacentral', state:'ready', capacity:1}이며 isSttReadinessReport가 강제한다 (stt-readiness.ts:17-28)",
+    "read": "hasFreshSttReadiness(env, orgId, 'azure', 'azure-speech-koreacentral')가 state='ready' AND expires_at>now 행을 확인하고 GET /capabilities가 이를 azureReady로 쓴다 (gateway.ts:9041-9053; capabilities.ts:59-60). getSttReadiness는 capacity=1까지 요구한다 (gateway.ts:9011-9039)",
+    "policy": "sttMode 'azure' 자체는 program_admission_policies.stt_mode에서 읽는다 (installedAiPolicyForOrg, gateway.ts:15866-15877). create-institution은 'off'로 심고 azure로 여는 것은 설치가 아니라 기관의 업무 결정이다 (institution.mjs:129-131; RUN.md:126)",
+    "consent": "azure 전사는 admitRecordingUpload가 ['counseling_recording','external_stt_processing'] 두 동의를 요구한다 (gateway.ts:9128-9130)"
+  },
+  "providerRegistryPath": {
+    "path": "HTTP API가 아니다. 설치 전용 CLI인 apps/community-cloud/dist/install-consent-registry.js를 --input <파일>로 실행한다. CCC_INSTALL_DATABASE_URL로 createPostgresDatabase를 열고 installConsentProviderRegistry(database, input)을 호출한다 (install-consent-registry.ts:36-75; gateway.ts:8459-8529)",
+    "inputShape": "InstallConsentProviderRegistryInput: 정확히 {schemaVersion:1, orgId, approvedBy, approvedAt, approvalRef, providers} 6키. providers는 CONSENT_COPY의 다섯 provider('institution','institution_recording','institution_private_storage','azure','openai')를 정확히 한 번씩 담아야 하고 각 원소는 {provider, legalRecipient, country, validUntil} 4키다. approvedAt은 현재 이전, country는 대문자 2자, validUntil은 null 또는 approvedAt·현재 이후 (consent.ts:28-41; gateway.ts:8465-8497)",
+    "effect": "consent_provider_registry_snapshots에 provider당 1행을 넣고 audit_log에 'consent_provider_registry_installed' 영수증을 남긴다. 같은 approvedAt 재실행은 내용이 같으면 replayed:true로 읽기만 한다 (gateway.ts:8499-8528)"
+  },
+  "inputsDraftFile": "artifacts/orchestration/install-inputs-draft.json",
+  "blocked": [
+    "SUPABASE_ACCESS_TOKEN 미주입: hosted plan의 Management API 읽기 단계 진입 불가 (서명 검증까지는 가능)",
+    "서명된 CCC_INSTALL_MANIFEST / CCC_INSTALL_APPROVAL / CCC_INSTALL_SIGNING_KEYS / CCC_ORGANIZATION_ID / CCC_SUPABASE_PROJECT_REF 부재: OWNER_EVIDENCE_MISSING으로 plan조차 시작 못 함. 서명은 Main 소유이며 새 키를 만들지 않는다",
+    "CCC_BETA_RELEASE_TRUST / CCC_PROVIDER_BASELINE / CCC_BETA_TRUST_ROOT_KEYS 부재: BETA_TRUST_INVALID로 hosted plan 중단",
+    "apply 추가 입력 부재: CCC_INSTALL_DATABASE_URL, CCC_RELEASE_TRUST_STORE, SCHEDULER_SECRET, SUPABASE_SERVICE_ROLE_KEY, CCC_API_DATABASE_PASSWORD, --manifest-url (pinned release bundle 색인 row)",
+    "link-first-admin 선행 조건: Supabase Auth 계정(ccc@ggbss.or.kr) 생성과 이메일 확인은 대시보드/Auth Admin API로 사람이 먼저 한다",
+    "Q 승인 대기: 실제 설치 실행과 DB 변경은 별도 승인 뒤다"
+  ]
+}

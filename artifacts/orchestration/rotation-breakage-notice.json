@@ -1,0 +1,80 @@
+{
+  "noticeDate": "2026-09-15",
+  "rotatedNow": [
+    {
+      "name": "CLOUDFLARE_WORKERS_API_TOKEN",
+      "issuer": "Cloudflare (API token roll)",
+      "howToGetNew": "Infisical RELAYER / Production 에서 같은 이름을 다시 읽는다",
+      "breaksImmediately": true
+    },
+    {
+      "name": "CCC_LINEAR_API_KEY",
+      "issuer": "Linear (new key issued, old key revoked)",
+      "howToGetNew": "Infisical RELAYER / Production 에서 같은 이름을 다시 읽는다",
+      "breaksImmediately": true
+    },
+    {
+      "name": "AZURE_SPEECH_KEY",
+      "issuer": "Azure ccc-stt-koreacentral KEY 1 regenerated (KEY 2 unchanged)",
+      "howToGetNew": "Infisical RELAYER / Production 에서 같은 이름을 다시 읽는다",
+      "breaksImmediately": true
+    }
+  ],
+  "pathChanged": [
+    { "name": "install", "oldFolder": "install", "newFolder": "INSTALL" },
+    { "name": "api", "oldFolder": "api", "newFolder": "API" },
+    { "name": "onboarding", "oldFolder": "onboarding", "newFolder": "ONBOARDING" },
+    { "name": "preview", "oldFolder": "preview", "newFolder": "PREVIEW" },
+    { "name": "unused", "oldFolder": "unused", "newFolder": "UNUSED" },
+    { "name": "current", "oldFolder": "current", "newFolder": "CURRENT" },
+    { "name": "CCC_INSTALL_* 계열", "oldFolder": "/", "newFolder": "CURRENT" },
+    { "name": "CCC_BETA_* 계열", "oldFolder": "/", "newFolder": "CURRENT" },
+    { "name": "CCC_PROVIDER_BASELINE", "oldFolder": "/", "newFolder": "CURRENT" },
+    { "name": "CCC_ORGANIZATION_ID", "oldFolder": "/", "newFolder": "CURRENT" },
+    { "name": "CCC_RELEASE_* 계열", "oldFolder": "/", "newFolder": "CURRENT" },
+    { "name": "CCC_API_DATABASE_PASSWORD 계열", "oldFolder": "/", "newFolder": "CURRENT" },
+    { "name": "PREVIEW_* (4개)", "oldFolder": "/", "newFolder": "PREVIEW" },
+    { "name": "RELAYER_ONBOARDING_* (4개)", "oldFolder": "/", "newFolder": "ONBOARDING" },
+    { "name": "RELAYER_PII_ENC_KEY", "oldFolder": "/", "newFolder": "API" },
+    { "name": "RELAYER_SCHEDULER_SECRET", "oldFolder": "/", "newFolder": "API" },
+    { "name": "SUPABASE_* (미사용 4개)", "oldFolder": "/", "newFolder": "UNUSED" }
+  ],
+  "addedNotOverwritten": {
+    "names": [
+      "RELAYER_BETA_SUPABASE_SECRET_KEY",
+      "RELAYER_BETA_API_DATABASE_PASSWORD",
+      "RELAYER_BETA_SCHEDULER_SECRET",
+      "RELAYER_BETA_PII_ENC_KEY"
+    ],
+    "overwritesExisting": false,
+    "note": "덮어쓰기가 아니라 새 이름으로 추가됐다. 기존 소비자를 끊지 않는다."
+  },
+  "unchanged": [
+    "PII_ENC_KEY",
+    "SCHEDULER_SECRET",
+    "CCC_ACCESS_SETUP_API_KEY",
+    "CCC_BETA_ADMIN_EMAIL",
+    "CCC_BETA_ADMIN_PASSWORD",
+    "CCC_BETA_WORKER_EMAIL",
+    "CCC_BETA_WORKER_PASSWORD",
+    "CCC_N02_* (7개)",
+    "CCC_PIPELINE_CLIENT_ID",
+    "CCC_PIPELINE_CLIENT_SECRET",
+    "CCC_SUPABASE_PROJECT_REF",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "Relayer2 Supabase 프로젝트",
+    "Relayer_legacy 프로젝트 데이터와 설치"
+  ],
+  "supabaseRenameRisk": {
+    "renamed": "기존 Supabase 프로젝트 이름이 Relayer 에서 Relayer_legacy 로 바뀌었다",
+    "risk": "이름으로 프로젝트를 고르는 설정은 엉뚱한 프로젝트를 가리킬 수 있다",
+    "recommendation": "이름이 아니라 참조 문자열로 가리킨다",
+    "newProjectRefPrefix": "qlzwas",
+    "legacyProjectRefPrefix": "wtbdqy",
+    "untouched": "Relayer2 프로젝트는 이번 작업에서 건드리지 않았다"
+  },
+  "unverified": [
+    "RELAYER2 개발 세션이 실제로 어떤 시크릿 이름과 경로를 읽는지 이 작업에서 확인하지 않았다",
+    "루트에서 CURRENT 로 옮겨진 16개의 정확한 이름 목록은 계열 단위로만 확인했다"
+  ]
+}

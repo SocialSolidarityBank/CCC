@@ -1,0 +1,32 @@
+{
+  "decidedAt": "2026-09-15",
+  "firstAdmin": "seongqkim@ggbss.or.kr",
+  "approvedBy": "seongqkim@ggbss.or.kr",
+  "approvalRef": "beta-2026-09-15-01",
+  "retired": {
+    "email": "ccc@ggbss.or.kr",
+    "reason": "Supabase Authentication에 이 주소의 사용자가 없고 Q가 실제로 쓴 적이 없는 주소이므로 폐기한다."
+  },
+  "existingAuthUsers": [
+    { "email": "ccc.beta.admin@ggbss.or.kr", "confirmed": true, "createdAt": "2026-09-12" },
+    { "email": "ccc.beta.worker@ggbss.or.kr", "confirmed": true, "createdAt": "2026-09-12" },
+    { "email": "seongqkim@ggbss.or.kr", "confirmed": true, "createdAt": "2026-09-12" },
+    { "email": "seongqkim@bss.or.kr", "confirmed": true, "createdAt": "2026-09-12" },
+    { "email": "foxion37@gmail.com", "confirmed": true, "createdAt": "2026-09-12" }
+  ],
+  "testAccountsNotForProduction": {
+    "accounts": ["ccc.beta.admin@ggbss.or.kr", "ccc.beta.worker@ggbss.or.kr"],
+    "secretNames": ["CCC_BETA_ADMIN_EMAIL", "CCC_BETA_ADMIN_PASSWORD", "CCC_BETA_WORKER_EMAIL", "CCC_BETA_WORKER_PASSWORD"],
+    "reason": "이 자격 증명이 Infisical 루트 시크릿으로 저장돼 있어 그 시크릿을 읽을 수 있는 모든 경로가 관리자가 되므로 실사용 관리자로 쓰지 않는다."
+  },
+  "target": {
+    "project": "Relayer",
+    "refPrefix": "wtbdqy",
+    "organization": "SocialSolidaritybank",
+    "region": "ap-northeast-2"
+  },
+  "accountCreationNeeded": {
+    "needed": false,
+    "reason": "seongqkim@ggbss.or.kr 계정이 Supabase Authentication에 이미 있고 확인이 완료됐으므로 새로 만들지 않는다."
+  }
+}

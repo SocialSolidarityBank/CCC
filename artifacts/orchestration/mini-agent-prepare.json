@@ -1,0 +1,115 @@
+{
+  "generatedAt": "2026-09-15",
+  "host": "mini (ssh mini, user barq, arm64 macOS 26.6.2)",
+  "envPath": "/Users/barq/.local/share/ccc-pipeline/venv",
+  "envMethod": {
+    "summary": "uv venv --python 3.12 + uv pip install, 고정 버전 명세",
+    "evidence": [
+      "apps/pipeline/README.md:117-121 — 격리 venv를 ~/.local/share/ccc-stt/qwen-venv 처럼 홈 밖 독립 경로에 두는 관례, Python 3.12 명시",
+      "apps/pipeline/requirements-ml.txt — transformers==4.53.3, huggingface-hub==0.36.2 고정; torch는 이 파일이 고정하지 않음(주석: CUDA 빌드는 환경별 선설치)",
+      "apps/pipeline/README.md:250 — Mac 탐색 실행에서 확인된 조합 torch==2.8.0 / torchaudio==2.8.0 / huggingface-hub==0.36.2",
+      "pyproject.toml·uv.lock 없음 — 이 프로젝트는 uv 프로젝트 방식이 아니라 requirements.txt + venv 방식"
+    ],
+    "python": "CPython 3.12.13 (uv managed; mini의 ~/.local/bin/python3.12 shim은 깨져 있고 homebrew는 3.11/3.13/3.14뿐이라 uv로 3.12를 받음)",
+    "independentPathReason": "코어 레인 워크트리 /Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/BACKEND 안에 환경을 만들지 않기 위해 ~/.local/share/ccc-pipeline/ 아래에 둠. 실행 코드도 같은 이유로 BACKEND를 읽기만 하고 ~/.local/share/ccc-pipeline/repo/{apps/pipeline,supply-chain/model-license-manifest.json}에 읽기 전용 스냅샷으로 복사(model_registry.py:38이 parents[3]/supply-chain/model-license-manifest.json을 요구). BACKEND의 worker.py·config.py·masking.py는 로컬 체크아웃과 내용이 다름(md5 불일치, masking_manifest.py 추가) — mini에서 실제로 도는 코드 기준으로 분석했다",
+    "device": "cpu — NER 파이프라인은 transformers가 자동으로 mps:0을 골랐으나 코드가 장치를 고정하지 않음. CCC_STT_DEVICE 기본값은 cpu(config.py:246)이고 Qwen은 preview 전용이라 운영 장치 선택은 해당 없음"
+  },
+  "installedVersions": {
+    "python": "3.12.13",
+    "torch": "2.8.0",
+    "transformers": "4.53.3",
+    "huggingface-hub": "0.36.2",
+    "sentencepiece": "0.2.2",
+    "note": "requirements-ml.txt 전체는 설치하지 않음 — openai-whisper/faster-whisper/pyannote.audio/librosa는 거부된 legacy 엔진과 preview 전용 qwen 경로용이라 운영 agent에 불필요. pyannote는 qwen 엔진의 build_diarizer에서만 필요(worker.py:411). 필요해지면 같은 venv에 pip install -r requirements-ml.txt로 추가"
+  },
+  "nerOfflineCheck": {
+    "command": "HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 venv/bin/python -c 'build_person_and_address_ner + mask_text_with_report(합성 한 줄)'",
+    "model": "FrameByFrame/korean-pii-e5-base @ a308c54b4407819624a5661e31e162a269f39818 (manifest 고정 revision과 캐시 snapshot 일치 확인)",
+    "result": "통과 — 인명 2건·전화번호 1건 치환, 예외 없음",
+    "modelDownloads": 0,
+    "note": "합성 문장 한 줄(가상 인명·가상 전화번호)만 사용. 원문·마스킹 결과 텍스트는 이 보고에 싣지 않음"
+  },
+  "maskedTokenCount": 3,
+  "preflightGates": {
+    "basis": "mini BACKEND 워크트리 코드 기준 줄번호(로컬 체크아웃과 다름)",
+    "loadConfig": [
+      {"gate": "CCC_RUNTIME_ENVIRONMENT 필수·preview|production", "status": "missing", "evidence": "config.py:189-191", "note": "env 템플릿에 이름만 준비, 값은 사람이 채움"},
+      {"gate": "인증 — production은 CCC_AGENT_REFRESH_TOKEN(E6-4 페어링) 또는 CCC_PIPELINE_CLIENT_ID+SECRET(Access 서비스 토큰) 둘 중 하나, 배타적", "status": "missing", "evidence": "config.py:198-225, api_client.py:221-236", "note": "준비 조사의 '페어링 미구현'은 구 정보 — BACKEND 코드는 E6-4를 구현함(POST /agents/pair·/agents/token)"},
+      {"gate": "MEMORY_MASKING_PIPELINES 필수 — canonical masking registry JSON, 활성 manifest의 NER revision이 model-license-manifest와 일치해야 함", "status": "missing", "evidence": "config.py:255-262, masking_manifest.py", "note": "준비 조사에 없던 새 필수 변수. 값은 비밀이 아니며 결정적 생성 가능(아래 serverIssuanceSteps 참조)"},
+      {"gate": "CCC_NER_ATTESTATION 필수 — 8필드 JSON, status passed, manifest의 labelSetHash·corpusHash·resultHash와 일치", "status": "missing", "evidence": "config.py:159-176, 263-271"},
+      {"gate": "CCC_NER_RELEASE_RECEIPT_ID 필수", "status": "missing", "evidence": "config.py:299"},
+      {"gate": "CCC_STT_ENGINE — off|qwen3-asr|azure, qwen은 preview 전용", "status": "pass", "evidence": "config.py:231-234", "note": "기본 off면 추가 요구 없음"},
+      {"gate": "백업 정책 — 기본 off면 통과", "status": "pass", "evidence": "config.py:224-229"}
+    ],
+    "preflightWorker": [
+      {"gate": "HF_HUB_OFFLINE·TRANSFORMERS_OFFLINE 설정 후 시작(시작 시 다운로드 없음)", "status": "pass", "evidence": "worker.py:386-387"},
+      {"gate": "assert_device_ready: engine≠off이면 ffmpeg 필요", "status": "pass", "evidence": "worker.py:896-901", "note": "ffmpeg 설치돼 있음; engine=off면 검사 자체를 건너뜀"},
+      {"gate": "assert_device_ready: ner_model_id 필수(canonical manifest에서 옴)", "status": "blocked-by-config", "evidence": "worker.py:902-903", "note": "MEMORY_MASKING_PIPELINES가 없어 load_config 단계에서 먼저 멈춤"},
+      {"gate": "MaskingLayers: 인명+주소 NER을 manifest revision으로 오프라인 로드, 라벨 접두 대조", "status": "pass", "evidence": "worker.py:351-376, masking.py:328-360", "note": "합성 한 줄로 실제 로드·추론 확인(위 nerOfflineCheck)"},
+      {"gate": "engine=off → 여기서 종료", "status": "pass", "evidence": "worker.py:390-391"},
+      {"gate": "engine=azure → AZURE_SPEECH_KEY + preflight_azure", "status": "not-exercised", "evidence": "worker.py:392-397, azure_stt.py:45-78", "note": "실호출 금지라 미실행. 코드상 POST https://koreacentral.api.cognitive.microsoft.com/sts/v1.0/issueToken 에 Ocp-Apim-Subscription-Key 헤더로 빈 본문을 보내 200+토큰을 확인하고 토큰은 보관하지 않음. 오디오는 보내지 않음"},
+      {"gate": "engine=qwen → build_engine start + build_diarizer(pyannote, HF_TOKEN)", "status": "not-exercised", "evidence": "worker.py:398-418", "note": "preview 전용 엔진, 별도 qwen venv 필요(requirements-qwen.txt). pyannote 미설치 상태라 이 경로는 현재 불가"}
+    ]
+  },
+  "launchdFile": "/Users/barq/Library/LaunchAgents/kr.or.bss.ccc-pipeline.plist",
+  "launchdLoadCommand": "launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/kr.or.bss.ccc-pipeline.plist  (해제: launchctl bootout gui/$(id -u)/kr.or.bss.ccc-pipeline)",
+  "launchd": {
+    "loaded": false,
+    "properties": "RunAtLoad+KeepAlive(=Restart=always), ThrottleInterval=30(=RestartSec=30), WorkingDirectory=~/.local/share/ccc-pipeline/repo/apps/pipeline, StandardOut/ErrPath=~/.local/state/ccc-pipeline/agent.{out,err}.log (journald 대체 — macOS에는 journald가 없고 코드가 PII를 로그에 쓰지 않음을 보장), network-online 대응 없음 — 워커가 폴링 실패를 스스로 재시도",
+    "secretInjection": "plist에 시크릿 0건. wrapper bin/ccc-pipeline-agent.sh가 ~/.local/share/ccc-pipeline/ccc-pipeline.env(600, 이름만 있는 템플릿)를 source한 뒤 exec. infisical run으로 바꿀 수도 있음",
+    "verification": "plutil -lint OK; plist에 CCC_*_SECRET·TOKEN·KEY 이름조차 grep 0건; wrapper를 직접 실행해 env 파일 source→python -m ccc_pipeline→config gate('CCC_RUNTIME_ENVIRONMENT is required', exit 2)까지 도달 확인 — 서버 접속 없이 실행 사슴만 검증"
+  },
+  "serverIssuanceSteps": [
+    {
+      "item": "users service 행 + 처리 장비 자격",
+      "needed": "같은 기관의 active role='service' users 행(페어링의 actorUserId)과, 그에 연결된 Agent 자격",
+      "how": [
+        "1) 관리자가 POST /users {email, role:'service', userId?}로 service 행 생성 — email이 신원 키(docs/api-contract-pipeline.md:119-130)",
+        "2a) canonical E6-4: 관리자가 POST /agents/pairing-codes {actorUserId}로 10분·1회 pairing code 발급(gateway.ts:14732-14767) → 장비에서 POST /agents/pair {pairingCode}로 교환해 refresh+bearer 수령(request-handler.ts:2466-2476)",
+        "2b) legacy: Cloudflare Zero Trust 대시보드에서 Access 서비스 토큰 발급 → Client ID/Secret을 env로 주입(레포에 발급 절차 문서 없음 — 대시보드 작업)"
+      ],
+      "who": "기관 admin(페어링 코드 발급·users 행) + Cloudflare 대시보드 권한자(legacy 토큰)",
+      "envNames": ["CCC_AGENT_REFRESH_TOKEN (E6-4)", "CCC_PIPELINE_CLIENT_ID + CCC_PIPELINE_CLIENT_SECRET (legacy)"],
+      "caveat": "EnvAgentCredentialSource는 회전된 refresh를 프로세스 메모리에만 둠(api_client.py:172-193). KeepAlive 데몬이 재시작하면 stale refresh 재사용 → 서버가 그 설치의 자격 전부 회수(gateway.ts rotateAgentRefreshCredential). 상주 데몬은 영속 credential source(E5-1b DPAPI, 미구현)가 생기기 전까지 legacy Access 토큰 레인이 안전"
+    },
+    {
+      "item": "NER attestation + release 영수증",
+      "needed": "CCC_NER_ATTESTATION(S6 install-health attestation JSON)과 CCC_NER_RELEASE_RECEIPT_ID(E5-4 release qualification receipt id)",
+      "how": [
+        "attestation: S6 §5.1 고정 corpus N(인명4·주소4·음성2)을 이 장비의 NER로 실행해 precision/recall/overgeneralization을 계산하고 NerHealthAttestation JSON을 만든다. labelSetHash·corpusHash·resultHash는 canonical manifest 값과 정확히 일치해야 함(config.py:263-271이 대조). 레포에 발급 스크립트 없음 — S6 spec이 계산법만 정의",
+        "receipt: E5-4가 ≥500개 층화 합성 corpus + ≥200 hard negative로 측정해 ner_release_qualification_receipts 테이블에 status='passed' 행을 넣고 그 id를 발급. 레포에 발급 절차·스크립트 없음 — 테스트 시드(apps/api/test/support/agent-jobs.ts:178-203)만 존재"
+      ],
+      "who": "S6/E5-4 소유자(측정·발행) + D1 쓰기 권한자(receipt 행 insert)",
+      "envNames": ["CCC_NER_ATTESTATION", "CCC_NER_RELEASE_RECEIPT_ID"]
+    },
+    {
+      "item": "MEMORY_MASKING_PIPELINES (준비 조사에 없던 추가 필수값)",
+      "needed": "canonical masking registry JSON — 서버와 Agent가 같은 문자열을 읽어야 함",
+      "how": "서버 측이 배포한 canonical registry와 동일한 JSON을 env로 주입. 내용은 결정적이라 로컬 생성 가능: masking-pipeline-manifest.contract.test.ts:14-43의 unsigned manifest(ner-mask-v3)를 JCS 직렬화해 maskingPipelineHash=28f1e35f…를 얻고 {schemaVersion:1, activeMaskingPipelineVersion, pipelines:[…]}로 감싼다. 서버에 등록된 값과 다르면 claim이 닫히므로 서버 측 확정값을 받는 것이 정본",
+      "who": "서버 배포 담당자(정본 확정) — 장비에서는 생성·검증 가능",
+      "envNames": ["MEMORY_MASKING_PIPELINES"]
+    }
+  ],
+  "mutations": {
+    "mini": [
+      "created /Users/barq/.local/share/ccc-pipeline/repo/ (apps/pipeline + supply-chain/model-license-manifest.json 읽기 전용 사본, BACKEND에서 cp — 원본 미수정)",
+      "created /Users/barq/.local/share/ccc-pipeline/venv (uv, py3.12.13)",
+      "created /Users/barq/.local/share/ccc-pipeline/bin/ccc-pipeline-agent.sh (755)",
+      "created /Users/barq/.local/share/ccc-pipeline/ccc-pipeline.env (600, 변수 이름만, 값 0건)",
+      "created /Users/barq/.local/state/ccc-pipeline/ (로그 디렉터리)",
+      "created /Users/barq/Library/LaunchAgents/kr.or.bss.ccc-pipeline.plist (미로드)"
+    ],
+    "coreLaneWorktreeChanges": 0,
+    "gitOperations": 0,
+    "dockerOperations": 0,
+    "providerCalls": 0,
+    "agentServerConnections": 0,
+    "modelDownloads": 0,
+    "secretsInArtifacts": 0
+  },
+  "blocked": [
+    "서버 발급 3항목(serverIssuanceSteps) — 장비 밖 작업",
+    "qwen/azure 엔진 경로 — 각각 preview 전용·AZURE_SPEECH_KEY 필요, 이번 범위 밖",
+    "launchd 로드 — 사람이 env 값을 채운 뒤 실행"
+  ]
+}

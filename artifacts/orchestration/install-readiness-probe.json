@@ -1,0 +1,187 @@
+{
+  "distBuild": {
+    "command": "pnpm --filter @ccc/community-cloud run build",
+    "runs": 1,
+    "exitCode": 0,
+    "outcome": "success",
+    "requiredVerifierPresent": true,
+    "requiredVerifierPath": "apps/community-cloud/dist/install-manifest-verifier.js",
+    "generatedFiles": [
+      "apps/community-cloud/dist/index.js",
+      "apps/community-cloud/dist/install-consent-registry.js",
+      "apps/community-cloud/dist/install-manifest-verifier.js",
+      "apps/community-cloud/dist/storage-signer.js"
+    ]
+  },
+  "extensionVerdicts": {
+    "probeContract": {
+      "source": "scripts/supabase/provider-steps.mjs:60-70,455-466",
+      "query": "한 SELECT가 cron.schedule routine, net.http_post routine, vault.create_secret routine, storage.buckets regclass의 존재 여부를 각각 cron_ready, net_ready, vault_ready, storage_ready로 읽는다. 하나라도 true가 아니면 PROVIDER_UNREADABLE이다. apply는 journal prepare 전에 이 probe를 실행한다."
+    },
+    "pg_cron": {
+      "verdict": "판정불가",
+      "evidence": [
+        "Management API GET /v1/projects/<target>/database/extensions는 404였고, GET 전용 공개 경로에서 extension 목록을 얻지 못했다.",
+        "bootstrap plan은 대상 프로젝트를 읽기 전에 CREDENTIAL_INSUFFICIENT로 종료됐다. 현재 서명 문서 세트는 대상 프로젝트가 아닌 다른 프로젝트에 결속돼 있어 read-only inspector가 403을 받는다.",
+        "대상 ref로 installer DB 연결을 구성해 같은 SELECT를 시도했으나 인증이 28P01로 거부돼 query는 실행되지 않았다."
+      ],
+      "neededToDetermine": "대상 프로젝트에 결속된 현행 서명 문서 세트로 read-only plan을 통과시키거나, 대상 프로젝트에서 EXTENSION_PROBE_QUERY를 실행할 수 있는 읽기 자격증명"
+    },
+    "pg_net": {
+      "verdict": "판정불가",
+      "evidence": [
+        "GET 전용 Management API 경로에는 net.http_post 존재를 보여 주는 응답이 없었다.",
+        "plan의 read-only inspector가 현재 서명 문서와 대상 프로젝트 불일치 때문에 403으로 종료됐다.",
+        "대상 DB read-only SELECT는 인증 28P01로 실행 전에 거부됐다."
+      ],
+      "neededToDetermine": "대상 프로젝트에서 EXTENSION_PROBE_QUERY를 실행할 수 있는 읽기 경로"
+    },
+    "vault": {
+      "verdict": "판정불가",
+      "evidence": [
+        "GET 전용 Management API 경로에는 vault.create_secret 존재를 보여 주는 응답이 없었다.",
+        "plan의 read-only inspector가 현재 서명 문서와 대상 프로젝트 불일치 때문에 403으로 종료됐다.",
+        "대상 DB read-only SELECT는 인증 28P01로 실행 전에 거부됐다."
+      ],
+      "neededToDetermine": "대상 프로젝트에서 EXTENSION_PROBE_QUERY를 실행할 수 있는 읽기 경로"
+    },
+    "Storage": {
+      "verdict": "활성",
+      "evidence": [
+        "GET /v1/projects/<target>/health?services=db,storage가 storage healthy=true, status=ACTIVE_HEALTHY를 반환했다.",
+        "GET /v1/projects/<target>/config/storage가 200으로 현재 Storage 설정과 capability 응답을 반환했다.",
+        "단, probe의 정확한 storage_ready 조건인 to_regclass('storage.buckets')는 DB 인증 실패 때문에 별도로 직접 관찰하지 못했다."
+      ],
+      "neededToDetermine": null
+    }
+  },
+  "managementApiCalls": {
+    "base": "https://api.supabase.com",
+    "methodsUsed": ["GET"],
+    "allCallsWereGet": true,
+    "paths": [
+      { "method": "GET", "path": "/v1/projects", "status": 200, "result": "대상 목록 1개, Relayer, ap-northeast-2, ACTIVE_HEALTHY" },
+      { "method": "GET", "path": "/v1/projects/<target>/database/extensions", "status": 404 },
+      { "method": "GET", "path": "/v1/projects/<target>/config/database/postgres", "status": 200 },
+      { "method": "GET", "path": "/v1/projects/<target>/config/storage", "status": 200 },
+      { "method": "GET", "path": "/v1/projects/<target>/health?services=db,storage", "status": 200 },
+      { "method": "GET", "path": "/v1/projects/<target>/database/query?query=select%201", "status": 404 },
+      { "method": "GET", "path": "/v1/projects/<target>/config/database/pooler", "status": 200 },
+      { "method": "GET", "path": "/v1/projects/<target>/database/extensions/list", "status": "transport-error" },
+      { "method": "GET", "path": "/v1/projects/<target>/extensions", "status": 404 },
+      { "method": "GET", "path": "/v1/projects/<target>/config/database", "status": 404 },
+      { "method": "GET", "path": "/v1/projects/<target>/database/metadata", "status": 404 },
+      { "method": "GET", "path": "/v1/projects/<target>/database/webhooks/config", "status": 404 },
+      { "method": "GET", "path": "/v1/projects/<target>/settings", "status": 404 }
+    ],
+    "postPatchDeleteCalls": 0,
+    "createOrChangeCalls": 0
+  },
+  "planRunOutcome": {
+    "command": "Infisical /install 주입 후 RELAYER_*를 같은 프로세스 메모리에서 CCC_* 소비자 이름으로 매핑하고 node scripts/supabase/bootstrap.mjs plan --target hosted 실행",
+    "readOnly": true,
+    "exitCode": 4,
+    "errorCode": "CREDENTIAL_INSUFFICIENT",
+    "stage": "owner-preflight와 provider baseline 로컬 검증 뒤 hosted inspector의 Management API projectEvidence 읽기",
+    "reason": "현재 install manifest, approval, beta trust, provider baseline, installer DB URL이 대상 Relayer 프로젝트와 다른 프로젝트 ref에 결속돼 있다. read-only token은 대상 Relayer 프로젝트 하나만 보므로 서명 문서가 가리키는 프로젝트 GET은 403이 된다.",
+    "additionalInputNeeded": "대상 프로젝트에 결속된 현행 install manifest, install approval, beta release trust, provider baseline, installer DB 자격증명"
+  },
+  "releaseBundlePresent": {
+    "repositoryBundleArtifactPresent": false,
+    "repositorySearch": "node_modules 제외 *.tar.gz, release-bundle*.json, edge-component-manifest.json 검색 결과 없음",
+    "pinnedOriginBundlePresent": true,
+    "pinnedOrigin": "https://ccc-releases.account-855.workers.dev",
+    "bundleIndexPath": "/.well-known/ccc/release-bundle.json",
+    "httpStatus": 200,
+    "channel": "dev",
+    "version": "0.9.0-dev.2",
+    "sequence": "2",
+    "platform": "macos",
+    "arch": "arm64",
+    "publishedAt": "2026-09-11T18:50:34.752Z",
+    "expiresAt": "2026-09-18T18:50:34.752Z",
+    "manifestUrl": "https://ccc-releases.account-855.workers.dev/manifests/community-cloud-cli-community-cloud-0.9.0-dev.2-macos-arm64.tar.gz.manifest.json",
+    "bundleSignatureVerified": true,
+    "manifestSignatureVerified": true,
+    "builtNow": false,
+    "publishedNow": false,
+    "applyMeaning": "--manifest-url은 pinned bundle의 community-cloud-cli artifact row에 정확히 등재된 서명 release manifest URL이다. loadReleaseForApply는 pinned bundle을 먼저 검증하고 URL이 일치하는 row를 고른 뒤 target tuple을 대조한다. 이어 manifest와 artifact를 GET으로 받아 서명, hash, byte count를 검증하고 임시 staging에 푼다."
+  },
+  "releaseBundleInputs": {
+    "buildCommand": "node scripts/release/build-bundle.mjs --component-root <dir> --out-dir <existing-dir> --version <channel 포함 version> --sequence <positive uint64> --channel <dev|beta>",
+    "componentRoot": "functions, templates, migrations 하위 파일을 모은 디렉터리. function은 functions/ccc-storage-signer/index.js 정확히 하나여야 하며 apps/community-cloud/dist/storage-signer.js를 그 위치에 복사해 둔다.",
+    "requiredEnvironmentNames": [
+      "CCC_RELEASE_TRUST_STORE",
+      "CCC_RELEASE_SIGNING_PRIVATE_KEY",
+      "CCC_RELEASE_ROOT_SIGNING_PRIVATE_KEY"
+    ],
+    "outputs": [
+      "community-cloud-cli-community-cloud-<version>-<platform>-<arch>.tar.gz",
+      "community-cloud-cli-community-cloud-<version>-<platform>-<arch>.tar.gz.manifest.json",
+      "release-bundle.json",
+      "release-floor.json"
+    ],
+    "publishInputs": [
+      "별도 게시 승인",
+      "build 출력물을 apps/release-origin/public의 .well-known/ccc, manifests, artifacts 경로에 배치",
+      "CLOUDFLARE_API_TOKEN",
+      "CLOUDFLARE_ACCOUNT_ID",
+      "pnpm exec wrangler deploy --config apps/release-origin/wrangler.toml"
+    ],
+    "note": "현재 pinned origin에는 검증 가능한 dev bundle이 있으므로 새 bundle을 만들지 않았다. 이 bundle은 2026-09-18T18:50:34.752Z에 만료되며, beta channel 또는 더 긴 유효기간이 필요하면 별도 승인 아래 새 build와 게시가 필요하다."
+  },
+  "verifyRunOutcome": {
+    "command": "node scripts/release/verify.mjs",
+    "argumentsRequired": false,
+    "runs": 1,
+    "exitCode": 0,
+    "outcome": "success",
+    "summary": "SBOM dependency 635개, model 10개, fixture/manifest 5개, tracked file 1367개 검사 통과. 호스트 외 optional 122개 제외."
+  },
+  "mutations": {
+    "actualInstallRuns": 0,
+    "databaseChanges": 0,
+    "supabaseResourceCreates": 0,
+    "managementApiWrites": 0,
+    "extensionEnables": 0,
+    "bundleBuilds": 0,
+    "bundlePublishes": 0,
+    "emailsSent": 0,
+    "commits": 0,
+    "secretValuesWrittenToReport": 0,
+    "localWrites": [
+      "apps/community-cloud/dist 빌드 산출물 4개",
+      "artifacts/orchestration/install-readiness-probe.json"
+    ]
+  },
+  "gitStatus": {
+    "distArtifactsIgnored": true,
+    "expectedAfterReport": [
+      "?? artifacts/orchestration/install-apply-gate.json",
+      "?? artifacts/orchestration/install-inputs-draft.json",
+      "?? artifacts/orchestration/install-preflight.json",
+      "?? artifacts/orchestration/install-readiness-probe.json",
+      "?? artifacts/orchestration/release-gap-audit.json",
+      "?? artifacts/orchestration/release-gap-audit.md",
+      "?? artifacts/orchestration/secret-consumer-map.json"
+    ],
+    "note": "기존 untracked orchestration 산출물은 사용자 작업으로 보존했다. 이 배정에서 추가한 tracked source 변경은 없다."
+  },
+  "blocked": [
+    {
+      "item": "pg_cron, pg_net, vault 정확 판정",
+      "reason": "GET 전용 Management API에 extension 목록 endpoint가 없고, read-only plan은 서명 문서 프로젝트 불일치로 403, 대상 DB SELECT는 자격증명 불일치로 28P01이다.",
+      "needed": "대상 프로젝트 결속 서명 세트와 대상 읽기 자격증명"
+    },
+    {
+      "item": "현재 install 입력으로 target plan 통과",
+      "reason": "manifest, approval, beta trust, provider baseline, installer DB URL이 대상 프로젝트와 다른 ref에 결속돼 있다.",
+      "needed": "Q가 대상 프로젝트용 현행 서명 세트와 DB 연결 자격증명을 준비"
+    },
+    {
+      "item": "2026-09-17 설치에 쓸 release bundle 최종 선택",
+      "reason": "현재 게시된 bundle은 검증 가능한 dev 0.9.0-dev.2이며 2026-09-18 만료다. beta channel 또는 더 긴 유효기간이 필요하면 새 게시 승인이 필요하다.",
+      "needed": "게시된 dev bundle 사용 승인 또는 새 beta bundle build와 게시 승인"
+    }
+  ]
+}

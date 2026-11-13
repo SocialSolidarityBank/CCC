@@ -1,0 +1,92 @@
+{
+  "note": "2026-09-15 설치 입력 초안. 실행하지 않는다. <붙여야 함> 자리는 시크릿 또는 미확정 값이며 이 파일에는 값을 적지 않는다.",
+  "env": {
+    "CCC_ORGANIZATION_ID": "<붙여야 함: 기관 식별자>",
+    "CCC_SUPABASE_PROJECT_REF": "<붙여야 함: 대상 Supabase project ref>",
+    "CCC_INSTALL_MANIFEST": "<붙여야 함: 서명된 install manifest JSON 또는 파일 경로>",
+    "CCC_INSTALL_APPROVAL": "<붙여야 함: 서명된 install approval JSON 또는 파일 경로>",
+    "CCC_INSTALL_SIGNING_KEYS": "<붙여야 함: {keyId: base64 raw Ed25519 public key} JSON>",
+    "CCC_INSTALL_REVOKED_KEY_IDS": "[]",
+    "CCC_BETA_RELEASE_TRUST": "<붙여야 함: 서명된 beta release trust JSON 또는 파일 경로>",
+    "CCC_PROVIDER_BASELINE": "<붙여야 함: 서명된 provider baseline JSON 또는 파일 경로>",
+    "CCC_BETA_TRUST_ROOT_KEYS": "<붙여야 함: {rootKeyId: base64 raw Ed25519 public key} JSON>",
+    "CCC_BETA_REVOKED_ROOT_KEY_IDS": "[]",
+    "SUPABASE_ACCESS_TOKEN": "<붙여야 함: Management API 토큰>",
+    "CCC_INSTALL_DATABASE_URL": "<붙여야 함: 설치 전용 DB 연결 문자열, apply/create-institution/link-first-admin/install-consent-registry 단계>",
+    "CCC_RELEASE_TRUST_STORE": "<붙여야 함: release trust store JSON, apply 필수>",
+    "SCHEDULER_SECRET": "<붙여야 함: apply의 cron_job 단계>",
+    "SUPABASE_SERVICE_ROLE_KEY": "<붙여야 함: apply의 edge_secret_binding 단계>",
+    "CCC_API_DATABASE_PASSWORD": "<붙여야 함: apply의 api_credential 단계>",
+    "CCC_DATABASE_CA_FILE": "<붙여야 함 또는 미설정: 공개 CA PEM 경로. 설정 시 NODE_EXTRA_CA_CERTS·DENO_CERT를 같은 경로로 with-ca.sh가 묶는다>"
+  },
+  "installManifestDraft": {
+    "schemaVersion": 1,
+    "mode": "community-cloud",
+    "apiBase": "<붙여야 함: https origin + 명시적 path>",
+    "clientOrigin": "<붙여야 함: exact origin>",
+    "allowedOrigins": ["<붙여야 함: clientOrigin을 포함하는 exact origin 목록>"],
+    "host": "<붙여야 함>",
+    "scheme": "https",
+    "endpointDiscovery": "static",
+    "installationId": "<붙여야 함>",
+    "sequence": "<붙여야 함: 0 이상 정수>",
+    "publishedAt": "<붙여야 함: ISO 시각>",
+    "expiresAt": "<붙여야 함: ISO 시각>",
+    "approvedSttEngineIds": [
+      { "id": "azure-speech-koreacentral", "mode": "azure" }
+    ],
+    "supabaseProjectRef": "<붙여야 함: CCC_SUPABASE_PROJECT_REF와 동일 값>",
+    "supabaseAuthOrigin": "<붙여야 함: https://<projectRef>.supabase.co 형태의 exact https origin, host 첫 라벨이 supabaseProjectRef와 일치>",
+    "supabasePublishableKey": "<붙여야 함: sb_publishable_* 또는 role=anon JWT>",
+    "signingKeyId": "<붙여야 함: CCC_INSTALL_SIGNING_KEYS의 keyId>",
+    "ed25519Signature": "<붙여야 함: 서명 결과>"
+  },
+  "installApprovalDraft": {
+    "schemaVersion": 1,
+    "institutionId": "<붙여야 함: CCC_ORGANIZATION_ID와 동일 값>",
+    "projectRef": "<붙여야 함: CCC_SUPABASE_PROJECT_REF와 동일 값>",
+    "expectedOwnerOrgId": "<붙여야 함: Management API가 관찰하는 Supabase owner organization id>",
+    "installationId": "<붙여야 함: manifest의 installationId와 동일 값>",
+    "runtimeManifestSha256": "<붙여야 함: 서명된 manifest 전체의 sha256Jcs>",
+    "contractVersion": "S11-install-approval-v1",
+    "expiresAt": "<붙여야 함: ISO 시각>",
+    "signingKeyId": "<붙여야 함: CCC_INSTALL_SIGNING_KEYS의 keyId>",
+    "ed25519Signature": "<붙여야 함: 서명 결과>"
+  },
+  "createInstitutionArgs": {
+    "command": "node scripts/supabase/bootstrap.mjs create-institution --target hosted",
+    "timeZone": "Asia/Seoul",
+    "piiPurgeGraceDays": 365
+  },
+  "linkFirstAdminArgs": {
+    "command": "node scripts/supabase/bootstrap.mjs link-first-admin --target hosted --auth-subject <붙여야 함: Supabase Auth user uuid, 소문자> --email seongqkim@ggbss.or.kr --name <붙여야 함: 표시 이름, 선택>",
+    "email": "seongqkim@ggbss.or.kr",
+    "authSubject": "<붙여야 함: Supabase Auth에서 미리 만든 계정의 uuid>",
+    "name": "<붙여야 함: 선택>"
+  },
+  "consentProviderRegistryInput": {
+    "command": "sh apps/community-cloud/with-ca.sh node apps/community-cloud/dist/install-consent-registry.js --input <파일 경로>",
+    "input": {
+      "schemaVersion": 1,
+      "orgId": "<붙여야 함: CCC_ORGANIZATION_ID와 동일 값>",
+      "approvedBy": "seongqkim@ggbss.or.kr",
+      "approvedAt": "<붙여야 함: ISO 시각, 현재 이전>",
+      "approvalRef": "beta-2026-09-15-01",
+      "providers": [
+        { "provider": "institution", "legalRecipient": "<붙여야 함>", "country": "KR", "validUntil": null },
+        { "provider": "institution_recording", "legalRecipient": "<붙여야 함>", "country": "KR", "validUntil": null },
+        { "provider": "institution_private_storage", "legalRecipient": "<붙여야 함>", "country": "KR", "validUntil": null },
+        { "provider": "azure", "legalRecipient": "Microsoft Korea LLC", "country": "KR", "validUntil": null },
+        { "provider": "openai", "legalRecipient": "<붙여야 함>", "country": "<붙여야 함: 대문자 2자>", "validUntil": null }
+      ]
+    }
+  },
+  "sttReadinessReportShape": {
+    "note": "Agent가 POST /pipeline/readiness로 보고하는 형식. 설치 입력이 아니라 런타임 게이트다.",
+    "schemaVersion": 1,
+    "sttMode": "azure",
+    "sttEngineId": "azure-speech-koreacentral",
+    "state": "ready",
+    "capacity": 1
+  }
+}

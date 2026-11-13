@@ -1,0 +1,15 @@
+{
+  "accessPath": "keychain REST (bss-notion-api, Notion-Version 2022-06-28). Composio 봇은 CCC 트리에 공유돼 있지 않아 검색 0건, portwright services/notion.md 절차에 따라 내부 통합으로 전환",
+  "portwrightDoc": "~/developer/tools/portwright/services/notion.md 읽음. failures/ 의 notion 기록 5건 확인(Composio 봇 공유 범위 차이, 2026-03-11 필드 거부, 중첩 블록 children 위치 등)",
+  "pageUrl": "https://app.notion.com/p/consent-six-domains-v1-3dc883f156f581b68a8ffd482f534d3d",
+  "parentPage": "07. AI, 음성, 보안과 동의 (CCC 서비스 인수인계 허브 하위, page_id 3bd883f1-56f5-8189-8622-e812ed9a2bd2)",
+  "domainsInOrder": true,
+  "copyMatch": "여섯 영역의 copy 문장을 생성 후 GET /v1/blocks/{id}/children 으로 다시 읽어 packages/contracts/src/consent.ts 의 CONSENT_COPY 와 글자 단위 대조, 전부 일치. 문안 버전 consent-six-domains-v1 이 페이지 본문에 적혀 있음",
+  "dualConsentStated": true,
+  "piiInPage": 0,
+  "emDashCount": 0,
+  "existingPageHandling": "같은 제목(릴레이어 동의서 (consent-six-domains-v1))의 기존 페이지 없음을 검색으로 확인한 뒤 새로 생성. 기존 페이지 수정 0건, 삭제 0건",
+  "mutations": "노션: 페이지 1건 생성(POST /v1/pages, 부모 3bd883f1-56f5-8189-8622-e812ed9a2bd2, 블록 71개). 레포: 이 보고 파일 1건 생성. 커밋 없음",
+  "gitStatus": "?? artifacts/orchestration/consent-notion.json 외에 선행 작업의 미추적 파일들(artifacts/orchestration/*.json, *.md, scripts/install/variant-sha.mjs)이 이미 있었음. 이번 작업으로 추가된 변경은 consent-notion.json 하나뿐",
+  "blocked": false
+}
