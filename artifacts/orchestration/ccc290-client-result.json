@@ -1,0 +1,46 @@
+{
+  "assignmentId": "CCC290-CLIENT-REPORT-V2-20260914",
+  "completionMarker": "FRONTEND_RESULT CCC290-CLIENT-REPORT-V2-20260914",
+  "status": "completed",
+  "previousAssignment": {
+    "assignmentId": "CCC290-CLIENT-MANUAL-RECORDS-20260914",
+    "commit": "331f2fdbe1a2bf7d236bc68a8aee829dc45ff5da",
+    "acceptedByOrchestrator": "targeted records tests 5 passed and synthetic browser path; not rerun"
+  },
+  "commit": "0cefde1e339d2d4af09ad813aeb1bc1bd28eb103",
+  "changedFiles": [
+    "apps/client/src/business/report.ts",
+    "apps/client/src/business/report.test.ts",
+    "apps/client/src/screens/report.tsx",
+    "apps/client/tools/synthetic-api.mjs"
+  ],
+  "implemented": [
+    "decodeReport requires report schemaVersion 2 and returns schemaVersion 2.",
+    "Session channel accepts the merged visit method, and the report screen labels it as 방문.",
+    "Session counselorOpinion evidence is decoded when present.",
+    "nextConfirmations[].questionRef is decoded as null or a strict schedule, record or intake reference with sourceRevision.",
+    "The synthetic report route serves schemaVersion 2 with a questionRef.",
+    "Existing report tests were updated to the v2 contract; malformed questionRef cases are rejected."
+  ],
+  "verification": [
+    {
+      "command": "pnpm exec vitest run --config vitest.config.ts src/business/report.test.ts",
+      "result": "1 test file passed, 8 tests passed"
+    },
+    {
+      "command": "pnpm typecheck",
+      "result": "tsc --noEmit passed with no errors"
+    },
+    {
+      "command": "git commit",
+      "result": "pre-commit DB, core import, document number, secret, token, alignment and hierarchy guards passed"
+    }
+  ],
+  "unmet": [],
+  "ownership": {
+    "packagesOrApiFilesModified": false,
+    "outsideOwnedClientFilesModified": false,
+    "otherWorktreesModified": false,
+    "resultArtifactCommitted": false
+  }
+}

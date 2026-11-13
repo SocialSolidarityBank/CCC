@@ -1,0 +1,49 @@
+{
+  "assignmentId": "RELEASE-CSV-CLIENT-20260915",
+  "completionMarker": "FRONTEND_RESULT RELEASE-CSV-CLIENT-20260915",
+  "status": "completed_against_assumed_server_contract",
+  "commit": "b87f50e4defe8c792365d83dc456253624b14550",
+  "changedFiles": [
+    "apps/client/src/business/report.ts",
+    "apps/client/src/business/report.test.ts",
+    "apps/client/src/business/transport.ts",
+    "apps/client/src/screens/report.tsx",
+    "apps/client/tools/synthetic-api.mjs"
+  ],
+  "assumedServerContract": {
+    "definedIn": "apps/client/src/business/report.ts ReportApi.exportCsv and apps/client/tools/synthetic-api.mjs export.csv route",
+    "request": "GET /support-cases/:supportCaseId/export.csv with Authorization: Bearer <token> and Accept: text/csv",
+    "success": "200 with content-type text/csv and content-disposition attachment; filename*=UTF-8'' is preferred, filename=\"...\" is the fallback, otherwise the client names the file support-case-<id>.csv",
+    "rejection": "existing JSON error bodies: 403 {\"error\":\"forbidden\"}, 409 {\"error\":\"conflict\"}, 401 signs the session out; the client does not decide permission itself",
+    "scope": "the CSV is only for the selected support case; the client sends no other case or program",
+    "notFound": "the accepted core producer route was not readable in this worktree at implementation time; if the real path, method, headers, or error codes differ, change only those two places"
+  },
+  "verification": [
+    {
+      "command": "pnpm exec vitest run --config vitest.config.ts src/business/report.test.ts",
+      "result": "1 test file passed, 13 tests passed, including success download, 403 and 409 rejection, non-CSV success rejection, and synthetic worker 200 with technical-admin 403"
+    },
+    {
+      "command": "pnpm --filter @ccc/client run typecheck",
+      "result": "tsc --noEmit passed with no errors"
+    },
+    {
+      "command": "bun apps/client/tools/synthetic-preview.mjs --port 4173",
+      "result": "actual browser run on the report screen: CSV 내려받기 produced a blob download named 경과-swallow-003.csv with no alert; after closing the synthetic case the same button showed the server 409 message and produced no file"
+    },
+    {
+      "command": "git commit",
+      "result": "pre-commit DB, core import, document number, secret, token, alignment and hierarchy guards passed"
+    }
+  ],
+  "unmet": [
+    "The real core export.csv producer was not available, so the live server path was not exercised; the synthetic API mirrors the assumed contract only."
+  ],
+  "ownership": {
+    "packagesOrApiFilesModified": false,
+    "appsWebModified": false,
+    "sttTrialModified": false,
+    "otherWorktreesModified": false,
+    "resultArtifactCommitted": false
+  }
+}

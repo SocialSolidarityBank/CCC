@@ -1,0 +1,79 @@
+{
+  "assignment": "RELEASE-HIDE-CLIENT-20260915",
+  "lane": "frontend",
+  "worktree": "/Users/seongqkim/DEVELOPER/PROJECTS/CCC-new/.worktrees/frontend",
+  "branch": "client/relayer-domain-beta",
+  "commit": "4b07ca1b8a5d45c49eef64ccfad0b3fa6a3a2800",
+  "baseCommit": "b87f50e4defe8c792365d83dc456253624b14550",
+  "precedent": "866f2475846519fdff5f3eca24e6c7f1fca71a67 (apps/web 첫 출고 제외 진입점 숨김)과 같은 기준을 apps/client 에 적용",
+  "changedFiles": [
+    "apps/client/src/business/navigation.ts",
+    "apps/client/src/business/navigation.test.ts",
+    "apps/client/src/screens/records.tsx",
+    "apps/client/src/screens/records.test.ts",
+    "apps/client/src/screens/schedules.tsx",
+    "apps/client/src/screens/schedules.test.ts",
+    "apps/client/src/screens/settings.tsx"
+  ],
+  "hidden": [
+    {
+      "feature": "당사자 요청 링크(공개 가입)",
+      "where": "apps/client/src/business/navigation.ts FIRST_RELEASE_HIDDEN: participant-invite",
+      "how": "visibleDestinations 가 메뉴에서 뺀다. 라우트 /participants/invite, 화면, InvitesApi, public_signup capability 판정은 그대로다. 직접 주소로 들어오면 기존 capability 게이트가 계속 동작한다."
+    },
+    {
+      "feature": "실무자 초대 목록",
+      "where": "navigation.ts FIRST_RELEASE_HIDDEN: staff-invites",
+      "how": "메뉴에서만 뺀다. 라우트 /staff-invites 와 StaffInviteScreen(목록·취소 전용)은 보존한다."
+    },
+    {
+      "feature": "기관 상담 기억(자동 AI 메모리)",
+      "where": "navigation.ts FIRST_RELEASE_HIDDEN: memory",
+      "how": "메뉴에서 뺀다. /settings?module=memory 판정, MemoryModule, getMemory/saveMemory 는 그대로다."
+    },
+    {
+      "feature": "AI 검토의 목표 밖 주요 내용, 다음 회차까지의 약속 추출과 할 일로 등록",
+      "where": "apps/client/src/screens/records.tsx RecordReviewScreen 요약 구획",
+      "how": "claims 를 session_goal_discussion 만 그린다. 다른 분류 라벨과 할 일 등록 폼 코드는 보존한다."
+    },
+    {
+      "feature": "회차 간 AI 대조(cross_session 불일치)",
+      "where": "apps/client/src/screens/schedules.tsx BriefingScreen 일치하지 않는 기록",
+      "how": "kind !== 'cross_session' 만 그린다. 회차 안 모순(within_session)과 처리 3종은 그대로다. resolveDiscrepancy API 는 보존한다."
+    },
+    {
+      "feature": "팀 감독(실무 책임자)",
+      "where": "apps/client/src/screens/settings.tsx AccountsModule",
+      "how": "감독 팀 표시 줄을 빼고 역할 체크박스에서 supervisor 를 뺀다. ROLE_LABELS, HumanRole, 기존 supervisor 보유 계정의 역할 값은 그대로 유지된다."
+    },
+    {
+      "feature": "Local STT",
+      "where": "apps/client/src/screens/settings.tsx 연결 상태 모듈",
+      "how": "sttMode 가 local 이면 STT 줄과 지정된 엔진 줄을 보이지 않는다. off 와 azure 표시는 그대로다."
+    }
+  ],
+  "kept": [
+    "실무자 등록·역할 관리(accounts), 당사자 등록, 첫 상담 기록(인테이크), 일정 등록·계획, 상담 기록하기·확인하기",
+    "AI 검토의 요약, 대조(메모에서 누락, 미논의 목표), 확인할 질문, 근거 인용, 화자 매핑 확인, 승인·반려",
+    "상담 전 톺아보기의 장기목표, 이번 상담 목표와 질문, AI 제안, 회차별 정리, 남은 할 일",
+    "경과 리포트 화면과 CSV 내려받기",
+    "연결 상태의 설치 방식, Azure STT 값, AI 처리, 처리 장비",
+    "담당 배정 요청(assignments) 모듈: 기관 관리자 승인 화면이라 유지"
+  ],
+  "none": [
+    "HWPX 내보내기 진입점: apps/client 에 없음",
+    "DOCX 내보내기 진입점: apps/client 에 없음",
+    "Local Single/Office 전용 화면 진입점: apps/client 에 없음(mode 값 표시만 있음)"
+  ],
+  "notDeleted": "라우트, 권한 식별자, URL, API 메서드, 화면 컴포넌트, 라벨 상수는 하나도 지우지 않았다. 새 토큰·CSS·의존성·플래그 플랫폼·문서는 없다.",
+  "verification": {
+    "vitest": "apps/client 전체 21 files, 237 tests passed (신규 4 tests: navigation 2, records 1, schedules 2 포함)",
+    "typecheck": "pnpm --filter @ccc/client run typecheck passed",
+    "preCommitGuards": "db-gateway, core-imports, doc-numbers, secrets, token-audit, align-audit, hierarchy-audit 통과",
+    "synthetic": "bun apps/client/tools/synthetic-preview.mjs 로 로그인 뒤 사이드바가 내 정보, 일정, 상담 등록, 당사자 목록, 당사자 등록 다섯 항목만 보임. /participants/invite 직접 주소는 여전히 열리고(capability 게이트 유지), /settings?module=memory 와 /staff-invites 는 라우트가 남아 권한 안내로 응답"
+  },
+  "notes": [
+    "synthetic preview 의 계정은 실무자 역할이라 관리자 메뉴 숨김은 navigation.test.ts 가 증명한다.",
+    "커밋은 로컬 전용이며 push·merge·deploy 는 하지 않았다."
+  ]
+}

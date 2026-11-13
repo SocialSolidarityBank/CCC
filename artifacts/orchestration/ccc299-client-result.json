@@ -1,0 +1,100 @@
+{
+  "assignmentId": "CCC299-CLIENT-INTAKE-CONSUMER-20260914",
+  "completionMarker": "FRONTEND_RESULT CCC299-CLIENT-INTAKE-CONSUMER-20260914",
+  "status": "completed",
+  "commit": "0f78c9b3925ff780347729e529b6f35a26075d60",
+  "frontendFirstIntake": {
+    "fields": [
+      {
+        "requirement": "context.writeSchemaVersion 3, saved schemaVersion 1 or 2, revision, current and historical questionLifecycle",
+        "path": "apps/client/src/business/intake.ts",
+        "functions": ["savedRecord", "decodeIntakeContext"]
+      },
+      {
+        "requirement": "submission schemaVersion 3, additionalItemRefs, questionWithdrawals, schema 1 and unbound schema 2 conversion",
+        "path": "apps/client/src/business/intake-form.ts",
+        "functions": ["intakeDraftFromSaved", "buildIntakeMutationMetadata", "buildIntakeQuestionnaire"]
+      },
+      {
+        "requirement": "editable rows retain question ID and revision, and the UI distinguishes retained, withdrawn, confirmed and conversion-required states",
+        "path": "apps/client/src/screens/intake.tsx",
+        "functions": ["TableEditor", "IntakeForm"]
+      },
+      {
+        "requirement": "mutation response schemaVersion 3, revision, record and replayed, with invalid_request, forbidden and conflict preserved",
+        "path": "apps/client/src/business/intake.ts",
+        "functions": ["mutationResponse", "IntakeApi.create", "IntakeApi.update"]
+      }
+    ]
+  },
+  "syntheticApi": {
+    "fields": [
+      {
+        "requirement": "GET intake context returns writeSchemaVersion 3 and saved and historical lifecycle",
+        "path": "apps/client/tools/synthetic-api.mjs",
+        "functions": ["handleApi"]
+      },
+      {
+        "requirement": "POST and PUT accept only envelope 3 references and explicit withdrawals, and return mutation response schemaVersion 3",
+        "path": "apps/client/tools/synthetic-api.mjs",
+        "functions": ["handleApi"]
+      },
+      {
+        "requirement": "identity and revision survive edit, reorder, omission, restore, withdrawal and explicit legacy conversion",
+        "path": "apps/client/tools/synthetic-api.mjs",
+        "functions": ["intakeSourceRows", "intakeRevisionRows", "intakeQuestionReferences", "handleApi"]
+      },
+      {
+        "requirement": "400 invalid_request, 403 forbidden and 409 conflict follow the frozen intake boundary",
+        "path": "apps/client/tools/synthetic-api.mjs",
+        "functions": ["handleApi"]
+      }
+    ],
+    "actuallyExecuted": true,
+    "execution": {
+      "command": "bun apps/client/tools/synthetic-preview.mjs --port 4173",
+      "observed": [
+        "The browser opened the first-intake screen through the synthetic API.",
+        "Create and save succeeded without an alert.",
+        "Omission kept the retained question visible with retained status and restore and withdrawal actions.",
+        "Restore reused the saved question and saved successfully.",
+        "Explicit withdrawal kept the original question visible, showed guidance and blocked an ambiguous follow-up save."
+      ]
+    }
+  },
+  "verification": {
+    "agentExecuted": [
+      {
+        "command": "pnpm exec vitest run --config vitest.config.ts src/business/intake.test.ts src/screens/participants.test.ts",
+        "result": "2 files passed, 33 tests passed"
+      },
+      {
+        "command": "pnpm typecheck",
+        "result": "tsc --noEmit exited 0 with no errors"
+      }
+    ],
+    "orchestratorReported": "The same two test files passed all 33 tests and tsc --noEmit reported no errors. The verification was not rerun for this report artifact."
+  },
+  "omissionSemantics": "Omitted retained questions stay in lifecycleRows with their immutable source revision, question ID and question revision. Empty references and nonanswer responses do not withdraw them. Only an explicit questionWithdrawals entry withdraws a question.",
+  "testFileReason": {
+    "path": "apps/client/src/screens/participants.test.ts",
+    "reason": "This existing file owns the versioned intake journey integration harness. Its intake section renders IntakeScreen and verifies the real UI-generated create, update, conversion, omission, restore, withdrawal and conflict payloads. No unrelated participant behavior was changed."
+  },
+  "gapsAndRisks": [
+    "Records-related CCC-290 synthetic fields were intentionally excluded and remain dependent on CCC-289.",
+    "No project-wide test suite, push, merge or deployment was run for this assignment."
+  ],
+  "ownership": {
+    "changedPaths": [
+      "apps/client/src/business/intake.ts",
+      "apps/client/src/business/intake-form.ts",
+      "apps/client/src/business/intake.test.ts",
+      "apps/client/src/screens/intake.tsx",
+      "apps/client/src/screens/participants.test.ts",
+      "apps/client/tools/synthetic-api.mjs"
+    ],
+    "outsideOwnedClientFilesModified": false,
+    "otherWorktreesModified": false,
+    "resultArtifactCommitted": false
+  }
+}

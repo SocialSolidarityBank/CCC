@@ -1,0 +1,61 @@
+{
+  "branch": "client/relayer-domain-beta",
+  "dirtyBefore": "git status --short at start: '?? artifacts/orchestration/' only (other agents' reports). No tracked file was dirty before my edits.",
+  "serverContract": {
+    "deliverySplit": "resolveAgentRuntime (request-handler.ts:1518-1531): manifest.mode === 'community-cloud' → audioDelivery 'protected-get', otherwise 'api-stream'.",
+    "cloudFlow": [
+      "POST /sessions/:sessionId/audio-upload-target (request-handler.ts:3220-3224 → handleAudioUploadTarget :2073-2138). JSON body keys exactly {contentLength:int 1..209715200, contentType: one of AUDIO_CONTENT_TYPES, clientAssertedSha256: 64-hex-or-null}. Success 201 {audioObjectId, url, expiresAt}, cache-control no-store.",
+      "PUT file bytes to the returned Supabase signed upload URL (upsert:false, minted by storage-signer.ts:268-306). No Authorization header; URL is the credential.",
+      "POST /sessions/:sessionId/audio-upload-target/:audioObjectId/complete (request-handler.ts:3225-3232 → handleAudioUploadCompletion :2140-2174). Success 200 = sessionResponse (Session minus audioR2Key)."
+    ],
+    "localFlow": "PUT /sessions/:sessionId/audio (request-handler.ts:3217-3219 → handleAudioUpload :2006-2071). Headers: content-type from AUDIO_CONTENT_TYPES, content-length required 1..209715200, optional x-ccc-audio-sha256 (64 lowercase hex). Success = sessionResponse.",
+    "audioContentTypes": "audio/mp4, audio/mpeg, audio/wav, audio/x-wav, audio/webm, audio/x-m4a (contracts/runtime.ts:11-18).",
+    "admission": "admitRecordingUpload (gateway.ts:8442-8471): session write access + program admission ('audio') + not-committed + sttEngine/readiness + consent gate. azure requires counseling_recording + external_stt_processing; local requires counseling_recording only.",
+    "denials": {
+      "engine_unavailable": "422 {error, jobId, retryable} — sttEngine/sttEngineId null or no STT readiness (gateway.ts:8452-8457; jobErrorHttpStatus → 422).",
+      "program_admission_required": "409 {error, reason} — program admission not ready or sttMode mismatch (gateway.ts:8455, 14008-14017).",
+      "consent_not_effective": "409 {error} — ConsentContractError from assertConsentGate (gateway.ts:8306).",
+      "invalid_request": "400 — ValidationError (bad content type/length/hash, non-in-person channel, approved session).",
+      "conflict": "409 — recording result already committed or intent no longer allowed.",
+      "forbidden": "403 — not the assigned counselor/admin.",
+      "service_unavailable": "503 — audio store or capabilities unavailable."
+    },
+    "lifecycle": "registerRecording sets aiStatus='uploaded' and returns the session (gateway.ts:6850-6927). eligibleAfter = next business day gate; retentionHardCapAt = uploaded + 7d. Neither is in the response body, so the screen shows the server-fixed wording only, no invented dates."
+  },
+  "apiFunction": {
+    "uploadAudio": "apps/client/src/business/records.ts:377-396 (RecordsApi.uploadAudio). Validates sessionId + file (MIME allowlist via audioContentType :409, size 1..209715200), then api-stream → transport.putFile or protected-get → POST target → transport.putSigned → POST complete.",
+    "transport": "apps/client/src/business/transport.ts:155 putFile (raw PUT through exchange, Bearer + 300s timeout), :168 putSigned (same-origin check against installation.apiBase, no Bearer). exchange extended at :67-84 with an optional raw body/contentType/timeout parameter; JSON callers unchanged.",
+    "errors": "apps/client/src/business/errors.ts:31 adds engine_unavailable message; :93 maps 422 {error:'engine_unavailable'} to it."
+  },
+  "screenLocation": {
+    "section": "apps/client/src/screens/records.tsx:541-588 AudioUploadSection, rendered at :699-700 inside RecordReviewScreen (route /participants/:b/programs/:c/records/:sessionId/review).",
+    "rationale": "Upload targets an existing session, so it needs a sessionId. The review route is the only per-session screen and already carries sessionId; the create screen has no sessionId until after save. The section renders only when draft === 'none' (no AI draft yet) and sttMode is 'local' or 'azure'.",
+    "entry": "RecordListScreen session rows get a '녹음 올리기' WireButton linking to the review route at :333-337, shown only when sttMode is local/azure.",
+    "contents": "status line (engine unset / agent not connected / can upload), file input (accept=AUDIO_ACCEPT), progress line ('올리는 중' + live WireEmpty), receipt line ('녹음을 받았습니다. 다음 영업일 처리 기회부터 전사됩니다…' — server-fixed wording, no invented date), denial line, safety note (deleted right after processing; unmasked original leaves to external STT on the azure route)."
+  },
+  "denialCopy": {
+    "engine_unavailable + sttEngine null": "이 설치는 아직 녹음 전사가 켜지지 않았습니다. 수기 기록으로 남겨 주세요.",
+    "engine_unavailable + sttEngine set": "녹음을 처리할 장비가 아직 준비되지 않았습니다. 잠시 뒤 다시 시도하거나 수기 기록으로 남겨 주세요.",
+    "consent_not_effective + sttMode azure": "녹음 동의와 외부 전사 처리 동의가 모두 필요합니다. 당사자 정보에서 두 동의를 확인한 뒤 다시 올려 주세요.",
+    "consent_not_effective + sttMode local": "녹음 동의가 확인되지 않아 올릴 수 없습니다. 당사자 정보에서 동의를 확인한 뒤 다시 올려 주세요.",
+    "program_admission_required": "이 사업의 도입 확인이 녹음 처리를 허용하지 않습니다. 사업 설정을 확인한 뒤 다시 시도해 주세요.",
+    "forbidden": "이 회차의 담당 실무자만 녹음을 올릴 수 있습니다.",
+    "conflict": "이미 처리가 끝났거나 다른 변경이 먼저 저장된 회차입니다.",
+    "invalid_request": "지원하지 않는 파일이거나 회차 상태가 맞지 않습니다. 대면 상담 회차의 200MB 이하 녹음 파일인지 확인해 주세요.",
+    "mapping": "audioDenialCopy at records.tsx:515-535; rendered in WireError (role=alert)."
+  },
+  "reusedComponents": {
+    "components": ["WireCardSection", "WireFormField", "WireButton", "WireError", "WireEmpty", "WireCallout"],
+    "classes": ["wire-section-value", "record-writing-help", "business-actions"],
+    "newComponents": 0,
+    "newCssClasses": 0
+  },
+  "checksRun": [
+    "pnpm --filter @ccc/client typecheck → tsc --noEmit, clean (2 runs).",
+    "pnpm --filter @ccc/client test → vitest run, 21 files / 246 tests passed."
+  ],
+  "renderCheck": "Existing headless harness: vitest + jsdom in apps/client/src/screens/records.test.ts ('audio upload entry' describe, lines 148-223). Renders RecordReviewScreen with sttMode azure: file input present, '지금 녹음을 올릴 수 있습니다' and safety lines visible; sttMode off → no file input; submit success → '녹음을 받았습니다' + '다음 영업일 처리 기회부터 전사됩니다'; six denial codes each show their own role=alert wording; local route consent denial omits '외부 전사'. No new harness was created; the synthetic-preview dev server was not used because its fixed manifest has sttMode 'off' and cannot show the section.",
+  "gitStatus": "M apps/client/src/business/errors.ts, M apps/client/src/business/records.ts, M apps/client/src/business/transport.ts, M apps/client/src/screens/records.test.ts, M apps/client/src/screens/records.tsx; ?? artifacts/orchestration/ (untracked, not committed). No packages/** or server file touched.",
+  "commit": "a67e00f feat(client): 회차 녹음 원음 업로드 진입을 기록 화면에 연다 — 5 files, +277/-6, pre-commit guards (db-gateway, core-imports, doc-numbers, secrets, token/align/hierarchy audits) all passed. No push.",
+  "blocked": null
+}
